@@ -1,0 +1,248 @@
+@import "tailwindcss";
+
+@theme {
+  /* Custom theme colors with th- prefix to avoid conflicts with Tailwind's palette */
+  /* These create utility classes like bg-th-bg, text-th-fg, bg-th-primary, etc. */
+  --color-th-bg: hsl(0 0% 100%);
+  --color-th-fg: hsl(0 0% 3.9%);
+  --color-th-card: hsl(0 0% 100%);
+  --color-th-card-fg: hsl(0 0% 3.9%);
+  --color-th-popover: hsl(0 0% 100%);
+  --color-th-popover-fg: hsl(0 0% 3.9%);
+  --color-th-primary: hsl(0 0% 9%);
+  --color-th-primary-fg: hsl(0 0% 98%);
+  --color-th-secondary: hsl(0 0% 96.1%);
+  --color-th-secondary-fg: hsl(0 0% 9%);
+  --color-th-muted: hsl(0 0% 96.1%);
+  --color-th-muted-fg: hsl(0 0% 45.1%);
+  --color-th-accent: hsl(0 0% 96.1%);
+  --color-th-accent-fg: hsl(0 0% 9%);
+  --color-th-destructive: hsl(0 84.2% 60.2%);
+  --color-th-destructive-fg: hsl(0 0% 98%);
+  --color-th-border: hsl(0 0% 89.8%);
+  --color-th-input: hsl(0 0% 89.8%);
+  --color-th-ring: hsl(0 0% 3.9%);
+  --color-th-success: hsl(142 71% 45%);
+  --color-th-success-fg: hsl(0 0% 100%);
+  --color-th-warning: hsl(38 92% 50%);
+  --color-th-warning-fg: hsl(0 0% 100%);
+  --color-th-info: hsl(199 89% 48%);
+  --color-th-info-fg: hsl(0 0% 100%);
+  --color-th-link: hsl(221 83% 53%);
+  --color-th-link-hover: hsl(221 83% 43%);
+  --color-th-phase0: hsl(142 71% 45%);
+  --color-th-phase1: hsl(271 69% 55%);
+  --color-th-phase2: hsl(32 95% 50%);
+  --color-th-phase3: hsl(0 72% 51%);
+  --color-th-phase4: hsl(248 53% 58%);
+  --radius: 0.5rem;
+}
+
+/* Apply theme to body */
+body {
+  background-color: var(--color-th-bg);
+  color: var(--color-th-fg);
+}
+
+/* Default border color */
+* {
+  border-color: var(--color-th-border);
+}
+
+/* Button variants */
+.btn-default {
+  background-color: var(--color-th-primary);
+  color: var(--color-th-primary-fg);
+}
+.btn-default:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-destructive {
+  background-color: var(--color-th-destructive);
+  color: var(--color-th-destructive-fg);
+}
+.btn-destructive:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+.btn-outline {
+  border-color: var(--color-th-input);
+  background-color: var(--color-th-bg);
+}
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--color-th-accent);
+  color: var(--color-th-accent-fg);
+}
+
+.btn-secondary {
+  background-color: var(--color-th-secondary);
+  color: var(--color-th-secondary-fg);
+}
+.btn-secondary:hover:not(:disabled) {
+  opacity: 0.8;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--color-th-accent);
+  color: var(--color-th-accent-fg);
+}
+
+.btn-link {
+  color: var(--color-th-primary);
+}
+
+/* Focus ring using theme color */
+.focus-visible\:ring-ring:focus-visible {
+  --tw-ring-color: var(--color-th-ring);
+}
+
+/* Muted text color utility */
+.text-muted-foreground {
+  color: var(--color-th-muted-fg);
+}
+
+/* Debate/literature styling */
+.debate-transcript,
+.literature-review-card {
+  h1 {
+    font-weight: 600;
+    font-size: 1.25rem;
+  }
+
+  h2 {
+    font-weight: 500;
+    font-size: 1.125rem;
+  }
+
+  h3 {
+    font-weight: 500;
+    font-size: 1.1rem;
+  }
+
+  h4 {
+    font-weight: 400;
+    font-size: 0.89rem;
+  }
+
+  h5 {
+    font-weight: 300;
+    font-size: 0.8rem;
+  }
+}
+
+.literature-review-card {
+  .articles-with-reasoning {
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    li {
+      padding-bottom: 1rem;
+    }
+  }
+}
+
+.reflection-analysis {
+p {
+  padding-bottom: 0.5rem;
+}
+ul {
+  list-style: none;
+}
+li {
+  padding-bottom: 0.5rem;
+  margin-left: 0.5rem;
+}
+}
+
+
+.debate-transcript {
+  p {
+    padding-bottom: 0.5rem;
+  }
+  ul {
+    list-style: disc;
+  }
+  li {
+    padding-bottom: 0.5rem;
+    margin-left: 0.5rem;
+  }
+}
+
+.debate-transcript {
+  hr {
+    margin: 0.5rem 0;
+  }
+}
+
+/* Debate chat bubble styling for markdown content */
+.debate-bubble {
+  p {
+    margin-bottom: 0.75rem;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+
+  ul, ol {
+    margin-bottom: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+  }
+
+  ol {
+    list-style: decimal;
+    padding-left: 1.5rem;
+  }
+
+  li {
+    margin-bottom: 0.5rem;
+  }
+
+  li:last-child {
+    margin-bottom: 0;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  h1:first-child, h2:first-child, h3:first-child,
+  h4:first-child, h5:first-child, h6:first-child {
+    margin-top: 0;
+  }
+
+  code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+  }
+
+  pre {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    margin-bottom: 0.75rem;
+  }
+
+  blockquote {
+    border-left: 3px solid rgba(0, 0, 0, 0.2);
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-bottom: 0.75rem;
+    font-style: italic;
+  }
+}

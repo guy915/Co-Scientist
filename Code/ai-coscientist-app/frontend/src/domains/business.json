@@ -1,0 +1,129 @@
+{
+  "id": "business",
+  "name": "Business Strategy",
+  "description": "business idea generation and evaluation",
+  "appName": "Business Strategy AI",
+  "appIcon": "Lightbulb",
+  "defaultTheme": "business",
+  "availableThemes": ["business", "light", "dark"],
+  "concepts": {
+    "item": {
+      "singular": "idea",
+      "plural": "ideas",
+      "Singular": "Idea",
+      "Plural": "Ideas",
+      "SINGULAR": "IDEA",
+      "PLURAL": "IDEAS"
+    },
+    "goal": {
+      "singular": "business goal",
+      "plural": "business goals",
+      "Singular": "Business Goal",
+      "Plural": "Business Goals"
+    },
+    "action": {
+      "verb": "generate",
+      "gerund": "generating",
+      "past": "generated",
+      "noun": "generation",
+      "Verb": "Generate",
+      "Gerund": "Generating",
+      "Past": "Generated",
+      "Noun": "Generation"
+    },
+    "process": {
+      "singular": "evaluation",
+      "plural": "evaluations",
+      "Singular": "Evaluation",
+      "Plural": "Evaluations"
+    },
+    "record": {
+      "singular": "refinement",
+      "plural": "refinements",
+      "Singular": "Refinement",
+      "Plural": "Refinements"
+    }
+  },
+  "agents": {
+    "Supervisor": "Strategy Supervisor",
+    "HypothesisGenerator": "{item.Singular} Generator",
+    "HypothesisReflector": "Peer Evaluator",
+    "HypothesisRanker": "{item.Singular} Ranker",
+    "RankingJudge": "Ranking Judge",
+    "MetaReviewer": "Meta Evaluator",
+    "HypothesisEvolver": "{item.Singular} Refiner",
+    "ProximityAnalyzer": "Similarity Analyzer",
+    "LiteratureReview": "Market Research",
+    "Reflection": "Market Analysis"
+  },
+  "phases": {
+    "initial_generation": "Initial {action.Noun}",
+    "iteration": "Iteration {n}"
+  },
+  "ui": {
+    "app_subtitle": "AI-Powered Business {item.Singular} {action.Noun}",
+    "page_title": "Business {item.Singular} {action.Noun}",
+    "form_title": "Business {item.Singular} {action.Noun}",
+    "form_description": "{action.Verb} business {item.plural} using AI-powered strategic analysis. This process takes 10-15 minutes.",
+    "input_label": "{goal.Singular}",
+    "input_placeholder": "Enter your {goal.singular}...",
+    "input_placeholder_example": "Example: Develop a sustainable business model for urban vertical farming. Focus on innovative {item.plural} that balance profitability with environmental impact. Prioritize scalability and market differentiation.",
+    "input_description": "Describe your {goal.singular} in natural language. You can also include:",
+    "input_preference_label": "Preferences",
+    "input_preference_example": "Desired approach or focus (e.g., \"Focus on disruptive {item.plural} with clear value propositions\")",
+    "input_attributes_label": "Attributes",
+    "input_attributes_example": "Key qualities to prioritize (e.g., \"Market viability, Scalability, Competitive advantage\")",
+    "input_constraints_label": "Constraints",
+    "input_constraints_example": "Requirements or boundaries (e.g., \"Must be implementable within current budget, should comply with industry regulations\")",
+    "input_context_label": "Context",
+    "input_context_example": "Related {item.plural}, market trends, or competitive landscape to consider",
+    "input_help_text": "All details are optional except the core {goal.singular}. Including additional context can help {action.verb} more targeted and relevant {item.plural}.",
+    "submit_button": "{action.Verb} {item.Plural}",
+    "cancel_button": "Cancel {action.Noun}",
+    "results_title": "{action.Past} {item.Plural} ({count})",
+    "results_goal_label": "{goal.Singular}",
+    "export_json": "Export JSON",
+    "export_csv": "Export CSV",
+    "export_markdown": "Export Markdown",
+    "evolved_label": "Refined {n}x",
+    "cluster_label": "Cluster",
+    "tournament_record": "Tournament Record",
+    "reviews_label": "{process.Plural}",
+    "evolution_history": "{record.Singular} History",
+    "generated_count": "{action.Past} {count} {item.Plural}",
+    "show_all": "Show All {count}",
+    "show_less": "Show Less",
+    "internal_debate_transcripts": "Internal Strategy Discussions",
+    "loading_start": "Starting {item.singular} {action.noun}...",
+    "loading_generating": "{action.Gerund} {item.plural} (this may take a few minutes)...",
+    "loading_complete": "Completed!",
+    "loading_cancelled": "{action.Noun} cancelled",
+    "evolved_count": "Refined {count} {item.singular}",
+    "hypothesis_label": "{item.Singular}",
+    "hypothesis_a_label": "{item.Singular} A",
+    "hypothesis_b_label": "{item.Singular} B"
+  },
+  "metrics": {
+    "items_generated": "{item.Plural} {action.Verb}d",
+    "reviews_count": "{process.Plural}",
+    "tournaments_count": "Tournaments",
+    "evolutions_count": "{record.Plural}",
+    "llm_calls": "LLM Calls"
+  },
+  "export": {
+    "csv_headers": {
+      "rank": "Rank",
+      "text": "Text",
+      "score": "Score",
+      "elo": "Elo Rating",
+      "wins": "Win Count",
+      "losses": "Loss Count"
+    },
+    "markdown": {
+      "title": "{item.Singular} {action.Noun} Results",
+      "goal_label": "{goal.Singular}",
+      "results_label": "Top {item.Plural}",
+      "tournament_label": "Tournament Record"
+    }
+  }
+}

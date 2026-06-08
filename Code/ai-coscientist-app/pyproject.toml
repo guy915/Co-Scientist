@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "open-coscientist-viewer"
+version = "0.1.0"
+description = "Open Coscientist Viewer is an open-source web application for running and monitoring the Open Coscientist multi-agent research system. It provides real-time tracking of hypothesis generation, review, ranking, evolution, and iterations."
+requires-python = ">=3.10"
+authors = [
+    {name = "Jataware", email = "info@jataware.com"}
+]
+
+dependencies = [
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "python-dotenv>=1.0.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "open-coscientist>=0.2.0"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+    "httpx>=0.25.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+# Pixi-specific configuration (https://pixi.sh)
+# Pixi reads [project.dependencies] and [project.optional-dependencies] above automatically.
+# Only pixi-specific overrides and extras go here.
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64", "linux-64"]
+
+[tool.pixi.tasks]
+dev = "python -m uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8008"
+start = "python -m uvicorn app.main:app --host 0.0.0.0 --port 8008"
+test = "pytest"
+format = "black . && ruff check --fix ."
+lint = "ruff check ."
+typecheck = "mypy ."
+
+[tool.pixi.dependencies]
+python = ">=3.10,<3.13"
+
+[tool.pixi.pypi-dependencies]
+open-coscientist-viewer = { path = ".", editable = true }
+
+[tool.pixi.environments]
+default = { features = ["dev"], solve-group = "default" }
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "I", "N", "W", "UP"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
