@@ -1,10 +1,10 @@
+import { ChevronDown, TrendingDown, TrendingUp, Trophy } from "lucide-react";
 import React, { useState } from "react";
-import { Trophy, ChevronDown, TrendingUp, TrendingDown } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { AgentOutput } from "@/types/agents";
-import { cn } from "@/lib/utils";
+import { Card } from "@/components/ui/card";
 import { useDomainText } from "@/hooks/useDomainText";
+import { cn } from "@/lib/utils";
+import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
 
 export interface RankingJudgeAgentProps {
@@ -79,13 +79,19 @@ function MatchupCard({ matchup, index, timestamp }: MatchupCardProps) {
                 <span className="font-medium">{t("hypothesis_a_label")}:</span>
                 {eloChangeWinner !== null && winner === "A" && (
                   <Badge variant="outline" className="text-xs text-th-success">
-                    <TrendingUp className="w-3 h-3 mr-1" style={{ color: "var(--color-green-500)" }} />
+                    <TrendingUp
+                      className="w-3 h-3 mr-1"
+                      style={{ color: "var(--color-green-500)" }}
+                    />
                     {matchup.winner_elo_before} → {matchup.winner_elo_after} (+{eloChangeWinner})
                   </Badge>
                 )}
                 {eloChangeLoser !== null && winner === "B" && (
                   <Badge variant="outline" className="text-xs text-th-destructive">
-                    <TrendingDown className="w-3 h-3 mr-1" style={{ color: "var(--color-red-500)" }} />
+                    <TrendingDown
+                      className="w-3 h-3 mr-1"
+                      style={{ color: "var(--color-red-500)" }}
+                    />
                     {matchup.loser_elo_before} → {matchup.loser_elo_after} ({eloChangeLoser})
                   </Badge>
                 )}
@@ -99,13 +105,19 @@ function MatchupCard({ matchup, index, timestamp }: MatchupCardProps) {
                 <span className="font-medium">{t("hypothesis_b_label")}:</span>
                 {eloChangeWinner !== null && winner === "B" && (
                   <Badge variant="outline" className="text-xs text-th-success">
-                    <TrendingUp className="w-3 h-3 mr-1" style={{ color: "var(--color-green-500)" }} />
+                    <TrendingUp
+                      className="w-3 h-3 mr-1"
+                      style={{ color: "var(--color-green-500)" }}
+                    />
                     {matchup.winner_elo_before} → {matchup.winner_elo_after} (+{eloChangeWinner})
                   </Badge>
                 )}
                 {eloChangeLoser !== null && winner === "A" && (
                   <Badge variant="outline" className="text-xs text-destructive">
-                    <TrendingDown className="w-3 h-3 mr-1" style={{ color: "var(--color-red-500)" }} />
+                    <TrendingDown
+                      className="w-3 h-3 mr-1"
+                      style={{ color: "var(--color-red-500)" }}
+                    />
                     {matchup.loser_elo_before} → {matchup.loser_elo_after} ({eloChangeLoser})
                   </Badge>
                 )}
@@ -133,7 +145,10 @@ export function RankingJudgeAgent({ output }: RankingJudgeAgentProps) {
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <Trophy className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("RankingJudge") }} />
+          <Trophy
+            className="w-5 h-5 shrink-0 mt-0.5"
+            style={{ color: getAgentColor("RankingJudge") }}
+          />
           <div className="flex-1">
             <p className="text-sm text-muted-foreground">Tournament in progress...</p>
           </div>

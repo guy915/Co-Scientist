@@ -56,8 +56,7 @@ export function EloTrajectoryChart({
       setTrack(m.loser_id, m.loser_elo_after);
     }
 
-    const titleFor = (id: string) =>
-      hypotheses.find((h) => h.id === id)?.title ?? id.slice(0, 8);
+    const titleFor = (id: string) => hypotheses.find((h) => h.id === id)?.title ?? id.slice(0, 8);
 
     return [...trajectories.entries()]
       .map(([id, trajectory]) => ({
@@ -92,7 +91,9 @@ export function EloTrajectoryChart({
 
   // Y-axis ticks (5).
   const ticks = 5;
-  const yTicks = [...Array(ticks)].map((_, i) => Math.round(minElo + (i / (ticks - 1)) * (maxElo - minElo)));
+  const yTicks = [...Array(ticks)].map((_, i) =>
+    Math.round(minElo + (i / (ticks - 1)) * (maxElo - minElo))
+  );
 
   return (
     <section
@@ -158,12 +159,7 @@ export function EloTrajectoryChart({
               <g key={s.hypothesisId}>
                 <path d={path} fill="none" stroke={color} strokeWidth={1.75} />
                 {/* Endpoint dot */}
-                <circle
-                  cx={x(s.trajectory.length - 1)}
-                  cy={y(s.finalElo)}
-                  r={3}
-                  fill={color}
-                />
+                <circle cx={x(s.trajectory.length - 1)} cy={y(s.finalElo)} r={3} fill={color} />
               </g>
             );
           })}

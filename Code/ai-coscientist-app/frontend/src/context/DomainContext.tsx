@@ -1,9 +1,10 @@
-import React, { createContext, useContext } from "react";
-import type { DomainConfig } from "@/domains/types";
-import scientificConfig from "@/domains/scientific.json";
+import type React from "react";
+import { createContext, useContext } from "react";
 import businessConfig from "@/domains/business.json";
-import militaryOrdersConfig from "@/domains/military_orders.json";
 import cybersecurityConfig from "@/domains/cybersecurity.json";
+import militaryOrdersConfig from "@/domains/military_orders.json";
+import scientificConfig from "@/domains/scientific.json";
+import type { DomainConfig } from "@/domains/types";
 
 // load domain config based on build-time environment variable
 // defaults to scientific if not set

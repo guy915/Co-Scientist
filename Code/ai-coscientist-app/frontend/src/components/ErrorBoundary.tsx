@@ -1,8 +1,9 @@
-import React, { Component } from "react";
-import type { ReactNode } from "react";
 import { AlertTriangle } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import type React from "react";
+import type { ReactNode } from "react";
+import { Component } from "react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -69,7 +70,9 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="p-4 bg-th-muted rounded-lg border border-th-destructive">
-                <p className="font-mono text-sm text-th-destructive">{this.state.error?.toString()}</p>
+                <p className="font-mono text-sm text-th-destructive">
+                  {this.state.error?.toString()}
+                </p>
               </div>
 
               {this.state.errorInfo && (

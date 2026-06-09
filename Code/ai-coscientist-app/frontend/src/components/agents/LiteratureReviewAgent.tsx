@@ -1,10 +1,10 @@
-import React, { useState } from "react";
 import { BookOpen, ChevronDown, ExternalLink, Info } from "lucide-react";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import type { AgentOutput } from "@/types/agents";
-import { cn } from "@/lib/utils";
+import React, { useState } from "react";
 import ReactMarkdown from "react-markdown";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
 
 interface Article {
@@ -48,7 +48,10 @@ export function LiteratureReviewAgent({ output }: LiteratureReviewAgentProps) {
   return (
     <Card className="p-4 literature-review-card">
       <div className="flex items-start gap-3">
-        <BookOpen className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("LiteratureReview") }} />
+        <BookOpen
+          className="w-5 h-5 shrink-0 mt-0.5"
+          style={{ color: getAgentColor("LiteratureReview") }}
+        />
         <div className="flex-1 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <h4 className="font-semibold">Literature Review</h4>
@@ -228,10 +231,14 @@ export function LiteratureReviewAgent({ output }: LiteratureReviewAgentProps) {
                                   [{key}]
                                 </span>
                                 <div className="space-y-1">
-                                  <span className="text-xs text-muted-foreground">{src.display}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {src.display}
+                                  </span>
                                   {toolLabel && (
                                     <div>
-                                      <Badge variant="secondary" className="text-xs">{toolLabel}</Badge>
+                                      <Badge variant="secondary" className="text-xs">
+                                        {toolLabel}
+                                      </Badge>
                                     </div>
                                   )}
                                 </div>

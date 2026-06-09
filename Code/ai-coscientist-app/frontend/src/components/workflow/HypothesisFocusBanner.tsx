@@ -1,4 +1,4 @@
-import { X, Pin } from "lucide-react";
+import { Pin, X } from "lucide-react";
 import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
 
 export function HypothesisFocusBanner() {
@@ -18,7 +18,9 @@ export function HypothesisFocusBanner() {
       }}
     >
       <Pin className="w-4 h-4 shrink-0" style={{ color: "var(--color-th-primary)" }} />
-      <span className="font-medium shrink-0" style={{ color: "var(--color-th-primary)" }}>Focused on:</span>
+      <span className="font-medium shrink-0" style={{ color: "var(--color-th-primary)" }}>
+        Focused on:
+      </span>
       <span className="flex-1 truncate text-th-fg">{preview}</span>
       <button
         onClick={unpin}

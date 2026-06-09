@@ -1,4 +1,4 @@
-import type { AgentOutput, AgentGroup } from "@/types/agents";
+import type { AgentGroup, AgentOutput } from "@/types/agents";
 import { formatAgentName } from "./agentFormatters";
 
 export interface PhaseInfo {

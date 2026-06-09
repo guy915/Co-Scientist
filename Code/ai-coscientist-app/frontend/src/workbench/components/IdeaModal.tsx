@@ -1,11 +1,6 @@
-import { useEffect, useMemo } from "react";
-import type {
-  CitationRow,
-  Evidence,
-  Hypothesis,
-  Review,
-} from "@/api/runs";
 import { X } from "lucide-react";
+import { useEffect, useMemo } from "react";
+import type { CitationRow, Evidence, Hypothesis, Review } from "@/api/runs";
 
 export function IdeaModal({
   hypothesis,
@@ -35,7 +30,7 @@ export function IdeaModal({
     [evidence]
   );
   const parent = hypothesis.parent_id
-    ? allHypotheses.find((h) => h.id === hypothesis.parent_id) ?? null
+    ? (allHypotheses.find((h) => h.id === hypothesis.parent_id) ?? null)
     : null;
   const children = allHypotheses.filter((h) => h.parent_id === hypothesis.id);
 
@@ -61,7 +56,10 @@ export function IdeaModal({
         >
           <div className="space-y-1">
             <h2 className="text-lg font-semibold leading-snug">{hypothesis.title}</h2>
-            <div className="flex flex-wrap gap-2 text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
+            <div
+              className="flex flex-wrap gap-2 text-xs"
+              style={{ color: "var(--color-th-muted-fg)" }}
+            >
               <span
                 className="px-1.5 py-0.5 rounded font-mono"
                 style={{ backgroundColor: "var(--color-th-secondary)" }}

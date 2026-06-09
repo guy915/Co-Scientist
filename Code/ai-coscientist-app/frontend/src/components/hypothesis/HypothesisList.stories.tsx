@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { HypothesisList } from "./HypothesisList";
 import { mockHypotheses } from "@/mocks/mockData";
+import { HypothesisList } from "./HypothesisList";
 
 const meta: Meta<typeof HypothesisList> = {
   title: "Hypothesis/HypothesisList",

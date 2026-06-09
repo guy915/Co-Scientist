@@ -1,21 +1,21 @@
-import React, { useState } from "react";
 import { Copy, Download, Trophy } from "lucide-react";
-import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import React, { useState } from "react";
+import { CitationList } from "@/components/hypothesis/CitationList";
+import { CitedText } from "@/components/hypothesis/CitedText";
+import { DomainCustomFields } from "@/components/hypothesis/DomainCustomFields";
 import {
   Accordion,
+  AccordionContent,
   AccordionItem,
   AccordionTrigger,
-  AccordionContent,
 } from "@/components/ui/accordion";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { useDomainText } from "@/hooks/useDomainText";
 import type { Hypothesis } from "@/types/hypothesis";
 import { copyToClipboard, exportToJSON } from "@/utils/exportUtils";
-import { useDomainText } from "@/hooks/useDomainText";
-import { CitedText } from "@/components/hypothesis/CitedText";
-import { CitationList } from "@/components/hypothesis/CitationList";
-import { DomainCustomFields } from "@/components/hypothesis/DomainCustomFields";
 
 export interface HypothesisCardProps {
   hypothesis: Hypothesis;

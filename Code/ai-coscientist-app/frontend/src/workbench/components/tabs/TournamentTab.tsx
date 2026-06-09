@@ -1,6 +1,6 @@
+import { ArrowRight, Trophy } from "lucide-react";
 import { useMemo } from "react";
 import type { Hypothesis, MatchRow } from "@/api/runs";
-import { ArrowRight, Trophy } from "lucide-react";
 import { EloTrajectoryChart } from "../EloTrajectoryChart";
 
 export function TournamentTab({
@@ -10,10 +10,7 @@ export function TournamentTab({
   matches: MatchRow[];
   hypotheses: Hypothesis[];
 }) {
-  const byId = useMemo(
-    () => Object.fromEntries(hypotheses.map((h) => [h.id, h])),
-    [hypotheses]
-  );
+  const byId = useMemo(() => Object.fromEntries(hypotheses.map((h) => [h.id, h])), [hypotheses]);
 
   const leaderboard = useMemo(
     () => [...hypotheses].sort((a, b) => b.elo_rating - a.elo_rating).slice(0, 10),
@@ -65,7 +62,8 @@ export function TournamentTab({
                     <span
                       className="text-[10px] font-mono px-1 py-0.5 rounded"
                       style={{
-                        backgroundColor: "color-mix(in srgb, var(--color-th-info) 18%, transparent)",
+                        backgroundColor:
+                          "color-mix(in srgb, var(--color-th-info) 18%, transparent)",
                         color: "var(--color-th-fg)",
                       }}
                       title={`${h.win_count} wins / ${h.loss_count} losses`}
@@ -116,21 +114,17 @@ export function TournamentTab({
                     >
                       iter {m.iteration}
                     </span>
-                    <span className="flex-1 truncate font-medium">
-                      {w?.title ?? m.winner_id}
-                    </span>
+                    <span className="flex-1 truncate font-medium">{w?.title ?? m.winner_id}</span>
                     <span
                       className="font-mono text-xs"
                       title={`+${wDelta} Elo`}
                       style={{ color: "var(--color-th-success)" }}
                     >
-                      {m.winner_elo_before} <ArrowRight className="w-3 h-3 inline" /> {m.winner_elo_after}
+                      {m.winner_elo_before} <ArrowRight className="w-3 h-3 inline" />{" "}
+                      {m.winner_elo_after}
                     </span>
                     <span style={{ color: "var(--color-th-muted-fg)" }}>·</span>
-                    <span
-                      className="flex-1 truncate"
-                      style={{ color: "var(--color-th-muted-fg)" }}
-                    >
+                    <span className="flex-1 truncate" style={{ color: "var(--color-th-muted-fg)" }}>
                       {l?.title ?? m.loser_id}
                     </span>
                     <span
@@ -138,14 +132,12 @@ export function TournamentTab({
                       title={`${lDelta} Elo`}
                       style={{ color: "var(--color-th-destructive)" }}
                     >
-                      {m.loser_elo_before} <ArrowRight className="w-3 h-3 inline" /> {m.loser_elo_after}
+                      {m.loser_elo_before} <ArrowRight className="w-3 h-3 inline" />{" "}
+                      {m.loser_elo_after}
                     </span>
                   </div>
                   {m.rationale && (
-                    <p
-                      className="text-xs mt-1"
-                      style={{ color: "var(--color-th-muted-fg)" }}
-                    >
+                    <p className="text-xs mt-1" style={{ color: "var(--color-th-muted-fg)" }}>
                       {m.rationale}
                     </p>
                   )}

@@ -1,7 +1,7 @@
-import React from "react";
 import { Network } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import React from "react";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
 
@@ -16,7 +16,10 @@ export function ProximityAnalyzerAgent({ output }: ProximityAnalyzerAgentProps) 
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <Network className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("ProximityAnalyzer") }} />
+        <Network
+          className="w-5 h-5 shrink-0 mt-0.5"
+          style={{ color: getAgentColor("ProximityAnalyzer") }}
+        />
         <div className="flex-1 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <h4 className="font-semibold">Deduplication Analysis</h4>

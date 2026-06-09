@@ -1,12 +1,12 @@
-import React, { useState } from "react";
 import { ChevronRight } from "lucide-react";
+import React, { useState } from "react";
+import { AgentDisplay } from "@/components/agents/AgentDisplay";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import type { AgentGroup as AgentGroupType } from "@/types/agents";
-import { getAgentIcon, getAgentColor, formatAgentName } from "@/utils/agentFormatters";
-import { cn } from "@/lib/utils";
-import { AgentDisplay } from "@/components/agents/AgentDisplay";
 import { useDomain } from "@/context/DomainContext";
+import { cn } from "@/lib/utils";
+import type { AgentGroup as AgentGroupType } from "@/types/agents";
+import { formatAgentName, getAgentColor, getAgentIcon } from "@/utils/agentFormatters";
 
 export interface AgentGroupProps {
   group: AgentGroupType;

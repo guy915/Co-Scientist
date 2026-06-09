@@ -8,7 +8,7 @@
 
 import { ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import type { CitationSource, PaperCitation, KGCitation } from "@/types/hypothesis";
+import type { CitationSource, KGCitation, PaperCitation } from "@/types/hypothesis";
 
 interface CitationListProps {
   citationMap: Record<string, CitationSource>;
@@ -103,9 +103,8 @@ function KGCitationItem({
   compact?: boolean;
 }) {
   const toolLabel =
-    source.tool_id
-      ?.replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase()) ?? "Knowledge Graph";
+    source.tool_id?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ??
+    "Knowledge Graph";
 
   return (
     <li className="pl-2">

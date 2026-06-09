@@ -1,5 +1,5 @@
-import type { Hypothesis } from "@/types/hypothesis";
 import type { DomainConfig } from "@/domains/types";
+import type { Hypothesis } from "@/types/hypothesis";
 import { getText } from "./domainResolver";
 
 /**

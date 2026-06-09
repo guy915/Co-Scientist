@@ -1,11 +1,11 @@
 import { Route, Routes } from "react-router-dom";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { ThemeProvider } from "./ThemeContext";
+import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
+import { Layout } from "./Layout";
 import { Dashboard } from "./pages/Dashboard";
 import { NewRun } from "./pages/NewRun";
 import { RunDetail } from "./pages/RunDetail";
-import { Layout } from "./Layout";
-import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
+import { ThemeProvider } from "./ThemeContext";
 
 function ShortcutsBridge() {
   useGlobalShortcuts();

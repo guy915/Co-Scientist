@@ -55,9 +55,8 @@ function TooltipCard({ source }: { source: CitationSource }) {
 
   // knowledge graph source
   const toolLabel =
-    source.tool_id
-      ?.replace(/_/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase()) ?? "Knowledge graph";
+    source.tool_id?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) ??
+    "Knowledge graph";
 
   return (
     <div className="absolute bottom-full left-0 mb-2 z-50 w-64 rounded-md border border-th-border bg-th-card shadow-lg p-2.5 text-xs pointer-events-none">
@@ -67,13 +66,7 @@ function TooltipCard({ source }: { source: CitationSource }) {
   );
 }
 
-function CitationChip({
-  citationKey,
-  source,
-}: {
-  citationKey: string;
-  source: CitationSource;
-}) {
+function CitationChip({ citationKey, source }: { citationKey: string; source: CitationSource }) {
   const [visible, setVisible] = useState(false);
   const isPaper = source.type === "paper";
   const url = isPaper ? source.url : undefined;
@@ -116,9 +109,7 @@ function CitationChip({
 }
 
 function UnresolvedKey({ citationKey }: { citationKey: string }) {
-  return (
-    <span className="font-mono text-xs text-th-muted-fg">[{citationKey}]</span>
-  );
+  return <span className="font-mono text-xs text-th-muted-fg">[{citationKey}]</span>;
 }
 
 export function CitedText({ text, citationMap, className }: CitedTextProps) {

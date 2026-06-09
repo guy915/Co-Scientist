@@ -1,22 +1,24 @@
+import {
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  MessageSquare,
+  Pin,
+  Sparkles,
+} from "lucide-react";
 import { useState } from "react";
-import { Pin } from "lucide-react";
-import { Sparkles, ChevronDown, ChevronUp, MessageSquare, BookOpen, FileText } from "lucide-react";
-import { getAgentIconColor } from "@/utils/themeColors";
-import { Card } from "@/components/ui/card";
+import { DebateTranscript } from "@/components/hypothesis/DebateTranscript";
+import { HypothesisDetails } from "@/components/hypothesis/HypothesisDetails";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import type { AgentOutput } from "@/types/agents";
-import { useDomainText } from "@/hooks/useDomainText";
+import { Card } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
+import { useDomainText } from "@/hooks/useDomainText";
+import type { AgentOutput } from "@/types/agents";
 import { isTrackedHypothesis } from "@/utils/hypothesisFocus";
-import { HypothesisDetails } from "@/components/hypothesis/HypothesisDetails";
-import { DebateTranscript } from "@/components/hypothesis/DebateTranscript";
+import { getAgentIconColor } from "@/utils/themeColors";
 
 export interface HypothesisGeneratorAgentProps {
   output: AgentOutput;
@@ -64,11 +66,18 @@ export function HypothesisGeneratorAgent({ output }: HypothesisGeneratorAgentPro
   const hypotheses = data?.hypotheses || [];
   const debateTranscripts = data?.debate_transcripts || [];
   const filteredHypotheses = pinnedText
-    ? hypotheses.filter((hyp: any) => isTracked(hyp.text || "") || isTracked(hyp.hypothesis || "") || isTrackedHypothesis(hyp, pinnedText))
+    ? hypotheses.filter(
+        (hyp: any) =>
+          isTracked(hyp.text || "") ||
+          isTracked(hyp.hypothesis || "") ||
+          isTrackedHypothesis(hyp, pinnedText)
+      )
     : hypotheses;
   const displayedHypotheses = pinnedText
     ? filteredHypotheses
-    : showAll ? hypotheses : hypotheses.slice(0, 3);
+    : showAll
+      ? hypotheses
+      : hypotheses.slice(0, 3);
 
   const toggleHypothesis = (index: number) => {
     const newExpanded = new Set(expandedHypotheses);
@@ -98,7 +107,9 @@ export function HypothesisGeneratorAgent({ output }: HypothesisGeneratorAgentPro
             <h4 className="font-semibold">
               {t("generated_count", undefined, { count: hypotheses.length })}
               {pinnedText && (
-                <span className="ml-2 text-xs font-normal text-th-muted-fg">(showing 1 of {hypotheses.length})</span>
+                <span className="ml-2 text-xs font-normal text-th-muted-fg">
+                  (showing 1 of {hypotheses.length})
+                </span>
               )}
             </h4>
             <Badge variant="outline" className="text-xs">
@@ -112,8 +123,11 @@ export function HypothesisGeneratorAgent({ output }: HypothesisGeneratorAgentPro
               // get the actual index in the full hypotheses array
               const actualIndex = hypotheses.indexOf(hyp);
               const isExpanded = expandedHypotheses.has(actualIndex);
-              const hasDetails = hyp.explanation || hyp.literature_grounding || hyp.experiment
-                || (hyp.papers_used && hyp.papers_used.length > 0);
+              const hasDetails =
+                hyp.explanation ||
+                hyp.literature_grounding ||
+                hyp.experiment ||
+                (hyp.papers_used && hyp.papers_used.length > 0);
               const transcript = findTranscript(hyp);
               const hasDebateTranscript = transcript && isDebateMethod(hyp.generation_method);
 
@@ -121,10 +135,14 @@ export function HypothesisGeneratorAgent({ output }: HypothesisGeneratorAgentPro
                 <div
                   key={actualIndex}
                   className="border rounded-md p-3"
-                  style={{ backgroundColor: "color-mix(in srgb, var(--color-th-muted) 50%, transparent)" }}
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--color-th-muted) 50%, transparent)",
+                  }}
                 >
                   <div className="flex items-start gap-2">
-                    <span className="text-sm font-semibold text-th-muted-fg mt-0.5">#{actualIndex + 1}</span>
+                    <span className="text-sm font-semibold text-th-muted-fg mt-0.5">
+                      #{actualIndex + 1}
+                    </span>
 
                     <div className="flex-1">
                       {/* Hypothesis text */}
@@ -137,11 +155,24 @@ export function HypothesisGeneratorAgent({ output }: HypothesisGeneratorAgentPro
                         {/* Pin/unpin button */}
                         <button
                           onClick={() =>
-                            pinnedText === (hyp.text || hyp.hypothesis || "").trim() ? unpin() : pin(hyp.text || hyp.hypothesis || "", hyp.hypothesis ? [hyp.hypothesis] : [])
+                            pinnedText === (hyp.text || hyp.hypothesis || "").trim()
+                              ? unpin()
+                              : pin(
+                                  hyp.text || hyp.hypothesis || "",
+                                  hyp.hypothesis ? [hyp.hypothesis] : []
+                                )
                           }
                           className="h-7 flex items-center gap-1 text-xs px-2 rounded hover:bg-th-muted transition-colors cursor-pointer"
-                          style={{ color: isTracked(hyp.text || hyp.hypothesis || "") ? "var(--color-th-primary)" : "var(--color-th-muted-fg)" }}
-                          title={isTracked(hyp.text || hyp.hypothesis || "") ? `Unpin ${item.singular}` : `Focus on this ${item.singular}`}
+                          style={{
+                            color: isTracked(hyp.text || hyp.hypothesis || "")
+                              ? "var(--color-th-primary)"
+                              : "var(--color-th-muted-fg)",
+                          }}
+                          title={
+                            isTracked(hyp.text || hyp.hypothesis || "")
+                              ? `Unpin ${item.singular}`
+                              : `Focus on this ${item.singular}`
+                          }
                         >
                           <Pin className="w-3 h-3" />
                           {isTracked(hyp.text || hyp.hypothesis || "") ? "Focused" : "Focus"}
@@ -149,7 +180,9 @@ export function HypothesisGeneratorAgent({ output }: HypothesisGeneratorAgentPro
                         {/* Generation method badge - inline with buttons */}
                         {hyp.generation_method && (
                           <Badge
-                            variant={isDebateMethod(hyp.generation_method) ? "default" : "secondary"}
+                            variant={
+                              isDebateMethod(hyp.generation_method) ? "default" : "secondary"
+                            }
                             className="w-fit text-xs flex items-center gap-1"
                           >
                             {isDebateMethod(hyp.generation_method) ? (
@@ -233,52 +266,56 @@ export function HypothesisGeneratorAgent({ output }: HypothesisGeneratorAgentPro
       </div>
 
       {/* Debate Transcript Dialog */}
-      <Dialog open={openTranscriptDialog !== null} onOpenChange={(open) => !open && setOpenTranscriptDialog(null)}>
+      <Dialog
+        open={openTranscriptDialog !== null}
+        onOpenChange={(open) => !open && setOpenTranscriptDialog(null)}
+      >
         <DialogContent className="max-w-4xl max-h-[80vh] flex flex-col">
-          {openTranscriptDialog !== null && (() => {
-            const hyp = hypotheses[openTranscriptDialog];
-            if (!hyp) {
+          {openTranscriptDialog !== null &&
+            (() => {
+              const hyp = hypotheses[openTranscriptDialog];
+              if (!hyp) {
+                return (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Debate Transcript</DialogTitle>
+                    </DialogHeader>
+                    <div className="text-sm text-muted-foreground">Hypothesis not found</div>
+                  </>
+                );
+              }
+
+              const transcript = findTranscript(hyp);
+              if (!transcript) {
+                return (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle>Debate {formatDebateId(hyp.debate_id)} Transcript</DialogTitle>
+                    </DialogHeader>
+                    <div className="text-sm text-muted-foreground">No transcript found</div>
+                  </>
+                );
+              }
+
               return (
                 <>
                   <DialogHeader>
-                    <DialogTitle>Debate Transcript</DialogTitle>
+                    <DialogTitle className="flex items-center gap-2 text-th-fg">
+                      <MessageSquare className="w-5 h-5" style={{ color: "var(--color-th-fg)" }} />
+                      Debate {formatDebateId(hyp.debate_id)} Transcript
+                    </DialogTitle>
                   </DialogHeader>
-                  <div className="text-sm text-muted-foreground">Hypothesis not found</div>
+                  <div className="overflow-y-auto flex-1 -mx-6 px-6">
+                    <DebateTranscript
+                      transcript={transcript.transcript}
+                      debateId={formatDebateId(hyp.debate_id)}
+                      hypothesisText={hyp.text}
+                      inDialog={true}
+                    />
+                  </div>
                 </>
               );
-            }
-
-            const transcript = findTranscript(hyp);
-            if (!transcript) {
-              return (
-                <>
-                  <DialogHeader>
-                    <DialogTitle>Debate {formatDebateId(hyp.debate_id)} Transcript</DialogTitle>
-                  </DialogHeader>
-                  <div className="text-sm text-muted-foreground">No transcript found</div>
-                </>
-              );
-            }
-
-            return (
-              <>
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2 text-th-fg">
-                    <MessageSquare className="w-5 h-5" style={{ color: "var(--color-th-fg)" }} />
-                    Debate {formatDebateId(hyp.debate_id)} Transcript
-                  </DialogTitle>
-                </DialogHeader>
-                <div className="overflow-y-auto flex-1 -mx-6 px-6">
-                  <DebateTranscript
-                    transcript={transcript.transcript}
-                    debateId={formatDebateId(hyp.debate_id)}
-                    hypothesisText={hyp.text}
-                    inDialog={true}
-                  />
-                </div>
-              </>
-            );
-          })()}
+            })()}
         </DialogContent>
       </Dialog>
     </Card>

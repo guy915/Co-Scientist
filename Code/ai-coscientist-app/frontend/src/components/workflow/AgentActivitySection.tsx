@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Card } from "@/components/ui/card";
-import { PhaseNavigation } from "./PhaseNavigation";
-import { PhaseGroup } from "./PhaseGroup";
-import { AgentGroup } from "./AgentGroup";
+import React, { useEffect, useRef, useState } from "react";
 import { AgentDisplay } from "@/components/agents/AgentDisplay";
+import { Card } from "@/components/ui/card";
 import type { AgentOutput } from "@/types/agents";
-import { groupByPhase, groupAgentsByType } from "@/utils/phaseDetection";
+import { groupAgentsByType, groupByPhase } from "@/utils/phaseDetection";
+import { AgentGroup } from "./AgentGroup";
+import { PhaseGroup } from "./PhaseGroup";
+import { PhaseNavigation } from "./PhaseNavigation";
 
 export interface AgentActivitySectionProps {
   agentOutputs: AgentOutput[];

@@ -1,4 +1,4 @@
-import type { Hypothesis, MatchRow, Evidence, RunWithSummary, SafetyDecision } from "@/api/runs";
+import type { Evidence, Hypothesis, MatchRow, RunWithSummary, SafetyDecision } from "@/api/runs";
 import type { StreamEvent } from "@/hooks/useRunStream";
 
 const AGENT_LABELS: Record<string, string> = {
@@ -102,7 +102,11 @@ export function OverviewTab({
       </div>
 
       <aside className="space-y-3">
-        <Stat label="Hypotheses" value={hypotheses.length} sub={`${initialCount} initial · ${evolvedCount} evolved`} />
+        <Stat
+          label="Hypotheses"
+          value={hypotheses.length}
+          sub={`${initialCount} initial · ${evolvedCount} evolved`}
+        />
         <Stat label="Top Elo" value={topElo} sub={`from ${matches.length} matches`} />
         <Stat label="Evidence sources" value={evidence.length} />
         <Stat
@@ -117,10 +121,14 @@ export function OverviewTab({
 
 function summarizeEventPayload(e: StreamEvent): string {
   const p = e.payload as Record<string, unknown>;
-  if (e.type === "generate") return `${(p.hypotheses as unknown[] | undefined)?.length ?? 0} initial hypotheses`;
-  if (e.type === "evolve") return `${(p.children as unknown[] | undefined)?.length ?? 0} evolved children`;
-  if (e.type === "ranking") return `iter ${p.iteration as number} · ${(p.matches as unknown[] | undefined)?.length ?? 0} matches`;
-  if (e.type === "literature_review") return `${(p.evidence as unknown[] | undefined)?.length ?? 0} sources`;
+  if (e.type === "generate")
+    return `${(p.hypotheses as unknown[] | undefined)?.length ?? 0} initial hypotheses`;
+  if (e.type === "evolve")
+    return `${(p.children as unknown[] | undefined)?.length ?? 0} evolved children`;
+  if (e.type === "ranking")
+    return `iter ${p.iteration as number} · ${(p.matches as unknown[] | undefined)?.length ?? 0} matches`;
+  if (e.type === "literature_review")
+    return `${(p.evidence as unknown[] | undefined)?.length ?? 0} sources`;
   if (e.type === "citation_audit")
     return `${p.verified as number} verified · ${p.partial as number} partial · ${p.unsupported as number} unsupported · ${p.unavailable as number} unavailable`;
   if (e.type === "safety.intake" || e.type === "safety.final") return String(p.decision ?? "");
@@ -157,7 +165,10 @@ function Stat({ label, value, sub }: { label: string; value: number | string; su
         backgroundColor: "var(--color-th-card)",
       }}
     >
-      <div className="text-xs uppercase tracking-wide" style={{ color: "var(--color-th-muted-fg)" }}>
+      <div
+        className="text-xs uppercase tracking-wide"
+        style={{ color: "var(--color-th-muted-fg)" }}
+      >
         {label}
       </div>
       <div className="text-2xl font-semibold mt-1">{value}</div>

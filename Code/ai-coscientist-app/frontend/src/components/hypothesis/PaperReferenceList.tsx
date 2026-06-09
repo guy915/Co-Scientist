@@ -24,9 +24,7 @@ function PaperItem({ paper, compact }: { paper: PaperReference; compact?: boolea
   return (
     <li className="pl-2">
       <div className="space-y-1">
-        <div className={compact ? "text-xs font-medium" : "font-medium"}>
-          {paper.title}
-        </div>
+        <div className={compact ? "text-xs font-medium" : "font-medium"}>{paper.title}</div>
 
         {(paper.authors?.length || paper.year) && (
           <div className="text-xs text-muted-foreground">
@@ -35,9 +33,7 @@ function PaperItem({ paper, compact }: { paper: PaperReference; compact?: boolea
           </div>
         )}
 
-        {paper.venue && (
-          <div className="text-xs text-muted-foreground italic">{paper.venue}</div>
-        )}
+        {paper.venue && <div className="text-xs text-muted-foreground italic">{paper.venue}</div>}
 
         <div className="flex flex-wrap gap-2 pt-1">
           {paper.url && (
@@ -83,7 +79,13 @@ export function PaperReferenceList({
 
   return (
     <div>
-      <h4 className={compact ? "text-sm font-semibold text-th-fg mb-1" : "text-sm font-semibold text-th-fg mb-2"}>
+      <h4
+        className={
+          compact
+            ? "text-sm font-semibold text-th-fg mb-1"
+            : "text-sm font-semibold text-th-fg mb-2"
+        }
+      >
         {heading}
       </h4>
       <ol className="space-y-3 text-sm">

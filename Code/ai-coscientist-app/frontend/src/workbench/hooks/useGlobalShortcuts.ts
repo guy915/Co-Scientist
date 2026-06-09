@@ -53,10 +53,12 @@ export function useGlobalShortcuts() {
       if (m && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
         const id = m[1];
         if (id === "new") return;
-        const current = (m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : "overview") as
-          (typeof TABS)[number];
+        const current = (
+          m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : "overview"
+        ) as (typeof TABS)[number];
         const idx = TABS.indexOf(current);
-        const next = e.key === "ArrowRight" ? Math.min(TABS.length - 1, idx + 1) : Math.max(0, idx - 1);
+        const next =
+          e.key === "ArrowRight" ? Math.min(TABS.length - 1, idx + 1) : Math.max(0, idx - 1);
         if (next !== idx) {
           e.preventDefault();
           const nextTab = TABS[next];

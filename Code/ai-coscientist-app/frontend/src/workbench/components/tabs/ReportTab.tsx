@@ -1,8 +1,8 @@
+import { AlertTriangle, Check, Copy, Download, FileText, Printer } from "lucide-react";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Report, SafetyDecision } from "@/api/runs";
 import { reportMarkdownUrl } from "@/api/runs";
-import { Download, FileText, AlertTriangle, Copy, Check, Printer } from "lucide-react";
 
 export function ReportTab({
   runId,

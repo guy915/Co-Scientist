@@ -1,6 +1,6 @@
+import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import { useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { MessageSquare, ChevronDown, ChevronUp } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 
 export interface DebateTranscriptProps {
@@ -51,7 +51,7 @@ function parseTranscript(transcript: string): Turn[] {
   const turns: Turn[] = [];
 
   let match;
-  let lastIndex = 0;
+  const lastIndex = 0;
   const matches: { index: number; number: number }[] = [];
 
   // find all turn markers
@@ -90,7 +90,7 @@ export function DebateTranscript({
   transcript,
   debateId,
   hypothesisText,
-  inDialog = false
+  inDialog = false,
 }: DebateTranscriptProps) {
   const { isDark } = useTheme();
   const turns = parseTranscript(transcript);
@@ -108,11 +108,7 @@ export function DebateTranscript({
   };
 
   if (turns.length === 0) {
-    return (
-      <div className="text-muted-foreground text-sm italic">
-        No debate turns found
-      </div>
-    );
+    return <div className="text-muted-foreground text-sm italic">No debate turns found</div>;
   }
 
   return (
@@ -125,18 +121,12 @@ export function DebateTranscript({
             </div>
             <div className="flex-1">
               {debateId !== undefined && (
-                <h4 className="text-sm font-semibold mb-2 text-th-fg">
-                  Debate {debateId}
-                </h4>
+                <h4 className="text-sm font-semibold mb-2 text-th-fg">Debate {debateId}</h4>
               )}
               {hypothesisText && (
                 <div className="bg-th-card rounded-md p-3 border border-th-border shadow-sm text-th-card-fg">
-                  <p className="text-xs font-medium mb-1 text-th-fg">
-                    Resulting Hypothesis:
-                  </p>
-                  <p className="text-sm leading-relaxed">
-                    {hypothesisText}
-                  </p>
+                  <p className="text-xs font-medium mb-1 text-th-fg">Resulting Hypothesis:</p>
+                  <p className="text-sm leading-relaxed">{hypothesisText}</p>
                 </div>
               )}
             </div>
@@ -147,12 +137,8 @@ export function DebateTranscript({
       {/* Simplified header for dialog */}
       {hypothesisText && inDialog && (
         <div className="mb-4 pb-4 border-b border-th-border">
-          <p className="text-xs font-medium mb-2 text-th-fg">
-            Resulting Hypothesis:
-          </p>
-          <p className="text-sm text-th-fg leading-relaxed">
-            {hypothesisText}
-          </p>
+          <p className="text-xs font-medium mb-2 text-th-fg">Resulting Hypothesis:</p>
+          <p className="text-sm text-th-fg leading-relaxed">{hypothesisText}</p>
         </div>
       )}
 
@@ -166,10 +152,7 @@ export function DebateTranscript({
           const colorScheme = turnColors[index % turnColors.length];
 
           return (
-            <div
-              key={index}
-              className={`flex ${isLeft ? "justify-start" : "justify-end"}`}
-            >
+            <div key={index} className={`flex ${isLeft ? "justify-start" : "justify-end"}`}>
               <div
                 className={`w-[85%] max-w-[85%] rounded-lg border border-th-border ${colorScheme.bg} ${
                   isLeft ? "mr-auto" : "ml-auto"

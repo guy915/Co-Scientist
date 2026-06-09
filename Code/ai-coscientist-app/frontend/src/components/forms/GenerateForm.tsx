@@ -1,20 +1,20 @@
-import { useState, useEffect, useRef } from "react";
-import { CheckCircle2, XCircle, AlertCircle, Upload } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { AlertCircle, CheckCircle2, Upload, XCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { getConfig, getSystemStatus, type SystemStatusResponse } from "@/api/client";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Collapsible } from "@/components/ui/collapsible";
+import { IconRenderer } from "@/components/ui/IconRenderer";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
-import { Collapsible } from "@/components/ui/collapsible";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import type { GenerateFormData } from "@/types/forms";
-import { getConfig, getSystemStatus, type SystemStatusResponse } from "@/api/client";
 import { useGenerationContext } from "@/context/GenerationContext";
-import { saveLastRunState } from "@/utils/statePersistence";
-import type { GenerationState } from "@/types/workflow";
 import { useDomainText } from "@/hooks/useDomainText";
-import { IconRenderer } from "@/components/ui/IconRenderer";
+import type { GenerateFormData } from "@/types/forms";
+import type { GenerationState } from "@/types/workflow";
+import { saveLastRunState } from "@/utils/statePersistence";
 
 interface GenerateFormProps {
   onSubmit: (data: GenerateFormData) => void;
@@ -144,7 +144,11 @@ export function GenerateForm({ onSubmit, isGenerating = false }: GenerateFormPro
     <Card className="w-full">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <IconRenderer icon={appIcon} className="w-5 h-5" style={{ color: "var(--color-th-primary)" }} />
+          <IconRenderer
+            icon={appIcon}
+            className="w-5 h-5"
+            style={{ color: "var(--color-th-primary)" }}
+          />
           {t("page_title")}
         </CardTitle>
         <CardDescription className="space-y-2">
@@ -158,9 +162,7 @@ export function GenerateForm({ onSubmit, isGenerating = false }: GenerateFormPro
                 target="_blank"
                 className="underline"
                 style={{ color: "var(--color-th-link)" }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "var(--color-th-link-hover)")
-                }
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-th-link-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "var(--color-th-link)")}
                 rel="noopener noreferrer"
                 href="https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/"
@@ -174,9 +176,7 @@ export function GenerateForm({ onSubmit, isGenerating = false }: GenerateFormPro
                 rel="noopener noreferrer"
                 className="underline"
                 style={{ color: "var(--color-th-link)" }}
-                onMouseEnter={(e) =>
-                  (e.currentTarget.style.color = "var(--color-th-link-hover)")
-                }
+                onMouseEnter={(e) => (e.currentTarget.style.color = "var(--color-th-link-hover)")}
                 onMouseLeave={(e) => (e.currentTarget.style.color = "var(--color-th-link)")}
               >
                 (paper)

@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { getSystemStatus, type SystemStatus } from "@/api/runs";
 
 export function MockBanner() {
@@ -47,9 +47,9 @@ export function MockBanner() {
       <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
       <span>
         <strong>Mock Mode</strong> — no LLM provider key detected. The workflow runs deterministic
-        offline data so the full UI surface is exercisable. Set{" "}
-        <code>GEMINI_API_KEY</code> / <code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code>{" "}
-        in <code>.env</code> to use the real engine.
+        offline data so the full UI surface is exercisable. Set <code>GEMINI_API_KEY</code> /{" "}
+        <code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to use the
+        real engine.
       </span>
     </div>
   );

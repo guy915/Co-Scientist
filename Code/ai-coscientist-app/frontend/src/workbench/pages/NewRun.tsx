@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createRun, startRun, type RunProfile } from "@/api/runs";
+import { createRun, type RunProfile, startRun } from "@/api/runs";
 
 const SUGGESTED = [
   "Identify novel mechanisms of selective autophagy in aging neural tissue.",
@@ -48,8 +48,8 @@ export function NewRun() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">New research run</h1>
         <p className="text-sm" style={{ color: "var(--color-th-muted-fg)" }}>
-          Frame a research goal. The supervisor will scope it, retrieve evidence, generate
-          candidate hypotheses, debate them in an Elo tournament, and synthesize a report.
+          Frame a research goal. The supervisor will scope it, retrieve evidence, generate candidate
+          hypotheses, debate them in an Elo tournament, and synthesize a report.
         </p>
       </header>
 
@@ -99,9 +99,7 @@ export function NewRun() {
               className="flex items-start gap-2 rounded border p-3 cursor-pointer"
               style={{
                 borderColor:
-                  profile === "standard"
-                    ? "var(--color-th-primary)"
-                    : "var(--color-th-border)",
+                  profile === "standard" ? "var(--color-th-primary)" : "var(--color-th-border)",
               }}
             >
               <input
@@ -122,9 +120,7 @@ export function NewRun() {
               className="flex items-start gap-2 rounded border p-3 cursor-pointer"
               style={{
                 borderColor:
-                  profile === "advanced"
-                    ? "var(--color-th-primary)"
-                    : "var(--color-th-border)",
+                  profile === "advanced" ? "var(--color-th-primary)" : "var(--color-th-border)",
               }}
             >
               <input

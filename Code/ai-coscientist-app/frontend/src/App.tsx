@@ -1,20 +1,20 @@
+import { Download } from "lucide-react";
 import { useEffect } from "react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { GenerationProvider } from "@/context/GenerationContext";
-import { DomainProvider } from "@/context/DomainContext";
-import { ThemeProvider } from "@/context/ThemeContext";
-import { HypothesisFocusProvider, useHypothesisFocus } from "@/context/HypothesisFocusContext";
-import { Header } from "@/components/layout/Header";
 import { GenerateForm } from "@/components/forms/GenerateForm";
-import { GeneratingHeader } from "@/components/workflow/GeneratingHeader";
-import { AgentActivitySection } from "@/components/workflow/AgentActivitySection";
-import { HypothesisFocusBanner } from "@/components/workflow/HypothesisFocusBanner";
 import { HypothesisList } from "@/components/hypothesis/HypothesisList";
+import { Header } from "@/components/layout/Header";
 import { Button } from "@/components/ui/button";
-import { Download } from "lucide-react";
-import { exportToJSON } from "@/utils/exportUtils";
+import { AgentActivitySection } from "@/components/workflow/AgentActivitySection";
+import { GeneratingHeader } from "@/components/workflow/GeneratingHeader";
+import { HypothesisFocusBanner } from "@/components/workflow/HypothesisFocusBanner";
+import { DomainProvider } from "@/context/DomainContext";
+import { GenerationProvider } from "@/context/GenerationContext";
+import { HypothesisFocusProvider, useHypothesisFocus } from "@/context/HypothesisFocusContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import { useHypothesisGeneration } from "@/hooks/useHypothesisGeneration";
 import type { GenerateFormData } from "@/types/forms";
+import { exportToJSON } from "@/utils/exportUtils";
 
 function AppContent() {
   const { state, startGeneration, cancelGeneration, resetGeneration } = useHypothesisGeneration();
@@ -96,10 +96,7 @@ function AppContent() {
                 borderColor: "var(--color-th-destructive)",
               }}
             >
-              <h3
-                className="font-semibold mb-2"
-                style={{ color: "var(--color-th-destructive)" }}
-              >
+              <h3 className="font-semibold mb-2" style={{ color: "var(--color-th-destructive)" }}>
                 Error
               </h3>
               <p className="text-sm" style={{ color: "var(--color-th-destructive)" }}>

@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useReducer, useEffect, ReactNode } from "react";
-import type { GenerationState } from "@/types/workflow";
+import type React from "react";
+import { createContext, type ReactNode, useContext, useEffect, useReducer } from "react";
 import type { AgentOutput } from "@/types/agents";
 import type { Hypothesis } from "@/types/hypothesis";
-import { saveLastRunState, loadLastRunState } from "@/utils/statePersistence";
+import type { GenerationState } from "@/types/workflow";
+import { loadLastRunState, saveLastRunState } from "@/utils/statePersistence";
 
 // Initial state
 const initialState: GenerationState = {

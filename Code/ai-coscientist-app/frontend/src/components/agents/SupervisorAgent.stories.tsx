@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { SupervisorAgent } from "./SupervisorAgent";
 import { mockAgentOutputs } from "@/mocks/mockData";
+import { SupervisorAgent } from "./SupervisorAgent";
 
 const meta: Meta<typeof SupervisorAgent> = {
   title: "Agents/SupervisorAgent",

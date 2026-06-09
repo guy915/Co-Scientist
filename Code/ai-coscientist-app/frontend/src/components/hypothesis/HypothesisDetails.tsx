@@ -1,8 +1,8 @@
 import React from "react";
-import type { CitationSource } from "@/types/hypothesis";
-import { CitedText } from "@/components/hypothesis/CitedText";
 import { CitationList } from "@/components/hypothesis/CitationList";
+import { CitedText } from "@/components/hypothesis/CitedText";
 import { DomainCustomFields } from "@/components/hypothesis/DomainCustomFields";
+import type { CitationSource } from "@/types/hypothesis";
 
 interface HypothesisDetailsProps {
   hypothesis: {
@@ -97,9 +97,7 @@ export function HypothesisDetails({
               ))}
             </div>
           ) : (
-            <p className="text-xs leading-relaxed whitespace-pre-wrap">
-              {hypothesis.experiment}
-            </p>
+            <p className="text-xs leading-relaxed whitespace-pre-wrap">{hypothesis.experiment}</p>
           )}
         </div>
       )}

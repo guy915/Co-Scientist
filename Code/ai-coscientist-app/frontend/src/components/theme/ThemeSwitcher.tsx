@@ -1,8 +1,8 @@
-import { Sun, Moon, Anchor, Briefcase, Waves } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
+import { Anchor, Briefcase, Moon, Sun, Waves } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/context/ThemeContext";
 import { themes } from "@/themes/themes";
-import type { LucideIcon } from "lucide-react";
 
 const themeIcons: Record<string, LucideIcon> = {
   light: Sun,

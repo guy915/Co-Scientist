@@ -1,9 +1,9 @@
-import { Download, Copy } from "lucide-react";
+import { Copy, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { HypothesisCard } from "./HypothesisCard";
-import type { Hypothesis } from "@/types/hypothesis";
-import { exportToJSON, exportToCSV, exportToMarkdown, copyToClipboard } from "@/utils/exportUtils";
 import { useDomainText } from "@/hooks/useDomainText";
+import type { Hypothesis } from "@/types/hypothesis";
+import { copyToClipboard, exportToCSV, exportToJSON, exportToMarkdown } from "@/utils/exportUtils";
+import { HypothesisCard } from "./HypothesisCard";
 
 export interface HypothesisListProps {
   hypotheses: Hypothesis[];

@@ -1,9 +1,9 @@
+import { ChevronDown, Star } from "lucide-react";
 import React, { useState } from "react";
-import { Star, ChevronDown } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { AgentOutput } from "@/types/agents";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
 
 export interface SupervisorAgentProps {

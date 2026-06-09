@@ -1,5 +1,5 @@
-import React from "react";
 import { ExternalLink } from "lucide-react";
+import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { useDomain } from "@/context/DomainContext";
 import type { CustomFieldConfig, FieldSubConfig } from "@/domains/types";
@@ -102,7 +102,13 @@ function ListCustomFieldSection({
 }) {
   return (
     <div>
-      <h4 className={compact ? "text-sm font-semibold text-th-fg mb-1" : "text-sm font-semibold text-th-fg mb-2"}>
+      <h4
+        className={
+          compact
+            ? "text-sm font-semibold text-th-fg mb-1"
+            : "text-sm font-semibold text-th-fg mb-2"
+        }
+      >
         {config.label}
       </h4>
       <div className="space-y-3">
@@ -111,9 +117,7 @@ function ListCustomFieldSection({
           return (
             <div key={idx} className="space-y-1 pl-2">
               {config.fields.map((field) => (
-                <React.Fragment key={field.key}>
-                  {renderSubField(record, field)}
-                </React.Fragment>
+                <React.Fragment key={field.key}>{renderSubField(record, field)}</React.Fragment>
               ))}
             </div>
           );
@@ -145,7 +149,11 @@ function TableCell({ value, field }: { value: string; field: FieldSubConfig }) {
     case "heading":
       return <span className="font-medium text-th-fg">{value}</span>;
     case "badge":
-      return <Badge variant="outline" className="text-xs">{value}</Badge>;
+      return (
+        <Badge variant="outline" className="text-xs">
+          {value}
+        </Badge>
+      );
     default:
       return <span className="text-th-muted-fg">{value}</span>;
   }
@@ -162,50 +170,56 @@ function TableCustomFieldSection({
 }) {
   return (
     <div className="max-w-[800px]">
-      <h4 className={compact ? "text-sm font-semibold text-th-fg mb-1" : "text-sm font-semibold text-th-fg mb-2"}>
+      <h4
+        className={
+          compact
+            ? "text-sm font-semibold text-th-fg mb-1"
+            : "text-sm font-semibold text-th-fg mb-2"
+        }
+      >
         {config.label}
       </h4>
       <table className="text-xs border-collapse">
-          <thead>
-            <tr className="border-b border-th-border">
-              {config.fields.map((col) => (
-                <th
-                  key={col.key}
-                  className="text-left pb-1.5 pr-4 font-semibold text-th-muted-fg whitespace-nowrap"
-                >
-                  <TableColumnHeader field={col} />
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => {
-              const record = item as Record<string, unknown>;
-              return (
-                <tr
-                  key={idx}
-                  className="border-b border-th-border/40 last:border-0 hover:bg-th-muted/40 transition-colors"
-                >
-                  {config.fields.map((col) => {
-                    const value = record[col.key];
-                    if (value === undefined || value === null) {
-                      return (
-                        <td key={col.key} className="py-1.5 pr-4 text-th-muted-fg">
-                          —
-                        </td>
-                      );
-                    }
+        <thead>
+          <tr className="border-b border-th-border">
+            {config.fields.map((col) => (
+              <th
+                key={col.key}
+                className="text-left pb-1.5 pr-4 font-semibold text-th-muted-fg whitespace-nowrap"
+              >
+                <TableColumnHeader field={col} />
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item, idx) => {
+            const record = item as Record<string, unknown>;
+            return (
+              <tr
+                key={idx}
+                className="border-b border-th-border/40 last:border-0 hover:bg-th-muted/40 transition-colors"
+              >
+                {config.fields.map((col) => {
+                  const value = record[col.key];
+                  if (value === undefined || value === null) {
                     return (
-                      <td key={col.key} className="py-1.5 pr-4 align-middle">
-                        <TableCell value={String(value)} field={col} />
+                      <td key={col.key} className="py-1.5 pr-4 text-th-muted-fg">
+                        —
                       </td>
                     );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  }
+                  return (
+                    <td key={col.key} className="py-1.5 pr-4 align-middle">
+                      <TableCell value={String(value)} field={col} />
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -232,7 +246,11 @@ function resolveFieldData(hypothesis: Record<string, unknown>, key: string): unk
   return null;
 }
 
-export function DomainCustomFields({ hypothesis, compact = false, location = "hypothesis" }: DomainCustomFieldsProps) {
+export function DomainCustomFields({
+  hypothesis,
+  compact = false,
+  location = "hypothesis",
+}: DomainCustomFieldsProps) {
   const { config } = useDomain();
   const customFields = config.customFields;
   if (!customFields || customFields.length === 0) return null;

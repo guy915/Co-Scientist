@@ -21,7 +21,7 @@ export interface PaperCitation {
 
 export interface KGCitation {
   type: "knowledge_graph";
-  display: string;  // e.g. "INDRA: KRAS → RAF1 [Activation] (belief: 0.95)"
+  display: string; // e.g. "INDRA: KRAS → RAF1 [Activation] (belief: 0.95)"
   tool_id?: string;
   data?: Record<string, unknown>;
 }

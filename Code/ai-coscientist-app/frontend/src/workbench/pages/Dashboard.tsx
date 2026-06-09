@@ -1,7 +1,15 @@
+import { Beaker, Plus, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { listRuns, getRun, type Run, type RunSummary, type RunStatus } from "@/api/runs";
-import { Plus, Beaker, Search } from "lucide-react";
+import {
+  getRun,
+  getSystemStatus,
+  listRuns,
+  type Run,
+  type RunStatus,
+  type RunSummary,
+  type SystemStatus,
+} from "@/api/runs";
 import { RunStatusPill } from "../components/RunStatusPill";
 
 function fmtDate(ts: number) {
@@ -21,9 +29,16 @@ type Filter = "all" | RunStatus;
 export function Dashboard() {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [summaries, setSummaries] = useState<Record<string, RunSummary>>({});
+  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
+
+  useEffect(() => {
+    void getSystemStatus()
+      .then(setSystemStatus)
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -106,11 +121,21 @@ export function Dashboard() {
             value={totals.running}
             sub={totals.running ? "in progress" : "no runs in progress"}
           />
-          <StatCard label="Hypotheses generated" value={totals.hypotheses} sub={`${totals.matches} matches`} />
           <StatCard
-            label="Provider mix"
-            value={totals.mock === totals.total ? "mock" : `${totals.mock}/${totals.total} mock`}
-            sub={totals.mock === totals.total ? "no LLM key set" : "mixed"}
+            label="Hypotheses generated"
+            value={totals.hypotheses}
+            sub={`${totals.matches} matches`}
+          />
+          <StatCard
+            label="Current mode"
+            value={systemStatus ? systemStatus.provider : "…"}
+            sub={
+              systemStatus
+                ? systemStatus.mock_mode
+                  ? "no LLM key set"
+                  : systemStatus.model_name
+                : undefined
+            }
           />
         </section>
       )}
@@ -120,7 +145,11 @@ export function Dashboard() {
           className="flex items-center gap-2 px-2.5 py-1.5 rounded border flex-1 min-w-[16rem]"
           style={{ borderColor: "var(--color-th-input)", backgroundColor: "var(--color-th-bg)" }}
         >
-          <Search className="w-4 h-4" style={{ color: "var(--color-th-muted-fg)" }} aria-hidden="true" />
+          <Search
+            className="w-4 h-4"
+            style={{ color: "var(--color-th-muted-fg)" }}
+            aria-hidden="true"
+          />
           <input
             type="search"
             value={query}
@@ -261,15 +290,7 @@ export function Dashboard() {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: number | string;
-  sub?: string;
-}) {
+function StatCard({ label, value, sub }: { label: string; value: number | string; sub?: string }) {
   return (
     <div
       className="rounded border p-3"

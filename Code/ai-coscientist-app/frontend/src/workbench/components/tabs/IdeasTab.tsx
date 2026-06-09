@@ -1,6 +1,6 @@
+import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { CitationRow, Hypothesis, Review } from "@/api/runs";
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 
 type SortKey = "elo" | "title" | "generation";
 
@@ -53,10 +53,8 @@ export function IdeasTab({
             onClick={() => setFilter(f)}
             className="px-2 py-0.5 rounded border capitalize transition-colors"
             style={{
-              borderColor:
-                filter === f ? "var(--color-th-primary)" : "var(--color-th-border)",
-              backgroundColor:
-                filter === f ? "var(--color-th-secondary)" : "transparent",
+              borderColor: filter === f ? "var(--color-th-primary)" : "var(--color-th-border)",
+              backgroundColor: filter === f ? "var(--color-th-secondary)" : "transparent",
               fontWeight: filter === f ? 600 : 400,
             }}
           >
@@ -74,10 +72,8 @@ export function IdeasTab({
             onClick={() => setSortKey(k)}
             className="px-2 py-0.5 rounded border capitalize transition-colors"
             style={{
-              borderColor:
-                sortKey === k ? "var(--color-th-primary)" : "var(--color-th-border)",
-              backgroundColor:
-                sortKey === k ? "var(--color-th-secondary)" : "transparent",
+              borderColor: sortKey === k ? "var(--color-th-primary)" : "var(--color-th-border)",
+              backgroundColor: sortKey === k ? "var(--color-th-secondary)" : "transparent",
               fontWeight: sortKey === k ? 600 : 400,
             }}
           >
@@ -160,8 +156,7 @@ function IdeaRow({
               <span
                 className="text-xs px-1.5 py-0.5 rounded"
                 style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--color-th-info) 18%, transparent)",
+                  backgroundColor: "color-mix(in srgb, var(--color-th-info) 18%, transparent)",
                 }}
               >
                 gen {h.generation}
@@ -172,8 +167,7 @@ function IdeaRow({
                 className="text-xs px-1.5 py-0.5 rounded font-mono"
                 title={`${h.win_count}W / ${h.loss_count}L`}
                 style={{
-                  backgroundColor:
-                    "color-mix(in srgb, var(--color-th-success) 14%, transparent)",
+                  backgroundColor: "color-mix(in srgb, var(--color-th-success) 14%, transparent)",
                 }}
               >
                 {winRate}%
@@ -186,10 +180,7 @@ function IdeaRow({
             )}
           </div>
           {!open && (
-            <p
-              className="text-xs mt-1 line-clamp-2"
-              style={{ color: "var(--color-th-muted-fg)" }}
-            >
+            <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--color-th-muted-fg)" }}>
               {h.statement}
             </p>
           )}
@@ -211,7 +202,10 @@ function IdeaRow({
               <strong>Expected effect:</strong> {h.expected_effect}
             </p>
           )}
-          <div className="flex items-center gap-3 text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
+          <div
+            className="flex items-center gap-3 text-xs"
+            style={{ color: "var(--color-th-muted-fg)" }}
+          >
             {reviews.length > 0 && (
               <span>
                 {reviews.length} review{reviews.length === 1 ? "" : "s"}

@@ -1,12 +1,12 @@
+import { ChevronDown, Eye } from "lucide-react";
 import React, { useState } from "react";
-import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
-import { Eye, ChevronDown } from "lucide-react";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import type { AgentOutput } from "@/types/agents";
-import { cn } from "@/lib/utils";
+import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
 import { useDomainText } from "@/hooks/useDomainText";
+import { cn } from "@/lib/utils";
+import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
 
 export interface HypothesisReflectorAgentProps {
@@ -79,7 +79,10 @@ function SingleReviewCard({
   return (
     <Card className="p-4 my-1.5">
       <div className="flex items-start gap-3">
-        <Eye className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("HypothesisReflector") }} />
+        <Eye
+          className="w-5 h-5 shrink-0 mt-0.5"
+          style={{ color: getAgentColor("HypothesisReflector") }}
+        />
         <div className="flex-1 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2">

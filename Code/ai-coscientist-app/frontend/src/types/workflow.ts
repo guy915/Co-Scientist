@@ -1,4 +1,4 @@
-import { Hypothesis } from "./hypothesis";
+import type { Hypothesis } from "./hypothesis";
 
 export interface GenerationState {
   status: "idle" | "generating" | "cancelling" | "completed" | "error" | "cancelled";

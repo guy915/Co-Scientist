@@ -1,5 +1,5 @@
-import { createContext, useContext, useState, useCallback } from "react";
 import type { ReactNode } from "react";
+import { createContext, useCallback, useContext, useState } from "react";
 
 interface HypothesisFocusContextValue {
   pinnedText: string | null;
@@ -27,7 +27,7 @@ export function HypothesisFocusProvider({ children }: { children: ReactNode }) {
 
   const pin = useCallback((text: string, extras: string[] = []) => {
     const trimmed = text.trim();
-    const seed = new Set([trimmed, ...extras.map(t => t.trim())].filter(Boolean));
+    const seed = new Set([trimmed, ...extras.map((t) => t.trim())].filter(Boolean));
     setPinnedText(trimmed);
     setTrackedTexts(seed);
   }, []);
@@ -40,7 +40,7 @@ export function HypothesisFocusProvider({ children }: { children: ReactNode }) {
   const trackEvolution = useCallback((originalText: string, evolvedText: string) => {
     const orig = originalText.trim();
     const evol = evolvedText.trim();
-    setTrackedTexts(prev => {
+    setTrackedTexts((prev) => {
       if (prev.has(orig) && !prev.has(evol)) {
         return new Set([...prev, evol]);
       }
@@ -48,12 +48,17 @@ export function HypothesisFocusProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const isTracked = useCallback((text: string) => {
-    return trackedTexts.has(text.trim());
-  }, [trackedTexts]);
+  const isTracked = useCallback(
+    (text: string) => {
+      return trackedTexts.has(text.trim());
+    },
+    [trackedTexts]
+  );
 
   return (
-    <HypothesisFocusContext.Provider value={{ pinnedText, trackedTexts, pin, unpin, trackEvolution, isTracked }}>
+    <HypothesisFocusContext.Provider
+      value={{ pinnedText, trackedTexts, pin, unpin, trackEvolution, isTracked }}
+    >
       {children}
     </HypothesisFocusContext.Provider>
   );

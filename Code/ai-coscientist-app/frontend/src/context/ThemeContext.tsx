@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
-import { getTheme, applyTheme, themes } from "@/themes/themes";
+import type React from "react";
+import { createContext, useContext, useEffect, useState } from "react";
+import { applyTheme, getTheme, themes } from "@/themes/themes";
 import { useDomain } from "./DomainContext";
 
 interface ThemeContextValue {

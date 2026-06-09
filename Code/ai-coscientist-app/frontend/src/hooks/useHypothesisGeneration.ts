@@ -1,16 +1,16 @@
 import { useCallback, useRef } from "react";
-import { useGenerationContext } from "@/context/GenerationContext";
 import {
-  startGeneration as apiStartGeneration,
-  generateHypotheses as apiGenerateHypotheses,
-  createStreamingURL,
   cancelGeneration as apiCancelGeneration,
+  generateHypotheses as apiGenerateHypotheses,
+  startGeneration as apiStartGeneration,
+  createStreamingURL,
 } from "@/api/client";
-import type { GenerateRequest } from "@/types/workflow";
+import { useGenerationContext } from "@/context/GenerationContext";
+import { useDomainText } from "@/hooks/useDomainText";
 import type { AgentOutput } from "@/types/agents";
+import type { GenerateRequest } from "@/types/workflow";
 import { normalizeHypotheses } from "@/utils/hypothesisUtils";
 import { calculateOverallProgress } from "@/utils/progressCalculator";
-import { useDomainText } from "@/hooks/useDomainText";
 
 /**
  * Hook for managing hypothesis generation with SSE streaming
@@ -197,7 +197,7 @@ export function useHypothesisGeneration() {
                       hypotheses: data.state.hypotheses || [],
                     };
                     break;
-                  case "review":
+                  case "review": {
                     // Get ALL hypotheses with reviews
                     const hypothesesWithReviews = (data.state.hypotheses || []).filter(
                       (h: any) => h.reviews && h.reviews.length > 0
@@ -223,6 +223,7 @@ export function useHypothesisGeneration() {
                       }),
                     };
                     break;
+                  }
                   case "rank":
                     parsedData = {
                       ranked_hypotheses: (data.state.hypotheses || [])
@@ -233,7 +234,7 @@ export function useHypothesisGeneration() {
                         })),
                     };
                     break;
-                  case "ranking":
+                  case "ranking": {
                     // Get the latest tournament matchup
                     const matchups = data.state.tournament_matchups || [];
                     if (matchups.length > 0) {
@@ -252,7 +253,8 @@ export function useHypothesisGeneration() {
                       };
                     }
                     break;
-                  case "meta_review":
+                  }
+                  case "meta_review": {
                     const metaReview = data.state.meta_review || {};
                     parsedData = {
                       summary: metaReview.summary,
@@ -265,7 +267,8 @@ export function useHypothesisGeneration() {
                       top_performers_analysis: metaReview.top_performers_analysis,
                     };
                     break;
-                  case "evolve":
+                  }
+                  case "evolve": {
                     // Get ALL evolution details, not just the latest
                     const evolutionDetails = data.state.evolution_details || [];
                     parsedData = {
@@ -277,6 +280,7 @@ export function useHypothesisGeneration() {
                           : t("loading_generating"),
                     };
                     break;
+                  }
                   case "proximity":
                     parsedData = {
                       similarity_clusters: data.state.similarity_clusters || [],

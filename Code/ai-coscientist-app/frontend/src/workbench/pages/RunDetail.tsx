@@ -1,7 +1,20 @@
+import {
+  Activity,
+  ArrowLeft,
+  Book,
+  Download,
+  FileText,
+  ListOrdered,
+  RefreshCcw,
+  Square,
+  Swords,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
+  type CitationRow,
   cancelRun,
+  type Evidence,
   getCitations,
   getEvidence,
   getHypotheses,
@@ -10,35 +23,22 @@ import {
   getReviews,
   getRun,
   getSafety,
-  reportMarkdownUrl,
-  type CitationRow,
-  type Evidence,
   type Hypothesis,
   type MatchRow,
   type Report,
   type Review,
   type RunWithSummary,
+  reportMarkdownUrl,
   type SafetyDecision,
 } from "@/api/runs";
-import { useRunStream, type StreamEvent } from "@/hooks/useRunStream";
-import {
-  ArrowLeft,
-  Download,
-  RefreshCcw,
-  Square,
-  ListOrdered,
-  Book,
-  Swords,
-  FileText,
-  Activity,
-} from "lucide-react";
-import { RunStatusPill } from "../components/RunStatusPill";
-import { OverviewTab } from "../components/tabs/OverviewTab";
-import { IdeasTab } from "../components/tabs/IdeasTab";
-import { EvidenceTab } from "../components/tabs/EvidenceTab";
-import { TournamentTab } from "../components/tabs/TournamentTab";
-import { ReportTab } from "../components/tabs/ReportTab";
+import { type StreamEvent, useRunStream } from "@/hooks/useRunStream";
 import { IdeaModal } from "../components/IdeaModal";
+import { RunStatusPill } from "../components/RunStatusPill";
+import { EvidenceTab } from "../components/tabs/EvidenceTab";
+import { IdeasTab } from "../components/tabs/IdeasTab";
+import { OverviewTab } from "../components/tabs/OverviewTab";
+import { ReportTab } from "../components/tabs/ReportTab";
+import { TournamentTab } from "../components/tabs/TournamentTab";
 
 const TABS = ["overview", "ideas", "evidence", "tournament", "report"] as const;
 type TabName = (typeof TABS)[number];
@@ -54,7 +54,9 @@ const TAB_ICONS: Record<TabName, typeof Activity> = {
 export function RunDetail() {
   const { id, tab } = useParams<{ id: string; tab?: string }>();
   const navigate = useNavigate();
-  const activeTab = (tab && (TABS as readonly string[]).includes(tab) ? tab : "overview") as TabName;
+  const activeTab = (
+    tab && (TABS as readonly string[]).includes(tab) ? tab : "overview"
+  ) as TabName;
 
   const [run, setRun] = useState<RunWithSummary | null>(null);
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
@@ -303,15 +305,11 @@ export function RunDetail() {
               onFocus={setFocusedHypId}
             />
           )}
-          {activeTab === "evidence" && (
-            <EvidenceTab evidence={evidence} citations={citations} />
-          )}
+          {activeTab === "evidence" && <EvidenceTab evidence={evidence} citations={citations} />}
           {activeTab === "tournament" && (
             <TournamentTab matches={matches} hypotheses={hypotheses} />
           )}
-          {activeTab === "report" && (
-            <ReportTab runId={id} report={report} safety={safety} />
-          )}
+          {activeTab === "report" && <ReportTab runId={id} report={report} safety={safety} />}
         </div>
       )}
 
@@ -332,9 +330,7 @@ export function RunDetail() {
           className="fixed bottom-4 right-4 z-50 rounded border px-3 py-2 text-sm shadow-lg wb-fade-in"
           style={{
             borderColor:
-              toast.type === "error"
-                ? "var(--color-th-destructive)"
-                : "var(--color-th-border)",
+              toast.type === "error" ? "var(--color-th-destructive)" : "var(--color-th-border)",
             backgroundColor: "var(--color-th-card)",
             color: "var(--color-th-fg)",
           }}

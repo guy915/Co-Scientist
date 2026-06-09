@@ -1,9 +1,9 @@
+import { Beaker, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
-import { Beaker, Plus } from "lucide-react";
 import { MockBanner } from "./components/MockBanner";
-import { ThemeToggle } from "./components/ThemeToggle";
 import { ShortcutsHint } from "./components/ShortcutsHint";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 export function Layout({ children }: { children: ReactNode }) {
   return (
@@ -40,9 +40,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <NavLink
               to="/"
               end
-              className={({ isActive }) =>
-                `hover:underline ${isActive ? "font-semibold" : ""}`
-              }
+              className={({ isActive }) => `hover:underline ${isActive ? "font-semibold" : ""}`}
             >
               Dashboard
             </NavLink>

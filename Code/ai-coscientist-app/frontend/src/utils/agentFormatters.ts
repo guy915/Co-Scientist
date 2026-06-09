@@ -1,18 +1,18 @@
 import {
-  Star,
-  Sparkles,
-  Eye,
   BarChart3,
-  Trophy,
   BookOpen,
-  RefreshCw,
-  Network,
-  Settings,
+  Eye,
   Lightbulb,
   type LucideIcon,
+  Network,
+  RefreshCw,
+  Settings,
+  Sparkles,
+  Star,
+  Trophy,
 } from "lucide-react";
-import { resolveTemplate } from "./domainResolver";
 import type { DomainConfig } from "@/domains/types";
+import { resolveTemplate } from "./domainResolver";
 
 /**
  * Get the icon component for a given agent name

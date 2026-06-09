@@ -1,9 +1,9 @@
-import React, { useState } from "react";
 import { BookOpen, ChevronDown } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import React, { useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { AgentOutput } from "@/types/agents";
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
 
 export interface MetaReviewerAgentProps {
@@ -17,7 +17,10 @@ export function MetaReviewerAgent({ output }: MetaReviewerAgentProps) {
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <BookOpen className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("MetaReviewer") }} />
+        <BookOpen
+          className="w-5 h-5 shrink-0 mt-0.5"
+          style={{ color: getAgentColor("MetaReviewer") }}
+        />
         <div className="flex-1 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <h4 className="font-semibold">Meta Review</h4>
@@ -70,7 +73,9 @@ export function MetaReviewerAgent({ output }: MetaReviewerAgentProps) {
                 Array.isArray(data.common_weaknesses) &&
                 data.common_weaknesses.length > 0 && (
                   <div>
-                    <h5 className="font-medium text-sm mb-1 text-th-destructive">Common Weaknesses</h5>
+                    <h5 className="font-medium text-sm mb-1 text-th-destructive">
+                      Common Weaknesses
+                    </h5>
                     {Array.isArray(data.common_weaknesses) ? (
                       <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
                         {data.common_weaknesses.map((weakness: string, index: number) => (

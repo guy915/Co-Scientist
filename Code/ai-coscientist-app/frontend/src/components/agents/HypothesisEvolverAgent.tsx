@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
-import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
-import { RefreshCw, ArrowDown, ChevronDown } from "lucide-react";
-import { Card } from "@/components/ui/card";
+import { ArrowDown, ChevronDown, RefreshCw } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
-import type { AgentOutput } from "@/types/agents";
+import { Card } from "@/components/ui/card";
+import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
 import { cn } from "@/lib/utils";
+import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
 
 export interface HypothesisEvolverAgentProps {
@@ -29,7 +29,10 @@ export function HypothesisEvolverAgent({ output }: HypothesisEvolverAgentProps) 
   return (
     <Card className="p-4">
       <div className="flex items-start gap-3">
-        <RefreshCw className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("HypothesisEvolver") }} />
+        <RefreshCw
+          className="w-5 h-5 shrink-0 mt-0.5"
+          style={{ color: getAgentColor("HypothesisEvolver") }}
+        />
         <div className="flex-1 space-y-3">
           <div className="flex items-start justify-between gap-2">
             <h4 className="font-semibold">Hypothesis Evolution</h4>

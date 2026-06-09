@@ -1,12 +1,32 @@
 import type { Hypothesis } from "@/types/hypothesis";
 
 const KNOWN_KEYS = new Set([
-  "text", "hypothesis", "explanation", "literature_grounding", "experiment",
-  "id", "hypothesis_id", "score", "elo_rating", "rank", "reviews",
-  "evolution_history", "similarity_cluster_id", "cluster_id", "reflection_notes",
-  "win_count", "loss_count", "total_matches", "win_rate", "justification",
-  "literature_review_used", "novelty_validation", "generation_method",
-  "debate_id", "papers_used", "enrichments",
+  "text",
+  "hypothesis",
+  "explanation",
+  "literature_grounding",
+  "experiment",
+  "id",
+  "hypothesis_id",
+  "score",
+  "elo_rating",
+  "rank",
+  "reviews",
+  "evolution_history",
+  "similarity_cluster_id",
+  "cluster_id",
+  "reflection_notes",
+  "win_count",
+  "loss_count",
+  "total_matches",
+  "win_rate",
+  "justification",
+  "literature_review_used",
+  "novelty_validation",
+  "generation_method",
+  "debate_id",
+  "papers_used",
+  "enrichments",
 ]);
 
 /**

@@ -1,5 +1,5 @@
 import { useDomain } from "@/context/DomainContext";
-import { getText, getConcept, resolveTemplate } from "@/utils/domainResolver";
+import { getConcept, getText, resolveTemplate } from "@/utils/domainResolver";
 
 /**
  * hook for accessing domain-specific text and terminology

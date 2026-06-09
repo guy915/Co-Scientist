@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { Keyboard, X } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const SHORTCUTS: { keys: string; description: string }[] = [
   { keys: "?", description: "Open this shortcut help" },
@@ -16,7 +16,10 @@ export function ShortcutsHint() {
     function onKey(e: KeyboardEvent) {
       // Don't capture when typing in inputs/textareas.
       const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+      if (
+        target &&
+        (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)
+      ) {
         return;
       }
       if (e.key === "?") {

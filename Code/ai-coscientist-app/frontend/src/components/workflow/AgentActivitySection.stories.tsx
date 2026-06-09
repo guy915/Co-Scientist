@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AgentActivitySection } from "./AgentActivitySection";
 import { mockAgentOutputs } from "@/mocks/mockData";
+import { AgentActivitySection } from "./AgentActivitySection";
 
 const meta: Meta<typeof AgentActivitySection> = {
   title: "Workflow/AgentActivitySection",

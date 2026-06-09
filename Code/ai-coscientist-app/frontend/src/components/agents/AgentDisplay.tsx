@@ -1,16 +1,16 @@
 import React from "react";
-import type { AgentOutput } from "@/types/agents";
-import { SupervisorAgent } from "./SupervisorAgent";
-import { LiteratureReviewAgent } from "./LiteratureReviewAgent";
-import { HypothesisGeneratorAgent } from "./HypothesisGeneratorAgent";
-import { ReflectionAgent } from "./ReflectionAgent";
-import { HypothesisReflectorAgent } from "./HypothesisReflectorAgent";
-import { HypothesisRankerAgent } from "./HypothesisRankerAgent";
-import { RankingJudgeAgent } from "./RankingJudgeAgent";
-import { MetaReviewerAgent } from "./MetaReviewerAgent";
-import { HypothesisEvolverAgent } from "./HypothesisEvolverAgent";
-import { ProximityAnalyzerAgent } from "./ProximityAnalyzerAgent";
 import { Card } from "@/components/ui/card";
+import type { AgentOutput } from "@/types/agents";
+import { HypothesisEvolverAgent } from "./HypothesisEvolverAgent";
+import { HypothesisGeneratorAgent } from "./HypothesisGeneratorAgent";
+import { HypothesisRankerAgent } from "./HypothesisRankerAgent";
+import { HypothesisReflectorAgent } from "./HypothesisReflectorAgent";
+import { LiteratureReviewAgent } from "./LiteratureReviewAgent";
+import { MetaReviewerAgent } from "./MetaReviewerAgent";
+import { ProximityAnalyzerAgent } from "./ProximityAnalyzerAgent";
+import { RankingJudgeAgent } from "./RankingJudgeAgent";
+import { ReflectionAgent } from "./ReflectionAgent";
+import { SupervisorAgent } from "./SupervisorAgent";
 
 export interface AgentDisplayProps {
   output: AgentOutput;

@@ -1,15 +1,15 @@
+import { ChevronDown, ChevronRight, Lightbulb } from "lucide-react";
 import React, { useState } from "react";
-import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
-import { isTrackedHypothesis } from "@/utils/hypothesisFocus";
-import { Lightbulb, ChevronDown, ChevronRight } from "lucide-react";
 import ReactMarkdown from "react-markdown";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import type { AgentOutput } from "@/types/agents";
-import { cn } from "@/lib/utils";
-import { HypothesisDetails } from "@/components/hypothesis/HypothesisDetails";
 import { DomainCustomFields } from "@/components/hypothesis/DomainCustomFields";
+import { HypothesisDetails } from "@/components/hypothesis/HypothesisDetails";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import { useHypothesisFocus } from "@/context/HypothesisFocusContext";
+import { cn } from "@/lib/utils";
+import type { AgentOutput } from "@/types/agents";
 import { getAgentColor } from "@/utils/agentFormatters";
+import { isTrackedHypothesis } from "@/utils/hypothesisFocus";
 
 export interface ReflectionAgentProps {
   output: AgentOutput;
@@ -40,13 +40,22 @@ export function ReflectionAgent({ output }: ReflectionAgentProps) {
   const hypothesesWithReflection = hypotheses
     .map((hyp: any, originalIndex: number) => ({ hyp, originalIndex }))
     .filter(({ hyp }: { hyp: any; originalIndex: number }) => hyp.reflection_notes)
-    .filter(({ hyp }: { hyp: any; originalIndex: number }) => !pinnedText || isTracked(hyp.text || "") || isTracked(hyp.hypothesis || "") || isTrackedHypothesis(hyp, pinnedText));
+    .filter(
+      ({ hyp }: { hyp: any; originalIndex: number }) =>
+        !pinnedText ||
+        isTracked(hyp.text || "") ||
+        isTracked(hyp.hypothesis || "") ||
+        isTrackedHypothesis(hyp, pinnedText)
+    );
 
   if (hypothesesWithReflection.length === 0) {
     return (
       <Card className="p-4">
         <div className="flex items-start gap-3">
-          <Lightbulb className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("Reflection") }} />
+          <Lightbulb
+            className="w-5 h-5 shrink-0 mt-0.5"
+            style={{ color: getAgentColor("Reflection") }}
+          />
           <div className="flex-1 space-y-3">
             <div className="flex items-start justify-between gap-2">
               <h4 className="font-semibold">Reflection Observations</h4>
@@ -64,11 +73,13 @@ export function ReflectionAgent({ output }: ReflectionAgentProps) {
   }
 
   // parse classifications for all reflections
-  const reflectionSummaries = hypothesesWithReflection.map(({ hyp, originalIndex }: { hyp: any; originalIndex: number }) => {
-    const classificationMatch = hyp.reflection_notes?.match(/Classification:\s*(.+?)(?:\n|$)/i);
-    const classification = classificationMatch ? classificationMatch[1].trim() : "neutral";
-    return { hypothesisNumber: originalIndex + 1, classification, hypothesis: hyp };
-  });
+  const reflectionSummaries = hypothesesWithReflection.map(
+    ({ hyp, originalIndex }: { hyp: any; originalIndex: number }) => {
+      const classificationMatch = hyp.reflection_notes?.match(/Classification:\s*(.+?)(?:\n|$)/i);
+      const classification = classificationMatch ? classificationMatch[1].trim() : "neutral";
+      return { hypothesisNumber: originalIndex + 1, classification, hypothesis: hyp };
+    }
+  );
 
   return (
     <Card className="p-0 overflow-hidden">
@@ -78,7 +89,10 @@ export function ReflectionAgent({ output }: ReflectionAgentProps) {
         className="w-full px-4 py-3 flex items-center justify-between gap-3 hover:bg-th-muted transition-colors text-left"
       >
         <div className="flex items-start gap-3 flex-1">
-          <Lightbulb className="w-5 h-5 shrink-0 mt-0.5" style={{ color: getAgentColor("Reflection") }} />
+          <Lightbulb
+            className="w-5 h-5 shrink-0 mt-0.5"
+            style={{ color: getAgentColor("Reflection") }}
+          />
           <div className="flex-1">
             <h4 className="font-semibold">
               Reflection Observations ({hypothesesWithReflection.length} Hypotheses)
@@ -90,7 +104,10 @@ export function ReflectionAgent({ output }: ReflectionAgentProps) {
             {new Date(output.timestamp).toLocaleTimeString()}
           </Badge>
           <ChevronRight
-            className={cn("w-4 h-4 transition-transform text-th-muted-fg", showDetails && "rotate-90")}
+            className={cn(
+              "w-4 h-4 transition-transform text-th-muted-fg",
+              showDetails && "rotate-90"
+            )}
           />
         </div>
       </button>
@@ -114,9 +131,15 @@ export function ReflectionAgent({ output }: ReflectionAgentProps) {
         {/* Detailed view - expanded */}
         {showDetails && (
           <div className="space-y-3 pt-3">
-            {hypothesesWithReflection.map(({ hyp, originalIndex }: { hyp: any; originalIndex: number }) => (
-              <ReflectionItem key={originalIndex} hypothesis={hyp} hypothesisNumber={originalIndex + 1} />
-            ))}
+            {hypothesesWithReflection.map(
+              ({ hyp, originalIndex }: { hyp: any; originalIndex: number }) => (
+                <ReflectionItem
+                  key={originalIndex}
+                  hypothesis={hyp}
+                  hypothesisNumber={originalIndex + 1}
+                />
+              )
+            )}
           </div>
         )}
       </div>
