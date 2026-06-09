@@ -118,15 +118,24 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
         json_schema=schema,
     )
 
+    # Schema returns recurring_themes as objects {theme, description, frequency}; flatten to strings.
+    recurring_themes = response.get("recurring_themes", [])
+    emerging_themes = [
+        t["theme"] if isinstance(t, dict) else str(t) for t in recurring_themes
+    ]
+
+    # process_assessment covers generation/review/evolution process notes.
+    process = response.get("process_assessment") or {}
+
     meta_review = {
-        "summary": response.get("synthesis_summary", ""),
-        "common_strengths": response.get("common_strengths", []),
-        "common_weaknesses": response.get("common_weaknesses", []),
-        "emerging_themes": response.get("emerging_themes", []),
+        "summary": response.get("meta_review_summary", ""),
+        "common_strengths": response.get("strengths", []),
+        "common_weaknesses": response.get("weaknesses", []),
+        "emerging_themes": emerging_themes,
         "strategic_recommendations": response.get("strategic_recommendations", []),
-        "diversity_assessment": response.get("diversity_assessment", ""),
-        "top_performers_analysis": response.get("top_performers_analysis", ""),
-        "areas_for_improvement": response.get("areas_for_improvement", []),
+        "diversity_assessment": process.get("generation_process", ""),
+        "top_performers_analysis": process.get("review_process", ""),
+        "areas_for_improvement": response.get("weaknesses", []),
     }
 
     logger.info("Meta-review complete")

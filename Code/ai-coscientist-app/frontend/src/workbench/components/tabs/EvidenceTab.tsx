@@ -79,10 +79,14 @@ export function EvidenceTab({
   if (!evidence.length) {
     return (
       <div
-        className="rounded border p-6 text-sm text-center"
+        className="rounded border p-6 text-sm text-center space-y-1"
         style={{ borderColor: "var(--color-th-border)", color: "var(--color-th-muted-fg)" }}
       >
-        Retrieved evidence appears here once the literature review node runs.
+        <p>No evidence retrieved for this run.</p>
+        <p className="text-xs opacity-75">
+          Literature review requires an MCP server (PubMed / INDRA). Without one the engine
+          generates hypotheses from the model's training data only.
+        </p>
       </div>
     );
   }

@@ -389,14 +389,38 @@ async def run_workflow(
         ]
         for entry in leaderboard:
             md_lines.append(f"{entry['rank']}. **{entry['title']}** — Elo {entry['elo']}")
-        if final_state.get("meta_review"):
+        meta = final_state.get("meta_review") or {}
+        if meta and isinstance(meta, dict):
             md_lines.append("\n## Meta-review insights\n")
-            meta = final_state["meta_review"]
-            if isinstance(meta, dict):
-                for k, v in list(meta.items())[:5]:
-                    md_lines.append(f"- **{k}:** {str(v)[:200]}")
-            else:
-                md_lines.append(str(meta)[:500])
+
+            if meta.get("summary"):
+                md_lines.append(f"{meta['summary']}\n")
+
+            for section_key, heading in (
+                ("common_strengths", "### Common strengths"),
+                ("common_weaknesses", "### Common weaknesses"),
+                ("emerging_themes", "### Emerging themes"),
+                ("areas_for_improvement", "### Areas for improvement"),
+            ):
+                items = meta.get(section_key) or []
+                if items:
+                    md_lines.append(f"\n{heading}\n")
+                    for item in items:
+                        md_lines.append(f"- {item}")
+
+            recs = meta.get("strategic_recommendations") or []
+            if recs:
+                md_lines.append("\n### Strategic recommendations\n")
+                for rec in recs:
+                    if isinstance(rec, dict):
+                        area = rec.get("focus_area", "")
+                        recommendation = rec.get("recommendation", "")
+                        justification = rec.get("justification", "")
+                        md_lines.append(f"**{area}**: {recommendation}")
+                        if justification:
+                            md_lines.append(f"  *{justification}*")
+                    else:
+                        md_lines.append(f"- {rec}")
         markdown = "\n".join(md_lines)
 
         store.save_report(run_id, report_payload, markdown, db_path=db_path)
