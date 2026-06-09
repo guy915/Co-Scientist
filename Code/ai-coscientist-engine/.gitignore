@@ -26,6 +26,7 @@ venv/
 ENV/
 env/
 .venv
+.venv*/
 
 # IDEs
 .vscode/
@@ -65,3 +66,4 @@ logs/
 *.bak
 *.orig
 cache/
+paper_cache/
