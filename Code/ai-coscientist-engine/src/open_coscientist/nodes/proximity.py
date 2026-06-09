@@ -38,9 +38,12 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
     hypotheses = state["hypotheses"]
     logger.info(f"Analyzing proximity of {len(hypotheses)} hypotheses")
 
+    current_iteration = state.get("current_iteration", 0)
+    next_iteration = current_iteration + 1
+
     if len(hypotheses) <= 1:
         logger.info("Not enough hypotheses for proximity analysis")
-        return {"hypotheses": hypotheses}
+        return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
     # Emit progress
     if state.get("progress_callback"):
@@ -91,7 +94,7 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
 
     if not similarity_clusters:
         logger.warning("No similarity clusters returned, skipping deduplication")
-        return {"hypotheses": hypotheses}
+        return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
     # Assign cluster IDs to hypotheses
     for cluster in similarity_clusters:
@@ -194,10 +197,6 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
 
     # Update removed duplicates list
     all_removed_duplicates = state.get("removed_duplicates", []) + removed_duplicates
-
-    # Increment iteration counter (proximity happens at end of each iteration cycle)
-    current_iteration = state.get("current_iteration", 0)
-    next_iteration = current_iteration + 1
 
     return {
         "hypotheses": hypotheses_to_keep,
