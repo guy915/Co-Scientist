@@ -112,7 +112,7 @@ export function NewRun() {
               <span>
                 <div className="font-medium">Standard</div>
                 <div className="text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
-                  Fast scoping. 5 hypotheses, 1 iteration of evolve, 6 tournament pairs.
+                  Fast scoping. 5 hypotheses, evolve all, 1 iteration, ~10 min.
                 </div>
               </span>
             </label>
@@ -133,7 +133,7 @@ export function NewRun() {
               <span>
                 <div className="font-medium">Advanced</div>
                 <div className="text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
-                  Deeper run. 8 hypotheses, 2 iterations, 12 tournament pairs, more evidence.
+                  Deeper run. 8 hypotheses, evolve all, 2 iterations, ~25 min.
                 </div>
               </span>
             </label>

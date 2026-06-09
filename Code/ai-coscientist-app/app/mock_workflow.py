@@ -45,14 +45,14 @@ PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
     "standard": {
         "initial_hypotheses_count": 5,
         "max_iterations": 1,
-        "evolution_max_count": 2,
+        "evolution_max_count": 5,
         "tournament_pairs": 6,
         "evidence_count": 4,
     },
     "advanced": {
         "initial_hypotheses_count": 8,
         "max_iterations": 2,
-        "evolution_max_count": 3,
+        "evolution_max_count": 8,
         "tournament_pairs": 12,
         "evidence_count": 8,
     },

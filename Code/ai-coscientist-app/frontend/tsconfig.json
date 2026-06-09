@@ -35,6 +35,8 @@
     "src/themes/**/*",
     "src/lib/**/*",
     "src/components/ui/**/*",
-    "src/types/**/*.d.ts"
+    "src/types/**/*.d.ts",
+    "src/workbench/components/LogConsole.tsx",
+    "src/workbench/Layout.tsx"
   ]
 }

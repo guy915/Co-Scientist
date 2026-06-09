@@ -116,6 +116,84 @@ async def run_workflow(
             yield event
         return
 
+    # DeepSeek doesn't support response_format=json_schema. Two patches are needed:
+    # 1. acompletion: downgrade json_schema → json_object and inject schema as prompt text.
+    # 2. validate_json_schema: fill in default values for any fields DeepSeek still omits,
+    #    so schema validation doesn't abort the run over missing nested keys like
+    #    performance_assessment.agent_performance.reflection_agent.
+    model_name_env = os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash")
+    if "deepseek" in model_name_env.lower():
+        try:
+            import json as _json
+            import litellm as _litellm  # type: ignore[import-untyped]
+            import open_coscientist.llm as _oc_llm  # type: ignore[import-untyped]
+
+            # --- patch 1: acompletion ---
+            _orig_acompletion = _litellm.acompletion
+
+            async def _patched_acompletion(**kwargs: Any) -> Any:
+                rf = kwargs.get("response_format")
+                if isinstance(rf, dict) and rf.get("type") == "json_schema":
+                    schema_def = rf.get("json_schema", {})
+                    actual_schema = schema_def.get("schema", schema_def)
+                    schema_str = _json.dumps(actual_schema, indent=2)
+                    messages = kwargs.get("messages") or []
+                    new_messages = [dict(m) for m in messages]
+                    for i in range(len(new_messages) - 1, -1, -1):
+                        if new_messages[i].get("role") == "user":
+                            new_messages[i] = dict(new_messages[i])
+                            new_messages[i]["content"] = (
+                                str(new_messages[i].get("content", ""))
+                                + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
+                                "Your output MUST strictly match this JSON schema "
+                                "(all required fields must be present):\n"
+                                + schema_str
+                            )
+                            break
+                    kwargs = dict(kwargs)
+                    kwargs["messages"] = new_messages
+                    kwargs["response_format"] = {"type": "json_object"}
+                return await _orig_acompletion(**kwargs)
+
+            _litellm.acompletion = _patched_acompletion
+
+            # --- patch 2: validate_json_schema — fill defaults before validation ---
+            _orig_validate = _oc_llm.validate_json_schema
+
+            def _fill_schema_defaults(obj: Any, schema: dict[str, Any]) -> None:
+                """Recursively fill missing required fields with empty defaults."""
+                if not isinstance(obj, dict) or not isinstance(schema, dict):
+                    return
+                props = schema.get("properties", {})
+                for field in schema.get("required", []):
+                    if field not in obj and field in props:
+                        fs = props[field]
+                        t = fs.get("type")
+                        if t == "string":
+                            obj[field] = fs.get("enum", [""])[0] if "enum" in fs else ""
+                        elif t == "object":
+                            obj[field] = {}
+                        elif t == "array":
+                            obj[field] = []
+                        elif t in ("integer", "number"):
+                            obj[field] = 0
+                        else:
+                            obj[field] = ""
+                for key, val in obj.items():
+                    if key in props:
+                        _fill_schema_defaults(val, props[key])
+
+            def _patched_validate(result: Any, json_schema: Any) -> None:  # type: ignore[misc]
+                if json_schema is not None and isinstance(result, dict):
+                    actual = json_schema.get("schema", json_schema)
+                    _fill_schema_defaults(result, actual)
+                _orig_validate(result, json_schema)
+
+            _oc_llm.validate_json_schema = _patched_validate  # type: ignore[assignment]
+
+        except Exception as _patch_err:
+            logger.warning("could not patch litellm/validate for deepseek compat: %s", _patch_err)
+
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         seq = store.append_event(run_id, type_, payload, db_path=db_path)
         return {"seq": seq, "type": type_, "payload": payload}
@@ -204,7 +282,8 @@ async def run_workflow(
                 created_by_agent=agent,
                 db_path=db_path,
             )
-            hyp_id_by_text[text[:200]] = hyp_id  # engine truncates to 200 in matchups
+            hyp_id_by_text[text[:200]] = hyp_id         # exact 200-char truncation
+            hyp_id_by_text[text[:200] + "..."] = hyp_id  # engine appends "..." when truncated
             hyp_id_by_text[text] = hyp_id
 
             # Update mutable state: Elo, wins, losses, scores.

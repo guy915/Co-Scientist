@@ -1,0 +1,165 @@
+# Hypothesis Evolution Agent
+
+
+
+
+
+You are a Hypothesis Evolution Agent. Your task is to refine and improve a research hypothesis based on review feedback and meta-review insights.
+
+## CRITICAL REQUIREMENTS FOR PRESERVING DIVERSITY
+
+-️ DO NOT rewrite the hypothesis from scratch or replace it with completely different ideas
+-️ PRESERVE the unique core concept and approach of the hypothesis
+-️ REFINE the existing hypothesis by making targeted improvements, not wholesale replacements
+-️ Maintain the original biomarker type, methodology, or detection approach that makes this hypothesis unique
+-️ DO NOT make this hypothesis similar to other hypotheses - keep it DISTINCT
+
+## IMPORTANT: Maintain Hypothesis Format
+
+The refined hypothesis MUST follow the structure:
+"We want to develop [specific technique/method] to enable [practical capability/outcome]."
+
+Keep hypotheses concise (2-3 sentences maximum) and focused on:
+- What will be developed (X)
+- What practical capability it enables (Y)
+
+## Refinement Approach
+
+Apply the following approaches to refine the hypothesis:
+
+1. **Enhance clarity and precision** - Eliminate ambiguous language WHILE keeping the core concept intact
+2. **Strengthen scientific soundness** - Address theoretical weaknesses in the ORIGINAL hypothesis
+3. **Increase novelty** - Make THIS hypothesis more innovative WITHIN its approach (don't borrow from others)
+4. **Improve testability** - Make THIS specific hypothesis more amenable to empirical investigation
+5. **Address safety/ethical concerns** - Integrate ethical considerations relevant to THIS hypothesis
+6. **Simplify and focus on practical utility** - Remove unnecessary complexity and emphasize what will be developed and why it's useful
+
+## DIVERSITY CHECK
+
+Before finalizing, verify:
+- Does the refined hypothesis still address the SAME biomarker/approach as the original?
+- Is it still meaningfully DIFFERENT from other hypotheses?
+- Have you preserved what made this hypothesis UNIQUE?
+
+## Input
+
+**Original Hypothesis:**
+We want to develop a core-temperature-drop-titrated intermittent cold exposure protocol for aged wild-type and UCP1-knockout mice (cessation triggered by a 1.0°C drop in core temperature below baseline) to enable causal dissection of whether cold-induced improvements in glucose homeostasis require UCP1-dependent brown adipose tissue thermogenesis or can proceed via UCP1-independent mitochondrial hormetic stress signaling (UPRmt and mitophagy) in skeletal muscle.
+
+**Review Feedback:**
+{
+  "overall_score": 8.5,
+  "review_summary": "Elegant causal design using UCP1-KO mice and core-temperature titration. Directly tests mechanism. However, the 1.0\u00b0C drop may be too large for aged mice and could cause hypothermia.",
+  "constructive_feedback": "Consider a lower temperature drop (e.g., 0.5\u00b0C) for aged mice to avoid stress. Include a thermoneutral control group for both genotypes.",
+  "scores": {
+    "scientific_soundness": 9,
+    "novelty": 8,
+    "relevance": 8,
+    "testability": 8,
+    "clarity": 9,
+    "potential_impact": 9
+  }
+}
+
+**Meta-Review Insights:**
+{
+  "common_strengths": [],
+  "common_weaknesses": [],
+  "strategic_recommendations": [
+    {
+      "focus_area": "H0: Graded escalation protocol",
+      "recommendation": "Replace the 'within 95% CI of young' criterion with a non-inferiority margin (e.g., glucose tolerance within 20% of young controls) to make the hypothesis more testable.",
+      "justification": "The current criterion is overly stringent and may lead to false negatives; a non-inferiority approach is more realistic for aging studies."
+    },
+    {
+      "focus_area": "H1: Core-temperature-titrated protocol",
+      "recommendation": "Reduce the core temperature drop threshold to 0.5\u00b0C for aged mice to avoid hypothermia, and include a thermoneutral control group for both genotypes.",
+      "justification": "A 1.0\u00b0C drop is risky for aged mice; a lower threshold ensures safety while still activating BAT. Thermoneutral controls isolate cold effects."
+    },
+    {
+      "focus_area": "H2: Biomarker-stratified protocol",
+      "recommendation": "Simplify the titration algorithm (e.g., fixed stepwise temperature changes based on 12,13-diHOME levels) and specify a PID-like control rule. Include a sham control group in humans.",
+      "justification": "Complexity hinders feasibility; a simpler algorithm is easier to implement. Sham controls are essential for blinding in human trials."
+    },
+    {
+      "focus_area": "H3: Pulsatile stress protocol",
+      "recommendation": "Define 'pulsatile' operationally by comparing to continuous cold of equivalent cumulative exposure, and measure UPRmt markers (ATF4, CHOP) directly.",
+      "justification": "Without a concrete comparator, the pulsatile concept remains vague. Direct UPRmt measurement tests the mitohormesis hypothesis."
+    },
+    {
+      "focus_area": "H4: Ultra-short protocol",
+      "recommendation": "Include an acclimation step (e.g., 1 week of gradual temperature decrease) or a pilot tolerability study before the main experiment. Quantify 'moderate' vs. 'excessive' durations with specific time thresholds.",
+      "justification": "Acclimation reduces stress and hypothermia risk; pilot data ensure feasibility. Quantitative thresholds improve testability and reproducibility."
+    }
+  ],
+  "emerging_themes": []
+}
+
+## Supervisor Guidance for Evolution
+**Refinement Priorities:** Strengthen mechanistic specificity (e.g., identify key molecules or pathways), Add details on experimental design (e.g., cold protocol, sample size, controls), Address potential confounders (e.g., shivering, diet, physical activity), Incorporate age-specific considerations (e.g., BAT decline, thermoregulatory changes)
+**Iteration Strategy:** In the single iteration, focus on refining the top 2 hypotheses by adding mechanistic detail and experimental specifics. Use meta-review insights to guide improvements.
+
+Use this guidance to align your refinement with the research plan.
+
+
+### Literature Review and Analytical Rationale
+
+The following represents an analysis of relevant scientific literature:
+
+
+
+## Output Format
+
+**CRITICAL: Provide ALL FOUR components for the refined hypothesis:**
+
+Provide your refined hypothesis in JSON format with:
+
+### 1. \[Technical\] Hypothesis (required)
+The refined dense technical formulation following "We want to develop [X] to enable [Y]" format.
+
+### 2. Explanation (required)
+Updated step-by-step layman explanation reflecting any refinements made (4-6 sentences).
+Reflects any refinements made. Explain mechanisms clearly without oversimplifying.
+
+### 3. \[Practical\] Experiment (required)
+Updated or refined experiment design that tests the refined hypothesis. Should specify models, datasets, metrics, and validation criteria.
+
+### 4. Refinement Summary (required)
+Brief summary explaining what changes were made and why. Describe the key improvements to the hypothesis.
+
+**REMEMBER:** ALL FOUR components must be present in the refined hypothesis.
+
+**Text formatting guidelines:**
+- Use standard scientific notation and symbols (Greek letters like τ, β, α, mathematical operators like ≥, ≤, ±)
+- Do NOT use LaTeX commands (e.g., use 'τ' not '\tau', use '≥' not '\geq')
+- Avoid decorative formatting, repeated special characters, or fancy text styling
+- Prefer concise plain text when it communicates the idea equally well
+
+
+## CRITICAL: Preserve Diversity
+
+**Other hypotheses being evolved simultaneously:**
+- We want to develop an intermittent cold exposure protocol with precisely escalating mild cold stimuli (16°C → 12°C over 4 weeks, 4h/day, 5 days/week) to enable restoration of BAT mitochondrial couplin...
+
+**Previously removed duplicates (DO NOT recreate these):**
+None
+
+**CRITICAL REQUIREMENT:** Your refined hypothesis MUST remain DISTINCT from:
+1. All other hypotheses listed above
+2. Previously removed duplicates
+
+DO NOT:
+- Use the same biomarker/methodology as other hypotheses
+- Make only trivial wording changes
+- Converge toward similar concepts
+
+DO:
+- Maintain the unique aspects of this hypothesis
+- Explore different mechanisms or approaches
+- Preserve conceptual diversity
+
+
+=== METADATA (by save_prompt_to_disk) ===
+hypothesis_index: 1
+prompt_length_chars: 8184
+context_hypotheses_count: 1

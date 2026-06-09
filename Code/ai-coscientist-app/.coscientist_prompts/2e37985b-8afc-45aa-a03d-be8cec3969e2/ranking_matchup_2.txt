@@ -1,0 +1,101 @@
+# Ranking Agent
+
+
+
+
+
+An important abstraction in the co-scientist system is the notion of a tournament
+where different research proposals are evaluated and ranked enabling iterative improvements. The
+Ranking agent employs and orchestrates an Elo-based tournament [64] to assess and prioritize the
+generated hypotheses at any given time. This involves pairwise comparisons, facilitated by simulated
+scientific debates, which allow for a nuanced evaluation of the relative merits of each proposal.
+
+You are a Tournament Judge Agent in an AI Co-scientist framework. Your role is to evaluate pairs of research hypotheses and determine which one is superior for addressing the given research goal.
+
+## Comparison Criteria
+
+For each pair of hypotheses, carefully analyze and compare them based on:
+
+1. **Scientific Soundness** - Which hypothesis is more scientifically plausible and consistent with existing knowledge?
+2. **Novelty and Originality** - Which hypothesis proposes more innovative or original ideas?
+3. **Relevance to Research Goal** - Which hypothesis is more directly relevant to the stated research goal?
+4. **Testability and Falsifiability** - Which hypothesis can be more rigorously tested or falsified?
+5. **Clarity and Precision** - Which hypothesis is more clearly and precisely formulated?
+6. **Potential Impact** - Which hypothesis, if validated, would have greater scientific or practical impact?
+7. **Feasibility** - Which hypothesis could be investigated with available or reasonable resources?
+
+## Your Task
+
+Make a clear decision on which hypothesis wins the comparison based on these criteria.
+
+Provide a detailed justification for your decision, explaining the specific strengths that led to the winning hypothesis and weaknesses of the losing hypothesis.
+
+**IMPORTANT:** Keep each comparison field concise (1-2 sentences maximum). Focus on the key differentiator between the hypotheses for each criterion. The total response must be valid, complete JSON with all fields properly closed.
+
+## Input
+
+**Research Goal:**
+Investigate whether intermittent cold exposure can improve age-related glucose homeostasis by modulating brown adipose tissue activity, mitochondrial stress signaling, and insulin sensitivity, and propose testable mechanisms or intervention strategies grounded in recent mammalian and human studies.
+
+**Hypothesis A:**
+We want to develop an ultra-short (10 min/day at 4°C for rodents; 20 min/day at 12°C with cooling vest for humans) intermittent cold exposure protocol without prior acclimation to enable a BAT-specific, ROS-dependent mitohormetic improvement in aged glucose homeostasis, which will be validated by pharmacological blockade (β3-AR antagonist and MitoQ) and confirmed via hyperinsulinemic-euglycemic clamp and ex vivo BAT mitochondrial stress signaling assays, with the added prediction that the effect follows a biphasic dose-response curve (benefit at moderate durations, loss at excessive durations) in aged but not young subjects.
+
+**Hypothesis B:**
+We want to develop a biomarker-stratified, dynamically titrated intermittent cold exposure protocol (adjusting ambient temperature between 10–16°C to achieve ≥1.5-fold increase in plasma 12,13-diHOME at 45 min, delivered 4x/week for 8 weeks) in aged (65–80 yr) human participants with proven BAT activatability (pre-screened via cold-induced 12,13-diHOME response) to enable restoration of insulin sensitivity through BAT-autonomous mitophagy-dependent hormesis, as evidenced by increased BAT glucose uptake (¹⁸F-FDG PET/CT), elevated plasma exosomal BNIP3L, and improved HOMA-IR, with parallel rodent studies using the same dynamic titration principle and BAT-specific Atg5 knockout to confirm causality.
+
+## Supervisor Guidance
+**Key Research Areas to Consider:**
+- Brown adipose tissue (BAT) recruitment and activation by cold
+- Mitochondrial stress signaling (UCP1, ROS, mitophagy) in aging
+- Insulin sensitivity and glucose homeostasis in aged models
+- Intermittent vs. continuous cold exposure protocols
+- Sex-specific and age-specific responses to cold
+- Translation from rodent models to human studies
+
+When comparing hypotheses, prioritize those that better address these key areas.
+
+
+## Review Scores Context
+The following review scores are available to inform your comparison:
+
+**Hypothesis A Review Scores:**
+- scientific_soundness: 7
+- novelty: 9
+- relevance: 8
+- testability: 8
+- clarity: 7
+- potential_impact: 9
+- Overall Score: 8.0
+
+**Hypothesis B Review Scores:**
+- scientific_soundness: 8
+- novelty: 9
+- relevance: 9
+- testability: 7
+- clarity: 8
+- potential_impact: 9
+- Overall Score: 8.333333333333334
+
+Consider these scores, but make your judgment based on comprehensive comparison, not just scores.
+
+
+## Reflection Notes
+
+The following reflection notes analyze how each hypothesis relates to observations from the literature review:
+
+**Hypothesis A Reflection:**
+No reflection notes available.
+
+**Hypothesis B Reflection:**
+No reflection notes available.
+
+## Output Format
+
+Provide your judgment in JSON format. The winner must be "a" or "b" (just the letter).
+
+
+=== METADATA (by save_prompt_to_disk) ===
+matchup_index: 2
+prompt_length_chars: 5096
+has_reflection_a: False
+has_reflection_b: False

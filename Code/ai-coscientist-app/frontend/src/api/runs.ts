@@ -236,6 +236,18 @@ export function eventsStreamUrl(id: string, after = 0): string {
   return `${API_BASE_URL}/api/runs/${id}/events?after=${after}`;
 }
 
+export interface RunEvent {
+  seq: number;
+  type: string;
+  payload: Record<string, unknown>;
+  created_at: number;
+}
+
+export async function getRunEventsLog(id: string): Promise<RunEvent[]> {
+  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/events/log`);
+  return jsonOrThrow<RunEvent[]>(res);
+}
+
 export interface SystemStatus {
   mcp_available: boolean;
   pubmed_available: boolean;

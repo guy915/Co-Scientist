@@ -1,0 +1,81 @@
+# Comparative Batch Hypothesis Review Agent
+
+
+
+You are a Hypothesis Review Agent conducting a **comparative peer review** of multiple research hypotheses. Your role is to evaluate each hypothesis on its own merits while also considering them **relative to each other**.
+
+
+
+## Review Criteria
+
+Evaluate EACH hypothesis on these dimensions (score 1-10 for each):
+
+1. **Scientific Soundness** - Theoretical foundation and logical consistency
+2. **Novelty** - Originality and contribution to the field
+3. **Relevance** - Alignment with the research goal
+4. **Testability** - Feasibility of empirical testing and falsifiability
+5. **Clarity** - Precision and clarity of formulation
+6. **Potential Impact** - Significance if proven correct
+
+## Research Goal
+
+Investigate whether intermittent cold exposure can improve age-related glucose homeostasis by modulating brown adipose tissue activity, mitochondrial stress signaling, and insulin sensitivity, and propose testable mechanisms or intervention strategies grounded in recent mammalian and human studies.
+
+## Supervisor Guidance for Review
+**Critical Criteria to Emphasize:** Mechanistic depth: does the hypothesis propose a clear causal pathway?, Novelty: is the mechanism or intervention underexplored in aging context?, Feasibility: can the hypothesis be tested with available methods (e.g., CLAMS, hyperinsulinemic-euglycemic clamp, PET-CT)?, Relevance to aging: does it directly address age-related decline in glucose homeostasis?, Testability: are the proposed experiments realistic and well-defined?
+**Review Depth Required:** Moderate depth: since no literature review is available, reviewers should rely on general domain knowledge and logical consistency. Focus on plausibility and novelty.
+
+
+## Meta-Review Context
+The following insights were synthesized from previous reviews of all hypotheses:
+
+**Strategic Recommendations:**
+- Replace the 'within 95% CI of young' criterion with a non-inferiority margin (e.g., glucose tolerance within 20% of young controls) to make the hypothesis more testable.
+- Reduce the core temperature drop threshold to 0.5°C for aged mice to avoid hypothermia, and include a thermoneutral control group for both genotypes.
+- Simplify the titration algorithm (e.g., fixed stepwise temperature changes based on 12,13-diHOME levels) and specify a PID-like control rule. Include a sham control group in humans.
+- Define 'pulsatile' operationally by comparing to continuous cold of equivalent cumulative exposure, and measure UPRmt markers (ATF4, CHOP) directly.
+- Include an acclimation step (e.g., 1 week of gradual temperature decrease) or a pilot tolerability study before the main experiment. Quantify 'moderate' vs. 'excessive' durations with specific time thresholds.
+
+Use these insights to provide more informed and consistent reviews.
+
+
+## Hypotheses to Review
+
+**Hypothesis 0:**
+We want to develop an intermittent graded cold exposure protocol (16°C → 12°C over 4 weeks, 4h/day, 5 days/week) with a non-inferiority margin (glucose infusion rate within 20% of young controls) to enable restoration of BAT mitochondrial coupling efficiency (respiratory control ratio) and whole-body insulin sensitivity in aged (24-month) rats of both sexes, achieving non-inferiority to a young (6-month) reference group subjected to the same protocol. This challenges the assumption that only severe or continuous cold drives metabolic benefit in aging, proposing that intermittent, graded stress re-establishes youthful UPRmt and mitohormesis in a sex-dependent manner (pre-specified prediction: females ≥ males), with mechanistic validation via BAT UPRmt markers (ATF4, CHOP) and norepinephrine turnover.
+
+**Hypothesis 1:**
+We want to develop a core-temperature-drop-titrated intermittent cold exposure protocol with a reduced threshold of 0.5°C below baseline for aged wild-type and UCP1-knockout mice, including thermoneutral controls for both genotypes, to enable causal dissection of whether cold-induced improvements in glucose homeostasis require UCP1-dependent brown adipose tissue thermogenesis or can proceed via UCP1-independent mitochondrial hormetic stress signaling (UPRmt and mitophagy) in skeletal muscle.
+
+## Scoring Guidelines
+
+**CRITICAL - Comparative Evaluation**: Since you are evaluating multiple hypotheses together, you MUST differentiate between them. Scores should reflect their relative strengths and weaknesses compared to each other.
+
+**Use the full 1-10 scale and differentiate:**
+- **1-2**: Fundamentally flawed, not viable
+- **3-4**: Major deficiencies, needs substantial rework
+- **5-6**: Moderate quality, significant room for improvement
+- **7**: Good quality, some notable issues
+- **8**: Very good quality, minor issues only
+- **9**: Excellent quality, minimal issues
+- **10**: Outstanding, near-perfect (RARELY awarded - reserve for truly exceptional work)
+
+**Be discriminating**: When evaluating multiple hypotheses, they should receive DIFFERENT scores. If one hypothesis is stronger in scientific soundness, it should score higher. If another is more novel, reflect that. Most hypotheses should fall in the 5-8 range with clear differentiation between them.
+
+## Task
+
+Provide comprehensive comparative reviews for all hypotheses, evaluating each on the criteria above with differentiated scores.
+
+## Output Format
+
+**Text formatting guidelines:**
+- Use standard scientific notation and symbols (Greek letters like τ, β, α, mathematical operators like ≥, ≤, ±)
+- Do NOT use LaTeX commands (e.g., use 'τ' not '\tau', use '≥' not '\geq')
+- Avoid decorative formatting, repeated special characters, or fancy text styling
+- Prefer concise plain text when it communicates the idea equally well
+
+
+=== METADATA (by save_prompt_to_disk) ===
+hypotheses_count: 2
+scaled_max_tokens: 18000
+prompt_length_chars: 5706

@@ -275,6 +275,13 @@ def _sse(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
+@router.get("/{run_id}/events/log")
+async def get_events_log(run_id: str) -> list[dict[str, Any]]:
+    """Return all stored events for a run as JSON (for the log console)."""
+    _run_or_404(run_id)
+    return store.list_events(run_id, after_seq=0, db_path=_db_path())
+
+
 # ---------------------------------------------------------------------------
 # Read endpoints
 # ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import { Beaker, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { LogConsole } from "./components/LogConsole";
 import { MockBanner } from "./components/MockBanner";
 import { ShortcutsHint } from "./components/ShortcutsHint";
 import { ThemeToggle } from "./components/ThemeToggle";
@@ -45,6 +46,7 @@ export function Layout({ children }: { children: ReactNode }) {
               Dashboard
             </NavLink>
             <ShortcutsHint />
+            <LogConsole />
             <ThemeToggle />
             <Link
               to="/runs/new"
