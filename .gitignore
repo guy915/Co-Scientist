@@ -37,3 +37,15 @@ yarn-error.log*
 *.swp
 *.swo
 .qodo
+
+# Project
+coscientist.db
+coscientist.db-*
+reports/
+cache/
+.coscientist_cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+Code/ai-coscientist-app/frontend/dist/
+Code/ai-coscientist-app/frontend/.vite/

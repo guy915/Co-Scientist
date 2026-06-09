@@ -27,5 +27,15 @@
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src"]
+  "include": [
+    "src/main.tsx",
+    "src/workbench/**/*",
+    "src/api/runs.ts",
+    "src/hooks/useRunStream.ts",
+    "src/components/ErrorBoundary.tsx",
+    "src/themes/**/*",
+    "src/lib/**/*",
+    "src/components/ui/**/*",
+    "src/types/**/*.d.ts"
+  ]
 }

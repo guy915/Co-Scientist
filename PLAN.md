@@ -31,7 +31,7 @@ At the end of the one-shot implementation run, the repository should behave like
 
 ```text
 Google DeepMind AI Co-Scientist/
-  Code/
+  Code/ -> Open-source fork foundation the product builds upon
     ai-coscientist-app/
     ai-coscientist-engine/
   Context/ -> Extensive research about Google DeepMind's AI Co-Scientist

@@ -14,16 +14,25 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
-from litellm import acompletion
 from pydantic import BaseModel, Field
 from rich.console import Console
-
-from open_coscientist import HypothesisGenerator
 
 # Load .env file before importing settings
 load_dotenv()
 
 from .config import settings
+from .runs import router as runs_router
+from . import engine_adapter
+
+try:
+    from litellm import acompletion  # type: ignore
+except Exception:  # pragma: no cover - litellm optional in mock mode
+    acompletion = None  # type: ignore
+
+try:
+    from open_coscientist import HypothesisGenerator  # type: ignore
+except Exception:  # pragma: no cover - engine optional in mock mode
+    HypothesisGenerator = None  # type: ignore
 
 # Configure logging
 # Set root logger to INFO to suppress DEBUG logs from dependencies (httpx, etc.)
@@ -62,7 +71,7 @@ else:
 
 
 # Global generator instance (can be reused)
-_generator: HypothesisGenerator | None = None
+_generator = None  # type: ignore[var-annotated]
 
 # Active generation tasks
 # task_id -> {"generator": AsyncGenerator, "cancelled": asyncio.Event}
@@ -89,15 +98,22 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Tools config: not set (generator defaults)")
 
-    _generator = HypothesisGenerator(
-        model_name=settings.model_name,
-        max_iterations=settings.max_iterations,
-        initial_hypotheses_count=settings.initial_hypotheses_count,
-        evolution_max_count=settings.evolution_max_count,
-        enable_cache=settings.coscientist_cache_enabled,
-        cache_dir=settings.coscientist_cache_dir if settings.coscientist_cache_dir else None,
-        tools_config=settings.tools_config,
-    )
+    provider = engine_adapter.select_provider()
+    logger.info(f"Workflow provider: {provider}")
+
+    if HypothesisGenerator is not None and provider == "engine":
+        _generator = HypothesisGenerator(
+            model_name=settings.model_name,
+            max_iterations=settings.max_iterations,
+            initial_hypotheses_count=settings.initial_hypotheses_count,
+            evolution_max_count=settings.evolution_max_count,
+            enable_cache=settings.coscientist_cache_enabled,
+            cache_dir=settings.coscientist_cache_dir if settings.coscientist_cache_dir else None,
+            tools_config=settings.tools_config,
+        )
+    else:
+        logger.info("Engine generator not initialised; mock workflow will be used.")
+        _generator = None
 
     yield
 
@@ -113,13 +129,22 @@ app = FastAPI(
 )
 
 # CORS middleware
+_allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+_allowed_origins = (
+    [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+    if _allowed_origins_env
+    else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount the new run-lifecycle router (durable, persisted, SSE).
+app.include_router(runs_router)
 
 
 # Request/Response models
@@ -180,6 +205,11 @@ class SystemStatusResponse(BaseModel):
         ..., description="whether literature review is available (requires both mcp and pubmed)"
     )
     mcp_server_url: str = Field(..., description="configured mcp server url")
+    provider: str = Field("mock", description="active workflow provider: 'mock' | 'engine'")
+    mock_mode: bool = Field(False, description="true when running deterministic mock workflow")
+    has_provider_key: bool = Field(False, description="any LLM provider key is set")
+    engine_importable: bool = Field(False, description="open_coscientist package is importable")
+    model_name: str = Field("", description="configured model id")
 
 
 class ParsedResearchGoal(BaseModel):
@@ -371,21 +401,31 @@ async def get_system_status():
     """
     Check system availability for literature review features.
 
-    returns availability status for mcp server and pubmed api.
+    returns availability status for mcp server and pubmed api, plus
+    provider/mock-mode info from the engine adapter so the UI can render
+    a "Mock Mode" banner.
     """
-    from open_coscientist.mcp_client import check_mcp_available
-    from open_coscientist.mcp_client import check_pubmed_available_via_mcp
+    mcp_available = False
+    pubmed_available = False
+    try:
+        from open_coscientist.mcp_client import check_mcp_available  # type: ignore
+        from open_coscientist.mcp_client import check_pubmed_available_via_mcp  # type: ignore
 
-    # check availability of external services
-    mcp_available = await check_mcp_available()
-    pubmed_available = await check_pubmed_available_via_mcp()
+        mcp_available = await check_mcp_available()
+        pubmed_available = await check_pubmed_available_via_mcp()
+    except Exception:  # pragma: no cover - engine optional in mock mode
+        mcp_available = False
+        pubmed_available = False
 
-    return SystemStatusResponse(
-        mcp_available=mcp_available,
-        pubmed_available=pubmed_available,
-        literature_review_available=mcp_available,
-        mcp_server_url=settings.mcp_server_url,
-    )
+    adapter_status = engine_adapter.system_status()
+
+    return {
+        "mcp_available": mcp_available,
+        "pubmed_available": pubmed_available,
+        "literature_review_available": mcp_available,
+        "mcp_server_url": settings.mcp_server_url,
+        **adapter_status,
+    }
 
 
 @app.post("/generate", response_model=GenerateResponse, tags=["hypotheses"])

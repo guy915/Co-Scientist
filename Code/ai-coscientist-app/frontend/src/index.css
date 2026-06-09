@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 @theme {
   /* Custom theme colors with th- prefix to avoid conflicts with Tailwind's palette */
   /* These create utility classes like bg-th-bg, text-th-fg, bg-th-primary, etc. */
@@ -36,6 +38,47 @@
   --color-th-phase3: hsl(0 72% 51%);
   --color-th-phase4: hsl(248 53% 58%);
   --radius: 0.5rem;
+}
+
+/* Dark theme override (data-theme=dark on <html>) */
+:root[data-theme="dark"] {
+  --color-th-bg: hsl(222 22% 7%);
+  --color-th-fg: hsl(210 17% 96%);
+  --color-th-card: hsl(222 19% 11%);
+  --color-th-card-fg: hsl(210 17% 96%);
+  --color-th-popover: hsl(222 19% 11%);
+  --color-th-popover-fg: hsl(210 17% 96%);
+  --color-th-primary: hsl(210 17% 96%);
+  --color-th-primary-fg: hsl(222 22% 7%);
+  --color-th-secondary: hsl(222 16% 16%);
+  --color-th-secondary-fg: hsl(210 17% 96%);
+  --color-th-muted: hsl(222 16% 16%);
+  --color-th-muted-fg: hsl(210 10% 65%);
+  --color-th-accent: hsl(222 16% 18%);
+  --color-th-accent-fg: hsl(210 17% 96%);
+  --color-th-destructive: hsl(0 70% 55%);
+  --color-th-destructive-fg: hsl(0 0% 98%);
+  --color-th-border: hsl(222 14% 20%);
+  --color-th-input: hsl(222 14% 20%);
+  --color-th-ring: hsl(210 17% 96%);
+  --color-th-success: hsl(142 60% 48%);
+  --color-th-success-fg: hsl(0 0% 100%);
+  --color-th-warning: hsl(38 90% 56%);
+  --color-th-warning-fg: hsl(222 22% 7%);
+  --color-th-info: hsl(199 80% 55%);
+  --color-th-info-fg: hsl(222 22% 7%);
+  --color-th-link: hsl(210 80% 70%);
+  --color-th-link-hover: hsl(210 90% 80%);
+  color-scheme: dark;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+html {
+  background-color: var(--color-th-bg);
+  color: var(--color-th-fg);
 }
 
 /* Apply theme to body */
@@ -100,6 +143,72 @@ body {
 /* Muted text color utility */
 .text-muted-foreground {
   color: var(--color-th-muted-fg);
+}
+
+/* Workbench-specific polish */
+@keyframes wb-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.85); }
+}
+.wb-live-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background-color: var(--color-th-success);
+  animation: wb-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes wb-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.wb-fade-in { animation: wb-fade-in 180ms ease-out both; }
+
+@keyframes wb-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.wb-skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-th-secondary) 0%,
+    var(--color-th-accent) 50%,
+    var(--color-th-secondary) 100%
+  );
+  background-size: 200% 100%;
+  animation: wb-shimmer 1.6s ease-in-out infinite;
+  border-radius: 0.375rem;
+}
+
+.wb-link {
+  color: var(--color-th-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.wb-link:hover { color: var(--color-th-link-hover); }
+
+/* Markdown rendering inside the Report tab */
+.wb-markdown { color: var(--color-th-fg); }
+.wb-markdown h1 { font-size: 1.5rem; font-weight: 700; margin: 1.25rem 0 0.75rem; }
+.wb-markdown h2 { font-size: 1.2rem; font-weight: 600; margin: 1rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid var(--color-th-border); }
+.wb-markdown h3 { font-size: 1.05rem; font-weight: 600; margin: 0.85rem 0 0.4rem; }
+.wb-markdown p { margin: 0.5rem 0; line-height: 1.55; }
+.wb-markdown ul, .wb-markdown ol { padding-left: 1.25rem; margin: 0.5rem 0; }
+.wb-markdown ul { list-style: disc; }
+.wb-markdown ol { list-style: decimal; }
+.wb-markdown li { margin: 0.15rem 0; }
+.wb-markdown code { background-color: var(--color-th-secondary); padding: 0.125rem 0.3rem; border-radius: 0.25rem; font-size: 0.85em; }
+.wb-markdown blockquote { border-left: 3px solid var(--color-th-border); padding-left: 0.75rem; color: var(--color-th-muted-fg); font-style: italic; margin: 0.5rem 0; }
+.wb-markdown em { color: var(--color-th-muted-fg); }
+.wb-markdown strong { color: var(--color-th-fg); }
+.wb-markdown a { color: var(--color-th-link); text-decoration: underline; text-underline-offset: 2px; }
+.wb-markdown a:hover { color: var(--color-th-link-hover); }
+
+@media print {
+  .wb-print-hide { display: none !important; }
+  .wb-markdown { color: black; }
 }
 
 /* Debate/literature styling */
