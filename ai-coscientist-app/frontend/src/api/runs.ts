@@ -1,6 +1,12 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
+import { getClientId } from "@/lib/clientId";
+
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "";
+
+function clientHeaders(): Record<string, string> {
+  return { "X-Client-ID": getClientId() };
+}
 
 export type RunStatus =
   | "draft"
@@ -150,14 +156,14 @@ export async function createRun(input: {
 }): Promise<Run> {
   const res = await fetch(`${API_BASE_URL}/api/runs`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...clientHeaders() },
     body: JSON.stringify(input),
   });
   return jsonOrThrow<Run>(res);
 }
 
 export async function listRuns(): Promise<Run[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs`);
+  const res = await fetch(`${API_BASE_URL}/api/runs`, { headers: clientHeaders() });
   const data = await jsonOrThrow<{ runs: Run[] }>(res);
   return data.runs;
 }

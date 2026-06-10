@@ -105,8 +105,12 @@ def _run_or_404(run_id: str):
 # ---------------------------------------------------------------------------
 
 
+def _client_id(request: Request) -> str:
+    return request.headers.get("X-Client-ID", "")
+
+
 @router.post("")
-async def create_run(req: CreateRunRequest) -> dict[str, Any]:
+async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
     provider = engine_adapter.select_provider()
     config = {
         "initial_hypotheses_count": req.initial_hypotheses_count,
@@ -120,6 +124,7 @@ async def create_run(req: CreateRunRequest) -> dict[str, Any]:
         profile=req.profile,
         provider=provider,
         config={k: v for k, v in config.items() if v is not None},
+        client_id=_client_id(request),
         db_path=_db_path(),
     )
     store.append_event(
@@ -132,8 +137,8 @@ async def create_run(req: CreateRunRequest) -> dict[str, Any]:
 
 
 @router.get("")
-async def list_runs() -> dict[str, Any]:
-    runs = store.list_runs(db_path=_db_path())
+async def list_runs(request: Request) -> dict[str, Any]:
+    runs = store.list_runs(client_id=_client_id(request), db_path=_db_path())
     return {"runs": [r.to_dict() for r in runs]}
 
 

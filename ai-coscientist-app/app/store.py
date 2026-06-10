@@ -78,6 +78,16 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
+    _run_migrations(conn)
+
+
+def _run_migrations(conn: sqlite3.Connection) -> None:
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+    if "client_id" not in cols:
+        conn.execute("ALTER TABLE runs ADD COLUMN client_id TEXT NOT NULL DEFAULT ''")
+        logger.info("migration: added client_id column to runs")
+    # Remove runs that predate client isolation (no client_id assigned).
+    conn.execute("DELETE FROM runs WHERE client_id = ''")
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +102,7 @@ CREATE TABLE IF NOT EXISTS runs (
     status TEXT NOT NULL,            -- draft|queued|running|synthesizing|completed|failed|blocked|cancelled
     provider TEXT NOT NULL,          -- 'mock' | 'engine'
     config_json TEXT NOT NULL,       -- JSON: initial_count, iterations, evolution_count, k_factor, ...
+    client_id TEXT NOT NULL DEFAULT '',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
     completed_at REAL,
@@ -243,6 +254,7 @@ class RunRow:
     status: str
     provider: str
     config: dict[str, Any]
+    client_id: str
     created_at: float
     updated_at: float
     completed_at: float | None
@@ -271,6 +283,7 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
         status=row["status"],
         provider=row["provider"],
         config=json.loads(row["config_json"]),
+        client_id=row["client_id"],
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         completed_at=row["completed_at"],
@@ -283,17 +296,18 @@ def create_run(
     profile: str,
     provider: str,
     config: dict[str, Any],
+    client_id: str = "",
     db_path: str | None = None,
 ) -> RunRow:
     run_id = str(uuid.uuid4())
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO runs (id, research_goal, profile, status, provider, config_json, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?)",
-            (run_id, research_goal, profile, "draft", provider, json.dumps(config), now, now),
+            "INSERT INTO runs (id, research_goal, profile, status, provider, config_json, client_id, created_at, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?)",
+            (run_id, research_goal, profile, "draft", provider, json.dumps(config), client_id, now, now),
         )
-    logger.info("created run %s profile=%s provider=%s", run_id, profile, provider)
+    logger.info("created run %s profile=%s provider=%s client_id=%s", run_id, profile, provider, client_id)
     return RunRow(
         id=run_id,
         research_goal=research_goal,
@@ -301,6 +315,7 @@ def create_run(
         status="draft",
         provider=provider,
         config=config,
+        client_id=client_id,
         created_at=now,
         updated_at=now,
         completed_at=None,
@@ -314,10 +329,11 @@ def get_run(run_id: str, db_path: str | None = None) -> RunRow | None:
         return _row_to_run(row) if row else None
 
 
-def list_runs(limit: int = 100, db_path: str | None = None) -> list[RunRow]:
+def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
+            "SELECT * FROM runs WHERE client_id = ? ORDER BY created_at DESC LIMIT ?",
+            (client_id, limit),
         ).fetchall()
         return [_row_to_run(r) for r in rows]
 
