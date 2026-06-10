@@ -83,7 +83,7 @@ export function Layout({ children }: { children: ReactNode }) {
           href="https://github.com/guy915/Co-Scientist"
           target="_blank"
           rel="noopener noreferrer"
-          className="hover:underline"
+          className="underline"
           style={{ color: "inherit" }}
         >
           Co-Scientist
