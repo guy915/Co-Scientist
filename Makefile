@@ -1,4 +1,4 @@
-.PHONY: help setup dev dev-api dev-ui dev-mcp test lint typecheck build clean stop reset-db
+.PHONY: help setup dev dev-api dev-ui dev-all dev-mcp test lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/ai-coscientist-engine
@@ -16,7 +16,7 @@ DOCS_URL := http://localhost:8008/docs
 help:
 	@echo "AI Co-Scientist Clone — root commands"
 	@echo "  make setup        Create .venv, install engine (editable) + app (editable), install frontend"
-	@echo "  make dev          Print URLs and instructions for running both servers"
+	@echo "  make dev          Run API + UI side-by-side with prefixed logs"
 	@echo "  make dev-api      Run FastAPI dev server   ($(API_URL))"
 	@echo "  make dev-ui       Run Vite dev server      ($(UI_URL))"
 	@echo "  make dev-mcp      Run reference MCP server (optional, needs Python 3.12)"
@@ -64,9 +64,10 @@ dev:
 	@echo "  Docs  : $(DOCS_URL)"
 	@echo "  UI    : $(UI_URL)"
 	@echo ""
-	@echo "Open two terminals and run:"
-	@echo "  Terminal 1:  make dev-api"
-	@echo "  Terminal 2:  make dev-ui"
+	@$(MAKE) dev-all
+
+dev-all:
+	@bash -c "trap 'kill 0' INT TERM EXIT; ($(MAKE) dev-api 2>&1 | sed 's/^/[api] /') & ($(MAKE) dev-ui 2>&1 | sed 's/^/[ui]  /') & wait"
 
 dev-api:
 	@echo ">> Starting FastAPI on $(API_URL)"
