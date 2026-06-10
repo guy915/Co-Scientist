@@ -29,7 +29,6 @@ from ..constants import (
 from ..cache import get_node_cache
 from ..llm import call_llm, call_llm_json
 from ..mcp_client import get_mcp_client, check_literature_source_available, MCPToolClient
-from ..models import Article
 from ..prompts import (
     get_literature_review_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
@@ -65,7 +64,7 @@ from .literature_review_helpers import (
 )
 
 if TYPE_CHECKING:
-    from ..config import ToolRegistry, ToolConfig, SearchSourceConfig, WorkflowConfig
+    from ..config import ToolRegistry, ToolConfig, SearchSourceConfig
 
 logger = logging.getLogger(__name__)
 

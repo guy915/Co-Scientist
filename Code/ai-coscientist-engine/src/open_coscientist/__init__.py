@@ -45,7 +45,7 @@ from .cache import clear_cache, get_cache_stats, clear_node_cache, get_node_cach
 from .console import ConsoleReporter
 from .config import ToolRegistry, get_tool_registry
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "HypothesisGenerator",
     "Hypothesis",

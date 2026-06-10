@@ -9,7 +9,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Union
 
-from ..config.schema import ResponseFormat, ToolConfig
+from ..config.schema import ToolConfig
 from ..models import Article
 
 logger = logging.getLogger(__name__)

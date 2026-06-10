@@ -8,7 +8,7 @@ import os
 import ssl
 import traceback
 from time import sleep
-from typing import List, Optional
+from typing import List
 from urllib.error import HTTPError, URLError
 
 from Bio import Entrez

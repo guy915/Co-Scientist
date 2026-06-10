@@ -14,7 +14,6 @@ Create a .env file in this directory (dev/) with your API keys:
 
 import asyncio
 import os
-import sys
 from pathlib import Path
 from rich.console import Console
 from rich.panel import Panel
@@ -118,13 +117,13 @@ async def test_literature_review():
 
     # Check if literature review failed
     if summary == LITERATURE_REVIEW_FAILED:
-        console.print(f"\n[bold red]Literature review failed![/bold red]")
+        console.print("\n[bold red]Literature review failed![/bold red]")
         console.print("[yellow]The system will fall back to standard generation without literature context[/yellow]")
         return
 
     # Show article breakdown by source (PubMed-only now)
     pm_articles = [a for a in articles if a.source == "pubmed"]
-    console.print(f"\n[bold yellow]Article breakdown:[/bold yellow]")
+    console.print("\n[bold yellow]Article breakdown:[/bold yellow]")
     console.print(f"  PubMed: {len(pm_articles)} total")
 
     # Queries table
@@ -156,7 +155,7 @@ async def test_literature_review():
         border_style="green"
     ))
 
-    console.print(f"\n[bold]Summary stats:[/bold]")
+    console.print("\n[bold]Summary stats:[/bold]")
     console.print(f"  Queries generated: {len(queries)}")
     console.print(f"  Articles found: {len(articles)}")
     console.print(f"  Summary length: {len(summary)} chars")

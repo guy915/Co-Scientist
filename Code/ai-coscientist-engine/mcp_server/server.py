@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 # log startup configuration
 entrez_email_present = bool(os.environ.get("ENTREZ_EMAIL"))
 
-logger.info(f"MCP server starting")
+logger.info("MCP server starting")
 logger.debug(f"API keys present: ENTREZ_EMAIL={entrez_email_present}")
 
 mcp = FastMCP("open-coscientist-lit-review")

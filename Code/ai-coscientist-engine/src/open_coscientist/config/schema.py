@@ -6,7 +6,7 @@ Uses dataclasses to match existing codebase patterns.
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 
 def resolve_content_params(

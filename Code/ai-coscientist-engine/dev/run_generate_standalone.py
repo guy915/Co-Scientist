@@ -83,7 +83,7 @@ async def test_generate(with_literature: bool = False):
 
 **generation method:** {first.generation_method or 'standard'}
 """),
-            title=f"[bold green]first hypothesis details[/bold green]",
+            title="[bold green]first hypothesis details[/bold green]",
             border_style="green"
         ))
 
@@ -92,7 +92,7 @@ async def test_generate(with_literature: bool = False):
         console.print(f"\n[bold]debate transcripts:[/bold] {len(debate_transcripts)} debates recorded")
         console.print(f"  example debate turns: {len(debate_transcripts[0].get('debate_turns', []))} turns")
 
-    console.print(f"\n[bold]summary stats:[/bold]")
+    console.print("\n[bold]summary stats:[/bold]")
     console.print(f"  hypotheses generated: {len(hypotheses)}")
     console.print(f"  debate-based: {sum(1 for h in hypotheses if h.generation_method == 'debate')}")
     console.print(f"  literature-based: {sum(1 for h in hypotheses if h.generation_method == 'literature')}")

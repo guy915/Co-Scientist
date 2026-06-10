@@ -26,8 +26,7 @@ from ....prompts import (
     get_validation_synthesis_prompt_with_tools,
 )
 from ....schemas import (
-    HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
-    HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA
+    HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA
 )
 from ....state import WorkflowState
 from ....tools.literature import literature_tools

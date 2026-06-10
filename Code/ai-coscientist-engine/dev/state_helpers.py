@@ -6,10 +6,9 @@ Intentionally kept minimal to avoid mock data drift - add fields as needed.
 """
 
 import time
-from typing import Optional, List, Dict, Any
 from rich.console import Console
 from open_coscientist.state import WorkflowState
-from open_coscientist.models import ExecutionMetrics, Hypothesis
+from open_coscientist.models import ExecutionMetrics
 
 console = Console()
 

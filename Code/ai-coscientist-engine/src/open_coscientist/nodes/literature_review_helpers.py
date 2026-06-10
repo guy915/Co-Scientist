@@ -18,8 +18,7 @@ from ..constants import LITERATURE_REVIEW_FAILED
 from ..models import Article
 
 if TYPE_CHECKING:
-    from ..config import ToolConfig, SearchSourceConfig, WorkflowConfig, ToolRegistry
-    from ..mcp_client import MCPToolClient
+    from ..config import ToolConfig, WorkflowConfig, ToolRegistry
     from ..state import WorkflowState
 
 logger = logging.getLogger(__name__)

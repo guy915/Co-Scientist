@@ -115,7 +115,7 @@ async def test_lit_tools_isolation(research_goal: str, model_name: str, hypothes
 
 **generation method:** {first.generation_method or 'unknown'}
 """),
-            title=f"[bold green]first hypothesis details[/bold green]",
+            title="[bold green]first hypothesis details[/bold green]",
             border_style="green"
         ))
 
@@ -123,7 +123,7 @@ async def test_lit_tools_isolation(research_goal: str, model_name: str, hypothes
     lit_tools_count = sum(1 for h in hypotheses if h.generation_method == "literature_tools")
     debate_count = sum(1 for h in hypotheses if h.generation_method == "debate")
 
-    console.print(f"\n[bold]summary stats:[/bold]")
+    console.print("\n[bold]summary stats:[/bold]")
     console.print(f"  hypotheses generated: {len(hypotheses)}")
     console.print(f"  lit tools: {lit_tools_count}")
     console.print(f"  debate: {debate_count}")

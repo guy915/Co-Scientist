@@ -83,7 +83,7 @@ class PubmedSource(DocumentSource):
             search_params["datetype"] = "pdat"  # filter by publication date
             logger.debug(f"applying recency filter: {min_year}-{current_year} (last {recency_years} years)")
 
-        logger.debug(f"searching pubmed with sort=pub_date (most recent first)")
+        logger.debug("searching pubmed with sort=pub_date (most recent first)")
         results = self.entrez_read(Entrez.esearch(**search_params))
         if (id_list := results.get("IdList", None)):
             return id_list
@@ -400,7 +400,7 @@ class PubmedSource(DocumentSource):
 
                 logger.info(f"Supplemented {len(papers_to_supplement)} papers from shared pool (total: {len(papers_to_use)}/{max_papers})")
             else:
-                logger.warning(f"No suitable papers found in shared pool for supplementation")
+                logger.warning("No suitable papers found in shared pool for supplementation")
 
         # save manifest for this run if run_id provided
         if run_id and run_dir:
