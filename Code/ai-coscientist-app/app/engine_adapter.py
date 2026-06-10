@@ -16,7 +16,8 @@ import logging
 import os
 import sys
 import time
-from typing import Any, AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from typing import Any
 
 from . import store
 from .mock_workflow import resolved_config, run_mock_workflow
@@ -85,10 +86,10 @@ async def run_workflow(
     profile: str,
     config: dict[str, Any],
     *,
-    db_path: Optional[str] = None,
-    cancelled: Optional[asyncio.Event] = None,
+    db_path: str | None = None,
+    cancelled: asyncio.Event | None = None,
     sleep_seconds: float = 0.05,
-    force_provider: Optional[str] = None,
+    force_provider: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Drive the chosen workflow and yield events as the store records them."""
     provider = force_provider or select_provider()
@@ -135,6 +136,7 @@ async def run_workflow(
     if "deepseek" in model_name_env.lower():
         try:
             import json as _json
+
             import litellm as _litellm  # type: ignore[import-untyped]
             import open_coscientist.llm as _oc_llm  # type: ignore[import-untyped]
 

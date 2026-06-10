@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from typing import Tuple
 
 
 def _env_int(key: str, default: int) -> int:
@@ -34,7 +33,7 @@ def update_pair(
     winner_elo: int,
     loser_elo: int,
     k_factor: int = DEFAULT_K_FACTOR,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Return integer-rounded post-match Elo for (winner, loser)."""
     e_win = expected_score(winner_elo, loser_elo)
     e_lose = expected_score(loser_elo, winner_elo)

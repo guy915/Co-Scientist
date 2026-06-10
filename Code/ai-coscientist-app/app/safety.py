@@ -11,9 +11,8 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable
-
 
 SAFETY_MODE = os.getenv("SAFETY_MODE", "standard").lower()
 

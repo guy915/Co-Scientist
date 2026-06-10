@@ -25,9 +25,10 @@ import sqlite3
 import threading
 import time
 import uuid
+from collections.abc import Generator, Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generator, Iterable, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ def _now() -> float:
     return time.time()
 
 
-def _resolved_db_path(path: Optional[str] = None) -> str:
+def _resolved_db_path(path: str | None = None) -> str:
     # Read env on every call so test fixtures and runtime overrides are picked up.
     return path or os.getenv("COSCIENTIST_DB_PATH") or "./coscientist.db"
 
@@ -56,7 +57,7 @@ def _reports_dir() -> Path:
 
 
 @contextlib.contextmanager
-def connect(path: Optional[str] = None) -> Generator[sqlite3.Connection, None, None]:
+def connect(path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
     """Yield a sqlite3 connection with WAL + row factory enabled."""
     db_path = _resolved_db_path(path)
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -244,8 +245,8 @@ class RunRow:
     config: dict[str, Any]
     created_at: float
     updated_at: float
-    completed_at: Optional[float]
-    error: Optional[str]
+    completed_at: float | None
+    error: str | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -282,7 +283,7 @@ def create_run(
     profile: str,
     provider: str,
     config: dict[str, Any],
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> RunRow:
     run_id = str(uuid.uuid4())
     now = _now()
@@ -307,13 +308,13 @@ def create_run(
     )
 
 
-def get_run(run_id: str, db_path: Optional[str] = None) -> Optional[RunRow]:
+def get_run(run_id: str, db_path: str | None = None) -> RunRow | None:
     with connect(db_path) as conn:
         row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
         return _row_to_run(row) if row else None
 
 
-def list_runs(limit: int = 100, db_path: Optional[str] = None) -> list[RunRow]:
+def list_runs(limit: int = 100, db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT * FROM runs ORDER BY created_at DESC LIMIT ?", (limit,)
@@ -324,8 +325,8 @@ def list_runs(limit: int = 100, db_path: Optional[str] = None) -> list[RunRow]:
 def update_run_status(
     run_id: str,
     status: str,
-    error: Optional[str] = None,
-    db_path: Optional[str] = None,
+    error: str | None = None,
+    db_path: str | None = None,
 ) -> None:
     now = _now()
     completed_at = now if status in ("completed", "failed", "blocked", "cancelled") else None
@@ -351,7 +352,7 @@ def append_event(
     run_id: str,
     type_: str,
     payload: dict[str, Any],
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> int:
     with connect(db_path) as conn:
         row = conn.execute(
@@ -368,7 +369,7 @@ def append_event(
 def list_events(
     run_id: str,
     after_seq: int = 0,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
@@ -399,13 +400,13 @@ def add_hypothesis(
     title: str,
     statement: str,
     *,
-    parent_id: Optional[str] = None,
+    parent_id: str | None = None,
     generation: int = 0,
     mechanism: str = "",
     expected_effect: str = "",
     experimental_context: str = "",
     created_by_agent: str = "generation",
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> str:
     hyp_id = str(uuid.uuid4())
     now = _now()
@@ -438,16 +439,16 @@ def add_hypothesis(
 def update_hypothesis_state(
     hypothesis_id: str,
     *,
-    elo_rating: Optional[int] = None,
+    elo_rating: int | None = None,
     win_delta: int = 0,
     loss_delta: int = 0,
-    novelty: Optional[float] = None,
-    plausibility: Optional[float] = None,
-    testability: Optional[float] = None,
-    safety_status: Optional[str] = None,
-    status: Optional[str] = None,
-    cluster_id: Optional[str] = None,
-    db_path: Optional[str] = None,
+    novelty: float | None = None,
+    plausibility: float | None = None,
+    testability: float | None = None,
+    safety_status: str | None = None,
+    status: str | None = None,
+    cluster_id: str | None = None,
+    db_path: str | None = None,
 ) -> None:
     sets: list[str] = []
     params: list[Any] = []
@@ -488,7 +489,7 @@ def update_hypothesis_state(
         )
 
 
-def list_hypotheses(run_id: str, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+def list_hypotheses(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "
@@ -500,7 +501,7 @@ def list_hypotheses(run_id: str, db_path: Optional[str] = None) -> list[dict[str
         return [dict(r) for r in rows]
 
 
-def get_hypothesis(hypothesis_id: str, db_path: Optional[str] = None) -> Optional[dict[str, Any]]:
+def get_hypothesis(hypothesis_id: str, db_path: str | None = None) -> dict[str, Any] | None:
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "
@@ -523,11 +524,11 @@ def add_evidence(
     *,
     source: str = "mock",
     url: str = "",
-    authors: Optional[Iterable[str]] = None,
-    year: Optional[int] = None,
+    authors: Iterable[str] | None = None,
+    year: int | None = None,
     abstract: str = "",
     available: bool = True,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> str:
     ev_id = str(uuid.uuid4())
     with connect(db_path) as conn:
@@ -550,7 +551,7 @@ def add_evidence(
     return ev_id
 
 
-def list_evidence(run_id: str, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+def list_evidence(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT * FROM evidence WHERE run_id=? ORDER BY created_at ASC", (run_id,)
@@ -570,7 +571,7 @@ def add_citation(
     evidence_id: str,
     claim: str,
     state: str,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
@@ -580,7 +581,7 @@ def add_citation(
         )
 
 
-def list_citations(run_id: str, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+def list_citations(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT * FROM citations WHERE run_id=? ORDER BY created_at ASC", (run_id,)
@@ -600,11 +601,11 @@ def add_review(
     summary: str,
     critique: str,
     *,
-    novelty: Optional[float] = None,
-    plausibility: Optional[float] = None,
-    testability: Optional[float] = None,
-    overall: Optional[float] = None,
-    db_path: Optional[str] = None,
+    novelty: float | None = None,
+    plausibility: float | None = None,
+    testability: float | None = None,
+    overall: float | None = None,
+    db_path: str | None = None,
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
@@ -625,7 +626,7 @@ def add_review(
         )
 
 
-def list_reviews(run_id: str, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+def list_reviews(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT * FROM reviews WHERE run_id=? ORDER BY created_at ASC", (run_id,)
@@ -648,7 +649,7 @@ def add_match(
     loser_before: int,
     loser_after: int,
     rationale: str,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
@@ -670,7 +671,7 @@ def add_match(
         )
 
 
-def list_matches(run_id: str, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+def list_matches(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT * FROM matches WHERE run_id=? ORDER BY created_at ASC", (run_id,)
@@ -689,7 +690,7 @@ def add_safety_decision(
     decision: str,
     reason: str,
     matches: list[str],
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
@@ -699,7 +700,7 @@ def add_safety_decision(
         )
 
 
-def list_safety_decisions(run_id: str, db_path: Optional[str] = None) -> list[dict[str, Any]]:
+def list_safety_decisions(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT * FROM safety_decisions WHERE run_id=? ORDER BY created_at ASC", (run_id,)
@@ -721,7 +722,7 @@ def save_report(
     run_id: str,
     payload: dict[str, Any],
     markdown: str,
-    db_path: Optional[str] = None,
+    db_path: str | None = None,
 ) -> dict[str, str]:
     report_id = str(uuid.uuid4())
     md_path = _reports_dir() / f"{run_id}.md"
@@ -735,7 +736,7 @@ def save_report(
     return {"id": report_id, "markdown_path": str(md_path)}
 
 
-def get_latest_report(run_id: str, db_path: Optional[str] = None) -> Optional[dict[str, Any]]:
+def get_latest_report(run_id: str, db_path: str | None = None) -> dict[str, Any] | None:
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1", (run_id,)
@@ -751,7 +752,7 @@ def get_latest_report(run_id: str, db_path: Optional[str] = None) -> Optional[di
         }
 
 
-def read_report_markdown(run_id: str, db_path: Optional[str] = None) -> Optional[str]:
+def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     latest = get_latest_report(run_id, db_path=db_path)
     if not latest:
         return None

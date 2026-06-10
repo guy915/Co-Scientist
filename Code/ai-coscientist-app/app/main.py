@@ -5,9 +5,9 @@ import hashlib
 import json
 import logging
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncGenerator
 
 import uvicorn
 from dotenv import load_dotenv
@@ -20,9 +20,9 @@ from rich.console import Console
 # Load .env file before importing settings
 load_dotenv()
 
+from . import engine_adapter
 from .config import settings
 from .runs import router as runs_router
-from . import engine_adapter
 
 try:
     from litellm import acompletion  # type: ignore
@@ -241,7 +241,7 @@ def _get_cached_parse(raw_input: str) -> ParsedResearchGoal | None:
         cache_file = cache_dir / f"{cache_key}.json"
 
         if cache_file.exists():
-            with open(cache_file, "r") as f:
+            with open(cache_file) as f:
                 cached_data = json.load(f)
             logger.info(f"parse cache hit for input: {raw_input[:50]}...")
             return ParsedResearchGoal(**cached_data)
@@ -408,8 +408,10 @@ async def get_system_status():
     mcp_available = False
     pubmed_available = False
     try:
-        from open_coscientist.mcp_client import check_mcp_available  # type: ignore
-        from open_coscientist.mcp_client import check_pubmed_available_via_mcp  # type: ignore
+        from open_coscientist.mcp_client import (
+            check_mcp_available,  # type: ignore
+            check_pubmed_available_via_mcp,  # type: ignore
+        )
 
         mcp_available = await check_mcp_available()
         pubmed_available = await check_pubmed_available_via_mcp()

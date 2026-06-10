@@ -27,7 +27,8 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, AsyncGenerator, Optional
+from collections.abc import AsyncGenerator
+from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -54,7 +55,7 @@ _active: dict[str, _RunHandle] = {}
 _active_lock = asyncio.Lock()
 
 
-def _db_path() -> Optional[str]:
+def _db_path() -> str | None:
     return os.getenv("COSCIENTIST_DB_PATH") or None
 
 
@@ -66,15 +67,15 @@ def _db_path() -> Optional[str]:
 class CreateRunRequest(BaseModel):
     research_goal: str = Field(..., min_length=1)
     profile: str = Field("standard", pattern="^(standard|advanced)$")
-    initial_hypotheses_count: Optional[int] = None
-    max_iterations: Optional[int] = None
-    evolution_max_count: Optional[int] = None
-    k_factor: Optional[int] = None
-    notes: Optional[str] = None
+    initial_hypotheses_count: int | None = None
+    max_iterations: int | None = None
+    evolution_max_count: int | None = None
+    k_factor: int | None = None
+    notes: str | None = None
 
 
 class StartRunRequest(BaseModel):
-    force_provider: Optional[str] = Field(None, pattern="^(mock|engine)$")
+    force_provider: str | None = Field(None, pattern="^(mock|engine)$")
 
 
 # ---------------------------------------------------------------------------

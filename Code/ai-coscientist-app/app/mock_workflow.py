@@ -30,13 +30,13 @@ import asyncio
 import hashlib
 import logging
 import random
-from typing import Any, AsyncIterator, Optional
+from collections.abc import AsyncIterator
+from typing import Any
 
 from . import store
 from .citations import CitationRecord, classify_citation
 from .elo import DEFAULT_K_FACTOR, INITIAL_ELO, update_pair
 from .safety import screen_final, screen_intake
-
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,7 @@ PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
 # ---------------------------------------------------------------------------
 
 
-def resolved_config(profile: str, overrides: Optional[dict[str, int]] = None) -> dict[str, int]:
+def resolved_config(profile: str, overrides: dict[str, int] | None = None) -> dict[str, int]:
     base = dict(PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS["standard"]))
     if overrides:
         for k, v in overrides.items():
@@ -162,8 +162,8 @@ async def run_mock_workflow(
     profile: str,
     config: dict[str, Any],
     *,
-    db_path: Optional[str] = None,
-    cancelled: Optional[asyncio.Event] = None,
+    db_path: str | None = None,
+    cancelled: asyncio.Event | None = None,
     sleep_seconds: float = 0.05,
 ) -> AsyncIterator[dict[str, Any]]:
     """Execute the deterministic mock workflow and yield events as they happen."""
