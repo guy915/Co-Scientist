@@ -131,7 +131,7 @@ export function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="md-typescale-headline-medium text-2xl font-semibold tracking-tight">
             Research runs
@@ -259,10 +259,10 @@ export function Dashboard() {
             <thead style={{ backgroundColor: "var(--md-sys-color-secondary-container)" }}>
               <tr className="text-left">
                 <th className="px-4 py-2 font-semibold">Research goal</th>
-                <th className="px-4 py-2 font-semibold w-24">Profile</th>
+                <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Profile</th>
                 <th className="px-4 py-2 font-semibold w-32">Status</th>
-                <th className="px-4 py-2 font-semibold w-24">Provider</th>
-                <th className="px-4 py-2 font-semibold w-24">Ideas</th>
+                <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Provider</th>
+                <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Ideas</th>
                 <th className="px-4 py-2 font-semibold w-32" title="Created">
                   Created
                 </th>
@@ -283,13 +283,13 @@ export function Dashboard() {
                       {r.research_goal}
                     </Link>
                   </td>
-                  <td className="px-4 py-2 capitalize">{r.profile}</td>
+                  <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.profile}</td>
                   <td className="px-4 py-2">
                     <RunStatusPill status={r.status} />
                   </td>
-                  <td className="px-4 py-2 capitalize">{r.provider}</td>
+                  <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.provider}</td>
                   <td
-                    className="px-4 py-2"
+                    className="px-4 py-2 hidden sm:table-cell"
                     style={{ color: "var(--md-sys-color-on-surface-variant)" }}
                   >
                     {summaries[r.id]?.hypotheses ?? "—"}

@@ -133,7 +133,7 @@ export function EvidenceTab({
                 backgroundColor: "var(--md-sys-color-surface-container-low)",
               }}
             >
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="min-w-0">
                   <div className="font-medium">{e.title}</div>
                   <div

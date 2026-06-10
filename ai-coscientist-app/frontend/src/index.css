@@ -78,6 +78,8 @@
 html {
   background-color: var(--color-th-bg);
   color: var(--color-th-fg);
+  /* Prevent any child from creating horizontal scroll on mobile */
+  overflow-x: hidden;
 }
 
 /* Apply theme to body */
@@ -282,6 +284,32 @@ body {
   }
   .wb-markdown {
     color: black;
+  }
+}
+
+/* ─── Mobile responsive helpers ─────────────────────────────────────── */
+
+/* Hide an element only on mobile (< 640px) */
+@media (max-width: 639px) {
+  .mobile-hide {
+    display: none;
+  }
+}
+
+/* Show an element only on mobile */
+.mobile-only {
+  display: none;
+}
+@media (max-width: 639px) {
+  .mobile-only {
+    display: revert;
+  }
+}
+
+/* Make a table cell disappear on mobile – use on <th>/<td> pairs */
+@media (max-width: 639px) {
+  .sm\:table-cell-hidden {
+    display: none;
   }
 }
 

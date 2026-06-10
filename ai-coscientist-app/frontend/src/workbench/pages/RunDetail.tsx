@@ -199,7 +199,7 @@ export function RunDetail() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <md-outlined-button onclick={(() => void refresh()) as EventListener}>
               {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
               <md-icon slot="icon" aria-hidden="true">
@@ -306,7 +306,7 @@ export function RunDetail() {
         // biome-ignore lint/a11y/useSemanticElements: role="status" is a live region; <output> has different semantics
         <div
           role="status"
-          className="fixed bottom-4 right-4 z-50 rounded border px-3 py-2 text-sm shadow-lg wb-fade-in"
+          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-auto z-50 rounded border px-3 py-2 text-sm shadow-lg wb-fade-in"
           style={{
             borderColor:
               toast.type === "error"
@@ -327,7 +327,7 @@ function RunDetailSkeleton() {
   return (
     <div className="space-y-3" aria-busy="true">
       <div className="wb-skeleton h-32 w-full" />
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {["sk-a", "sk-b", "sk-c", "sk-d"].map((k) => (
           <div key={k} className="wb-skeleton h-24" />
         ))}

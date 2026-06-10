@@ -61,7 +61,7 @@ export function NewRun() {
 
       <form
         onSubmit={onSubmit}
-        className="space-y-5 rounded border p-5"
+        className="space-y-5 rounded border p-4 sm:p-5"
         style={{
           borderColor: "var(--md-sys-color-outline-variant)",
           backgroundColor: "var(--md-sys-color-surface-container-low)",
@@ -166,7 +166,7 @@ export function NewRun() {
           <summary className="px-3 py-2 cursor-pointer text-sm font-medium">
             Configuration overrides
           </summary>
-          <div className="grid grid-cols-3 gap-3 p-3 pt-0">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 pt-0">
             <NumberField
               label="Initial hypotheses"
               value={initialCount}

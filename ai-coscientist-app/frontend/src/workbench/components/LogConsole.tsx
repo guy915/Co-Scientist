@@ -4,6 +4,7 @@ import "@material/web/button/filled-tonal-button.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { getRunEventsLog, type RunEvent } from "@/api/runs";
+import { useIsMobile } from "@/hooks/useMediaQuery";
 
 function extractRunId(pathname: string): string | null {
   const m = pathname.match(/\/runs\/([^/]+)/);
@@ -51,6 +52,7 @@ export function LogConsole() {
   const buttonRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
   const runId = extractRunId(location.pathname);
+  const isMobile = useIsMobile();
 
   const load = useCallback(async () => {
     if (!runId) {
@@ -124,107 +126,131 @@ export function LogConsole() {
       </div>
 
       {open && (
-        <div
-          ref={panelRef}
-          className="absolute right-0 z-50 rounded-lg shadow-xl overflow-hidden"
-          style={{
-            top: "calc(100% + 12px)",
-            width: "560px",
-            maxHeight: "480px",
-            border: "1px solid var(--md-sys-color-outline-variant)",
-            backgroundColor: "var(--color-th-card)",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          {/* Panel header */}
+        <>
+          {/* Mobile: semi-transparent backdrop */}
+          {isMobile && (
+            // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss is supplemental; Esc closes the panel via outside-click handler
+            // biome-ignore lint/a11y/noStaticElementInteractions: backdrop div is a click-to-close overlay, not a focusable interactive element
+            <div
+              className="fixed inset-0 z-40"
+              style={{ backgroundColor: "rgba(0,0,0,0.35)" }}
+              onClick={() => setOpen(false)}
+            />
+          )}
           <div
-            className="flex items-center justify-between px-4 py-3 border-b shrink-0"
-            style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
+            ref={panelRef}
+            className="z-50 rounded-lg shadow-xl overflow-hidden"
+            style={{
+              ...(isMobile
+                ? {
+                    position: "fixed",
+                    top: "64px",
+                    left: "0",
+                    right: "0",
+                    maxHeight: "calc(100dvh - 80px)",
+                  }
+                : {
+                    position: "absolute",
+                    top: "calc(100% + 12px)",
+                    right: "0",
+                    width: "min(560px, calc(100vw - 2rem))",
+                    maxHeight: "480px",
+                  }),
+              border: "1px solid var(--md-sys-color-outline-variant)",
+              backgroundColor: "var(--color-th-card)",
+              display: "flex",
+              flexDirection: "column",
+            }}
           >
-            <span className="font-semibold text-base">Diagnostic Logs</span>
-            <div className="flex items-center gap-2">
-              {loading && (
-                <span
-                  className="text-xs"
-                  style={{ color: "var(--md-sys-color-on-surface-variant)" }}
-                >
-                  loading…
-                </span>
-              )}
-              <md-outlined-button
-                onclick={(() => void handleCopy()) as EventListener}
-                disabled={!events.length || undefined}
-              >
-                {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
-                <md-icon slot="icon" aria-hidden="true">
-                  {copied ? "check" : "content_copy"}
-                </md-icon>
-                {copied ? "Copied!" : "Copy"}
-              </md-outlined-button>
-            </div>
-          </div>
-
-          {/* Log body */}
-          <div
-            className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-sm"
-            style={{ fontFamily: "ui-monospace, monospace" }}
-          >
-            {!runId && (
-              <p
-                className="text-sm"
-                style={{
-                  color: "var(--md-sys-color-on-surface-variant)",
-                  fontFamily: "sans-serif",
-                }}
-              >
-                Open a run to see its diagnostic events.
-              </p>
-            )}
-            {runId && !loading && events.length === 0 && (
-              <p
-                className="text-sm"
-                style={{
-                  color: "var(--md-sys-color-on-surface-variant)",
-                  fontFamily: "sans-serif",
-                }}
-              >
-                No events recorded for this run yet.
-              </p>
-            )}
-            {events.map((ev, i) => (
-              <div key={ev.seq}>
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span
-                    className="text-xs font-bold"
-                    style={{ color: "var(--md-sys-color-on-surface-variant)", minWidth: "2rem" }}
-                  >
-                    #{i + 1}
-                  </span>
+            {/* Panel header */}
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b shrink-0"
+              style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
+            >
+              <span className="font-semibold text-base">Diagnostic Logs</span>
+              <div className="flex items-center gap-2">
+                {loading && (
                   <span
                     className="text-xs"
                     style={{ color: "var(--md-sys-color-on-surface-variant)" }}
                   >
-                    [{fmtTime(ev.created_at)}]
+                    loading…
                   </span>
-                  <span className="text-xs font-bold" style={{ color: eventLabelColor(ev.type) }}>
-                    {eventLabel(ev.type)}:
-                  </span>
-                </div>
-                <pre
-                  className="ml-10 text-xs whitespace-pre-wrap break-all rounded px-3 py-2"
+                )}
+                <md-outlined-button
+                  onclick={(() => void handleCopy()) as EventListener}
+                  disabled={!events.length || undefined}
+                >
+                  {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+                  <md-icon slot="icon" aria-hidden="true">
+                    {copied ? "check" : "content_copy"}
+                  </md-icon>
+                  {copied ? "Copied!" : "Copy"}
+                </md-outlined-button>
+              </div>
+            </div>
+
+            {/* Log body */}
+            <div
+              className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-sm"
+              style={{ fontFamily: "ui-monospace, monospace" }}
+            >
+              {!runId && (
+                <p
+                  className="text-sm"
                   style={{
-                    backgroundColor: "var(--md-sys-color-secondary-container)",
-                    color: "var(--md-sys-color-on-surface)",
-                    lineHeight: "1.6",
+                    color: "var(--md-sys-color-on-surface-variant)",
+                    fontFamily: "sans-serif",
                   }}
                 >
-                  {JSON.stringify(ev.payload, null, 2)}
-                </pre>
-              </div>
-            ))}
+                  Open a run to see its diagnostic events.
+                </p>
+              )}
+              {runId && !loading && events.length === 0 && (
+                <p
+                  className="text-sm"
+                  style={{
+                    color: "var(--md-sys-color-on-surface-variant)",
+                    fontFamily: "sans-serif",
+                  }}
+                >
+                  No events recorded for this run yet.
+                </p>
+              )}
+              {events.map((ev, i) => (
+                <div key={ev.seq}>
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span
+                      className="text-xs font-bold"
+                      style={{ color: "var(--md-sys-color-on-surface-variant)", minWidth: "2rem" }}
+                    >
+                      #{i + 1}
+                    </span>
+                    <span
+                      className="text-xs"
+                      style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                    >
+                      [{fmtTime(ev.created_at)}]
+                    </span>
+                    <span className="text-xs font-bold" style={{ color: eventLabelColor(ev.type) }}>
+                      {eventLabel(ev.type)}:
+                    </span>
+                  </div>
+                  <pre
+                    className="ml-10 text-xs whitespace-pre-wrap break-all rounded px-3 py-2"
+                    style={{
+                      backgroundColor: "var(--md-sys-color-secondary-container)",
+                      color: "var(--md-sys-color-on-surface)",
+                      lineHeight: "1.6",
+                    }}
+                  >
+                    {JSON.stringify(ev.payload, null, 2)}
+                  </pre>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

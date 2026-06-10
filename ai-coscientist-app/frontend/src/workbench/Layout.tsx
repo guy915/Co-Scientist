@@ -3,6 +3,7 @@ import "@material/web/button/outlined-button.js";
 import type { ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { LogConsole } from "./components/LogConsole";
+import { ThemeToggle } from "./components/ThemeToggle";
 
 export function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -13,21 +14,25 @@ export function Layout({ children }: { children: ReactNode }) {
       style={{ backgroundColor: "var(--color-th-bg)", color: "var(--color-th-fg)" }}
     >
       <header
-        className="border-b sticky top-0 z-30 backdrop-blur"
+        className="border-b sticky top-0 z-30 backdrop-blur-xl"
         style={{
-          backgroundColor: "var(--md-sys-color-surface-container)",
+          backgroundColor:
+            "color-mix(in srgb, var(--md-sys-color-surface-container) 70%, transparent)",
           borderColor: "var(--color-th-border)",
         }}
       >
-        <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
-          <Link to="/" className="flex items-center gap-2 font-semibold">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
+          <Link to="/" className="flex items-center gap-2 font-semibold shrink-0">
             {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
             <md-icon aria-hidden="true" style={{ color: "var(--md-sys-color-primary)" }}>
               science
             </md-icon>
             <span className="text-base tracking-tight">AI Co-Scientist</span>
           </Link>
-          <nav className="flex items-center gap-3 text-sm">
+          <nav className="flex items-center gap-2 sm:gap-3 text-sm">
+            <span className="hidden sm:inline-flex">
+              <ThemeToggle />
+            </span>
             <md-outlined-button
               onclick={(() => navigate("/")) as EventListener}
               style={
@@ -46,19 +51,24 @@ export function Layout({ children }: { children: ReactNode }) {
             >
               Dashboard
             </md-outlined-button>
-            <LogConsole />
+            <span className="hidden sm:inline-flex">
+              <LogConsole />
+            </span>
           </nav>
         </div>
       </header>
-      <main className="flex-1 max-w-7xl w-full mx-auto px-6 py-6 wb-fade-in">{children}</main>
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4 sm:py-6 wb-fade-in">
+        {children}
+      </main>
       <footer
-        className="text-xs py-3 border-t text-center"
+        className="text-sm py-4 border-t text-center"
         style={{
           borderColor: "var(--color-th-border)",
           color: "var(--color-th-muted-fg)",
+          fontFamily: "system-ui, -apple-system, sans-serif",
         }}
       >
-        Open clone of Google DeepMind&rsquo;s AI Co-Scientist · runs locally · scientific use only
+        &copy; 2026 AI Co-Scientist
       </footer>
     </div>
   );

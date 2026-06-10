@@ -55,14 +55,14 @@ export function OverviewTab({
           ) : (
             <ol className="space-y-1.5 text-sm">
               {events.map((e) => (
-                <li key={e.seq} className="flex gap-3">
+                <li key={e.seq} className="flex gap-3 flex-wrap">
                   <span
                     className="font-mono text-xs w-8 shrink-0 text-right"
                     style={{ color: "var(--color-th-muted-fg)" }}
                   >
                     {e.seq}
                   </span>
-                  <span className="font-medium w-44 shrink-0">{fmtAgent(e.type)}</span>
+                  <span className="font-medium w-28 sm:w-44 shrink-0">{fmtAgent(e.type)}</span>
                   <span style={{ color: "var(--color-th-muted-fg)" }} className="truncate">
                     {summarizeEventPayload(e)}
                   </span>

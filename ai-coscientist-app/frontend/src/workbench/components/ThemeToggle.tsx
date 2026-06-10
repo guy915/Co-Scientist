@@ -9,10 +9,10 @@ export function ThemeToggle() {
     <md-icon-button
       onclick={toggle as EventListener}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      title={isDark ? "Light mode" : "Dark mode"}
+      title={isDark ? "Switch to light mode" : "Switch to dark mode"}
     >
       {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
-      <md-icon aria-hidden="true">{isDark ? "light_mode" : "dark_mode"}</md-icon>
+      <md-icon aria-hidden="true">{isDark ? "dark_mode" : "light_mode"}</md-icon>
     </md-icon-button>
   );
 }
