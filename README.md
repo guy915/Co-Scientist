@@ -163,24 +163,22 @@ The clone is held to these invariants (full list with sources in [`docs/FIDELITY
 .
 ├── Makefile              # root commands
 ├── .env.example          # mock-mode-ready defaults
-├── README.md             # this file (rewritten as the workspace entrypoint)
-├── PLAN.md               # original implementation plan
-├── TASKS.md              # work board
-├── IMPLEMENTATION_REPORT.md
+├── README.md             # this file (workspace entrypoint)
+├── CLAUDE.md             # agent / contributor guidance
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── FIDELITY.md
-│   └── screenshots/      # visual validation evidence
+│   ├── screenshots/      # visual validation evidence
+│   └── archive/          # historical planning docs (PLAN, TASKS, IMPLEMENTATION_REPORT)
 ├── scripts/
-│   ├── setup.sh
-│   └── dev_all.sh
+│   └── dev_all.sh        # run API + UI together
 ├── Code/
 │   ├── ai-coscientist-engine/    # local LangGraph engine (editable install)
 │   └── ai-coscientist-app/
-│       ├── app/                  # FastAPI + new store/elo/safety/citations/mock/adapter/runs
+│       ├── app/                  # FastAPI + store/elo/safety/citations/mock/adapter/runs
 │       ├── tests/                # pytest suite
 │       └── frontend/             # React + Vite + Tailwind workbench
-└── Context/ Research/ Media/     # source corpus and product references
+└── reference/            # source corpus & product refs (Context, Research, Media, NotebookLM)
 ```
 
 ## Non-goals

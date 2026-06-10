@@ -1,6 +1,6 @@
 # Fidelity to Google DeepMind's AI Co-Scientist
 
-The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product captures in `Media/`) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants the clone preserves, which are **clone-defined** (chosen by us to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
+The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product captures in `reference/Media/`) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants the clone preserves, which are **clone-defined** (chosen by us to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
 
 ## Invariants preserved exactly
 

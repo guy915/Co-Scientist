@@ -7,9 +7,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a research/reference workspace organized around replicating Google DeepMind's AI Co-Scientist. Most folders are reference material, not code:
 
 - `Code/` — the only directory with runnable software (two projects, see below)
-- `Context/` — long-form architecture/spec markdown for the planned system
-- `Research/` — papers describing the original Co-Scientist
-- `NotebookLM/`, `Media/` — UX captures and product references
+- `reference/` — all non-code reference material, grouped in one place:
+  - `reference/Context/` — long-form architecture/spec markdown for the planned system
+  - `reference/Research/` — papers describing the original Co-Scientist
+  - `reference/NotebookLM/`, `reference/Media/` — UX captures and product references
+- `docs/` — live project docs (`ARCHITECTURE.md`, `FIDELITY.md`, `screenshots/`); `docs/archive/` holds historical planning docs (`PLAN.md`, `TASKS.md`, `IMPLEMENTATION_REPORT.md`)
 - `.remember/` — session handoff notes (`.remember/remember.md` is the live handoff file)
 
 There is no top-level build system. Each project under `Code/` is independently installable and runnable.
@@ -98,12 +100,9 @@ bun run dev          # vite dev server on :5173
 bun run build        # tsc && vite build
 bun run check        # biome check --write . (lint + format + organize imports)
 bun run lint         # biome lint .
-bun run stories      # storybook dev on :6006
 ```
 
-Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). All HTTP/SSE entry points live in `src/api/client.ts` and `src/hooks/useSSE.ts` + `src/hooks/useHypothesisGeneration.ts`. State is held in React context (`src/context/`: `GenerationContext`, `DomainContext`, `HypothesisFocusContext`, `ThemeContext`) — no Redux/Zustand.
-
-Domain presets (prompt copy / examples per research area) are JSON in `src/domains/` keyed off `DomainContext`.
+Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/WorkbenchApp.tsx`, with pages under `src/workbench/pages/` (Dashboard, NewRun, RunDetail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/useRunStream.ts`. Theme state is in `src/workbench/ThemeContext.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/ErrorBoundary.tsx`, `src/lib/utils.ts`.
 
 ### Docker workflow
 
@@ -112,7 +111,7 @@ Domain presets (prompt copy / examples per research area) are JSON in `src/domai
 ## Working in this repo
 
 - The `open-coscientist` (engine) and `open-coscientist-viewer` (app) are upstream open-source projects from Jataware. This repo vendors them as plain directories (not submodules) — when editing, treat the boundary carefully and don't assume changes propagate to PyPI/Docker images. The viewer's pip install pulls `open-coscientist>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../ai-coscientist-engine` after `make install`.
-- There are currently no committed tests in either project's `tests/` directory; `pytest` will exit clean.
+- The app (`Code/ai-coscientist-app/`) has a committed pytest suite under `tests/`; the engine (`Code/ai-coscientist-engine/`) has none yet, so its `pytest` exits clean.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
 
 ## Required environment
