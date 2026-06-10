@@ -78,7 +78,16 @@ export function Layout({ children }: { children: ReactNode }) {
           fontFamily: "system-ui, -apple-system, sans-serif",
         }}
       >
-        &copy; 2026 Co-Scientist
+        &copy; 2026{" "}
+        <a
+          href="https://github.com/guy915/Co-Scientist"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hover:underline"
+          style={{ color: "inherit" }}
+        >
+          Co-Scientist
+        </a>
       </footer>
     </div>
   );
