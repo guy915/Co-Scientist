@@ -1,178 +1,199 @@
-# Open Coscientist Viewer
+# Open CoScientist Viewer
 
-Web application for the [open-coscientist](https://github.com/jataware/open-coscientist) hypothesis generation framework, with a full-featured web UI.
+A web workbench for running and monitoring the [Open CoScientist](https://github.com/jataware/open-coscientist) multi-agent hypothesis-generation engine. Submit a research goal and watch in real time as a team of AI agents conducts a literature review, generates candidate hypotheses, debates them in an Elo tournament, evolves the survivors, and synthesizes a final report.
 
-## Features
+## Architecture
 
-- **Full-Stack Application**: FastAPI backend + React frontend
-- **Modern Web UI**: Built with Vite, TypeScript, Tailwind CSS, and shadcn/ui
-  - Real-time hypothesis generation workflow visualization
-  - Interactive agent activity monitoring, with hypothesis ranking and evolution tracking
-  - Export to JSON/CSV/Markdown
-- **Server-Sent Events (SSE) streaming** for real-time updates during hypothesis generation
-- **Configurable via environment variables** — see `.env.example`
-
-## MCP Server (Literature Review)
-
-The open coscientist and viewer can work without an MCP server (for testing), but hypotheses grounded in recent literature, in real papers — requires one. The [open-coscientist](https://github.com/jataware/open-coscientist) repo includes a reference MCP server (`mcp_server/`) that provides PubMed search and INDRA CoGex knowledge graph tools.
-
-**Docker** handles the MCP server automatically. For **pip/pixi** setups, you need to run it separately — see the MCP server section under each install method below. See [open-coscientist/mcp_server/README.md](https://github.com/jataware/open-coscientist/blob/v0.2.0/mcp_server/README.md)
-
-To point the viewer at a running MCP server, set `MCP_SERVER_URL` in `.env`:
-```bash
-MCP_SERVER_URL=http://localhost:8888/mcp
+```
+ai-coscientist-app/
+├── app/            FastAPI backend (Python)
+│   ├── main.py     API entrypoint (~800 lines), legacy /generate + /parse endpoints
+│   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
+│   ├── store.py    SQLite persistence layer (WAL, append-only event log)
+│   ├── engine_adapter.py  Bridges to open-coscientist or mock workflow
+│   ├── mock_workflow.py   Deterministic mock for dev without an LLM key
+│   ├── elo.py      Elo rating utilities
+│   ├── citations.py       Citation extraction helpers
+│   ├── safety.py   Safety decision storage
+│   └── config.py   Pydantic-settings config (loads .env)
+└── frontend/       React 19 + Vite 7 + TypeScript + Tailwind v4
+    └── src/
+        ├── workbench/
+        │   ├── pages/      Dashboard, NewRun, RunDetail
+        │   └── components/ RunStatusPill, IdeaModal, LogConsole, EloTrajectoryChart
+        │       └── tabs/   Overview, Ideas, Evidence, Tournament, Report
+        ├── api/runs.ts     HTTP + SSE client
+        └── hooks/useRunStream.ts  Live SSE hook
 ```
 
-To configure which tools the hypothesis generator uses, set `TOOLS_CONFIG` to a YAML tools config file. Example configs are in `open-coscientist/src/open_coscientist/config/examples/`.
+The backend stores every run and its event log in a local SQLite database (`coscientist.db`). Streams survive client reconnects and full server restarts because they replay from the persisted event log.
 
----
+## Quick start
 
-## Setup
+### Prerequisites
 
-### 1. pip (recommended)
+- Python 3.10+
+- Node.js / [Bun](https://bun.sh) (frontend)
+- A LLM provider API key — `GEMINI_API_KEY` by default (Gemini 2.5 Flash)
 
-Requires Python 3.10+.
+### Local development (no Docker)
+
+**Backend (pip)**
 
 ```bash
-# Install dependencies (includes open-coscientist from PyPI)
+cd ai-coscientist-app
+
+# Install Python deps (pulls open-coscientist from PyPI)
 make install
 
-# Configure environment
-cp .env.example .env
-# Edit .env — at minimum set GEMINI_API_KEY (or your provider's key)
+# For local engine changes, pin to the sibling checkout instead:
+# pip install -e ../ai-coscientist-engine
 
-# Run the API server
-make dev
+# Copy and edit the env file
+cp .env.example .env   # set GEMINI_API_KEY at minimum
 
-# In a separate terminal, run the frontend
-cd frontend
-bun install  # first time only
-bun run dev
+# Start the API server (hot-reload)
+make dev               # listens on :8008
 ```
 
-- Frontend UI: http://localhost:5173
-- Backend API: http://localhost:8008
-- API docs: http://localhost:8008/docs
-
-> If you are also developing `open-coscientist` locally, run `pip install -e ../open-coscientist`
-> after `make install` to override the PyPI version with your local checkout.
-
-**MCP server (for literature review):**
-
-Clone `open-coscientist` and run its MCP server in a separate terminal:
-
-```bash
-git clone https://github.com/jataware/open-coscientist.git
-cd open-coscientist/mcp_server
-pip install -e .
-cp .env.example .env
-# Edit .env — set ENTREZ_EMAIL for PubMed access
-uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
-```
-
-Alternatively, use the MCP server's Docker Compose (from the `open-coscientist` repo) if you prefer not to install its dependencies locally:
-
-```bash
-cd open-coscientist
-docker compose up --build
-```
-
----
-
-### 2. Docker for development
-
-Runs all three services (API, UI, MCP server) in containers with hot reload. The MCP server is included automatically — no separate setup needed.
-
-**Prerequisites:** Docker with Compose, and the [open-coscientist](https://github.com/jataware/open-coscientist) repo cloned as a sibling directory:
-
-```
-parent/
-├── open-coscientist/       # clone this
-└── open-coscientist-viewer/
-```
-
-```bash
-# Configure the viewer
-cp .env.example .env
-# Edit .env — set GEMINI_API_KEY and any other vars
-
-# Configure the MCP server
-cp ../open-coscientist/mcp_server/.env.example ../open-coscientist/mcp_server/.env
-# Edit to set ENTREZ_EMAIL for PubMed access
-
-# Build and start all services
-docker compose up --build
-```
-
-- Frontend UI: http://localhost:5173
-- Backend API: http://localhost:8008
-- MCP server: http://localhost:8888
-
-The API container mounts your local `open-coscientist` checkout and installs it as an editable package, so changes to the library are reflected on restart. If the sibling directory is absent, the container clones it automatically from GitHub on first start.
-
-**Custom open-coscientist path:** Set `OPEN_COSCIENTIST_PATH` in `.env` if your checkout is not at `../open-coscientist`:
-
-```bash
-OPEN_COSCIENTIST_PATH=/path/to/your/open-coscientist
-```
-
----
-
-### 3. Pixi
+**Backend (Pixi)**
 
 Requires [Pixi](https://pixi.sh/).
 
 ```bash
-# Install pixi (if not already installed)
+cd ai-coscientist-app
+
+# Install pixi if not already installed
 curl -fsSL https://pixi.sh/install.sh | bash
 
-# Install dependencies
 pixi install
-
-# Configure environment
-cp .env.example .env
-
-# Run the API server
-pixi run dev
-
-# In a separate terminal, run the frontend
-cd frontend
-bun install  # first time only
-bun run dev
+cp .env.example .env   # set GEMINI_API_KEY at minimum
+pixi run dev           # listens on :8008
 ```
 
-**MCP server:** Same as the pip instructions above — clone `open-coscientist` and run the MCP server separately.
+**Frontend**
 
----
+```bash
+cd ai-coscientist-app/frontend
+
+bun install
+cp .env.example .env   # VITE_API_BASE_URL defaults to http://localhost:8008
+bun run dev            # Vite dev server on :5173
+```
+
+Open `http://localhost:5173` in your browser.
+
+### Docker Compose (all services)
+
+```bash
+cd ai-coscientist-app
+
+cp .env.example .env   # set GEMINI_API_KEY
+
+docker compose up --build
+```
+
+This starts three containers:
+
+| Service | Port | Description |
+|---|---|---|
+| `api` | 8008 | FastAPI backend |
+| `ui` | 5173 | Vite dev server |
+| `mcp` | 8888 | Reference MCP server (PubMed + INDRA) |
+
+The `api` container mounts the engine from `../ai-coscientist-engine` (or clones it from GitHub if that path is absent). Override `OPEN_COSCIENTIST_PATH` in `.env` if the engine checkout is elsewhere.
 
 ## Configuration
 
-All configuration is via environment variables. See `.env.example` for the full list.
+All backend settings are read from `.env` (or environment variables). See `.env.example` for the full list; the most important ones:
 
-**Required:**
-- `GEMINI_API_KEY` — API key for Google Gemini (default model). For other providers use the corresponding key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, etc.) as required by [LiteLLM](https://docs.litellm.ai/).
-
-**Key optional overrides:**
 | Variable | Default | Description |
 |---|---|---|
-| `MODEL_NAME` | `gemini/gemini-2.5-flash` | LLM model (LiteLLM format) |
-| `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server URL for literature/api tools |
-| `TOOLS_CONFIG` | _(none)_ | Path or URL to a tools config YAML |
-| `MAX_ITERATIONS` | `3` | Refinement cycles |
-| `INITIAL_HYPOTHESES_COUNT` | `5` | Initial hypothesis pool size |
-| `EVOLUTION_MAX_COUNT` | `3` | Top hypotheses to evolve per iteration |
-| `COSCIENTIST_CACHE_ENABLED` | `true` | Cache LLM responses |
-| `COSCIENTIST_CACHE_DIR` | `./cache` | Cache directory |
+| `GEMINI_API_KEY` | — | **Required.** Google Gemini API key (or set the relevant provider key instead) |
+| `MODEL_NAME` | `gemini/gemini-2.5-flash` | LiteLLM model ID |
+| `MAX_ITERATIONS` | `3` | Workflow iterations (can be overridden per run in the UI) |
+| `INITIAL_HYPOTHESES_COUNT` | `5` | Hypotheses generated per iteration |
+| `EVOLUTION_MAX_COUNT` | `3` | Hypotheses selected for evolution |
+| `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
+| `COSCIENTIST_LIT_REVIEW_PAPERS_COUNT` | `10` | Papers read per literature review pass |
+| `COSCIENTIST_CACHE_ENABLED` | `true` | Enable LLM response caching |
+| `COSCIENTIST_CACHE_DIR` | `./cache` | Cache directory path |
+| `TOOLS_CONFIG` | — | Path or URL to a YAML tools config (optional) |
+| `ENTREZ_EMAIL` | — | Email for NCBI Entrez / PubMed access (optional) |
+| `DEBUG` | `false` | Enable debug-level logging |
 
-**Note:** The UI always overrides `MAX_ITERATIONS`, `INITIAL_HYPOTHESES_COUNT`, and `EVOLUTION_MAX_COUNT` per run via the Advanced Configuration panel. Server-side defaults only apply to the non-streaming `/generate` endpoint.
+The frontend reads a single variable:
 
----
+| Variable | Default | Description |
+|---|---|---|
+| `VITE_API_BASE_URL` | `http://localhost:8008` | Backend URL |
 
-## Development
+## Using the workbench
 
-Available commands via both `make` and `pixi run`:
+1. **Dashboard** — lists all past runs with status, model, and hypothesis counts.
+2. **New run** — enter a research goal (free text), choose a run profile, and optionally tune iteration counts. Three example goals are shown as inspiration.
+3. **Run detail** — five tabs update live via SSE as the workflow progresses:
+   - **Overview** — live log, agent activity timeline, and key metrics.
+   - **Ideas** — ranked hypothesis list with Elo scores and lineage.
+   - **Evidence** — retrieved literature and citations.
+   - **Tournament** — Elo pairwise matchup history and trajectory chart.
+   - **Report** — synthesized Markdown report, downloadable.
 
-| Task | make | pixi |
+Runs can be cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
+
+## API reference
+
+The backend exposes two groups of endpoints.
+
+### Run lifecycle (`/api/runs`)
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/api/runs` | Create a draft run |
+| `GET` | `/api/runs` | List runs (most recent first) |
+| `GET` | `/api/runs/{id}` | Get run + summary counts |
+| `POST` | `/api/runs/{id}/start` | Start the workflow in the background |
+| `POST` | `/api/runs/{id}/cancel` | Cancel a running workflow |
+| `GET` | `/api/runs/{id}/events` | SSE stream (live + replay via `?after=`) |
+| `GET` | `/api/runs/{id}/hypotheses` | Hypotheses with Elo scores and lineage |
+| `GET` | `/api/runs/{id}/evidence` | Retrieved literature |
+| `GET` | `/api/runs/{id}/matches` | Tournament matchup history |
+| `GET` | `/api/runs/{id}/reviews` | Reviewer and meta-review notes |
+| `GET` | `/api/runs/{id}/safety` | Safety decisions |
+| `GET` | `/api/runs/{id}/citations` | Citations with classification states |
+| `GET` | `/api/runs/{id}/report` | Structured report (JSON) |
+| `GET` | `/api/runs/{id}/report.md` | Rendered Markdown report |
+
+### Utility endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/health` | Health check |
+| `GET` | `/config` | Server-default config values |
+| `GET` | `/status` | MCP/PubMed availability, provider, API key presence |
+| `POST` | `/parse` | LLM-powered research goal parser |
+| `POST` | `/generate` | Synchronous blocking generation (legacy) |
+
+Interactive docs are available when the server is running:
+- Swagger UI: http://localhost:8008/docs
+- ReDoc: http://localhost:8008/redoc
+
+## Development commands
+
+**Backend** (from `ai-coscientist-app/`):
+
+```bash
+make install     # install with dev deps
+make dev         # hot-reload server on :8008
+make test        # pytest
+make format      # black + ruff --fix
+make lint        # ruff check
+make typecheck   # mypy
+```
+
+Pixi users can substitute `pixi run <task>` for any `make` target:
+
+| Task | `make` | `pixi run` |
 |---|---|---|
 | Install deps | `make install` | `pixi install` |
 | Run dev server | `make dev` | `pixi run dev` |
@@ -181,11 +202,33 @@ Available commands via both `make` and `pixi run`:
 | Lint | `make lint` | `pixi run lint` |
 | Type check | `make typecheck` | `pixi run typecheck` |
 
-### API Documentation
+**Frontend** (from `ai-coscientist-app/frontend/`):
 
-With the server running:
-- Swagger UI: http://localhost:8008/docs
-- ReDoc: http://localhost:8008/redoc
+```bash
+bun install
+bun run dev      # Vite dev server on :5173
+bun run build    # tsc && vite build
+bun run check    # biome check --write (lint + format + import sort)
+bun run lint     # biome lint
+```
+
+## Mock mode
+
+If `open-coscientist` is not installed or no LLM API key is set, the server falls back to a deterministic mock workflow that returns pre-built fake hypotheses. The UI displays a "Mock mode" banner. This is useful for frontend development and CI.
+
+## Literature review (MCP)
+
+The literature review and reflection nodes connect to an MCP server that provides PubMed search and INDRA CoGex tools. Without a running MCP server the nodes fall back to LLM-only mode — hypothesis quality is reduced but the workflow still completes.
+
+The reference MCP server lives in `../ai-coscientist-engine/mcp_server/`. Run it separately or let Docker Compose manage it:
+
+```bash
+cd ../ai-coscientist-engine
+pip install -e mcp_server/     # requires Python 3.12
+uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
+```
+
+Set `ENTREZ_EMAIL` (and optionally `ENTREZ_API_KEY`) for full PubMed access.
 
 ---
 
