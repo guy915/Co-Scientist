@@ -7,7 +7,7 @@ import { getRunEventsLog, type RunEvent } from "@/api/runs";
 
 function extractRunId(pathname: string): string | null {
   const m = pathname.match(/\/runs\/([^/]+)/);
-  return m ? m[1] : null;
+  return m && m[1] !== "new" ? m[1] : null;
 }
 
 function fmtTime(ts: number) {
