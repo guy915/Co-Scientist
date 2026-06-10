@@ -110,7 +110,7 @@ export function LogConsole() {
           Logs
           {events.length > 0 && (
             <span
-              className="flex items-center justify-center rounded-full text-xs font-bold w-5 h-5"
+              className="inline-flex items-center justify-center rounded-full text-xs font-bold w-5 h-5 ml-1.5"
               style={{ backgroundColor: "rgba(255,255,255,0.25)" }}
             >
               {events.length}
@@ -126,12 +126,13 @@ export function LogConsole() {
       {open && (
         <div
           ref={panelRef}
-          className="absolute right-0 top-full mt-2 z-50 rounded-lg shadow-xl overflow-hidden"
+          className="absolute right-0 z-50 rounded-lg shadow-xl overflow-hidden"
           style={{
+            top: "calc(100% + 12px)",
             width: "560px",
             maxHeight: "480px",
             border: "1px solid var(--md-sys-color-outline-variant)",
-            backgroundColor: "var(--md-sys-color-surface-container-low)",
+            backgroundColor: "var(--color-th-card)",
             display: "flex",
             flexDirection: "column",
           }}

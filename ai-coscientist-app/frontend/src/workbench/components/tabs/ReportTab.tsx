@@ -77,7 +77,7 @@ export function ReportTab({
           </div>
         )}
       </article>
-      <aside className="space-y-3 wb-print-hide">
+      <aside className="flex flex-col gap-3 wb-print-hide">
         <md-filled-button
           onclick={
             (() => {
@@ -92,7 +92,7 @@ export function ReportTab({
           <md-icon slot="icon" aria-hidden="true">
             download
           </md-icon>
-          Download .md
+          Download Markdown
         </md-filled-button>
         <md-outlined-button
           onclick={
@@ -108,7 +108,7 @@ export function ReportTab({
           <md-icon slot="icon" aria-hidden="true">
             description
           </md-icon>
-          Download .json
+          Download JSON
         </md-outlined-button>
         <md-outlined-button
           onclick={(() => void copyMarkdown()) as EventListener}
@@ -118,7 +118,7 @@ export function ReportTab({
           <md-icon slot="icon" aria-hidden="true">
             {copied ? "check" : "content_copy"}
           </md-icon>
-          {copied ? "Copied" : "Copy markdown"}
+          {copied ? "Copied" : "Copy Markdown"}
         </md-outlined-button>
         <md-outlined-button onclick={(() => window.print()) as EventListener}>
           {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}

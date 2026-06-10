@@ -24,7 +24,7 @@
     "vite": "^7.2.4"
   },
   "dependencies": {
-    "@fontsource/roboto": "^5.2.10",
+    "@fontsource/google-sans": "^5.2.1",
     "@material/material-color-utilities": "^0.4.0",
     "@material/web": "^2.4.1",
     "material-symbols": "^0.44.12",

@@ -5,7 +5,7 @@
     "": {
       "name": "frontend",
       "dependencies": {
-        "@fontsource/roboto": "^5.2.10",
+        "@fontsource/google-sans": "^5.2.1",
         "@material/material-color-utilities": "^0.4.0",
         "@material/web": "^2.4.1",
         "material-symbols": "^0.44.12",
@@ -136,7 +136,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
-    "@fontsource/roboto": ["@fontsource/roboto@5.2.10", "", {}, "sha512-8HlA5FtSfz//oFSr2eL7GFXAiE7eIkcGOtx7tjsLKq+as702x9+GU7K95iDeWFapHC4M2hv9RrpXKRTGGBI8Zg=="],
+    "@fontsource/google-sans": ["@fontsource/google-sans@5.2.1", "", {}, "sha512-FteXH18YS0288Bcrjefwyyp7hLwxd8yQBEcmjU/P0BED9c8n8kxwgna3gtMtYyFQx/wIkpyrzj8RaYQyl/4quw=="],
 
     "@jridgewell/gen-mapping": ["@jridgewell/gen-mapping@0.3.13", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.0", "@jridgewell/trace-mapping": "^0.3.24" } }, "sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA=="],
 

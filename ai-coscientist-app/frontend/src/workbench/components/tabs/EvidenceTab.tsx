@@ -5,23 +5,23 @@ type CitState = "verified" | "partial" | "unsupported" | "unavailable";
 
 const STATE_STYLES: Record<CitState, { fg: string; bg: string; label: string }> = {
   verified: {
-    fg: "var(--color-th-success-fg)",
-    bg: "var(--color-th-success)",
+    fg: "var(--color-th-on-success-container)",
+    bg: "var(--color-th-success-container)",
     label: "Verified",
   },
   partial: {
-    fg: "var(--color-th-warning-fg)",
-    bg: "var(--color-th-warning)",
+    fg: "var(--color-th-on-warning-container)",
+    bg: "var(--color-th-warning-container)",
     label: "Partial",
   },
   unsupported: {
-    fg: "var(--color-th-destructive-fg)",
-    bg: "var(--color-th-destructive)",
+    fg: "var(--color-th-destructive-on-container)",
+    bg: "var(--color-th-destructive-container)",
     label: "Unsupported",
   },
   unavailable: {
     fg: "var(--color-th-muted-fg)",
-    bg: "var(--md-sys-color-secondary-container)",
+    bg: "var(--color-th-muted)",
     label: "Unavailable",
   },
 };
@@ -150,11 +150,11 @@ export function EvidenceTab({
                     <span
                       className="text-xs px-1.5 py-0.5 rounded"
                       style={{
-                        backgroundColor: "var(--md-sys-color-secondary-container)",
-                        color: "var(--md-sys-color-on-surface-variant)",
+                        backgroundColor: "var(--color-th-muted)",
+                        color: "var(--color-th-muted-fg)",
                       }}
                     >
-                      unavailable
+                      Unavailable
                     </span>
                   )}
                   {e.url && (
@@ -164,7 +164,7 @@ export function EvidenceTab({
                       rel="noopener noreferrer"
                       className="text-xs wb-link"
                     >
-                      open
+                      Open
                     </a>
                   )}
                 </div>

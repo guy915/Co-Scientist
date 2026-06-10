@@ -29,7 +29,39 @@ function fmtRelative(ts: number) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
+function formatModelName(rawName: string): string {
+  if (!rawName) return "";
+  const name = rawName.includes("/") ? rawName.split("/").slice(1).join("/") : rawName;
+  const clean = name.replace(/[-_]/g, " ");
+  return clean
+    .split(" ")
+    .map((word) => {
+      if (!word) return "";
+      const l = word.toLowerCase();
+      if (l === "gpt") return "GPT";
+      if (l === "gemini") return "Gemini";
+      if (l === "claude") return "Claude";
+      if (l === "llama") return "Llama";
+      if (l === "deepseek") return "DeepSeek";
+      if (l.match(/^v\d+$/)) return l.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(" ");
+}
+
 type Filter = "all" | RunStatus;
+
+const FILTER_LABELS: Record<Filter, string> = {
+  all: "All",
+  draft: "Draft",
+  queued: "Queued",
+  running: "Running",
+  synthesizing: "Synthesizing",
+  completed: "Completed",
+  failed: "Failed",
+  blocked: "Blocked",
+  cancelled: "Cancelled",
+};
 
 export function Dashboard() {
   const navigate = useNavigate();
@@ -123,7 +155,7 @@ export function Dashboard() {
           <StatCard
             label="Active"
             value={totals.running}
-            sub={totals.running ? "in progress" : "no runs in progress"}
+            sub={totals.running ? "In progress" : "No runs in progress"}
           />
           <StatCard
             label="Hypotheses generated"
@@ -132,12 +164,12 @@ export function Dashboard() {
           />
           <StatCard
             label="Current mode"
-            value={systemStatus ? systemStatus.provider : "…"}
+            value={systemStatus ? (systemStatus.provider === "mock" ? "Mock" : "Engine") : "…"}
             sub={
               systemStatus
                 ? systemStatus.mock_mode
-                  ? "no LLM key set"
-                  : systemStatus.model_name
+                  ? "No LLM key set"
+                  : formatModelName(systemStatus.model_name)
                 : undefined
             }
           />
@@ -159,7 +191,7 @@ export function Dashboard() {
               selected={filter === f || undefined}
               onclick={(() => setFilter(f)) as EventListener}
             >
-              {f}
+              {FILTER_LABELS[f] ?? f}
             </md-filter-chip>
           ))}
         </md-chip-set>

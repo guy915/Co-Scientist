@@ -152,7 +152,7 @@ export function RunDetail() {
   const isLiveActive = isOpen && !terminal;
 
   const tabList = TABS.map((t) => ({
-    label: t,
+    label: t.charAt(0).toUpperCase() + t.slice(1),
     icon: TAB_ICON_NAMES[t],
   }));
 
@@ -239,7 +239,7 @@ export function RunDetail() {
                 <md-icon slot="icon" aria-hidden="true">
                   download
                 </md-icon>
-                Export report.md
+                Export Report
               </md-outlined-button>
             )}
           </div>

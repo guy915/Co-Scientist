@@ -55,7 +55,7 @@ export function IdeasTab({
               selected={filter === f || undefined}
               onclick={(() => setFilter(f)) as EventListener}
             >
-              {f}
+              {f.charAt(0).toUpperCase() + f.slice(1)}
             </md-filter-chip>
           ))}
         </md-chip-set>
@@ -70,7 +70,7 @@ export function IdeasTab({
               selected={sortKey === k || undefined}
               onclick={(() => setSortKey(k)) as EventListener}
             >
-              {k}
+              {k === "elo" ? "Elo" : k.charAt(0).toUpperCase() + k.slice(1)}
             </md-filter-chip>
           ))}
         </md-chip-set>
@@ -154,7 +154,7 @@ function IdeaRow({
                     "color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent)",
                 }}
               >
-                gen {h.generation}
+                Gen {h.generation}
               </span>
             )}
             {winRate !== null && (
@@ -171,7 +171,7 @@ function IdeaRow({
             )}
             {totalCit > 0 && (
               <span className="text-xs" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
-                {verified}/{totalCit} verified
+                {verified}/{totalCit} Verified
               </span>
             )}
           </div>

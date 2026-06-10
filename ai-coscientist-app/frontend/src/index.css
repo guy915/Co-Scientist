@@ -1,6 +1,6 @@
-@import "@fontsource/roboto/400.css";
-@import "@fontsource/roboto/500.css";
-@import "@fontsource/roboto/700.css";
+@import "@fontsource/google-sans/400.css";
+@import "@fontsource/google-sans/500.css";
+@import "@fontsource/google-sans/700.css";
 @import "material-symbols/outlined.css";
 @import "tailwindcss";
 
@@ -30,8 +30,14 @@
   /* No MD3 equivalent — keep hardcoded */
   --color-th-success: hsl(142 71% 45%);
   --color-th-success-fg: hsl(0 0% 100%);
+  --color-th-success-container: var(--md-sys-color-secondary-container, hsl(138 38% 93%));
+  --color-th-on-success-container: var(--md-sys-color-on-secondary-container, hsl(138 45% 20%));
   --color-th-warning: hsl(38 92% 50%);
   --color-th-warning-fg: hsl(0 0% 100%);
+  --color-th-warning-container: hsl(38 92% 92%);
+  --color-th-on-warning-container: hsl(38 92% 16%);
+  --color-th-destructive-container: var(--md-sys-color-error-container, hsl(0 84.2% 95.3%));
+  --color-th-destructive-on-container: var(--md-sys-color-on-error-container, hsl(0 84.2% 20%));
   --color-th-info: hsl(199 89% 48%);
   --color-th-info-fg: hsl(0 0% 100%);
   --color-th-link: hsl(221 83% 53%);
@@ -50,6 +56,8 @@
   --color-th-success: hsl(142 60% 48%);
   --color-th-warning: hsl(38 90% 56%);
   --color-th-warning-fg: hsl(222 22% 7%);
+  --color-th-warning-container: hsl(38 50% 12%);
+  --color-th-on-warning-container: hsl(38 60% 80%);
   --color-th-info: hsl(199 80% 55%);
   --color-th-info-fg: hsl(222 22% 7%);
   --color-th-link: hsl(210 80% 70%);
@@ -62,9 +70,9 @@
 }
 
 :root {
-  --md-ref-typeface-brand: "Roboto", system-ui, sans-serif;
-  --md-ref-typeface-plain: "Roboto", system-ui, sans-serif;
-  font-family: "Roboto", system-ui, sans-serif;
+  --md-ref-typeface-brand: "Google Sans", system-ui, sans-serif;
+  --md-ref-typeface-plain: "Google Sans", system-ui, sans-serif;
+  font-family: "Google Sans", system-ui, sans-serif;
 }
 
 html {
@@ -429,4 +437,32 @@ body {
     margin-bottom: 0.75rem;
     font-style: italic;
   }
+}
+
+/* Material Web Component button text clipping / padding fix */
+md-filled-button,
+md-outlined-button,
+md-filled-tonal-button,
+md-elevated-button,
+md-text-button {
+  padding-inline-start: 24px;
+  padding-inline-end: 24px;
+}
+
+md-filled-button[has-icon]:not([trailing-icon]),
+md-outlined-button[has-icon]:not([trailing-icon]),
+md-filled-tonal-button[has-icon]:not([trailing-icon]),
+md-elevated-button[has-icon]:not([trailing-icon]),
+md-text-button[has-icon]:not([trailing-icon]) {
+  padding-inline-start: 16px;
+  padding-inline-end: 24px;
+}
+
+md-filled-button[has-icon][trailing-icon],
+md-outlined-button[has-icon][trailing-icon],
+md-filled-tonal-button[has-icon][trailing-icon],
+md-elevated-button[has-icon][trailing-icon],
+md-text-button[has-icon][trailing-icon] {
+  padding-inline-start: 24px;
+  padding-inline-end: 16px;
 }

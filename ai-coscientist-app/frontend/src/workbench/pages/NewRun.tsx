@@ -78,15 +78,24 @@ export function NewRun() {
             style={{ width: "100%" } as React.CSSProperties}
           />
           <div
-            className="text-xs space-x-2"
+            className="text-xs flex flex-col gap-1.5 mt-2 px-1"
             style={{ color: "var(--md-sys-color-on-surface-variant)" }}
           >
-            <span>Try:</span>
-            {SUGGESTED.map((s) => (
-              <md-text-button key={s} onclick={(() => setGoal(s)) as EventListener}>
-                {s.length > 60 ? `${s.slice(0, 60)}…` : s}
-              </md-text-button>
-            ))}
+            <span className="font-medium">Try a suggested research goal:</span>
+            <div className="flex flex-col gap-2 items-start mt-0.5">
+              {SUGGESTED.map((s) => (
+                <button
+                  key={s}
+                  type="button"
+                  onClick={() => setGoal(s)}
+                  className="text-left cursor-pointer hover:underline text-xs flex items-start gap-1.5"
+                  style={{ color: "var(--md-sys-color-primary)", lineHeight: "1.4" }}
+                >
+                  <span className="opacity-70 font-mono">•</span>
+                  <span>{s}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

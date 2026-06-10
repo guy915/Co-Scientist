@@ -22,8 +22,8 @@ const STYLES: Record<RunStatus, { bg: string; fg: string; label: string }> = {
     label: "Synthesizing",
   },
   completed: {
-    bg: "var(--md-sys-color-primary-container)",
-    fg: "var(--md-sys-color-on-primary-container)",
+    bg: "var(--color-th-success-container)",
+    fg: "var(--color-th-on-success-container)",
     label: "Completed",
   },
   failed: {

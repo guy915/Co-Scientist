@@ -125,7 +125,7 @@ export function TournamentTab({
                         color: "var(--md-sys-color-on-secondary-container)",
                       }}
                     >
-                      iter {m.iteration}
+                      Iter {m.iteration}
                     </span>
                     <span className="flex-1 truncate font-medium">{w?.title ?? m.winner_id}</span>
                     <span
