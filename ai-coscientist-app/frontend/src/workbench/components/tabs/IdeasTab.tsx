@@ -1,4 +1,6 @@
-import { ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import "@material/web/icon/icon.js";
+import "@material/web/chips/chip-set.js";
+import "@material/web/chips/filter-chip.js";
 import { useMemo, useState } from "react";
 import type { CitationRow, Hypothesis, Review } from "@/api/runs";
 
@@ -45,41 +47,33 @@ export function IdeasTab({
   return (
     <div className="space-y-3 wb-fade-in">
       <div className="flex items-center gap-2 text-sm flex-wrap">
-        <span style={{ color: "var(--color-th-muted-fg)" }}>Filter:</span>
-        {(["all", "initial", "evolved"] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => setFilter(f)}
-            className="px-2 py-0.5 rounded border capitalize transition-colors"
-            style={{
-              borderColor: filter === f ? "var(--color-th-primary)" : "var(--color-th-border)",
-              backgroundColor: filter === f ? "var(--color-th-secondary)" : "transparent",
-              fontWeight: filter === f ? 600 : 400,
-            }}
-          >
-            {f}
-          </button>
-        ))}
-        <span className="mx-2" style={{ color: "var(--color-th-muted-fg)" }}>
+        <span style={{ color: "var(--md-sys-color-on-surface-variant)" }}>Filter:</span>
+        <md-chip-set>
+          {(["all", "initial", "evolved"] as const).map((f) => (
+            <md-filter-chip
+              key={f}
+              selected={filter === f || undefined}
+              onclick={(() => setFilter(f)) as EventListener}
+            >
+              {f}
+            </md-filter-chip>
+          ))}
+        </md-chip-set>
+        <span className="mx-2" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
           ·
         </span>
-        <span style={{ color: "var(--color-th-muted-fg)" }}>Sort:</span>
-        {(["elo", "title", "generation"] as SortKey[]).map((k) => (
-          <button
-            key={k}
-            type="button"
-            onClick={() => setSortKey(k)}
-            className="px-2 py-0.5 rounded border capitalize transition-colors"
-            style={{
-              borderColor: sortKey === k ? "var(--color-th-primary)" : "var(--color-th-border)",
-              backgroundColor: sortKey === k ? "var(--color-th-secondary)" : "transparent",
-              fontWeight: sortKey === k ? 600 : 400,
-            }}
-          >
-            {k}
-          </button>
-        ))}
+        <span style={{ color: "var(--md-sys-color-on-surface-variant)" }}>Sort:</span>
+        <md-chip-set>
+          {(["elo", "title", "generation"] as SortKey[]).map((k) => (
+            <md-filter-chip
+              key={k}
+              selected={sortKey === k || undefined}
+              onclick={(() => setSortKey(k)) as EventListener}
+            >
+              {k}
+            </md-filter-chip>
+          ))}
+        </md-chip-set>
       </div>
       <ol className="space-y-2">
         {filtered.map((h, i) => (
@@ -118,10 +112,10 @@ function IdeaRow({
 
   return (
     <li
-      className="rounded border transition-colors hover:bg-[color:var(--color-th-secondary)]"
+      className="rounded border transition-colors hover:bg-[color:var(--md-sys-color-secondary-container)]"
       style={{
-        borderColor: "var(--color-th-border)",
-        backgroundColor: "var(--color-th-card)",
+        borderColor: "var(--md-sys-color-outline-variant)",
+        backgroundColor: "var(--md-sys-color-surface-container-low)",
       }}
     >
       <button
@@ -131,12 +125,12 @@ function IdeaRow({
       >
         <span
           className="text-xs font-mono mt-0.5 w-7 text-right inline-flex items-center justify-end gap-0.5"
-          style={{ color: "var(--color-th-muted-fg)" }}
+          style={{ color: "var(--md-sys-color-on-surface-variant)" }}
         >
           {open ? (
-            <ChevronDown className="w-3.5 h-3.5 inline" />
+            <md-icon style={{ fontSize: "14px" }}>keyboard_arrow_down</md-icon>
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 inline" />
+            <md-icon style={{ fontSize: "14px" }}>keyboard_arrow_right</md-icon>
           )}
           {rank}
         </span>
@@ -146,8 +140,8 @@ function IdeaRow({
             <span
               className="text-xs px-1.5 py-0.5 rounded font-mono"
               style={{
-                backgroundColor: "var(--color-th-secondary)",
-                color: "var(--color-th-secondary-fg)",
+                backgroundColor: "var(--md-sys-color-secondary-container)",
+                color: "var(--md-sys-color-on-secondary-container)",
               }}
             >
               Elo {h.elo_rating}
@@ -156,7 +150,8 @@ function IdeaRow({
               <span
                 className="text-xs px-1.5 py-0.5 rounded"
                 style={{
-                  backgroundColor: "color-mix(in srgb, var(--color-th-info) 18%, transparent)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent)",
                 }}
               >
                 gen {h.generation}
@@ -167,20 +162,24 @@ function IdeaRow({
                 className="text-xs px-1.5 py-0.5 rounded font-mono"
                 title={`${h.win_count}W / ${h.loss_count}L`}
                 style={{
-                  backgroundColor: "color-mix(in srgb, var(--color-th-success) 14%, transparent)",
+                  backgroundColor:
+                    "color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent)",
                 }}
               >
                 {winRate}%
               </span>
             )}
             {totalCit > 0 && (
-              <span className="text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
+              <span className="text-xs" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
                 {verified}/{totalCit} verified
               </span>
             )}
           </div>
           {!open && (
-            <p className="text-xs mt-1 line-clamp-2" style={{ color: "var(--color-th-muted-fg)" }}>
+            <p
+              className="text-xs mt-1 line-clamp-2"
+              style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+            >
               {h.statement}
             </p>
           )}
@@ -189,7 +188,7 @@ function IdeaRow({
       {open && (
         <div
           className="px-3 pb-3 -mt-1 space-y-2 text-sm wb-fade-in"
-          style={{ color: "var(--color-th-fg)" }}
+          style={{ color: "var(--md-sys-color-on-surface)" }}
         >
           <p>{h.statement}</p>
           {h.mechanism && (
@@ -204,7 +203,7 @@ function IdeaRow({
           )}
           <div
             className="flex items-center gap-3 text-xs"
-            style={{ color: "var(--color-th-muted-fg)" }}
+            style={{ color: "var(--md-sys-color-on-surface-variant)" }}
           >
             {reviews.length > 0 && (
               <span>
@@ -219,7 +218,11 @@ function IdeaRow({
                 onClick();
               }}
             >
-              <ExternalLink className="w-3 h-3" aria-hidden="true" /> Open detail
+              {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+              <md-icon style={{ fontSize: "12px" }} aria-hidden="true">
+                open_in_new
+              </md-icon>{" "}
+              Open detail
             </button>
           </div>
         </div>
@@ -232,7 +235,10 @@ function Empty({ msg }: { msg: string }) {
   return (
     <div
       className="rounded border p-6 text-sm text-center"
-      style={{ borderColor: "var(--color-th-border)", color: "var(--color-th-muted-fg)" }}
+      style={{
+        borderColor: "var(--md-sys-color-outline-variant)",
+        color: "var(--md-sys-color-on-surface-variant)",
+      }}
     >
       {msg}
     </div>

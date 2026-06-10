@@ -24,13 +24,13 @@
     "vite": "^7.2.4"
   },
   "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "lucide-react": "^0.554.0",
+    "@fontsource/roboto": "^5.2.10",
+    "@material/material-color-utilities": "^0.4.0",
+    "@material/web": "^2.4.1",
+    "material-symbols": "^0.44.12",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^7.17.0",
-    "tailwind-merge": "^3.4.0"
+    "react-router-dom": "^7.17.0"
   }
 }

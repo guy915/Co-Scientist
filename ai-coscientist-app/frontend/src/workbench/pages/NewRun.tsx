@@ -1,3 +1,7 @@
+import "@material/web/textfield/outlined-text-field.js";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/text-button.js";
+
 import { type FormEvent, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createRun, type RunProfile, startRun } from "@/api/runs";
@@ -46,8 +50,10 @@ export function NewRun() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">New research run</h1>
-        <p className="text-sm" style={{ color: "var(--color-th-muted-fg)" }}>
+        <h1 className="md-typescale-headline-medium text-2xl font-semibold tracking-tight">
+          New research run
+        </h1>
+        <p className="text-sm" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
           Frame a research goal. The supervisor will scope it, retrieve evidence, generate candidate
           hypotheses, debate them in an Elo tournament, and synthesize a report.
         </p>
@@ -57,37 +63,29 @@ export function NewRun() {
         onSubmit={onSubmit}
         className="space-y-5 rounded border p-5"
         style={{
-          borderColor: "var(--color-th-border)",
-          backgroundColor: "var(--color-th-card)",
+          borderColor: "var(--md-sys-color-outline-variant)",
+          backgroundColor: "var(--md-sys-color-surface-container-low)",
         }}
       >
         <div className="space-y-1.5">
-          <label htmlFor="goal" className="text-sm font-medium">
-            Research goal
-          </label>
-          <textarea
-            id="goal"
-            value={goal}
-            onChange={(e) => setGoal(e.target.value)}
-            placeholder="Investigate the mechanism of glucose homeostasis under cold stress…"
+          <md-outlined-text-field
+            type="textarea"
+            label="Research goal"
             rows={4}
-            className="w-full rounded border px-3 py-2 text-sm"
-            style={{
-              borderColor: "var(--color-th-input)",
-              backgroundColor: "var(--color-th-bg)",
-            }}
+            value={goal}
+            oninput={((e: Event) => setGoal((e.target as HTMLInputElement).value)) as EventListener}
+            placeholder="Investigate the mechanism of glucose homeostasis under cold stress…"
+            style={{ width: "100%" } as React.CSSProperties}
           />
-          <div className="text-xs space-x-2" style={{ color: "var(--color-th-muted-fg)" }}>
+          <div
+            className="text-xs space-x-2"
+            style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+          >
             <span>Try:</span>
             {SUGGESTED.map((s) => (
-              <button
-                key={s}
-                type="button"
-                className="underline underline-offset-2 hover:no-underline"
-                onClick={() => setGoal(s)}
-              >
-                {s.length > 60 ? s.slice(0, 60) + "…" : s}
-              </button>
+              <md-text-button key={s} onclick={(() => setGoal(s)) as EventListener}>
+                {s.length > 60 ? `${s.slice(0, 60)}…` : s}
+              </md-text-button>
             ))}
           </div>
         </div>
@@ -99,7 +97,9 @@ export function NewRun() {
               className="flex items-start gap-2 rounded border p-3 cursor-pointer"
               style={{
                 borderColor:
-                  profile === "standard" ? "var(--color-th-primary)" : "var(--color-th-border)",
+                  profile === "standard"
+                    ? "var(--md-sys-color-primary)"
+                    : "var(--md-sys-color-outline-variant)",
               }}
             >
               <input
@@ -111,7 +111,10 @@ export function NewRun() {
               />
               <span>
                 <div className="font-medium">Standard</div>
-                <div className="text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
+                <div
+                  className="text-xs"
+                  style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                >
                   Fast scoping. 5 hypotheses, evolve all, 1 iteration, ~10 min.
                 </div>
               </span>
@@ -120,7 +123,9 @@ export function NewRun() {
               className="flex items-start gap-2 rounded border p-3 cursor-pointer"
               style={{
                 borderColor:
-                  profile === "advanced" ? "var(--color-th-primary)" : "var(--color-th-border)",
+                  profile === "advanced"
+                    ? "var(--md-sys-color-primary)"
+                    : "var(--md-sys-color-outline-variant)",
               }}
             >
               <input
@@ -132,7 +137,10 @@ export function NewRun() {
               />
               <span>
                 <div className="font-medium">Advanced</div>
-                <div className="text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
+                <div
+                  className="text-xs"
+                  style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                >
                   Deeper run. 8 hypotheses, evolve all, 2 iterations, ~25 min.
                 </div>
               </span>
@@ -142,7 +150,7 @@ export function NewRun() {
 
         <details
           className="rounded border"
-          style={{ borderColor: "var(--color-th-border)" }}
+          style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
           open={advanced}
           onToggle={(e) => setAdvanced((e.target as HTMLDetailsElement).open)}
         >
@@ -169,8 +177,8 @@ export function NewRun() {
             role="alert"
             className="text-sm rounded border p-2"
             style={{
-              borderColor: "var(--color-th-destructive)",
-              color: "var(--color-th-destructive)",
+              borderColor: "var(--md-sys-color-error)",
+              color: "var(--md-sys-color-error)",
             }}
           >
             {error}
@@ -178,17 +186,9 @@ export function NewRun() {
         )}
 
         <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={submitting}
-            className="px-4 py-2 rounded text-sm font-medium disabled:opacity-50"
-            style={{
-              backgroundColor: "var(--color-th-primary)",
-              color: "var(--color-th-primary-fg)",
-            }}
-          >
+          <md-filled-button type="submit" disabled={submitting || undefined}>
             {submitting ? "Starting…" : "Start run"}
-          </button>
+          </md-filled-button>
         </div>
       </form>
     </div>
@@ -205,23 +205,19 @@ function NumberField({
   onChange: (v: number | "") => void;
 }) {
   return (
-    <label className="text-sm">
-      <span className="block mb-1">{label}</span>
-      <input
-        type="number"
-        value={value}
-        min={1}
-        max={20}
-        onChange={(e) => {
-          const v = e.target.value;
+    <md-outlined-text-field
+      type="number"
+      label={label}
+      value={value === "" ? "" : String(value)}
+      min="1"
+      max="20"
+      oninput={
+        ((e: Event) => {
+          const v = (e.target as HTMLInputElement).value;
           onChange(v === "" ? "" : Number(v));
-        }}
-        className="w-full rounded border px-2 py-1.5 text-sm"
-        style={{
-          borderColor: "var(--color-th-input)",
-          backgroundColor: "var(--color-th-bg)",
-        }}
-      />
-    </label>
+        }) as EventListener
+      }
+      style={{ width: "100%" } as React.CSSProperties}
+    />
   );
 }

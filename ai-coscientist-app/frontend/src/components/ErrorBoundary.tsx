@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import "@material/web/icon/icon.js";
 import type React from "react";
 import type { ReactNode } from "react";
 import { Component } from "react";
@@ -16,54 +16,37 @@ interface ErrorBoundaryState {
   errorInfo: React.ErrorInfo | null;
 }
 
-/**
- * Error Boundary component to catch and display React errors
- */
 export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
-    this.state = {
-      hasError: false,
-      error: null,
-      errorInfo: null,
-    };
+    this.state = { hasError: false, error: null, errorInfo: null };
   }
 
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
-    return {
-      hasError: true,
-      error,
-    };
+    return { hasError: true, error };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error("ErrorBoundary caught an error:", error, errorInfo);
-    this.setState({
-      error,
-      errorInfo,
-    });
+    this.setState({ errorInfo });
   }
 
   handleReset = () => {
-    this.setState({
-      hasError: false,
-      error: null,
-      errorInfo: null,
-    });
+    this.setState({ hasError: false, error: null, errorInfo: null });
   };
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback;
-      }
+      if (this.props.fallback) return this.props.fallback;
 
       return (
         <div className="min-h-screen flex items-center justify-center p-4">
           <Card className="w-full max-w-2xl">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-th-destructive">
-                <AlertTriangle className="w-5 h-5" />
+                <span aria-hidden="true">
+                  <md-icon>warning</md-icon>
+                </span>
                 Something went wrong
               </CardTitle>
               <CardDescription>An error occurred while rendering this component</CardDescription>
@@ -74,7 +57,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   {this.state.error?.toString()}
                 </p>
               </div>
-
               {this.state.errorInfo && (
                 <details className="text-sm">
                   <summary className="cursor-pointer font-medium mb-2">Component Stack</summary>
@@ -83,7 +65,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
                   </pre>
                 </details>
               )}
-
               <div className="flex gap-2">
                 <Button onClick={this.handleReset}>Try Again</Button>
                 <Button variant="outline" onClick={() => window.location.reload()}>
@@ -95,7 +76,6 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
         </div>
       );
     }
-
     return this.props.children;
   }
 }

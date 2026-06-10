@@ -36,6 +36,7 @@
     "src/lib/**/*",
     "src/components/ui/**/*",
     "src/types/**/*.d.ts",
+    "src/md3/**/*",
     "src/workbench/components/LogConsole.tsx",
     "src/workbench/Layout.tsx"
   ]

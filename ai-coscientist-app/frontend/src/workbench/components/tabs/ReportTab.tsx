@@ -1,4 +1,6 @@
-import { AlertTriangle, Check, Copy, Download, FileText, Printer } from "lucide-react";
+import "@material/web/icon/icon.js";
+import "@material/web/button/filled-button.js";
+import "@material/web/button/outlined-button.js";
 import { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import type { Report, SafetyDecision } from "@/api/runs";
@@ -42,7 +44,10 @@ export function ReportTab({
     return (
       <div
         className="rounded border p-6 text-sm text-center"
-        style={{ borderColor: "var(--color-th-border)", color: "var(--color-th-muted-fg)" }}
+        style={{
+          borderColor: "var(--md-sys-color-outline-variant)",
+          color: "var(--md-sys-color-on-surface-variant)",
+        }}
       >
         The report appears once the workflow finishes.
       </div>
@@ -54,8 +59,8 @@ export function ReportTab({
       <article
         className="lg:col-span-3 rounded border p-6 wb-fade-in"
         style={{
-          borderColor: "var(--color-th-border)",
-          backgroundColor: "var(--color-th-card)",
+          borderColor: "var(--md-sys-color-outline-variant)",
+          backgroundColor: "var(--md-sys-color-surface-container-low)",
         }}
       >
         {loading && (
@@ -73,50 +78,55 @@ export function ReportTab({
         )}
       </article>
       <aside className="space-y-3 wb-print-hide">
-        <a
-          href={reportMarkdownUrl(runId)}
-          download
-          className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm w-full justify-center transition-opacity hover:opacity-90"
-          style={{
-            backgroundColor: "var(--color-th-primary)",
-            color: "var(--color-th-primary-fg)",
-          }}
+        <md-filled-button
+          onclick={
+            (() => {
+              const a = document.createElement("a");
+              a.href = reportMarkdownUrl(runId);
+              a.download = "report.md";
+              a.click();
+            }) as EventListener
+          }
         >
-          <Download className="w-4 h-4" aria-hidden="true" /> Download .md
-        </a>
-        <a
-          href={`data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(report.payload, null, 2))}`}
-          download={`${runId}.json`}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm w-full justify-center border transition-colors hover:bg-[color:var(--color-th-secondary)]"
-          style={{ borderColor: "var(--color-th-border)" }}
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+          <md-icon slot="icon" aria-hidden="true">
+            download
+          </md-icon>
+          Download .md
+        </md-filled-button>
+        <md-outlined-button
+          onclick={
+            (() => {
+              const a = document.createElement("a");
+              a.href = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(report.payload, null, 2))}`;
+              a.download = `${runId}.json`;
+              a.click();
+            }) as EventListener
+          }
         >
-          <FileText className="w-4 h-4" aria-hidden="true" /> Download .json
-        </a>
-        <button
-          type="button"
-          onClick={copyMarkdown}
-          disabled={!markdown}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm w-full justify-center border transition-colors hover:bg-[color:var(--color-th-secondary)] disabled:opacity-50"
-          style={{ borderColor: "var(--color-th-border)" }}
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+          <md-icon slot="icon" aria-hidden="true">
+            description
+          </md-icon>
+          Download .json
+        </md-outlined-button>
+        <md-outlined-button
+          onclick={(() => void copyMarkdown()) as EventListener}
+          disabled={!markdown || undefined}
         >
-          {copied ? (
-            <>
-              <Check className="w-4 h-4" aria-hidden="true" /> Copied
-            </>
-          ) : (
-            <>
-              <Copy className="w-4 h-4" aria-hidden="true" /> Copy markdown
-            </>
-          )}
-        </button>
-        <button
-          type="button"
-          onClick={() => window.print()}
-          className="inline-flex items-center gap-2 px-3 py-2 rounded text-sm w-full justify-center border transition-colors hover:bg-[color:var(--color-th-secondary)]"
-          style={{ borderColor: "var(--color-th-border)" }}
-        >
-          <Printer className="w-4 h-4" aria-hidden="true" /> Print
-        </button>
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+          <md-icon slot="icon" aria-hidden="true">
+            {copied ? "check" : "content_copy"}
+          </md-icon>
+          {copied ? "Copied" : "Copy markdown"}
+        </md-outlined-button>
+        <md-outlined-button onclick={(() => window.print()) as EventListener}>
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+          <md-icon slot="icon" aria-hidden="true">
+            print
+          </md-icon>
+          Print
+        </md-outlined-button>
         {finalSafety && finalSafety.decision !== "allow" && (
           <div
             className="rounded border p-3 text-xs"
@@ -126,10 +136,15 @@ export function ReportTab({
             }}
           >
             <div className="flex items-center gap-1.5 font-medium mb-1">
-              <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
+              {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+              <md-icon style={{ fontSize: "14px" }} aria-hidden="true">
+                warning
+              </md-icon>
               Final-output safety: {finalSafety.decision}
             </div>
-            <div style={{ color: "var(--color-th-muted-fg)" }}>{finalSafety.reason}</div>
+            <div style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+              {finalSafety.reason}
+            </div>
           </div>
         )}
       </aside>

@@ -75,9 +75,9 @@ export function OverviewTab({
         {(blocked || dualUse) && (
           <Section title="Safety decisions">
             <ul className="space-y-2 text-sm">
-              {safety.map((s, idx) => (
+              {safety.map((s) => (
                 <li
-                  key={idx}
+                  key={`${s.stage}-${s.created_at}`}
                   className="rounded border p-2"
                   style={{
                     borderColor:

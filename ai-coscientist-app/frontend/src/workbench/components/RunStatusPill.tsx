@@ -1,32 +1,44 @@
 import type { RunStatus } from "@/api/runs";
 
 const STYLES: Record<RunStatus, { bg: string; fg: string; label: string }> = {
-  draft: { bg: "var(--color-th-secondary)", fg: "var(--color-th-secondary-fg)", label: "Draft" },
-  queued: { bg: "var(--color-th-info)", fg: "var(--color-th-info-fg)", label: "Queued" },
-  running: { bg: "var(--color-th-info)", fg: "var(--color-th-info-fg)", label: "Running" },
+  draft: {
+    bg: "var(--md-sys-color-surface-variant)",
+    fg: "var(--md-sys-color-on-surface-variant)",
+    label: "Draft",
+  },
+  queued: {
+    bg: "var(--md-sys-color-tertiary-container)",
+    fg: "var(--md-sys-color-on-tertiary-container)",
+    label: "Queued",
+  },
+  running: {
+    bg: "var(--md-sys-color-tertiary-container)",
+    fg: "var(--md-sys-color-on-tertiary-container)",
+    label: "Running",
+  },
   synthesizing: {
-    bg: "var(--color-th-info)",
-    fg: "var(--color-th-info-fg)",
+    bg: "var(--md-sys-color-tertiary-container)",
+    fg: "var(--md-sys-color-on-tertiary-container)",
     label: "Synthesizing",
   },
   completed: {
-    bg: "var(--color-th-success)",
-    fg: "var(--color-th-success-fg)",
+    bg: "var(--md-sys-color-primary-container)",
+    fg: "var(--md-sys-color-on-primary-container)",
     label: "Completed",
   },
   failed: {
-    bg: "var(--color-th-destructive)",
-    fg: "var(--color-th-destructive-fg)",
+    bg: "var(--md-sys-color-error-container)",
+    fg: "var(--md-sys-color-on-error-container)",
     label: "Failed",
   },
   blocked: {
-    bg: "var(--color-th-destructive)",
-    fg: "var(--color-th-destructive-fg)",
+    bg: "var(--md-sys-color-error-container)",
+    fg: "var(--md-sys-color-on-error-container)",
     label: "Blocked (safety)",
   },
   cancelled: {
-    bg: "var(--color-th-secondary)",
-    fg: "var(--color-th-secondary-fg)",
+    bg: "var(--md-sys-color-surface-variant)",
+    fg: "var(--md-sys-color-on-surface-variant)",
     label: "Cancelled",
   },
 };

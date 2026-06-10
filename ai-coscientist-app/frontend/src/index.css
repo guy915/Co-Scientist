@@ -1,29 +1,33 @@
+@import "@fontsource/roboto/400.css";
+@import "@fontsource/roboto/500.css";
+@import "@fontsource/roboto/700.css";
+@import "material-symbols/outlined.css";
 @import "tailwindcss";
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  /* Custom theme colors with th- prefix to avoid conflicts with Tailwind's palette */
-  /* These create utility classes like bg-th-bg, text-th-fg, bg-th-primary, etc. */
-  --color-th-bg: hsl(0 0% 100%);
-  --color-th-fg: hsl(0 0% 3.9%);
-  --color-th-card: hsl(0 0% 100%);
-  --color-th-card-fg: hsl(0 0% 3.9%);
-  --color-th-popover: hsl(0 0% 100%);
-  --color-th-popover-fg: hsl(0 0% 3.9%);
-  --color-th-primary: hsl(0 0% 9%);
-  --color-th-primary-fg: hsl(0 0% 98%);
-  --color-th-secondary: hsl(0 0% 96.1%);
-  --color-th-secondary-fg: hsl(0 0% 9%);
-  --color-th-muted: hsl(0 0% 96.1%);
-  --color-th-muted-fg: hsl(0 0% 45.1%);
-  --color-th-accent: hsl(0 0% 96.1%);
-  --color-th-accent-fg: hsl(0 0% 9%);
-  --color-th-destructive: hsl(0 84.2% 60.2%);
-  --color-th-destructive-fg: hsl(0 0% 98%);
-  --color-th-border: hsl(0 0% 89.8%);
-  --color-th-input: hsl(0 0% 89.8%);
-  --color-th-ring: hsl(0 0% 3.9%);
+  /* MD3 color bridge — actual values set at runtime by applyMd3Theme() in theme.ts */
+  --color-th-bg: var(--md-sys-color-background, hsl(0 0% 100%));
+  --color-th-fg: var(--md-sys-color-on-background, hsl(0 0% 3.9%));
+  --color-th-card: var(--md-sys-color-surface, hsl(0 0% 100%));
+  --color-th-card-fg: var(--md-sys-color-on-surface, hsl(0 0% 3.9%));
+  --color-th-popover: var(--md-sys-color-surface, hsl(0 0% 100%));
+  --color-th-popover-fg: var(--md-sys-color-on-surface, hsl(0 0% 3.9%));
+  --color-th-primary: var(--md-sys-color-primary, hsl(0 0% 9%));
+  --color-th-primary-fg: var(--md-sys-color-on-primary, hsl(0 0% 98%));
+  --color-th-secondary: var(--md-sys-color-secondary-container, hsl(0 0% 96.1%));
+  --color-th-secondary-fg: var(--md-sys-color-on-secondary-container, hsl(0 0% 9%));
+  --color-th-muted: var(--md-sys-color-surface-variant, hsl(0 0% 96.1%));
+  --color-th-muted-fg: var(--md-sys-color-on-surface-variant, hsl(0 0% 45.1%));
+  --color-th-accent: var(--md-sys-color-tertiary-container, hsl(0 0% 96.1%));
+  --color-th-accent-fg: var(--md-sys-color-on-tertiary-container, hsl(0 0% 9%));
+  --color-th-destructive: var(--md-sys-color-error, hsl(0 84.2% 60.2%));
+  --color-th-destructive-fg: var(--md-sys-color-on-error, hsl(0 0% 98%));
+  --color-th-border: var(--md-sys-color-outline-variant, hsl(0 0% 89.8%));
+  --color-th-input: var(--md-sys-color-outline, hsl(0 0% 89.8%));
+  --color-th-ring: var(--md-sys-color-primary, hsl(0 0% 3.9%));
+  /* No MD3 equivalent — keep hardcoded */
   --color-th-success: hsl(142 71% 45%);
   --color-th-success-fg: hsl(0 0% 100%);
   --color-th-warning: hsl(38 92% 50%);
@@ -40,29 +44,10 @@
   --radius: 0.5rem;
 }
 
-/* Dark theme override (data-theme=dark on <html>) */
+/* MD3 dark tokens are set by applyMd3Theme(true) at runtime */
 :root[data-theme="dark"] {
-  --color-th-bg: hsl(222 22% 7%);
-  --color-th-fg: hsl(210 17% 96%);
-  --color-th-card: hsl(222 19% 11%);
-  --color-th-card-fg: hsl(210 17% 96%);
-  --color-th-popover: hsl(222 19% 11%);
-  --color-th-popover-fg: hsl(210 17% 96%);
-  --color-th-primary: hsl(210 17% 96%);
-  --color-th-primary-fg: hsl(222 22% 7%);
-  --color-th-secondary: hsl(222 16% 16%);
-  --color-th-secondary-fg: hsl(210 17% 96%);
-  --color-th-muted: hsl(222 16% 16%);
-  --color-th-muted-fg: hsl(210 10% 65%);
-  --color-th-accent: hsl(222 16% 18%);
-  --color-th-accent-fg: hsl(210 17% 96%);
-  --color-th-destructive: hsl(0 70% 55%);
-  --color-th-destructive-fg: hsl(0 0% 98%);
-  --color-th-border: hsl(222 14% 20%);
-  --color-th-input: hsl(222 14% 20%);
-  --color-th-ring: hsl(210 17% 96%);
+  /* No MD3 equivalent — keep hardcoded dark overrides */
   --color-th-success: hsl(142 60% 48%);
-  --color-th-success-fg: hsl(0 0% 100%);
   --color-th-warning: hsl(38 90% 56%);
   --color-th-warning-fg: hsl(222 22% 7%);
   --color-th-info: hsl(199 80% 55%);
@@ -74,6 +59,12 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
+}
+
+:root {
+  --md-ref-typeface-brand: "Roboto", system-ui, sans-serif;
+  --md-ref-typeface-plain: "Roboto", system-ui, sans-serif;
+  font-family: "Roboto", system-ui, sans-serif;
 }
 
 html {
@@ -279,7 +270,7 @@ body {
 
 @media print {
   .wb-print-hide {
-    display: none !important;
+    display: none;
   }
   .wb-markdown {
     color: black;

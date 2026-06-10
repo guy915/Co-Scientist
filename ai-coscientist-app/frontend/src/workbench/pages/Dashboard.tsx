@@ -1,6 +1,11 @@
-import { Beaker, Plus, Search } from "lucide-react";
+import "@material/web/icon/icon.js";
+import "@material/web/button/filled-button.js";
+import "@material/web/chips/chip-set.js";
+import "@material/web/chips/filter-chip.js";
+import "@material/web/textfield/outlined-text-field.js";
+
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   getRun,
   getSystemStatus,
@@ -27,6 +32,7 @@ function fmtRelative(ts: number) {
 type Filter = "all" | RunStatus;
 
 export function Dashboard() {
+  const navigate = useNavigate();
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [summaries, setSummaries] = useState<Record<string, RunSummary>>({});
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
@@ -95,22 +101,20 @@ export function Dashboard() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Research runs</h1>
-          <p className="text-sm" style={{ color: "var(--color-th-muted-fg)" }}>
+          <h1 className="md-typescale-headline-medium text-2xl font-semibold tracking-tight">
+            Research runs
+          </h1>
+          <p className="text-sm" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
             Hypothesis-generation workspace. Each run is durable, replayable, and reopenable.
           </p>
         </div>
-        <Link
-          to="/runs/new"
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded text-sm transition-opacity hover:opacity-90"
-          style={{
-            backgroundColor: "var(--color-th-primary)",
-            color: "var(--color-th-primary-fg)",
-          }}
-        >
-          <Plus className="w-4 h-4" aria-hidden="true" />
+        <md-filled-button onclick={(() => navigate("/runs/new")) as EventListener}>
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+          <md-icon slot="icon" aria-hidden="true">
+            add
+          </md-icon>
           New run
-        </Link>
+        </md-filled-button>
       </header>
 
       {totals && (
@@ -141,41 +145,24 @@ export function Dashboard() {
       )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <div
-          className="flex items-center gap-2 px-2.5 py-1.5 rounded border flex-1 min-w-[16rem]"
-          style={{ borderColor: "var(--color-th-input)", backgroundColor: "var(--color-th-bg)" }}
-        >
-          <Search
-            className="w-4 h-4"
-            style={{ color: "var(--color-th-muted-fg)" }}
-            aria-hidden="true"
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search by research goal…"
-            className="flex-1 bg-transparent outline-none text-sm"
-            aria-label="Search runs"
-          />
-        </div>
-        <div className="flex gap-1 text-sm">
+        <md-outlined-text-field
+          type="search"
+          label="Search by research goal"
+          value={query}
+          oninput={((e: Event) => setQuery((e.target as HTMLInputElement).value)) as EventListener}
+          style={{ width: "100%", minWidth: "16rem" } as React.CSSProperties}
+        />
+        <md-chip-set>
           {(["all", "completed", "running", "failed", "blocked"] as Filter[]).map((f) => (
-            <button
+            <md-filter-chip
               key={f}
-              type="button"
-              onClick={() => setFilter(f)}
-              className="px-2 py-1.5 rounded border capitalize transition-colors"
-              style={{
-                borderColor: filter === f ? "var(--color-th-primary)" : "var(--color-th-border)",
-                backgroundColor: filter === f ? "var(--color-th-secondary)" : "transparent",
-                fontWeight: filter === f ? 600 : 400,
-              }}
+              selected={filter === f || undefined}
+              onclick={(() => setFilter(f)) as EventListener}
             >
               {f}
-            </button>
+            </md-filter-chip>
           ))}
-        </div>
+        </md-chip-set>
       </div>
 
       {error && (
@@ -183,8 +170,8 @@ export function Dashboard() {
           role="alert"
           className="rounded border p-3 text-sm"
           style={{
-            borderColor: "var(--color-th-destructive)",
-            color: "var(--color-th-destructive)",
+            borderColor: "var(--md-sys-color-error)",
+            color: "var(--md-sys-color-error)",
           }}
         >
           {error}
@@ -196,34 +183,33 @@ export function Dashboard() {
       {runs && runs.length === 0 && (
         <div
           className="rounded border p-8 text-center wb-fade-in"
-          style={{ borderColor: "var(--color-th-border)" }}
+          style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
         >
-          <Beaker
-            className="w-8 h-8 mx-auto mb-3"
-            style={{ color: "var(--color-th-muted-fg)" }}
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+          <md-icon
+            className="mx-auto mb-3 block"
+            style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: "2rem" }}
             aria-hidden="true"
-          />
+          >
+            science
+          </md-icon>
           <p className="font-medium">No runs yet</p>
-          <p className="text-sm mb-4" style={{ color: "var(--color-th-muted-fg)" }}>
+          <p className="text-sm mb-4" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
             Start with a research goal to generate, debate, and rank hypotheses.
           </p>
-          <Link
-            to="/runs/new"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded text-sm transition-opacity hover:opacity-90"
-            style={{
-              backgroundColor: "var(--color-th-primary)",
-              color: "var(--color-th-primary-fg)",
-            }}
-          >
+          <md-filled-button onclick={(() => navigate("/runs/new")) as EventListener}>
             Create your first run
-          </Link>
+          </md-filled-button>
         </div>
       )}
 
       {filtered && filtered.length === 0 && runs && runs.length > 0 && (
         <div
           className="rounded border p-8 text-center text-sm"
-          style={{ borderColor: "var(--color-th-border)", color: "var(--color-th-muted-fg)" }}
+          style={{
+            borderColor: "var(--md-sys-color-outline-variant)",
+            color: "var(--md-sys-color-on-surface-variant)",
+          }}
         >
           No runs match your filter.
         </div>
@@ -233,12 +219,12 @@ export function Dashboard() {
         <div
           className="rounded border overflow-hidden wb-fade-in"
           style={{
-            borderColor: "var(--color-th-border)",
-            backgroundColor: "var(--color-th-card)",
+            borderColor: "var(--md-sys-color-outline-variant)",
+            backgroundColor: "var(--md-sys-color-surface-container-low)",
           }}
         >
           <table className="w-full text-sm">
-            <thead style={{ backgroundColor: "var(--color-th-secondary)" }}>
+            <thead style={{ backgroundColor: "var(--md-sys-color-secondary-container)" }}>
               <tr className="text-left">
                 <th className="px-4 py-2 font-semibold">Research goal</th>
                 <th className="px-4 py-2 font-semibold w-24">Profile</th>
@@ -254,8 +240,8 @@ export function Dashboard() {
               {filtered.map((r) => (
                 <tr
                   key={r.id}
-                  className="border-t transition-colors hover:bg-[color:var(--color-th-secondary)]"
-                  style={{ borderColor: "var(--color-th-border)" }}
+                  className="border-t transition-colors hover:bg-[color:var(--md-sys-color-secondary-container)]"
+                  style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
                 >
                   <td className="px-4 py-2">
                     <Link
@@ -270,12 +256,15 @@ export function Dashboard() {
                     <RunStatusPill status={r.status} />
                   </td>
                   <td className="px-4 py-2 capitalize">{r.provider}</td>
-                  <td className="px-4 py-2" style={{ color: "var(--color-th-muted-fg)" }}>
+                  <td
+                    className="px-4 py-2"
+                    style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                  >
                     {summaries[r.id]?.hypotheses ?? "—"}
                   </td>
                   <td
                     className="px-4 py-2"
-                    style={{ color: "var(--color-th-muted-fg)" }}
+                    style={{ color: "var(--md-sys-color-on-surface-variant)" }}
                     title={fmtDate(r.created_at)}
                   >
                     {fmtRelative(r.created_at)}
@@ -295,19 +284,19 @@ function StatCard({ label, value, sub }: { label: string; value: number | string
     <div
       className="rounded border p-3"
       style={{
-        borderColor: "var(--color-th-border)",
-        backgroundColor: "var(--color-th-card)",
+        borderColor: "var(--md-sys-color-outline-variant)",
+        backgroundColor: "var(--md-sys-color-surface-container-low)",
       }}
     >
       <div
         className="text-xs uppercase tracking-wide"
-        style={{ color: "var(--color-th-muted-fg)" }}
+        style={{ color: "var(--md-sys-color-on-surface-variant)" }}
       >
         {label}
       </div>
       <div className="text-2xl font-semibold mt-1">{value}</div>
       {sub && (
-        <div className="text-xs mt-0.5" style={{ color: "var(--color-th-muted-fg)" }}>
+        <div className="text-xs mt-0.5" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
           {sub}
         </div>
       )}
@@ -318,8 +307,8 @@ function StatCard({ label, value, sub }: { label: string; value: number | string
 function Skeleton() {
   return (
     <div className="space-y-2" aria-busy="true">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="wb-skeleton h-10" />
+      {["sk-a", "sk-b", "sk-c", "sk-d"].map((k) => (
+        <div key={k} className="wb-skeleton h-10" />
       ))}
     </div>
   );

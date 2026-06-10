@@ -1,27 +1,18 @@
-import { Moon, Sun } from "lucide-react";
+import "@material/web/iconbutton/icon-button.js";
+import "@material/web/icon/icon.js";
 import { useTheme } from "../ThemeContext";
 
 export function ThemeToggle() {
   const { mode, toggle } = useTheme();
   const isDark = mode === "dark";
   return (
-    <button
-      type="button"
-      onClick={toggle}
+    <md-icon-button
+      onclick={toggle as EventListener}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Light mode" : "Dark mode"}
-      className="p-1.5 rounded border transition-colors"
-      style={{
-        borderColor: "var(--color-th-border)",
-        backgroundColor: "var(--color-th-bg)",
-        color: "var(--color-th-fg)",
-      }}
     >
-      {isDark ? (
-        <Sun className="w-4 h-4" aria-hidden="true" />
-      ) : (
-        <Moon className="w-4 h-4" aria-hidden="true" />
-      )}
-    </button>
+      {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+      <md-icon aria-hidden="true">{isDark ? "light_mode" : "dark_mode"}</md-icon>
+    </md-icon-button>
   );
 }

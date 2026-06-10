@@ -1,5 +1,8 @@
-import { Keyboard, X } from "lucide-react";
+import "@material/web/iconbutton/icon-button.js";
+import "@material/web/icon/icon.js";
+import "@material/web/button/text-button.js";
 import { useEffect, useState } from "react";
+import { MdDialog } from "@/md3/MdDialog";
 
 const SHORTCUTS: { keys: string; description: string }[] = [
   { keys: "?", description: "Open this shortcut help" },
@@ -14,7 +17,6 @@ export function ShortcutsHint() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      // Don't capture when typing in inputs/textareas.
       const target = e.target as HTMLElement | null;
       if (
         target &&
@@ -35,70 +37,41 @@ export function ShortcutsHint() {
 
   return (
     <>
-      <button
-        type="button"
+      <md-icon-button
+        onclick={(() => setOpen(true)) as EventListener}
         aria-label="Keyboard shortcuts"
         title="Keyboard shortcuts (press ?)"
-        onClick={() => setOpen(true)}
-        className="p-1.5 rounded border transition-colors"
-        style={{
-          borderColor: "var(--color-th-border)",
-          backgroundColor: "var(--color-th-bg)",
-          color: "var(--color-th-fg)",
-        }}
       >
-        <Keyboard className="w-4 h-4" aria-hidden="true" />
-      </button>
-      {open && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          className="fixed inset-0 z-50 flex items-center justify-center p-6"
-          style={{ backgroundColor: "rgba(0,0,0,0.45)" }}
-          onClick={() => setOpen(false)}
-        >
-          <div
-            className="max-w-md w-full rounded-lg border shadow-lg wb-fade-in"
-            style={{
-              backgroundColor: "var(--color-th-card)",
-              borderColor: "var(--color-th-border)",
-              color: "var(--color-th-fg)",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <header
-              className="flex items-center justify-between p-4 border-b"
-              style={{ borderColor: "var(--color-th-border)" }}
-            >
-              <h2 className="text-base font-semibold">Keyboard shortcuts</h2>
-              <button
-                type="button"
-                aria-label="Close"
-                onClick={() => setOpen(false)}
-                className="p-1 rounded hover:bg-[color:var(--color-th-secondary)]"
+        {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+        <md-icon aria-hidden="true">keyboard</md-icon>
+      </md-icon-button>
+      <MdDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        headline="Keyboard shortcuts"
+        actions={
+          <md-text-button onclick={(() => setOpen(false)) as EventListener}>Close</md-text-button>
+        }
+      >
+        <ul className="space-y-2 text-sm min-w-64">
+          {SHORTCUTS.map((s) => (
+            <li key={s.keys} className="flex items-center justify-between gap-4">
+              <span style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+                {s.description}
+              </span>
+              <kbd
+                className="text-xs font-mono px-1.5 py-0.5 rounded border shrink-0"
+                style={{
+                  borderColor: "var(--md-sys-color-outline-variant)",
+                  backgroundColor: "var(--md-sys-color-surface-variant)",
+                }}
               >
-                <X className="w-4 h-4" />
-              </button>
-            </header>
-            <ul className="p-4 space-y-2 text-sm">
-              {SHORTCUTS.map((s) => (
-                <li key={s.keys} className="flex items-center justify-between">
-                  <span style={{ color: "var(--color-th-muted-fg)" }}>{s.description}</span>
-                  <kbd
-                    className="text-xs font-mono px-1.5 py-0.5 rounded border"
-                    style={{
-                      borderColor: "var(--color-th-border)",
-                      backgroundColor: "var(--color-th-secondary)",
-                    }}
-                  >
-                    {s.keys}
-                  </kbd>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
+                {s.keys}
+              </kbd>
+            </li>
+          ))}
+        </ul>
+      </MdDialog>
     </>
   );
 }

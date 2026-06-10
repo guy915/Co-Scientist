@@ -1,12 +1,14 @@
-import { Beaker, Plus } from "lucide-react";
+import "@material/web/icon/icon.js";
+import "@material/web/button/filled-button.js";
 import type { ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { LogConsole } from "./components/LogConsole";
 import { MockBanner } from "./components/MockBanner";
 import { ShortcutsHint } from "./components/ShortcutsHint";
 import { ThemeToggle } from "./components/ThemeToggle";
 
 export function Layout({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -15,17 +17,16 @@ export function Layout({ children }: { children: ReactNode }) {
       <header
         className="border-b sticky top-0 z-30 backdrop-blur"
         style={{
-          backgroundColor: "color-mix(in srgb, var(--color-th-bg) 92%, transparent)",
+          backgroundColor: "var(--md-sys-color-surface-container)",
           borderColor: "var(--color-th-border)",
         }}
       >
         <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
           <Link to="/" className="flex items-center gap-2 font-semibold">
-            <Beaker
-              className="w-5 h-5"
-              style={{ color: "var(--color-th-primary)" }}
-              aria-hidden="true"
-            />
+            {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+            <md-icon aria-hidden="true" style={{ color: "var(--md-sys-color-primary)" }}>
+              science
+            </md-icon>
             <span className="text-base tracking-tight">AI Co-Scientist</span>
             <span
               className="text-xs px-1.5 py-0.5 rounded ml-1"
@@ -48,16 +49,13 @@ export function Layout({ children }: { children: ReactNode }) {
             <ShortcutsHint />
             <LogConsole />
             <ThemeToggle />
-            <Link
-              to="/runs/new"
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-sm transition-opacity hover:opacity-90"
-              style={{
-                backgroundColor: "var(--color-th-primary)",
-                color: "var(--color-th-primary-fg)",
-              }}
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" /> New run
-            </Link>
+            <md-filled-button onclick={(() => navigate("/runs/new")) as EventListener}>
+              {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+              <md-icon slot="icon" aria-hidden="true">
+                add
+              </md-icon>
+              New run
+            </md-filled-button>
           </nav>
         </div>
         <MockBanner />

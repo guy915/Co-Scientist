@@ -1,4 +1,5 @@
 import { createContext, type ReactNode, useContext, useEffect, useState } from "react";
+import { applyMd3Theme } from "../lib/theme";
 
 type Mode = "light" | "dark";
 
@@ -16,12 +17,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mode, setModeState] = useState<Mode>(() => {
     if (typeof window === "undefined") return "light";
     const saved = window.localStorage.getItem(KEY) as Mode | null;
-    if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    const resolved =
+      saved === "light" || saved === "dark"
+        ? saved
+        : window.matchMedia("(prefers-color-scheme: dark)").matches
+          ? "dark"
+          : "light";
+    // Apply synchronously to prevent FOUC
+    applyMd3Theme(resolved === "dark");
+    document.documentElement.dataset.theme = resolved;
+    document.documentElement.classList.toggle("dark", resolved === "dark");
+    return resolved;
   });
 
   useEffect(() => {
-    if (typeof document === "undefined") return;
+    applyMd3Theme(mode === "dark");
     document.documentElement.dataset.theme = mode;
     document.documentElement.classList.toggle("dark", mode === "dark");
     window.localStorage.setItem(KEY, mode);

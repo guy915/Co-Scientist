@@ -1,4 +1,4 @@
-import { ArrowRight, Trophy } from "lucide-react";
+import "@material/web/icon/icon.js";
 import { useMemo } from "react";
 import type { Hypothesis, MatchRow } from "@/api/runs";
 import { EloTrajectoryChart } from "../EloTrajectoryChart";
@@ -21,7 +21,10 @@ export function TournamentTab({
     return (
       <div
         className="rounded border p-6 text-sm text-center"
-        style={{ borderColor: "var(--color-th-border)", color: "var(--color-th-muted-fg)" }}
+        style={{
+          borderColor: "var(--md-sys-color-outline-variant)",
+          color: "var(--md-sys-color-on-surface-variant)",
+        }}
       >
         Tournament matchups appear here after the ranking node runs.
       </div>
@@ -38,8 +41,8 @@ export function TournamentTab({
           <ol
             className="rounded border divide-y wb-fade-in"
             style={{
-              borderColor: "var(--color-th-border)",
-              backgroundColor: "var(--color-th-card)",
+              borderColor: "var(--md-sys-color-outline-variant)",
+              backgroundColor: "var(--md-sys-color-surface-container-low)",
             }}
           >
             {leaderboard.map((h, i) => {
@@ -49,13 +52,20 @@ export function TournamentTab({
                 <li
                   key={h.id}
                   className="px-3 py-2 flex items-center gap-2"
-                  style={{ borderColor: "var(--color-th-border)" }}
+                  style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
                 >
                   <span
                     className="font-mono text-xs w-6 text-right inline-flex items-center justify-end"
-                    style={{ color: "var(--color-th-muted-fg)" }}
+                    style={{ color: "var(--md-sys-color-on-surface-variant)" }}
                   >
-                    {i === 0 ? <Trophy className="w-3.5 h-3.5" aria-hidden="true" /> : i + 1}
+                    {i === 0 ? (
+                      // biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element
+                      <md-icon style={{ fontSize: "14px" }} aria-hidden="true">
+                        emoji_events
+                      </md-icon>
+                    ) : (
+                      i + 1
+                    )}
                   </span>
                   <span className="flex-1 truncate text-sm">{h.title}</span>
                   {total > 0 && (
@@ -63,8 +73,8 @@ export function TournamentTab({
                       className="text-[10px] font-mono px-1 py-0.5 rounded"
                       style={{
                         backgroundColor:
-                          "color-mix(in srgb, var(--color-th-info) 18%, transparent)",
-                        color: "var(--color-th-fg)",
+                          "color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent)",
+                        color: "var(--md-sys-color-on-surface)",
                       }}
                       title={`${h.win_count} wins / ${h.loss_count} losses`}
                     >
@@ -74,7 +84,7 @@ export function TournamentTab({
                   <span
                     className="font-mono text-xs px-1.5 py-0.5 rounded"
                     style={{
-                      backgroundColor: "var(--color-th-secondary)",
+                      backgroundColor: "var(--md-sys-color-secondary-container)",
                     }}
                   >
                     {h.elo_rating}
@@ -87,7 +97,10 @@ export function TournamentTab({
 
         <section className="lg:col-span-2 space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide">
-            Matchups <span style={{ color: "var(--color-th-muted-fg)" }}>({matches.length})</span>
+            Matchups{" "}
+            <span style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+              ({matches.length})
+            </span>
           </h2>
           <ol className="space-y-1.5">
             {matches.map((m) => {
@@ -100,16 +113,16 @@ export function TournamentTab({
                   key={m.id}
                   className="rounded border p-2 text-sm"
                   style={{
-                    borderColor: "var(--color-th-border)",
-                    backgroundColor: "var(--color-th-card)",
+                    borderColor: "var(--md-sys-color-outline-variant)",
+                    backgroundColor: "var(--md-sys-color-surface-container-low)",
                   }}
                 >
                   <div className="flex items-center gap-2 flex-wrap">
                     <span
                       className="text-[11px] font-mono px-1.5 py-0.5 rounded"
                       style={{
-                        backgroundColor: "var(--color-th-secondary)",
-                        color: "var(--color-th-secondary-fg)",
+                        backgroundColor: "var(--md-sys-color-secondary-container)",
+                        color: "var(--md-sys-color-on-secondary-container)",
                       }}
                     >
                       iter {m.iteration}
@@ -118,26 +131,38 @@ export function TournamentTab({
                     <span
                       className="font-mono text-xs"
                       title={`+${wDelta} Elo`}
-                      style={{ color: "var(--color-th-success)" }}
+                      style={{ color: "var(--md-sys-color-primary)" }}
                     >
-                      {m.winner_elo_before} <ArrowRight className="w-3 h-3 inline" />{" "}
+                      {m.winner_elo_before}{" "}
+                      <md-icon style={{ fontSize: "12px", verticalAlign: "middle" }}>
+                        arrow_forward
+                      </md-icon>{" "}
                       {m.winner_elo_after}
                     </span>
-                    <span style={{ color: "var(--color-th-muted-fg)" }}>·</span>
-                    <span className="flex-1 truncate" style={{ color: "var(--color-th-muted-fg)" }}>
+                    <span style={{ color: "var(--md-sys-color-on-surface-variant)" }}>·</span>
+                    <span
+                      className="flex-1 truncate"
+                      style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                    >
                       {l?.title ?? m.loser_id}
                     </span>
                     <span
                       className="font-mono text-xs"
                       title={`${lDelta} Elo`}
-                      style={{ color: "var(--color-th-destructive)" }}
+                      style={{ color: "var(--md-sys-color-error)" }}
                     >
-                      {m.loser_elo_before} <ArrowRight className="w-3 h-3 inline" />{" "}
+                      {m.loser_elo_before}{" "}
+                      <md-icon style={{ fontSize: "12px", verticalAlign: "middle" }}>
+                        arrow_forward
+                      </md-icon>{" "}
                       {m.loser_elo_after}
                     </span>
                   </div>
                   {m.rationale && (
-                    <p className="text-xs mt-1" style={{ color: "var(--color-th-muted-fg)" }}>
+                    <p
+                      className="text-xs mt-1"
+                      style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                    >
                       {m.rationale}
                     </p>
                   )}

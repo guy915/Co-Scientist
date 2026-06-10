@@ -21,7 +21,7 @@ const STATE_STYLES: Record<CitState, { fg: string; bg: string; label: string }> 
   },
   unavailable: {
     fg: "var(--color-th-muted-fg)",
-    bg: "var(--color-th-secondary)",
+    bg: "var(--md-sys-color-secondary-container)",
     label: "Unavailable",
   },
 };
@@ -41,7 +41,7 @@ export function EvidenceTab({
     const map = new Map<string, CitationRow[]>();
     for (const c of citations) {
       if (!map.has(c.evidence_id)) map.set(c.evidence_id, []);
-      map.get(c.evidence_id)!.push(c);
+      map.get(c.evidence_id)?.push(c);
     }
     return map;
   }, [citations]);
@@ -80,7 +80,10 @@ export function EvidenceTab({
     return (
       <div
         className="rounded border p-6 text-sm text-center space-y-1"
-        style={{ borderColor: "var(--color-th-border)", color: "var(--color-th-muted-fg)" }}
+        style={{
+          borderColor: "var(--md-sys-color-outline-variant)",
+          color: "var(--md-sys-color-on-surface-variant)",
+        }}
       >
         <p>No evidence retrieved for this run.</p>
         <p className="text-xs opacity-75">
@@ -126,14 +129,17 @@ export function EvidenceTab({
               key={e.id}
               className="rounded border p-3"
               style={{
-                borderColor: "var(--color-th-border)",
-                backgroundColor: "var(--color-th-card)",
+                borderColor: "var(--md-sys-color-outline-variant)",
+                backgroundColor: "var(--md-sys-color-surface-container-low)",
               }}
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <div className="font-medium">{e.title}</div>
-                  <div className="text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
+                  <div
+                    className="text-xs"
+                    style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                  >
                     {(e.authors ?? []).slice(0, 3).join(", ")}
                     {e.authors && e.authors.length > 3 ? " et al." : ""}
                     {e.year ? ` · ${e.year}` : ""} · {e.source}
@@ -144,8 +150,8 @@ export function EvidenceTab({
                     <span
                       className="text-xs px-1.5 py-0.5 rounded"
                       style={{
-                        backgroundColor: "var(--color-th-secondary)",
-                        color: "var(--color-th-muted-fg)",
+                        backgroundColor: "var(--md-sys-color-secondary-container)",
+                        color: "var(--md-sys-color-on-surface-variant)",
                       }}
                     >
                       unavailable
@@ -164,7 +170,10 @@ export function EvidenceTab({
                 </div>
               </div>
               {e.abstract && (
-                <p className="text-xs mt-2" style={{ color: "var(--color-th-muted-fg)" }}>
+                <p
+                  className="text-xs mt-2"
+                  style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                >
                   {e.abstract}
                 </p>
               )}
