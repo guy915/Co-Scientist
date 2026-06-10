@@ -48,5 +48,5 @@ cache/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-Code/ai-coscientist-app/frontend/dist/
-Code/ai-coscientist-app/frontend/.vite/
+ai-coscientist-app/frontend/dist/
+ai-coscientist-app/frontend/.vite/

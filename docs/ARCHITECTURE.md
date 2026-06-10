@@ -22,7 +22,7 @@ This document describes the runtime shape of the clone after the integration pas
                           HTTP + SSE
                                |
 +------------------------------v-------------------------------------+
-| FastAPI (Code/ai-coscientist-app/app)                              |
+| FastAPI (ai-coscientist-app/app)                                  |
 |                                                                    |
 |   main.py        — composes router, CORS, lifespan                 |
 |   config.py      — pydantic-settings (legacy)                      |

@@ -172,13 +172,15 @@ The clone is held to these invariants (full list with sources in [`docs/FIDELITY
 │   └── archive/          # historical planning docs (PLAN, TASKS, IMPLEMENTATION_REPORT)
 ├── scripts/
 │   └── dev_all.sh        # run API + UI together
-├── Code/
-│   ├── ai-coscientist-engine/    # local LangGraph engine (editable install)
-│   └── ai-coscientist-app/
-│       ├── app/                  # FastAPI + store/elo/safety/citations/mock/adapter/runs
-│       ├── tests/                # pytest suite
-│       └── frontend/             # React + Vite + Tailwind workbench
-└── reference/            # source corpus & product refs (Context, Research, Media, NotebookLM)
+├── ai-coscientist-engine/# local LangGraph engine (editable install)
+├── ai-coscientist-app/   # FastAPI + React workbench viewer
+│   ├── app/              # FastAPI + store/elo/safety/citations/mock/adapter/runs
+│   ├── tests/            # pytest suite
+│   └── frontend/         # React + Vite + Tailwind workbench
+├── context/              # long-form architecture/spec markdown for the planned system
+├── research/             # papers describing the original Co-Scientist
+├── notebooklm/           # product references and captures
+└── media/                # media/video captures and images
 ```
 
 ## Non-goals

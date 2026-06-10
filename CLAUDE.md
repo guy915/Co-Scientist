@@ -4,23 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository Layout
 
-This is a research/reference workspace organized around replicating Google DeepMind's AI Co-Scientist. Most folders are reference material, not code:
+This is a research/reference workspace organized around replicating Google DeepMind's AI Co-Scientist.
 
-- `Code/` — the only directory with runnable software (two projects, see below)
-- `reference/` — all non-code reference material, grouped in one place:
-  - `reference/Context/` — long-form architecture/spec markdown for the planned system
-  - `reference/Research/` — papers describing the original Co-Scientist
-  - `reference/NotebookLM/`, `reference/Media/` — UX captures and product references
+- `ai-coscientist-app/` — FastAPI + React workbench viewer
+- `ai-coscientist-engine/` — LangGraph-based multi-agent hypothesis-generation engine
+- `context/` — long-form architecture/spec markdown for the planned system
+- `research/` — papers describing the original Co-Scientist
+- `notebooklm/`, `media/` — UX captures and product references
 - `docs/` — live project docs (`ARCHITECTURE.md`, `FIDELITY.md`, `screenshots/`); `docs/archive/` holds historical planning docs (`PLAN.md`, `TASKS.md`, `IMPLEMENTATION_REPORT.md`)
 - `.remember/` — session handoff notes (`.remember/remember.md` is the live handoff file)
 
-There is no top-level build system. Each project under `Code/` is independently installable and runnable.
+There is no top-level build system. Each project is independently installable and runnable.
 
-## Code/ai-coscientist-engine (Python library)
+## ai-coscientist-engine (Python library)
 
 LangGraph-based multi-agent hypothesis-generation framework. Package name: `open-coscientist`. Source under `src/open_coscientist/`.
 
-**Commands** (run from `Code/ai-coscientist-engine/`):
+**Commands** (run from `ai-coscientist-engine/`):
 ```bash
 pip install -e '.[dev]'          # install with dev deps
 python examples/run.py            # interactive CLI demo
@@ -63,7 +63,7 @@ Caching (`cache.py`) is on by default and controlled by `COSCIENTIST_CACHE_ENABL
 - No emojis or unicode decoration in code or logs.
 - Rich library only in `examples/` and `dev/`, never in core library code.
 
-## Code/ai-coscientist-app (FastAPI + React viewer)
+## ai-coscientist-app (FastAPI + React viewer)
 
 Web UI and HTTP/SSE API that wraps `open-coscientist` for live hypothesis-generation runs.
 
@@ -71,7 +71,7 @@ Web UI and HTTP/SSE API that wraps `open-coscientist` for live hypothesis-genera
 
 Single-file FastAPI app (`app/main.py`, ~800 lines) with settings in `app/config.py` (pydantic-settings, loads `.env`).
 
-**Commands** (run from `Code/ai-coscientist-app/`):
+**Commands** (run from `ai-coscientist-app/`):
 ```bash
 make install         # pip install -e ".[dev]"   (also: pixi install)
 make dev             # uvicorn app.main:app --reload --port 8008
@@ -93,7 +93,7 @@ A single `HypothesisGenerator` instance is constructed in the `lifespan` startup
 
 React 19 + Vite 7 + TypeScript + Tailwind v4 + shadcn/ui + Radix. Package manager is **Bun**. Linter/formatter is **Biome**, not ESLint/Prettier.
 
-**Commands** (run from `Code/ai-coscientist-app/frontend/`):
+**Commands** (run from `ai-coscientist-app/frontend/`):
 ```bash
 bun install
 bun run dev          # vite dev server on :5173
@@ -111,9 +111,9 @@ Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live U
 ## Working in this repo
 
 - The `open-coscientist` (engine) and `open-coscientist-viewer` (app) are upstream open-source projects from Jataware. This repo vendors them as plain directories (not submodules) — when editing, treat the boundary carefully and don't assume changes propagate to PyPI/Docker images. The viewer's pip install pulls `open-coscientist>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../ai-coscientist-engine` after `make install`.
-- The app (`Code/ai-coscientist-app/`) has a committed pytest suite under `tests/`; the engine (`Code/ai-coscientist-engine/`) has none yet, so its `pytest` exits clean.
+- The app (`ai-coscientist-app/`) has a committed pytest suite under `tests/`; the engine (`ai-coscientist-engine/`) has none yet, so its `pytest` exits clean.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
 
 ## Required environment
 
-Both projects use **LiteLLM** for model dispatch. Set `GEMINI_API_KEY` (default) or the relevant provider key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) before running. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`) and `TOOLS_CONFIG` (path or http URL to a YAML tools config). Full list of viewer env vars in `Code/ai-coscientist-app/.env.example`.
+Both projects use **LiteLLM** for model dispatch. Set `GEMINI_API_KEY` (default) or the relevant provider key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) before running. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`) and `TOOLS_CONFIG` (path or http URL to a YAML tools config). Full list of viewer env vars in `ai-coscientist-app/.env.example`.
