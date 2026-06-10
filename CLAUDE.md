@@ -117,3 +117,13 @@ Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live U
 ## Required environment
 
 Both projects use **LiteLLM** for model dispatch. Set `GEMINI_API_KEY` (default) or the relevant provider key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) before running. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`) and `TOOLS_CONFIG` (path or http URL to a YAML tools config). Full list of viewer env vars in `ai-coscientist-app/.env.example`.
+
+## Git hygiene
+
+Never mention yourself or any other AI tool in commits, pull requests, or pushes. This applies to all AI agents working in this repo.
+
+- No `Co-Authored-By: <AI name>` trailers in commit messages.
+- No "Generated with [tool]" or "Created by [AI]" lines in commit messages or PR bodies.
+- No references to AI tools (Claude, Devin, ChatGPT, Copilot, etc.) anywhere in git history.
+
+Commit messages should read as if written directly by the human developer.
