@@ -23,6 +23,7 @@ load_dotenv()
 from . import engine_adapter
 from .config import settings
 from .runs import router as runs_router
+from .seed import seed_demo_runs
 
 try:
     from litellm import acompletion  # type: ignore
@@ -114,6 +115,8 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Engine generator not initialised; mock workflow will be used.")
         _generator = None
+
+    await seed_demo_runs(db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
 
     yield
 

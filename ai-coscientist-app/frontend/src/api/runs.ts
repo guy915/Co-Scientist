@@ -27,6 +27,7 @@ export interface Run {
   status: RunStatus;
   provider: "mock" | "engine";
   config: Record<string, number | string>;
+  is_demo?: boolean;
   created_at: number;
   updated_at: number;
   completed_at: number | null;
@@ -164,6 +165,12 @@ export async function createRun(input: {
 
 export async function listRuns(): Promise<Run[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs`, { headers: clientHeaders() });
+  const data = await jsonOrThrow<{ runs: Run[] }>(res);
+  return data.runs;
+}
+
+export async function listDemoRuns(): Promise<Run[]> {
+  const res = await fetch(`${API_BASE_URL}/api/runs/demo`);
   const data = await jsonOrThrow<{ runs: Run[] }>(res);
   return data.runs;
 }

@@ -142,6 +142,12 @@ async def list_runs(request: Request) -> dict[str, Any]:
     return {"runs": [r.to_dict() for r in runs]}
 
 
+@router.get("/demo")
+async def list_demo_runs() -> dict[str, Any]:
+    runs = store.list_runs(client_id="__demo__", db_path=_db_path())
+    return {"runs": [r.to_dict() for r in runs]}
+
+
 @router.get("/{run_id}")
 async def get_run(run_id: str) -> dict[str, Any]:
     run = _run_or_404(run_id)

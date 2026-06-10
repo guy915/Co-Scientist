@@ -268,6 +268,7 @@ class RunRow:
             "status": self.status,
             "provider": self.provider,
             "config": self.config,
+            "is_demo": self.client_id == "__demo__",
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "completed_at": self.completed_at,

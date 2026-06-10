@@ -182,6 +182,17 @@ export function RunDetail() {
               style={{ color: "var(--md-sys-color-on-surface-variant)" }}
             >
               {run && <RunStatusPill status={run.status} />}
+              {run?.is_demo && (
+                <span
+                  className="inline-block rounded px-1.5 py-0.5 text-xs font-medium"
+                  style={{
+                    backgroundColor: "var(--md-sys-color-secondary-container)",
+                    color: "var(--md-sys-color-on-secondary-container)",
+                  }}
+                >
+                  Example
+                </span>
+              )}
               {run && (
                 <span>
                   · profile: <strong className="capitalize">{run.profile}</strong>
