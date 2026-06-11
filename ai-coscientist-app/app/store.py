@@ -238,6 +238,18 @@ CREATE TABLE IF NOT EXISTS reports (
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_reports_run ON reports(run_id);
+
+CREATE TABLE IF NOT EXISTS messages (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id     TEXT NOT NULL,
+    sender     TEXT NOT NULL,
+    content    TEXT NOT NULL,
+    kind       TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    applied    INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, id);
 """
 
 
@@ -273,6 +285,28 @@ class RunRow:
             "updated_at": self.updated_at,
             "completed_at": self.completed_at,
             "error": self.error,
+        }
+
+
+@dataclass
+class MessageRow:
+    id: int
+    run_id: str
+    sender: str
+    content: str
+    kind: str
+    created_at: float
+    applied: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "id": self.id,
+            "run_id": self.run_id,
+            "sender": self.sender,
+            "content": self.content,
+            "kind": self.kind,
+            "created_at": self.created_at,
+            "applied": self.applied,
         }
 
 
@@ -777,3 +811,75 @@ def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     if not path.exists():
         return None
     return path.read_text(encoding="utf-8")
+
+
+# ---------------------------------------------------------------------------
+# Messages
+# ---------------------------------------------------------------------------
+
+
+def append_message(
+    run_id: str,
+    sender: str,
+    content: str,
+    kind: str,
+    db_path: str | None = None,
+) -> MessageRow:
+    now = _now()
+    with connect(db_path) as conn:
+        cur = conn.execute(
+            "INSERT INTO messages (run_id, sender, content, kind, created_at, applied) VALUES (?,?,?,?,?,0)",
+            (run_id, sender, content, kind, now),
+        )
+        msg_id = cur.lastrowid or 0
+    return MessageRow(id=msg_id, run_id=run_id, sender=sender, content=content, kind=kind, created_at=now, applied=False)
+
+
+def list_messages(run_id: str, db_path: str | None = None) -> list[MessageRow]:
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "
+            "WHERE run_id=? ORDER BY id ASC",
+            (run_id,),
+        ).fetchall()
+        return [
+            MessageRow(
+                id=r["id"],
+                run_id=r["run_id"],
+                sender=r["sender"],
+                content=r["content"],
+                kind=r["kind"],
+                created_at=r["created_at"],
+                applied=bool(r["applied"]),
+            )
+            for r in rows
+        ]
+
+
+def get_pending_steering(run_id: str, db_path: str | None = None) -> list[MessageRow]:
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "
+            "WHERE run_id=? AND kind='steering' AND applied=0 ORDER BY id ASC",
+            (run_id,),
+        ).fetchall()
+        return [
+            MessageRow(
+                id=r["id"],
+                run_id=r["run_id"],
+                sender=r["sender"],
+                content=r["content"],
+                kind=r["kind"],
+                created_at=r["created_at"],
+                applied=bool(r["applied"]),
+            )
+            for r in rows
+        ]
+
+
+def mark_steering_applied(ids: list[int], db_path: str | None = None) -> None:
+    if not ids:
+        return
+    placeholders = ",".join("?" * len(ids))
+    with connect(db_path) as conn:
+        conn.execute(f"UPDATE messages SET applied=1 WHERE id IN ({placeholders})", ids)

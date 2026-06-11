@@ -80,6 +80,28 @@ def system_status() -> dict[str, Any]:
     }
 
 
+def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
+    """Return a human-readable milestone string for key node events, or None."""
+    if node_type in ("supervisor", "supervisor.plan"):
+        return "Research plan ready — supervisor complete"
+    if node_type == "generate":
+        count = payload.get("count") or payload.get("hypothesis_count", 0)
+        itr = payload.get("iteration", 0)
+        label = f"iteration {itr}" if itr else "initial"
+        return f"{count} hypotheses generated ({label})"
+    if node_type == "ranking":
+        count = payload.get("hypothesis_count") or payload.get("matches_count", 0)
+        itr = payload.get("iteration", 0)
+        return f"Tournament complete (iteration {itr}, {count} matches)"
+    if node_type == "meta_review":
+        return "Meta-review complete"
+    if node_type == "evolve":
+        count = payload.get("count") or payload.get("hypothesis_count", 0)
+        itr = payload.get("iteration", 0)
+        return f"{count} hypotheses evolved (iteration {itr})"
+    return None
+
+
 async def run_workflow(
     run_id: str,
     research_goal: str,
@@ -98,6 +120,10 @@ async def run_workflow(
     logger.info("starting workflow run=%s provider=%s profile=%s", run_id, provider, profile)
 
     if provider == "mock":
+        pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
+        if pre_run_steering:
+            store.mark_steering_applied([m.id for m in pre_run_steering], db_path=db_path)
+
         async for event in run_mock_workflow(
             run_id=run_id,
             research_goal=research_goal,
@@ -107,6 +133,9 @@ async def run_workflow(
             cancelled=cancelled,
             sleep_seconds=sleep_seconds,
         ):
+            milestone = _format_milestone(event.get("type", ""), event.get("payload", {}))
+            if milestone:
+                store.append_message(run_id, "system", milestone, "milestone", db_path=db_path)
             yield event
         return
 
@@ -212,6 +241,13 @@ async def run_workflow(
 
     yield await _emit("status", {"status": "running"})
 
+    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
+    initial_opts: dict[str, Any] = {}
+    if pending_steering:
+        guidance = "\n".join(f"- {m.content}" for m in pending_steering)
+        initial_opts["preferences"] = f"User steering guidance:\n{guidance}"
+        store.mark_steering_applied([m.id for m in pending_steering], db_path=db_path)
+
     generator = HypothesisGenerator(
         model_name=os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash"),
         max_iterations=int(cfg.get("max_iterations", 1)),
@@ -233,6 +269,7 @@ async def run_workflow(
             research_goal=research_goal,
             stream=True,
             run_id=run_id,
+            opts=initial_opts if initial_opts else None,
         ):
             if cancelled and cancelled.is_set():
                 store.update_run_status(run_id, "cancelled", db_path=db_path)
@@ -251,6 +288,9 @@ async def run_workflow(
                 "matches_count": len(state.get("tournament_matchups") or []),
                 "articles_count": len(state.get("articles") or []),
             }
+            milestone = _format_milestone(node_name, payload)
+            if milestone:
+                store.append_message(run_id, "system", milestone, "milestone", db_path=db_path)
             yield await _emit(f"engine.{node_name}", payload)
 
         # ---- Drain final state into the store ----

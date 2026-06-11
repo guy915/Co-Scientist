@@ -139,6 +139,17 @@ export interface Report {
   created_at: number;
 }
 
+export interface Message {
+  id: number;
+  run_id: string;
+  sender: "user" | "system";
+  content: string;
+  kind: "steering" | "qa" | "milestone";
+  created_at: number;
+  applied: boolean;
+  status?: string;
+}
+
 async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
@@ -276,4 +287,31 @@ export interface SystemStatus {
 export async function getSystemStatus(): Promise<SystemStatus> {
   const res = await fetch(`${API_BASE_URL}/status`);
   return jsonOrThrow<SystemStatus>(res);
+}
+
+export async function listMessages(runId: string): Promise<Message[]> {
+  const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
+    headers: clientHeaders(),
+  });
+  if (!res.ok) throw new Error(`listMessages ${res.status}`);
+  const data = (await res.json()) as { messages: Message[] };
+  return data.messages;
+}
+
+export async function sendMessage(
+  runId: string,
+  content: string,
+  kind?: "steering" | "qa"
+): Promise<Message> {
+  const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...clientHeaders() },
+    body: JSON.stringify({ content, ...(kind ? { kind } : {}) }),
+  });
+  if (!res.ok) throw new Error(`sendMessage ${res.status}`);
+  return (await res.json()) as Message;
+}
+
+export function askQuestionUrl(runId: string): string {
+  return `${API_BASE_URL}/api/runs/${runId}/messages/ask`;
 }

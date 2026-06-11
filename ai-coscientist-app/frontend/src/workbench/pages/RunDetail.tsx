@@ -27,13 +27,14 @@ import { type StreamEvent, useRunStream } from "@/hooks/useRunStream";
 import { MdSecondaryTabs } from "@/md3/MdTabs";
 import { IdeaModal } from "../components/IdeaModal";
 import { RunStatusPill } from "../components/RunStatusPill";
+import { ChatTab } from "../components/tabs/ChatTab";
 import { EvidenceTab } from "../components/tabs/EvidenceTab";
 import { IdeasTab } from "../components/tabs/IdeasTab";
 import { OverviewTab } from "../components/tabs/OverviewTab";
 import { ReportTab } from "../components/tabs/ReportTab";
 import { TournamentTab } from "../components/tabs/TournamentTab";
 
-const TABS = ["overview", "ideas", "evidence", "tournament", "report"] as const;
+const TABS = ["overview", "ideas", "evidence", "tournament", "report", "chat"] as const;
 type TabName = (typeof TABS)[number];
 
 const TAB_ICON_NAMES: Record<TabName, string> = {
@@ -42,6 +43,7 @@ const TAB_ICON_NAMES: Record<TabName, string> = {
   evidence: "menu_book",
   tournament: "compare_arrows",
   report: "description",
+  chat: "chat",
 };
 
 export function RunDetail() {
@@ -303,6 +305,7 @@ export function RunDetail() {
             <TournamentTab matches={matches} hypotheses={hypotheses} />
           )}
           {activeTab === "report" && <ReportTab runId={id} report={report} safety={safety} />}
+          {activeTab === "chat" && <ChatTab run={run} />}
         </div>
       )}
 

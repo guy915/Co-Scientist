@@ -78,6 +78,14 @@ class StartRunRequest(BaseModel):
     force_provider: str | None = Field(None, pattern="^(mock|engine)$")
 
 
+class SendMessageRequest(BaseModel):
+    content: str = Field(..., min_length=1)
+
+
+class AskRequest(BaseModel):
+    question: str = Field(..., min_length=1)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -356,3 +364,98 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
             "Content-Disposition": f'attachment; filename="{run_id}.md"',
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Chat / interaction endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{run_id}/messages")
+async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
+    """Queue a user steering message for the next iteration."""
+    _run_or_404(run_id)
+    msg = store.append_message(run_id, "user", req.content, "steering", db_path=_db_path())
+    return {**msg.to_dict(), "status": "queued"}
+
+
+@router.get("/{run_id}/messages")
+async def list_messages(run_id: str) -> dict[str, Any]:
+    """Return all messages for a run in chronological order."""
+    _run_or_404(run_id)
+    msgs = store.list_messages(run_id, db_path=_db_path())
+    return {"messages": [m.to_dict() for m in msgs]}
+
+
+@router.post("/{run_id}/messages/ask")
+async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
+    """Answer a question about the run using a fast LLM, streaming the response."""
+    run = _run_or_404(run_id)
+
+    question_msg = store.append_message(run_id, "user", req.question, "qa", db_path=_db_path())
+
+    hypotheses = store.list_hypotheses(run_id, db_path=_db_path())
+    reviews = store.list_reviews(run_id, db_path=_db_path())
+    matches = store.list_matches(run_id, db_path=_db_path())
+    history = store.list_messages(run_id, db_path=_db_path())[:-1]
+
+    top_hyps = sorted(hypotheses, key=lambda h: -int(h.get("elo_rating") or 1200))[:5]
+    hyp_lines = "\n".join(
+        f"- [{h['title']}] Elo {h.get('elo_rating', 1200)}, {h.get('win_count', 0)}W/{h.get('loss_count', 0)}L"
+        for h in top_hyps
+    )
+    review_lines = "\n".join(
+        f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"
+        for r in reviews[-5:]
+    )
+    match_lines = "\n".join(
+        f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — {(m.get('rationale') or '')[:100]}"
+        for m in matches[-3:]
+    )
+    conv_lines = "\n".join(
+        f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
+        for m in history[-10:]
+    )
+
+    system_prompt = (
+        f"You are a concise research assistant helping the user understand an ongoing "
+        f"AI-driven hypothesis generation run.\n\n"
+        f"Research goal: {run.research_goal}\n\n"
+        f"Top hypotheses by Elo:\n{hyp_lines or '(none yet)'}\n\n"
+        f"Recent reviews:\n{review_lines or '(none yet)'}\n\n"
+        f"Recent tournament matches:\n{match_lines or '(none yet)'}\n\n"
+        f"Conversation history:\n{conv_lines or '(none)'}\n\n"
+        f"Answer concisely and accurately. Do not repeat the question."
+    )
+
+    model = os.getenv("CHAT_MODEL_NAME") or os.getenv("MODEL_NAME", "deepseek/deepseek-chat")
+
+    async def _stream() -> AsyncGenerator[str, None]:
+        try:
+            import litellm  # type: ignore[import-untyped]
+
+            full: list[str] = []
+            response = await litellm.acompletion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": req.question},
+                ],
+                stream=True,
+            )
+            async for chunk in response:
+                delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+                if delta:
+                    full.append(delta)
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"
+
+            answer = "".join(full)
+            store.append_message(run_id, "system", answer, "qa", db_path=_db_path())
+            yield f"data: {json.dumps({'type': 'done', 'question_id': question_msg.id})}\n\n"
+        except Exception as exc:
+            logger.error("Q&A stream error for run %s: %s", run_id, exc)
+            fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."
+            store.append_message(run_id, "system", fallback, "qa", db_path=_db_path())
+            yield f"data: {json.dumps({'type': 'error', 'message': fallback})}\n\n"
+
+    return StreamingResponse(_stream(), media_type="text/event-stream")

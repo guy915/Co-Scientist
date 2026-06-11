@@ -314,6 +314,11 @@ async def run_mock_workflow(
         pairs.append((a, b))
 
     for itr in range(1, cfg["max_iterations"] + 2):
+        pending = store.get_pending_steering(run_id, db_path=db_path)
+        if pending:
+            steering_note = "; ".join(m.content for m in pending)
+            logger.info("run %s iteration %d: applying steering: %s", run_id, itr, steering_note)
+            store.mark_steering_applied([m.id for m in pending], db_path=db_path)
         round_matches = []
         for a, b in pairs:
             winner, loser, rationale = _judge(a, b)

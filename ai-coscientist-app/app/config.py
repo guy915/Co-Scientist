@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     #   (final report synthesis). Runs once or twice per iteration. Use a stronger model.
     #   If None, falls back to model_name (single-model mode for testing / cost saving).
     supervisor_model_name: str | None = None
+    # chat_model_name: model used for Q&A responses in the Chat tab.
+    # Defaults to model_name if not set. Use a cheaper/faster model for snappy answers.
+    chat_model_name: str | None = None
     gemini_api_key: str = ""
 
     # Server Configuration
