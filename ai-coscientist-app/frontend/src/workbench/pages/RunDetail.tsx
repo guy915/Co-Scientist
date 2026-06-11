@@ -172,13 +172,13 @@ export function RunDetail() {
           </md-icon>{" "}
           All runs
         </Link>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="space-y-1 min-w-0 flex-1">
-            <h1 className="md-typescale-headline-medium text-2xl font-semibold tracking-tight">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1 space-y-2">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:md-typescale-headline-medium">
               {run?.research_goal ?? "Loading…"}
             </h1>
             <div
-              className="flex items-center gap-2 text-sm flex-wrap"
+              className="flex items-center gap-x-2 gap-y-1 text-sm flex-wrap"
               style={{ color: "var(--md-sys-color-on-surface-variant)" }}
             >
               {run && <RunStatusPill status={run.status} />}
@@ -194,13 +194,17 @@ export function RunDetail() {
                 </span>
               )}
               {run && (
-                <span>
-                  · profile: <strong className="capitalize">{run.profile}</strong>
+                <span className="inline-flex items-center gap-1">
+                  <span className="sm:inline" aria-hidden="true">
+                    ·
+                  </span>
+                  Profile <strong className="capitalize">{run.profile}</strong>
                 </span>
               )}
               {run && (
-                <span>
-                  · provider: <strong className="capitalize">{run.provider}</strong>
+                <span className="inline-flex items-center gap-1">
+                  <span aria-hidden="true">·</span>
+                  Provider <strong className="capitalize">{run.provider}</strong>
                 </span>
               )}
               {isLiveActive && (
@@ -210,7 +214,7 @@ export function RunDetail() {
               )}
             </div>
           </div>
-          <div className="flex items-center gap-2 flex-wrap">
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
             <md-outlined-button onclick={(() => void refresh()) as EventListener}>
               {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
               <md-icon slot="icon" aria-hidden="true">

@@ -243,7 +243,12 @@ export function Dashboard() {
             {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
             <md-icon
               className="mx-auto mb-3 block"
-              style={{ color: "var(--md-sys-color-on-surface-variant)", fontSize: "2rem" }}
+              style={
+                {
+                  color: "var(--md-sys-color-on-surface-variant)",
+                  "--md-icon-size": "2rem",
+                } as React.CSSProperties
+              }
               aria-hidden="true"
             >
               science
@@ -266,7 +271,7 @@ export function Dashboard() {
                 </p>
               </div>
               <div
-                className="rounded border overflow-hidden"
+                className="hidden sm:block rounded border overflow-hidden"
                 style={{
                   borderColor: "var(--md-sys-color-outline-variant)",
                   backgroundColor: "var(--md-sys-color-surface-container-low)",
@@ -329,6 +334,18 @@ export function Dashboard() {
                   </tbody>
                 </table>
               </div>
+              <div className="grid gap-2 sm:hidden">
+                {demoRuns.map((r) => (
+                  <RunCard
+                    key={r.id}
+                    run={r}
+                    summary={demoSummaries[r.id]}
+                    secondaryLabel="Matches"
+                    secondaryValue={demoSummaries[r.id]?.matches ?? "—"}
+                    isDemo
+                  />
+                ))}
+              </div>
             </div>
           )}
         </>
@@ -347,66 +364,160 @@ export function Dashboard() {
       )}
 
       {filtered && filtered.length > 0 && (
-        <div
-          className="rounded border overflow-hidden wb-fade-in"
-          style={{
-            borderColor: "var(--md-sys-color-outline-variant)",
-            backgroundColor: "var(--md-sys-color-surface-container-low)",
-          }}
-        >
-          <table className="w-full text-sm">
-            <thead style={{ backgroundColor: "var(--md-sys-color-secondary-container)" }}>
-              <tr className="text-left">
-                <th className="px-4 py-2 font-semibold">Research goal</th>
-                <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Profile</th>
-                <th className="px-4 py-2 font-semibold w-32">Status</th>
-                <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Provider</th>
-                <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Ideas</th>
-                <th className="px-4 py-2 font-semibold w-32" title="Created">
-                  Created
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((r) => (
-                <tr
-                  key={r.id}
-                  className="border-t transition-colors hover:bg-[color:var(--md-sys-color-secondary-container)]"
-                  style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
-                >
-                  <td className="px-4 py-2">
-                    <Link
-                      to={`/runs/${r.id}`}
-                      className="font-medium underline-offset-2 hover:underline"
-                    >
-                      {r.research_goal}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.profile}</td>
-                  <td className="px-4 py-2">
-                    <RunStatusPill status={r.status} />
-                  </td>
-                  <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.provider}</td>
-                  <td
-                    className="px-4 py-2 hidden sm:table-cell"
-                    style={{ color: "var(--md-sys-color-on-surface-variant)" }}
-                  >
-                    {summaries[r.id]?.hypotheses ?? "—"}
-                  </td>
-                  <td
-                    className="px-4 py-2"
-                    style={{ color: "var(--md-sys-color-on-surface-variant)" }}
-                    title={fmtDate(r.created_at)}
-                  >
-                    {fmtRelative(r.created_at)}
-                  </td>
+        <>
+          <div className="grid gap-2 sm:hidden wb-fade-in">
+            {filtered.map((r) => (
+              <RunCard
+                key={r.id}
+                run={r}
+                summary={summaries[r.id]}
+                secondaryLabel="Created"
+                secondaryValue={fmtRelative(r.created_at)}
+                secondaryTitle={fmtDate(r.created_at)}
+              />
+            ))}
+          </div>
+          <div
+            className="hidden sm:block rounded border overflow-hidden wb-fade-in"
+            style={{
+              borderColor: "var(--md-sys-color-outline-variant)",
+              backgroundColor: "var(--md-sys-color-surface-container-low)",
+            }}
+          >
+            <table className="w-full text-sm">
+              <thead style={{ backgroundColor: "var(--md-sys-color-secondary-container)" }}>
+                <tr className="text-left">
+                  <th className="px-4 py-2 font-semibold">Research goal</th>
+                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Profile</th>
+                  <th className="px-4 py-2 font-semibold w-32">Status</th>
+                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Provider</th>
+                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Ideas</th>
+                  <th className="px-4 py-2 font-semibold w-32" title="Created">
+                    Created
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {filtered.map((r) => (
+                  <tr
+                    key={r.id}
+                    className="border-t transition-colors hover:bg-[color:var(--md-sys-color-secondary-container)]"
+                    style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
+                  >
+                    <td className="px-4 py-2">
+                      <Link
+                        to={`/runs/${r.id}`}
+                        className="font-medium underline-offset-2 hover:underline"
+                      >
+                        {r.research_goal}
+                      </Link>
+                    </td>
+                    <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.profile}</td>
+                    <td className="px-4 py-2">
+                      <RunStatusPill status={r.status} />
+                    </td>
+                    <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.provider}</td>
+                    <td
+                      className="px-4 py-2 hidden sm:table-cell"
+                      style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                    >
+                      {summaries[r.id]?.hypotheses ?? "—"}
+                    </td>
+                    <td
+                      className="px-4 py-2"
+                      style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                      title={fmtDate(r.created_at)}
+                    >
+                      {fmtRelative(r.created_at)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
+  );
+}
+
+function RunCard({
+  run,
+  summary,
+  secondaryLabel,
+  secondaryValue,
+  secondaryTitle,
+  isDemo = false,
+}: {
+  run: Run;
+  summary?: RunSummary;
+  secondaryLabel: string;
+  secondaryValue: number | string;
+  secondaryTitle?: string;
+  isDemo?: boolean;
+}) {
+  return (
+    <Link
+      to={`/runs/${run.id}`}
+      className="group rounded-xl border p-4 transition-colors active:bg-[color:var(--md-sys-color-secondary-container)]"
+      style={{
+        borderColor: "var(--md-sys-color-outline-variant)",
+        backgroundColor: "var(--md-sys-color-surface-container-low)",
+      }}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <RunStatusPill status={run.status} />
+          {isDemo && (
+            <span
+              className="rounded px-1.5 py-0.5 text-xs font-medium"
+              style={{
+                backgroundColor: "var(--md-sys-color-secondary-container)",
+                color: "var(--md-sys-color-on-secondary-container)",
+              }}
+            >
+              Example
+            </span>
+          )}
+        </div>
+        <md-icon
+          className="shrink-0 transition-transform group-active:translate-x-0.5"
+          style={{ color: "var(--md-sys-color-primary)", fontSize: "20px" }}
+        >
+          arrow_forward
+        </md-icon>
+      </div>
+      <h2 className="text-base font-semibold leading-snug">{run.research_goal}</h2>
+      <dl
+        className="mt-4 grid grid-cols-3 gap-3 border-t pt-3 text-xs"
+        style={{
+          borderColor: "var(--md-sys-color-outline-variant)",
+          color: "var(--md-sys-color-on-surface-variant)",
+        }}
+      >
+        <div>
+          <dt className="uppercase tracking-wide">Profile</dt>
+          <dd className="mt-1 font-medium capitalize text-[color:var(--md-sys-color-on-surface)]">
+            {run.profile}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-wide">Ideas</dt>
+          <dd className="mt-1 font-medium text-[color:var(--md-sys-color-on-surface)]">
+            {summary?.hypotheses ?? "—"}
+          </dd>
+        </div>
+        <div>
+          <dt className="uppercase tracking-wide">{secondaryLabel}</dt>
+          <dd
+            className="mt-1 font-medium text-[color:var(--md-sys-color-on-surface)]"
+            title={secondaryTitle}
+          >
+            {secondaryValue}
+          </dd>
+        </div>
+      </dl>
+    </Link>
   );
 }
 

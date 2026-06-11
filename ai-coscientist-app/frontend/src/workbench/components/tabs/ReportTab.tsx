@@ -77,7 +77,7 @@ export function ReportTab({
           </div>
         )}
       </article>
-      <aside className="flex flex-col gap-3 wb-print-hide">
+      <aside className="grid grid-cols-2 gap-2 sm:gap-3 lg:flex lg:flex-col wb-print-hide">
         <md-filled-button
           onclick={
             (() => {
@@ -129,7 +129,7 @@ export function ReportTab({
         </md-outlined-button>
         {finalSafety && finalSafety.decision !== "allow" && (
           <div
-            className="rounded border p-3 text-xs"
+            className="col-span-2 rounded border p-3 text-xs lg:col-span-1"
             style={{
               borderColor: "var(--color-th-warning)",
               backgroundColor: "color-mix(in srgb, var(--color-th-warning) 12%, transparent)",

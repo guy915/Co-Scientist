@@ -46,6 +46,21 @@ export function OverviewTab({
 
   return (
     <div className="grid lg:grid-cols-3 gap-4">
+      <aside className="grid grid-cols-2 gap-2 lg:hidden">
+        <Stat
+          label="Hypotheses"
+          value={hypotheses.length}
+          sub={`${initialCount} initial · ${evolvedCount} evolved`}
+        />
+        <Stat label="Top Elo" value={topElo} sub={`from ${matches.length} matches`} />
+        <Stat label="Evidence sources" value={evidence.length} />
+        <Stat
+          label="Pipeline events"
+          value={events.length}
+          sub={run ? `${run.summary?.events ?? events.length} persisted` : undefined}
+        />
+      </aside>
+
       <div className="space-y-4 lg:col-span-2">
         <Section title="Pipeline timeline">
           {events.length === 0 ? (
@@ -53,17 +68,26 @@ export function OverviewTab({
               Waiting for events…
             </p>
           ) : (
-            <ol className="space-y-1.5 text-sm">
+            <ol className="space-y-2 text-sm">
               {events.map((e) => (
-                <li key={e.seq} className="flex gap-3 flex-wrap">
+                <li
+                  key={e.seq}
+                  className="grid grid-cols-[2rem_1fr] gap-x-3 gap-y-0.5 rounded-lg border p-2.5 sm:flex sm:flex-wrap sm:border-0 sm:p-0"
+                  style={{ borderColor: "var(--color-th-border)" }}
+                >
                   <span
-                    className="font-mono text-xs w-8 shrink-0 text-right"
+                    className="row-span-2 font-mono text-xs text-right sm:w-8 sm:shrink-0"
                     style={{ color: "var(--color-th-muted-fg)" }}
                   >
                     {e.seq}
                   </span>
-                  <span className="font-medium w-28 sm:w-44 shrink-0">{fmtAgent(e.type)}</span>
-                  <span style={{ color: "var(--color-th-muted-fg)" }} className="truncate">
+                  <span className="min-w-0 font-medium sm:w-44 sm:shrink-0">
+                    {fmtAgent(e.type)}
+                  </span>
+                  <span
+                    style={{ color: "var(--color-th-muted-fg)" }}
+                    className="min-w-0 text-xs leading-relaxed sm:flex-1 sm:truncate sm:text-sm"
+                  >
                     {summarizeEventPayload(e)}
                   </span>
                 </li>
@@ -101,7 +125,7 @@ export function OverviewTab({
         )}
       </div>
 
-      <aside className="space-y-3">
+      <aside className="hidden lg:block lg:space-y-3">
         <Stat
           label="Hypotheses"
           value={hypotheses.length}

@@ -46,34 +46,39 @@ export function IdeasTab({
 
   return (
     <div className="space-y-3 wb-fade-in">
-      <div className="flex items-center gap-2 text-sm flex-wrap">
-        <span style={{ color: "var(--md-sys-color-on-surface-variant)" }}>Filter:</span>
-        <md-chip-set>
-          {(["all", "initial", "evolved"] as const).map((f) => (
-            <md-filter-chip
-              key={f}
-              selected={filter === f || undefined}
-              onclick={(() => setFilter(f)) as EventListener}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </md-filter-chip>
-          ))}
-        </md-chip-set>
-        <span className="mx-2" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
-          ·
-        </span>
-        <span style={{ color: "var(--md-sys-color-on-surface-variant)" }}>Sort:</span>
-        <md-chip-set>
-          {(["elo", "title", "generation"] as SortKey[]).map((k) => (
-            <md-filter-chip
-              key={k}
-              selected={sortKey === k || undefined}
-              onclick={(() => setSortKey(k)) as EventListener}
-            >
-              {k === "elo" ? "Elo" : k.charAt(0).toUpperCase() + k.slice(1)}
-            </md-filter-chip>
-          ))}
-        </md-chip-set>
+      <div className="grid gap-2 text-sm sm:flex sm:flex-wrap sm:items-center">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+            Filter
+          </span>
+          <md-chip-set>
+            {(["all", "initial", "evolved"] as const).map((f) => (
+              <md-filter-chip
+                key={f}
+                selected={filter === f || undefined}
+                onclick={(() => setFilter(f)) as EventListener}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </md-filter-chip>
+            ))}
+          </md-chip-set>
+        </div>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+            Sort
+          </span>
+          <md-chip-set>
+            {(["elo", "title", "generation"] as SortKey[]).map((k) => (
+              <md-filter-chip
+                key={k}
+                selected={sortKey === k || undefined}
+                onclick={(() => setSortKey(k)) as EventListener}
+              >
+                {k === "elo" ? "Elo" : k.charAt(0).toUpperCase() + k.slice(1)}
+              </md-filter-chip>
+            ))}
+          </md-chip-set>
+        </div>
       </div>
       <ol className="space-y-2">
         {filtered.map((h, i) => (
@@ -121,10 +126,10 @@ function IdeaRow({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="w-full text-left p-3 flex items-start gap-3"
+        className="w-full text-left p-3 flex items-start gap-2 sm:gap-3"
       >
         <span
-          className="text-xs font-mono mt-0.5 w-7 text-right inline-flex items-center justify-end gap-0.5"
+          className="text-xs font-mono mt-0.5 w-6 sm:w-7 text-right inline-flex items-center justify-end gap-0.5 shrink-0"
           style={{ color: "var(--md-sys-color-on-surface-variant)" }}
         >
           {open ? (

@@ -51,11 +51,11 @@ export function TournamentTab({
               return (
                 <li
                   key={h.id}
-                  className="px-3 py-2 flex items-center gap-2"
+                  className="grid grid-cols-[1.5rem_1fr_auto] items-start gap-x-2 gap-y-1 px-3 py-3 sm:flex sm:items-center sm:py-2"
                   style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
                 >
                   <span
-                    className="font-mono text-xs w-6 text-right inline-flex items-center justify-end"
+                    className="font-mono text-xs text-right inline-flex items-center justify-end sm:w-6"
                     style={{ color: "var(--md-sys-color-on-surface-variant)" }}
                   >
                     {i === 0 ? (
@@ -67,27 +67,31 @@ export function TournamentTab({
                       i + 1
                     )}
                   </span>
-                  <span className="flex-1 truncate text-sm">{h.title}</span>
-                  {total > 0 && (
+                  <span className="min-w-0 text-sm font-medium leading-snug sm:flex-1 sm:truncate">
+                    {h.title}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    {total > 0 && (
+                      <span
+                        className="text-[10px] font-mono px-1 py-0.5 rounded"
+                        style={{
+                          backgroundColor:
+                            "color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent)",
+                          color: "var(--md-sys-color-on-surface)",
+                        }}
+                        title={`${h.win_count} wins / ${h.loss_count} losses`}
+                      >
+                        {winRate}%
+                      </span>
+                    )}
                     <span
-                      className="text-[10px] font-mono px-1 py-0.5 rounded"
+                      className="font-mono text-xs px-1.5 py-0.5 rounded"
                       style={{
-                        backgroundColor:
-                          "color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent)",
-                        color: "var(--md-sys-color-on-surface)",
+                        backgroundColor: "var(--md-sys-color-secondary-container)",
                       }}
-                      title={`${h.win_count} wins / ${h.loss_count} losses`}
                     >
-                      {winRate}%
+                      {h.elo_rating}
                     </span>
-                  )}
-                  <span
-                    className="font-mono text-xs px-1.5 py-0.5 rounded"
-                    style={{
-                      backgroundColor: "var(--md-sys-color-secondary-container)",
-                    }}
-                  >
-                    {h.elo_rating}
                   </span>
                 </li>
               );
@@ -117,9 +121,81 @@ export function TournamentTab({
                     backgroundColor: "var(--md-sys-color-surface-container-low)",
                   }}
                 >
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="space-y-2 sm:hidden">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="shrink-0 text-[11px] font-mono px-1.5 py-0.5 rounded"
+                        style={{
+                          backgroundColor: "var(--md-sys-color-secondary-container)",
+                          color: "var(--md-sys-color-on-secondary-container)",
+                        }}
+                      >
+                        Iter {m.iteration}
+                      </span>
+                      <span
+                        className="text-[10px] uppercase tracking-wide"
+                        style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                      >
+                        Match result
+                      </span>
+                    </div>
+                    <div
+                      className="rounded-lg p-2.5"
+                      style={{
+                        backgroundColor:
+                          "color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent)",
+                      }}
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ color: "var(--md-sys-color-primary)" }}
+                        >
+                          Winner
+                        </span>
+                        <span
+                          className="font-mono text-xs"
+                          title={`+${wDelta} Elo`}
+                          style={{ color: "var(--md-sys-color-primary)" }}
+                        >
+                          {m.winner_elo_before} → {m.winner_elo_after}
+                        </span>
+                      </div>
+                      <div className="font-medium leading-snug">{w?.title ?? m.winner_id}</div>
+                    </div>
+                    <div
+                      className="rounded-lg p-2.5"
+                      style={{
+                        backgroundColor:
+                          "color-mix(in srgb, var(--md-sys-color-error-container) 35%, transparent)",
+                      }}
+                    >
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <span
+                          className="text-[10px] font-semibold uppercase tracking-wide"
+                          style={{ color: "var(--md-sys-color-error)" }}
+                        >
+                          Runner-up
+                        </span>
+                        <span
+                          className="font-mono text-xs"
+                          title={`${lDelta} Elo`}
+                          style={{ color: "var(--md-sys-color-error)" }}
+                        >
+                          {m.loser_elo_before} → {m.loser_elo_after}
+                        </span>
+                      </div>
+                      <div
+                        className="leading-snug"
+                        style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+                      >
+                        {l?.title ?? m.loser_id}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:flex sm:items-center sm:gap-2 sm:flex-wrap">
                     <span
-                      className="text-[11px] font-mono px-1.5 py-0.5 rounded"
+                      className="shrink-0 text-[11px] font-mono px-1.5 py-0.5 rounded"
                       style={{
                         backgroundColor: "var(--md-sys-color-secondary-container)",
                         color: "var(--md-sys-color-on-secondary-container)",
@@ -160,7 +236,7 @@ export function TournamentTab({
                   </div>
                   {m.rationale && (
                     <p
-                      className="text-xs mt-1"
+                      className="text-xs mt-2 leading-relaxed"
                       style={{ color: "var(--md-sys-color-on-surface-variant)" }}
                     >
                       {m.rationale}
