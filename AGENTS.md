@@ -9,7 +9,7 @@ This is a research/reference workspace organized around replicating Google DeepM
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
 - `references/` — folder containing research, product screenshots, and design specs
-  - `google-co-scientist/` — long-form architecture/spec markdown for the planned system
+  - `co-scientist/` — long-form architecture/spec markdown for the planned system
     - `media/` — UX captures and product references for Google Co-Scientist
     - `research/` — papers describing the original Co-Scientist
   - `notebooklm/`, `gemini/` — UX captures and product references
