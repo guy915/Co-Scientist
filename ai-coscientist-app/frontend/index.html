@@ -2,9 +2,8 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/favicon.ico" sizes="any" />
-    <link rel="icon" type="image/svg+xml" href="/favicon-light.svg" media="(prefers-color-scheme: light)" />
-    <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon-light.svg?v=2" media="(prefers-color-scheme: light)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon-dark.svg?v=2" media="(prefers-color-scheme: dark)" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="canonical" href="https://ai-co-scientist.com/" />
@@ -34,7 +33,8 @@
     <meta name="twitter:image:alt" content="Co-Scientist — AI-powered scientific discovery" />
   </head>
   <body>
-    <div id="root">
+    <div id="root"></div>
+    <noscript>
       <main>
         <h1>Turn research questions into testable hypotheses.</h1>
         <p>Accelerating scientific discovery with AI-driven collaboration.</p>
@@ -43,7 +43,7 @@
           generation, debate, ranking, and synthesis.
         </p>
       </main>
-    </div>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -156,8 +156,8 @@ function renderRoute(route) {
       `<meta name="twitter:description" content="${escapeHtml(route.description)}" />`
     )
     .replace(
-      /<div id="root">[\s\S]*?<\/div>/,
-      `<div id="root"><main><h1>${escapeHtml(route.heading)}</h1><p>${escapeHtml(route.body)}</p></main></div>`
+      /<noscript>[\s\S]*?<\/noscript>/,
+      `<noscript><main><h1>${escapeHtml(route.heading)}</h1><p>${escapeHtml(route.body)}</p></main></noscript>`
     )
     .replace("</head>", `<script type="application/ld+json">${jsonLd}</script></head>`);
 }
@@ -202,8 +202,8 @@ const notFoundHtml = baseHtml
   .replace(/<link rel="canonical" href=".*?" \/>/, "")
   .replace(/<meta property="og:url" content=".*?" \/>/, "")
   .replace(
-    /<div id="root">[\s\S]*?<\/div>/,
-    '<div id="root"><main><h1>Page not found</h1><p>The page you requested does not exist.</p><p><a href="/">Return home</a> · <a href="/runs">Open the workbench</a></p></main></div>'
+    /<noscript>[\s\S]*?<\/noscript>/,
+    '<noscript><main><h1>Page not found</h1><p>The page you requested does not exist.</p><p><a href="/">Return home</a> · <a href="/runs">Open the workbench</a></p></main></noscript>'
   );
 
 await writeFile(path.join(dist, "404.html"), notFoundHtml);
