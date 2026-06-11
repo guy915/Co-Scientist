@@ -54,3 +54,8 @@ ai-coscientist-app/frontend/.vite/
 
 .vercel
 .superpowers/
+
+# Agents, Claude, and Remember
+.agents/
+.claude/
+.remember/
