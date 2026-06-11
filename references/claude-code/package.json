@@ -45,7 +45,7 @@
     "chokidar": "^4.0.0",
     "cli-boxes": "^3.0.0",
     "code-excerpt": "^4.0.0",
-    "diff": "^7.0.0",
+    "diff": "^9.0.0",
     "execa": "^9.5.0",
     "figures": "^6.1.0",
     "fuse.js": "^7.0.0",
