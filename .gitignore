@@ -53,3 +53,4 @@ ai-coscientist-app/frontend/.vite/
 .playwright-mcp/
 
 .vercel
+.superpowers/
