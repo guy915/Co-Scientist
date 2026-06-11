@@ -2,5 +2,30 @@
   "buildCommand": "bun run build",
   "outputDirectory": "dist",
   "installCommand": "bun install",
-  "rewrites": [{ "source": "/((?!assets/).*)", "destination": "/index.html" }]
+  "routes": [
+    {
+      "src": "/runs",
+      "headers": { "X-Robots-Tag": "noindex, nofollow" },
+      "dest": "/index.html"
+    },
+    {
+      "src": "/runs/(.*)",
+      "headers": { "X-Robots-Tag": "noindex, nofollow" },
+      "dest": "/index.html"
+    },
+    {
+      "src": "/demos/ferroptosis-pancreatic-cancer",
+      "dest": "/demos/ferroptosis-pancreatic-cancer/index.html"
+    },
+    {
+      "src": "/demos/synaptic-pruning-cognitive-flexibility",
+      "dest": "/demos/synaptic-pruning-cognitive-flexibility/index.html"
+    },
+    {
+      "src": "/demos/biofilm-antibiotic-resistance",
+      "dest": "/demos/biofilm-antibiotic-resistance/index.html"
+    },
+    { "handle": "filesystem" },
+    { "src": ".*", "status": 404, "dest": "/404.html" }
+  ]
 }

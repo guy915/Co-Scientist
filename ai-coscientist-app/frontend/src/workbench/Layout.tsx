@@ -8,6 +8,7 @@ import { ThemeToggle } from "./components/ThemeToggle";
 export function Layout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const isPublicRoute = !location.pathname.startsWith("/runs");
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -40,13 +41,26 @@ export function Layout({ children }: { children: ReactNode }) {
             <span className="text-base tracking-tight">Co-Scientist</span>
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3 text-sm">
-            <span className="hidden sm:inline-flex">
+            {isPublicRoute && (
+              <div className="hidden md:flex items-center gap-6 mr-2">
+                <a className="public-nav-link" href="/#workflow-title">
+                  How it works
+                </a>
+                <Link className="public-nav-link" to="/demos/ferroptosis-pancreatic-cancer">
+                  Demo
+                </Link>
+                <a className="public-nav-link" href="/#research">
+                  Research
+                </a>
+              </div>
+            )}
+            <span className="inline-flex">
               <ThemeToggle />
             </span>
             <md-outlined-button
-              onclick={(() => navigate("/")) as EventListener}
+              onclick={(() => navigate("/runs")) as EventListener}
               style={
-                location.pathname === "/"
+                location.pathname.startsWith("/runs")
                   ? ({
                       "--md-outlined-button-outline-width": "1px",
                       "--md-outlined-button-outline-color": "var(--md-sys-color-primary)",
@@ -59,15 +73,23 @@ export function Layout({ children }: { children: ReactNode }) {
                     } as React.CSSProperties)
               }
             >
-              Dashboard
+              {isPublicRoute ? "Workbench" : "Dashboard"}
             </md-outlined-button>
-            <span className="hidden sm:inline-flex">
-              <LogConsole />
-            </span>
+            {!isPublicRoute && (
+              <span className="hidden sm:inline-flex">
+                <LogConsole />
+              </span>
+            )}
           </nav>
         </div>
       </header>
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4 sm:py-6 wb-fade-in">
+      <main
+        className={
+          isPublicRoute
+            ? "flex-1 w-full wb-fade-in"
+            : "flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4 sm:py-6 wb-fade-in"
+        }
+      >
         {children}
       </main>
       <footer

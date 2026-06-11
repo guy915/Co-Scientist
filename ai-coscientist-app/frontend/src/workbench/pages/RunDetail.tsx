@@ -162,7 +162,7 @@ export function RunDetail() {
     <div className="space-y-4">
       <header className="space-y-3">
         <Link
-          to="/"
+          to="/runs"
           className="inline-flex items-center gap-1 text-sm hover:underline"
           style={{ color: "var(--md-sys-color-on-surface-variant)" }}
         >
