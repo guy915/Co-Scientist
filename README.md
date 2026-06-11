@@ -172,8 +172,8 @@ The clone is held to these invariants (full list with sources in [`docs/FIDELITY
 │   └── archive/          # historical planning docs (PLAN, TASKS, IMPLEMENTATION_REPORT)
 ├── scripts/
 │   └── dev_all.sh        # run API + UI together
-├── ai-coscientist-engine/# local LangGraph engine (editable install)
-├── ai-coscientist-app/   # FastAPI + React workbench viewer
+├── engine/# local LangGraph engine (editable install)
+├── app/   # FastAPI + React workbench viewer
 │   ├── app/              # FastAPI + store/elo/safety/citations/mock/adapter/runs
 │   ├── tests/            # pytest suite
 │   └── frontend/         # React + Vite + Tailwind workbench

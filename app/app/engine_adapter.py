@@ -26,7 +26,7 @@ from .mock_workflow import resolved_config, run_mock_workflow
 # Inject the sibling engine src into sys.path at import time so that
 # `from open_coscientist import HypothesisGenerator` in main.py succeeds.
 _engine_src = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "ai-coscientist-engine", "src")
+    os.path.join(os.path.dirname(__file__), "..", "..", "engine", "src")
 )
 if os.path.isdir(_engine_src) and _engine_src not in sys.path:
     sys.path.insert(0, _engine_src)

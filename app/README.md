@@ -5,7 +5,7 @@ A web workbench for running and monitoring the [Open CoScientist](https://github
 ## Architecture
 
 ```
-ai-coscientist-app/
+app/
 ├── app/            FastAPI backend (Python)
 │   ├── main.py     API entrypoint (~800 lines), legacy /generate + /parse endpoints
 │   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
@@ -41,13 +41,13 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 **Backend (pip)**
 
 ```bash
-cd ai-coscientist-app
+cd app
 
 # Install Python deps (pulls open-coscientist from PyPI)
 make install
 
 # For local engine changes, pin to the sibling checkout instead:
-# pip install -e ../ai-coscientist-engine
+# pip install -e ../engine
 
 # Copy and edit the env file
 cp .env.example .env   # set GEMINI_API_KEY at minimum
@@ -61,7 +61,7 @@ make dev               # listens on :8008
 Requires [Pixi](https://pixi.sh/).
 
 ```bash
-cd ai-coscientist-app
+cd app
 
 # Install pixi if not already installed
 curl -fsSL https://pixi.sh/install.sh | bash
@@ -74,7 +74,7 @@ pixi run dev           # listens on :8008
 **Frontend**
 
 ```bash
-cd ai-coscientist-app/frontend
+cd app/frontend
 
 bun install
 cp .env.example .env   # VITE_API_BASE_URL defaults to http://localhost:8008
@@ -86,7 +86,7 @@ Open `http://localhost:5173` in your browser.
 ### Docker Compose (all services)
 
 ```bash
-cd ai-coscientist-app
+cd app
 
 cp .env.example .env   # set GEMINI_API_KEY
 
@@ -101,7 +101,7 @@ This starts three containers:
 | `ui` | 5173 | Vite dev server |
 | `mcp` | 8888 | Reference MCP server (PubMed + INDRA) |
 
-The `api` container mounts the engine from `../ai-coscientist-engine` (or clones it from GitHub if that path is absent). Override `OPEN_COSCIENTIST_PATH` in `.env` if the engine checkout is elsewhere.
+The `api` container mounts the engine from `../engine` (or clones it from GitHub if that path is absent). Override `OPEN_COSCIENTIST_PATH` in `.env` if the engine checkout is elsewhere.
 
 ## Configuration
 
@@ -180,7 +180,7 @@ Interactive docs are available when the server is running:
 
 ## Development commands
 
-**Backend** (from `ai-coscientist-app/`):
+**Backend** (from `app/`):
 
 ```bash
 make install     # install with dev deps
@@ -202,7 +202,7 @@ Pixi users can substitute `pixi run <task>` for any `make` target:
 | Lint | `make lint` | `pixi run lint` |
 | Type check | `make typecheck` | `pixi run typecheck` |
 
-**Frontend** (from `ai-coscientist-app/frontend/`):
+**Frontend** (from `app/frontend/`):
 
 ```bash
 bun install
@@ -220,10 +220,10 @@ If `open-coscientist` is not installed or no LLM API key is set, the server fall
 
 The literature review and reflection nodes connect to an MCP server that provides PubMed search and INDRA CoGex tools. Without a running MCP server the nodes fall back to LLM-only mode — hypothesis quality is reduced but the workflow still completes.
 
-The reference MCP server lives in `../ai-coscientist-engine/mcp_server/`. Run it separately or let Docker Compose manage it:
+The reference MCP server lives in `../engine/mcp_server/`. Run it separately or let Docker Compose manage it:
 
 ```bash
-cd ../ai-coscientist-engine
+cd ../engine
 pip install -e mcp_server/     # requires Python 3.12
 uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 ```

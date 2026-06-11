@@ -1,7 +1,7 @@
 {
-  "buildCommand": "cd ai-coscientist-app/frontend && bun run build",
-  "outputDirectory": "ai-coscientist-app/frontend/dist",
-  "installCommand": "cd ai-coscientist-app/frontend && bun install",
+  "buildCommand": "cd app/frontend && bun run build",
+  "outputDirectory": "app/frontend/dist",
+  "installCommand": "cd app/frontend && bun install",
   "rewrites": [
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ]

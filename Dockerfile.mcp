@@ -6,7 +6,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y build-essential && rm -rf /var/lib/apt/lists/*
 
-COPY ai-coscientist-engine/mcp_server/ ./mcp_server/
+COPY engine/mcp_server/ ./mcp_server/
 RUN pip install --no-cache-dir -e ./mcp_server
 
 ENV PYTHONUNBUFFERED=1

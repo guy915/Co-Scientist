@@ -1,8 +1,8 @@
 .PHONY: help setup dev dev-api dev-ui dev-all dev-mcp test lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
-ENGINE := $(ROOT)/ai-coscientist-engine
-APP    := $(ROOT)/ai-coscientist-app
+ENGINE := $(ROOT)/engine
+APP    := $(ROOT)/app
 FRONTEND := $(APP)/frontend
 VENV  := $(ROOT)/.venv
 PY    := $(VENV)/bin/python

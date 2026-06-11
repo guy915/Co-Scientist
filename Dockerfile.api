@@ -7,15 +7,15 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 # Install engine first (layer cache)
-COPY ai-coscientist-engine/ /workspace/open-coscientist/
+COPY engine/ /workspace/open-coscientist/
 RUN pip install --no-cache-dir -e /workspace/open-coscientist
 
 # Install app deps
-COPY ai-coscientist-app/pyproject.toml ./
+COPY app/pyproject.toml ./
 RUN pip install --no-cache-dir -e .
 
 # Copy app source
-COPY ai-coscientist-app/app/ ./app/
+COPY app/app/ ./app/
 
 RUN mkdir -p /app/data
 

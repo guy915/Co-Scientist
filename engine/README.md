@@ -269,7 +269,7 @@ HypothesisGenerator(model_name="anthropic/claude-opus-4-5")
 
 ### Commands
 
-Run from `ai-coscientist-engine/`:
+Run from `engine/`:
 
 ```bash
 pip install -e '.[dev]'     # install with dev dependencies
