@@ -7,7 +7,13 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # LLM Configuration
+    # model_name: worker model — generate, review, ranking, reflection, evolve, proximity,
+    #   literature_review. High-volume, runs many times per iteration. Use a fast/cheap model.
     model_name: str = "gemini/gemini-2.5-flash"
+    # supervisor_model_name: strategic model — supervisor (research planning) and meta_review
+    #   (final report synthesis). Runs once or twice per iteration. Use a stronger model.
+    #   If None, falls back to model_name (single-model mode for testing / cost saving).
+    supervisor_model_name: str | None = None
     gemini_api_key: str = ""
 
     # Server Configuration

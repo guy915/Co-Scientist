@@ -90,7 +90,7 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
 
     response = await call_llm_json(
         prompt=prompt,
-        model_name=state["model_name"],
+        model_name=state["supervisor_model_name"],
         max_tokens=EXTENDED_MAX_TOKENS,
         temperature=MEDIUM_TEMPERATURE,
         json_schema=schema,

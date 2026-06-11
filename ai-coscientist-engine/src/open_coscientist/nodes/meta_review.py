@@ -112,7 +112,7 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
 
     response = await call_llm_json(
         prompt=prompt,
-        model_name=state["model_name"],
+        model_name=state["supervisor_model_name"],
         max_tokens=THINKING_MAX_TOKENS,  # Meta-review needs more space for aggregating all reviews
         temperature=MEDIUM_TEMPERATURE,
         json_schema=schema,

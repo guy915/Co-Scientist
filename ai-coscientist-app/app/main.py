@@ -105,6 +105,7 @@ async def lifespan(app: FastAPI):
     if HypothesisGenerator is not None and provider == "engine":
         _generator = HypothesisGenerator(
             model_name=settings.model_name,
+            supervisor_model_name=settings.supervisor_model_name,
             max_iterations=settings.max_iterations,
             initial_hypotheses_count=settings.initial_hypotheses_count,
             evolution_max_count=settings.evolution_max_count,
@@ -166,6 +167,9 @@ class GenerateRequest(BaseModel):
     )
     evolution_max_count: int | None = Field(
         None, description="Override default evolution max count (optional)"
+    )
+    supervisor_model_name: str | None = Field(
+        None, description="Override supervisor/meta-review model (optional)"
     )
     enable_literature_review_node: bool | None = Field(
         None,
@@ -332,7 +336,7 @@ Return ONLY valid JSON matching the schema."""
 
     try:
         response = await acompletion(
-            model="gemini/gemini-2.5-flash",
+            model=settings.model_name,
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_schema", "json_schema": {"name": "research_goal_parser", "schema": response_schema}}
         )
@@ -450,6 +454,7 @@ async def generate_hypotheses(request: GenerateRequest):
         if any(
             [
                 request.model_name,
+                request.supervisor_model_name,
                 request.max_iterations is not None,
                 request.initial_hypotheses_count is not None,
                 request.evolution_max_count is not None,
@@ -457,6 +462,7 @@ async def generate_hypotheses(request: GenerateRequest):
         ):
             # Capture values with default fallbacks
             model_name = request.model_name or settings.model_name
+            supervisor_model_name = request.supervisor_model_name or settings.supervisor_model_name
             max_iterations = (
                 request.max_iterations
                 if request.max_iterations is not None
@@ -482,6 +488,7 @@ async def generate_hypotheses(request: GenerateRequest):
             # Log all values being used
             logger.info("Creating HypothesisGenerator (no streaming) with parameters:")
             logger.info(f"  model_name: {model_name}")
+            logger.info(f"  supervisor_model_name: {supervisor_model_name or model_name}")
             logger.info(f"  max_iterations: {max_iterations}")
             logger.info(f"  initial_hypotheses_count: {initial_hypotheses_count}")
             logger.info(f"  evolution_max_count: {evolution_max_count}")
@@ -491,6 +498,7 @@ async def generate_hypotheses(request: GenerateRequest):
             # Create a new generator with overrides
             generator = HypothesisGenerator(
                 model_name=model_name,
+                supervisor_model_name=supervisor_model_name,
                 max_iterations=max_iterations,
                 initial_hypotheses_count=initial_hypotheses_count,
                 evolution_max_count=evolution_max_count,
@@ -669,6 +677,7 @@ async def start_generation(request: GenerateRequest):
         if any(
             [
                 request.model_name,
+                request.supervisor_model_name,
                 request.max_iterations is not None,
                 request.initial_hypotheses_count is not None,
                 request.evolution_max_count is not None,
@@ -676,6 +685,7 @@ async def start_generation(request: GenerateRequest):
         ):
             # Capture values with default fallbacks
             model_name = request.model_name or settings.model_name
+            supervisor_model_name = request.supervisor_model_name or settings.supervisor_model_name
             max_iterations = (
                 request.max_iterations
                 if request.max_iterations is not None
@@ -701,6 +711,7 @@ async def start_generation(request: GenerateRequest):
             # Log all values being used
             logger.info("Creating HypothesisGenerator (streaming) with parameters:")
             logger.info(f"  model_name: {model_name}")
+            logger.info(f"  supervisor_model_name: {supervisor_model_name or model_name}")
             logger.info(f"  max_iterations: {max_iterations}")
             logger.info(f"  initial_hypotheses_count: {initial_hypotheses_count}")
             logger.info(f"  evolution_max_count: {evolution_max_count}")
@@ -712,6 +723,7 @@ async def start_generation(request: GenerateRequest):
             # Create a new generator with overrides
             generator = HypothesisGenerator(
                 model_name=model_name,
+                supervisor_model_name=supervisor_model_name,
                 max_iterations=max_iterations,
                 initial_hypotheses_count=initial_hypotheses_count,
                 evolution_max_count=evolution_max_count,

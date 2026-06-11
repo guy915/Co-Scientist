@@ -124,7 +124,10 @@ class WorkflowState(TypedDict):
 
     # Configuration
     model_name: str
-    """LLM model to use (litellm format)."""
+    """LLM model to use (litellm format) for worker nodes."""
+
+    supervisor_model_name: str
+    """LLM model to use for supervisor and meta-review nodes (falls back to model_name if not set)."""
 
     max_iterations: int
     """Number of refinement iterations to run."""

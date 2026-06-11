@@ -52,6 +52,7 @@ class HypothesisGenerator:
     def __init__(
         self,
         model_name: str = "gemini/gemini-2.5-flash",
+        supervisor_model_name: Optional[str] = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         initial_hypotheses_count: int = DEFAULT_INITIAL_HYPOTHESES_COUNT,
         evolution_max_count: int = DEFAULT_EVOLUTION_MAX_COUNT,
@@ -74,6 +75,7 @@ class HypothesisGenerator:
             disable_tools: List of tool IDs to disable (None = use all enabled tools)
         """
         self.model_name = model_name
+        self.supervisor_model_name = supervisor_model_name or model_name
         self.max_iterations = max_iterations
         self.initial_hypotheses_count = initial_hypotheses_count
         self.evolution_max_count = evolution_max_count
@@ -332,6 +334,7 @@ class HypothesisGenerator:
         initial_state: WorkflowState = {
             "research_goal": research_goal,
             "model_name": self.model_name,
+            "supervisor_model_name": self.supervisor_model_name,
             "max_iterations": self.max_iterations,
             "initial_hypotheses_count": self.initial_hypotheses_count,
             "evolution_max_count": self.evolution_max_count,
