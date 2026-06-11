@@ -12,7 +12,7 @@ const routes = [
     path: "/",
     title: "Co-Scientist",
     description:
-      "An AI-powered assistant for scientific discovery. Generates hypotheses, debates approaches, and proposes solutions — grounded in literature.",
+      "An AI-powered assistant for scientific discovery. Generates hypotheses, debates approaches, and proposes solutions – grounded in literature.",
     heading: "Turn research questions into testable hypotheses.",
     body: "Accelerating scientific discovery with AI-driven collaboration.",
     jsonLd: [
