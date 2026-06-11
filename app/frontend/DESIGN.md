@@ -1,6 +1,6 @@
 ---
 version: alpha
-name: Co-Scientist Workbench
+name: Co-Scientist
 description: A focused scientific research workbench for AI-assisted hypothesis generation. Built on Material Design 3 semantics with Google Sans typography. The palette is generated at runtime from a single seed color using @material/material-color-utilities.
 colors:
   # Seed — the single source of truth for the MD3 palette.
