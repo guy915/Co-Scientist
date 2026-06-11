@@ -38,7 +38,7 @@ export function LandingPage() {
     <>
       <Seo
         title="Co-Scientist"
-        description="An AI-powered assistant for scientific discovery. Generates hypotheses, debates approaches, and proposes solutions — grounded in literature."
+        description="An AI-powered assistant for scientific discovery. Generates hypotheses, debates approaches, and proposes solutions – grounded in literature."
         path="/"
         jsonLd={landingJsonLd}
       />
