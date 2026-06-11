@@ -93,6 +93,12 @@ A single `HypothesisGenerator` instance is constructed in the `lifespan` startup
 
 React 19 + Vite 7 + TypeScript + Tailwind v4 + shadcn/ui + Radix. Package manager is **Bun**. Linter/formatter is **Biome**, not ESLint/Prettier.
 
+**Design system:** `frontend/DESIGN.md` is the authoritative design reference for all UI work. It follows the [google-labs-code/design.md](https://github.com/google-labs-code/design.md) spec: YAML design tokens in frontmatter, markdown rationale in body. Read it before making visual changes — it documents the color system, typography scale, spacing grid, radius rules, component inventory, and Do's & Don'ts. Key points:
+- Palette is Material Design 3, generated at runtime from seed `#1A6B6B` via `applyMd3Theme()` in `src/lib/theme.ts`. Never hardcode `--md-sys-color-*` values.
+- All UI tokens are bridged via `--color-th-*` variables in `src/index.css`.
+- Three border-radius values only: `rounded-md` (8px) for data blocks, `rounded-xl` (12px) for interactive containers, `rounded-full` (9999px) for pills/buttons/chips.
+- No `box-shadow` on cards or inputs — tonal layers only.
+
 **Commands** (run from `ai-coscientist-app/frontend/`):
 ```bash
 bun install
