@@ -31,9 +31,104 @@
     <meta name="twitter:description" content="An AI-powered assistant for scientific discovery. Generates hypotheses, debates approaches, and proposes solutions — grounded in literature." />
     <meta name="twitter:image" content="https://ai-co-scientist.com/social-card.jpg" />
     <meta name="twitter:image:alt" content="Co-Scientist — AI-powered scientific discovery" />
+  <style>
+    :root {
+      --sk-bg: #F5FAFA;
+      --sk-base: #DCE8E8;
+      --sk-hi: #EEF6F6;
+      --sk-border: #CDD9D9;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --sk-bg: #191C1C;
+        --sk-base: #232929;
+        --sk-hi: #2C3333;
+        --sk-border: #252B2B;
+      }
+    }
+    @keyframes sk-shimmer {
+      0%   { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+    .sk {
+      background: linear-gradient(90deg, var(--sk-base) 25%, var(--sk-hi) 50%, var(--sk-base) 75%);
+      background-size: 200% 100%;
+      animation: sk-shimmer 1.5s ease-in-out infinite;
+    }
+    .sk-wrap {
+      min-height: 100vh;
+      background: var(--sk-bg);
+      display: flex;
+      flex-direction: column;
+    }
+    .sk-header {
+      border-bottom: 1px solid var(--sk-border);
+      position: sticky;
+      top: 0;
+      background: var(--sk-bg);
+      padding: 12px 24px;
+    }
+    .sk-header-inner {
+      max-width: 80rem;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .sk-main {
+      flex: 1;
+      width: min(100% - 2rem, 76rem);
+      margin-inline: auto;
+    }
+    .sk-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.18fr);
+      gap: clamp(3rem, 6vw, 6rem);
+      align-items: center;
+      min-height: min(46rem, calc(100svh - 4.25rem));
+      padding-block: clamp(4.5rem, 10vw, 8rem);
+      box-sizing: border-box;
+    }
+    .sk-copy {
+      max-width: 35rem;
+      display: flex;
+      flex-direction: column;
+    }
+  </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root"><div class="sk-wrap">
+      <header class="sk-header">
+        <div class="sk-header-inner">
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="sk" style="width:20px;height:20px;border-radius:3px;flex-shrink:0"></div>
+            <div class="sk" style="width:88px;height:15px;border-radius:4px"></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="sk" style="width:76px;height:13px;border-radius:4px"></div>
+            <div class="sk" style="width:52px;height:13px;border-radius:4px"></div>
+            <div class="sk" style="width:20px;height:20px;border-radius:50%"></div>
+            <div class="sk" style="width:88px;height:32px;border-radius:999px"></div>
+          </div>
+        </div>
+      </header>
+      <main class="sk-main">
+        <div class="sk-hero">
+          <div class="sk-copy">
+            <div class="sk" style="width:100%;height:clamp(2.4rem,5vw,3.8rem);border-radius:8px"></div>
+            <div class="sk" style="width:78%;height:clamp(2.4rem,5vw,3.8rem);border-radius:8px;margin-top:10px"></div>
+            <div class="sk" style="width:82%;height:1.1rem;border-radius:6px;margin-top:1.75rem"></div>
+            <div class="sk" style="width:62%;height:1.1rem;border-radius:6px;margin-top:10px"></div>
+            <div style="display:flex;gap:12px;margin-top:2rem">
+              <div class="sk" style="width:150px;height:48px;border-radius:999px"></div>
+              <div class="sk" style="width:134px;height:48px;border-radius:999px"></div>
+            </div>
+          </div>
+          <div class="sk" style="width:100%;aspect-ratio:4/3;border-radius:12px"></div>
+        </div>
+      </main>
+    </div></div>
     <noscript>
       <main>
         <h1>Turn research questions into testable hypotheses.</h1>

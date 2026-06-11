@@ -1,0 +1,13 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "frontend",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "dev"],
+      "cwd": "ai-coscientist-app/frontend",
+      "port": 5173,
+      "autoPort": true
+    }
+  ]
+}
