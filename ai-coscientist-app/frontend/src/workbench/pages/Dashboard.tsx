@@ -102,24 +102,21 @@ export function Dashboard() {
         }
         setSummaries(map);
 
-        // Load demo runs only when user has no runs of their own.
-        if (r.length === 0) {
-          const demos = await listDemoRuns();
-          if (cancelled) return;
-          setDemoRuns(demos);
-          const demoEntries = await Promise.allSettled(
-            demos.map(async (run) => {
-              const detail = await getRun(run.id);
-              return [run.id, detail.summary] as const;
-            })
-          );
-          if (cancelled) return;
-          const demoMap: Record<string, RunSummary> = {};
-          for (const e of demoEntries) {
-            if (e.status === "fulfilled") demoMap[e.value[0]] = e.value[1];
-          }
-          setDemoSummaries(demoMap);
+        const demos = await listDemoRuns();
+        if (cancelled) return;
+        setDemoRuns(demos);
+        const demoEntries = await Promise.allSettled(
+          demos.map(async (run) => {
+            const detail = await getRun(run.id);
+            return [run.id, detail.summary] as const;
+          })
+        );
+        if (cancelled) return;
+        const demoMap: Record<string, RunSummary> = {};
+        for (const e of demoEntries) {
+          if (e.status === "fulfilled") demoMap[e.value[0]] = e.value[1];
         }
+        setDemoSummaries(demoMap);
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -132,12 +129,12 @@ export function Dashboard() {
 
   const filtered = useMemo(() => {
     if (!runs) return null;
-    return runs.filter((r) => {
+    return [...runs, ...demoRuns].filter((r) => {
       if (filter !== "all" && r.status !== filter) return false;
       if (!query.trim()) return true;
       return r.research_goal.toLowerCase().includes(query.toLowerCase());
     });
-  }, [runs, query, filter]);
+  }, [runs, demoRuns, query, filter]);
 
   const totals = useMemo(() => {
     if (!runs) return null;
@@ -235,123 +232,34 @@ export function Dashboard() {
       {runs === null && !error && <Skeleton />}
 
       {runs && runs.length === 0 && (
-        <>
-          <div
-            className="rounded border p-8 text-center wb-fade-in"
-            style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
+        <div
+          className="rounded border p-8 text-center wb-fade-in"
+          style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
+        >
+          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
+          <md-icon
+            className="mx-auto mb-3 block"
+            style={
+              {
+                color: "var(--md-sys-color-on-surface-variant)",
+                "--md-icon-size": "2rem",
+              } as React.CSSProperties
+            }
+            aria-hidden="true"
           >
-            {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
-            <md-icon
-              className="mx-auto mb-3 block"
-              style={
-                {
-                  color: "var(--md-sys-color-on-surface-variant)",
-                  "--md-icon-size": "2rem",
-                } as React.CSSProperties
-              }
-              aria-hidden="true"
-            >
-              science
-            </md-icon>
-            <p className="font-medium">No runs yet</p>
-            <p className="text-sm mb-4" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
-              Start with a research goal to generate, debate, and rank hypotheses.
-            </p>
-            <md-filled-button onclick={(() => navigate("/runs/new")) as EventListener}>
-              Create your first run
-            </md-filled-button>
-          </div>
-
-          {demoRuns.length > 0 && (
-            <div className="wb-fade-in space-y-3">
-              <div>
-                <p className="text-sm font-medium">Example runs</p>
-                <p className="text-xs" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
-                  Completed mock runs to show what the workbench looks like with real data.
-                </p>
-              </div>
-              <div
-                className="hidden sm:block rounded border overflow-hidden"
-                style={{
-                  borderColor: "var(--md-sys-color-outline-variant)",
-                  backgroundColor: "var(--md-sys-color-surface-container-low)",
-                }}
-              >
-                <table className="w-full text-sm">
-                  <thead style={{ backgroundColor: "var(--md-sys-color-secondary-container)" }}>
-                    <tr className="text-left">
-                      <th className="px-4 py-2 font-semibold">Research goal</th>
-                      <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Profile</th>
-                      <th className="px-4 py-2 font-semibold w-32">Status</th>
-                      <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">Ideas</th>
-                      <th className="px-4 py-2 font-semibold w-32" title="Matches">
-                        Matches
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {demoRuns.map((r) => (
-                      <tr
-                        key={r.id}
-                        className="border-t transition-colors hover:bg-[color:var(--md-sys-color-secondary-container)]"
-                        style={{ borderColor: "var(--md-sys-color-outline-variant)" }}
-                      >
-                        <td className="px-4 py-2">
-                          <Link
-                            to={`/runs/${r.id}`}
-                            className="font-medium underline-offset-2 hover:underline"
-                          >
-                            {r.research_goal}
-                          </Link>
-                          <span
-                            className="ml-2 inline-block rounded px-1.5 py-0.5 text-xs font-medium"
-                            style={{
-                              backgroundColor: "var(--md-sys-color-secondary-container)",
-                              color: "var(--md-sys-color-on-secondary-container)",
-                            }}
-                          >
-                            Example
-                          </span>
-                        </td>
-                        <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.profile}</td>
-                        <td className="px-4 py-2">
-                          <RunStatusPill status={r.status} />
-                        </td>
-                        <td
-                          className="px-4 py-2 hidden sm:table-cell"
-                          style={{ color: "var(--md-sys-color-on-surface-variant)" }}
-                        >
-                          {demoSummaries[r.id]?.hypotheses ?? "—"}
-                        </td>
-                        <td
-                          className="px-4 py-2"
-                          style={{ color: "var(--md-sys-color-on-surface-variant)" }}
-                        >
-                          {demoSummaries[r.id]?.matches ?? "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div className="grid gap-2 sm:hidden">
-                {demoRuns.map((r) => (
-                  <RunCard
-                    key={r.id}
-                    run={r}
-                    summary={demoSummaries[r.id]}
-                    secondaryLabel="Matches"
-                    secondaryValue={demoSummaries[r.id]?.matches ?? "—"}
-                    isDemo
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </>
+            science
+          </md-icon>
+          <p className="font-medium">No runs yet</p>
+          <p className="text-sm mb-4" style={{ color: "var(--md-sys-color-on-surface-variant)" }}>
+            Start with a research goal to generate, debate, and rank hypotheses.
+          </p>
+          <md-filled-button onclick={(() => navigate("/runs/new")) as EventListener}>
+            Create your first run
+          </md-filled-button>
+        </div>
       )}
 
-      {filtered && filtered.length === 0 && runs && runs.length > 0 && (
+      {filtered && filtered.length === 0 && runs && (
         <div
           className="rounded border p-8 text-center text-sm"
           style={{
@@ -370,10 +278,13 @@ export function Dashboard() {
               <RunCard
                 key={r.id}
                 run={r}
-                summary={summaries[r.id]}
-                secondaryLabel="Created"
-                secondaryValue={fmtRelative(r.created_at)}
-                secondaryTitle={fmtDate(r.created_at)}
+                summary={r.is_demo ? demoSummaries[r.id] : summaries[r.id]}
+                secondaryLabel={r.is_demo ? "Matches" : "Created"}
+                secondaryValue={
+                  r.is_demo ? (demoSummaries[r.id]?.matches ?? "—") : fmtRelative(r.created_at)
+                }
+                secondaryTitle={r.is_demo ? undefined : fmtDate(r.created_at)}
+                isDemo={r.is_demo}
               />
             ))}
           </div>
@@ -411,6 +322,17 @@ export function Dashboard() {
                       >
                         {r.research_goal}
                       </Link>
+                      {r.is_demo && (
+                        <span
+                          className="ml-2 inline-block rounded px-1.5 py-0.5 text-xs font-medium"
+                          style={{
+                            backgroundColor: "var(--md-sys-color-secondary-container)",
+                            color: "var(--md-sys-color-on-secondary-container)",
+                          }}
+                        >
+                          Example
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-2 capitalize hidden sm:table-cell">{r.profile}</td>
                     <td className="px-4 py-2">
@@ -421,14 +343,14 @@ export function Dashboard() {
                       className="px-4 py-2 hidden sm:table-cell"
                       style={{ color: "var(--md-sys-color-on-surface-variant)" }}
                     >
-                      {summaries[r.id]?.hypotheses ?? "—"}
+                      {(r.is_demo ? demoSummaries[r.id] : summaries[r.id])?.hypotheses ?? "—"}
                     </td>
                     <td
                       className="px-4 py-2"
                       style={{ color: "var(--md-sys-color-on-surface-variant)" }}
-                      title={fmtDate(r.created_at)}
+                      title={r.is_demo ? undefined : fmtDate(r.created_at)}
                     >
-                      {fmtRelative(r.created_at)}
+                      {r.is_demo ? "Example" : fmtRelative(r.created_at)}
                     </td>
                   </tr>
                 ))}
