@@ -8,9 +8,10 @@ This is a research/reference workspace organized around replicating Google DeepM
 
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
-- `context/` — long-form architecture/spec markdown for the planned system
-- `research/` — papers describing the original Co-Scientist
-- `notebooklm/`, `media/` — UX captures and product references
+- `references/` — folder containing research, product screenshots, and design specs
+  - `context/` — long-form architecture/spec markdown for the planned system
+  - `research/` — papers describing the original Co-Scientist
+  - `notebooklm/`, `media/`, `gemini/` — UX captures and product references
 - `docs/` — live project docs (`ARCHITECTURE.md`, `FIDELITY.md`, `screenshots/`); `docs/archive/` holds historical planning docs (`PLAN.md`, `TASKS.md`, `IMPLEMENTATION_REPORT.md`)
 - `.remember/` — session handoff notes (`.remember/remember.md` is the live handoff file)
 
