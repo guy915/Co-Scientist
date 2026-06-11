@@ -67,7 +67,11 @@ dev:
 	@$(MAKE) dev-all
 
 dev-all:
-	@bash -c "trap 'kill 0' INT TERM EXIT; ($(MAKE) dev-api 2>&1 | sed 's/^/[api] /') & ($(MAKE) dev-ui 2>&1 | sed 's/^/[ui]  /') & wait"
+	@bash -c "trap 'kill 0' INT TERM EXIT; \
+		($(MAKE) dev-api 2>&1 | sed 's/^/[api] /') & \
+		($(MAKE) dev-ui 2>&1 | sed 's/^/[ui]  /') & \
+		(until curl -s http://localhost:5173 >/dev/null 2>&1; do sleep 0.5; done; open http://localhost:5173) & \
+		wait"
 
 dev-api:
 	@echo ">> Starting FastAPI on $(API_URL)"
