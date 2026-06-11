@@ -108,6 +108,34 @@ Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live U
 
 `docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling `../open-coscientist` checkout mounted at `/workspace/open-coscientist`; if absent, the entrypoint clones from `OPEN_COSCIENTIST_REPO` at ref `OPEN_COSCIENTIST_REF`. Override `OPEN_COSCIENTIST_PATH` in `.env` if the engine checkout is elsewhere. The container hardcodes `TOOLS_CONFIG` to `indra_cancer.yaml` — change it there, not in `.env`, when iterating on tools.
 
+## Production hosting
+
+The app is deployed as three services:
+
+| Layer | Platform | URL |
+|---|---|---|
+| Frontend (Vite/React) | Vercel — project `co-scientist-ui` | https://co-scientist-ui.vercel.app |
+| API (FastAPI) | Railway — service `api` | https://api-production-97eb.up.railway.app |
+| MCP server | Railway — service `mcp` | internal only (`mcp.railway.internal:8888`) |
+
+**Railway project**: `co-scientist` (id `74f2b037-0094-49d2-b645-4849991234af`), environment `production`.
+
+Both Railway services build from `guy915/Co-Scientist` using repo-root Dockerfiles (`Dockerfile.api`, `Dockerfile.mcp`). The api service has a persistent volume mounted at `/app/data` (SQLite DB + cache live there).
+
+Key env vars on the Railway **api** service:
+
+```
+MODEL_NAME=deepseek/deepseek-chat
+DEEPSEEK_API_KEY=<secret>
+MCP_SERVER_URL=http://mcp.railway.internal:8888/mcp
+COSCIENTIST_DB_PATH=/app/data/coscientist.db
+COSCIENTIST_CACHE_DIR=/app/data/cache
+```
+
+Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set in production environment).
+
+**CLAUDE.md and AGENTS.md are symlinked** — editing one updates both.
+
 ## Working in this repo
 
 - The `open-coscientist` (engine) and `open-coscientist-viewer` (app) are upstream open-source projects from Jataware. This repo vendors them as plain directories (not submodules) — when editing, treat the boundary carefully and don't assume changes propagate to PyPI/Docker images. The viewer's pip install pulls `open-coscientist>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../ai-coscientist-engine` after `make install`.
@@ -116,7 +144,7 @@ Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live U
 
 ## Required environment
 
-Both projects use **LiteLLM** for model dispatch. Set `GEMINI_API_KEY` (default) or the relevant provider key (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) before running. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`) and `TOOLS_CONFIG` (path or http URL to a YAML tools config). Full list of viewer env vars in `ai-coscientist-app/.env.example`.
+Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` (e.g. `deepseek/deepseek-chat`) before running. Production uses DeepSeek. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`) and `TOOLS_CONFIG` (path or http URL to a YAML tools config). Full list of viewer env vars in `ai-coscientist-app/.env.example`.
 
 ## Git hygiene
 
