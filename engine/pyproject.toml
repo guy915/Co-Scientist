@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "open-coscientist"
+name = "co-scientist-engine"
 version = "0.2.0"
 description = "Open LangGraph-based framework for multi-agent research hypothesis generation, adapted from Google Research's AI Co-Scientist."
 readme = "README.md"

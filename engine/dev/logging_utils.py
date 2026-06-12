@@ -1,5 +1,5 @@
 """
-Centralized logging utilities for open-coscientist dev scripts.
+Centralized logging utilities for co-scientist dev scripts.
 
 provides:
 - File-based console logging with no truncation

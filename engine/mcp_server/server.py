@@ -51,7 +51,7 @@ entrez_email_present = bool(os.environ.get("ENTREZ_EMAIL"))
 logger.info("MCP server starting")
 logger.debug(f"API keys present: ENTREZ_EMAIL={entrez_email_present}")
 
-mcp = FastMCP("open-coscientist-lit-review")
+mcp = FastMCP("co-scientist-lit-review")
 
 # register literature review tools
 mcp.tool(check_pubmed_available,       name="check_pubmed_available")

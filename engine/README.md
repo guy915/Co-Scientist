@@ -1,4 +1,4 @@
-# open-coscientist
+# co-scientist-engine
 
 LangGraph-based multi-agent framework for automated research hypothesis generation, adapted from Google DeepMind's AI Co-Scientist.
 
@@ -23,7 +23,7 @@ Demo: [AI Co-Scientist — early detection of Alzheimer's disease](https://youtu
 Requires Python 3.10+.
 
 ```bash
-pip install open-coscientist
+pip install co-scientist-engine
 ```
 
 For local development:
@@ -193,7 +193,7 @@ docker compose up -d
 # Local
 python3.12 -m venv .venv-mcp && source .venv-mcp/bin/activate
 pip install -e mcp_server/
-cd ..   # parent of open-coscientist
+cd ..   # parent of engine/
 uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 ```
 

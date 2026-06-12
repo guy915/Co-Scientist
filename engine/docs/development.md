@@ -5,7 +5,7 @@ Guide for contributors and developers working on Co-Scientist internals.
 ## Project Structure
 
 ```
-open-coscientist/
+engine/
 ├── src/
 │   └── open_coscientist/
 │       ├── __init__.py

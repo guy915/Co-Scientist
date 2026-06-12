@@ -43,7 +43,7 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 ```bash
 cd app
 
-# Install Python deps (pulls open-coscientist from PyPI)
+# Install Python deps (pulls co-scientist-engine from PyPI)
 make install
 
 # For local engine changes, pin to the sibling checkout instead:

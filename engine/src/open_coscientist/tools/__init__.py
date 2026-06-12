@@ -1,5 +1,5 @@
 """
-Tools module for open-coscientist.
+Tools module for co-scientist-engine.
 
 Provides hybrid tool system for exposing both MCP tools and Python functions
 as callable tools for LLM agents.

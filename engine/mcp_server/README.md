@@ -25,7 +25,7 @@ cp .env.example .env
     ENTREZ_EMAIL=your_email@example.com
 
 # 3. start server from parent dir
-cd ..        # to open-coscientist root folder
+cd ..        # to engine root folder
 docker compose up -d
 
 # 4. verify server is running

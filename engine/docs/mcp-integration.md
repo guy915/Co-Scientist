@@ -31,7 +31,7 @@ The easiest way to get started is with Docker:
 cp mcp_server/.env.example mcp_server/.env
 # edit mcp_server/.env: set ENTREZ_EMAIL and ENTREZ_API_KEY
 
-# 2. start server with docker compose from project root (open-coscientist/)
+# 2. start server with docker compose from project root (engine/)
 docker compose up -d
 
 # 3. verify server is running

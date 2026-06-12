@@ -1,12 +1,12 @@
 # Literature Review Tool Configuration Examples
 
-This directory contains example YAML configurations for integrating external MCP servers and literature review tools with open-coscientist.
+This directory contains example YAML configurations for integrating external MCP servers and literature review tools with co-scientist-engine.
 
 ## Overview
 
 Open-coscientist uses a **YAML-based configuration system** to decouple literature review tools from the core library. This allows you to:
 
-- Bring your own MCP servers without modifying open-coscientist code
+- Bring your own MCP servers without modifying co-scientist-engine code
 - Configure multiple literature sources (PubMed, arXiv, Google Scholar, etc.)
 - Define custom response parsing, prompt instructions, and parameter mappings
 - Mix and match tools from different MCP servers

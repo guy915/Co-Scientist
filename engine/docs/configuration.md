@@ -151,7 +151,7 @@ COSCIENTIST_LIT_REVIEW_DIR=./cache/literature_review
 ```
 
 **Important Notes**:
-- The MCP server runs separately with its own environment - set API keys in `mcp_server/.env`, not in the main open-coscientist environment
+- The MCP server runs separately with its own environment - set API keys in `mcp_server/.env`, not in the main co-scientist-engine environment
 - Without `ENTREZ_EMAIL`, the literature review node will be skipped and hypothesis generation will use standard mode (without literature analysis)
 
 ### Cache Behavior

@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # copy and install viewer deps first (layer cache before source copy)
-# note: open-coscientist is intentionally absent from [project.dependencies]
+# note: co-scientist-engine is intentionally absent from [project.dependencies]
 # and is handled at container startup by entrypoint.sh
 COPY pyproject.toml ./
 RUN pip install --no-cache-dir -e .

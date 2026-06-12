@@ -20,7 +20,7 @@ There is no top-level build system. Each project is independently installable an
 
 ## engine (Python library)
 
-LangGraph-based multi-agent hypothesis-generation framework. Package name: `open-coscientist`. Source under `src/open_coscientist/`.
+LangGraph-based multi-agent hypothesis-generation framework. Package name: `co-scientist-engine`. Source under `src/open_coscientist/`.
 
 **Commands** (run from `engine/`):
 ```bash
@@ -67,7 +67,7 @@ Caching (`cache.py`) is on by default and controlled by `COSCIENTIST_CACHE_ENABL
 
 ## app (FastAPI + React viewer)
 
-Web UI and HTTP/SSE API that wraps `open-coscientist` for live hypothesis-generation runs.
+Web UI and HTTP/SSE API that wraps the `co-scientist-engine` for live hypothesis-generation runs.
 
 ### Backend (`app/`)
 
@@ -114,7 +114,7 @@ Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live U
 
 ### Docker workflow
 
-`docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling `../open-coscientist` checkout mounted at `/workspace/open-coscientist`; if absent, the entrypoint clones from `OPEN_COSCIENTIST_REPO` at ref `OPEN_COSCIENTIST_REF`. Override `OPEN_COSCIENTIST_PATH` in `.env` if the engine checkout is elsewhere. The container hardcodes `TOOLS_CONFIG` to `indra_cancer.yaml` — change it there, not in `.env`, when iterating on tools.
+`docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling engine checkout mounted at `/workspace/co-scientist-engine`; if absent, the entrypoint clones from `OPEN_COSCIENTIST_REPO` at ref `OPEN_COSCIENTIST_REF`. Override `OPEN_COSCIENTIST_PATH` in `.env` if the engine checkout is elsewhere. The container hardcodes `TOOLS_CONFIG` to `indra_cancer.yaml` — change it there, not in `.env`, when iterating on tools.
 
 ## Production hosting
 
@@ -144,7 +144,7 @@ Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set
 
 ## Working in this repo
 
-- The `engine/` and `app/` directories are vendored as plain directories (not submodules). The app's pip install pulls `open-coscientist>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../engine` after `make install`.
+- The `engine/` and `app/` directories are vendored as plain directories (not submodules). The app's pip install pulls `co-scientist-engine>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../engine` after `make install`.
 - The app (`app/`) has a committed pytest suite under `tests/`; the engine (`engine/`) has none yet, so its `pytest` exits clean.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
 

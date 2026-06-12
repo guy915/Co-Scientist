@@ -1,6 +1,6 @@
 .PHONY: install dev start test format lint typecheck
 
-# Install all dependencies (pip workflow, installs open-coscientist).
+# Install all dependencies (pip workflow, installs co-scientist-engine).
 install:
 	pip install -e ".[dev]"
 

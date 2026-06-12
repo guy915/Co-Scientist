@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     # MCP Server Configuration (optional, for literature review tools)
     mcp_server_url: str = "http://localhost:8888/mcp"
 
-    # open-coscientist Configuration (van be overriden during runtime/UI)
+    # Co-Scientist engine configuration (can be overridden at runtime/UI)
     max_iterations: int = 3
     initial_hypotheses_count: int = 5
     evolution_max_count: int = 2

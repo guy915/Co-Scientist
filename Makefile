@@ -34,7 +34,7 @@ setup: $(VENV)/bin/activate
 	@echo ">> Installing engine (editable)"
 	@$(PIP) install -e "$(ENGINE)[dev]"
 	@echo ">> Installing app (editable, dev extras)"
-	@# Skip the PyPI open-coscientist pin (we have it editable already from $(ENGINE))
+	@# Skip the PyPI co-scientist-engine pin (we have it editable already from $(ENGINE))
 	@$(PIP) install -e "$(APP)" --no-deps
 	@$(PIP) install fastapi "uvicorn[standard]" python-dotenv pydantic pydantic-settings httpx
 	@$(PIP) install pytest pytest-asyncio black ruff mypy

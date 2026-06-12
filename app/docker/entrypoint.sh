@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-WORKSPACE=/workspace/open-coscientist
+WORKSPACE=/workspace/co-scientist-engine
 REPO=${OPEN_COSCIENTIST_REPO:-}
 REF=${OPEN_COSCIENTIST_REF:-main}
 

@@ -3,7 +3,7 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "open-coscientist-viewer"
+name = "co-scientist-viewer"
 version = "0.1.0"
 description = "Web application for running and monitoring the AI Co-Scientist multi-agent research system. Provides real-time tracking of hypothesis generation, review, ranking, evolution, and iterations."
 requires-python = ">=3.10"
@@ -14,7 +14,7 @@ dependencies = [
     "python-dotenv>=1.0.0",
     "pydantic>=2.0.0",
     "pydantic-settings>=2.0.0",
-    "open-coscientist>=0.2.0"
+    "co-scientist-engine>=0.2.0"
 ]
 
 [project.optional-dependencies]
@@ -50,7 +50,7 @@ typecheck = "mypy ."
 python = ">=3.10,<3.13"
 
 [tool.pixi.pypi-dependencies]
-open-coscientist-viewer = { path = ".", editable = true }
+co-scientist-viewer = { path = ".", editable = true }
 
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }

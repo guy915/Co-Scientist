@@ -7,8 +7,8 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 # Install engine first (layer cache)
-COPY engine/ /workspace/open-coscientist/
-RUN pip install --no-cache-dir -e /workspace/open-coscientist
+COPY engine/ /workspace/co-scientist-engine/
+RUN pip install --no-cache-dir -e /workspace/co-scientist-engine
 
 # Install app deps
 COPY app/pyproject.toml ./
