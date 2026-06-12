@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: If you use this software, please cite it using these metadata.
+title: "AI Co-Scientist: A multi-agent hypothesis-generation workbench"
+authors:
+  - family-names: Barel
+    given-names: Guy
+repository-code: "https://github.com/guy915/Co-Scientist"
+license: Apache-2.0
+date-released: "2026-06-13"
