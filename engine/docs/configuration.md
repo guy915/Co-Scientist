@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Complete guide to configuring Open Coscientist for your needs.
+Complete guide to configuring Co-Scientist for your needs.
 
 ## Basic Configuration
 
@@ -34,7 +34,7 @@ See constants.py for other defaults.
 
 ## Model Selection
 
-Open Coscientist uses [LiteLLM](https://docs.litellm.ai/docs/providers), which supports 100+ LLM providers:
+Co-Scientist uses [LiteLLM](https://docs.litellm.ai/docs/providers), which supports 100+ LLM providers:
 
 ### OpenAI
 

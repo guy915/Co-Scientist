@@ -1,5 +1,5 @@
 """
-Example for Open Coscientist with streaming output.
+Example for Co-Scientist with streaming output.
 
 This demonstrates hypothesis generation with literature review integration,
 showing real-time streaming of results as they're generated.

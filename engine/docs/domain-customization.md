@@ -1,6 +1,6 @@
 # Domain Customization
 
-Open Coscientist is domain-agnostic by design. The default configuration targets biomedical research (PubMed), but the system can be adapted to any research domain — cybersecurity, materials science, climate research, bioinformatics, or subdomains like Alzheimer's drug repurposing — through a YAML configuration file. No changes to source code or prompts are needed.
+Co-Scientist is domain-agnostic by design. The default configuration targets biomedical research (PubMed), but the system can be adapted to any research domain — cybersecurity, materials science, climate research, bioinformatics, or subdomains like Alzheimer's drug repurposing — through a YAML configuration file. No changes to source code or prompts are needed.
 
 A domain config controls:
 

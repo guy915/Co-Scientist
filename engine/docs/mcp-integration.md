@@ -1,6 +1,6 @@
 # MCP Integration & Literature Review
 
-The MCP (Model Context Protocol) server integration is **recommended** for best results. While Open Coscientist will work without it, the quality of hypotheses is significantly enhanced when grounded in real published research.
+The MCP (Model Context Protocol) server integration is **recommended** for best results. While Co-Scientist will work without it, the quality of hypotheses is significantly enhanced when grounded in real published research.
 
 ## Reference Implementation
 
@@ -8,7 +8,7 @@ The bundled MCP server in `mcp_server/` provides PubMed integration and serves a
 
 ## With MCP Server
 
-Open Coscientist will:
+Co-Scientist will:
 - Automatically detect the MCP server at startup
 - Search PubMed biomedical database for real published papers
 - Retrieve fulltext XML/HTML from PubMed Central (PMC)
@@ -38,7 +38,7 @@ docker compose up -d
 curl http://localhost:8888
 ```
 
-MCP endpoints will be available at `http://localhost:8888/mcp` (auto-detected by Open Coscientist).
+MCP endpoints will be available at `http://localhost:8888/mcp` (auto-detected by Co-Scientist).
 
 ### Alternative: Local Development Setup
 
@@ -75,7 +75,7 @@ MCP server requires:
 
 ## Generation Modes
 
-Open Coscientist supports three generation modes with different levels of literature integration:
+Co-Scientist supports three generation modes with different levels of literature integration:
 
 1. **No Literature Review** (Fastest) - Uses only LLM knowledge
 2. **Literature-Informed Generation** - Pre-processes literature, then generates
@@ -86,7 +86,7 @@ Open Coscientist supports three generation modes with different levels of litera
 
 ## Bringing Your Own MCP Tools
 
-Open Coscientist supports any MCP-compatible server via the YAML configuration system — no modifications to Open Coscientist code or prompts are needed. The YAML config handles:
+Co-Scientist supports any MCP-compatible server via the YAML configuration system — no modifications to Co-Scientist code or prompts are needed. The YAML config handles:
 
 - Registering your server URL and transport
 - Defining tools (search, read, utility) with response parsing rules

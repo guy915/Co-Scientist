@@ -1,6 +1,6 @@
 # Architecture
 
-Open Coscientist uses LangGraph to orchestrate 8-10 specialized AI agents in a multi-stage workflow. Each agent is implemented as a node that processes and updates shared state.
+Co-Scientist uses LangGraph to orchestrate 8-10 specialized AI agents in a multi-stage workflow. Each agent is implemented as a node that processes and updates shared state.
 
 ## Workflow Graph
 
@@ -102,7 +102,7 @@ This approach balances score differentiation (important for small batches) with 
 
 ## State Management
 
-Open Coscientist uses a typed state dictionary (`WorkflowState`) that flows through all nodes. Each node:
+Co-Scientist uses a typed state dictionary (`WorkflowState`) that flows through all nodes. Each node:
 
 1. Receives the current state
 2. Performs its operation (often with LLM calls)

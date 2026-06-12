@@ -161,7 +161,7 @@ class ConsoleReporter:
             last_state = None
 
             # show header
-            self.console.rule("[bold blue]Open Coscientist - Hypothesis Generation[/bold blue]")
+            self.console.rule("[bold blue]Co-Scientist - Hypothesis Generation[/bold blue]")
             self.console.print()
 
             if research_goal:

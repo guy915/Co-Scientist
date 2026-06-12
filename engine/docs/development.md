@@ -1,6 +1,6 @@
 # Development Guide
 
-Guide for contributors and developers working on Open Coscientist internals.
+Guide for contributors and developers working on Co-Scientist internals.
 
 ## Project Structure
 

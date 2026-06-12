@@ -1,6 +1,6 @@
-# Open Coscientist MCP Server
+# Co-Scientist MCP Server
 
-MCP (Model Context Protocol) server providing PubMed literature search tools for Open Coscientist hypothesis generation.
+MCP (Model Context Protocol) server providing PubMed literature search tools for Co-Scientist hypothesis generation.
 
 ## Features
 
@@ -84,9 +84,9 @@ COSCIENTIST_MCP_PORT=8888
 COSCIENTIST_LIT_REVIEW_DIR=./paper_cache
 ```
 
-## Usage with Open Coscientist
+## Usage with Co-Scientist
 
-Open Coscientist automatically connects to this MCP server if running.
+Co-Scientist automatically connects to this MCP server if running.
 
 Configure the MCP URL (optional, defaults to `http://localhost:8888/mcp`):
 

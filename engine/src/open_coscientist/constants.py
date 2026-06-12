@@ -1,5 +1,5 @@
 """
-Constants and configuration values for Open Coscientist.
+Constants and configuration values for Co-Scientist.
 
 Centralizes magic numbers and configuration values for better maintainability.
 """

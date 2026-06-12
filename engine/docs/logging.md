@@ -1,6 +1,6 @@
 # Logging Guide
 
-Open Coscientist uses Python's standard `logging` module. As a library, Open Coscientist does not configure logging output itself. Instead, developers using the library should configure logging in their application according to their needs.
+Co-Scientist uses Python's standard `logging` module. As a library, Co-Scientist does not configure logging output itself. Instead, developers using the library should configure logging in their application according to their needs.
 
 ## Quick Start
 
@@ -130,7 +130,7 @@ Rotation options:
 
 ## Log Levels
 
-Open Coscientist uses four log levels:
+Co-Scientist uses four log levels:
 
 | Level | Purpose | When to Enable |
 |-------|---------|----------------|
@@ -141,7 +141,7 @@ Open Coscientist uses four log levels:
 
 ## Filtering Logs by Module
 
-Log only specific parts of Open Coscientist:
+Log only specific parts of Co-Scientist:
 
 ```python
 import logging

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Open Coscientist uses a **YAML-based configuration system** to decouple literature review tools from the core library. This allows you to:
+Co-Scientist uses a **YAML-based configuration system** to decouple literature review tools from the core library. This allows you to:
 
 - Bring your own MCP servers without modifying open-coscientist code
 - Configure multiple literature sources (PubMed, arXiv, Google Scholar, etc.)

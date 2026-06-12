@@ -1,5 +1,5 @@
 """
-Open Coscientist literature review mcp server
+Co-Scientist literature review mcp server
 
 Reference implementation using fastmcp for pubmed literature review tools.
 Pubmed-only implementation for biomedical research.

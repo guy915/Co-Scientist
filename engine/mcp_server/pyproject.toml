@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "open-coscientist-mcp-server"
 version = "0.1.0"
-description = "MCP server for Open Coscientist literature review"
+description = "MCP server for Co-Scientist literature review"
 readme = "README.md"
 requires-python = ">=3.12"
 license = {text = "Proprietary"}

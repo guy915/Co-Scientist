@@ -1,10 +1,10 @@
 # Generation Modes and Literature Review Configuration
 
-This document explains how hypothesis generation works with different literature review configurations in Open Coscientist.
+This document explains how hypothesis generation works with different literature review configurations in Co-Scientist.
 
 ## Generation Modes Explained
 
-Open Coscientist supports three main generation modes depending on your configuration:
+Co-Scientist supports three main generation modes depending on your configuration:
 
 ### Mode 1: No Literature Review (Fastest)
 
