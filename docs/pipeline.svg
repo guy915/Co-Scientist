@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 210" fill="none">
+  <style>
+    .node { fill: #E0F2F2; stroke: #00696C; stroke-width: 1.5; }
+    .node-safety { fill: #FFF3E0; stroke: #F59E0B; stroke-width: 1.5; }
+    .label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; fill: #002021; text-anchor: middle; dominant-baseline: central; }
+    .label-safety { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; fill: #7C4700; text-anchor: middle; dominant-baseline: central; }
+    .arrow { stroke: #BEC9C9; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .arrow-turn { stroke: #BEC9C9; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .phase-label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; font-weight: 400; fill: #6F7979; text-anchor: middle; }
+    .title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; font-weight: 600; fill: #171D1D; text-anchor: middle; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 400; fill: #6F7979; text-anchor: middle; }
+    .shield { fill: #F59E0B; }
+  </style>
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#BEC9C9"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="440" y="20" class="title">Multi-Agent Hypothesis Pipeline</text>
+  <text x="440" y="35" class="subtitle">11 agent-equivalent steps with dual safety gates</text>
+
+  <!-- Row 1: Supervisor → Intake → Literature → Generate → Reflect → Proximity -->
+  <!-- Supervisor -->
+  <rect x="20" y="55" width="110" height="36" rx="16" class="node"/>
+  <text x="75" y="73" class="label">Supervisor</text>
+  <text x="75" y="100" class="phase-label">plan</text>
+
+  <line x1="130" y1="73" x2="152" y2="73" class="arrow"/>
+
+  <!-- Safety Gate: Intake -->
+  <rect x="154" y="55" width="110" height="36" rx="16" class="node-safety"/>
+  <text x="209" y="69" class="label-safety">Intake</text>
+  <text x="209" y="81" class="label-safety">+ Safety Gate</text>
+  <text x="209" y="100" class="phase-label">scope + screen</text>
+
+  <line x1="264" y1="73" x2="286" y2="73" class="arrow"/>
+
+  <!-- Literature -->
+  <rect x="288" y="55" width="110" height="36" rx="16" class="node"/>
+  <text x="343" y="73" class="label">Literature</text>
+  <text x="343" y="100" class="phase-label">evidence</text>
+
+  <line x1="398" y1="73" x2="420" y2="73" class="arrow"/>
+
+  <!-- Generate -->
+  <rect x="422" y="55" width="110" height="36" rx="16" class="node"/>
+  <text x="477" y="73" class="label">Generate</text>
+  <text x="477" y="100" class="phase-label">hypotheses</text>
+
+  <line x1="532" y1="73" x2="554" y2="73" class="arrow"/>
+
+  <!-- Reflect -->
+  <rect x="556" y="55" width="110" height="36" rx="16" class="node"/>
+  <text x="611" y="73" class="label">Reflect</text>
+  <text x="611" y="100" class="phase-label">critique</text>
+
+  <line x1="666" y1="73" x2="688" y2="73" class="arrow"/>
+
+  <!-- Proximity -->
+  <rect x="690" y="55" width="110" height="36" rx="16" class="node"/>
+  <text x="745" y="73" class="label">Proximity</text>
+  <text x="745" y="100" class="phase-label">dedup</text>
+
+  <!-- Turn arrow: down and left -->
+  <path d="M800,73 L840,73 L840,155 L820,155" class="arrow-turn"/>
+
+  <!-- Row 2 (right to left): Rank → Evolve → Meta-review → Citation Audit → Safety → Report -->
+  <!-- Rank -->
+  <rect x="690" y="137" width="110" height="36" rx="16" class="node"/>
+  <text x="745" y="155" class="label">Rank</text>
+  <text x="745" y="182" class="phase-label">Elo tournament</text>
+
+  <line x1="690" y1="155" x2="668" y2="155" class="arrow"/>
+
+  <!-- Evolve -->
+  <rect x="556" y="137" width="110" height="36" rx="16" class="node"/>
+  <text x="611" y="155" class="label">Evolve</text>
+  <text x="611" y="182" class="phase-label">lineage</text>
+
+  <line x1="556" y1="155" x2="534" y2="155" class="arrow"/>
+
+  <!-- Meta-review -->
+  <rect x="422" y="137" width="110" height="36" rx="16" class="node"/>
+  <text x="477" y="155" class="label">Meta-review</text>
+  <text x="477" y="182" class="phase-label">synthesis</text>
+
+  <line x1="422" y1="155" x2="400" y2="155" class="arrow"/>
+
+  <!-- Citation Audit -->
+  <rect x="288" y="137" width="110" height="36" rx="16" class="node"/>
+  <text x="343" y="155" class="label">Citation Audit</text>
+  <text x="343" y="182" class="phase-label">verify sources</text>
+
+  <line x1="288" y1="155" x2="266" y2="155" class="arrow"/>
+
+  <!-- Safety Gate: Final -->
+  <rect x="154" y="137" width="110" height="36" rx="16" class="node-safety"/>
+  <text x="209" y="151" class="label-safety">Final</text>
+  <text x="209" y="163" class="label-safety">Safety Gate</text>
+  <text x="209" y="182" class="phase-label">output screen</text>
+
+  <line x1="154" y1="155" x2="132" y2="155" class="arrow"/>
+
+  <!-- Report -->
+  <rect x="20" y="137" width="110" height="36" rx="16" class="node" fill="#00696C"/>
+  <text x="75" y="155" class="label" fill="#ffffff">Report</text>
+  <text x="75" y="182" class="phase-label">final output</text>
+</svg>

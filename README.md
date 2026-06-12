@@ -1,62 +1,104 @@
-# Google DeepMind AI Co-Scientist Clone
+<h1 align="center">AI Co-Scientist</h1>
 
-A locally-runnable, open clone of Google DeepMind's AI Co-Scientist — a scientist-in-the-loop, multi-agent hypothesis-generation workbench. It scopes a research goal, retrieves literature, generates candidate hypotheses, critiques them, ranks them through Elo tournaments, evolves the strongest ideas, audits citations, applies safety gates, and synthesises a structured research report.
+<p align="center">
+  <sub>Inspired by Google DeepMind</sub><br/><br/>
+  A locally-runnable, multi-agent hypothesis-generation workbench.<br/>
+  Not a chatbot. Not a summariser. <strong>A scientific workbench.</strong>
+</p>
 
-The clone is **not** a chatbot, summariser, or paper generator. It is a scientific workbench.
+<p align="center">
+  <img src="https://img.shields.io/badge/tests-59_passing-brightgreen" alt="Tests"/>
+  <img src="https://img.shields.io/badge/python-3.10+-blue" alt="Python"/>
+  <img src="https://img.shields.io/badge/TypeScript-React_19-blue" alt="TypeScript"/>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-purple" alt="License"/></a>
+</p>
 
-> Status: end-to-end runnable. Default behaviour is deterministic **Mock Mode** so the full pipeline, persistence layer, SSE stream, and UI surface are exercisable without any LLM provider key. Drop a key into `.env` to flip the engine adapter to the upstream LangGraph engine.
+<table align="center">
+<tr>
+<td align="center"><strong>Pipeline Architecture</strong></td>
+<td align="center"><strong>Workbench UI</strong></td>
+</tr>
+<tr>
+<td><img src="docs/pipeline.svg" alt="Multi-agent hypothesis pipeline" width="440"/></td>
+<td><img src="docs/screenshots/chat.png" alt="Co-Scientist workbench" width="440"/></td>
+</tr>
+</table>
+
+---
+
+## Features
+
+<table>
+<tr>
+<td width="33%" valign="top">
+
+**🏆 Elo Tournament**<br/>
+<sub>Pairwise ranking with standard Elo formula. K-factor configurable.</sub>
+
+</td>
+<td width="33%" valign="top">
+
+**🛡️ Dual Safety Gates**<br/>
+<sub>Intake + final-output safety screening. Blocks weaponisation patterns.</sub>
+
+</td>
+<td width="33%" valign="top">
+
+**📚 Citation Audit**<br/>
+<sub>Four-state classification: verified, partial, unsupported, unavailable.</sub>
+
+</td>
+</tr>
+<tr>
+<td valign="top">
+
+**🧪 Mock Mode**<br/>
+<sub>Full pipeline without an LLM key. Deterministic, free, instant.</sub>
+
+</td>
+<td valign="top">
+
+**🧬 Evolution Lineage**<br/>
+<sub>Append-only: evolved hypotheses are new rows with <code>parent_id</code> tracing to gen-0.</sub>
+
+</td>
+<td valign="top">
+
+**💬 Scientist-in-the-Loop**<br/>
+<sub>Chat tab with auto-steering, manual steering, and QA modes.</sub>
+
+</td>
+</tr>
+</table>
 
 ## Quickstart
 
 ```bash
-make setup          # creates .venv (Python 3.12), installs engine + app editable + frontend
-make dev            # prints URLs and side-by-side instructions
-make dev-api        # FastAPI on http://localhost:8008
-make dev-ui         # Vite on    http://localhost:5173
+make setup          # Python venv + frontend deps
+make dev            # API on :8008, UI on :5173
+open http://localhost:5173
 ```
 
-In a browser at <http://localhost:5173>: click **New run**, type a research goal, pick Standard or Advanced, hit **Start**. The Overview tab streams the pipeline live; tabs for Ideas, Evidence, Tournament, and Report fill in as the workflow progresses. Runs survive an API restart — reopen from the Dashboard.
+> Run `make help` for all targets. See [`.env.example`](.env.example) for configuration.
 
-## Workbench tour
+## Workbench Tour
+
+Click **New run**, type a research goal, pick Standard or Advanced, hit **Start**. The pipeline streams live across six tabs:
 
 | Tab | Shows |
 | --- | --- |
-| Overview | Live pipeline timeline (supervisor → intake → safety → literature → generation → reflection → proximity → ranking → evolution → meta-review → citation audit → safety → report), counts of hypotheses / evidence / matches / events |
-| Ideas | Ranked hypotheses by Elo. Click any row for the modal: statement, mechanism, expected effect, experimental design, lineage, reviews, citations |
-| Evidence | Retrieved sources with abstracts, links, and per-citation classification: verified / partial / unsupported / unavailable |
-| Tournament | Leaderboard plus full per-iteration matchup log with Elo deltas and judge rationale |
-| Report | Server-generated Markdown report with download buttons (Markdown + JSON) and the final-safety verdict |
+| **Overview** | Live pipeline timeline with progress bar and event counters |
+| **Ideas** | Ranked hypotheses by Elo. Click any row for the detail modal: statement, mechanism, experimental design, lineage |
+| **Evidence** | Retrieved sources with abstracts, links, and 4-state citation classification |
+| **Tournament** | Leaderboard + per-iteration matchup log with Elo deltas and judge rationale |
+| **Report** | Server-generated Markdown report with download buttons (MD / JSON) and safety verdict |
+| **Chat** | Scientist-in-the-loop steering: auto, manual, and QA conversation modes |
 
 ## Architecture
 
-```
-+-----------------------+        +-------------------------+
-|  React + Vite + TS    | <--->  |  FastAPI                |
-|  Tailwind v4 / Bun    |  SSE   |  /api/runs/* + /health  |
-+-----------+-----------+        +-------+------+----------+
-            ^                            |      ^
-            |                            v      |
-            |                +----------------------------+
-            |                |  SQLite (runs/events/      |
-            |                |  hypotheses/evidence/      |
-            |                |  matches/reviews/reports/  |
-            |                |  safety_decisions)         |
-            |                +-------------+--------------+
-            |                              |
-            |                +-------------+---------------+
-            |                |  EngineAdapter              |
-            |                |  - select_provider()        |
-            |                |  - mock workflow (default)  |
-            |                |  - co_scientist LangGraph (if key) |
-            |                +-------------+---------------+
-            |                              |
-            |                  (optional)  v
-            |                +-----------------------------+
-            |                |  MCP literature server      |
-            |                +-----------------------------+
-            v
-   browser-side state (router only — durable state lives in the API)
-```
+<p align="center">
+  <img src="docs/architecture.svg" alt="System architecture" width="600"/>
+</p>
 
 Full diagrams and module map in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
@@ -64,124 +106,32 @@ Full diagrams and module map in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 The system reports its mode at `/status`:
 
-```bash
-$ curl http://localhost:8008/status | jq .mock_mode
-true
-```
-
-| | Mock Mode | Real engine |
+| | Mock Mode | Real Engine |
 | - | - | - |
-| Trigger | No LLM key in env | `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` set, engine importable |
-| Behaviour | Deterministic seed → 11 agent steps, stable hypotheses, stable Elo updates | LangGraph engine emits `engine.*` events, persists final hypotheses |
-| Cost | Free | Provider billing applies |
-| Determinism | Same goal+profile → byte-identical results | LLM stochasticity applies |
-| UI banner | "Mock Mode" yellow strip | "Live engine mode" muted strip |
+| **Trigger** | No LLM key in `.env` | Any provider key set (`GEMINI_API_KEY`, `OPENAI_API_KEY`, …) |
+| **Behaviour** | Deterministic seed → 11 agent steps, stable hypotheses and Elo | LangGraph engine, real LLM calls |
+| **Cost** | Free | Provider billing applies |
 
-Force mode for development: `COSCIENTIST_FORCE_MOCK=1`.
-
-## Run commands
-
-| Command | What it does |
-| --- | --- |
-| `make setup` | Creates `.venv`, installs engine + app editable, installs frontend deps |
-| `make dev` | Prints both URLs and instructions for `dev-api` / `dev-ui` |
-| `make dev-api` | FastAPI dev server with reload (port 8008) |
-| `make dev-ui` | Vite dev server (port 5173, proxies `/api` to 8008) |
-| `make dev-mcp` | Optional MCP reference server on 8888 (requires python3.12) |
-| `make test` | Backend pytest: health, lifecycle, Elo, evolution, citation, safety |
-| `make build` | `tsc && vite build` for the frontend |
-| `make lint` / `make typecheck` | Backend ruff / mypy |
-| `make reset-db` | Drops `coscientist.db` |
-| `make clean` | Wipes venv, node_modules, caches |
+Force mock mode for development: `COSCIENTIST_FORCE_MOCK=1`. Check mode: `curl localhost:8008/status | jq .mock_mode`
 
 ## Environment
 
-Copy `.env.example` to `.env`. Empty keys keep you in Mock Mode. Key variables:
+Copy `.env.example` to `.env`. Empty keys keep you in Mock Mode.
 
 ```
-GEMINI_API_KEY=        # any non-empty key triggers Real Engine selection
+GEMINI_API_KEY=                      # empty = Mock Mode; any key triggers real engine
+MODEL_NAME=deepseek/deepseek-chat    # LiteLLM format
 COSCIENTIST_DB_PATH=./coscientist.db
-COSCIENTIST_REPORTS_DIR=./reports
-ALLOWED_ORIGINS=http://localhost:5173
-ELO_INITIAL=1200
-ELO_K_FACTOR=24
-SAFETY_MODE=standard   # 'strict' redacts dual-use language at intake
+SAFETY_MODE=standard                 # 'strict' for dual-use filtering
 ```
 
-## API surface
+See [`.env.example`](.env.example) for the full variable list (CORS, Elo tuning, MCP, cache).
 
-```
-POST   /api/runs                       create
-GET    /api/runs                       list
-GET    /api/runs/{id}                  read + summary
-POST   /api/runs/{id}/start            start the workflow (background)
-POST   /api/runs/{id}/cancel           request cancellation
-GET    /api/runs/{id}/events           SSE; replays full history then tails live
-GET    /api/runs/{id}/hypotheses
-GET    /api/runs/{id}/evidence
-GET    /api/runs/{id}/matches
-GET    /api/runs/{id}/reviews
-GET    /api/runs/{id}/safety
-GET    /api/runs/{id}/citations
-GET    /api/runs/{id}/report           structured JSON
-GET    /api/runs/{id}/report.md        rendered Markdown (attachment)
-GET    /status                         provider + mock_mode + MCP availability
-```
+## Fidelity
 
-## Tests
+This clone preserves the core invariants of the published system: 11 agent-equivalent pipeline steps, Elo-1200 starting scores, append-only evolution lineage, 4-state citation classification, and dual safety gates.
 
-```
-$ make test
-27 passed in 6.76s
-```
-
-Covered:
-- Health + status (mock-mode reporting).
-- Run lifecycle: create, start, completion, persistence summary.
-- Reopen after restart (TestClient reload simulating cold-boot).
-- Advanced profile produces strictly more artefacts than Standard.
-- Elo: initial 1200, equal-rating update is K/2, K-factor configurable, upset amplifies.
-- Append-only evolution: every evolved row has `parent_id`, distinct from initial ids, lineage walks to gen-0.
-- Citation classifier: all four states (`verified` / `partial` / `unsupported` / `unavailable`).
-- Safety: intake block on weaponization, allow on benign, final-output block on hard patterns.
-
-## Fidelity invariants
-
-The clone is held to these invariants (full list with sources in [`docs/FIDELITY.md`](docs/FIDELITY.md)):
-
-1. Supervisor coordinates 11 agent-equivalent steps (intake, literature, generation, reflection, proximity, ranking, evolution, meta-review, citation audit, safety, report).
-2. Hypotheses start at Elo **1200**; K factor is configurable; standard Elo update formula.
-3. Evolution is **append-only**: evolved hypotheses are new rows with `parent_id` set; original rows are never mutated.
-4. Meta-review critique is persisted per iteration.
-5. Citations are classified into exactly four states: `verified`, `partial`, `unsupported`, `unavailable`.
-6. Safety runs at intake and at final-output stage.
-7. Standard and Advanced profiles produce observably different compute depth.
-
-## Repository layout
-
-```
-.
-├── Makefile              # root commands
-├── .env.example          # mock-mode-ready defaults
-├── README.md             # this file (workspace entrypoint)
-├── CLAUDE.md             # agent / contributor guidance
-├── docs/
-│   ├── ARCHITECTURE.md
-│   ├── FIDELITY.md
-│   ├── screenshots/      # visual validation evidence
-│   └── archive/          # historical planning docs (PLAN, TASKS, IMPLEMENTATION_REPORT)
-├── scripts/
-│   └── dev_all.sh        # run API + UI together
-├── engine/# local LangGraph engine (editable install)
-├── app/   # FastAPI + React workbench viewer
-│   ├── app/              # FastAPI + store/elo/safety/citations/mock/adapter/runs
-│   ├── tests/            # pytest suite
-│   └── frontend/         # React + Vite + Tailwind workbench
-├── context/              # long-form architecture/spec markdown for the planned system
-├── research/             # papers describing the original Co-Scientist
-├── notebooklm/           # product references and captures
-└── media/                # media/video captures and images
-```
+Full invariant list with paper sources in [`docs/FIDELITY.md`](docs/FIDELITY.md).
 
 ## Non-goals
 
@@ -191,3 +141,11 @@ The clone is deliberately not:
 - An autonomous wet-lab executor.
 - A medical / clinical / regulatory decision system.
 - A multi-tenant SaaS — this is a local-first research tool.
+
+## Acknowledgements
+
+Based on [AI Co-Scientist](https://research.google/blog/accelerating-scientific-discovery-with-ai-co-scientist/) by Google DeepMind. See [`references/`](references/) for the original research papers and product analysis.
+
+## License
+
+[MIT](LICENSE)
