@@ -115,7 +115,7 @@ The system reports its mode at `/status`:
 
 | | Mock mode | Real engine |
 | - | - | - |
-| **Trigger** | No LLM key in `.env` | Any provider key set (`GEMINI_API_KEY`, `OPENAI_API_KEY`, …) |
+| **Trigger** | No LLM key in `.env` | Any provider key set (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, …) |
 | **Behaviour** | Deterministic seed → 11 agent steps, stable hypotheses and Elo | LangGraph engine, real LLM calls |
 | **Cost** | Free | Provider billing applies |
 
@@ -127,7 +127,7 @@ current mode with `curl localhost:8008/status | jq .mock_mode`.
 Copy `.env.example` to `.env`. Empty keys keep you in mock mode.
 
 ```
-GEMINI_API_KEY=                      # empty = mock mode; any key triggers real engine
+DEEPSEEK_API_KEY=                    # empty = mock mode; any provider key triggers real engine
 MODEL_NAME=deepseek/deepseek-chat    # LiteLLM format
 COSCIENTIST_DB_PATH=./coscientist.db
 SAFETY_MODE=standard                 # 'strict' for dual-use filtering
