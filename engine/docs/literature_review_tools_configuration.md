@@ -10,13 +10,13 @@ Co-Scientist uses a **YAML-based configuration system** to decouple literature r
 - Mix and match tools from different MCP servers
 - Inject domain-specific prompt guidance without touching source code
 
-The default configuration (`src/open_coscientist/config/tools.yaml`) provides a reference implementation using the bundled PubMed MCP server (see `mcp_server/` at the top level of this repo).
+The default configuration (`src/co_scientist/config/tools.yaml`) provides a reference implementation using the bundled PubMed MCP server (see `mcp_server/` at the top level of this repo).
 
 For how to use these configs to adapt the system to a specific domain, see [Domain Customization](domain-customization.md).
 
 ## Example Configurations
 
-See the [examples folder](../src/open_coscientist/config/examples/) (README and YAML files) for example configurations. See [Merge Strategies](#merge-strategies) for an overview of how user configs interact with the built-in defaults.
+See the [examples folder](../src/co_scientist/config/examples/) (README and YAML files) for example configurations. See [Merge Strategies](#merge-strategies) for an overview of how user configs interact with the built-in defaults.
 
 ## YAML Configuration Schema
 
@@ -119,7 +119,7 @@ prompts:
     impact potential, evasion potential, and defensive value.
 ```
 
-See the [examples folder](../src/open_coscientist/config/examples/) for complete domain-specific configurations.
+See the [examples folder](../src/co_scientist/config/examples/) for complete domain-specific configurations.
 
 ---
 
@@ -356,7 +356,7 @@ Each entry in `enrichments` produces a key under `hypothesis["enrichments"]`. Mu
 
 ```python
 import asyncio
-from open_coscientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator
 
 async def main():
     generator = HypothesisGenerator(

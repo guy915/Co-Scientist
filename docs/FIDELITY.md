@@ -37,7 +37,7 @@ Because the source materials do not publish these numbers, the clone fixes deter
 
 These features are described in the published material but not implemented in this clone:
 
-- **Real-time literature retrieval against PubMed/Europe PMC.** Mock evidence is generated deterministically; the real engine path retains the MCP-based retrieval the upstream `open_coscientist` engine provides, but no live retrieval is wired into the FastAPI runs adapter beyond what the engine already does.
+- **Real-time literature retrieval against PubMed/Europe PMC.** Mock evidence is generated deterministically; the real engine path retains the MCP-based retrieval the upstream `co_scientist` engine provides, but no live retrieval is wired into the FastAPI runs adapter beyond what the engine already does.
 - **Distributed worker queue.** A Celery+Redis backend is sketched in `PLAN.md` but not implemented; runs execute in a FastAPI background task.
 - **Multi-user collaboration, authentication, and project ownership.** Local-first only.
 - **Full Computational Discovery and Literature Insights surfaces from the Google Labs product family.** Only Hypothesis Generation is built.

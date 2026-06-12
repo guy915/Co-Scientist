@@ -15,8 +15,8 @@ logging.basicConfig(
     format="%(asctime)s %(message)s", # only show hour:minutes in this example.
     datefmt="%H:%M"
 )
-# For open_coscientist:
-logging.getLogger("open_coscientist").setLevel(logging.DEBUG) # example, INFO or DEBUG
+# For co_scientist:
+logging.getLogger("co_scientist").setLevel(logging.DEBUG) # example, INFO or DEBUG
 ```
 
 This is helpful and often times better that global logging config on the app in some instances.
@@ -37,7 +37,7 @@ log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True)
 
 # Configure file logging
-logger = logging.getLogger("open_coscientist")
+logger = logging.getLogger("co_scientist")
 logger.setLevel(logging.DEBUG)
 
 # Create file handler
@@ -67,7 +67,7 @@ from pathlib import Path
 log_dir = Path("logs") # example dir
 log_dir.mkdir(exist_ok=True)
 
-logger = logging.getLogger("open_coscientist")
+logger = logging.getLogger("co_scientist")
 logger.setLevel(logging.DEBUG)
 
 # Rotating file handler - max 10MB per file, keep 5 backup files
@@ -104,7 +104,7 @@ from pathlib import Path
 log_dir = Path("logs")
 log_dir.mkdir(exist_ok=True)
 
-logger = logging.getLogger("open_coscientist")
+logger = logging.getLogger("co_scientist")
 logger.setLevel(logging.DEBUG)
 
 # Rotate daily, keep 30 days of logs
@@ -147,13 +147,13 @@ Log only specific parts of Co-Scientist:
 import logging
 
 # Only log from the generate node
-logging.getLogger("open_coscientist.nodes.generate").setLevel(logging.DEBUG)
+logging.getLogger("co_scientist.nodes.generate").setLevel(logging.DEBUG)
 
 # Only log MCP client activity
-logging.getLogger("open_coscientist.mcp_client").setLevel(logging.DEBUG)
+logging.getLogger("co_scientist.mcp_client").setLevel(logging.DEBUG)
 
 # Silence everything else
-logging.getLogger("open_coscientist").setLevel(logging.WARNING)
+logging.getLogger("co_scientist").setLevel(logging.WARNING)
 ```
 
 ## Custom Log Format

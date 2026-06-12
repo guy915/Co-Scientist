@@ -18,7 +18,7 @@ services:
       # engine is mounted at /workspace/open-coscientist
       # Hardcoded to cancer tools using reference mcp server (pubmed + INDRA)
       # can be configured for other files, or removed if PubMed suffices
-      - TOOLS_CONFIG=/workspace/open-coscientist/src/open_coscientist/config/examples/indra_cancer.yaml
+      - TOOLS_CONFIG=/workspace/open-coscientist/src/co_scientist/config/examples/indra_cancer.yaml
     volumes:
       - ./cache:/app/cache
       - ./app:/app/app

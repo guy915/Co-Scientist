@@ -12,7 +12,7 @@ Key features:
 - Clean separation of concerns with typed state management
 
 Example usage:
-    >>> from open_coscientist import HypothesisGenerator
+    >>> from co_scientist import HypothesisGenerator
     >>>
     >>> generator = HypothesisGenerator(
     ...     model_name="gemini/gemini-2.5-flash",

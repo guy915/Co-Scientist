@@ -80,7 +80,7 @@ settings:
 
 ## Example Domains
 
-The following example configurations are included in [`src/open_coscientist/config/examples/`](../src/open_coscientist/config/examples/):
+The following example configurations are included in [`src/co_scientist/config/examples/`](../src/co_scientist/config/examples/):
 
 ### Biomedical — Alzheimer's Drug Repurposing (`indra_alzheimers.yaml`)
 
@@ -136,7 +136,7 @@ Pass the YAML path when creating `HypothesisGenerator`:
 
 ```python
 import asyncio
-from open_coscientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator
 
 async def main():
     generator = HypothesisGenerator(
@@ -168,4 +168,4 @@ Alternatively, place the config at `~/.coscientist/tools.yaml` and it will be lo
 3. **Consider enrichments** — is there structured domain data (CVEs, pathway databases, patent records) that should be attached per hypothesis?
 4. **Pick a merge strategy** — `replace` if you're fully replacing PubMed, `extend` if you want to add to it.
 
-Refer to the [Literature Review Tools Configuration](literature_review_tools_configuration.md) for the full YAML schema, and the [examples README](../src/open_coscientist/config/examples/README.md) for annotated examples.
+Refer to the [Literature Review Tools Configuration](literature_review_tools_configuration.md) for the full YAML schema, and the [examples README](../src/co_scientist/config/examples/README.md) for annotated examples.

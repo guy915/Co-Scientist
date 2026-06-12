@@ -39,7 +39,7 @@ This document describes the runtime shape of the clone after the integration pas
         +----------------------+--------------------+
         |                                           |
 +-------v--------+                       +----------v-----------+
-| mock workflow  |                       | open_coscientist     |
+| mock workflow  |                       | co_scientist     |
 | (default)      |                       | LangGraph engine     |
 +----------------+                       | (real, optional)     |
                                          +----------+-----------+
@@ -104,7 +104,7 @@ Tables (SQLite, WAL):
 
 1. `COSCIENTIST_FORCE_MOCK` is unset, AND
 2. at least one of `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` is set, AND
-3. `open_coscientist` is importable.
+3. `co_scientist` is importable.
 
 Otherwise it returns `"mock"`. The chosen value is persisted on the run row so a re-opened run remembers which engine produced it.
 

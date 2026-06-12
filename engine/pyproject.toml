@@ -46,10 +46,10 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["open_coscientist*"]
+include = ["co_scientist*"]
 
 [tool.setuptools.package-data]
-open_coscientist = ["prompts/*.md", "config/*.yaml"]
+co_scientist = ["prompts/*.md", "config/*.yaml"]
 
 [tool.black]
 line-length = 100

@@ -7,8 +7,8 @@ Intentionally kept minimal to avoid mock data drift - add fields as needed.
 
 import time
 from rich.console import Console
-from open_coscientist.state import WorkflowState
-from open_coscientist.models import ExecutionMetrics
+from co_scientist.state import WorkflowState
+from co_scientist.models import ExecutionMetrics
 
 console = Console()
 
@@ -57,7 +57,7 @@ def make_supervisor_state(
     Use this for nodes that depend on supervisor output (eg generate node).
     Note: this creates a REAL supervisor output by calling the supervisor node.
     """
-    from open_coscientist.nodes.supervisor import supervisor_node
+    from co_scientist.nodes.supervisor import supervisor_node
     import asyncio
 
     base = make_base_state(research_goal, model_name)
@@ -86,8 +86,8 @@ def make_literature_state(
         run_real_lit_review: if True, calls real lit review node (requires MCP server)
                             if False, uses minimal mock data
     """
-    from open_coscientist.nodes.literature_review import literature_review_node
-    from open_coscientist.models import Article
+    from co_scientist.nodes.literature_review import literature_review_node
+    from co_scientist.models import Article
     import asyncio
 
     base = make_base_state(research_goal, model_name)

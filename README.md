@@ -47,7 +47,7 @@ In a browser at <http://localhost:5173>: click **New run**, type a research goal
             |                |  EngineAdapter              |
             |                |  - select_provider()        |
             |                |  - mock workflow (default)  |
-            |                |  - open_coscientist LangGraph (if key) |
+            |                |  - co_scientist LangGraph (if key) |
             |                +-------------+---------------+
             |                              |
             |                  (optional)  v

@@ -20,7 +20,7 @@ There is no top-level build system. Each project is independently installable an
 
 ## engine (Python library)
 
-LangGraph-based multi-agent hypothesis-generation framework. Package name: `co-scientist-engine`. Source under `src/open_coscientist/`.
+LangGraph-based multi-agent hypothesis-generation framework. Package name: `co-scientist-engine`. Source under `src/co_scientist/`.
 
 **Commands** (run from `engine/`):
 ```bash
@@ -36,7 +36,7 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 
 **Architecture**
 
-`HypothesisGenerator` (`src/open_coscientist/generator.py`) is the public entry point. It compiles a LangGraph `StateGraph` whose nodes live in `src/open_coscientist/nodes/`:
+`HypothesisGenerator` (`src/co_scientist/generator.py`) is the public entry point. It compiles a LangGraph `StateGraph` whose nodes live in `src/co_scientist/nodes/`:
 
 | Node | File |
 |---|---|
@@ -51,7 +51,7 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Evolve | `nodes/evolve.py` |
 | Proximity (dedup) | `nodes/proximity.py` |
 
-Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/open_coscientist/prompts/` (also bundled via `package-data`). YAML tool/domain configs live in `src/open_coscientist/config/` with examples per domain (biomed/cyber/etc.).
+Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/` (also bundled via `package-data`). YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/etc.).
 
 LLM calls go through LiteLLM (`llm.py`); literature-review tools are pulled from an external MCP server via `mcp_client.py` using `langchain-mcp-adapters`. The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode.
 

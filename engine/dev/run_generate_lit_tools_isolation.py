@@ -18,8 +18,8 @@ from rich.table import Table
 from rich.markdown import Markdown
 
 from state_helpers import make_supervisor_state
-from open_coscientist.nodes.literature_review import literature_review_node
-from open_coscientist.nodes.generate import generate_node
+from co_scientist.nodes.literature_review import literature_review_node
+from co_scientist.nodes.generate import generate_node
 
 
 console = Console()

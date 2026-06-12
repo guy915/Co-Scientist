@@ -52,7 +52,7 @@ Or call the library directly:
 
 ```python
 import asyncio
-from open_coscientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator
 
 async def main():
     generator = HypothesisGenerator(
@@ -91,8 +91,8 @@ async for event in generator.generate_hypotheses(
 For rich terminal output, use the built-in `ConsoleReporter`:
 
 ```python
-from open_coscientist import HypothesisGenerator
-from open_coscientist.console import ConsoleReporter, default_progress_callback
+from co_scientist import HypothesisGenerator
+from co_scientist.console import ConsoleReporter, default_progress_callback
 
 reporter = ConsoleReporter()
 await reporter.run(
@@ -209,7 +209,7 @@ export MCP_SERVER_URL=http://localhost:8888/mcp
 
 The engine uses a YAML-based tool registry that decouples literature sources from library code. This lets you bring your own MCP servers without modifying the engine.
 
-The default config (`src/open_coscientist/config/tools.yaml`) targets the bundled PubMed server. Pre-built examples in `src/open_coscientist/config/examples/` cover:
+The default config (`src/co_scientist/config/tools.yaml`) targets the bundled PubMed server. Pre-built examples in `src/co_scientist/config/examples/` cover:
 
 - `arxiv_only.yaml` — arXiv for AI/ML/CS/physics research
 - `multi_source.yaml` — PubMed + arXiv + Google Scholar in parallel
@@ -220,11 +220,11 @@ Pass a config at construction time:
 
 ```python
 generator = HypothesisGenerator(
-    tools_config="src/open_coscientist/config/examples/indra_cancer.yaml",
+    tools_config="src/co_scientist/config/examples/indra_cancer.yaml",
 )
 ```
 
-See `src/open_coscientist/config/examples/README.md` and `docs/literature_review_tools_configuration.md` for the full schema.
+See `src/co_scientist/config/examples/README.md` and `docs/literature_review_tools_configuration.md` for the full schema.
 
 ## Caching
 
@@ -238,7 +238,7 @@ COSCIENTIST_CACHE_DIR=.my_cache   # change cache directory (default: .coscientis
 Cache utilities:
 
 ```python
-from open_coscientist import clear_cache, get_cache_stats
+from co_scientist import clear_cache, get_cache_stats
 print(get_cache_stats())
 clear_cache()
 ```
@@ -355,13 +355,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 # Scope log level to this package only
-logging.getLogger("open_coscientist").setLevel(logging.DEBUG)
+logging.getLogger("co_scientist").setLevel(logging.DEBUG)
 ```
 
 ## Architecture reference
 
 ```
-src/open_coscientist/
+src/co_scientist/
 ├── generator.py        # HypothesisGenerator — public entry point, builds/runs LangGraph
 ├── state.py            # WorkflowState TypedDict + custom reducers
 ├── models.py           # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses

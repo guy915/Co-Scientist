@@ -36,9 +36,9 @@ except ImportError:
 
 from state_helpers import make_base_state
 from logging_utils import initialize_run_logging, cleanup_run_logging
-from open_coscientist.nodes.literature_review import literature_review_node
-from open_coscientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp
-from open_coscientist.constants import LITERATURE_REVIEW_FAILED
+from co_scientist.nodes.literature_review import literature_review_node
+from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp
+from co_scientist.constants import LITERATURE_REVIEW_FAILED
 
 
 async def test_literature_review():

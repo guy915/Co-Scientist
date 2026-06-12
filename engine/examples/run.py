@@ -4,8 +4,8 @@ Example for Co-Scientist with streaming output.
 This demonstrates hypothesis generation with literature review integration,
 showing real-time streaming of results as they're generated.
 """
-from open_coscientist import HypothesisGenerator
-from open_coscientist.console import ConsoleReporter, default_progress_callback, run_console
+from co_scientist import HypothesisGenerator
+from co_scientist.console import ConsoleReporter, default_progress_callback, run_console
 # install rich in your environment
 from rich.console import Console
 from rich.panel import Panel

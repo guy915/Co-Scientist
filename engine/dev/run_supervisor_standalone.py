@@ -11,7 +11,7 @@ from rich.panel import Panel
 from rich.json import JSON
 
 from state_helpers import make_base_state
-from open_coscientist.nodes.supervisor import supervisor_node
+from co_scientist.nodes.supervisor import supervisor_node
 
 
 console = Console()

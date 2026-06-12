@@ -31,7 +31,7 @@ except Exception:  # pragma: no cover - litellm optional in mock mode
     acompletion = None  # type: ignore
 
 try:
-    from open_coscientist import HypothesisGenerator  # type: ignore
+    from co_scientist import HypothesisGenerator  # type: ignore
 except Exception:  # pragma: no cover - engine optional in mock mode
     HypothesisGenerator = None  # type: ignore
 
@@ -41,9 +41,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-# Set application loggers (viewer and open_coscientist) to DEBUG if debug mode is enabled
+# Set application loggers (viewer and co_scientist) to DEBUG if debug mode is enabled
 logger = logging.getLogger(__name__)
-coscientist_logger = logging.getLogger("open_coscientist")
+coscientist_logger = logging.getLogger("co_scientist")
 if settings.debug:
     logger.setLevel(logging.DEBUG)
     coscientist_logger.setLevel(logging.DEBUG)
@@ -215,7 +215,7 @@ class SystemStatusResponse(BaseModel):
     provider: str = Field("mock", description="active workflow provider: 'mock' | 'engine'")
     mock_mode: bool = Field(False, description="true when running deterministic mock workflow")
     has_provider_key: bool = Field(False, description="any LLM provider key is set")
-    engine_importable: bool = Field(False, description="open_coscientist package is importable")
+    engine_importable: bool = Field(False, description="co_scientist package is importable")
     model_name: str = Field("", description="configured model id")
 
 
@@ -415,7 +415,7 @@ async def get_system_status():
     mcp_available = False
     pubmed_available = False
     try:
-        from open_coscientist.mcp_client import (
+        from co_scientist.mcp_client import (
             check_mcp_available,  # type: ignore
             check_pubmed_available_via_mcp,  # type: ignore
         )

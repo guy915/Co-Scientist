@@ -7,7 +7,7 @@ Guide for contributors and developers working on Co-Scientist internals.
 ```
 engine/
 ├── src/
-│   └── open_coscientist/
+│   └── co_scientist/
 │       ├── __init__.py
 │       ├── generator.py        # HypothesisGenerator class, LangGraph setup
 │       ├── state.py            # WorkflowState TypedDict
@@ -103,7 +103,7 @@ async def node_name(state: WorkflowState) -> Dict[str, Any]:
 
 ### 1. Create Node File
 
-Create `src/open_coscientist/nodes/my_node.py`:
+Create `src/co_scientist/nodes/my_node.py`:
 
 ```python
 from typing import Dict, Any
@@ -118,7 +118,7 @@ async def my_node(state: WorkflowState) -> Dict[str, Any]:
 
 ### 2. Create Prompt Template
 
-Create `src/open_coscientist/prompts/my_node.md`:
+Create `src/co_scientist/prompts/my_node.md`:
 
 ```markdown
 # My Node Prompt
@@ -134,7 +134,7 @@ Your prompt instructions here.
 
 ### 3. Add to Workflow Graph
 
-Update `src/open_coscientist/generator.py`:
+Update `src/co_scientist/generator.py`:
 
 ```python
 from .nodes.my_node import my_node
@@ -147,7 +147,7 @@ workflow.add_edge("my_node", "next_node")
 
 ### 4. Update State Type (if needed)
 
-If your node adds new state fields, update `src/open_coscientist/state.py`:
+If your node adds new state fields, update `src/co_scientist/state.py`:
 
 ```python
 class WorkflowState(TypedDict, total=False):
@@ -197,7 +197,7 @@ See `models.py` for the full `Hypothesis` dataclass.
 ### Standard JSON Response
 
 ```python
-from open_coscientist.llm import call_llm_json
+from co_scientist.llm import call_llm_json
 
 response = await call_llm_json(
     prompt="Your prompt",
@@ -211,7 +211,7 @@ response = await call_llm_json(
 ### With Tool Calling (MCP)
 
 ```python
-from open_coscientist.mcp_client import get_mcp_tools
+from co_scientist.mcp_client import get_mcp_tools
 
 tools = await get_mcp_tools()
 response = await call_llm_with_tools(
@@ -229,7 +229,7 @@ response = await call_llm_with_tools(
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("open_coscientist")
+logger = logging.getLogger("co_scientist")
 ```
 
 ### Inspect State Between Nodes
@@ -244,14 +244,14 @@ async for node_name, state in generator.generate_hypotheses(research_goal, strea
 ### Cache Debugging
 
 ```python
-from open_coscientist import get_cache_stats
+from co_scientist import get_cache_stats
 
 # Check what's cached
 stats = get_cache_stats()
 print(f"Cached: {stats['cache_files']} responses")
 
 # Clear cache to force fresh LLM calls
-from open_coscientist import clear_cache
+from co_scientist import clear_cache
 clear_cache()
 ```
 

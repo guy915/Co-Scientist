@@ -2,7 +2,7 @@
 
 Logic:
 - Provider = `mock` if `COSCIENTIST_FORCE_MOCK=1`, OR no LLM key is set, OR the
-  `open_coscientist` package can't be imported. Otherwise `engine`.
+  `co_scientist` package can't be imported. Otherwise `engine`.
 - Real-engine path imports lazily so the app boots even when the engine isn't
   installed yet (e.g. during initial setup).
 
@@ -24,7 +24,7 @@ from .mock_workflow import resolved_config, run_mock_workflow
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
 # Inject the sibling engine src into sys.path at import time so that
-# `from open_coscientist import HypothesisGenerator` in main.py succeeds.
+# `from co_scientist import HypothesisGenerator` in main.py succeeds.
 _engine_src = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "..", "engine", "src")
 )
@@ -50,7 +50,7 @@ def _has_provider_key() -> bool:
 def _engine_importable() -> bool:
     try:
         import importlib.util
-        return importlib.util.find_spec("open_coscientist") is not None
+        return importlib.util.find_spec("co_scientist") is not None
     except Exception:
         return False
 
@@ -141,7 +141,7 @@ async def run_workflow(
 
     # Real engine path — bridge engine streaming events into our event log.
     try:
-        from open_coscientist import HypothesisGenerator  # type: ignore[import-untyped]
+        from co_scientist import HypothesisGenerator  # type: ignore[import-untyped]
     except Exception as e:  # pragma: no cover (defensive)
         logger.error("engine import failed: %s — falling back to mock", e)
         async for event in run_mock_workflow(
@@ -167,7 +167,7 @@ async def run_workflow(
             import json as _json
 
             import litellm as _litellm  # type: ignore[import-untyped]
-            import open_coscientist.llm as _oc_llm  # type: ignore[import-untyped]
+            import co_scientist.llm as _oc_llm  # type: ignore[import-untyped]
 
             # --- patch 1: acompletion ---
             _orig_acompletion = _litellm.acompletion

@@ -5,7 +5,7 @@ Complete guide to configuring Co-Scientist for your needs.
 ## Basic Configuration
 
 ```python
-from open_coscientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator
 
 generator = HypothesisGenerator(
     model_name="gemini/gemini-2.5-flash",   # Default; Any LiteLLM-supported model
@@ -112,7 +112,7 @@ LLM caching dramatically speeds up development and testing by reusing identical 
 ### Cache Management
 
 ```python
-from open_coscientist import clear_cache, get_cache_stats
+from co_scientist import clear_cache, get_cache_stats
 
 # Clear all cached responses
 cleared = clear_cache()
@@ -163,7 +163,7 @@ COSCIENTIST_LIT_REVIEW_DIR=./cache/literature_review
 
 ## Constants and Internal Parameters
 
-Most users won't need to modify these, but they're centralized in `src/open_coscientist/constants.py`:
+Most users won't need to modify these, but they're centralized in `src/co_scientist/constants.py`:
 
 ### Elo Rating Parameters
 
@@ -200,7 +200,7 @@ PROXIMITY_SIMILARITY_THRESHOLD = 0.85  # Cluster similar hypotheses
 
 ### Modifying Constants
 
-If you need to tune these parameters, edit `src/open_coscientist/constants.py`.
+If you need to tune these parameters, edit `src/co_scientist/constants.py`.
 
 Modifying constants may affect result quality and should be done with careful evaluation.
 

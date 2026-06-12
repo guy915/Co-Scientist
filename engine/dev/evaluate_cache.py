@@ -15,7 +15,7 @@ sys.path.insert(
 )
 
 import asyncio
-from open_coscientist import HypothesisGenerator, clear_cache, get_cache_stats
+from co_scientist import HypothesisGenerator, clear_cache, get_cache_stats
 
 
 async def run_generation():

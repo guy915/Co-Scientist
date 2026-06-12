@@ -12,7 +12,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 
 from state_helpers import make_generate_state
-from open_coscientist.nodes.generate import generate_node
+from co_scientist.nodes.generate import generate_node
 
 
 console = Console()

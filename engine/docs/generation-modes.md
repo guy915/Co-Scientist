@@ -170,7 +170,7 @@ See [MCP Integration](mcp-integration.md) documentation.
 ### Example 1: Basic Usage (No Literature)
 
 ```python
-from open_coscientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator
 
 generator = HypothesisGenerator(
     model_name="gemini/gemini-2.5-flash",
@@ -187,7 +187,7 @@ result = await generator.generate_hypotheses(
 ### Example 2: Literature-Informed
 
 ```python
-from open_coscientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator
 
 generator = HypothesisGenerator(
     model_name="gemini/gemini-2.5-flash",
@@ -205,7 +205,7 @@ result = await generator.generate_hypotheses(
 ### Example 3: Generate Initial Hypotheses with Tool-Calling Mode
 
 ```python
-from open_coscientist import HypothesisGenerator
+from co_scientist import HypothesisGenerator
 
 generator = HypothesisGenerator(
     model_name="gemini/gemini-2.5-flash",
