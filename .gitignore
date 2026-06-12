@@ -59,3 +59,7 @@ ai-coscientist-app/frontend/.vite/
 .agents/
 .claude/
 .remember/
+
+# Live Footage (Recordings)
+references/google-co-scientist/media/live-footage/
+
