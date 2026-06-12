@@ -1,6 +1,6 @@
-# Open CoScientist Viewer
+# Co-Scientist Viewer
 
-A web workbench for running and monitoring the [Open CoScientist](https://github.com/jataware/open-coscientist) multi-agent hypothesis-generation engine. Submit a research goal and watch in real time as a team of AI agents conducts a literature review, generates candidate hypotheses, debates them in an Elo tournament, evolves the survivors, and synthesizes a final report.
+A web workbench for running and monitoring the multi-agent hypothesis-generation engine. Submit a research goal and watch in real time as a team of AI agents conducts a literature review, generates candidate hypotheses, debates them in an Elo tournament, evolves the survivors, and synthesizes a final report.
 
 ## Architecture
 
@@ -10,7 +10,7 @@ app/
 │   ├── main.py     API entrypoint (~800 lines), legacy /generate + /parse endpoints
 │   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
 │   ├── store.py    SQLite persistence layer (WAL, append-only event log)
-│   ├── engine_adapter.py  Bridges to open-coscientist or mock workflow
+│   ├── engine_adapter.py  Bridges to engine or mock workflow
 │   ├── mock_workflow.py   Deterministic mock for dev without an LLM key
 │   ├── elo.py      Elo rating utilities
 │   ├── citations.py       Citation extraction helpers
@@ -214,7 +214,7 @@ bun run lint     # biome lint
 
 ## Mock mode
 
-If `open-coscientist` is not installed or no LLM API key is set, the server falls back to a deterministic mock workflow that returns pre-built fake hypotheses. The UI displays a "Mock mode" banner. This is useful for frontend development and CI.
+If the engine is not installed or no LLM API key is set, the server falls back to a deterministic mock workflow that returns pre-built fake hypotheses. The UI displays a "Mock mode" banner. This is useful for frontend development and CI.
 
 ## Literature review (MCP)
 
@@ -232,4 +232,3 @@ Set `ENTREZ_EMAIL` (and optionally `ENTREZ_API_KEY`) for full PubMed access.
 
 ---
 
-Copyright Jataware Corp, 2026.

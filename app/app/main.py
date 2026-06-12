@@ -52,7 +52,7 @@ else:
     coscientist_logger.setLevel(logging.INFO)
 console = Console()
 
-# Set environment variables for open-coscientist
+# Set environment variables for the LLM engine
 # LiteLLM uses provider-specific env vars (GEMINI_API_KEY, OPENAI_API_KEY, etc.)
 if settings.gemini_api_key:
     os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
@@ -89,7 +89,7 @@ async def lifespan(app: FastAPI):
     global _generator
 
     # Startup
-    logger.info("Starting Open CoScientist server...")
+    logger.info("Starting Co-Scientist server...")
     logger.info(f"Model: {settings.model_name}")
     logger.info(f"Max iterations: {settings.max_iterations}")
     logger.info(f"Initial hypotheses count: {settings.initial_hypotheses_count}")
@@ -122,12 +122,12 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown
-    logger.info("Shutting down Open CoScientist server...")
+    logger.info("Shutting down Co-Scientist server...")
 
 
 app = FastAPI(
-    title="Open CoScientist API",
-    description="FastAPI server for AI hypothesis generation using Open CoScientist",
+    title="Co-Scientist API",
+    description="FastAPI server for AI hypothesis generation",
     version="0.1.0",
     lifespan=lifespan,
 )
@@ -377,7 +377,7 @@ Return ONLY valid JSON matching the schema."""
 async def root():
     """Root endpoint."""
     return {
-        "message": "Open CoScientist API",
+        "message": "Co-Scientist API",
         "version": "0.1.0",
         "docs": "/docs",
     }

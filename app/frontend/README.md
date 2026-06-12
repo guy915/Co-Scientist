@@ -1,6 +1,6 @@
-# Open Coscientist Frontend
+# Co-Scientist Frontend
 
-React + Vite + TypeScript + Tailwind CSS + shadcn/ui frontend for the open-coscientist server.
+React + Vite + TypeScript + Tailwind CSS + shadcn/ui frontend for the Co-Scientist API server.
 
 ## Tech Stack
 
@@ -65,7 +65,7 @@ file and add `VITE_DOMAIN` to `.env` file before starting/building UI.
 
 ## API Integration
 
-The frontend communicates with the open-coscientist-server backend through:
+The frontend communicates with the Co-Scientist API backend through:
 
 - **API Client** (`src/api/client.ts`) - REST API functions
 - **useSSE Hook** (`src/hooks/useSSE.ts`) - Server-Sent Events for real-time updates
@@ -183,4 +183,3 @@ All theme variables are prefixed with `--color-` in Tailwind v4. Use them in you
 </div>
 ```
 
-Copyright Jataware Corp, 2025

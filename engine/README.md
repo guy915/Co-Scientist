@@ -4,7 +4,7 @@ LangGraph-based multi-agent framework for automated research hypothesis generati
 
 Given a research goal, the system runs a pipeline of specialized agents — literature review, hypothesis generation, peer review, Elo tournament ranking, meta-review, and iterative evolution — to produce a ranked list of novel, grounded hypotheses.
 
-Demo: [Open Coscientist — early detection of Alzheimer's disease](https://youtu.be/LyOvigZ59yE?si=JiIJnXajgLhTb1yj)
+Demo: [AI Co-Scientist — early detection of Alzheimer's disease](https://youtu.be/LyOvigZ59yE?si=JiIJnXajgLhTb1yj)
 
 ## Features
 
@@ -29,8 +29,8 @@ pip install open-coscientist
 For local development:
 
 ```bash
-git clone https://github.com/jataware/open-coscientist
-cd open-coscientist
+git clone https://github.com/guy915/Co-Scientist
+cd Co-Scientist/engine
 pip install -e '.[dev]'
 ```
 
@@ -385,38 +385,10 @@ src/open_coscientist/
 
 ## Documentation
 
-Upstream docs for the open-coscientist project:
-
-- [Architecture](https://github.com/jataware/open-coscientist/blob/main/docs/architecture.md) — workflow diagram, node descriptions, state management
-- [MCP Integration](https://github.com/jataware/open-coscientist/blob/main/docs/mcp-integration.md) — literature review setup and configuration
-- [Generation Modes](https://github.com/jataware/open-coscientist/blob/main/docs/generation-modes.md) — three generate node modes explained
-- [Configuration](https://github.com/jataware/open-coscientist/blob/main/docs/configuration.md) — all parameters, caching, performance tuning
-- [Domain Customization](https://github.com/jataware/open-coscientist/blob/main/docs/domain-customization.md) — adapting to new domains via YAML config
-- [Literature Review Tools Configuration](https://github.com/jataware/open-coscientist/blob/main/docs/literature_review_tools_configuration.md) — YAML schema reference for custom MCP servers
-- [Logging](https://github.com/jataware/open-coscientist/blob/main/docs/logging.md) — file logging, rotating logs, log levels
-
-## Attribution
-
-Open Coscientist is an open adaptation inspired by Google Research's AI Co-Scientist. While Google's original system is closed-source, this project adapts the multi-agent hypothesis generation architecture from their published research.
-
-- Blog: [Accelerating scientific breakthroughs with an AI Co-Scientist](https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/)
-- Paper: [Towards an AI co-scientist](https://arxiv.org/abs/2502.18864)
-
-## Citation
-
-If you use this work, please cite both this implementation and the original paper:
-
-```bibtex
-@article{coscientist2025,
-  title={Towards an AI co-scientist},
-  author={Google Research Team},
-  journal={arXiv preprint arXiv:2502.18864},
-  year={2025},
-  url={https://arxiv.org/abs/2502.18864}
-}
-```
-
-## Links
-
-- GitHub: https://github.com/jataware/open-coscientist
-- Original paper: [Towards an AI co-scientist (Google DeepMind, 2025)](https://storage.googleapis.com/coscientist_paper/ai_coscientist.pdf)
+- [Architecture](docs/architecture.md) — workflow diagram, node descriptions, state management
+- [MCP Integration](docs/mcp-integration.md) — literature review setup and configuration
+- [Generation Modes](docs/generation-modes.md) — three generate node modes explained
+- [Configuration](docs/configuration.md) — all parameters, caching, performance tuning
+- [Domain Customization](docs/domain-customization.md) — adapting to new domains via YAML config
+- [Literature Review Tools Configuration](docs/literature_review_tools_configuration.md) — YAML schema reference for custom MCP servers
+- [Logging](docs/logging.md) — file logging, rotating logs, log levels

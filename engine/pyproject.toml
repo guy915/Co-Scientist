@@ -8,9 +8,6 @@ version = "0.2.0"
 description = "Open LangGraph-based framework for multi-agent research hypothesis generation, adapted from Google Research's AI Co-Scientist."
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [
-    {name = "Brandon Rose", email = "brandon@jataware.com"}
-]
 license = {file = "LICENSE"}
 keywords = ["ai", "research", "hypothesis", "langgraph", "llm"]
 classifiers = [
@@ -43,10 +40,6 @@ dev = [
     "python-dotenv~=1.2.1",
 ]
 
-[project.urls]
-Homepage = "https://github.com/jataware/open-coscientist"
-Documentation = "https://github.com/jataware/open-coscientist#readme"
-Repository = "https://github.com/jataware/open-coscientist"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

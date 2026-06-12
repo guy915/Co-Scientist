@@ -5,11 +5,8 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "open-coscientist-viewer"
 version = "0.1.0"
-description = "Open Coscientist Viewer is an open-source web application for running and monitoring the Open Coscientist multi-agent research system. It provides real-time tracking of hypothesis generation, review, ranking, evolution, and iterations."
+description = "Web application for running and monitoring the AI Co-Scientist multi-agent research system. Provides real-time tracking of hypothesis generation, review, ranking, evolution, and iterations."
 requires-python = ">=3.10"
-authors = [
-    {name = "Jataware", email = "info@jataware.com"}
-]
 
 dependencies = [
     "fastapi>=0.104.0",

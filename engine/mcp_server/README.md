@@ -139,5 +139,5 @@ docker compose up -d --build
 ## Support
 
 For issues or questions:
-- GitHub: https://github.com/jataware/open-coscientist
+- GitHub: https://github.com/guy915/Co-Scientist
 - Documentation: See main [README](../README.md)

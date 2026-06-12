@@ -144,7 +144,7 @@ Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set
 
 ## Working in this repo
 
-- The `open-coscientist` (engine) and `open-coscientist-viewer` (app) are upstream open-source projects from Jataware. This repo vendors them as plain directories (not submodules) — when editing, treat the boundary carefully and don't assume changes propagate to PyPI/Docker images. The viewer's pip install pulls `open-coscientist>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../engine` after `make install`.
+- The `engine/` and `app/` directories are vendored as plain directories (not submodules). The app's pip install pulls `open-coscientist>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../engine` after `make install`.
 - The app (`app/`) has a committed pytest suite under `tests/`; the engine (`engine/`) has none yet, so its `pytest` exits clean.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
 

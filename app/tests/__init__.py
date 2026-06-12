@@ -1,2 +1,2 @@
-"""Tests for Open Coscientist Viewer"""
+"""Tests for Co-Scientist Viewer"""
 

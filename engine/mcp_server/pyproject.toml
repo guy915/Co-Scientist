@@ -8,9 +8,6 @@ version = "0.1.0"
 description = "MCP server for Open Coscientist literature review"
 readme = "README.md"
 requires-python = ">=3.12"
-authors = [
-    {name = "Jataware Corp", email = "info@jataware.com"}
-]
 license = {text = "Proprietary"}
 keywords = ["mcp", "pubmed", "literature-review"]
 classifiers = [
@@ -38,8 +35,6 @@ dev = [
     "ruff>=0.1.0",
 ]
 
-[project.urls]
-Repository = "https://github.com/jataware/open-coscientist"
 
 [tool.setuptools.packages.find]
 where = ["."]

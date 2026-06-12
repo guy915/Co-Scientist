@@ -61,7 +61,6 @@ Optional keys:
 Start an MCP server before running `run_lit_review_standalone.py`.
 
 The MCP server provides tools for literature search (Google Scholar, PubMed, etc.). You can use any MCP-compatible server, such as:
-- The reference implementation in [beaker-coscientist-viewer](https://github.com/jataware/beaker-coscientist-viewer) (not yet publicly available)
 - Your own custom MCP server implementing the required tools.
 
 ## Tips
