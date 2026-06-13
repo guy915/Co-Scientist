@@ -980,8 +980,7 @@ def _build_already_validated_context(
     return f"""
 ## Hypotheses Already Validated (Diversity Constraint)
 
-The following hypotheses have already been validated and will be included in the
-final output.
+The following hypotheses have already been validated and will be included in the final output.  # pylint: disable=line-too-long
 Your output **must explore different mechanistic territory** from each of these.
 If your draft overlaps significantly with any entry below, treat it as saturated and pivot:
 
@@ -1206,8 +1205,7 @@ This is the final turn of the debate. Based on the discussion above, output your
 
 ### 1. hypothesis (required)
 Dense technical description following "We want to develop [X] to enable [Y]" format (2-3 sentences).
-- Include specific technical details: algorithms, mechanisms, mathematical
-formulations
+- Include specific technical details: algorithms, mechanisms, mathematical formulations  # pylint: disable=line-too-long
 - Be precise about what will be developed and the technical approach
 
 Example: "We want to develop a 'Dynamic Velocity Sentinel'—which monitors the rate of change in latent activation directions across early-to-mid layers rather than static depths—to enable anticipatory gating that triggers only when precursor signals cross a 'point of no return' for danger features."
@@ -1225,22 +1223,14 @@ Example: "This approach addresses the computational bottleneck by focusing on ea
 Explicit grounding with inline citation keys (2-4 sentences).
 - If a Citation Reference List was provided above, use ONLY those `[C*]` keys (e.g. `[C1]`, `[C2]`, `[C3]`)
 - Do NOT invent author-year citations — only use keys from the list
-- If no Citation Reference List was provided, state: "This hypothesis is
-formulated without access to a literature review."
+- If no Citation Reference List was provided, state: "This hypothesis is formulated without access to a literature review."  # pylint: disable=line-too-long
 
 Example: "This approach builds on sparse autoencoder analysis [C1] and circuit tracing [C2]. The velocity monitoring concept addresses a gap in static-analysis methods [C3][C4]."
 
 ### 4. experiment (required)
-Concrete experiment design with models, datasets, methodology, metrics, and
-validation (4-6 sentences).
+Concrete experiment design with models, datasets, methodology, metrics, and validation (4-6 sentences).  # pylint: disable=line-too-long
 
-Example format: "Objective: Demonstrate that velocity monitoring achieves
-comparable detection with reduced cost. Models: GPT-2 Medium, pre-trained SAE
-layers 1-6. Datasets: AdvBench harmful prompts (500 examples), HH-RLHF benign
-prompts (1000 examples). Methodology: (1) Implement velocity tracking, (2) Train
-threshold detector, (3) Compare against baseline. Metrics: Detection accuracy,
-timing, false positive rate, computational overhead. Validation: Success
-requires >90% detection, <5% false positives, >50% cost reduction."
+Example format: "Objective: Demonstrate that velocity monitoring achieves comparable detection with reduced cost. Models: GPT-2 Medium, pre-trained SAE layers 1-6. Datasets: AdvBench harmful prompts (500 examples), HH-RLHF benign prompts (1000 examples). Methodology: (1) Implement velocity tracking, (2) Train threshold detector, (3) Compare against baseline. Metrics: Detection accuracy, timing, false positive rate, computational overhead. Validation: Success requires >90% detection, <5% false positives, >50% cost reduction."  # pylint: disable=line-too-long
 
 ---
 
@@ -1384,8 +1374,7 @@ def format_articles_metadata(articles: List[Any]) -> str:
 
     articles_list_text = "\n\n".join([
         f"**{i+1}. {art.title}**\n"
-        f"   - Authors: {', '.join(art.authors[:3])}"
-        f"{'  et al.' if len(art.authors) > 3 else ''}\n"
+        f"   - Authors: {', '.join(art.authors[:3])}{' et al.' if len(art.authors) > 3 else ''}\n"  # pylint: disable=line-too-long
         f"   - Year: {art.year or 'Unknown'}\n"
         f"   - Citations: {art.citations}\n"
         f"   - PDF: {'Available - ' + art.pdf_links[0] if art.pdf_links else 'No PDF found (abstract only)'}\n"  # pylint: disable=line-too-long

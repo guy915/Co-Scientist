@@ -359,7 +359,7 @@ async def check_literature_source_available(
 
         if check_tool_name not in all_tools_dict:
             logger.warning(
-                "availability check tool '%s' not found. Available tools: %s",
+                "availability check tool '%s' not found. available tools: %s",
                 check_tool_name, list(all_tools_dict.keys()))
             return False
 
