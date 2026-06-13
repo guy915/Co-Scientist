@@ -27,8 +27,8 @@ LangGraph-based multi-agent hypothesis-generation framework. Package name: `co-s
 pip install -e '.[dev]'          # install with dev deps
 python examples/run.py            # interactive CLI demo
 pytest                            # tests (testpaths = ["tests"], none committed yet)
-black . && ruff check --fix .     # format
-ruff check .                      # lint
+yapf -ir src dev examples         # format (Google style, 80 cols)
+pylint --rcfile=../pylintrc src/co_scientist   # lint
 mypy .                            # typecheck
 ```
 
@@ -60,6 +60,7 @@ Caching (`cache.py`) is on by default and controlled by `COSCIENTIST_CACHE_ENABL
 **Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Uses FastMCP + Biopython for PubMed + INDRA CoGex.
 
 **Style conventions** (from `CONTRIBUTING.md`, enforced informally):
+- Code follows the Google Python Style Guide: yapf (`based_on_style = google`, 80 columns), pylint with the repo-root `pylintrc`, Google-format docstrings (`Args:`/`Returns:`/`Raises:`).
 - Docstrings capitalized, full sentences.
 - `logger.debug()` lowercase; `info`/`warning`/`error` capitalized.
 - No emojis or unicode decoration in code or logs.
@@ -78,7 +79,7 @@ Single-file FastAPI app (`app/main.py`, ~800 lines) with settings in `app/config
 make install         # pip install -e ".[dev]"   (also: pixi install)
 make dev             # uvicorn app.main:app --reload --port 8008
 make test            # pytest (asyncio_mode = "auto", testpaths = ["tests"])
-make format / lint / typecheck   # black+ruff / ruff / mypy
+make format / lint / typecheck   # yapf / pylint / mypy
 ```
 
 Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
@@ -93,7 +94,7 @@ A single `HypothesisGenerator` instance is constructed in the `lifespan` startup
 
 ### Frontend (`frontend/`)
 
-React 19 + Vite 7 + TypeScript + Tailwind v4 + shadcn/ui + Radix. Package manager is **Bun**. Linter/formatter is **Biome**, not ESLint/Prettier.
+React 19 + Vite 7 + TypeScript + Tailwind v4 + shadcn/ui + Radix. Package manager is **Bun**. Linter/formatter is **gts** (Google TypeScript Style: ESLint + Prettier).
 
 **Design system:** `frontend/DESIGN.md` is the authoritative design reference for all UI work. It follows the [google-labs-code/design.md](https://github.com/google-labs-code/design.md) spec: YAML design tokens in frontmatter, markdown rationale in body. Read it before making visual changes — it documents the color system, typography scale, spacing grid, radius rules, component inventory, and Do's & Don'ts. Key points:
 - Palette is Material Design 3, generated at runtime from seed `#1A6B6B` via `applyMd3Theme()` in `src/lib/theme.ts`. Never hardcode `--md-sys-color-*` values.
@@ -106,8 +107,8 @@ React 19 + Vite 7 + TypeScript + Tailwind v4 + shadcn/ui + Radix. Package manage
 bun install
 bun run dev          # vite dev server on :5173
 bun run build        # tsc && vite build
-bun run check        # biome check --write . (lint + format + organize imports)
-bun run lint         # biome lint .
+bun run lint         # gts lint
+bun run fix          # gts fix (format + autofix)
 ```
 
 Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/WorkbenchApp.tsx`, with pages under `src/workbench/pages/` (Dashboard, NewRun, RunDetail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/useRunStream.ts`. Theme state is in `src/workbench/ThemeContext.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/ErrorBoundary.tsx`, `src/lib/utils.ts`.
@@ -147,6 +148,7 @@ Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set
 - The `engine/` and `app/` directories are vendored as plain directories (not submodules). The app's pip install pulls `co-scientist-engine>=0.2.0` from PyPI by default; for local dev against engine changes, run `pip install -e ../engine` after `make install`.
 - The app (`app/`) has a committed pytest suite under `tests/`; the engine (`engine/`) has none yet, so its `pytest` exits clean.
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
+- All source files carry the Apache 2.0 header (copyright "The Co-Scientist Authors"); new files must too. The repo license is Apache-2.0.
 
 ## Required environment
 
