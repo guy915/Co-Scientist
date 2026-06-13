@@ -252,7 +252,6 @@ function IdeaRow({
                 onClick();
               }}
             >
-              {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
               <md-icon style={{fontSize: '12px'}} aria-hidden="true">
                 open_in_new
               </md-icon>{' '}

@@ -51,7 +51,6 @@ export function MockBanner() {
     );
   }
   return (
-    // biome-ignore lint/a11y/useSemanticElements: role="status" is a live region; <output> has different semantics
     <div
       role="status"
       className="text-xs px-6 py-1.5 border-t flex items-center gap-2"
@@ -62,7 +61,6 @@ export function MockBanner() {
         borderColor: 'var(--md-sys-color-outline-variant)',
       }}
     >
-      {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
       <md-icon aria-hidden="true" style={{fontSize: '14px'}}>
         warning
       </md-icon>

@@ -60,7 +60,6 @@ export function ShortcutsHint() {
         aria-label="Keyboard shortcuts"
         title="Keyboard shortcuts (press ?)"
       >
-        {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
         <md-icon aria-hidden="true">keyboard</md-icon>
       </md-icon-button>
       <MdDialog

@@ -125,7 +125,6 @@ export function LogConsole() {
         className="relative"
         style={{display: 'inline-flex'}}
       >
-        {/* biome-ignore lint/a11y/useAriaPropsSupportedByRole: aria-expanded on button is widely supported in practice for toggle disclosure patterns */}
         <md-filled-tonal-button
           onclick={(() => setOpen(v => !v)) as EventListener}
           aria-expanded={open}
@@ -140,7 +139,6 @@ export function LogConsole() {
               {events.length}
             </span>
           )}
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon slot="icon" aria-hidden="true">
             {open ? 'expand_less' : 'expand_more'}
           </md-icon>
@@ -151,8 +149,6 @@ export function LogConsole() {
         <>
           {/* Mobile: semi-transparent backdrop */}
           {isMobile && (
-            // biome-ignore lint/a11y/useKeyWithClickEvents: backdrop dismiss is supplemental; Esc closes the panel via outside-click handler
-            // biome-ignore lint/a11y/noStaticElementInteractions: backdrop div is a click-to-close overlay, not a focusable interactive element
             <div
               className="fixed inset-0 z-40"
               style={{backgroundColor: 'rgba(0,0,0,0.35)'}}
@@ -203,7 +199,6 @@ export function LogConsole() {
                   onclick={(() => void handleCopy()) as EventListener}
                   disabled={!events.length || undefined}
                 >
-                  {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
                   <md-icon slot="icon" aria-hidden="true">
                     {copied ? 'check' : 'content_copy'}
                   </md-icon>

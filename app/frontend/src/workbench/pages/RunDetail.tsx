@@ -197,7 +197,6 @@ export function RunDetail() {
           className="inline-flex items-center gap-1 text-sm hover:underline"
           style={{color: 'var(--md-sys-color-on-surface-variant)'}}
         >
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon aria-hidden="true" style={{fontSize: '14px'}}>
             arrow_back
           </md-icon>{' '}
@@ -253,7 +252,6 @@ export function RunDetail() {
             <md-outlined-button
               onclick={(() => void refresh()) as EventListener}
             >
-              {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
               <md-icon slot="icon" aria-hidden="true">
                 refresh
               </md-icon>
@@ -271,7 +269,6 @@ export function RunDetail() {
                   } as React.CSSProperties
                 }
               >
-                {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
                 <md-icon slot="icon" aria-hidden="true">
                   stop
                 </md-icon>
@@ -289,7 +286,6 @@ export function RunDetail() {
                   }) as EventListener
                 }
               >
-                {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
                 <md-icon slot="icon" aria-hidden="true">
                   download
                 </md-icon>
@@ -370,7 +366,6 @@ export function RunDetail() {
       )}
 
       {toast && (
-        // biome-ignore lint/a11y/useSemanticElements: role="status" is a live region; <output> has different semantics
         <div
           role="status"
           className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-auto z-50 rounded border px-3 py-2 text-sm shadow-lg wb-fade-in"

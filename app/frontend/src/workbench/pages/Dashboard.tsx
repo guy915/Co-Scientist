@@ -194,7 +194,6 @@ export function Dashboard() {
         <md-filled-button
           onclick={(() => navigate('/runs/new')) as EventListener}
         >
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon slot="icon" aria-hidden="true">
             add
           </md-icon>
@@ -285,7 +284,6 @@ export function Dashboard() {
           className="rounded border p-8 text-center wb-fade-in"
           style={{borderColor: 'var(--md-sys-color-outline-variant)'}}
         >
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon
             className="mx-auto mb-3 block"
             style={

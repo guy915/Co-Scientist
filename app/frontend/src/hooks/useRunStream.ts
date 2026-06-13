@@ -47,7 +47,6 @@ export function useRunStream(
   const [error, setError] = useState<string | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: reconnect on runId change only; adding after/terminal would cause reconnect loops
   useEffect(() => {
     if (!runId) return;
     setEvents([]);

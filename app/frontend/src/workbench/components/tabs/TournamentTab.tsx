@@ -83,7 +83,6 @@ export function TournamentTab({
                     style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                   >
                     {i === 0 ? (
-                      // biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element
                       <md-icon style={{fontSize: '14px'}} aria-hidden="true">
                         emoji_events
                       </md-icon>

@@ -104,7 +104,6 @@ export function ReportTab({
             }) as EventListener
           }
         >
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon slot="icon" aria-hidden="true">
             download
           </md-icon>
@@ -120,7 +119,6 @@ export function ReportTab({
             }) as EventListener
           }
         >
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon slot="icon" aria-hidden="true">
             description
           </md-icon>
@@ -130,14 +128,12 @@ export function ReportTab({
           onclick={(() => void copyMarkdown()) as EventListener}
           disabled={!markdown || undefined}
         >
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon slot="icon" aria-hidden="true">
             {copied ? 'check' : 'content_copy'}
           </md-icon>
           {copied ? 'Copied' : 'Copy Markdown'}
         </md-outlined-button>
         <md-outlined-button onclick={(() => window.print()) as EventListener}>
-          {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
           <md-icon slot="icon" aria-hidden="true">
             print
           </md-icon>
@@ -153,7 +149,6 @@ export function ReportTab({
             }}
           >
             <div className="flex items-center gap-1.5 font-medium mb-1">
-              {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
               <md-icon style={{fontSize: '14px'}} aria-hidden="true">
                 warning
               </md-icon>
