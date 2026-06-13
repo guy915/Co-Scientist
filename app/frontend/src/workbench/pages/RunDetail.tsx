@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-import "@material/web/button/outlined-button.js";
-import "@material/web/button/text-button.js";
-import "@material/web/icon/icon.js";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import '@material/web/button/outlined-button.js';
+import '@material/web/button/text-button.js';
+import '@material/web/icon/icon.js';
+import {useCallback, useEffect, useMemo, useState} from 'react';
+import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
   type CitationRow,
   cancelRun,
@@ -38,35 +38,42 @@ import {
   type RunWithSummary,
   reportMarkdownUrl,
   type SafetyDecision,
-} from "@/api/runs";
-import { type StreamEvent, useRunStream } from "@/hooks/useRunStream";
-import { MdSecondaryTabs } from "@/md3/MdTabs";
-import { IdeaModal } from "../components/IdeaModal";
-import { RunStatusPill } from "../components/RunStatusPill";
-import { ChatTab } from "../components/tabs/ChatTab";
-import { EvidenceTab } from "../components/tabs/EvidenceTab";
-import { IdeasTab } from "../components/tabs/IdeasTab";
-import { OverviewTab } from "../components/tabs/OverviewTab";
-import { ReportTab } from "../components/tabs/ReportTab";
-import { TournamentTab } from "../components/tabs/TournamentTab";
+} from '@/api/runs';
+import {type StreamEvent, useRunStream} from '@/hooks/useRunStream';
+import {MdSecondaryTabs} from '@/md3/MdTabs';
+import {IdeaModal} from '../components/IdeaModal';
+import {RunStatusPill} from '../components/RunStatusPill';
+import {ChatTab} from '../components/tabs/ChatTab';
+import {EvidenceTab} from '../components/tabs/EvidenceTab';
+import {IdeasTab} from '../components/tabs/IdeasTab';
+import {OverviewTab} from '../components/tabs/OverviewTab';
+import {ReportTab} from '../components/tabs/ReportTab';
+import {TournamentTab} from '../components/tabs/TournamentTab';
 
-const TABS = ["overview", "ideas", "evidence", "tournament", "report", "chat"] as const;
+const TABS = [
+  'overview',
+  'ideas',
+  'evidence',
+  'tournament',
+  'report',
+  'chat',
+] as const;
 type TabName = (typeof TABS)[number];
 
 const TAB_ICON_NAMES: Record<TabName, string> = {
-  overview: "monitoring",
-  ideas: "format_list_numbered",
-  evidence: "menu_book",
-  tournament: "compare_arrows",
-  report: "description",
-  chat: "chat",
+  overview: 'monitoring',
+  ideas: 'format_list_numbered',
+  evidence: 'menu_book',
+  tournament: 'compare_arrows',
+  report: 'description',
+  chat: 'chat',
 };
 
 export function RunDetail() {
-  const { id, tab } = useParams<{ id: string; tab?: string }>();
+  const {id, tab} = useParams<{id: string; tab?: string}>();
   const navigate = useNavigate();
   const activeTab = (
-    tab && (TABS as readonly string[]).includes(tab) ? tab : "overview"
+    tab && (TABS as readonly string[]).includes(tab) ? tab : 'overview'
   ) as TabName;
 
   const [run, setRun] = useState<RunWithSummary | null>(null);
@@ -80,9 +87,12 @@ export function RunDetail() {
   const [focusedHypId, setFocusedHypId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  const [toast, setToast] = useState<{ type: "info" | "error"; message: string } | null>(null);
+  const [toast, setToast] = useState<{
+    type: 'info' | 'error';
+    message: string;
+  } | null>(null);
 
-  const { events, terminal, isOpen } = useRunStream(id ?? null, 0);
+  const {events, terminal, isOpen} = useRunStream(id ?? null, 0);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -122,7 +132,7 @@ export function RunDetail() {
   useEffect(() => {
     if (!events.length) return;
     const interesting = events[events.length - 1]?.type;
-    if (interesting && interesting !== "status") void refresh();
+    if (interesting && interesting !== 'status') void refresh();
   }, [events, refresh]);
 
   useEffect(() => {
@@ -132,13 +142,16 @@ export function RunDetail() {
   // Toast on terminal status.
   useEffect(() => {
     if (!terminal || !run) return;
-    if (run.status === "completed") {
-      setToast({ type: "info", message: "Run completed." });
+    if (run.status === 'completed') {
+      setToast({type: 'info', message: 'Run completed.'});
       const t = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(t);
     }
-    if (run.status === "failed" || run.status === "blocked") {
-      setToast({ type: "error", message: `Run ${run.status}${run.error ? `: ${run.error}` : ""}` });
+    if (run.status === 'failed' || run.status === 'blocked') {
+      setToast({
+        type: 'error',
+        message: `Run ${run.status}${run.error ? `: ${run.error}` : ''}`,
+      });
     }
   }, [terminal, run]);
 
@@ -153,23 +166,23 @@ export function RunDetail() {
   }, [id, refresh]);
 
   const focusedHypothesis = useMemo(
-    () => hypotheses.find((h) => h.id === focusedHypId) || null,
-    [hypotheses, focusedHypId]
+    () => hypotheses.find(h => h.id === focusedHypId) || null,
+    [hypotheses, focusedHypId],
   );
 
   const onTabChange = useCallback(
     (index: number) => {
       const t = TABS[index];
-      if (t) navigate(`/runs/${id}/${t === "overview" ? "" : t}`);
+      if (t) void navigate(`/runs/${id}/${t === 'overview' ? '' : t}`);
     },
-    [id, navigate]
+    [id, navigate],
   );
 
   if (!id) return null;
 
   const isLiveActive = isOpen && !terminal;
 
-  const tabList = TABS.map((t) => ({
+  const tabList = TABS.map(t => ({
     label: t.charAt(0).toUpperCase() + t.slice(1),
     icon: TAB_ICON_NAMES[t],
   }));
@@ -182,30 +195,30 @@ export function RunDetail() {
         <Link
           to="/runs"
           className="inline-flex items-center gap-1 text-sm hover:underline"
-          style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+          style={{color: 'var(--md-sys-color-on-surface-variant)'}}
         >
           {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
-          <md-icon aria-hidden="true" style={{ fontSize: "14px" }}>
+          <md-icon aria-hidden="true" style={{fontSize: '14px'}}>
             arrow_back
-          </md-icon>{" "}
+          </md-icon>{' '}
           All runs
         </Link>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 space-y-2">
             <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:md-typescale-headline-medium">
-              {run?.research_goal ?? "Loading…"}
+              {run?.research_goal ?? 'Loading…'}
             </h1>
             <div
               className="flex items-center gap-x-2 gap-y-1 text-sm flex-wrap"
-              style={{ color: "var(--md-sys-color-on-surface-variant)" }}
+              style={{color: 'var(--md-sys-color-on-surface-variant)'}}
             >
               {run && <RunStatusPill status={run.status} />}
               {run?.is_demo && (
                 <span
                   className="inline-block rounded px-1.5 py-0.5 text-xs font-medium"
                   style={{
-                    backgroundColor: "var(--md-sys-color-secondary-container)",
-                    color: "var(--md-sys-color-on-secondary-container)",
+                    backgroundColor: 'var(--md-sys-color-secondary-container)',
+                    color: 'var(--md-sys-color-on-secondary-container)',
                   }}
                 >
                   Example
@@ -222,31 +235,39 @@ export function RunDetail() {
               {run && (
                 <span className="inline-flex items-center gap-1">
                   <span aria-hidden="true">·</span>
-                  Provider <strong className="capitalize">{run.provider}</strong>
+                  Provider{' '}
+                  <strong className="capitalize">{run.provider}</strong>
                 </span>
               )}
               {isLiveActive && (
-                <span className="inline-flex items-center gap-1" aria-live="polite">
+                <span
+                  className="inline-flex items-center gap-1"
+                  aria-live="polite"
+                >
                   · <span className="wb-live-dot" aria-hidden="true" /> live
                 </span>
               )}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
-            <md-outlined-button onclick={(() => void refresh()) as EventListener}>
+            <md-outlined-button
+              onclick={(() => void refresh()) as EventListener}
+            >
               {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
               <md-icon slot="icon" aria-hidden="true">
                 refresh
               </md-icon>
               Refresh
             </md-outlined-button>
-            {run?.status === "running" || run?.status === "queued" ? (
+            {run?.status === 'running' || run?.status === 'queued' ? (
               <md-outlined-button
                 onclick={(() => void onCancel()) as EventListener}
                 style={
                   {
-                    "--md-outlined-button-outline-color": "var(--md-sys-color-error)",
-                    "--md-outlined-button-label-text-color": "var(--md-sys-color-error)",
+                    '--md-outlined-button-outline-color':
+                      'var(--md-sys-color-error)',
+                    '--md-outlined-button-label-text-color':
+                      'var(--md-sys-color-error)',
                   } as React.CSSProperties
                 }
               >
@@ -261,9 +282,9 @@ export function RunDetail() {
               <md-outlined-button
                 onclick={
                   (() => {
-                    const a = document.createElement("a");
+                    const a = document.createElement('a');
                     a.href = reportMarkdownUrl(id);
-                    a.download = "report.md";
+                    a.download = 'report.md';
                     a.click();
                   }) as EventListener
                 }
@@ -279,15 +300,19 @@ export function RunDetail() {
         </div>
       </header>
 
-      <MdSecondaryTabs tabs={tabList} activeIndex={activeTabIndex} onChange={onTabChange} />
+      <MdSecondaryTabs
+        tabs={tabList}
+        activeIndex={activeTabIndex}
+        onChange={onTabChange}
+      />
 
       {error && (
         <div
           role="alert"
           className="text-sm rounded border p-2"
           style={{
-            borderColor: "var(--md-sys-color-error)",
-            color: "var(--md-sys-color-error)",
+            borderColor: 'var(--md-sys-color-error)',
+            color: 'var(--md-sys-color-error)',
           }}
         >
           {error}
@@ -298,7 +323,7 @@ export function RunDetail() {
         <RunDetailSkeleton />
       ) : (
         <div className="wb-fade-in" key={activeTab}>
-          {activeTab === "overview" && (
+          {activeTab === 'overview' && (
             <OverviewTab
               run={run}
               hypotheses={hypotheses}
@@ -308,7 +333,7 @@ export function RunDetail() {
               events={events as StreamEvent[]}
             />
           )}
-          {activeTab === "ideas" && (
+          {activeTab === 'ideas' && (
             <IdeasTab
               hypotheses={hypotheses}
               citations={citations}
@@ -316,12 +341,16 @@ export function RunDetail() {
               onFocus={setFocusedHypId}
             />
           )}
-          {activeTab === "evidence" && <EvidenceTab evidence={evidence} citations={citations} />}
-          {activeTab === "tournament" && (
+          {activeTab === 'evidence' && (
+            <EvidenceTab evidence={evidence} citations={citations} />
+          )}
+          {activeTab === 'tournament' && (
             <TournamentTab matches={matches} hypotheses={hypotheses} />
           )}
-          {activeTab === "report" && <ReportTab runId={id} report={report} safety={safety} />}
-          {activeTab === "chat" && <ChatTab run={run} />}
+          {activeTab === 'report' && (
+            <ReportTab runId={id} report={report} safety={safety} />
+          )}
+          {activeTab === 'chat' && <ChatTab run={run} />}
         </div>
       )}
 
@@ -329,8 +358,12 @@ export function RunDetail() {
         <IdeaModal
           hypothesis={focusedHypothesis}
           allHypotheses={hypotheses}
-          reviews={reviews.filter((r) => r.hypothesis_id === focusedHypothesis.id)}
-          citations={citations.filter((c) => c.hypothesis_id === focusedHypothesis.id)}
+          reviews={reviews.filter(
+            r => r.hypothesis_id === focusedHypothesis.id,
+          )}
+          citations={citations.filter(
+            c => c.hypothesis_id === focusedHypothesis.id,
+          )}
           evidence={evidence}
           onClose={() => setFocusedHypId(null)}
         />
@@ -343,11 +376,11 @@ export function RunDetail() {
           className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-auto z-50 rounded border px-3 py-2 text-sm shadow-lg wb-fade-in"
           style={{
             borderColor:
-              toast.type === "error"
-                ? "var(--md-sys-color-error)"
-                : "var(--md-sys-color-outline-variant)",
-            backgroundColor: "var(--md-sys-color-surface-container)",
-            color: "var(--md-sys-color-on-surface)",
+              toast.type === 'error'
+                ? 'var(--md-sys-color-error)'
+                : 'var(--md-sys-color-outline-variant)',
+            backgroundColor: 'var(--md-sys-color-surface-container)',
+            color: 'var(--md-sys-color-on-surface)',
           }}
         >
           {toast.message}
@@ -362,7 +395,7 @@ function RunDetailSkeleton() {
     <div className="space-y-3" aria-busy="true">
       <div className="wb-skeleton h-32 w-full" />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {["sk-a", "sk-b", "sk-c", "sk-d"].map((k) => (
+        {['sk-a', 'sk-b', 'sk-c', 'sk-d'].map(k => (
           <div key={k} className="wb-skeleton h-24" />
         ))}
       </div>

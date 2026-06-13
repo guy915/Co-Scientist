@@ -13,22 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-import type {ReactNode} from 'react';
-import {Link} from 'react-router-dom';
-
-export function PublicLinkButton({
-  to,
-  variant = 'filled',
-  children,
-}: {
-  to: string;
-  variant?: 'filled' | 'outline';
-  children: ReactNode;
-}) {
-  return (
-    <Link className={`public-button public-button--${variant}`} to={to}>
-      {children}
-    </Link>
-  );
-}
+module.exports = [
+  {
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '.vercel/**',
+      'scripts/**',
+      'eslint.config.cjs',
+      '.prettierrc.cjs',
+      'vite.config.ts',
+    ],
+  },
+  ...require('gts'),
+];

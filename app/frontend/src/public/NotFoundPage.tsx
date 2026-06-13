@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { PublicLinkButton } from "./PublicLinkButton";
-import { Seo } from "./Seo";
+import {PublicLinkButton} from './PublicLinkButton';
+import {Seo} from './Seo';
 
 export function NotFoundPage() {
   return (

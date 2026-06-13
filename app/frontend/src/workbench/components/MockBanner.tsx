@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import "@material/web/icon/icon.js";
-import { useEffect, useState } from "react";
-import { getSystemStatus, type SystemStatus } from "@/api/runs";
+import '@material/web/icon/icon.js';
+import {useEffect, useState} from 'react';
+import {getSystemStatus, type SystemStatus} from '@/api/runs';
 
 export function MockBanner() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   useEffect(() => {
     let cancelled = false;
     getSystemStatus()
-      .then((s) => {
+      .then(s => {
         if (!cancelled) setStatus(s);
       })
       .catch(() => {
@@ -40,13 +40,13 @@ export function MockBanner() {
       <div
         className="text-xs px-6 py-1 border-t"
         style={{
-          backgroundColor: "var(--md-sys-color-secondary-container)",
-          color: "var(--md-sys-color-on-surface-variant)",
-          borderColor: "var(--md-sys-color-outline-variant)",
+          backgroundColor: 'var(--md-sys-color-secondary-container)',
+          color: 'var(--md-sys-color-on-surface-variant)',
+          borderColor: 'var(--md-sys-color-outline-variant)',
         }}
       >
-        Live engine mode &middot; provider: <strong>{status.provider}</strong> &middot; model:{" "}
-        <strong>{status.model_name}</strong>
+        Live engine mode &middot; provider: <strong>{status.provider}</strong>{' '}
+        &middot; model: <strong>{status.model_name}</strong>
       </div>
     );
   }
@@ -56,20 +56,22 @@ export function MockBanner() {
       role="status"
       className="text-xs px-6 py-1.5 border-t flex items-center gap-2"
       style={{
-        backgroundColor: "color-mix(in srgb, var(--color-th-warning) 18%, transparent)",
-        color: "var(--md-sys-color-on-surface)",
-        borderColor: "var(--md-sys-color-outline-variant)",
+        backgroundColor:
+          'color-mix(in srgb, var(--color-th-warning) 18%, transparent)',
+        color: 'var(--md-sys-color-on-surface)',
+        borderColor: 'var(--md-sys-color-outline-variant)',
       }}
     >
       {/* biome-ignore lint/a11y/noAriaHiddenOnFocusable: md-icon is a non-interactive decorative element */}
-      <md-icon aria-hidden="true" style={{ fontSize: "14px" }}>
+      <md-icon aria-hidden="true" style={{fontSize: '14px'}}>
         warning
       </md-icon>
       <span>
-        <strong>Mock Mode</strong> — no LLM provider key detected. The workflow runs deterministic
-        offline data so the full UI surface is exercisable. Set <code>GEMINI_API_KEY</code> /{" "}
-        <code>OPENAI_API_KEY</code> / <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to use the
-        real engine.
+        <strong>Mock Mode</strong> — no LLM provider key detected. The workflow
+        runs deterministic offline data so the full UI surface is exercisable.
+        Set <code>GEMINI_API_KEY</code> / <code>OPENAI_API_KEY</code> /{' '}
+        <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to use the real
+        engine.
       </span>
     </div>
   );

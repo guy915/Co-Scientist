@@ -22,12 +22,12 @@ import {
   useEffect,
   useLayoutEffect,
   useState,
-} from "react";
-import { applyMd3Theme } from "../lib/theme";
+} from 'react';
+import {applyMd3Theme} from '../lib/theme';
 
-type Mode = "light" | "dark";
+type Mode = 'light' | 'dark';
 
-const STORAGE_KEY = "coscientist-theme";
+const STORAGE_KEY = 'coscientist-theme';
 
 interface ThemeContextValue {
   mode: Mode;
@@ -38,16 +38,18 @@ interface ThemeContextValue {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getSystemMode(): Mode {
-  if (typeof window === "undefined") return "light";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  if (typeof window === 'undefined') return 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light';
 }
 
-export function ThemeProvider({ children }: { children: ReactNode }) {
+export function ThemeProvider({children}: {children: ReactNode}) {
   // User override stored in localStorage; null = follow system.
   const [userOverride, setUserOverride] = useState<Mode | null>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored === "light" || stored === "dark" ? stored : null;
+      return stored === 'light' || stored === 'dark' ? stored : null;
     } catch {
       return null;
     }
@@ -58,18 +60,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const mode: Mode = userOverride ?? systemMode;
 
   useLayoutEffect(() => {
-    applyMd3Theme(mode === "dark");
+    applyMd3Theme(mode === 'dark');
     document.documentElement.dataset.theme = mode;
-    document.documentElement.classList.toggle("dark", mode === "dark");
+    document.documentElement.classList.toggle('dark', mode === 'dark');
   }, [mode]);
 
   // Track live system changes — only applies when user hasn't overridden.
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const listener = (e: MediaQueryListEvent) => setSystemMode(e.matches ? "dark" : "light");
-    media.addEventListener("change", listener);
-    return () => media.removeEventListener("change", listener);
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const listener = (e: MediaQueryListEvent) =>
+      setSystemMode(e.matches ? 'dark' : 'light');
+    media.addEventListener('change', listener);
+    return () => media.removeEventListener('change', listener);
   }, []);
 
   const setMode = useCallback((m: Mode) => {
@@ -82,7 +85,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggle = useCallback(() => {
-    const next: Mode = mode === "dark" ? "light" : "dark";
+    const next: Mode = mode === 'dark' ? 'light' : 'dark';
     setUserOverride(next);
     try {
       localStorage.setItem(STORAGE_KEY, next);
@@ -92,12 +95,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [mode]);
 
   return (
-    <ThemeContext.Provider value={{ mode, setMode, toggle }}>{children}</ThemeContext.Provider>
+    <ThemeContext.Provider value={{mode, setMode, toggle}}>
+      {children}
+    </ThemeContext.Provider>
   );
 }
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  if (!ctx) throw new Error("useTheme used outside ThemeProvider");
+  if (!ctx) throw new Error('useTheme used outside ThemeProvider');
   return ctx;
 }

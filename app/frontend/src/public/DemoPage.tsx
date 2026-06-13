@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { listDemoRuns } from "@/api/runs";
-import { getPublicDemo } from "./demoManifest";
-import { NotFoundPage } from "./NotFoundPage";
-import { PublicLinkButton } from "./PublicLinkButton";
-import { Seo } from "./Seo";
+import {useEffect, useState} from 'react';
+import {Link, useParams} from 'react-router-dom';
+import {listDemoRuns} from '@/api/runs';
+import {getPublicDemo} from './demoManifest';
+import {NotFoundPage} from './NotFoundPage';
+import {PublicLinkButton} from './PublicLinkButton';
+import {Seo} from './Seo';
 
 export function DemoPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const {slug} = useParams<{slug: string}>();
   const demo = getPublicDemo(slug);
   const [runId, setRunId] = useState<string | null>(null);
 
@@ -31,8 +31,10 @@ export function DemoPage() {
     if (!demo) return;
     let cancelled = false;
     void listDemoRuns()
-      .then((runs) => {
-        const matchingRun = runs.find((run) => run.research_goal === demo.relatedRunGoal);
+      .then(runs => {
+        const matchingRun = runs.find(
+          run => run.research_goal === demo.relatedRunGoal,
+        );
         if (!cancelled) setRunId(matchingRun?.id ?? null);
       })
       .catch(() => {});
@@ -45,20 +47,20 @@ export function DemoPage() {
 
   const canonicalPath = `/demos/${demo.slug}`;
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Article",
+    '@context': 'https://schema.org',
+    '@type': 'Article',
     headline: demo.title,
     description: demo.summary,
     mainEntityOfPage: `https://ai-co-scientist.com${canonicalPath}`,
     author: {
-      "@type": "Organization",
-      name: "Co-Scientist",
-      url: "https://ai-co-scientist.com/",
+      '@type': 'Organization',
+      name: 'Co-Scientist',
+      url: 'https://ai-co-scientist.com/',
     },
     isPartOf: {
-      "@type": "WebSite",
-      name: "Co-Scientist",
-      url: "https://ai-co-scientist.com/",
+      '@type': 'WebSite',
+      name: 'Co-Scientist',
+      url: 'https://ai-co-scientist.com/',
     },
   };
 
@@ -97,12 +99,15 @@ export function DemoPage() {
         <section className="demo-results" aria-labelledby="hypotheses-title">
           <div className="section-heading">
             <h2 id="hypotheses-title">Featured hypotheses</h2>
-            <p>Illustrative candidates surfaced and ranked by the seeded demonstration.</p>
+            <p>
+              Illustrative candidates surfaced and ranked by the seeded
+              demonstration.
+            </p>
           </div>
           <ol>
             {demo.hypotheses.map((hypothesis, index) => (
               <li key={hypothesis.title}>
-                <span>{String(index + 1).padStart(2, "0")}</span>
+                <span>{String(index + 1).padStart(2, '0')}</span>
                 <div>
                   <h3>{hypothesis.title}</h3>
                   <p>{hypothesis.statement}</p>
@@ -123,11 +128,16 @@ export function DemoPage() {
         <section className="demo-actions">
           <div>
             <h2>Inspect the full workbench view</h2>
-            <p>Open the generated ideas, evidence, tournament, and synthesis report.</p>
+            <p>
+              Open the generated ideas, evidence, tournament, and synthesis
+              report.
+            </p>
           </div>
           <div className="landing-actions">
             {runId ? (
-              <PublicLinkButton to={`/runs/${runId}`}>Open this demo</PublicLinkButton>
+              <PublicLinkButton to={`/runs/${runId}`}>
+                Open this demo
+              </PublicLinkButton>
             ) : (
               <PublicLinkButton to="/runs">Open the workbench</PublicLinkButton>
             )}

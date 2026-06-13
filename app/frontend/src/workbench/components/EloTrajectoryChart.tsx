@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { useMemo } from "react";
-import type { Hypothesis, MatchRow } from "@/api/runs";
+import {useMemo} from 'react';
+import type {Hypothesis, MatchRow} from '@/api/runs';
 
 const PALETTE = [
-  "var(--color-th-phase0)",
-  "var(--color-th-phase1)",
-  "var(--color-th-phase2)",
-  "var(--color-th-phase3)",
-  "var(--color-th-phase4)",
+  'var(--color-th-phase0)',
+  'var(--color-th-phase1)',
+  'var(--color-th-phase2)',
+  'var(--color-th-phase3)',
+  'var(--color-th-phase4)',
 ];
 
 interface Series {
@@ -72,7 +72,8 @@ export function EloTrajectoryChart({
       setTrack(m.loser_id, m.loser_elo_after);
     }
 
-    const titleFor = (id: string) => hypotheses.find((h) => h.id === id)?.title ?? id.slice(0, 8);
+    const titleFor = (id: string) =>
+      hypotheses.find(h => h.id === id)?.title ?? id.slice(0, 8);
 
     return [...trajectories.entries()]
       .map(([id, trajectory]) => ({
@@ -90,38 +91,43 @@ export function EloTrajectoryChart({
   }
 
   // Domain: max trajectory length across all series.
-  const maxLen = Math.max(...series.map((s) => s.trajectory.length));
-  const allElos = series.flatMap((s) => s.trajectory);
+  const maxLen = Math.max(...series.map(s => s.trajectory.length));
+  const allElos = series.flatMap(s => s.trajectory);
   const minElo = Math.min(initialElo - 20, ...allElos);
   const maxElo = Math.max(initialElo + 20, ...allElos);
 
   const width = 640;
   const height = 220;
-  const padding = { top: 12, right: 12, bottom: 24, left: 40 };
+  const padding = {top: 12, right: 12, bottom: 24, left: 40};
   const innerW = width - padding.left - padding.right;
   const innerH = height - padding.top - padding.bottom;
 
-  const x = (i: number) => padding.left + (maxLen <= 1 ? 0 : (i / (maxLen - 1)) * innerW);
+  const x = (i: number) =>
+    padding.left + (maxLen <= 1 ? 0 : (i / (maxLen - 1)) * innerW);
   const y = (e: number) =>
-    padding.top + innerH - ((e - minElo) / Math.max(1, maxElo - minElo)) * innerH;
+    padding.top +
+    innerH -
+    ((e - minElo) / Math.max(1, maxElo - minElo)) * innerH;
 
   // Y-axis ticks (5).
   const ticks = 5;
   const yTicks = [...Array(ticks)].map((_, i) =>
-    Math.round(minElo + (i / (ticks - 1)) * (maxElo - minElo))
+    Math.round(minElo + (i / (ticks - 1)) * (maxElo - minElo)),
   );
 
   return (
     <section
       className="rounded border p-4 wb-fade-in"
       style={{
-        borderColor: "var(--color-th-border)",
-        backgroundColor: "var(--color-th-card)",
+        borderColor: 'var(--color-th-border)',
+        backgroundColor: 'var(--color-th-card)',
       }}
     >
       <header className="flex items-baseline justify-between mb-3">
-        <h2 className="text-sm font-semibold uppercase tracking-wide">Elo trajectories</h2>
-        <span className="text-xs" style={{ color: "var(--color-th-muted-fg)" }}>
+        <h2 className="text-sm font-semibold uppercase tracking-wide">
+          Elo trajectories
+        </h2>
+        <span className="text-xs" style={{color: 'var(--color-th-muted-fg)'}}>
           top {series.length} · {maxLen - 1} matches
         </span>
       </header>
@@ -133,7 +139,7 @@ export function EloTrajectoryChart({
           aria-label="Elo trajectory chart"
         >
           {/* Y axis grid + labels */}
-          {yTicks.map((tick) => (
+          {yTicks.map(tick => (
             <g key={tick}>
               <line
                 x1={padding.left}
@@ -169,13 +175,21 @@ export function EloTrajectoryChart({
           {series.map((s, idx) => {
             const color = PALETTE[idx % PALETTE.length];
             const path = s.trajectory
-              .map((e, i) => `${i === 0 ? "M" : "L"} ${x(i).toFixed(1)} ${y(e).toFixed(1)}`)
-              .join(" ");
+              .map(
+                (e, i) =>
+                  `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(e).toFixed(1)}`,
+              )
+              .join(' ');
             return (
               <g key={s.hypothesisId}>
                 <path d={path} fill="none" stroke={color} strokeWidth={1.75} />
                 {/* Endpoint dot */}
-                <circle cx={x(s.trajectory.length - 1)} cy={y(s.finalElo)} r={3} fill={color} />
+                <circle
+                  cx={x(s.trajectory.length - 1)}
+                  cy={y(s.finalElo)}
+                  r={3}
+                  fill={color}
+                />
               </g>
             );
           })}
@@ -196,13 +210,16 @@ export function EloTrajectoryChart({
           <li key={s.hypothesisId} className="flex items-center gap-2">
             <span
               className="inline-block w-3 h-1.5 rounded-sm shrink-0"
-              style={{ backgroundColor: PALETTE[idx % PALETTE.length] }}
+              style={{backgroundColor: PALETTE[idx % PALETTE.length]}}
               aria-hidden="true"
             />
             <span className="truncate flex-1" title={s.title}>
               {s.title}
             </span>
-            <span className="font-mono" style={{ color: "var(--color-th-muted-fg)" }}>
+            <span
+              className="font-mono"
+              style={{color: 'var(--color-th-muted-fg)'}}
+            >
               {s.finalElo}
             </span>
           </li>

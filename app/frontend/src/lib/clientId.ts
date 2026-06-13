@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-const KEY = "co_scientist_client_id";
+const KEY = 'co_scientist_client_id';
 
 export function getClientId(): string {
   let id = localStorage.getItem(KEY);

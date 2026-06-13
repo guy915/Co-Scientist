@@ -16,32 +16,32 @@
 
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
-import { getClientId } from "@/lib/clientId";
+import {getClientId} from '@/lib/clientId';
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || "";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 
 function clientHeaders(): Record<string, string> {
-  return { "X-Client-ID": getClientId() };
+  return {'X-Client-ID': getClientId()};
 }
 
 export type RunStatus =
-  | "draft"
-  | "queued"
-  | "running"
-  | "synthesizing"
-  | "completed"
-  | "failed"
-  | "blocked"
-  | "cancelled";
+  | 'draft'
+  | 'queued'
+  | 'running'
+  | 'synthesizing'
+  | 'completed'
+  | 'failed'
+  | 'blocked'
+  | 'cancelled';
 
-export type RunProfile = "standard" | "advanced";
+export type RunProfile = 'standard' | 'advanced';
 
 export interface Run {
   id: string;
   research_goal: string;
   profile: RunProfile;
   status: RunStatus;
-  provider: "mock" | "engine";
+  provider: 'mock' | 'engine';
   config: Record<string, number | string>;
   is_demo?: boolean;
   created_at: number;
@@ -122,8 +122,8 @@ export interface Review {
 }
 
 export interface SafetyDecision {
-  stage: "intake" | "final";
-  decision: "allow" | "redact" | "block";
+  stage: 'intake' | 'final';
+  decision: 'allow' | 'redact' | 'block';
   reason: string;
   matches: string[];
   created_at: number;
@@ -134,14 +134,14 @@ export interface CitationRow {
   hypothesis_id: string;
   evidence_id: string;
   claim: string;
-  state: "verified" | "partial" | "unsupported" | "unavailable";
+  state: 'verified' | 'partial' | 'unsupported' | 'unavailable';
 }
 
 export interface ReportPayload {
   research_goal: string;
   profile: RunProfile;
   provider: string;
-  leaderboard: { id: string; title: string; elo: number }[];
+  leaderboard: {id: string; title: string; elo: number}[];
   citation_summary?: Record<string, number>;
   evidence_count?: number;
   matches_count?: number;
@@ -158,9 +158,9 @@ export interface Report {
 export interface Message {
   id: number;
   run_id: string;
-  sender: "user" | "system";
+  sender: 'user' | 'system';
   content: string;
-  kind: "steering" | "qa" | "milestone";
+  kind: 'steering' | 'qa' | 'milestone';
   created_at: number;
   applied: boolean;
   status?: string;
@@ -183,22 +183,24 @@ export async function createRun(input: {
   k_factor?: number;
 }): Promise<Run> {
   const res = await fetch(`${API_BASE_URL}/api/runs`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...clientHeaders() },
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', ...clientHeaders()},
     body: JSON.stringify(input),
   });
   return jsonOrThrow<Run>(res);
 }
 
 export async function listRuns(): Promise<Run[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs`, { headers: clientHeaders() });
-  const data = await jsonOrThrow<{ runs: Run[] }>(res);
+  const res = await fetch(`${API_BASE_URL}/api/runs`, {
+    headers: clientHeaders(),
+  });
+  const data = await jsonOrThrow<{runs: Run[]}>(res);
   return data.runs;
 }
 
 export async function listDemoRuns(): Promise<Run[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs/demo`);
-  const data = await jsonOrThrow<{ runs: Run[] }>(res);
+  const data = await jsonOrThrow<{runs: Run[]}>(res);
   return data.runs;
 }
 
@@ -209,56 +211,58 @@ export async function getRun(id: string): Promise<RunWithSummary> {
 
 export async function startRun(
   id: string,
-  body: { force_provider?: "mock" | "engine" } = {}
-): Promise<{ id: string; status: string }> {
+  body: {force_provider?: 'mock' | 'engine'} = {},
+): Promise<{id: string; status: string}> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/start`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
     body: JSON.stringify(body),
   });
   return jsonOrThrow(res);
 }
 
-export async function cancelRun(id: string): Promise<{ id: string; status: string }> {
+export async function cancelRun(
+  id: string,
+): Promise<{id: string; status: string}> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/cancel`, {
-    method: "POST",
+    method: 'POST',
   });
   return jsonOrThrow(res);
 }
 
 export async function getHypotheses(id: string): Promise<Hypothesis[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/hypotheses`);
-  const data = await jsonOrThrow<{ hypotheses: Hypothesis[] }>(res);
+  const data = await jsonOrThrow<{hypotheses: Hypothesis[]}>(res);
   return data.hypotheses;
 }
 
 export async function getEvidence(id: string): Promise<Evidence[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/evidence`);
-  const data = await jsonOrThrow<{ evidence: Evidence[] }>(res);
+  const data = await jsonOrThrow<{evidence: Evidence[]}>(res);
   return data.evidence;
 }
 
 export async function getMatches(id: string): Promise<MatchRow[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/matches`);
-  const data = await jsonOrThrow<{ matches: MatchRow[] }>(res);
+  const data = await jsonOrThrow<{matches: MatchRow[]}>(res);
   return data.matches;
 }
 
 export async function getReviews(id: string): Promise<Review[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/reviews`);
-  const data = await jsonOrThrow<{ reviews: Review[] }>(res);
+  const data = await jsonOrThrow<{reviews: Review[]}>(res);
   return data.reviews;
 }
 
 export async function getSafety(id: string): Promise<SafetyDecision[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/safety`);
-  const data = await jsonOrThrow<{ safety: SafetyDecision[] }>(res);
+  const data = await jsonOrThrow<{safety: SafetyDecision[]}>(res);
   return data.safety;
 }
 
 export async function getCitations(id: string): Promise<CitationRow[]> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/citations`);
-  const data = await jsonOrThrow<{ citations: CitationRow[] }>(res);
+  const data = await jsonOrThrow<{citations: CitationRow[]}>(res);
   return data.citations;
 }
 
@@ -293,7 +297,7 @@ export interface SystemStatus {
   pubmed_available: boolean;
   literature_review_available: boolean;
   mcp_server_url: string;
-  provider: "mock" | "engine";
+  provider: 'mock' | 'engine';
   mock_mode: boolean;
   has_provider_key: boolean;
   engine_importable: boolean;
@@ -310,19 +314,19 @@ export async function listMessages(runId: string): Promise<Message[]> {
     headers: clientHeaders(),
   });
   if (!res.ok) throw new Error(`listMessages ${res.status}`);
-  const data = (await res.json()) as { messages: Message[] };
+  const data = (await res.json()) as {messages: Message[]};
   return data.messages;
 }
 
 export async function sendMessage(
   runId: string,
   content: string,
-  kind?: "steering" | "qa"
+  kind?: 'steering' | 'qa',
 ): Promise<Message> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...clientHeaders() },
-    body: JSON.stringify({ content, ...(kind ? { kind } : {}) }),
+    method: 'POST',
+    headers: {'Content-Type': 'application/json', ...clientHeaders()},
+    body: JSON.stringify({content, ...(kind ? {kind} : {})}),
   });
   if (!res.ok) throw new Error(`sendMessage ${res.status}`);
   return (await res.json()) as Message;

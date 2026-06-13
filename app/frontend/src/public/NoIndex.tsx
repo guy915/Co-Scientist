@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { Seo } from "./Seo";
+import {Seo} from './Seo';
 
-export function NoIndex({ title }: { title: string }) {
+export function NoIndex({title}: {title: string}) {
   return (
     <Seo
       title={`${title} - Co-Scientist`}

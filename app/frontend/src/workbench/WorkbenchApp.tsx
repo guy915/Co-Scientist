@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import { Route, Routes } from "react-router-dom";
-import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { DemoPage } from "@/public/DemoPage";
-import { LandingPage } from "@/public/LandingPage";
-import { NoIndex } from "@/public/NoIndex";
-import { NotFoundPage } from "@/public/NotFoundPage";
-import { useGlobalShortcuts } from "./hooks/useGlobalShortcuts";
-import { Layout } from "./Layout";
-import { Dashboard } from "./pages/Dashboard";
-import { NewRun } from "./pages/NewRun";
-import { RunDetail } from "./pages/RunDetail";
-import { ThemeProvider } from "./ThemeContext";
+import {Route, Routes} from 'react-router-dom';
+import {ErrorBoundary} from '@/components/ErrorBoundary';
+import {DemoPage} from '@/public/DemoPage';
+import {LandingPage} from '@/public/LandingPage';
+import {NoIndex} from '@/public/NoIndex';
+import {NotFoundPage} from '@/public/NotFoundPage';
+import {useGlobalShortcuts} from './hooks/useGlobalShortcuts';
+import {Layout} from './Layout';
+import {Dashboard} from './pages/Dashboard';
+import {NewRun} from './pages/NewRun';
+import {RunDetail} from './pages/RunDetail';
+import {ThemeProvider} from './ThemeContext';
 
 function ShortcutsBridge() {
   useGlobalShortcuts();

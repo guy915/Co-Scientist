@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { useEffect, useRef, useState } from "react";
-import { eventsStreamUrl } from "@/api/runs";
+import {useEffect, useRef, useState} from 'react';
+import {eventsStreamUrl} from '@/api/runs';
 
 export interface StreamEvent {
   seq: number;
@@ -36,7 +36,10 @@ export interface UseRunStreamResult {
  * Subscribe to /api/runs/{id}/events. Always replays from seq=0 so the
  * UI hydrates the entire timeline on mount, even after a refresh.
  */
-export function useRunStream(runId: string | null, after = 0): UseRunStreamResult {
+export function useRunStream(
+  runId: string | null,
+  after = 0,
+): UseRunStreamResult {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [lastSeq, setLastSeq] = useState(after);
   const [isOpen, setIsOpen] = useState(false);
@@ -59,22 +62,22 @@ export function useRunStream(runId: string | null, after = 0): UseRunStreamResul
     es.onerror = () => {
       // Browsers fire onerror on close; we use the terminal flag to suppress
       // false-positive UI errors.
-      if (!terminal) setError("Connection lost; events may be incomplete.");
+      if (!terminal) setError('Connection lost; events may be incomplete.');
       setIsOpen(false);
     };
-    es.onmessage = (msg) => {
+    es.onmessage = msg => {
       try {
         const ev = JSON.parse(msg.data) as StreamEvent;
-        if (ev.type === "_terminal") {
+        if (ev.type === '_terminal') {
           setTerminal(true);
           es.close();
           setIsOpen(false);
           return;
         }
-        setEvents((prev) => [...prev, ev]);
-        setLastSeq((prev) => Math.max(prev, ev.seq));
+        setEvents(prev => [...prev, ev]);
+        setLastSeq(prev => Math.max(prev, ev.seq));
       } catch (e) {
-        console.error("[useRunStream] parse failed", e);
+        console.error('[useRunStream] parse failed', e);
       }
     };
 
@@ -83,8 +86,8 @@ export function useRunStream(runId: string | null, after = 0): UseRunStreamResul
       sourceRef.current = null;
       setIsOpen(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Re-subscribe only when runId changes; other referenced setters are stable.
   }, [runId]);
 
-  return { events, lastSeq, isOpen, error, terminal };
+  return {events, lastSeq, isOpen, error, terminal};
 }
