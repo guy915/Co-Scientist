@@ -11,6 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Configuration loader for the MCP server."""
+# pylint: disable=inconsistent-quotes
 
 import os
 import logging
@@ -25,10 +27,12 @@ env_path = Path(__file__).parent / '.env'
 
 if env_path.exists():
     load_dotenv(dotenv_path=env_path)
-    logger.info(f"Loaded environment from {env_path}")
+    logger.info("Loaded environment from %s", env_path)
 else:
-    logger.warning(f".env file not found at {env_path} - using system environment only")
+    logger.warning(".env file not found at %s - using system environment only",
+                   env_path)
 
 # logging config
-LOG_LEVEL = os.environ.get('COSCIENTIST_MCP_LOG_LEVEL') or os.environ.get('LOG_LEVEL', 'INFO')
+LOG_LEVEL = os.environ.get('COSCIENTIST_MCP_LOG_LEVEL') or os.environ.get(
+    'LOG_LEVEL', 'INFO')
 LOG_LEVEL = LOG_LEVEL.upper()

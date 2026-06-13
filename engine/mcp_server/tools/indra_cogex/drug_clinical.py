@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Drug target, indication, side effect, and clinical trial queries.
-"""
+"""Drug target, indication, side effect, and clinical trial queries."""
 
 import logging
 from typing import Any
@@ -37,14 +34,15 @@ async def query_drug_info(
     query_type: str = "targets",
     max_results: int = 50,
 ) -> dict[str, Any]:
-    """Query drug-related information from the INDRA knowledge graph.
+    """Queries drug-related information from the INDRA knowledge graph.
 
-    Look up drug targets (proteins), drugs for a protein target,
+    Looks up drug targets (proteins), drugs for a protein target,
     therapeutic indications, or known side effects.
 
     Args:
         identifier: Entity in "NAMESPACE:id" format.
-            For drugs: "CHEBI:CHEBI:27690" (metformin), "CHEBI:CHEBI:90227" (sotorasib)
+            For drugs: "CHEBI:CHEBI:27690" (metformin),
+                "CHEBI:CHEBI:90227" (sotorasib)
             For protein targets: "HGNC:6407" (KRAS), "HGNC:3236" (EGFR)
         query_type: What to query:
             "targets" - protein targets of this drug (identifier=drug)
@@ -56,10 +54,13 @@ async def query_drug_info(
     Returns:
         Dict with query results and metadata.
     """
-    try:
+    try:  # pylint: disable=broad-exception-caught
         curie = parse_id(identifier)
         result: dict[str, Any] = {
-            "query": {"identifier": identifier, "query_type": query_type},
+            "query": {
+                "identifier": identifier,
+                "query_type": query_type
+            },
         }
 
         if query_type not in _DRUG_ENDPOINTS:
@@ -73,11 +74,14 @@ async def query_drug_info(
         result[f"total_{result_key}"] = total
         return result
 
-    except Exception as e:
-        logger.error(f"query_drug_info failed: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("query_drug_info failed: %s", e)
         return {
             "error": str(e),
-            "query": {"identifier": identifier, "query_type": query_type},
+            "query": {
+                "identifier": identifier,
+                "query_type": query_type
+            },
         }
 
 
@@ -86,9 +90,9 @@ async def query_clinical_trials(
     entity_type: str = "disease",
     max_results: int = 50,
 ) -> dict[str, Any]:
-    """Query clinical trial data from the INDRA knowledge graph.
+    """Queries clinical trial data from the INDRA knowledge graph.
 
-    Find clinical trials associated with a specific disease or drug.
+    Finds clinical trials associated with a specific disease or drug.
 
     Args:
         identifier: Entity in "NAMESPACE:id" format.
@@ -100,30 +104,39 @@ async def query_clinical_trials(
     Returns:
         Dict with clinical trials and metadata.
     """
-    try:
+    try:  # pylint: disable=broad-exception-caught
         curie = parse_id(identifier)
 
         if entity_type == "disease":
             raw = await indra_post(
-                "/api/get_trials_for_disease", {"disease": curie},
+                "/api/get_trials_for_disease",
+                {"disease": curie},
             )
         elif entity_type == "drug":
             raw = await indra_post(
-                "/api/get_trials_for_drug", {"drug": curie},
+                "/api/get_trials_for_drug",
+                {"drug": curie},
             )
         else:
-            return {"error": f"invalid entity_type '{entity_type}', use 'disease' or 'drug'"}
+            entity_err = f"invalid entity_type '{entity_type}'"
+            return {"error": f"{entity_err}, use 'disease' or 'drug'"}
 
         trials, total = cap_results(raw, max_results)
         return {
             "trials": trials,
             "total_trials": total,
-            "query": {"identifier": identifier, "entity_type": entity_type},
+            "query": {
+                "identifier": identifier,
+                "entity_type": entity_type
+            },
         }
 
-    except Exception as e:
-        logger.error(f"query_clinical_trials failed: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("query_clinical_trials failed: %s", e)
         return {
             "error": str(e),
-            "query": {"identifier": identifier, "entity_type": entity_type},
+            "query": {
+                "identifier": identifier,
+                "entity_type": entity_type
+            },
         }

@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Data models for literature review tools.
-"""
+"""Data models for literature review tools."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
@@ -38,7 +35,11 @@ class Article:
     used_in_analysis: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary for serialization."""
+        """Converts the article to a dictionary for serialization.
+
+        Returns:
+            Dict with all article fields.
+        """
         return {
             "title": self.title,
             "url": self.url,

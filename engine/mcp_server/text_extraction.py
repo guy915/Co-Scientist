@@ -11,13 +11,12 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Extract clean text from PMC HTML fulltext for agent consumption.
+"""Extracts clean text from PMC HTML fulltext for agent consumption.
 
 Converts PMC XML/HTML to markdown format, preserving structure while
-Removing clutter like references, figure captions, and metadata.
+removing clutter like references, figure captions, and metadata.
 """
+# pylint: disable=inconsistent-quotes
 
 import logging
 from bs4 import BeautifulSoup
@@ -25,9 +24,9 @@ from bs4 import BeautifulSoup
 logger = logging.getLogger(__name__)
 
 
-def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> str:
-    """
-    Convert PMC HTML fulltext to clean markdown.
+def extract_text_from_pmc_html(html_content: str,
+                               max_chars: int = 200_000) -> str:
+    """Converts PMC HTML fulltext to clean markdown.
 
     Preserves:
     - section headings (abstract, introduction, methods, results, discussion)
@@ -41,18 +40,19 @@ def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> s
     - figure/table captions (images not useful in text)
     - acknowledgments and funding
 
-    args:
-        html_content: raw PMC HTML/XML content
-        max_chars: maximum characters to return (truncate if exceeded)
+    Args:
+        html_content: Raw PMC HTML/XML content.
+        max_chars: Maximum characters to return (truncate if exceeded).
 
-    returns:
-        markdown-formatted text ready for LLM consumption
+    Returns:
+        Markdown-formatted text ready for LLM consumption.
     """
-    try:
+    try:  # pylint: disable=broad-exception-caught
         soup = BeautifulSoup(html_content, 'lxml-xml')
 
         # remove sections we don't need
-        for tag in soup.find_all(['back', 'ref-list', 'ack', 'fn-group', 'fig', 'table-wrap']):
+        for tag in soup.find_all(
+            ['back', 'ref-list', 'ack', 'fn-group', 'fig', 'table-wrap']):
             tag.decompose()
 
         # extract abstract
@@ -61,7 +61,8 @@ def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> s
         if abstract:
             paragraphs = abstract.find_all('p')
             if paragraphs:
-                abstract_text = '\n\n'.join(p.get_text(strip=True) for p in paragraphs)
+                abstract_text = '\n\n'.join(
+                    p.get_text(strip=True) for p in paragraphs)
             else:
                 # sometimes abstract is just text without paragraphs
                 abstract_text = abstract.get_text(strip=True)
@@ -73,7 +74,8 @@ def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> s
             for section in body.find_all('sec', recursive=True):
                 # get section heading
                 heading = section.find(['title', 'label'])
-                heading_text = heading.get_text(strip=True) if heading else "section"
+                heading_text = heading.get_text(
+                    strip=True) if heading else "section"
 
                 # skip nested sections (we'll get them separately)
                 # only process top-level sections
@@ -85,9 +87,12 @@ def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> s
                         if text:
                             paragraphs.append(text)
 
-                    # also check for paragraphs in direct children that aren't sections
+                    # also check for paragraphs in direct children
+                    # (not nested sections)
                     for child in section.children:
-                        if hasattr(child, 'name') and child.name not in ['sec', 'title', 'label']:
+                        if hasattr(child, 'name') and child.name not in [
+                                'sec', 'title', 'label'
+                        ]:
                             for p in child.find_all('p'):
                                 text = p.get_text(strip=True)
                                 if text:
@@ -108,20 +113,23 @@ def extract_text_from_pmc_html(html_content: str, max_chars: int = 200_000) -> s
 
         # truncate if too long
         if len(markdown) > max_chars:
-            logger.info(f"Truncating extracted text from {len(markdown)} to {max_chars} chars")
-            markdown = markdown[:max_chars] + "\n\n[... truncated for length ...]"
+            logger.info("Truncating extracted text from %s to %s chars",
+                        len(markdown), max_chars)
+            markdown = (markdown[:max_chars] +
+                        "\n\n[... truncated for length ...]")
 
         return markdown
 
-    except Exception as e:
-        logger.error(f"Failed to extract text from PMC HTML: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Failed to extract text from PMC HTML: %s", e)
         # fallback: return raw text extraction
-        try:
+        try:  # pylint: disable=broad-exception-caught
             soup = BeautifulSoup(html_content, 'lxml-xml')
             text = soup.get_text(separator='\n', strip=True)
             if len(text) > max_chars:
                 text = text[:max_chars] + "\n\n[... truncated for length ...]"
             return text
-        except Exception as fallback_error:
-            logger.error(f"Fallback text extraction also failed: {fallback_error}")
+        except Exception as fallback_error:  # pylint: disable=broad-exception-caught
+            logger.error("Fallback text extraction also failed: %s",
+                         fallback_error)
             return "[error: could not extract text from HTML]"

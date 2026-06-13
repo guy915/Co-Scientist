@@ -32,8 +32,8 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
+    "yapf>=0.43.0",
+    "pylint>=3.3",
 ]
 
 
@@ -41,11 +41,9 @@ dev = [
 where = ["."]
 include = ["mcp_server*"]
 
-[tool.black]
-line-length = 88
-
-[tool.ruff]
-line-length = 88
+[tool.yapf]
+based_on_style = "google"
+column_limit = 80
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

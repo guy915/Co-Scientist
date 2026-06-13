@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Biological pathway and causal subnetwork queries against INDRA CoGex.
-"""
+"""Biological pathway and causal subnetwork queries against INDRA CoGex."""
 
 import logging
 from typing import Any
@@ -28,7 +25,7 @@ async def query_pathways(
     gene_ids: list[str],
     max_results: int = 50,
 ) -> dict[str, Any]:
-    """Query biological pathways for genes from the INDRA knowledge graph.
+    """Queries biological pathways for genes from the INDRA knowledge graph.
 
     For a single gene, returns all pathways containing that gene.
     For multiple genes, returns shared pathways across all of them.
@@ -42,28 +39,33 @@ async def query_pathways(
     Returns:
         Dict with pathways and metadata.
     """
-    try:
+    try:  # pylint: disable=broad-exception-caught
         curies = [parse_id(gid) for gid in gene_ids]
         mode = "shared" if len(curies) > 1 else "single"
 
         if len(curies) == 1:
             raw = await indra_post(
-                "/api/get_pathways_for_gene", {"gene": curies[0]},
+                "/api/get_pathways_for_gene",
+                {"gene": curies[0]},
             )
         else:
             raw = await indra_post(
-                "/api/get_shared_pathways_for_genes", {"genes": curies},
+                "/api/get_shared_pathways_for_genes",
+                {"genes": curies},
             )
 
         pathways, total = cap_results(raw, max_results)
         return {
             "pathways": pathways,
             "total_pathways": total,
-            "query": {"gene_ids": gene_ids, "mode": mode},
+            "query": {
+                "gene_ids": gene_ids,
+                "mode": mode
+            },
         }
 
-    except Exception as e:
-        logger.error(f"query_pathways failed: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("query_pathways failed: %s", e)
         return {"error": str(e), "query": {"gene_ids": gene_ids}}
 
 
@@ -72,16 +74,16 @@ async def query_causal_subnetwork(
     find_mediators: bool = True,
     max_results: int = 50,
 ) -> dict[str, Any]:
-    """Query causal subnetwork between biological entities from INDRA.
+    """Queries causal subnetwork between biological entities from INDRA.
 
-    Find mechanistic connections between entities. When find_mediators is True,
-    discovers intermediate nodes X such that A -> X -> B, revealing indirect
-    regulatory pathways.
+    Finds mechanistic connections between entities. When find_mediators is
+    True, discovers intermediate nodes X such that A -> X -> B, revealing
+    indirect regulatory pathways.
 
     Args:
         node_ids: Two or more entity identifiers in "NAMESPACE:id" format.
-            E.g. ["HGNC:6407", "HGNC:5173"] to find paths between KRAS and HRAS.
-            Supports genes (HGNC), protein families (FPLX), etc.
+            E.g. ["HGNC:6407", "HGNC:5173"] to find paths between KRAS and
+            HRAS. Supports genes (HGNC), protein families (FPLX), etc.
         find_mediators: If True (default), find mediated pathways (A -> X -> B).
             If False, return direct relations between the given nodes.
         max_results: Max relations to return (default 50).
@@ -89,7 +91,7 @@ async def query_causal_subnetwork(
     Returns:
         Dict with subnetwork relations and metadata.
     """
-    try:
+    try:  # pylint: disable=broad-exception-caught
         curies = [parse_id(nid) for nid in node_ids]
 
         if find_mediators:
@@ -107,9 +109,12 @@ async def query_causal_subnetwork(
         return {
             "subnetwork": items,
             "total_relations": total,
-            "query": {"node_ids": node_ids, "find_mediators": find_mediators},
+            "query": {
+                "node_ids": node_ids,
+                "find_mediators": find_mediators
+            },
         }
 
-    except Exception as e:
-        logger.error(f"query_causal_subnetwork failed: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("query_causal_subnetwork failed: %s", e)
         return {"error": str(e), "query": {"node_ids": node_ids}}

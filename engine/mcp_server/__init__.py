@@ -11,12 +11,10 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Co-Scientist literature review MCP server.
 
-"""
-coscientist literature review mcp server
-
-reference implementation of mcp tools for literature review.
-includes tools for searching academic papers, reading PDFs, and querying PDF content.
+Reference implementation of MCP tools for literature review. Includes tools
+for searching academic papers, reading PDFs, and querying PDF content.
 """
 
 __version__ = "0.1.0"

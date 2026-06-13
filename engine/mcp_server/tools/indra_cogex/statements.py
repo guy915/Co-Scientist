@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-INDRA mechanistic statement queries - the core knowledge retrieval tool.
+"""INDRA mechanistic statement queries - the core knowledge retrieval tool.
 
 INDRA statements are machine-readable causal assertions extracted from
 biomedical literature (e.g. "KRAS activates RAF1", "Sotorasib inhibits KRAS").
@@ -36,7 +34,7 @@ async def query_mechanistic_statements(
     limit: int = 30,
     evidence_limit: int = 5,
 ) -> dict[str, Any]:
-    """Query INDRA mechanistic statements from curated biomedical knowledge.
+    """Queries INDRA mechanistic statements from curated biomedical knowledge.
 
     INDRA statements are structured causal claims extracted and curated from
     scientific papers. This is the primary tool for accessing INDRA's unique
@@ -44,21 +42,22 @@ async def query_mechanistic_statements(
 
     Two query modes:
     1. By agent names: find statements about specific genes/proteins/drugs.
-       Accepts plain names ("KRAS", "EGFR", "sotorasib") or CURIEs ("HGNC:6407").
+       Accepts plain names ("KRAS", "EGFR", "sotorasib") or CURIEs
+       ("HGNC:6407").
     2. By MeSH term: find all statements annotated with a disease/topic.
 
     Args:
         agent: Gene, protein, or drug name (e.g. "KRAS", "EGFR", "sotorasib").
             Also accepts "NAMESPACE:id" identifiers like "HGNC:6407".
-        other_agent: Second entity to find relationships between
-            (e.g. agent="KRAS", other_agent="RAF1").
+        other_agent: Second entity to find relationships between (e.g.
+            agent="KRAS", other_agent="RAF1").
         relation_types: Filter by relationship type(s). Common types:
             Activation, Inhibition, Phosphorylation, IncreaseAmount,
             DecreaseAmount, Complex, Deactivation, Influence
         agent_role: "subject" or "object" to constrain the agent's causal role.
-        mesh_term: MeSH disease/topic ID in "MESH:id" format to query statements
-            annotated with that term. E.g. "MESH:D002289" (lung neoplasms),
-            "MESH:D000544" (Alzheimer disease).
+        mesh_term: MeSH disease/topic ID in "MESH:id" format to query
+            statements annotated with that term. E.g. "MESH:D002289" (lung
+            neoplasms), "MESH:D000544" (Alzheimer disease).
         limit: Max statements to return (default 30).
         evidence_limit: Max evidence entries per statement (default 5).
 
@@ -72,23 +71,31 @@ async def query_mechanistic_statements(
         "relation_types": relation_types,
     }
 
-    try:
+    try:  # pylint: disable=broad-exception-caught
         if mesh_term:
             return await _query_by_mesh(
-                mesh_term, evidence_limit, limit, query_meta,
+                mesh_term,
+                evidence_limit,
+                limit,
+                query_meta,
             )
         if agent:
             return await _query_by_agents(
-                agent, other_agent, relation_types, agent_role,
-                limit, evidence_limit, query_meta,
+                agent,
+                other_agent,
+                relation_types,
+                agent_role,
+                limit,
+                evidence_limit,
+                query_meta,
             )
         return {
             "error": "provide either 'agent' or 'mesh_term'",
             "query": query_meta,
         }
 
-    except Exception as e:
-        logger.error(f"query_mechanistic_statements failed: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("query_mechanistic_statements failed: %s", e)
         return {"error": str(e), "query": query_meta}
 
 
@@ -98,14 +105,25 @@ async def _query_by_mesh(
     limit: int,
     query_meta: dict,
 ) -> dict[str, Any]:
-    """Query statements by MeSH disease/topic annotation."""
+    """Queries statements by MeSH disease/topic annotation.
+
+    Args:
+        mesh_term: MeSH identifier in "MESH:id" format.
+        evidence_limit: Max evidence entries per statement.
+        limit: Max statements to return.
+        query_meta: Query metadata dict to include in response.
+
+    Returns:
+        Dict with statements, total count, and query metadata.
+    """
     curie = parse_id(mesh_term)
-    raw = await indra_post("/api/get_stmts_for_mesh", {
-        "mesh_term": curie,
-        "include_child_terms": True,
-        "evidence_limit": evidence_limit,
-        "include_db_evidence": True,
-    })
+    raw = await indra_post(
+        "/api/get_stmts_for_mesh", {
+            "mesh_term": curie,
+            "include_child_terms": True,
+            "evidence_limit": evidence_limit,
+            "include_db_evidence": True,
+        })
     stmts, total = cap_results(raw, limit)
     return {
         "statements": stmts,
@@ -123,7 +141,20 @@ async def _query_by_agents(
     evidence_limit: int,
     query_meta: dict,
 ) -> dict[str, Any]:
-    """Query statements by agent name(s) and optional filters."""
+    """Queries statements by agent name(s) and optional filters.
+
+    Args:
+        agent: Primary agent name or CURIE.
+        other_agent: Optional secondary agent name or CURIE.
+        relation_types: Optional list of relation type filters.
+        agent_role: Optional role constraint ("subject" or "object").
+        limit: Max statements to return.
+        evidence_limit: Max evidence entries per statement.
+        query_meta: Query metadata dict to include in response.
+
+    Returns:
+        Dict with statements, total count, and query metadata.
+    """
     payload: dict[str, Any] = {
         "agent": maybe_parse_agent(agent),
         "limit": limit,
