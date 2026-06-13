@@ -1,6 +1,13 @@
 # Fidelity to Google DeepMind's AI Co-Scientist
 
-The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product captures in `media/`) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants the clone preserves, which are **clone-defined** (chosen by us to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
+The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
+public demos, and the product captures in `media/`) describe the system at the
+level of agent roles, behavioural invariants, and final-product UX. They do
+**not** publish numeric hyperparameters, ranking constants, prompt details, or
+persistence schemas. This document catalogues which invariants the clone
+preserves, which are **clone-defined** (chosen to satisfy the spirit of the
+published behaviour without overspecifying), and which are explicitly out of
+scope.
 
 ## Invariants preserved exactly
 
@@ -20,7 +27,9 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 
 ## Clone-defined values
 
-Because the source materials do not publish these numbers, the clone fixes deterministic defaults that match the published behaviour at the structural level. All are configurable via env or the run-config request body.
+Because the source materials do not publish these numbers, the clone fixes
+deterministic defaults that match the published behaviour at the structural
+level. All are configurable via env or the run-config request body.
 
 | Value | Default | Source of decision |
 | --- | --- | --- |
@@ -35,29 +44,46 @@ Because the source materials do not publish these numbers, the clone fixes deter
 
 ## Explicitly out of scope (this pass)
 
-These features are described in the published material but not implemented in this clone:
+These features are described in the published material but not implemented in
+this clone:
 
-- **Real-time literature retrieval against PubMed/Europe PMC.** Mock evidence is generated deterministically; the real engine path retains the MCP-based retrieval the upstream `co_scientist` engine provides, but no live retrieval is wired into the FastAPI runs adapter beyond what the engine already does.
-- **Distributed worker queue.** A Celery+Redis backend is sketched in `PLAN.md` but not implemented; runs execute in a FastAPI background task.
-- **Multi-user collaboration, authentication, and project ownership.** Local-first only.
-- **Full Computational Discovery and Literature Insights surfaces from the Google Labs product family.** Only Hypothesis Generation is built.
-- **PDF / LaTeX export.** Markdown + JSON only.
-- **Vector / hybrid retrieval.** The store has no vector column; proximity clustering in mock mode is a constant-id strategy.
+-   **Real-time literature retrieval against PubMed/Europe PMC.** Mock evidence
+    is generated deterministically; the real engine path retains the MCP-based
+    retrieval the upstream `co_scientist` engine provides, but no live retrieval
+    is wired into the FastAPI runs adapter beyond what the engine already does.
+-   **Distributed worker queue.** A Celery+Redis backend is sketched in
+    `PLAN.md` but not implemented; runs execute in a FastAPI background task.
+-   **Multi-user collaboration, authentication, and project ownership.**
+    Local-first only.
+-   **Full Computational Discovery and Literature Insights surfaces from the
+    Google Labs product family.** Only Hypothesis Generation is built.
+-   **PDF / LaTeX export.** Markdown + JSON only.
+-   **Vector / hybrid retrieval.** The store has no vector column; proximity
+    clustering in mock mode is a constant-id strategy.
 
 ## Mock Mode disclosure
 
-When no LLM key is set, the workbench surfaces a "Mock Mode" banner on every page and the `/status` endpoint reports `mock_mode: true`. The persisted `runs.provider` column records which provider produced each run so historical runs from one mode are clearly distinguishable from the other.
+When no LLM key is set, the workbench surfaces a "Mock Mode" banner on every
+page and the `/status` endpoint reports `mock_mode: true`. The persisted
+`runs.provider` column records which provider produced each run so historical
+runs from one mode are clearly distinguishable from the other.
 
-The mock workflow is **deterministic**: same goal + same profile + same `run_id` produces byte-identical hypotheses, citations, and matchups. This is intentional — it lets the clone behave like a published academic artefact rather than a demo that drifts run-to-run.
+The mock workflow is **deterministic**: same goal + same profile + same
+`run_id` produces byte-identical hypotheses, citations, and matchups. This is
+intentional — it lets the clone behave like a published academic artefact
+rather than a demo that drifts run-to-run.
 
 ## Calibration against the published research
 
-The "Towards an AI co-scientist" paper is the primary fidelity reference. The clone matches its described behaviour on:
+The "Towards an AI co-scientist" paper is the primary fidelity reference. The
+clone matches its described behaviour on:
 
-- The "generate → debate → evolve" core loop, under a persistent supervisor.
-- Hypotheses receive deeper review when they rank highly (top-k evolution).
-- Proximity clustering guides deduplication and pairing.
-- The final report distinguishes verified, partially supported, and unsupported claims.
-- Safety as a fail-closed gate on hazardous biomedical / chemical content.
+-   The "generate → debate → evolve" core loop, under a persistent supervisor.
+-   Hypotheses receive deeper review when they rank highly (top-k evolution).
+-   Proximity clustering guides deduplication and pairing.
+-   The final report distinguishes verified, partially supported, and
+    unsupported claims.
+-   Safety as a fail-closed gate on hazardous biomedical / chemical content.
 
-Where the paper is silent (specific Elo K, exact pool sizes, prompt templates, regex patterns), the clone makes pragmatic choices and documents them here.
+Where the paper is silent (specific Elo K, exact pool sizes, prompt templates,
+regex patterns), the clone makes pragmatic choices and documents them here.

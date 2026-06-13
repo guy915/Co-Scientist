@@ -1,6 +1,7 @@
 # Architecture
 
-This document describes the runtime shape of the clone after the integration pass.
+This document describes the runtime shape of the clone after the integration
+pass.
 
 ## Layers
 
@@ -52,7 +53,8 @@ This document describes the runtime shape of the clone after the integration pas
 
 ## Pipeline events (canonical timeline)
 
-The mock workflow and the engine adapter both emit events into the same event-log table. The mock workflow guarantees the full sequence:
+The mock workflow and the engine adapter both emit events into the same
+event-log table. The mock workflow guarantees the full sequence:
 
 ```
 1.  lifecycle      (created)
@@ -96,31 +98,45 @@ Tables (SQLite, WAL):
 | `safety_decisions` | append-only | intake + final |
 | `reports` | append-only | structured JSON + path to `reports/<run>.md` |
 
-`hypothesis_state` is the critical decoupling: it holds the values that *must* change as the run progresses (Elo, win counts) without violating the rule that an original hypothesis row is the historical record of what was generated.
+`hypothesis_state` is the critical decoupling: it holds the values that *must*
+change as the run progresses (Elo, win counts) without violating the rule that
+an original hypothesis row is the historical record of what was generated.
 
 ## Provider selection
 
 `engine_adapter.select_provider()` returns `"engine"` iff:
 
 1. `COSCIENTIST_FORCE_MOCK` is unset, AND
-2. at least one of `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` is set, AND
+2. at least one of `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` is
+   set, AND
 3. `co_scientist` is importable.
 
-Otherwise it returns `"mock"`. The chosen value is persisted on the run row so a re-opened run remembers which engine produced it.
+Otherwise it returns `"mock"`. The chosen value is persisted on the run row so a
+re-opened run remembers which engine produced it.
 
 ## Frontend state
 
 The workbench holds no durable state in the browser. On mount it:
 
 1. Calls `getRun(id)` for status + summary counts.
-2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getSafety / getCitations / getReport` in parallel.
-3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every event since the run started, then tails live.
+2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getSafety /
+   getCitations / getReport` in parallel.
+3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every
+   event since the run started, then tails live.
 
-This means a hard refresh, a backend restart, or a new browser session all produce the same view.
+This means a hard refresh, a backend restart, or a new browser session all
+produce the same view.
 
 ## Why this shape
 
-- Original engine LangGraph workflow is preserved — `engine_adapter.run_workflow` calls the engine when a key is available, only translating event names.
-- FastAPI single-file app is preserved; the new router is mounted alongside the existing `/generate` endpoints.
-- Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + Biome. New code lives under `src/workbench/`; legacy single-page shell remains on disk but is no longer mounted.
-- The mock workflow exists so the system has **observable behaviour without any external dependency**. This unlocks CI, deterministic tests, and a usable demo without provider keys.
+-   Original engine LangGraph workflow is preserved —
+    `engine_adapter.run_workflow` calls the engine when a key is available, only
+    translating event names.
+-   FastAPI single-file app is preserved; the new router is mounted alongside
+    the existing `/generate` endpoints.
+-   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + Biome.
+    New code lives under `src/workbench/`; legacy single-page shell remains on
+    disk but is no longer mounted.
+-   The mock workflow exists so the system has **observable behaviour without
+    any external dependency**. This unlocks CI, deterministic tests, and a
+    usable demo without provider keys.
