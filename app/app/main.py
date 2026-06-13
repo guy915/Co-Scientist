@@ -256,7 +256,7 @@ class ParsedResearchGoal(BaseModel):
 
 
 def _get_parse_cache_dir() -> Path:
-    """get the viewer parse cache directory."""
+    """Get the viewer parse cache directory."""
     cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", ".coscientist_cache")
     parse_cache_dir = Path(cache_dir) / "viewer-cache"
     parse_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -264,7 +264,7 @@ def _get_parse_cache_dir() -> Path:
 
 
 def _get_cached_parse(raw_input: str) -> ParsedResearchGoal | None:
-    """get cached parsed research goal if available."""
+    """Get cached parsed research goal if available."""
     try:
         cache_dir = _get_parse_cache_dir()
         cache_key = hashlib.md5(raw_input.encode()).hexdigest()
@@ -282,7 +282,7 @@ def _get_cached_parse(raw_input: str) -> ParsedResearchGoal | None:
 
 
 def _cache_parse(raw_input: str, parsed: ParsedResearchGoal) -> None:
-    """cache parsed research goal to disk."""
+    """Cache parsed research goal to disk."""
     try:
         cache_dir = _get_parse_cache_dir()
         cache_key = hashlib.md5(raw_input.encode()).hexdigest()

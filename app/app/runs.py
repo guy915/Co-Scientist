@@ -19,7 +19,7 @@ Endpoints:
 - GET    /api/runs/{id}                   read run + summary counts
 - POST   /api/runs/{id}/start             start the workflow (background)
 - POST   /api/runs/{id}/cancel            cancel a running workflow
-- GET    /api/runs/{id}/events            SSE stream (live + replay from `?after=`)  # pylint: disable=line-too-long
+- GET    /api/runs/{id}/events         SSE stream (live + replay from `?after=`)
 - GET    /api/runs/{id}/hypotheses        list hypotheses with state + lineage
 - GET    /api/runs/{id}/evidence          list retrieved evidence
 - GET    /api/runs/{id}/matches           tournament matches

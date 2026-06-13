@@ -26,7 +26,6 @@ Design choices:
 - Reports are stored both as a structured JSON blob and a rendered Markdown
   artifact on disk (path tracked in the row).
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -559,9 +558,10 @@ def update_hypothesis_state(
     sets.append("updated_at=?")
     params.append(_now())
     params.append(hypothesis_id)
+    set_clause = ", ".join(sets)
     with connect(db_path) as conn:
         conn.execute(
-            f"UPDATE hypothesis_state SET {', '.join(sets)} WHERE hypothesis_id=?",  # pylint: disable=line-too-long
+            f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",  # pylint: disable=line-too-long
             params,
         )
 
