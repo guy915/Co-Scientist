@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Prompt loading and template substitution utilities.
+"""Prompt loading and template substitution utilities.
 
 All prompts are stored as markdown files in the prompts/ directory.
 """
@@ -29,15 +27,13 @@ logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-
 # helper functions for saving prompts to disk
 
 
 def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
-    """
-    Get path for saving a filled-in prompt to disk for debugging
+    """Get path for saving a filled-in prompt to disk for debugging.
 
-    Ensures the output directory exists and returns the full path
+    Ensures the output directory exists and returns the full path.
 
     args:
         run_id: unique run identifier (from state)
@@ -60,11 +56,11 @@ def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
     return prompts_dir / prompt_name
 
 
-def save_prompt_to_disk(
-    run_id: str, prompt_name: str, content: str, metadata: Dict[str, Any] | None = None
-) -> bool:
-    """
-    Save a filled-in prompt to disk for debugging
+def save_prompt_to_disk(run_id: str,
+                        prompt_name: str,
+                        content: str,
+                        metadata: Dict[str, Any] | None = None) -> bool:
+    """Save a filled-in prompt to disk for debugging.
 
     args:
         run_id: unique run identifier
@@ -78,7 +74,7 @@ def save_prompt_to_disk(
     try:
         path = get_prompt_save_path(run_id, prompt_name)
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
             # append metadata if provided
@@ -90,14 +86,14 @@ def save_prompt_to_disk(
         logger.debug(f"Saved prompt to: {path}")
         return True
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning(f"Failed to save prompt to disk: {e}")
         return False
 
 
-def load_prompt(prompt_name: str, variables: Dict[str, Any] | None = None) -> str:
-    """
-    Load a prompt from a markdown file and substitute variables.
+def load_prompt(prompt_name: str,
+                variables: Dict[str, Any] | None = None) -> str:
+    """Load a prompt from a markdown file and substitute variables.
 
     Args:
         prompt_name: Name of the prompt file (without .md extension)
@@ -125,10 +121,10 @@ def load_prompt(prompt_name: str, variables: Dict[str, Any] | None = None) -> st
 
 
 def load_prompt_with_schema(
-    prompt_name: str, variables: Dict[str, Any] | None = None
+    prompt_name: str,
+    variables: Dict[str, Any] | None = None
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """
-    Load a prompt and its associated JSON schema.
+    """Load a prompt and its associated JSON schema.
 
     Args:
         prompt_name: Name of the prompt file (without .md extension)
@@ -146,8 +142,7 @@ def load_prompt_with_schema(
 
 
 def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
-    """
-    Substitute {{variable}} placeholders in a template string.
+    """Substitute {{variable}} placeholders in a template string.
 
     Args:
         template: Template string with {{variable}} placeholders
@@ -173,9 +168,9 @@ def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
 # domain variable injection from YAML config
 
 
-def _get_domain_variables(tool_registry: Optional[Any] = None) -> Dict[str, str]:
-    """
-    Get domain-specific prompt variables from tool registry config.
+def _get_domain_variables(
+        tool_registry: Optional[Any] = None) -> Dict[str, str]:
+    """Get domain-specific prompt variables from tool registry config.
 
     Returns dict with domain_context, domain_generation_guidance,
     domain_review_guidance, domain_evolution_guidance.
@@ -191,9 +186,9 @@ def _get_domain_variables(tool_registry: Optional[Any] = None) -> Dict[str, str]
 
     if tool_registry is None:
         try:
-            from .config import get_tool_registry
+            from .config import get_tool_registry  # pylint: disable=import-outside-toplevel
             tool_registry = get_tool_registry()
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return empty
 
     if tool_registry is None:
@@ -201,7 +196,7 @@ def _get_domain_variables(tool_registry: Optional[Any] = None) -> Dict[str, str]
 
     try:
         prompts_config = tool_registry.get_prompts_config()
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return empty
 
     return {
@@ -224,36 +219,34 @@ def get_generation_prompt(
     user_hypotheses: str | None = None,
     instructions: str | None = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """
-    Get the hypothesis generation prompt and schema.
+    """Get the hypothesis generation prompt and schema.
 
     If articles_with_reasoning is provided, uses the literature review prompt.
     Otherwise, uses the debate generation prompt.
     """
     # determine which prompt to use based on whether literature review is available
     use_literature_prompt = bool(articles_with_reasoning)
-    prompt_name = (
-        "generation_debate_and_literature" if use_literature_prompt else "generation_after_debate"
-    )
+    prompt_name = ("generation_debate_and_literature"
+                   if use_literature_prompt else "generation_after_debate")
 
     # prepare common variables for both prompts
     variables = {
-        "goal": research_goal,
-        "hypotheses_count": hypotheses_count,
-        "preferences": preferences
-        or "Novel, testable, scientifically sound, specific, and diverse hypotheses",
-        "attributes": (
-            ", ".join(attributes)
-            if attributes and isinstance(attributes, list)
-            else (attributes or "N/A")
-        ),
-        "user_hypotheses": (
-            "\n".join(f"- {hyp}" for hyp in user_hypotheses)
-            if user_hypotheses and isinstance(user_hypotheses, list)
-            else (user_hypotheses or "N/A")
-        ),
-        "instructions": instructions
-        or f"Generate {hypotheses_count} diverse and novel hypotheses.",
+        "goal":
+            research_goal,
+        "hypotheses_count":
+            hypotheses_count,
+        "preferences":
+            preferences or
+            "Novel, testable, scientifically sound, specific, and diverse hypotheses",
+        "attributes": (", ".join(attributes) if attributes and
+                       isinstance(attributes, list) else (attributes or "N/A")),
+        "user_hypotheses":
+            ("\n".join(f"- {hyp}" for hyp in user_hypotheses)
+             if user_hypotheses and isinstance(user_hypotheses, list) else
+             (user_hypotheses or "N/A")),
+        "instructions":
+            instructions
+            or f"Generate {hypotheses_count} diverse and novel hypotheses.",
     }
 
     # add literature-specific variable if using literature prompt
@@ -325,10 +318,14 @@ def get_review_prompt(
     tool_registry: Optional[Any] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
     """Get the hypothesis review prompt and schema."""
-    variables = {"research_goal": research_goal, "hypothesis_text": hypothesis_text}
+    variables = {
+        "research_goal": research_goal,
+        "hypothesis_text": hypothesis_text
+    }
 
     # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_review(supervisor_guidance)
+    variables["supervisor_guidance"] = _format_supervisor_guidance_for_review(
+        supervisor_guidance)
 
     # Add meta-review context if available (for re-reviewing evolved hypotheses)
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
@@ -347,10 +344,14 @@ def get_review_batch_prompt(
     tool_registry: Optional[Any] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
     """Get the comparative batch hypothesis review prompt and schema."""
-    variables = {"research_goal": research_goal, "hypotheses_list": hypotheses_list}
+    variables = {
+        "research_goal": research_goal,
+        "hypotheses_list": hypotheses_list
+    }
 
     # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_review(supervisor_guidance)
+    variables["supervisor_guidance"] = _format_supervisor_guidance_for_review(
+        supervisor_guidance)
 
     # Add meta-review context if available (for re-reviewing evolved hypotheses)
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
@@ -362,8 +363,8 @@ def get_review_batch_prompt(
 
 
 def get_evolution_prompt(
-    original_hypothesis: str, review_feedback: str, meta_review_insights: str
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+        original_hypothesis: str, review_feedback: str,
+        meta_review_insights: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     """Get the hypothesis evolution prompt and schema."""
     return load_prompt_with_schema(
         "evolution",
@@ -394,18 +395,17 @@ def get_ranking_prompt(
     }
 
     # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_ranking(supervisor_guidance)
+    variables["supervisor_guidance"] = _format_supervisor_guidance_for_ranking(
+        supervisor_guidance)
 
     # Add review context if available
     variables["review_context"] = _format_review_context(review_a, review_b)
 
     # Add reflection notes if available
     variables["hypothesis_a_reflection_notes"] = (
-        reflection_notes_a or "No reflection notes available."
-    )
+        reflection_notes_a or "No reflection notes available.")
     variables["hypothesis_b_reflection_notes"] = (
-        reflection_notes_b or "No reflection notes available."
-    )
+        reflection_notes_b or "No reflection notes available.")
 
     # inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -417,16 +417,16 @@ def get_meta_review_prompt(
     research_goal: str,
     all_reviews: str,
     supervisor_guidance: Dict[str, Any] | None = None,
-    instructions: str | None = None,
+    instructions: str | None = None,  # pylint: disable=unused-argument
     tool_registry: Optional[Any] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
     """Get the meta-review synthesis prompt and schema."""
     variables = {"research_goal": research_goal, "all_reviews": all_reviews}
 
     # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_meta_review(
-        supervisor_guidance
-    )
+    variables[
+        "supervisor_guidance"] = _format_supervisor_guidance_for_meta_review(
+            supervisor_guidance)
 
     # inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -435,21 +435,23 @@ def get_meta_review_prompt(
 
 
 def get_proximity_prompt(
-    hypotheses: list, supervisor_guidance: Dict[str, Any] | None = None
+    hypotheses: list,
+    supervisor_guidance: Dict[str, Any] | None = None
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
     """Get the proximity/similarity analysis prompt and schema."""
-    import json
+    import json  # pylint: disable=import-outside-toplevel
 
     variables = {
-        "hypotheses": json.dumps(
-            [h["text"] if isinstance(h, dict) else h for h in hypotheses], indent=2
-        )
+        "hypotheses":
+            json.dumps(
+                [h["text"] if isinstance(h, dict) else h for h in hypotheses],
+                indent=2)
     }
 
     # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_proximity(
-        supervisor_guidance
-    )
+    variables[
+        "supervisor_guidance"] = _format_supervisor_guidance_for_proximity(
+            supervisor_guidance)
 
     return load_prompt_with_schema("proximity", variables)
 
@@ -483,17 +485,12 @@ def get_supervisor_prompt(
         "research_goal": research_goal,
         "preferences": preferences or "None provided",
         "attributes": ", ".join(attributes) if attributes else "None provided",
-        "constraints": (
-            "\n".join(f"- {c}" for c in constraints) if constraints else "None provided"
-        ),
-        "user_hypotheses": (
-            "\n".join(f"- {h}" for h in user_hypotheses) if user_hypotheses else "None provided"
-        ),
-        "user_literature": (
-            "\n".join(f"- {lit}" for lit in user_literature)
-            if user_literature
-            else "None provided"
-        ),
+        "constraints": ("\n".join(
+            f"- {c}" for c in constraints) if constraints else "None provided"),
+        "user_hypotheses": ("\n".join(f"- {h}" for h in user_hypotheses)
+                            if user_hypotheses else "None provided"),
+        "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
+                            if user_literature else "None provided"),
         "initial_hypotheses_count": initial_hypotheses_count or "not specified",
         "max_iterations": max_iterations or "not specified",
         "evolution_max_count": evolution_max_count or "not specified",
@@ -507,7 +504,8 @@ def get_supervisor_prompt(
 
 
 # Helper functions to format supervisor guidance for different contexts
-def _format_supervisor_guidance_for_review(supervisor_guidance: Dict[str, Any] | None) -> str:
+def _format_supervisor_guidance_for_review(
+        supervisor_guidance: Dict[str, Any] | None) -> str:
     """Format supervisor guidance for review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -524,12 +522,14 @@ def _format_supervisor_guidance_for_review(supervisor_guidance: Dict[str, Any] |
                 criteria = ", ".join(criteria)
             sections.append(f"**Critical Criteria to Emphasize:** {criteria}\n")
         if review_phase.get("review_depth"):
-            sections.append(f"**Review Depth Required:** {review_phase['review_depth']}\n")
+            sections.append(
+                f"**Review Depth Required:** {review_phase['review_depth']}\n")
 
     return "".join(sections) if sections else ""
 
 
-def _format_supervisor_guidance_for_ranking(supervisor_guidance: Dict[str, Any] | None) -> str:
+def _format_supervisor_guidance_for_ranking(
+        supervisor_guidance: Dict[str, Any] | None) -> str:
     """Format supervisor guidance for ranking prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -550,7 +550,8 @@ def _format_supervisor_guidance_for_ranking(supervisor_guidance: Dict[str, Any] 
     return "".join(sections) if sections else ""
 
 
-def _format_supervisor_guidance_for_proximity(supervisor_guidance: Dict[str, Any] | None) -> str:
+def _format_supervisor_guidance_for_proximity(
+        supervisor_guidance: Dict[str, Any] | None) -> str:
     """Format supervisor guidance for proximity prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -607,19 +608,23 @@ def _format_meta_review_context(meta_review: Dict[str, Any] | None) -> str:
             sections.append(f"- {rec_text}\n")
         sections.append("\n")
 
-    sections.append("Use these insights to provide more informed and consistent reviews.\n")
+    sections.append(
+        "Use these insights to provide more informed and consistent reviews.\n")
 
     return "".join(sections) if sections else ""
 
 
-def _format_review_context(review_a: Dict[str, Any] | None, review_b: Dict[str, Any] | None) -> str:
+def _format_review_context(review_a: Dict[str, Any] | None,
+                           review_b: Dict[str, Any] | None) -> str:
     """Format review scores for ranking prompts."""
     if not review_a and not review_b:
         return ""
 
     sections = []
     sections.append("## Review Scores Context\n")
-    sections.append("The following review scores are available to inform your comparison:\n\n")
+    sections.append(
+        "The following review scores are available to inform your comparison:\n\n"
+    )
 
     if review_a:
         sections.append("**Hypothesis A Review Scores:**\n")
@@ -628,7 +633,8 @@ def _format_review_context(review_a: Dict[str, Any] | None, review_b: Dict[str, 
                 for criterion, score in review_a["scores"].items():
                     sections.append(f"- {criterion}: {score}\n")
             if "overall_score" in review_a:
-                sections.append(f"- Overall Score: {review_a['overall_score']}\n")
+                sections.append(
+                    f"- Overall Score: {review_a['overall_score']}\n")
         sections.append("\n")
 
     if review_b:
@@ -638,7 +644,8 @@ def _format_review_context(review_a: Dict[str, Any] | None, review_b: Dict[str, 
                 for criterion, score in review_b["scores"].items():
                     sections.append(f"- {criterion}: {score}\n")
             if "overall_score" in review_b:
-                sections.append(f"- Overall Score: {review_b['overall_score']}\n")
+                sections.append(
+                    f"- Overall Score: {review_b['overall_score']}\n")
         sections.append("\n")
 
     sections.append(
@@ -648,7 +655,8 @@ def _format_review_context(review_a: Dict[str, Any] | None, review_b: Dict[str, 
     return "".join(sections) if sections else ""
 
 
-def _format_supervisor_guidance_for_meta_review(supervisor_guidance: Dict[str, Any] | None) -> str:
+def _format_supervisor_guidance_for_meta_review(
+        supervisor_guidance: Dict[str, Any] | None) -> str:
     """Format supervisor guidance for meta-review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -676,7 +684,9 @@ def _format_supervisor_guidance_for_meta_review(supervisor_guidance: Dict[str, A
                 priorities = ", ".join(priorities)
             sections.append(f"- Refinement Priorities: {priorities}\n")
         if evolution_phase.get("iteration_strategy"):
-            sections.append(f"- Iteration Strategy: {evolution_phase['iteration_strategy']}\n")
+            sections.append(
+                f"- Iteration Strategy: {evolution_phase['iteration_strategy']}\n"
+            )
         sections.append("\n")
 
     sections.append(
@@ -716,19 +726,16 @@ def get_literature_review_query_generation_pubmed_prompt(
     return load_prompt(
         "literature_review_query_generation_pubmed",
         {
-            "research_goal": research_goal,
-            "preferences": preferences if preferences else "None provided",
-            "attributes": ", ".join(attributes) if attributes else "None provided",
-            "user_literature": (
-                "\n".join(f"- {lit}" for lit in user_literature)
-                if user_literature
-                else "None provided"
-            ),
-            "user_hypotheses": (
-                "\n".join(f"- {hyp}" for hyp in user_hypotheses)
-                if user_hypotheses
-                else "None provided"
-            ),
+            "research_goal":
+                research_goal,
+            "preferences":
+                preferences if preferences else "None provided",
+            "attributes":
+                ", ".join(attributes) if attributes else "None provided",
+            "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
+                                if user_literature else "None provided"),
+            "user_hypotheses": ("\n".join(f"- {hyp}" for hyp in user_hypotheses)
+                                if user_hypotheses else "None provided"),
         },
     )
 
@@ -741,8 +748,7 @@ def get_literature_review_query_generation_prompt(
     user_literature: list[str] | None = None,
     user_hypotheses: list[str] | None = None,
 ) -> str:
-    """
-    Get source-aware query generation prompt.
+    """Get source-aware query generation prompt.
 
     Selects the appropriate prompt template based on source type:
     - knowledge_graph (INDRA): Extract gene/protein names
@@ -772,26 +778,24 @@ def get_literature_review_query_generation_prompt(
     return load_prompt(
         template_name,
         {
-            "research_goal": research_goal,
-            "preferences": preferences if preferences else "None provided",
-            "attributes": ", ".join(attributes) if attributes else "None provided",
-            "user_literature": (
-                "\n".join(f"- {lit}" for lit in user_literature)
-                if user_literature
-                else "None provided"
-            ),
-            "user_hypotheses": (
-                "\n".join(f"- {hyp}" for hyp in user_hypotheses)
-                if user_hypotheses
-                else "None provided"
-            ),
+            "research_goal":
+                research_goal,
+            "preferences":
+                preferences if preferences else "None provided",
+            "attributes":
+                ", ".join(attributes) if attributes else "None provided",
+            "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
+                                if user_literature else "None provided"),
+            "user_hypotheses": ("\n".join(f"- {hyp}" for hyp in user_hypotheses)
+                                if user_hypotheses else "None provided"),
         },
     )
 
 
-def get_literature_review_paper_analysis_prompt(
-    research_goal: str, title: str, authors: list[str], year: int | None, fulltext: str
-) -> str:
+def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
+                                                authors: list[str],
+                                                year: int | None,
+                                                fulltext: str) -> str:
     """Get the prompt for analyzing a single paper."""
     authors_str = ", ".join(authors) if authors else "Unknown"
     year_str = str(year) if year else "Unknown"
@@ -843,10 +847,7 @@ def get_literature_review_synthesis_prompt(
         "The following structured evidence was retrieved from external knowledge sources "
         "to supplement the literature. Use it to ground the synthesis in known causal "
         "relationships and flag where hypotheses can leverage or contradict this background.\n\n"
-        + background_context
-        if background_context
-        else ""
-    )
+        + background_context if background_context else "")
 
     return load_prompt(
         "literature_review_synthesis",
@@ -858,9 +859,9 @@ def get_literature_review_synthesis_prompt(
     )
 
 
-def get_hypothesis_novelty_analysis_prompt(
-    hypothesis_text: str, title: str, authors: list[str], year: int | None, fulltext: str
-) -> str:
+def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
+                                           authors: list[str], year: int | None,
+                                           fulltext: str) -> str:
     """Get the prompt for analyzing a paper for hypothesis novelty."""
     authors_str = ", ".join(authors) if authors else "Unknown"
     year_str = str(year) if year else "Unknown"
@@ -884,8 +885,7 @@ def get_hypothesis_validation_synthesis_prompt(
     tool_registry: Optional[Any] = None,
     reference_list: str = "",
 ) -> str:
-    """
-    Get the prompt for validation synthesis based on novelty analyses.
+    """Get the prompt for validation synthesis based on novelty analyses.
 
     Args:
         research_goal: The research goal
@@ -929,10 +929,14 @@ def get_hypothesis_validation_synthesis_prompt(
         hypotheses_text.append(hyp_section)
 
     variables = {
-        "research_goal": research_goal,
-        "hypotheses_with_analyses": "\n\n".join(hypotheses_text),
-        "articles_metadata": format_articles_metadata(articles or []),
-        "citation_reference_section": _build_citation_reference_section(reference_list),
+        "research_goal":
+            research_goal,
+        "hypotheses_with_analyses":
+            "\n\n".join(hypotheses_text),
+        "articles_metadata":
+            format_articles_metadata(articles or []),
+        "citation_reference_section":
+            _build_citation_reference_section(reference_list),
     }
 
     # inject domain-specific prompt customizations
@@ -941,7 +945,8 @@ def get_hypothesis_validation_synthesis_prompt(
     return load_prompt("hypothesis_validation_synthesis", variables)
 
 
-def _build_already_validated_context(already_validated_texts: Optional[List[str]]) -> str:
+def _build_already_validated_context(
+        already_validated_texts: Optional[List[str]]) -> str:
     """Build diversity constraint block for retry path.
 
     Injected only when retrying failed batches individually, so the model
@@ -972,8 +977,7 @@ def get_validation_synthesis_prompt_with_tools(
     reference_list: str = "",
     already_validated_texts: Optional[List[str]] = None,
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """
-    Get prompt for validation synthesis with tool access.
+    """Get prompt for validation synthesis with tool access.
 
     This version includes tool instructions so the LLM can search for
     additional papers when deciding to pivot hypotheses.
@@ -1030,22 +1034,32 @@ def get_validation_synthesis_prompt_with_tools(
         hypotheses_text.append(hyp_section)
 
     variables = {
-        "research_goal": research_goal,
-        "hypotheses_with_analyses": "\n\n".join(hypotheses_text),
-        "hypotheses_count": len(hypotheses_with_analyses),
-        "articles_metadata": format_articles_metadata(articles or []),
-        "articles_with_reasoning": articles_with_reasoning
-        or "no literature review summary available.",
-        "citation_reference_section": _build_citation_reference_section(reference_list or ""),
-        "max_iterations": max_iterations,
-        "tool_instructions": tool_instructions,
-        "already_validated_context": _build_already_validated_context(already_validated_texts),
+        "research_goal":
+            research_goal,
+        "hypotheses_with_analyses":
+            "\n\n".join(hypotheses_text),
+        "hypotheses_count":
+            len(hypotheses_with_analyses),
+        "articles_metadata":
+            format_articles_metadata(articles or []),
+        "articles_with_reasoning":
+            articles_with_reasoning
+            or "no literature review summary available.",
+        "citation_reference_section":
+            _build_citation_reference_section(reference_list or ""),
+        "max_iterations":
+            max_iterations,
+        "tool_instructions":
+            tool_instructions,
+        "already_validated_context":
+            _build_already_validated_context(already_validated_texts),
     }
 
     # inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
-    return load_prompt_with_schema("hypothesis_validation_synthesis_with_tools", variables)
+    return load_prompt_with_schema("hypothesis_validation_synthesis_with_tools",
+                                   variables)
 
 
 def get_debate_generation_prompt(
@@ -1061,8 +1075,7 @@ def get_debate_generation_prompt(
     tool_registry: Optional[Any] = None,
     reference_list: str = "",
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """
-    Get the debate-based hypothesis generation prompt.
+    """Get the debate-based hypothesis generation prompt.
 
     This uses a multi-turn debate strategy where experts discuss and refine hypotheses.
     The transcript accumulates over multiple turns until final hypotheses are generated.
@@ -1082,16 +1095,18 @@ def get_debate_generation_prompt(
         Tuple of (formatted prompt string, JSON schema dict or None)
     """
     variables = {
-        "goal": research_goal,
-        "hypotheses_count": hypotheses_count,
-        "transcript": transcript or "",
-        "preferences": preferences
-        or "Novel, testable, scientifically sound, specific, and diverse hypotheses",
-        "attributes": (
-            ", ".join(attributes)
-            if attributes and isinstance(attributes, list)
-            else (attributes or "testable and falsifiable")
-        ),
+        "goal":
+            research_goal,
+        "hypotheses_count":
+            hypotheses_count,
+        "transcript":
+            transcript or "",
+        "preferences":
+            preferences or
+            "Novel, testable, scientifically sound, specific, and diverse hypotheses",
+        "attributes": (", ".join(attributes)
+                       if attributes and isinstance(attributes, list) else
+                       (attributes or "testable and falsifiable")),
     }
 
     # add literature review if provided
@@ -1100,7 +1115,8 @@ def get_debate_generation_prompt(
 
     # add article metadata for citations
     variables["articles_metadata"] = format_articles_metadata(articles or [])
-    variables["citation_reference_section"] = _build_citation_reference_section(reference_list or "")
+    variables["citation_reference_section"] = _build_citation_reference_section(
+        reference_list or "")
 
     # Format supervisor guidance if available
     if supervisor_guidance and isinstance(supervisor_guidance, dict):
@@ -1128,7 +1144,8 @@ def get_debate_generation_prompt(
                     focus_areas = ", ".join(focus_areas)
                 guidance_sections.append(f"Focus on: {focus_areas}\n")
 
-        variables["supervisor_guidance"] = "".join(guidance_sections) if has_content else ""
+        variables["supervisor_guidance"] = "".join(
+            guidance_sections) if has_content else ""
     else:
         variables["supervisor_guidance"] = ""
 
@@ -1136,9 +1153,8 @@ def get_debate_generation_prompt(
     variables.update(_get_domain_variables(tool_registry))
 
     # determine which prompt to use based on literature availability
-    prompt_name = (
-        "generation_debate_and_literature" if articles_with_reasoning else "generation_after_debate"
-    )
+    prompt_name = ("generation_debate_and_literature"
+                   if articles_with_reasoning else "generation_after_debate")
 
     # if final turn, append instruction to output JSON and use schema
     if is_final_turn:
@@ -1208,28 +1224,29 @@ IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative Uni
 
 
 def format_preferences(preferences: str | None) -> str:
-    """format user preferences for prompts"""
+    """Format user preferences for prompts."""
     if preferences:
         return preferences
     return "Focus on novelty, testability, and potential impact."
 
 
 def format_attributes(attributes: List[str] | None) -> str:
-    """format user attributes for prompts"""
+    """Format user attributes for prompts."""
     if attributes:
         return "\n".join(f"- {attr}" for attr in attributes)
     return "- Novel\n- Testable\n- Impactful"
 
 
 def format_user_hypotheses(user_hypotheses: List[str] | None) -> str:
-    """format user-provided starting hypotheses for prompts"""
+    """Format user-provided starting hypotheses for prompts."""
     if user_hypotheses:
         return "\n".join(f"- {hyp}" for hyp in user_hypotheses)
     return "No user-provided starting hypotheses."
 
 
-def format_supervisor_guidance_for_generation(supervisor_guidance: Dict[str, Any] | None) -> str:
-    """format supervisor guidance for generation prompts with research strategy section"""
+def format_supervisor_guidance_for_generation(
+        supervisor_guidance: Dict[str, Any] | None) -> str:
+    """Format supervisor guidance for generation prompts with research strategy section."""
     if not supervisor_guidance:
         return ""
 
@@ -1244,11 +1261,10 @@ def format_supervisor_guidance_for_generation(supervisor_guidance: Dict[str, Any
 
 
 def condense_literature_summary(articles_with_reasoning: str | None) -> str:
-    """
-    Condense full literature review summary to concise overview
+    """Condense full literature review summary to concise overview.
 
-    Agent will read papers directly with tools, so keep brief (~15-20 lines)
-    Extracts 2-3 key sentences covering main themes and gaps
+    Agent will read papers directly with tools, so keep brief (~15-20 lines).
+    Extracts 2-3 key sentences covering main themes and gaps.
     """
     if not articles_with_reasoning:
         return "No pre-curated literature review available."
@@ -1258,7 +1274,10 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
     text = articles_with_reasoning.strip()
 
     # find main content sections (skip headers)
-    lines = [line for line in text.split("\n") if line.strip() and not line.startswith("#")]
+    lines = [
+        line for line in text.split("\n")
+        if line.strip() and not line.startswith("#")
+    ]
 
     # take first 2-3 substantive lines for themes
     theme_lines = []
@@ -1272,7 +1291,8 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
     gap_lines = []
     for line in lines:
         line_lower = line.lower()
-        if any(kw in line_lower for kw in ["gap", "limitation", "unsolved", "need for", "lack of"]):
+        if any(kw in line_lower for kw in
+               ["gap", "limitation", "unsolved", "need for", "lack of"]):
             if len(line) > 50:  # substantive
                 gap_lines.append(line.strip())
                 if len(gap_lines) >= 2:
@@ -1292,7 +1312,8 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
     # fallback: just take first 400 chars
     if not parts:
         return (
-            text[:400] + "...\n\n(See papers below for details. Use tools to read papers directly.)"
+            text[:400] +
+            "...\n\n(See papers below for details. Use tools to read papers directly.)"
         )
 
     result = "\n\n".join(parts)
@@ -1303,11 +1324,10 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
 
 
 def format_articles_metadata(articles: List[Any]) -> str:
-    """
-    format analyzed articles with metadata for tool-based generation prompts
+    """Format analyzed articles with metadata for tool-based generation prompts.
 
-    returns structured list of articles with titles, authors, year, citations, pdf availability
-    only includes articles with used_in_analysis=True
+    Returns structured list of articles with titles, authors, year, citations, pdf availability.
+    Only includes articles with used_in_analysis=True.
     """
     if not articles:
         return ""
@@ -1316,17 +1336,14 @@ def format_articles_metadata(articles: List[Any]) -> str:
     if not used_articles:
         return ""
 
-    articles_list_text = "\n\n".join(
-        [
-            f"**{i+1}. {art.title}**\n"
-            f"   - Authors: {', '.join(art.authors[:3])}{' et al.' if len(art.authors) > 3 else ''}\n"
-            f"   - Year: {art.year or 'Unknown'}\n"
-            f"   - Citations: {art.citations}\n"
-            f"   - PDF: {'Available - ' + art.pdf_links[0] if art.pdf_links else 'No PDF found (abstract only)'}\n"
-            f"   - URL: {art.url}"
-            for i, art in enumerate(used_articles)
-        ]
-    )
+    articles_list_text = "\n\n".join([
+        f"**{i+1}. {art.title}**\n"
+        f"   - Authors: {', '.join(art.authors[:3])}{' et al.' if len(art.authors) > 3 else ''}\n"
+        f"   - Year: {art.year or 'Unknown'}\n"
+        f"   - Citations: {art.citations}\n"
+        f"   - PDF: {'Available - ' + art.pdf_links[0] if art.pdf_links else 'No PDF found (abstract only)'}\n"
+        f"   - URL: {art.url}" for i, art in enumerate(used_articles)
+    ])
 
     return f"""
 ### Papers Analyzed in Literature Review
@@ -1353,18 +1370,14 @@ def _build_citation_reference_section(reference_list: str) -> str:
     return (
         "\n## Citation Reference List\n\n"
         "Use **only** these `[C*]` citation keys inline in `literature_grounding` "
-        "— do NOT invent author-year citations.\n\n"
-        + reference_list
-        + "\n"
-    )
+        "— do NOT invent author-year citations.\n\n" + reference_list + "\n")
 
 
 def build_tool_instructions(
     tool_ids: List[str],
     tool_registry: Optional[Any] = None,
 ) -> str:
-    """
-    Build dynamic tool instructions section from tool registry.
+    """Build dynamic tool instructions section from tool registry.
 
     Args:
         tool_ids: List of tool IDs to include in instructions
@@ -1376,13 +1389,14 @@ def build_tool_instructions(
     # if no registry provided, try to get the global one
     if tool_registry is None:
         try:
-            from .config import get_tool_registry
+            from .config import get_tool_registry  # pylint: disable=import-outside-toplevel
 
             tool_registry = get_tool_registry()
             # if no tool_ids provided, get them from draft workflow
             if not tool_ids:
-                tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
-        except Exception:
+                tool_ids = tool_registry.get_tools_for_workflow(
+                    "draft_generation")
+        except Exception:  # pylint: disable=broad-exception-caught
             pass
 
     if not tool_registry or not tool_ids:
@@ -1397,7 +1411,8 @@ def build_tool_instructions(
             continue
 
         # add tool entry
-        sections.append(f"- `{tool_config.mcp_tool_name}`: {tool_config.description}")
+        sections.append(
+            f"- `{tool_config.mcp_tool_name}`: {tool_config.description}")
 
         # add prompt snippet if available
         if tool_config.prompt_snippet:
@@ -1428,8 +1443,7 @@ def get_draft_prompt_with_tools(
     tool_registry: Optional[Any] = None,
     reference_list: str = "",
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
-    """
-    Get prompt for Phase 1: drafting hypotheses with tools.
+    """Get prompt for Phase 1: drafting hypotheses with tools.
 
     Uses generation_draft_with_tools.md template.
     Focuses on reading papers and identifying gaps.
@@ -1457,20 +1471,32 @@ def get_draft_prompt_with_tools(
     tool_instructions = build_tool_instructions(tool_ids, tool_registry)
 
     variables = {
-        "goal": research_goal,
-        "hypotheses_count": hypotheses_count,
-        "preferences": format_preferences(preferences),
-        "attributes": format_attributes(attributes),
-        "user_hypotheses": format_user_hypotheses(user_hypotheses),
-        "supervisor_guidance": format_supervisor_guidance_for_generation(supervisor_guidance),
-        "articles_with_reasoning": articles_with_reasoning
-        or "no literature review summary available - examine papers below directly.",
-        "articles_metadata": format_articles_metadata(articles or []),
-        "citation_reference_section": _build_citation_reference_section(reference_list or ""),
-        "max_iterations": max_iterations,
-        "instructions": instructions
-        or "Focus on creative ideation - draft diverse hypotheses based on literature gaps.",
-        "tool_instructions": tool_instructions,
+        "goal":
+            research_goal,
+        "hypotheses_count":
+            hypotheses_count,
+        "preferences":
+            format_preferences(preferences),
+        "attributes":
+            format_attributes(attributes),
+        "user_hypotheses":
+            format_user_hypotheses(user_hypotheses),
+        "supervisor_guidance":
+            format_supervisor_guidance_for_generation(supervisor_guidance),
+        "articles_with_reasoning":
+            articles_with_reasoning or
+            "no literature review summary available - examine papers below directly.",
+        "articles_metadata":
+            format_articles_metadata(articles or []),
+        "citation_reference_section":
+            _build_citation_reference_section(reference_list or ""),
+        "max_iterations":
+            max_iterations,
+        "instructions":
+            instructions or
+            "Focus on creative ideation - draft diverse hypotheses based on literature gaps.",
+        "tool_instructions":
+            tool_instructions,
     }
 
     # inject domain-specific prompt customizations

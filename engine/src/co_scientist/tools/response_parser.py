@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Response parser for converting MCP tool responses to Article objects.
+"""Response parser for converting MCP tool responses to Article objects.
 
 Supports dynamic field mapping with transformations defined in YAML configs.
 """
@@ -30,8 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 class ResponseParser:
-    """
-    Parse MCP tool responses using YAML-defined field mappings.
+    """Parse MCP tool responses using YAML-defined field mappings.
 
     Supports:
     - Direct field access: "title" -> item["title"]
@@ -45,8 +42,7 @@ class ResponseParser:
     """
 
     def __init__(self, tool_config: ToolConfig):
-        """
-        Initialize parser with tool configuration.
+        """Initialize parser with tool configuration.
 
         Args:
             tool_config: Tool configuration containing response_format
@@ -55,8 +51,7 @@ class ResponseParser:
         self.response_format = tool_config.response_format
 
     def parse_response(self, response: Any) -> Any:
-        """
-        Parse raw response based on response_format type.
+        """Parse raw response based on response_format type.
 
         Args:
             response: Raw response from MCP tool (string or dict/list)
@@ -72,14 +67,14 @@ class ResponseParser:
             try:
                 return json.loads(response)
             except json.JSONDecodeError:
-                logger.warning(f"failed to parse JSON response: {response[:100]}...")
+                logger.warning(
+                    f"failed to parse JSON response: {response[:100]}...")
                 return response
 
         return response
 
     def parse_to_articles(self, response: Any) -> List[Article]:
-        """
-        Parse tool response into Article objects.
+        """Parse tool response into Article objects.
 
         Args:
             response: Raw response from MCP tool
@@ -113,7 +108,7 @@ class ResponseParser:
                     article = self._map_item_to_article(item, dict_key=key)
                     if article:
                         articles.append(article)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error(f"failed to map item {key}: {e}")
         else:
             # results is a list
@@ -126,15 +121,14 @@ class ResponseParser:
                     article = self._map_item_to_article(item)
                     if article:
                         articles.append(article)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error(f"failed to map item {i}: {e}")
 
         logger.debug(f"parsed {len(articles)} articles from response")
         return articles
 
     def _navigate_path(self, data: Any, path: str) -> Any:
-        """
-        Navigate to a nested path in data.
+        """Navigate to a nested path in data.
 
         Args:
             data: Data structure to navigate
@@ -158,7 +152,8 @@ class ResponseParser:
             if match:
                 field, index = match.groups()
                 if field:
-                    current = current.get(field) if isinstance(current, dict) else None
+                    current = current.get(field) if isinstance(current,
+                                                               dict) else None
                 if current is not None and isinstance(current, list):
                     idx = int(index)
                     current = current[idx] if idx < len(current) else None
@@ -170,10 +165,10 @@ class ResponseParser:
         return current
 
     def _map_item_to_article(
-        self, item: Dict[str, Any], dict_key: Optional[str] = None
-    ) -> Optional[Article]:
-        """
-        Map a single result item to an Article object.
+            self,
+            item: Dict[str, Any],
+            dict_key: Optional[str] = None) -> Optional[Article]:
+        """Map a single result item to an Article object.
 
         Args:
             item: Result item dict
@@ -196,7 +191,7 @@ class ResponseParser:
             try:
                 value = self._evaluate_expression(expr, item, dict_key)
                 kwargs[article_field] = value
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.debug(f"failed to evaluate {article_field}={expr}: {e}")
                 # use None for failed mappings
                 kwargs[article_field] = None
@@ -222,11 +217,11 @@ class ResponseParser:
             used_in_analysis=True,
         )
 
-    def _evaluate_expression(
-        self, expr: str, item: Dict[str, Any], dict_key: Optional[str] = None
-    ) -> Any:
-        """
-        Evaluate a field mapping expression.
+    def _evaluate_expression(self,
+                             expr: str,
+                             item: Dict[str, Any],
+                             dict_key: Optional[str] = None) -> Any:
+        """Evaluate a field mapping expression.
 
         Supported expressions:
         - "fieldname" -> item["fieldname"]
@@ -281,9 +276,10 @@ class ResponseParser:
         # simple field access
         return self._get_field_value(expr, item, dict_key)
 
-    def _get_field_value(
-        self, field_expr: str, item: Dict[str, Any], dict_key: Optional[str] = None
-    ) -> Any:
+    def _get_field_value(self,
+                         field_expr: str,
+                         item: Dict[str, Any],
+                         dict_key: Optional[str] = None) -> Any:
         """Get a field value from item, supporting nested paths."""
         if field_expr == "@key":
             return dict_key
@@ -295,8 +291,7 @@ class ResponseParser:
         return item.get(field_expr)
 
     def _apply_transform(self, transform: str, value: Any) -> Any:
-        """
-        Apply a transform to a value.
+        """Apply a transform to a value.
 
         Args:
             transform: Transform specification (e.g., "split:/", "index:0", "int")
@@ -367,10 +362,9 @@ class ResponseParser:
 
 
 def parse_tool_response(
-    response: Any, tool_config: ToolConfig
-) -> Union[List[Article], bool, Any]:
-    """
-    Convenience function to parse a tool response.
+        response: Any,
+        tool_config: ToolConfig) -> Union[List[Article], bool, Any]:
+    """Convenience function to parse a tool response.
 
     Args:
         response: Raw response from MCP tool

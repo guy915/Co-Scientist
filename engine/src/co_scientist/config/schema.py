@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Schema definitions for tool configuration.
+"""Schema definitions for tool configuration.
 
 Uses dataclasses to match existing codebase patterns.
 """
@@ -23,12 +21,9 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 
-def resolve_content_params(
-    params: Dict[str, Any],
-    context: Dict[str, Any]
-) -> Dict[str, Any]:
-    """
-    Resolve content params by substituting {placeholders} with context values.
+def resolve_content_params(params: Dict[str, Any],
+                           context: Dict[str, Any]) -> Dict[str, Any]:
+    """Resolve content params by substituting {placeholders} with context values.
 
     Supports:
         - {research_goal} - the current research goal
@@ -63,8 +58,9 @@ def resolve_content_params(
                         else:
                             resolved_value = resolved_value.replace(
                                 f"{{{match}}}",
-                                str(context_val) if not isinstance(context_val, str) else context_val
-                            )
+                                str(context_val)
+                                if not isinstance(context_val, str) else
+                                context_val)
                 resolved[key] = resolved_value
             else:
                 resolved[key] = value
@@ -77,7 +73,8 @@ def resolve_content_params(
                     resolved_item = item
                     for match in matches:
                         if match in context:
-                            resolved_item = resolved_item.replace(f"{{{match}}}", str(context[match]))
+                            resolved_item = resolved_item.replace(
+                                f"{{{match}}}", str(context[match]))
                     resolved_list.append(resolved_item)
                 else:
                     resolved_list.append(item)
@@ -108,8 +105,7 @@ class ServerConfig:
 
 @dataclass
 class ResponseFormat:
-    """
-    Configuration for parsing tool responses.
+    """Configuration for parsing tool responses.
 
     Attributes:
         type: Response type (json, boolean_string, etc.)
@@ -160,8 +156,7 @@ class ParameterConfig:
 
 @dataclass
 class ToolConfig:
-    """
-    Configuration for an MCP tool.
+    """Configuration for an MCP tool.
 
     Attributes:
         server: Server ID this tool belongs to
@@ -212,16 +207,17 @@ class ToolConfig:
             category=data.get("category", "utility"),
             source_type=data.get("source_type", "academic"),
             enabled=data.get("enabled", True),
-            response_format=ResponseFormat.from_dict(data.get("response_format", {})),
+            response_format=ResponseFormat.from_dict(
+                data.get("response_format", {})),
             prompt_snippet=data.get("prompt_snippet", ""),
             parameters=parameters,
             parameter_mapping=data.get("parameter_mapping", {}),
             applies_to=data.get("applies_to", "all"),
         )
 
-    def map_parameters(self, canonical_params: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Map canonical parameter names to tool-specific parameter names.
+    def map_parameters(self, canonical_params: Dict[str,
+                                                    Any]) -> Dict[str, Any]:
+        """Map canonical parameter names to tool-specific parameter names.
 
         Args:
             canonical_params: Parameters using canonical names (e.g., max_papers, recency_years)
@@ -244,9 +240,10 @@ class ToolConfig:
                 # handle special conversions
                 if canonical_name == "recency_years" and tool_param_name == "starting_year":
                     # convert recency_years (e.g., 7) to starting_year (e.g., 2019)
-                    import datetime
+                    import datetime  # pylint: disable=import-outside-toplevel
                     current_year = datetime.datetime.now().year
-                    mapped[tool_param_name] = current_year - value if value > 0 else None
+                    mapped[
+                        tool_param_name] = current_year - value if value > 0 else None
                 else:
                     mapped[tool_param_name] = value
             else:
@@ -258,8 +255,7 @@ class ToolConfig:
 
 @dataclass
 class SearchSourceConfig:
-    """
-    Configuration for a single search source in multi-source literature review.
+    """Configuration for a single search source in multi-source literature review.
 
     Attributes:
         tool: Tool ID for this search source (e.g., "pubmed_fulltext", "arxiv_search")
@@ -302,8 +298,7 @@ class SearchSourceConfig:
 
 @dataclass
 class WorkflowConfig:
-    """
-    Configuration for a workflow phase.
+    """Configuration for a workflow phase.
 
     Defines which tools are available in each phase of hypothesis generation.
 
@@ -364,7 +359,8 @@ class WorkflowConfig:
             availability_check=data.get("availability_check"),
             search_sources=search_sources,
             multi_source_strategy=data.get("multi_source_strategy", "parallel"),
-            deduplicate_across_sources=data.get("deduplicate_across_sources", True),
+            deduplicate_across_sources=data.get("deduplicate_across_sources",
+                                                True),
             search_tools=data.get("search_tools", []),
             read_tools=data.get("read_tools", []),
             utility_tools=data.get("utility_tools", []),
@@ -413,8 +409,7 @@ class WorkflowConfig:
 
 @dataclass
 class EnrichmentConfig:
-    """
-    Configuration for a post-generation enrichment step.
+    """Configuration for a post-generation enrichment step.
 
     Each enrichment maps a tool to a hypothesis field, running the tool
     with the hypothesis field value as input and storing results in
@@ -478,8 +473,7 @@ class Settings:
 
 @dataclass
 class PromptsConfig:
-    """
-    Domain-specific prompt customizations injected via {{domain_*}} placeholders.
+    """Domain-specific prompt customizations injected via {{domain_*}} placeholders.
 
     All fields are optional. When absent, placeholders resolve to empty strings
     and prompts behave identically to the defaults.
@@ -517,8 +511,7 @@ class PromptsConfig:
 
 @dataclass
 class ToolsConfig:
-    """
-    Root configuration object containing all tool definitions.
+    """Root configuration object containing all tool definitions.
 
     This is the top-level structure parsed from tools.yaml.
     """
@@ -545,7 +538,8 @@ class ToolsConfig:
         for category, category_tools in tools_data.items():
             tools[category] = {}
             for tool_id, tool_data in category_tools.items():
-                tools[category][tool_id] = ToolConfig.from_dict(tool_data, tool_id)
+                tools[category][tool_id] = ToolConfig.from_dict(
+                    tool_data, tool_id)
 
         # parse workflows
         workflows = {}
@@ -560,8 +554,7 @@ class ToolsConfig:
 
         # parse enrichments
         enrichments = [
-            EnrichmentConfig.from_dict(e)
-            for e in data.get("enrichments", [])
+            EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])
         ]
 
         return cls(

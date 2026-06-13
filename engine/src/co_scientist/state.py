@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-LangGraph state definition for hypothesis generation workflow.
+"""LangGraph state definition for hypothesis generation workflow.
 
 The state is passed through all nodes and tracks the complete workflow.
 """
@@ -29,9 +27,9 @@ from .models import Article, ExecutionMetrics, Hypothesis
 logger = logging.getLogger(__name__)
 
 
-def deduplicate_hypotheses(existing: List[Hypothesis], new: List[Hypothesis]) -> List[Hypothesis]:
-    """
-    State reducer that automatically deduplicates hypotheses on state update.
+def deduplicate_hypotheses(existing: List[Hypothesis],
+                           new: List[Hypothesis]) -> List[Hypothesis]:
+    """State reducer that automatically deduplicates hypotheses on state update.
 
     This is a LangGraph anti-duplicate strategy: duplicates are automatically
     removed every time the state is updated, preventing them from propagating.
@@ -80,14 +78,16 @@ def deduplicate_hypotheses(existing: List[Hypothesis], new: List[Hypothesis]) ->
         else:
             # Only log if this is truly a duplicate (not from replacement)
             if len(all_hyps) > len(new):
-                logger.warning(f"Automatic dedup: Removed duplicate hypothesis: {hyp.text[:80]}...")
+                logger.warning(
+                    f"Automatic dedup: Removed duplicate hypothesis: {hyp.text[:80]}..."
+                )
 
     return deduplicated
 
 
-def merge_metrics(existing: ExecutionMetrics, new: ExecutionMetrics) -> ExecutionMetrics:
-    """
-    State reducer that merges metrics from multiple nodes.
+def merge_metrics(existing: ExecutionMetrics,
+                  new: ExecutionMetrics) -> ExecutionMetrics:
+    """State reducer that merges metrics from multiple nodes.
 
     When multiple nodes update metrics concurrently, this combines them.
 
@@ -117,7 +117,8 @@ def merge_metrics(existing: ExecutionMetrics, new: ExecutionMetrics) -> Executio
         tournaments_count=existing.tournaments_count + new.tournaments_count,
         evolutions_count=existing.evolutions_count + new.evolutions_count,
         llm_calls=existing.llm_calls + new.llm_calls,
-        total_time=new.total_time if new.total_time > 0 else existing.total_time,
+        total_time=new.total_time
+        if new.total_time > 0 else existing.total_time,
         phase_times=merged_phase_times,
     )
 
@@ -125,8 +126,7 @@ def merge_metrics(existing: ExecutionMetrics, new: ExecutionMetrics) -> Executio
 
 
 class WorkflowState(TypedDict):
-    """
-    Complete state for the hypothesis generation workflow.
+    """Complete state for the hypothesis generation workflow.
 
     This state is passed through all nodes in the LangGraph workflow.
     Each node reads from and writes to this state.

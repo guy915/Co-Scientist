@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Test literature review node in isolation.
+"""Test literature review node in isolation.
 
 Requires:
 - MCP server running (provides PubMed and other tools)
@@ -44,9 +42,13 @@ try:
         load_dotenv(env_file)
         console.print(f"[dim]Loaded environment from {env_file}[/dim]")
     else:
-        console.print(f"[dim]No .env file found at {env_file}, using system environment variables[/dim]")
+        console.print(
+            f"[dim]No .env file found at {env_file}, using system environment variables[/dim]"
+        )
 except ImportError:
-    console.print("[dim]python-dotenv not installed, using system environment variables only[/dim]")
+    console.print(
+        "[dim]python-dotenv not installed, using system environment variables only[/dim]"
+    )
 
 from state_helpers import make_base_state
 from logging_utils import initialize_run_logging, cleanup_run_logging
@@ -87,8 +89,10 @@ async def test_literature_review():
     # Check PubMed via MCP
     pubmed_ok = await check_pubmed_available_via_mcp()
     if not pubmed_ok:
-        warnings.append("PubMed not available via MCP - PubMed search will be disabled")
-        console.print("[yellow]PubMed not available via MCP - will be disabled[/yellow]")
+        warnings.append(
+            "PubMed not available via MCP - PubMed search will be disabled")
+        console.print(
+            "[yellow]PubMed not available via MCP - will be disabled[/yellow]")
     else:
         console.print("[green]PubMed available via MCP[/green]")
 
@@ -98,7 +102,9 @@ async def test_literature_review():
         for error in errors:
             console.print(f"  [red]{error}[/red]")
         console.print("\n[yellow]Fix these issues and try again[/yellow]")
-        console.print("[dim]Tip: create a .env file in dev/ directory with your API keys[/dim]")
+        console.print(
+            "[dim]Tip: create a .env file in dev/ directory with your API keys[/dim]"
+        )
         return
 
     if warnings:
@@ -108,20 +114,25 @@ async def test_literature_review():
 
     dev_mode = os.getenv("COSCIENTIST_DEV_MODE", "").lower() == "true"
     if dev_mode:
-        console.print("\n[yellow]Dev mode enabled - using reduced paper counts[/yellow]")
+        console.print(
+            "\n[yellow]Dev mode enabled - using reduced paper counts[/yellow]")
 
     # Create minimal state
     state = make_base_state(
-        research_goal="How can we detect Alzheimer's disease earlier using retinal imaging?",
+        research_goal=
+        "How can we detect Alzheimer's disease earlier using retinal imaging?",
         model_name="gemini/gemini-2.5-flash",
     )
     state["mcp_available"] = mcp_ok
     state["pubmed_available"] = pubmed_ok
 
-    console.print(f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n")
+    console.print(
+        f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n")
 
     # Run node
-    console.print("[yellow]Calling literature review node (this may take a couple of minutes)...[/yellow]\n")
+    console.print(
+        "[yellow]Calling literature review node (this may take a couple of minutes)...[/yellow]\n"
+    )
     result = await literature_review_node(state)
 
     # Display results
@@ -132,7 +143,9 @@ async def test_literature_review():
     # Check if literature review failed
     if summary == LITERATURE_REVIEW_FAILED:
         console.print("\n[bold red]Literature review failed![/bold red]")
-        console.print("[yellow]The system will fall back to standard generation without literature context[/yellow]")
+        console.print(
+            "[yellow]The system will fall back to standard generation without literature context[/yellow]"
+        )
         return
 
     # Show article breakdown by source (PubMed-only now)
@@ -155,7 +168,8 @@ async def test_literature_review():
 
     for article in articles[:10]:  # Show first 10
         article_table.add_row(
-            article.title[:50] + "..." if len(article.title) > 50 else article.title,
+            article.title[:50] +
+            "..." if len(article.title) > 50 else article.title,
             str(article.year) if article.year else "n/a",
             str(article.citations) if article.citations else "n/a",
         )
@@ -163,11 +177,12 @@ async def test_literature_review():
     console.print(article_table)
 
     # Summary
-    console.print(Panel(
-        summary[:500] + "..." if len(summary) > 500 else summary,
-        title="[bold green]Literature review summary (first 500 chars)[/bold green]",
-        border_style="green"
-    ))
+    console.print(
+        Panel(
+            summary[:500] + "..." if len(summary) > 500 else summary,
+            title=
+            "[bold green]Literature review summary (first 500 chars)[/bold green]",
+            border_style="green"))
 
     console.print("\n[bold]Summary stats:[/bold]")
     console.print(f"  Queries generated: {len(queries)}")

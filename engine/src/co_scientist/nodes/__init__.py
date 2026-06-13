@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Workflow nodes for hypothesis generation.
+"""Workflow nodes for hypothesis generation.
 
 Each node is a pure async function that takes state and returns updated state.
 """

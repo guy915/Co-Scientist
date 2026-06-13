@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Literature review helper functions.
+"""Literature review helper functions.
 
 Small, composable functions for the literature review node phases:
 - Query generation
@@ -36,7 +34,6 @@ if TYPE_CHECKING:
     from ..state import WorkflowState
 
 logger = logging.getLogger(__name__)
-
 
 # =============================================================================
 # Configuration helpers
@@ -77,8 +74,7 @@ def normalize_search_response(
     result_data: Any,
     tool_config: Optional["ToolConfig"],
 ) -> Dict[str, Dict[str, Any]]:
-    """
-    Normalize search tool response to standard {paper_id: metadata} format.
+    """Normalize search tool response to standard {paper_id: metadata} format.
 
     Handles both dict responses (PubMed-style) and list responses (arXiv-style).
     """
@@ -100,18 +96,15 @@ def normalize_search_response(
         return result_data
 
     if isinstance(result_data, list):
-        source_id_field = tool_config.response_format.field_mapping.get("source_id", "source_id")
+        source_id_field = tool_config.response_format.field_mapping.get(
+            "source_id", "source_id")
         if source_id_field.startswith("@"):
             source_id_field = "arxiv_id"
 
         normalized = {}
         for paper in result_data:
-            paper_id = (
-                paper.get(source_id_field)
-                or paper.get("arxiv_id")
-                or paper.get("id")
-                or str(len(normalized))
-            )
+            paper_id = (paper.get(source_id_field) or paper.get("arxiv_id") or
+                        paper.get("id") or str(len(normalized)))
             normalized[paper_id] = paper
         return normalized
 
@@ -167,7 +160,8 @@ def _parse_year_from_metadata(metadata: Dict[str, Any]) -> Optional[int]:
     return None
 
 
-def _build_article_url(paper_id: str, metadata: Dict[str, Any], source_name: str) -> str:
+def _build_article_url(paper_id: str, metadata: Dict[str, Any],
+                       source_name: str) -> str:
     """Build URL for article, using metadata URL or constructing default."""
     url = metadata.get("url")
     if url:
@@ -184,9 +178,9 @@ def _build_article_url(paper_id: str, metadata: Dict[str, Any], source_name: str
 
 def build_articles_from_metadata(
     all_paper_metadata: Dict[str, Dict[str, Any]],
-    paper_source_map: Dict[str, str],
+    paper_source_map: Dict[str, str],  # pylint: disable=unused-argument
     default_source_name: str,
-    tool_registry: Optional["ToolRegistry"] = None,
+    tool_registry: Optional["ToolRegistry"] = None,  # pylint: disable=unused-argument
 ) -> List[Article]:
     """Build Article objects from collected paper metadata."""
     articles = []
@@ -197,8 +191,10 @@ def build_articles_from_metadata(
             paper_source = default_source_name
 
         articles.append(
-            build_article_from_metadata(paper_id, metadata, paper_source, used_in_analysis=True)
-        )
+            build_article_from_metadata(paper_id,
+                                        metadata,
+                                        paper_source,
+                                        used_in_analysis=True))
     return articles
 
 
@@ -207,23 +203,19 @@ def build_articles_from_metadata(
 # =============================================================================
 
 
-def count_papers_with_fulltext(all_paper_metadata: Dict[str, Dict[str, Any]]) -> Tuple[int, int]:
-    """
-    Count papers with and without fulltext indicators.
+def count_papers_with_fulltext(
+        all_paper_metadata: Dict[str, Dict[str, Any]]) -> Tuple[int, int]:
+    """Count papers with and without fulltext indicators.
 
     Returns:
         Tuple of (papers_with_fulltext, papers_without_fulltext)
     """
     with_fulltext = 0
-    for pid, meta in all_paper_metadata.items():
+    for _, meta in all_paper_metadata.items():
         if not isinstance(meta, dict):
             continue
-        if (
-            meta.get("pmc_full_text_id")
-            or meta.get("fulltext")
-            or meta.get("has_fulltext")
-            or meta.get("pdf_url")
-        ):
+        if (meta.get("pmc_full_text_id") or meta.get("fulltext") or
+                meta.get("has_fulltext") or meta.get("pdf_url")):
             with_fulltext += 1
 
     without_fulltext = len(all_paper_metadata) - with_fulltext
@@ -231,10 +223,9 @@ def count_papers_with_fulltext(all_paper_metadata: Dict[str, Dict[str, Any]]) ->
 
 
 def get_papers_with_content(
-    all_paper_metadata: Dict[str, Dict[str, Any]],
-) -> Dict[str, Dict[str, Any]]:
-    """
-    Get papers that have content available for analysis.
+    all_paper_metadata: Dict[str, Dict[str,
+                                       Any]],) -> Dict[str, Dict[str, Any]]:
+    """Get papers that have content available for analysis.
 
     Papers with fulltext are preferred. Papers with pdf_url and abstract
     can use abstract as fallback.
@@ -247,7 +238,9 @@ def get_papers_with_content(
             papers_with_content[pid] = metadata
         elif metadata.get("pdf_url") and metadata.get("abstract"):
             papers_with_content[pid] = metadata
-            logger.debug(f"Paper {pid}: using abstract for analysis (fulltext not downloaded)")
+            logger.debug(
+                f"Paper {pid}: using abstract for analysis (fulltext not downloaded)"
+            )
     return papers_with_content
 
 
@@ -263,16 +256,20 @@ def make_failure_result(
 ) -> Dict[str, Any]:
     """Create a failure result dict for early returns."""
     return {
-        "articles_with_reasoning": LITERATURE_REVIEW_FAILED,
-        "literature_review_queries": queries or [],
-        "articles": articles or [],
-        "messages": [
-            {
-                "role": "assistant",
-                "content": f"literature review failed - {reason}",
-                "metadata": {"phase": "literature_review", "error": True},
-            }
-        ],
+        "articles_with_reasoning":
+            LITERATURE_REVIEW_FAILED,
+        "literature_review_queries":
+            queries or [],
+        "articles":
+            articles or [],
+        "messages": [{
+            "role": "assistant",
+            "content": f"literature review failed - {reason}",
+            "metadata": {
+                "phase": "literature_review",
+                "error": True
+            },
+        }],
     }
 
 
@@ -283,16 +280,21 @@ def make_success_result(
 ) -> Dict[str, Any]:
     """Create a success result dict."""
     return {
-        "articles_with_reasoning": synthesis,
-        "literature_review_queries": queries,
-        "articles": articles,
-        "messages": [
-            {
-                "role": "assistant",
-                "content": f"completed literature review with {len(queries)} queries, {len(articles)} articles analyzed",
-                "metadata": {"phase": "literature_review"},
-            }
-        ],
+        "articles_with_reasoning":
+            synthesis,
+        "literature_review_queries":
+            queries,
+        "articles":
+            articles,
+        "messages": [{
+            "role":
+                "assistant",
+            "content":
+                f"completed literature review with {len(queries)} queries, {len(articles)} articles analyzed",
+            "metadata": {
+                "phase": "literature_review"
+            },
+        }],
     }
 
 
@@ -311,7 +313,11 @@ async def emit_progress(
     """Emit progress callback if configured."""
     callback = state.get("progress_callback")
     if callback:
-        await callback(event, {"message": message, "progress": progress, **extra})
+        await callback(event, {
+            "message": message,
+            "progress": progress,
+            **extra
+        })
 
 
 # =============================================================================
@@ -373,8 +379,7 @@ def calculate_papers_per_query(
     total_papers: int,
     num_queries: int,
 ) -> Tuple[int, int]:
-    """
-    Calculate papers per query with remainder distribution.
+    """Calculate papers per query with remainder distribution.
 
     Returns:
         Tuple of (papers_per_query, remainder)
@@ -395,8 +400,7 @@ def merge_search_results(
     source_results: List[Tuple[str, Dict[str, Dict[str, Any]]]],
     deduplicate: bool = True,
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
-    """
-    Merge results from multiple sources.
+    """Merge results from multiple sources.
 
     Args:
         source_results: List of (source_tool_id, results_dict) tuples
@@ -435,8 +439,7 @@ def build_pdf_discovery_config(
     tool_registry: Optional["ToolRegistry"],
     is_multi_source: bool,
 ) -> Dict[str, Tuple[str, str]]:
-    """
-    Build PDF discovery configuration mapping.
+    """Build PDF discovery configuration mapping.
 
     Returns:
         Dict mapping source_tool_id -> (mcp_tool_name, url_field)
@@ -446,20 +449,20 @@ def build_pdf_discovery_config(
     if is_multi_source and workflow and tool_registry:
         for source in workflow.get_enabled_search_sources():
             discovery_tool = source.pdf_discovery_tool or (
-                workflow.pdf_discovery_tool if workflow else None
-            )
+                workflow.pdf_discovery_tool if workflow else None)
             discovery_url_field = source.pdf_discovery_url_field or (
-                workflow.pdf_discovery_url_field if workflow else "url"
-            )
+                workflow.pdf_discovery_url_field if workflow else "url")
             if discovery_tool:
                 tool_cfg = tool_registry.get_tool(discovery_tool)
                 if tool_cfg:
-                    config[source.tool] = (tool_cfg.mcp_tool_name, discovery_url_field)
+                    config[source.tool] = (tool_cfg.mcp_tool_name,
+                                           discovery_url_field)
 
     elif tool_registry and workflow and workflow.pdf_discovery_tool:
         tool_cfg = tool_registry.get_tool(workflow.pdf_discovery_tool)
         if tool_cfg:
-            config["_default"] = (tool_cfg.mcp_tool_name, workflow.pdf_discovery_url_field)
+            config["_default"] = (tool_cfg.mcp_tool_name,
+                                  workflow.pdf_discovery_url_field)
 
     return config
 
@@ -469,8 +472,7 @@ def get_papers_needing_pdf_discovery(
     paper_source_map: Dict[str, str],
     pdf_discovery_config: Dict[str, Tuple[str, str]],
 ) -> List[Tuple[str, Dict, str, str]]:
-    """
-    Identify papers that need PDF discovery.
+    """Identify papers that need PDF discovery.
 
     Returns:
         List of (paper_id, metadata, tool_name, url_field) tuples
@@ -481,7 +483,8 @@ def get_papers_needing_pdf_discovery(
             continue
 
         source_tool_id = paper_source_map.get(pid, "_default")
-        config = pdf_discovery_config.get(source_tool_id) or pdf_discovery_config.get("_default")
+        config = pdf_discovery_config.get(
+            source_tool_id) or pdf_discovery_config.get("_default")
         if not config:
             continue
 
@@ -501,10 +504,12 @@ def parse_pdf_discovery_result(result: Any) -> Optional[str]:
             if isinstance(result_data, list) and result_data:
                 return result_data[0]
             if isinstance(result_data, dict):
-                links = result_data.get("pdf_links") or result_data.get("links") or []
+                links = result_data.get("pdf_links") or result_data.get(
+                    "links") or []
                 if links:
                     first_link = links[0]
-                    return first_link if isinstance(first_link, str) else first_link.get("url")
+                    return first_link if isinstance(
+                        first_link, str) else first_link.get("url")
         except json.JSONDecodeError:
             if result.startswith("http"):
                 return result
@@ -533,8 +538,7 @@ def build_content_config(
     tool_registry: Optional["ToolRegistry"],
     is_multi_source: bool,
 ) -> Dict[str, ContentToolConfig]:
-    """
-    Build content retrieval configuration mapping.
+    """Build content retrieval configuration mapping.
 
     Returns:
         Dict mapping source_tool_id -> ContentToolConfig
@@ -578,8 +582,7 @@ def get_papers_needing_content(
     paper_source_map: Dict[str, str],
     content_config: Dict[str, ContentToolConfig],
 ) -> List[Tuple[str, Dict, ContentToolConfig]]:
-    """
-    Identify papers that need content retrieval.
+    """Identify papers that need content retrieval.
 
     Returns:
         List of (paper_id, metadata, content_tool_config) tuples
@@ -590,7 +593,8 @@ def get_papers_needing_content(
             continue
 
         source_tool_id = paper_source_map.get(pid, "_default")
-        cfg = content_config.get(source_tool_id) or content_config.get("_default")
+        cfg = content_config.get(source_tool_id) or content_config.get(
+            "_default")
         if not cfg:
             continue
 
@@ -606,7 +610,8 @@ def parse_content_result(result: Any) -> Optional[str]:
     if isinstance(result, str):
         try:
             result_data = json.loads(result)
-            return result_data.get("content") or result_data.get("text") or result
+            return result_data.get("content") or result_data.get(
+                "text") or result
         except json.JSONDecodeError:
             return result
     elif isinstance(result, dict):
@@ -619,7 +624,8 @@ def parse_content_result(result: Any) -> Optional[str]:
 # =============================================================================
 
 
-def get_paper_content_for_analysis(metadata: Dict[str, Any], max_chars: int = 200_000) -> str:
+def get_paper_content_for_analysis(metadata: Dict[str, Any],
+                                   max_chars: int = 200_000) -> str:
     """Get paper content for analysis, with truncation if needed."""
     content = metadata.get("fulltext") or metadata.get("abstract") or ""
     if len(content) > max_chars:

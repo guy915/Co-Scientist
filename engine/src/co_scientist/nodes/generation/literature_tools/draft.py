@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Phase 1: Draft hypotheses by reading papers and identifying gaps.
+"""Phase 1: Draft hypotheses by reading papers and identifying gaps.
 
 This is the first phase of tool-based generation. The agent reads pre-curated
 papers using tools and drafts initial hypothesis ideas based on identified gaps.
@@ -47,8 +45,7 @@ async def draft_hypotheses(
     tool_registry: Optional["ToolRegistry"] = None,
     reference_index: Optional[Any] = None,
 ) -> List[Dict[str, str]]:
-    """
-    Phase 1: draft hypotheses by searching literature sources for metadata.
+    """Phase 1: draft hypotheses by searching literature sources for metadata.
 
     Uses tools for searching research literature.
     Tool whitelist is determined from tool_registry if provided,
@@ -75,7 +72,8 @@ async def draft_hypotheses(
 
     # create shared slug for corpus (reuse lit review slug for warm start)
     research_goal = state["research_goal"]
-    shared_slug = "research_" + hashlib.md5(research_goal.encode()).hexdigest()[:8]
+    shared_slug = "research_" + hashlib.md5(
+        research_goal.encode()).hexdigest()[:8]
     logger.info(f"Using shared corpus slug: {shared_slug}")
 
     # store slug in state for validation phase to reuse
@@ -88,19 +86,22 @@ async def draft_hypotheses(
             f"Warm start: corpus already populated with {len(articles)} papers from literature review"
         )
     else:
-        logger.warning("No lit review summary available - agent will examine papers directly")
+        logger.warning(
+            "No lit review summary available - agent will examine papers directly"
+        )
 
     # initialize hybrid tool provider with draft-specific whitelist
-    provider = HybridToolProvider(mcp_client=mcp_client, python_registry=literature_tools)
+    provider = HybridToolProvider(mcp_client=mcp_client,
+                                  python_registry=literature_tools)
 
     # get tool whitelist from registry or try global registry
     if tool_registry is None:
         try:
-            from ....config import get_tool_registry
+            from ....config import get_tool_registry  # pylint: disable=import-outside-toplevel
 
             tool_registry = get_tool_registry()
             logger.info("Using global tool registry")
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Failed to get tool registry: {e}")
 
     if tool_registry:
@@ -115,18 +116,18 @@ async def draft_hypotheses(
     python_whitelist = []
 
     tools_dict, openai_tools = provider.get_tools(
-        mcp_whitelist=mcp_whitelist, python_whitelist=python_whitelist
-    )
+        mcp_whitelist=mcp_whitelist, python_whitelist=python_whitelist)
 
     logger.info(f"Initialized draft provider with {len(tools_dict)} tools")
 
     # calculate dynamic iteration budget based on hypotheses count
     max_iterations = get_draft_max_iterations(count)
-    logger.info(f"Draft budget: {max_iterations} iterations for {count} hypotheses")
+    logger.info(
+        f"Draft budget: {max_iterations} iterations for {count} hypotheses")
 
     # build draft prompt with lit review summary as context
     ref_text = reference_index.text if reference_index else ""
-    prompt, schema = get_draft_prompt_with_tools(
+    prompt, _ = get_draft_prompt_with_tools(
         research_goal=state["research_goal"],
         hypotheses_count=count,
         supervisor_guidance=supervisor_guidance,
@@ -141,7 +142,7 @@ async def draft_hypotheses(
     )
 
     # save prompt to disk
-    from ....prompts import save_prompt_to_disk
+    from ....prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
         run_id=state.get("run_id", "unknown"),
@@ -173,10 +174,12 @@ async def draft_hypotheses(
     # call LLM with tools for drafting
     # scale token budget based on hypotheses count (~200 tokens per hypothesis)
     draft_max_tokens = min(EXTENDED_MAX_TOKENS + (count * 200), 16000)
-    logger.info(f"Calling draft agent: {max_iterations} iterations, {draft_max_tokens} max tokens")
+    logger.info(
+        f"Calling draft agent: {max_iterations} iterations, {draft_max_tokens} max tokens"
+    )
 
     try:
-        final_response, messages = await call_llm_with_tools(
+        final_response, _ = await call_llm_with_tools(
             prompt=prompt,
             model_name=state["model_name"],
             tools=openai_tools,
@@ -190,8 +193,10 @@ async def draft_hypotheses(
         raise
 
     total_calls = sum(tool_call_counts.values())
-    calls_summary = ", ".join(f"{name}={count}" for name, count in tool_call_counts.items())
-    logger.info(f"Draft phase complete: {total_calls} tool calls ({calls_summary})")
+    calls_summary = ", ".join(
+        f"{name}={count}" for name, count in tool_call_counts.items())
+    logger.info(
+        f"Draft phase complete: {total_calls} tool calls ({calls_summary})")
 
     # parse JSON response (strip markdown if present, then use repair logic)
     response_text = final_response.strip()
@@ -222,15 +227,19 @@ async def draft_hypotheses(
     response_text = response_text.strip().strip("\n").strip()
 
     # use attempt_json_repair for robust parsing
-    response_data, was_repaired = attempt_json_repair(response_text, allow_major_repairs=True)
+    response_data, was_repaired = attempt_json_repair(response_text,
+                                                      allow_major_repairs=True)
 
     if response_data is None:
-        logger.error("Failed to parse draft JSON response after all repair attempts")
+        logger.error(
+            "Failed to parse draft JSON response after all repair attempts")
         logger.error(f"Response: {final_response[:500]}...")
-        raise ValueError("Draft phase returned invalid JSON that could not be repaired")
+        raise ValueError(
+            "Draft phase returned invalid JSON that could not be repaired")
 
     if was_repaired:
-        logger.warning("Draft JSON response required major repairs (possible truncation)")
+        logger.warning(
+            "Draft JSON response required major repairs (possible truncation)")
 
     drafts = response_data.get("drafts", [])
     logger.info(f"Parsed {len(drafts)} draft hypotheses")

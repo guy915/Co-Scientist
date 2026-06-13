@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Phase 2 on lit-tool-based generation: Validate novelty and refine/pivot draft hypotheses.
+"""Phase 2 on lit-tool-based generation: Validate novelty and refine/pivot draft hypotheses.
 
 This phase uses a two-stage approach:
 1. Per-hypothesis per-paper novelty analysis (parallel)
@@ -39,9 +37,7 @@ from ....prompts import (
     get_hypothesis_novelty_analysis_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
-from ....schemas import (
-    HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA
-)
+from ....schemas import (HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA)
 from ....state import WorkflowState
 from ....tools.literature import literature_tools
 from ..citations import resolve_citation_keys
@@ -54,15 +50,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
-def _extract_papers_for_hypothesis(hypothesis_with_analyses, literature_grounding=None):
+def _extract_papers_for_hypothesis(hypothesis_with_analyses,
+                                   literature_grounding=None):
     """Extract papers cited by this hypothesis from its novelty analysis metadata.
 
     When literature_grounding is available, filters to only papers whose
     author+year appear in the grounding text. Falls back to all analyzed
     papers for this hypothesis when grounding is empty or has no matches.
     """
-    from ..papers import analyses_to_candidates, filter_papers_by_grounding
+    from ..papers import analyses_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
 
     analyses = hypothesis_with_analyses.get("novelty_analyses", [])
     candidates = analyses_to_candidates(analyses)
@@ -87,7 +83,8 @@ def _find_search_tool(tool_registry: Optional["ToolRegistry"]):
     tool_ids = tool_registry.get_tools_for_workflow("validation")
     for tool_id in tool_ids:
         tool_config = tool_registry.get_tool(tool_id)
-        if tool_config and tool_config.category in ("search", "search_with_content"):
+        if tool_config and tool_config.category in ("search",
+                                                    "search_with_content"):
             return tool_id, tool_config
     return None, None
 
@@ -108,7 +105,7 @@ async def _search_papers_for_hypothesis(
     Falls back to pubmed_search_with_fulltext when no tool_registry is provided
     (backwards compatibility).
     """
-    tool_id, tool_config = _find_search_tool(tool_registry)
+    _, tool_config = _find_search_tool(tool_registry)
 
     if tool_config:
         # config-driven search
@@ -121,7 +118,8 @@ async def _search_papers_for_hypothesis(
             canonical_params["run_id"] = run_id
         mapped_params = tool_config.map_parameters(canonical_params)
 
-        result = await mcp_client.call_tool(tool_config.mcp_tool_name, **mapped_params)
+        result = await mcp_client.call_tool(tool_config.mcp_tool_name,
+                                            **mapped_params)
 
         # parse response through ResponseParser -> List[Article]
         parser = ResponseParser(tool_config)
@@ -166,8 +164,7 @@ async def validate_hypotheses(
     tool_registry: Optional["ToolRegistry"] = None,
     reference_index: Optional[Any] = None,
 ) -> List[Hypothesis]:
-    """
-    Phase 2: validate novelty and refine/pivot drafts
+    """Phase 2: validate novelty and refine/pivot drafts.
 
     Two-stage approach:
     1. per-hypothesis per-paper novelty analysis (parallel)
@@ -192,10 +189,13 @@ async def validate_hypotheses(
     shared_slug = state.get("generation_corpus_slug")
     if not shared_slug:
         # fallback if draft phase didn't set it
-        import hashlib
+        import hashlib  # pylint: disable=import-outside-toplevel
 
-        shared_slug = "research_" + hashlib.md5(research_goal.encode()).hexdigest()[:8]
-        logger.warning(f"Draft phase didn't set corpus slug, using fallback: {shared_slug}")
+        shared_slug = "research_" + hashlib.md5(
+            research_goal.encode()).hexdigest()[:8]
+        logger.warning(
+            f"Draft phase didn't set corpus slug, using fallback: {shared_slug}"
+        )
     else:
         logger.info(f"Reusing shared corpus from draft phase: {shared_slug}")
 
@@ -220,7 +220,7 @@ async def validate_hypotheses(
             )
             logger.info(f"Found {len(papers)} papers for hypothesis {idx}")
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"Failed to search papers for hypothesis {idx}: {e}")
             papers = {}
 
@@ -228,7 +228,7 @@ async def validate_hypotheses(
         novelty_analysis_tasks = []
 
         async def analyze_paper_novelty(paper_id: str, metadata: dict) -> dict:
-            """Analyze single paper for novelty assessment"""
+            """Analyze single paper for novelty assessment."""
             fulltext = metadata.get("fulltext", "")
 
             # truncate if too long
@@ -243,7 +243,7 @@ async def validate_hypotheses(
 
             # get analysis prompt
             prompt = get_hypothesis_novelty_analysis_prompt(
-                hypothesis_text=hypothesis_text,
+                hypothesis_text=hypothesis_text,  # pylint: disable=cell-var-from-loop
                 title=title,
                 authors=authors,
                 year=year,
@@ -269,8 +269,10 @@ async def validate_hypotheses(
                     },
                     "analysis": analysis,
                 }
-            except Exception as e:
-                logger.error(f"Failed to analyze paper {paper_id} for hypothesis {idx}: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error(
+                    f"Failed to analyze paper {paper_id} for hypothesis {idx}: {e}"  # pylint: disable=cell-var-from-loop
+                )
                 return None
 
         # analyze all papers in parallel
@@ -282,17 +284,26 @@ async def validate_hypotheses(
             logger.info(
                 f"Running {len(novelty_analysis_tasks)} novelty analyses in parallel for hypothesis {idx}"
             )
-            novelty_analyses_results = await asyncio.gather(*novelty_analysis_tasks)
+            novelty_analyses_results = await asyncio.gather(
+                *novelty_analysis_tasks)
 
             # filter out failed analyses
-            novelty_analyses = [a for a in novelty_analyses_results if a is not None]
-            logger.info(f"Completed {len(novelty_analyses)} novelty analyses for hypothesis {idx}")
+            novelty_analyses = [
+                a for a in novelty_analyses_results if a is not None
+            ]
+            logger.info(
+                f"Completed {len(novelty_analyses)} novelty analyses for hypothesis {idx}"
+            )
         else:
             novelty_analyses = []
-            logger.warning(f"No papers with fulltext found for hypothesis {idx}")
+            logger.warning(
+                f"No papers with fulltext found for hypothesis {idx}")
 
         # collect hypothesis with its analyses
-        hypotheses_with_analyses.append({"draft": draft, "novelty_analyses": novelty_analyses})
+        hypotheses_with_analyses.append({
+            "draft": draft,
+            "novelty_analyses": novelty_analyses
+        })
 
     # stage 2: synthesis - decide approve/refine/pivot for all hypotheses
     # synthesis agent has tool access for searching additional papers when pivoting
@@ -300,21 +311,21 @@ async def validate_hypotheses(
 
     logger.info(
         f"Running validation synthesis for {total_hypotheses} hypotheses "
-        f"in batches of {VALIDATION_SYNTHESIS_BATCH_SIZE}"
-    )
+        f"in batches of {VALIDATION_SYNTHESIS_BATCH_SIZE}")
 
     # set up tool provider for synthesis phase
     # get tool registry if not provided
     if tool_registry is None:
         try:
-            from ....config import get_tool_registry
+            from ....config import get_tool_registry  # pylint: disable=import-outside-toplevel
             tool_registry = get_tool_registry()
             logger.info("Using global tool registry for validation")
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Failed to get tool registry: {e}")
 
     # initialize hybrid tool provider
-    provider = HybridToolProvider(mcp_client=mcp_client, python_registry=literature_tools)
+    provider = HybridToolProvider(mcp_client=mcp_client,
+                                  python_registry=literature_tools)
 
     # get tool whitelist from registry
     if tool_registry:
@@ -325,9 +336,8 @@ async def validate_hypotheses(
         mcp_whitelist = None
         logger.warning("No tool registry - using all available MCP tools")
 
-    tools_dict, openai_tools = provider.get_tools(
-        mcp_whitelist=mcp_whitelist, python_whitelist=[]
-    )
+    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist,
+                                                  python_whitelist=[])
     logger.info(f"Initialized validation provider with {len(tools_dict)} tools")
 
     # calculate iteration budget for synthesis
@@ -336,7 +346,7 @@ async def validate_hypotheses(
 
     # batch hypotheses
     batches = [
-        hypotheses_with_analyses[i : i + VALIDATION_SYNTHESIS_BATCH_SIZE]
+        hypotheses_with_analyses[i:i + VALIDATION_SYNTHESIS_BATCH_SIZE]
         for i in range(0, total_hypotheses, VALIDATION_SYNTHESIS_BATCH_SIZE)
     ]
     logger.info(
@@ -368,10 +378,12 @@ async def validate_hypotheses(
     ) -> List[Dict[str, Any]]:
         """Run one synthesis call and return the parsed hypotheses list."""
         batch_size = len(batch)
-        logger.info(f"Processing synthesis batch {batch_label} ({batch_size} hypotheses)")
+        logger.info(
+            f"Processing synthesis batch {batch_label} ({batch_size} hypotheses)"
+        )
 
         ref_text = reference_index.text if reference_index else ""
-        synthesis_prompt, _schema = get_validation_synthesis_prompt_with_tools(
+        synthesis_prompt, _ = get_validation_synthesis_prompt_with_tools(
             research_goal=research_goal,
             hypotheses_with_analyses=batch,
             articles=state.get("articles"),
@@ -382,20 +394,26 @@ async def validate_hypotheses(
             already_validated_texts=already_validated_texts,
         )
 
-        from ....prompts import save_prompt_to_disk
+        from ....prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
         save_prompt_to_disk(
             run_id=state.get("run_id", "unknown"),
             prompt_name=f"validation_synthesis_batch_{batch_label}",
             content=synthesis_prompt,
             metadata={
-                "batch_label": batch_label,
-                "batch_size": batch_size,
-                "max_iterations": max_iterations,
-                "retry_context_count": len(already_validated_texts) if already_validated_texts else 0,
+                "batch_label":
+                    batch_label,
+                "batch_size":
+                    batch_size,
+                "max_iterations":
+                    max_iterations,
+                "retry_context_count":
+                    len(already_validated_texts)
+                    if already_validated_texts else 0,
             },
         )
 
-        synthesis_max_tokens = min(EXTENDED_MAX_TOKENS + (batch_size * 2500), 20000)
+        synthesis_max_tokens = min(EXTENDED_MAX_TOKENS + (batch_size * 2500),
+                                   20000)
         logger.debug(
             f"Batch {batch_label} token budget: {synthesis_max_tokens} for {batch_size} hypotheses"
         )
@@ -405,10 +423,12 @@ async def validate_hypotheses(
         async def tracked_executor(tool_call):
             name = tool_call.function.name
             tool_call_counts[name] = tool_call_counts.get(name, 0) + 1
-            logger.info(f"Validation batch {batch_label}: {name} call #{tool_call_counts[name]}")
+            logger.info(
+                f"Validation batch {batch_label}: {name} call #{tool_call_counts[name]}"
+            )
             return await provider.execute_tool_call(tool_call)
 
-        final_response, _messages = await call_llm_with_tools(
+        final_response, _ = await call_llm_with_tools(
             prompt=synthesis_prompt,
             model_name=state["model_name"],
             tools=openai_tools,
@@ -420,22 +440,29 @@ async def validate_hypotheses(
 
         total_calls = sum(tool_call_counts.values())
         if total_calls > 0:
-            calls_summary = ", ".join(f"{n}={c}" for n, c in tool_call_counts.items())
-            logger.info(f"Batch {batch_label}: {total_calls} tool calls ({calls_summary})")
+            calls_summary = ", ".join(
+                f"{n}={c}" for n, c in tool_call_counts.items())
+            logger.info(
+                f"Batch {batch_label}: {total_calls} tool calls ({calls_summary})"
+            )
 
         response_text = _extract_response_json(final_response)
-        response_data, was_repaired = attempt_json_repair(response_text, allow_major_repairs=True)
+        response_data, was_repaired = attempt_json_repair(
+            response_text, allow_major_repairs=True)
 
         if response_data is None:
             logger.error(f"Failed to parse batch {batch_label} JSON response")
             logger.error(f"Response: {final_response[:500]}...")
-            raise ValueError(f"Validation synthesis returned invalid JSON (batch {batch_label})")
+            raise ValueError(
+                f"Validation synthesis returned invalid JSON (batch {batch_label})"
+            )
 
         if was_repaired:
             logger.warning(f"Batch {batch_label} JSON required repairs")
 
         result = response_data.get("hypotheses", [])
-        logger.debug(f"Batch {batch_label} synthesis returned {len(result)} hypotheses")
+        logger.debug(
+            f"Batch {batch_label} synthesis returned {len(result)} hypotheses")
         return result
 
     # -------------------------------------------------------------------------
@@ -443,7 +470,10 @@ async def validate_hypotheses(
     # -------------------------------------------------------------------------
 
     raw_results = await asyncio.gather(
-        *[_call_synthesis(batch, str(i + 1), None) for i, batch in enumerate(batches)],
+        *[
+            _call_synthesis(batch, str(i + 1), None)
+            for i, batch in enumerate(batches)
+        ],
         return_exceptions=True,
     )
 
@@ -461,8 +491,7 @@ async def validate_hypotheses(
 
     logger.info(
         f"{len(batches) - len(failed_batches)}/{len(batches)} batches succeeded, "
-        f"{len(failed_batches)} need individual retry"
-    )
+        f"{len(failed_batches)} need individual retry")
 
     # -------------------------------------------------------------------------
     # retry failed batches one hypothesis at a time, accumulating context
@@ -471,7 +500,9 @@ async def validate_hypotheses(
     if failed_batches:
         # seed context with texts from successful batches
         accumulated_texts: List[str] = [
-            h.get("hypothesis", "") for h in all_validated_hypotheses if h.get("hypothesis")
+            h.get("hypothesis", "")
+            for h in all_validated_hypotheses
+            if h.get("hypothesis")
         ]
 
         for batch_idx, failed_batch in failed_batches:
@@ -479,18 +510,18 @@ async def validate_hypotheses(
                 label = f"{batch_idx + 1}_retry_{hyp_idx + 1}"
                 context = accumulated_texts if accumulated_texts else None
                 try:
-                    single_result = await _call_synthesis([hyp_data], label, context)
+                    single_result = await _call_synthesis([hyp_data], label,
+                                                          context)
                     all_validated_hypotheses.extend(single_result)
                     # accumulate for subsequent retries within this loop
                     for h in single_result:
                         text = h.get("hypothesis", "")
                         if text:
                             accumulated_texts.append(text)
-                except Exception as e:
+                except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error(
                         f"Individual retry failed for batch {batch_idx + 1}, "
-                        f"hypothesis {hyp_idx + 1}: {e}"
-                    )
+                        f"hypothesis {hyp_idx + 1}: {e}")
 
     logger.info(
         f"Combined {len(all_validated_hypotheses)} validated hypotheses from {len(batches)} batches"

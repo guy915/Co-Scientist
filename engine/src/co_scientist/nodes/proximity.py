@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Proximity node - cluster and deduplicate similar hypotheses.
-"""
+"""Proximity node - cluster and deduplicate similar hypotheses."""
 
 import logging
 from typing import Any, Dict, List
@@ -34,8 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
-    """
-    Cluster hypotheses by similarity and remove high-similarity duplicates.
+    """Clusters hypotheses by similarity and removes high-similarity duplicates.
 
     This node uses LLM-based semantic similarity analysis to:
     1. Cluster hypotheses by conceptual similarity
@@ -64,27 +60,30 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
         await state["progress_callback"](
             "proximity_start",
             {
-                "message": f"Analyzing similarity of {len(hypotheses)} hypotheses...",
-                "progress": PROGRESS_PROXIMITY_START,
+                "message":
+                    f"Analyzing similarity of {len(hypotheses)} hypotheses...",
+                "progress":
+                    PROGRESS_PROXIMITY_START,
             },
         )
 
     # Prepare hypotheses for similarity analysis
-    hypotheses_for_analysis = [
-        {"text": hyp.text, "score": hyp.score, "elo_rating": hyp.elo_rating, "index": i}
-        for i, hyp in enumerate(hypotheses)
-    ]
+    hypotheses_for_analysis = [{
+        "text": hyp.text,
+        "score": hyp.score,
+        "elo_rating": hyp.elo_rating,
+        "index": i
+    } for i, hyp in enumerate(hypotheses)]
 
     # Get supervisor guidance from state
     supervisor_guidance = state.get("supervisor_guidance")
 
     # Call LLM to cluster by similarity
     prompt, schema = get_proximity_prompt(
-        hypotheses_for_analysis, supervisor_guidance=supervisor_guidance
-    )
+        hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
 
     # save prompt to disk for debugging
-    from ..prompts import save_prompt_to_disk
+    from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
         run_id=state.get("run_id", "unknown"),
@@ -107,7 +106,8 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
     similarity_clusters = response.get("similarity_clusters", [])
 
     if not similarity_clusters:
-        logger.warning("No similarity clusters returned, skipping deduplication")
+        logger.warning(
+            "No similarity clusters returned, skipping deduplication")
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
     # Assign cluster IDs to hypotheses
@@ -150,9 +150,13 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
 
         # Separate by similarity degree
         high_similarity = [
-            h for h in cluster_hypotheses if getattr(h, "similarity_degree", "low") == "high"
+            h for h in cluster_hypotheses
+            if getattr(h, "similarity_degree", "low") == "high"
         ]
-        others = [h for h in cluster_hypotheses if getattr(h, "similarity_degree", "low") != "high"]
+        others = [
+            h for h in cluster_hypotheses
+            if getattr(h, "similarity_degree", "low") != "high"
+        ]
 
         # Keep all non-high-similarity hypotheses
         hypotheses_to_keep.extend(others)
@@ -160,7 +164,8 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
         if high_similarity:
             # For high-similarity duplicates, keep only the best
             # Sort by: Elo rating (primary), then score (secondary), then text (tiebreaker)
-            high_similarity.sort(key=lambda h: (h.elo_rating, h.score, h.text), reverse=True)
+            high_similarity.sort(key=lambda h: (h.elo_rating, h.score, h.text),
+                                 reverse=True)
 
             # Keep the best
             best = high_similarity[0]
@@ -168,29 +173,25 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
 
             # Remove the rest
             for duplicate in high_similarity[1:]:
-                removed_duplicates.append(
-                    {
-                        "text": duplicate.text,
-                        "cluster_id": cluster_id,
-                        "reason": "high_similarity_duplicate",
-                        "kept_instead": best.text[:200],
-                        "elo_rating": duplicate.elo_rating,
-                        "score": duplicate.score,
-                    }
-                )
+                removed_duplicates.append({
+                    "text": duplicate.text,
+                    "cluster_id": cluster_id,
+                    "reason": "high_similarity_duplicate",
+                    "kept_instead": best.text[:200],
+                    "elo_rating": duplicate.elo_rating,
+                    "score": duplicate.score,
+                })
                 logger.info(
                     f"Removed duplicate from cluster {cluster_id}: "
-                    f"{duplicate.text[:100]}... (Elo: {duplicate.elo_rating})"
-                )
+                    f"{duplicate.text[:100]}... (Elo: {duplicate.elo_rating})")
 
-    logger.info(
-        f"Proximity analysis complete: "
-        f"{len(hypotheses)} → {len(hypotheses_to_keep)} hypotheses "
-        f"({len(removed_duplicates)} duplicates removed)"
-    )
+    logger.info(f"Proximity analysis complete: "
+                f"{len(hypotheses)} → {len(hypotheses_to_keep)} hypotheses "
+                f"({len(removed_duplicates)} duplicates removed)")
 
     if removed_duplicates:
-        logger.warning(f"Removed {len(removed_duplicates)} high-similarity duplicates:")
+        logger.warning(
+            f"Removed {len(removed_duplicates)} high-similarity duplicates:")
         for dup in removed_duplicates[:3]:  # Log first 3
             logger.warning(f"- {dup['text'][:80]}...")
 
@@ -210,23 +211,29 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
     metrics = create_metrics_update(llm_calls_delta=1)
 
     # Update removed duplicates list
-    all_removed_duplicates = state.get("removed_duplicates", []) + removed_duplicates
+    all_removed_duplicates = state.get("removed_duplicates",
+                                       []) + removed_duplicates
 
     return {
-        "hypotheses": hypotheses_to_keep,
-        "removed_duplicates": all_removed_duplicates,
-        "similarity_clusters": similarity_clusters,
-        "metrics": metrics,
-        "current_iteration": next_iteration,
-        "messages": [
-            {
-                "role": "assistant",
-                "content": f"Deduplication: {len(hypotheses)} → {len(hypotheses_to_keep)} ({len(removed_duplicates)} removed)",
-                "metadata": {
-                    "phase": "proximity",
-                    "duplicates_removed": len(removed_duplicates),
-                    "clusters": len(similarity_clusters),
-                },
-            }
-        ],
+        "hypotheses":
+            hypotheses_to_keep,
+        "removed_duplicates":
+            all_removed_duplicates,
+        "similarity_clusters":
+            similarity_clusters,
+        "metrics":
+            metrics,
+        "current_iteration":
+            next_iteration,
+        "messages": [{
+            "role":
+                "assistant",
+            "content":
+                f"Deduplication: {len(hypotheses)} → {len(hypotheses_to_keep)} ({len(removed_duplicates)} removed)",
+            "metadata": {
+                "phase": "proximity",
+                "duplicates_removed": len(removed_duplicates),
+                "clusters": len(similarity_clusters),
+            },
+        }],
     }

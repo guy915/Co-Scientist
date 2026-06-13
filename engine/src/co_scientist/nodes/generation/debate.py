@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Debate generation strategy - generate hypotheses through adversarial debates.
+"""Debate generation strategy - generate hypotheses through adversarial debates.
 
 Each debate runs multiple turns between experts to generate a single hypothesis.
 Multiple debates can run in parallel.
@@ -46,7 +44,7 @@ def _match_papers_to_grounding(articles, literature_grounding):
 
     Returns empty list if no grounding text or no matches.
     """
-    from .papers import articles_to_candidates, filter_papers_by_grounding
+    from .papers import articles_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
 
     candidates = articles_to_candidates(articles)
     return filter_papers_by_grounding(candidates, literature_grounding)
@@ -59,8 +57,7 @@ async def _run_single_debate(
     articles_with_reasoning: Optional[str] = None,
     reference_index: Optional[ReferenceIndex] = None,
 ) -> Tuple[Hypothesis, str]:
-    """
-    Generate a single hypothesis using multi-turn debate strategy
+    """Generate a single hypothesis using multi-turn debate strategy.
 
     args:
         state: current workflow state
@@ -124,16 +121,19 @@ async def _run_single_debate(
 
             hypotheses_data = response.get("hypotheses", [])
             if not hypotheses_data:
-                raise ValueError(f"{debate_label} failed to generate hypothesis")
+                raise ValueError(
+                    f"{debate_label} failed to generate hypothesis")
 
             hyp_data = hypotheses_data[0]
 
-            hypothesis_text = hyp_data.get("hypothesis") or hyp_data.get("text", "")
+            hypothesis_text = hyp_data.get("hypothesis") or hyp_data.get(
+                "text", "")
             explanation = hyp_data.get("explanation")
             literature_grounding = hyp_data.get("literature_grounding")
             experiment = hyp_data.get("experiment")
 
-            citation_map = resolve_citation_keys(literature_grounding, ref_idx.sources)
+            citation_map = resolve_citation_keys(literature_grounding,
+                                                 ref_idx.sources)
 
             hypothesis = Hypothesis(
                 text=hypothesis_text,
@@ -167,8 +167,7 @@ async def generate_with_debate(
     articles_with_reasoning: Optional[str] = None,
     reference_index: Optional[ReferenceIndex] = None,
 ) -> Tuple[List[Hypothesis], List[Dict[str, Any]]]:
-    """
-    Generate hypotheses using parallel debate strategy
+    """Generate hypotheses using parallel debate strategy.
 
     Each debate generates 1 hypothesis through multi-turn expert discussion
 
@@ -192,21 +191,17 @@ async def generate_with_debate(
             debate_id=i,
             articles_with_reasoning=articles_with_reasoning,
             reference_index=reference_index,
-        )
-        for i in range(count)
+        ) for i in range(count)
     ]
 
     debate_results = await asyncio.gather(*debate_tasks)
 
     debate_hypotheses = [hyp for hyp, _ in debate_results]
-    debate_transcripts = [
-        {
-            "debate_id": i,
-            "transcript": transcript,
-            "hypothesis_text": debate_hypotheses[i].text
-        }
-        for i, (_, transcript) in enumerate(debate_results)
-    ]
+    debate_transcripts = [{
+        "debate_id": i,
+        "transcript": transcript,
+        "hypothesis_text": debate_hypotheses[i].text
+    } for i, (_, transcript) in enumerate(debate_results)]
 
     logger.info(f"Generated {len(debate_hypotheses)} hypotheses from debates")
     return debate_hypotheses, debate_transcripts

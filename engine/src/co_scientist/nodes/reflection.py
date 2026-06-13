@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-reflection node - analyzes hypotheses against literature observations.
-"""
+"""Reflection node - analyzes hypotheses against literature observations."""
 
 import asyncio
 import logging
@@ -43,8 +40,7 @@ async def analyze_single_hypothesis(
     run_id: str | None = None,
     tool_registry: Any | None = None,
 ) -> Optional[Dict[str, Any]]:
-    """
-    analyze a single hypothesis against literature observations.
+    """Analyze a single hypothesis against literature observations.
 
     args:
         hypothesis: hypothesis to analyze
@@ -60,7 +56,9 @@ async def analyze_single_hypothesis(
 
     # pre-fetch INDRA evidence for this hypothesis (non-critical, skip on failure)
     indra_data = await _fetch_indra_for_hypothesis(
-        hypothesis.text, tool_registry, hypothesis_index,
+        hypothesis.text,
+        tool_registry,
+        hypothesis_index,
     )
 
     # get reflection prompt (uses formatted text for LLM context)
@@ -73,7 +71,7 @@ async def analyze_single_hypothesis(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk
+        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
         save_prompt_to_disk(
             run_id=run_id,
             prompt_name=f"reflection_{hypothesis_index}",
@@ -98,7 +96,8 @@ async def analyze_single_hypothesis(
         classification = response.get("classification", "neutral")
         reasoning = response.get("reasoning", "")
 
-        logger.debug(f"hypothesis {hypothesis_index} classification: {classification}")
+        logger.debug(
+            f"hypothesis {hypothesis_index} classification: {classification}")
 
         return {
             "classification": classification,
@@ -106,14 +105,14 @@ async def analyze_single_hypothesis(
             "indra_enrichment_items": indra_data.get("enrichment_items", []),
         }
 
-    except Exception as e:
-        logger.error(f"Reflection failed for hypothesis {hypothesis_index}: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error(
+            f"Reflection failed for hypothesis {hypothesis_index}: {e}")
         return None
 
 
 async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
-    """
-    Analyze each hypothesis against literature observations.
+    """Analyze each hypothesis against literature observations.
 
     this node:
     1. for each generated hypothesis, calls the llm with reflection prompt
@@ -134,7 +133,8 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
     # get articles with reasoning from state
     articles_with_reasoning = state.get("articles_with_reasoning")
     if not articles_with_reasoning:
-        logger.warning("No articles_with_reasoning in state, skipping reflection")
+        logger.warning(
+            "No articles_with_reasoning in state, skipping reflection")
         return {}
 
     # get hypotheses from state
@@ -150,9 +150,12 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
         await state["progress_callback"](
             "reflection_start",
             {
-                "message": f"Analyzing {len(hypotheses)} hypotheses against literature...",
-                "progress": PROGRESS_REFLECTION_START,
-                "hypotheses_count": len(hypotheses),
+                "message":
+                    f"Analyzing {len(hypotheses)} hypotheses against literature...",
+                "progress":
+                    PROGRESS_REFLECTION_START,
+                "hypotheses_count":
+                    len(hypotheses),
             },
         )
 
@@ -169,8 +172,7 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
             total_count=len(hypotheses),
             run_id=state.get("run_id"),
             tool_registry=tool_registry,
-        )
-        for i, hyp in enumerate(hypotheses)
+        ) for i, hyp in enumerate(hypotheses)
     ]
 
     # gather all results
@@ -200,17 +202,21 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
             },
         )
 
-    logger.info(f"Completed reflection analysis for {len(hypotheses)} hypotheses")
+    logger.info(
+        f"Completed reflection analysis for {len(hypotheses)} hypotheses")
 
     return {
-        "hypotheses": hypotheses,
-        "messages": [
-            {
-                "role": "assistant",
-                "content": f"completed reflection analysis for {len(hypotheses)} hypotheses",
-                "metadata": {"phase": "reflection"},
-            }
-        ],
+        "hypotheses":
+            hypotheses,
+        "messages": [{
+            "role":
+                "assistant",
+            "content":
+                f"completed reflection analysis for {len(hypotheses)} hypotheses",
+            "metadata": {
+                "phase": "reflection"
+            },
+        }],
     }
 
 
@@ -228,7 +234,7 @@ async def _fetch_indra_for_hypothesis(
     """
     empty: Dict[str, Any] = {"prompt_text": "", "enrichment_items": []}
     try:
-        from .reflection_helpers import fetch_indra_evidence
+        from .reflection_helpers import fetch_indra_evidence  # pylint: disable=import-outside-toplevel
 
         result = await fetch_indra_evidence(
             hypothesis_text=hypothesis_text,
@@ -242,6 +248,6 @@ async def _fetch_indra_for_hypothesis(
                 f"({len(prompt_text)} chars, {len(result.get('enrichment_items', []))} items)"
             )
         return result
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.debug(f"hypothesis {hypothesis_index}: INDRA fetch skipped: {e}")
         return empty

@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Test supervisor node in isolation.
+"""Test supervisor node in isolation.
 
 Simplest node to test - no dependencies, just creates research plan.
 """
@@ -27,7 +25,6 @@ from rich.json import JSON
 from state_helpers import make_base_state
 from co_scientist.nodes.supervisor import supervisor_node
 
-
 console = Console()
 
 
@@ -38,7 +35,8 @@ async def test_supervisor():
 
     # Create minimal state
     state = make_base_state(
-        research_goal="How can we detect Alzheimer's disease earlier using retinal imaging?",
+        research_goal=
+        "How can we detect Alzheimer's disease earlier using retinal imaging?",
         model_name="gemini/gemini-2.5-flash",
     )
 
@@ -51,17 +49,21 @@ async def test_supervisor():
     # Display results
     guidance = result.get("supervisor_guidance", {})
 
-    console.print(Panel(
-        JSON(json.dumps(guidance, indent=2)),
-        title="[bold green]Supervisor guidance output[/bold green]",
-        border_style="green"
-    ))
+    console.print(
+        Panel(JSON(json.dumps(guidance, indent=2)),
+              title="[bold green]Supervisor guidance output[/bold green]",
+              border_style="green"))
 
     # Show what would be passed to next nodes
     console.print("\n[bold]Key fields for downstream nodes:[/bold]")
-    console.print(f"  approach_description: {len(guidance.get('approach_description', ''))} chars")
-    console.print(f"  key_considerations: {len(guidance.get('key_considerations', []))} items")
-    console.print(f"  search_strategy: {len(guidance.get('search_strategy', {}))} keys")
+    console.print(
+        f"  approach_description: {len(guidance.get('approach_description', ''))} chars"
+    )
+    console.print(
+        f"  key_considerations: {len(guidance.get('key_considerations', []))} items"
+    )
+    console.print(
+        f"  search_strategy: {len(guidance.get('search_strategy', {}))} keys")
 
 
 if __name__ == "__main__":

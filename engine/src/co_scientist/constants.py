@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Constants and configuration values for Co-Scientist.
+"""Constants and configuration values for Co-Scientist.
 
 Centralizes magic numbers and configuration values for better maintainability.
 """
@@ -127,8 +125,7 @@ LITERATURE_REVIEW_RECENCY_YEARS = 7
 
 
 def get_draft_max_iterations(hypotheses_count: int) -> int:
-    """
-    Calculate draft iterations based on hypotheses count
+    """Calculate draft iterations based on hypotheses count.
 
     formula: base iterations (for reading papers) + per-hypothesis budget
     - need to read papers: 5 base iterations
@@ -144,8 +141,7 @@ def get_draft_max_iterations(hypotheses_count: int) -> int:
 
 
 def get_validate_max_iterations(hypotheses_count: int) -> int:
-    """
-    Calculate validate iterations based on hypotheses count
+    """Calculate validate iterations based on hypotheses count.
 
     formula: per-hypothesis budget for search + read + refine
     - each hypothesis needs: search (2) + read papers (3-5) + refine (2-3)

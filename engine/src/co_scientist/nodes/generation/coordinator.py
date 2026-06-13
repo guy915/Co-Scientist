@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Generation coordinator - orchestrates all generation strategies.
+"""Generation coordinator - orchestrates all generation strategies.
 
 All generation paths output hypotheses with explanation, literature_grounding, and experiment fields.
 When no literature is available, literature_grounding contains an explicit warning message.
@@ -42,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GenerationCounts:
-    """Encapsulates hypothesis count allocation across generation methods"""
+    """Encapsulates hypothesis count allocation across generation methods."""
 
     tools_count: int
     debate_with_lit_count: int
@@ -53,7 +51,7 @@ class GenerationCounts:
 
 @dataclass
 class GenerationResults:
-    """Encapsulates results from parallel generation execution"""
+    """Encapsulates results from parallel generation execution."""
 
     tools_hypotheses: List[Hypothesis]
     debate_with_lit_hypotheses: List[Hypothesis]
@@ -63,25 +61,19 @@ class GenerationResults:
 
 # helper functions
 
-def _check_literature_availability(
-    articles_with_reasoning: Optional[str],
-    mcp_available: bool
-) -> bool:
-    """Determine if literature review is available and valid"""
-    return (
-        articles_with_reasoning is not None
-        and articles_with_reasoning != LITERATURE_REVIEW_FAILED
-        and mcp_available
-    )
+
+def _check_literature_availability(articles_with_reasoning: Optional[str],
+                                   mcp_available: bool) -> bool:
+    """Determine if literature review is available and valid."""
+    return (articles_with_reasoning is not None and
+            articles_with_reasoning != LITERATURE_REVIEW_FAILED and
+            mcp_available)
 
 
-def _determine_generation_counts(
-    state: WorkflowState,
-    total_count: int,
-    has_literature: bool,
-    enable_tool_calling: bool
-) -> GenerationCounts:
-    """Determine how many hypotheses to generate with each method"""
+def _determine_generation_counts(state: WorkflowState, total_count: int,
+                                 has_literature: bool,
+                                 enable_tool_calling: bool) -> GenerationCounts:
+    """Determine how many hypotheses to generate with each method."""
     if state.get("dev_test_lit_tools_isolation", False):
         return GenerationCounts(
             tools_count=total_count,
@@ -123,7 +115,7 @@ def _determine_generation_counts(
 
 
 def _log_generation_strategy(counts: GenerationCounts, total_count: int):
-    """Log which generation strategy is being used"""
+    """Log which generation strategy is being used."""
     if counts.is_dev_isolation:
         logger.info(
             "Dev isolation mode: allocating all hypotheses to lit tools generation (no debate)"
@@ -146,8 +138,9 @@ def _log_generation_strategy(counts: GenerationCounts, total_count: int):
         logger.warning("=" * 80)
 
 
-async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts, total_count: int):
-    """Emit progress callback for generation start"""
+async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts,
+                               total_count: int):
+    """Emit progress callback for generation start."""
     progress_callback = state.get("progress_callback")
     if not progress_callback:
         return
@@ -156,35 +149,46 @@ async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts, t
         await progress_callback(
             "generation_start",
             {
-                "message": f"Generating {total_count} hypotheses with lit tools only (dev isolation mode)...",
-                "progress": PROGRESS_GENERATE_START,
-                "dev_isolation_mode": True,
+                "message":
+                    f"Generating {total_count} hypotheses with lit tools only (dev isolation mode)...",
+                "progress":
+                    PROGRESS_GENERATE_START,
+                "dev_isolation_mode":
+                    True,
             },
         )
     elif counts.tools_count > 0 and counts.debate_with_lit_count > 0:
         await progress_callback(
             "generation_start",
             {
-                "message": f"Generating {total_count} hypotheses ({counts.tools_count} tool-based + {counts.debate_with_lit_count} debate-with-literature)...",
-                "progress": PROGRESS_GENERATE_START,
+                "message":
+                    f"Generating {total_count} hypotheses ({counts.tools_count} tool-based + {counts.debate_with_lit_count} debate-with-literature)...",
+                "progress":
+                    PROGRESS_GENERATE_START,
             },
         )
     elif counts.debate_with_lit_count > 0:
         await progress_callback(
             "generation_start",
             {
-                "message": f"Generating {total_count} hypotheses with debate-with-literature...",
-                "progress": PROGRESS_GENERATE_START,
+                "message":
+                    f"Generating {total_count} hypotheses with debate-with-literature...",
+                "progress":
+                    PROGRESS_GENERATE_START,
             },
         )
     elif counts.is_degraded_mode:
         await progress_callback(
             "generation_start",
             {
-                "message": f"Generating {counts.debate_only_count} hypotheses without literature review...",
-                "progress": PROGRESS_GENERATE_START,
-                "literature_review_available": False,
-                "degraded_mode": True,
+                "message":
+                    f"Generating {counts.debate_only_count} hypotheses without literature review...",
+                "progress":
+                    PROGRESS_GENERATE_START,
+                "literature_review_available":
+                    False,
+                "degraded_mode":
+                    True,
             },
         )
 
@@ -195,7 +199,7 @@ async def _execute_generation_tasks(
     articles_with_reasoning: Optional[str],
     reference_index: ReferenceIndex,
 ) -> GenerationResults:
-    """Execute parallel generation tasks and return results"""
+    """Execute parallel generation tasks and return results."""
     tools_hypotheses = []
     debate_with_lit_hypotheses = []
     debate_only_hypotheses = []
@@ -205,36 +209,39 @@ async def _execute_generation_tasks(
     tasks = []
 
     if counts.tools_count > 0:
-        logger.info(f"Running tool-based generation for {counts.tools_count} hypotheses")
-        tasks.append(("tools", generate_with_tools(state, counts.tools_count, reference_index)))
+        logger.info(
+            f"Running tool-based generation for {counts.tools_count} hypotheses"
+        )
+        tasks.append(("tools",
+                      generate_with_tools(state, counts.tools_count,
+                                          reference_index)))
 
     if counts.debate_with_lit_count > 0:
-        logger.info(f"Running debate-with-literature for {counts.debate_with_lit_count} hypotheses")
-        tasks.append(
-            (
-                "debate_lit",
-                generate_with_debate(
-                    state=state,
-                    count=counts.debate_with_lit_count,
-                    articles_with_reasoning=articles_with_reasoning,
-                    reference_index=reference_index,
-                ),
-            )
+        logger.info(
+            f"Running debate-with-literature for {counts.debate_with_lit_count} hypotheses"
         )
+        tasks.append((
+            "debate_lit",
+            generate_with_debate(
+                state=state,
+                count=counts.debate_with_lit_count,
+                articles_with_reasoning=articles_with_reasoning,
+                reference_index=reference_index,
+            ),
+        ))
 
     if counts.debate_only_count > 0:
-        logger.info(f"Running debate-only for {counts.debate_only_count} hypotheses")
-        tasks.append(
-            (
-                "debate_only",
-                generate_with_debate(
-                    state=state,
-                    count=counts.debate_only_count,
-                    articles_with_reasoning=None,  # explicitly no literature
-                    reference_index=ReferenceIndex(text="", sources={}),
-                ),
-            )
-        )
+        logger.info(
+            f"Running debate-only for {counts.debate_only_count} hypotheses")
+        tasks.append((
+            "debate_only",
+            generate_with_debate(
+                state=state,
+                count=counts.debate_only_count,
+                articles_with_reasoning=None,  # explicitly no literature
+                reference_index=ReferenceIndex(text="", sources={}),
+            ),
+        ))
 
     # run all tasks in parallel
     results = await asyncio.gather(*[task for _, task in tasks])
@@ -259,30 +266,24 @@ async def _execute_generation_tasks(
 
 
 def _apply_degraded_mode_fallback(hypotheses: List[Hypothesis]):
-    """
-    Set explicit literature_grounding message for hypotheses without literature review
-    """
+    """Set explicit literature_grounding message for hypotheses without literature review."""
     for hyp in hypotheses:
         # always overwrite in non-lit-mcp mode to prevent hallucinated citations
         hyp.literature_grounding = (
             "No literature review available. This hypothesis is based on the model's "
             "latent knowledge and has not been validated against current research literature. "
-            "Novelty and scientific validity should be independently verified."
-        )
+            "Novelty and scientific validity should be independently verified.")
 
 
 def _log_generation_summary(results: GenerationResults):
-    """Log summary of generated hypotheses"""
-    total = (
-        len(results.tools_hypotheses)
-        + len(results.debate_with_lit_hypotheses)
-        + len(results.debate_only_hypotheses)
-    )
+    """Log summary of generated hypotheses."""
+    total = (len(results.tools_hypotheses) +
+             len(results.debate_with_lit_hypotheses) +
+             len(results.debate_only_hypotheses))
     logger.info(
         f"Generated {total} total hypotheses "
         f"({len(results.tools_hypotheses)} tool-based, {len(results.debate_with_lit_hypotheses)} debate-with-lit, "
-        f"{len(results.debate_only_hypotheses)} debate-only)"
-    )
+        f"{len(results.debate_only_hypotheses)} debate-only)")
 
     if results.tools_hypotheses:
         logger.debug(
@@ -298,35 +299,34 @@ def _log_generation_summary(results: GenerationResults):
         )
 
 
-def _build_summary_message_parts(results: GenerationResults, counts: GenerationCounts) -> List[str]:
-    """Build message parts for summary output"""
+def _build_summary_message_parts(results: GenerationResults,
+                                 counts: GenerationCounts) -> List[str]:
+    """Build message parts for summary output."""
     parts = []
     if counts.tools_count > 0:
         parts.append(f"{len(results.tools_hypotheses)} tool-based")
     if counts.debate_with_lit_count > 0:
-        parts.append(f"{len(results.debate_with_lit_hypotheses)} debate-with-literature")
+        parts.append(
+            f"{len(results.debate_with_lit_hypotheses)} debate-with-literature")
     if counts.debate_only_count > 0:
         suffix = ""
-        parts.append(f"{len(results.debate_only_hypotheses)} debate-only{suffix}")
+        parts.append(
+            f"{len(results.debate_only_hypotheses)} debate-only{suffix}")
     return parts
 
 
-async def _emit_complete_progress(
-    state: WorkflowState,
-    results: GenerationResults,
-    counts: GenerationCounts
-):
-    """Emit progress callback for generation complete"""
+async def _emit_complete_progress(state: WorkflowState,
+                                  results: GenerationResults,
+                                  counts: GenerationCounts):
+    """Emit progress callback for generation complete."""
     progress_callback = state.get("progress_callback")
     if not progress_callback:
         return
 
     parts = _build_summary_message_parts(results, counts)
-    all_hypotheses = (
-        results.tools_hypotheses
-        + results.debate_with_lit_hypotheses
-        + results.debate_only_hypotheses
-    )
+    all_hypotheses = (results.tools_hypotheses +
+                      results.debate_with_lit_hypotheses +
+                      results.debate_only_hypotheses)
 
     message = f"Generated {len(all_hypotheses)} hypotheses ({', '.join(parts)})"
 
@@ -366,14 +366,14 @@ async def _enrich_hypotheses(
     for enrichment in enrichment_configs:
         tool_config = tool_registry.get_tool(enrichment.tool)
         if not tool_config:
-            logger.warning(f"enrichment tool '{enrichment.tool}' not found in registry")
+            logger.warning(
+                f"enrichment tool '{enrichment.tool}' not found in registry")
             continue
 
         output_key = enrichment.output_key or enrichment.tool
         logger.info(
             f"running enrichment '{output_key}' via {tool_config.mcp_tool_name} "
-            f"for {len(hypotheses)} hypotheses"
-        )
+            f"for {len(hypotheses)} hypotheses")
 
         for hyp in hypotheses:
             input_value = getattr(hyp, enrichment.input_field, hyp.text)
@@ -383,13 +383,15 @@ async def _enrich_hypotheses(
                     topic=input_value,
                     max_results=enrichment.max_results,
                 )
-                parsed = json.loads(result) if isinstance(result, str) else result
+                parsed = json.loads(result) if isinstance(result,
+                                                          str) else result
                 # extract nested array via results_path (e.g., "results" for NvdSearchResponse)
                 if enrichment.results_path and isinstance(parsed, dict):
                     parsed = parsed.get(enrichment.results_path, parsed)
                 hyp.enrichments[output_key] = parsed
-            except Exception as e:
-                logger.warning(f"enrichment '{output_key}' failed for hypothesis: {e}")
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.warning(
+                    f"enrichment '{output_key}' failed for hypothesis: {e}")
                 hyp.enrichments[output_key] = {"error": str(e)}
 
 
@@ -397,8 +399,7 @@ async def _enrich_hypotheses(
 
 
 async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
-    """
-    Coordinate hypothesis generation using appropriate strategies
+    """Coordinate hypothesis generation using appropriate strategies.
 
     Implements 3-condition strategy:
     - Condition (a): lit review + tools → 50% tool-based + 50% debate-with-lit
@@ -422,8 +423,10 @@ async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
     if not supervisor_guidance:
         raise ValueError("No supervisor_guidance in state for node=generation")
 
-    has_literature = _check_literature_availability(articles_with_reasoning, mcp_available)
-    counts = _determine_generation_counts(state, total_count, has_literature, enable_tool_calling)
+    has_literature = _check_literature_availability(articles_with_reasoning,
+                                                    mcp_available)
+    counts = _determine_generation_counts(state, total_count, has_literature,
+                                          enable_tool_calling)
 
     reference_index = build_reference_index(
         articles=state.get("articles"),
@@ -439,7 +442,9 @@ async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
     await _emit_start_progress(state, counts, total_count)
 
     try:
-        results = await _execute_generation_tasks(state, counts, articles_with_reasoning, reference_index)
+        results = await _execute_generation_tasks(state, counts,
+                                                  articles_with_reasoning,
+                                                  reference_index)
 
         if counts.is_degraded_mode:
             _apply_degraded_mode_fallback(results.debate_only_hypotheses)
@@ -447,11 +452,9 @@ async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
         _log_generation_summary(results)
         await _emit_complete_progress(state, results, counts)
 
-        all_hypotheses = (
-            results.tools_hypotheses
-            + results.debate_with_lit_hypotheses
-            + results.debate_only_hypotheses
-        )
+        all_hypotheses = (results.tools_hypotheses +
+                          results.debate_with_lit_hypotheses +
+                          results.debate_only_hypotheses)
 
         # run post-generation enrichments (e.g., NVD CVE lookup)
         await _enrich_hypotheses(all_hypotheses, state)

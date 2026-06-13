@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Co-Scientist: AI Co-Scientist framework reimplemented with LangGraph.
+"""Co-Scientist: AI Co-Scientist framework reimplemented with LangGraph.
 
 This package provides a clean, modular implementation of the AI Co-Scientist
 framework using LangGraph for workflow orchestration.
@@ -48,9 +46,8 @@ import sys
 
 # ensure Python version compatibility
 if sys.version_info < (3, 10):
-    raise RuntimeError(
-        "Co-Scientist requires Python >= 3.10. " "Please upgrade to Python 3.10 or newer."
-    )
+    raise RuntimeError("Co-Scientist requires Python >= 3.10. "
+                       "Please upgrade to Python 3.10 or newer.")
 
 from .generator import HypothesisGenerator
 from .models import Hypothesis, HypothesisReview, ExecutionMetrics

@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Meta-review node - synthesize insights from all reviews.
-"""
+"""Meta-review node - synthesize insights from all reviews."""
 
 import json
 import logging
@@ -35,8 +32,7 @@ logger = logging.getLogger(__name__)
 
 
 async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
-    """
-    Synthesize insights from all reviews across all hypotheses.
+    """Synthesizes insights from all reviews across all hypotheses.
 
     This node analyzes all the reviews collectively to identify:
     - Common strengths and weaknesses
@@ -73,14 +69,22 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
         latest_review = hyp.reviews[-1]
 
         review_data = {
-            "hypothesis_index": i,
-            "hypothesis_text": hyp.text[:200] + "..." if len(hyp.text) > 200 else hyp.text,
-            "overall_score": latest_review.overall_score,
-            "review_summary": latest_review.review_summary,
-            "scores": latest_review.scores,
-            "constructive_feedback": latest_review.constructive_feedback,
-            "elo_rating": hyp.elo_rating,
-            "win_loss_record": f"{hyp.win_count}W-{hyp.loss_count}L",
+            "hypothesis_index":
+                i,
+            "hypothesis_text":
+                hyp.text[:200] + "..." if len(hyp.text) > 200 else hyp.text,
+            "overall_score":
+                latest_review.overall_score,
+            "review_summary":
+                latest_review.review_summary,
+            "scores":
+                latest_review.scores,
+            "constructive_feedback":
+                latest_review.constructive_feedback,
+            "elo_rating":
+                hyp.elo_rating,
+            "win_loss_record":
+                f"{hyp.win_count}W-{hyp.loss_count}L",
         }
         all_reviews.append(review_data)
 
@@ -111,7 +115,7 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     )
 
     # save prompt to disk for debugging
-    from ..prompts import save_prompt_to_disk
+    from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
         run_id=state.get("run_id", "unknown"),
@@ -127,7 +131,8 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
-        max_tokens=THINKING_MAX_TOKENS,  # Meta-review needs more space for aggregating all reviews
+        max_tokens=
+        THINKING_MAX_TOKENS,  # Meta-review needs more space for aggregating all reviews
         temperature=MEDIUM_TEMPERATURE,
         json_schema=schema,
     )
@@ -142,29 +147,43 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     process = response.get("process_assessment") or {}
 
     meta_review = {
-        "summary": response.get("meta_review_summary", ""),
-        "common_strengths": response.get("strengths", []),
-        "common_weaknesses": response.get("weaknesses", []),
-        "emerging_themes": emerging_themes,
-        "strategic_recommendations": response.get("strategic_recommendations", []),
-        "diversity_assessment": process.get("generation_process", ""),
-        "top_performers_analysis": process.get("review_process", ""),
-        "areas_for_improvement": response.get("weaknesses", []),
+        "summary":
+            response.get("meta_review_summary", ""),
+        "common_strengths":
+            response.get("strengths", []),
+        "common_weaknesses":
+            response.get("weaknesses", []),
+        "emerging_themes":
+            emerging_themes,
+        "strategic_recommendations":
+            response.get("strategic_recommendations", []),
+        "diversity_assessment":
+            process.get("generation_process", ""),
+        "top_performers_analysis":
+            process.get("review_process", ""),
+        "areas_for_improvement":
+            response.get("weaknesses", []),
     }
 
     logger.info("Meta-review complete")
     logger.info(f"Common strengths: {len(meta_review['common_strengths'])}")
-    logger.info(f"Strategic recommendations: {len(meta_review['strategic_recommendations'])}")
+    logger.info(
+        f"Strategic recommendations: {len(meta_review['strategic_recommendations'])}"
+    )
 
     # Emit progress
     if state.get("progress_callback"):
         await state["progress_callback"](
             "meta_review_complete",
             {
-                "message": "Meta-review synthesis complete",
-                "progress": PROGRESS_META_REVIEW_COMPLETE,
-                "strengths_count": len(meta_review["common_strengths"]),
-                "recommendations_count": len(meta_review["strategic_recommendations"]),
+                "message":
+                    "Meta-review synthesis complete",
+                "progress":
+                    PROGRESS_META_REVIEW_COMPLETE,
+                "strengths_count":
+                    len(meta_review["common_strengths"]),
+                "recommendations_count":
+                    len(meta_review["strategic_recommendations"]),
             },
         )
 
@@ -172,16 +191,16 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     metrics = create_metrics_update(llm_calls_delta=1)
 
     return {
-        "meta_review": meta_review,
-        "metrics": metrics,
-        "messages": [
-            {
-                "role": "assistant",
-                "content": "Synthesized meta-review from all hypotheses",
-                "metadata": {
-                    "phase": "meta_review",
-                    "themes": len(meta_review.get("emerging_themes", [])),
-                },
-            }
-        ],
+        "meta_review":
+            meta_review,
+        "metrics":
+            metrics,
+        "messages": [{
+            "role": "assistant",
+            "content": "Synthesized meta-review from all hypotheses",
+            "metadata": {
+                "phase": "meta_review",
+                "themes": len(meta_review.get("emerging_themes", [])),
+            },
+        }],
     }

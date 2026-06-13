@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Review node - adaptive peer review strategy based on hypothesis count.
+"""Review node - adaptive peer review strategy based on hypothesis count.
 
 - Small batches (≤5): Comparative batch review for differentiated scores
 - Large batches (>5): Parallel individual reviews for scalability
@@ -49,8 +47,7 @@ async def review_single_hypothesis(
     hypothesis_index: int | None = None,
     tool_registry: Any | None = None,
 ) -> HypothesisReview:
-    """
-    Review a single hypothesis.
+    """Reviews a single hypothesis.
 
     Args:
         hypothesis_text: The hypothesis to review
@@ -74,13 +71,10 @@ async def review_single_hypothesis(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk
+        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
-        filename = (
-            f"review_individual_{hypothesis_index}"
-            if hypothesis_index is not None
-            else "review_individual"
-        )
+        filename = (f"review_individual_{hypothesis_index}"
+                    if hypothesis_index is not None else "review_individual")
         save_prompt_to_disk(
             run_id=run_id,
             prompt_name=filename,
@@ -125,8 +119,7 @@ async def review_parallel_individual(
     run_id: str | None = None,
     tool_registry: Any | None = None,
 ) -> List[HypothesisReview]:
-    """
-    Review hypotheses in parallel (original approach).
+    """Reviews hypotheses in parallel (original approach).
 
     Each hypothesis is reviewed independently without seeing others.
     Fast but may produce similar scores for high-quality hypotheses.
@@ -150,8 +143,7 @@ async def review_parallel_individual(
             run_id=run_id,
             hypothesis_index=i,
             tool_registry=tool_registry,
-        )
-        for i, hyp in enumerate(hypotheses)
+        ) for i, hyp in enumerate(hypotheses)
     ]
 
     return await asyncio.gather(*review_tasks)
@@ -166,8 +158,7 @@ async def review_comparative_batch(
     run_id: str | None = None,
     tool_registry: Any | None = None,
 ) -> List[HypothesisReview]:
-    """
-    Review hypotheses in a single comparative batch.
+    """Reviews hypotheses in a single comparative batch.
 
     All hypotheses are shown to one LLM call for relative comparison.
     Produces more differentiated scores but limited by token constraints.
@@ -182,9 +173,9 @@ async def review_comparative_batch(
         List of reviews (one per hypothesis)
     """
     # Format hypotheses for batch review
-    hypotheses_list = "\n\n".join(
-        [f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)]
-    )
+    hypotheses_list = "\n\n".join([
+        f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)
+    ])
 
     # Call batch review
     prompt, schema = get_review_batch_prompt(
@@ -197,9 +188,11 @@ async def review_comparative_batch(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk
+        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
-        scaled_max_tokens = min(THINKING_MAX_TOKENS + (max(0, len(hypotheses) - 5) * 1500), 24000)
+        scaled_max_tokens = min(
+            THINKING_MAX_TOKENS + (max(0,
+                                       len(hypotheses) - 5) * 1500), 24000)
         save_prompt_to_disk(
             run_id=run_id,
             prompt_name="review_batch",
@@ -210,7 +203,9 @@ async def review_comparative_batch(
                 "prompt_length_chars": len(prompt),
             },
         )
-        logger.debug(f"saved batch review prompt to .coscientist_prompts/{run_id}/review_batch.txt")
+        logger.debug(
+            f"saved batch review prompt to .coscientist_prompts/{run_id}/review_batch.txt"
+        )
 
     # scale max_tokens based on hypothesis count in batch
     # base: 18000 (THINKING_MAX_TOKENS), add 1500 per hypothesis beyond 5
@@ -220,7 +215,9 @@ async def review_comparative_batch(
         24000,  # reasonable upper limit for batch review
     )
 
-    logger.debug(f"batch review: {hypothesis_count} hypotheses, max_tokens={scaled_max_tokens}")
+    logger.debug(
+        f"batch review: {hypothesis_count} hypotheses, max_tokens={scaled_max_tokens}"
+    )
 
     response = await call_llm_json(
         prompt=prompt,
@@ -228,7 +225,8 @@ async def review_comparative_batch(
         max_tokens=scaled_max_tokens,
         temperature=HIGH_TEMPERATURE,
         json_schema=schema,
-        max_attempts=7 if hypothesis_count > 10 else 5,  # increase retries for large batches
+        max_attempts=7
+        if hypothesis_count > 10 else 5,  # increase retries for large batches
     )
 
     # extract reviews from response
@@ -239,7 +237,8 @@ async def review_comparative_batch(
     logger.info(
         f"Reviews data type: {type(reviews_data)}, length: {len(reviews_data) if isinstance(reviews_data, list) else 'N/A'}"
     )
-    logger.info(f"Expected {len(hypotheses)} reviews, received {len(reviews_data)}")
+    logger.info(
+        f"Expected {len(hypotheses)} reviews, received {len(reviews_data)}")
 
     if len(reviews_data) != len(hypotheses):
         logger.error(
@@ -264,9 +263,11 @@ async def review_comparative_batch(
             review = HypothesisReview(
                 review_summary=review_data.get("review_summary", ""),
                 scores=scores,
-                safety_ethical_concerns=review_data.get("safety_ethical_concerns", ""),
+                safety_ethical_concerns=review_data.get(
+                    "safety_ethical_concerns", ""),
                 detailed_feedback=review_data.get("detailed_feedback", {}),
-                constructive_feedback=review_data.get("constructive_feedback", ""),
+                constructive_feedback=review_data.get("constructive_feedback",
+                                                      ""),
                 overall_score=overall_score,
             )
             reviews.append(review)
@@ -281,15 +282,13 @@ async def review_comparative_batch(
                     detailed_feedback={},
                     constructive_feedback="",
                     overall_score=0.0,
-                )
-            )
+                ))
 
     return reviews
 
 
 async def review_node(state: WorkflowState) -> Dict[str, Any]:
-    """
-    Review all hypotheses using adaptive strategy.
+    """Reviews all hypotheses using adaptive strategy.
 
     Strategy selection:
     - Small batches (≤5): Comparative batch review for differentiated scores
@@ -363,7 +362,10 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
         llm_calls = num_hypotheses  # One call per hypothesis
 
     # validate reviews before continuing
-    invalid_reviews = [i for i, r in enumerate(reviews) if r.review_summary == "Review unavailable"]
+    invalid_reviews = [
+        i for i, r in enumerate(reviews)
+        if r.review_summary == "Review unavailable"
+    ]
     if invalid_reviews:
         error_msg = f"review node failed: {len(invalid_reviews)}/{len(reviews)} reviews invalid"
         logger.error(error_msg)
@@ -374,7 +376,8 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
         hypothesis.reviews.append(review)
         hypothesis.score = review.overall_score
 
-    logger.info(f"Completed {len(reviews)} reviews using {strategy_name} strategy")
+    logger.info(
+        f"Completed {len(reviews)} reviews using {strategy_name} strategy")
 
     # Emit progress
     if state.get("progress_callback"):
@@ -388,19 +391,23 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
         )
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
-    metrics = create_metrics_update(reviews_count_delta=len(reviews), llm_calls_delta=llm_calls)
+    metrics = create_metrics_update(reviews_count_delta=len(reviews),
+                                    llm_calls_delta=llm_calls)
     logger.debug(
         f"review node creating metrics delta: reviews={len(reviews)}, llm_calls={llm_calls}"
     )
 
     return {
-        "hypotheses": hypotheses,
-        "metrics": metrics,
-        "messages": [
-            {
-                "role": "assistant",
-                "content": f"Reviewed {len(reviews)} hypotheses ({strategy_name})",
-                "metadata": {"phase": "review", "strategy": strategy_name},
-            }
-        ],
+        "hypotheses":
+            hypotheses,
+        "metrics":
+            metrics,
+        "messages": [{
+            "role": "assistant",
+            "content": f"Reviewed {len(reviews)} hypotheses ({strategy_name})",
+            "metadata": {
+                "phase": "review",
+                "strategy": strategy_name
+            },
+        }],
     }

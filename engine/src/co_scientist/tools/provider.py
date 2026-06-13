@@ -11,11 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Hybrid tool provider for unified access to MCP and Python tools.
 
-"""
-Hybrid tool provider for unified access to MCP and Python tools
-
-Provides composition pattern wrapping MCPToolClient and PythonToolRegistry
+Provides composition pattern wrapping MCPToolClient and PythonToolRegistry.
 """
 
 import json
@@ -29,10 +27,9 @@ logger = logging.getLogger(__name__)
 
 
 class HybridToolProvider:
-    """
-    Unified interface for MCP and Python tools.
+    """Unified interface for MCP and Python tools.
 
-    Routes tool calls to appropriate executor based on tool source
+    Routes tool calls to appropriate executor based on tool source.
 
     example usage:
         provider = HybridToolProvider(
@@ -53,8 +50,7 @@ class HybridToolProvider:
         mcp_client: Optional[MCPToolClient] = None,
         python_registry: Optional[PythonToolRegistry] = None,
     ):
-        """
-        Initialize hybrid tool provider
+        """Initialize hybrid tool provider.
 
         args:
             mcp_client: optional MCP client for MCP tools
@@ -71,8 +67,7 @@ class HybridToolProvider:
         mcp_whitelist: Optional[List[str]] = None,
         python_whitelist: Optional[List[str]] = None,
     ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """
-        Get merged tools from MCP and Python sources
+        """Get merged tools from MCP and Python sources.
 
         args:
             mcp_whitelist: optional list of MCP tool names to include
@@ -90,8 +85,7 @@ class HybridToolProvider:
         if self.mcp_client is not None and mcp_whitelist is not None:
             try:
                 mcp_tools_dict, mcp_openai_tools = self.mcp_client.get_tools(
-                    whitelist=mcp_whitelist
-                )
+                    whitelist=mcp_whitelist)
 
                 # track tool sources
                 for tool_name in mcp_tools_dict.keys():
@@ -101,15 +95,14 @@ class HybridToolProvider:
                 merged_openai_tools.extend(mcp_openai_tools)
 
                 logger.debug(f"added {len(mcp_tools_dict)} MCP tools")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning(f"Failed to get MCP tools: {e}")
 
         # get Python tools
         if self.python_registry is not None and python_whitelist is not None:
             try:
                 python_functions, python_openai_tools = self.python_registry.get_tools(
-                    whitelist=python_whitelist
-                )
+                    whitelist=python_whitelist)
 
                 # track tool sources
                 for tool_name in python_functions.keys():
@@ -121,7 +114,7 @@ class HybridToolProvider:
                 merged_openai_tools.extend(python_openai_tools)
 
                 logger.debug(f"added {len(python_functions)} Python tools")
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning(f"Failed to get Python tools: {e}")
 
         logger.info(
@@ -133,8 +126,7 @@ class HybridToolProvider:
         return merged_tools_dict, merged_openai_tools
 
     async def execute_tool_call(self, tool_call: Any) -> Dict[str, Any]:
-        """
-        Execute a tool call by routing to appropriate executor
+        """Execute a tool call by routing to appropriate executor.
 
         args:
             tool_call: LiteLLM tool call object with .id, .function.name, .function.arguments
@@ -151,7 +143,8 @@ class HybridToolProvider:
         if tool_source is None:
             error_msg = f"unknown tool: {tool_name}"
             logger.error(error_msg)
-            return self._create_error_response(tool_name, tool_call_id, error_msg)
+            return self._create_error_response(tool_name, tool_call_id,
+                                               error_msg)
 
         # route to appropriate executor
         try:
@@ -162,16 +155,17 @@ class HybridToolProvider:
             else:
                 error_msg = f"invalid tool source: {tool_source}"
                 logger.error(error_msg)
-                return self._create_error_response(tool_name, tool_call_id, error_msg)
+                return self._create_error_response(tool_name, tool_call_id,
+                                                   error_msg)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             error_msg = f"tool execution failed: {str(e)}"
             logger.error(f"{tool_name} error: {error_msg}")
-            return self._create_error_response(tool_name, tool_call_id, error_msg)
+            return self._create_error_response(tool_name, tool_call_id,
+                                               error_msg)
 
     async def _execute_mcp_tool(self, tool_call: Any) -> Dict[str, Any]:
-        """
-        Execute MCP tool call
+        """Execute MCP tool call.
 
         args:
             tool_call: LiteLLM tool call object
@@ -186,8 +180,7 @@ class HybridToolProvider:
         return await self.mcp_client.execute_tool_call(tool_call)
 
     async def _execute_python_tool(self, tool_call: Any) -> Dict[str, Any]:
-        """
-        Execute Python tool call
+        """Execute Python tool call.
 
         args:
             tool_call: LiteLLM tool call object
@@ -210,7 +203,7 @@ class HybridToolProvider:
         try:
             args_dict = json.loads(tool_call.function.arguments)
         except json.JSONDecodeError as e:
-            raise ValueError(f"invalid JSON arguments: {e}")
+            raise ValueError(f"invalid JSON arguments: {e}") from e
 
         logger.debug(f"calling Python tool: {tool_name} with args: {args_dict}")
 
@@ -228,11 +221,9 @@ class HybridToolProvider:
             "content": result_json,
         }
 
-    def _create_error_response(
-        self, tool_name: str, tool_call_id: str, error_msg: str
-    ) -> Dict[str, Any]:
-        """
-        Create error response message for failed tool call
+    def _create_error_response(self, tool_name: str, tool_call_id: str,
+                               error_msg: str) -> Dict[str, Any]:
+        """Create error response message for failed tool call.
 
         args:
             tool_name: name of tool that failed

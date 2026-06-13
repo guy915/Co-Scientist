@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Supervisor node - create research plan and workflow guidance.
-"""
+"""Supervisor node - create research plan and workflow guidance."""
 
 import logging
 from typing import Any, Dict
@@ -34,8 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
-    """
-    Create research plan and provide workflow guidance.
+    """Creates a research plan and provides workflow guidance.
 
     This node analyzes the research goal and configures an appropriate
     research plan, setting parameters and providing guidance for the
@@ -91,7 +87,7 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
     )
 
     # save prompt to disk for debugging
-    from ..prompts import save_prompt_to_disk
+    from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
         run_id=state.get("run_id", "unknown"),
@@ -111,11 +107,16 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
     )
 
     supervisor_guidance = {
-        "research_goal_analysis": response.get("research_goal_analysis", {}),
-        "workflow_plan": response.get("workflow_plan", {}),
-        "performance_assessment": response.get("performance_assessment", {}),
-        "adjustment_recommendations": response.get("adjustment_recommendations", []),
-        "output_preparation": response.get("output_preparation", {}),
+        "research_goal_analysis":
+            response.get("research_goal_analysis", {}),
+        "workflow_plan":
+            response.get("workflow_plan", {}),
+        "performance_assessment":
+            response.get("performance_assessment", {}),
+        "adjustment_recommendations":
+            response.get("adjustment_recommendations", []),
+        "output_preparation":
+            response.get("output_preparation", {}),
     }
 
     logger.info("Supervisor plan created")
@@ -124,7 +125,8 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
     key_areas = goal_analysis.get("key_areas", [])
     if key_areas:
-        logger.info(f"Key research areas identified: {', '.join(key_areas[:3])}")
+        logger.info(
+            f"Key research areas identified: {', '.join(key_areas[:3])}")
 
     # Emit progress
     if state.get("progress_callback"):
@@ -141,13 +143,16 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
     metrics = create_metrics_update(llm_calls_delta=1)
 
     return {
-        "supervisor_guidance": supervisor_guidance,
-        "metrics": metrics,
-        "messages": [
-            {
-                "role": "assistant",
-                "content": "Created research plan and workflow guidance",
-                "metadata": {"phase": "supervisor", "key_areas": len(key_areas)},
-            }
-        ],
+        "supervisor_guidance":
+            supervisor_guidance,
+        "metrics":
+            metrics,
+        "messages": [{
+            "role": "assistant",
+            "content": "Created research plan and workflow guidance",
+            "metadata": {
+                "phase": "supervisor",
+                "key_areas": len(key_areas)
+            },
+        }],
     }

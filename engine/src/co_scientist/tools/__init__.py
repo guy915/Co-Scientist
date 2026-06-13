@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Tools module for co-scientist-engine.
+"""Tools module for co-scientist-engine.
 
 Provides hybrid tool system for exposing both MCP tools and Python functions
 as callable tools for LLM agents.

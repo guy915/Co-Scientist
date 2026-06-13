@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Console reporter for rich terminal output.
+"""Console reporter for rich terminal output.
 
 Provides pretty-printed progress and results for hypothesis generation using Rich formatting.
 """
@@ -81,10 +79,9 @@ class FilteredStderr:
 
 
 def get_generation_method_badge(method: str, hypothesis: dict = None) -> str:
-    """
-    get a colored badge for the generation method
+    """Get a colored badge for the generation method.
 
-    for debate method, checks literature_grounding to distinguish:
+    For debate method, checks literature_grounding to distinguish:
     - debate-with-literature (has real literature grounding)
     - debate-only
     """
@@ -93,9 +90,8 @@ def get_generation_method_badge(method: str, hypothesis: dict = None) -> str:
         if hypothesis:
             lit_ground = hypothesis.get("literature_grounding", "")
             is_degraded = (
-                not lit_ground
-                or lit_ground.startswith("No literature review available")
-            )
+                not lit_ground or
+                lit_ground.startswith("No literature review available"))
             if is_degraded:
                 return "[magenta][DEBATE ONLY][/magenta]"
             else:
@@ -108,7 +104,7 @@ def get_generation_method_badge(method: str, hypothesis: dict = None) -> str:
         return ""
 
 
-async def default_progress_callback(phase: str, data: dict):
+async def default_progress_callback(phase: str, data: dict):  # pylint: disable=unused-argument
     """Simple progress callback that prints updates."""
     console = Console()
     console.print(f" [dim cyan]{data.get('message', '')}[/dim cyan]")
@@ -116,8 +112,7 @@ async def default_progress_callback(phase: str, data: dict):
 
 
 class ConsoleReporter:
-    """
-    Rich console reporter for hypothesis generation workflow.
+    """Rich console reporter for hypothesis generation workflow.
 
     Handles streaming events from HypothesisGenerator and displays them
     with rich formatting (tables, panels, colors) in the terminal.
@@ -130,9 +125,10 @@ class ConsoleReporter:
         ... )
     """
 
-    def __init__(self, console: Optional[Console] = None, filter_stderr: bool = True):
-        """
-        Initialize console reporter.
+    def __init__(self,
+                 console: Optional[Console] = None,
+                 filter_stderr: bool = True):
+        """Initialize console reporter.
 
         Args:
             console: Rich console instance (creates new one if None)
@@ -155,8 +151,7 @@ class ConsoleReporter:
         event_stream: AsyncIterator[Tuple[str, Dict[str, Any]]],
         research_goal: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Run the reporter on a streaming event source.
+        """Run the reporter on a streaming event source.
 
         Args:
             event_stream: Async iterator yielding (node_name, state) tuples
@@ -175,7 +170,8 @@ class ConsoleReporter:
             last_state = None
 
             # show header
-            self.console.rule("[bold blue]Co-Scientist - Hypothesis Generation[/bold blue]")
+            self.console.rule(
+                "[bold blue]Co-Scientist - Hypothesis Generation[/bold blue]")
             self.console.print()
 
             if research_goal:
@@ -184,8 +180,7 @@ class ConsoleReporter:
                         f"[bold]{research_goal}[/bold]",
                         title="[cyan]Research Goal[/cyan]",
                         border_style="cyan",
-                    )
-                )
+                    ))
                 self.console.print()
 
             # process streaming events
@@ -244,8 +239,7 @@ class ConsoleReporter:
                     title="[magenta]From Supervisor[/magenta]",
                     border_style="magenta",
                     expand=False,
-                )
-            )
+                ))
             self.console.file.flush()
             self._displayed_research_plan = True
 
@@ -268,8 +262,7 @@ class ConsoleReporter:
                         title="[red]Literature Review Failed[/red]",
                         border_style="red",
                         expand=False,
-                    )
-                )
+                    ))
             else:
                 # display successful literature review
                 self.console.print(
@@ -278,8 +271,7 @@ class ConsoleReporter:
                         title="[cyan]Literature Analysis[/cyan]",
                         border_style="cyan",
                         expand=False,
-                    )
-                )
+                    ))
             self.console.file.flush()
             self._displayed_literature_review = True
 
@@ -293,7 +285,8 @@ class ConsoleReporter:
             self._displayed_hypotheses[hyp_key] = hyp
 
             # get generation method badge
-            method_badge = get_generation_method_badge(hyp.get("generation_method"), hypothesis=hyp)
+            method_badge = get_generation_method_badge(
+                hyp.get("generation_method"), hypothesis=hyp)
             title = f"[bold cyan]Initial Hypothesis {i}[/bold cyan] {method_badge}"
 
             self.console.print()
@@ -312,7 +305,8 @@ class ConsoleReporter:
             if hyp.get("experiment"):
                 hyp_content += f"\n\n[bold]Experiment:[/bold]\n{hyp['experiment']}"
 
-            self.console.print(Panel(hyp_content, border_style="cyan", expand=True))
+            self.console.print(
+                Panel(hyp_content, border_style="cyan", expand=True))
             self.console.file.flush()
 
     def _show_reviews(self, state: Dict[str, Any]):
@@ -321,12 +315,13 @@ class ConsoleReporter:
             if hyp.get("reviews"):
                 latest_review = hyp["reviews"][-1]
                 self.console.print()
-                self.console.rule(f"[bold yellow]Review for Hypothesis {i}[/bold yellow]")
+                self.console.rule(
+                    f"[bold yellow]Review for Hypothesis {i}[/bold yellow]")
 
                 if latest_review.get("scores"):
-                    table = Table(
-                        title="Review Scores", show_header=True, header_style="bold magenta"
-                    )
+                    table = Table(title="Review Scores",
+                                  show_header=True,
+                                  header_style="bold magenta")
                     table.add_column("Criterion", style="cyan")
                     table.add_column("Score", style="yellow", justify="right")
 
@@ -341,8 +336,7 @@ class ConsoleReporter:
                             latest_review["review_summary"],
                             title="[yellow]Review Summary[/yellow]",
                             border_style="yellow",
-                        )
-                    )
+                        ))
 
                 self.console.file.flush()
 
@@ -350,19 +344,22 @@ class ConsoleReporter:
         """Display ranking results."""
         self.console.print()
         self.console.rule("[bold green]Ranking Results[/bold green]")
-        rank_table = Table(title="Hypothesis Rankings", show_header=True, header_style="bold green")
+        rank_table = Table(title="Hypothesis Rankings",
+                           show_header=True,
+                           header_style="bold green")
         rank_table.add_column("Rank", style="cyan", justify="right")
         rank_table.add_column("Score", style="yellow", justify="right")
         rank_table.add_column("Hypothesis (truncated)", style="white")
 
-        sorted_hyps = sorted(
-            state.get("hypotheses", []), key=lambda h: h.get("score", 0), reverse=True
-        )
+        sorted_hyps = sorted(state.get("hypotheses", []),
+                             key=lambda h: h.get("score", 0),
+                             reverse=True)
         for rank, hyp in enumerate(sorted_hyps, 1):
             rank_table.add_row(
                 str(rank),
                 f"{hyp.get('score', 0):.2f}",
-                hyp["text"][:80] + "..." if len(hyp["text"]) > 80 else hyp["text"],
+                hyp["text"][:80] +
+                "..." if len(hyp["text"]) > 80 else hyp["text"],
             )
 
         self.console.print(rank_table)
@@ -373,7 +370,8 @@ class ConsoleReporter:
         matchups = state.get("tournament_matchups", [])
         if matchups:
             self.console.print()
-            self.console.rule("[bold magenta]Tournament Matchups[/bold magenta]")
+            self.console.rule(
+                "[bold magenta]Tournament Matchups[/bold magenta]")
             for i, matchup in enumerate(matchups, 1):
                 self.console.print()
                 self.console.print(f"[bold cyan]Matchup {i}:[/bold cyan]")
@@ -388,13 +386,13 @@ class ConsoleReporter:
                         f"[dim]Loser: {matchup['loser_elo_before']} → {matchup['loser_elo_after']} ({matchup['loser_elo_after'] - matchup['loser_elo_before']:+d})[/dim]",
                         border_style="magenta",
                         expand=True,
-                    )
-                )
+                    ))
             self.console.file.flush()
 
         # then show final Elo rankings after matchups
         self.console.print()
-        self.console.rule("[bold magenta]Tournament Results (Elo Ratings)[/bold magenta]")
+        self.console.rule(
+            "[bold magenta]Tournament Results (Elo Ratings)[/bold magenta]")
         elo_table = Table(
             title="Updated Elo Rankings (Post-Tournament)",
             show_header=True,
@@ -413,7 +411,8 @@ class ConsoleReporter:
             elo_table.add_row(
                 str(rank),
                 str(hyp.get("elo_rating", 1200)),
-                hyp["text"][:80] + "..." if len(hyp["text"]) > 80 else hyp["text"],
+                hyp["text"][:80] +
+                "..." if len(hyp["text"]) > 80 else hyp["text"],
             )
 
         self.console.print(elo_table)
@@ -429,12 +428,13 @@ class ConsoleReporter:
             self.console.rule("[bold blue]Meta Review[/bold blue]")
             self.console.print(
                 Panel(
-                    Syntax(json.dumps(state["meta_review"], indent=2), "json", theme="monokai"),
+                    Syntax(json.dumps(state["meta_review"], indent=2),
+                           "json",
+                           theme="monokai"),
                     title="[blue]Cross-hypothesis Insights[/blue]",
                     border_style="blue",
                     expand=False,
-                )
-            )
+                ))
             self.console.file.flush()
             self._displayed_meta_review = True
 
@@ -456,8 +456,7 @@ class ConsoleReporter:
                         f"[bold]Evolution Rationale:[/bold]\n{detail['rationale']}",
                         border_style="green",
                         expand=True,
-                    )
-                )
+                    ))
 
                 if detail.get("changes"):
                     self.console.print("\n[bold]Key Changes:[/bold]")
@@ -477,7 +476,8 @@ class ConsoleReporter:
             )
             self.console.file.flush()
 
-    def _show_final_summary(self, last_state: Optional[Dict[str, Any]], execution_time: float):
+    def _show_final_summary(self, last_state: Optional[Dict[str, Any]],
+                            execution_time: float):
         """Display final results summary."""
         self.console.print()
         self.console.rule("[bold green]FINAL RESULTS[/bold green]")
@@ -491,8 +491,7 @@ class ConsoleReporter:
 
             for i, hyp in enumerate(sorted_final, 1):
                 method_badge = get_generation_method_badge(
-                    hyp.get("generation_method"), hypothesis=hyp
-                )
+                    hyp.get("generation_method"), hypothesis=hyp)
                 title = f"[bold cyan]Final Hypothesis {i}[/bold cyan] {method_badge}"
 
                 # build stats line with tournament info
@@ -536,17 +535,21 @@ class ConsoleReporter:
                         hyp_display,
                         border_style="cyan",
                         expand=True,
-                    )
-                )
+                    ))
 
                 if hyp.get("reviews"):
                     for review_num, review in enumerate(hyp["reviews"], 1):
-                        self.console.print(f"\n[bold yellow]Review {review_num}:[/bold yellow]")
+                        self.console.print(
+                            f"\n[bold yellow]Review {review_num}:[/bold yellow]"
+                        )
 
                         if review.get("scores"):
-                            table = Table(show_header=True, header_style="bold magenta")
+                            table = Table(show_header=True,
+                                          header_style="bold magenta")
                             table.add_column("Criterion", style="cyan")
-                            table.add_column("Score", style="yellow", justify="right")
+                            table.add_column("Score",
+                                             style="yellow",
+                                             justify="right")
 
                             for criterion, score in review["scores"].items():
                                 table.add_row(criterion, f"{score:.2f}")
@@ -555,8 +558,8 @@ class ConsoleReporter:
 
                         if review.get("review_summary"):
                             self.console.print(
-                                Panel(review["review_summary"], border_style="yellow")
-                            )
+                                Panel(review["review_summary"],
+                                      border_style="yellow"))
 
                 self.console.file.flush()
 
@@ -568,8 +571,7 @@ class ConsoleReporter:
                 f"[bold]Final Hypotheses:[/bold] {len(last_state.get('hypotheses', [])) if last_state else 0}",
                 title="[green]Summary[/green]",
                 border_style="green",
-            )
-        )
+            ))
         self.console.file.flush()
 
 
@@ -581,22 +583,18 @@ class SSLCleanupFilter(logging.Filter):
         if record.name == "asyncio":
             message = record.getMessage()
             # suppress SSL transport errors during cleanup
-            if any(
-                pattern in message
-                for pattern in [
+            if any(pattern in message for pattern in [
                     "Fatal error on SSL transport",
                     "Bad file descriptor",
                     "Event loop is closed",
                     "SSLProtocol",
-                ]
-            ):
+            ]):
                 return False
         return True
 
 
 def run_console(coro: Coroutine) -> None:
-    """
-    Run an async coroutine with graceful shutdown handling for console apps.
+    """Run an async coroutine with graceful shutdown handling for console apps.
 
     This helper manages event loop lifecycle and ensures clean exits when
     Ctrl+C is pressed, preventing ugly SSL/socket error tracebacks.
@@ -639,7 +637,8 @@ def run_console(coro: Coroutine) -> None:
         for task in pending:
             task.cancel()
         # give tasks a moment to clean up
-        loop.run_until_complete(asyncio.gather(*pending, return_exceptions=True))
+        loop.run_until_complete(asyncio.gather(*pending,
+                                               return_exceptions=True))
     finally:
         loop.close()
         # restore original stderr

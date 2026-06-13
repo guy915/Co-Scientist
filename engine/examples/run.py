@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Example for Co-Scientist with streaming output.
+"""Example for Co-Scientist with streaming output.
 
 This demonstrates hypothesis generation with literature review integration,
 showing real-time streaming of results as they're generated.
@@ -23,14 +21,17 @@ from co_scientist.console import ConsoleReporter, default_progress_callback, run
 # install rich in your environment
 from rich.console import Console
 from rich.panel import Panel
+# pylint: disable=pointless-string-statement
 """
 Prerequisites:
 - MCP server running (on http://localhost:8888/mcp)
 - Set OPEN_AI_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in your environment before running,
 which depends on the MODEL_NAME you set below.
 """
+# pylint: enable=pointless-string-statement
 
 MODEL_NAME = "gemini/gemini-2.5-flash"
+
 
 async def main():
     # Prompt user for research goal with rich formatting
@@ -43,11 +44,12 @@ async def main():
             "Alzheimer's disease using non-invasive biomarkers",
             title="[cyan]Research Goal[/cyan]",
             border_style="cyan",
-        )
-    )
-    research_goal = console.input("\n[bold cyan]Research goal:[/bold cyan] ").strip()
+        ))
+    research_goal = console.input(
+        "\n[bold cyan]Research goal:[/bold cyan] ").strip()
     if not research_goal:
-        console.print("[bold red]Error:[/bold red] Research goal cannot be empty.")
+        console.print(
+            "[bold red]Error:[/bold red] Research goal cannot be empty.")
         return
     generator = HypothesisGenerator(
         model_name=MODEL_NAME,

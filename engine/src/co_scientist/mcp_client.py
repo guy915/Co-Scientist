@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-MCP (Model Context Protocol) client for interacting with MCP servers.
+"""MCP (Model Context Protocol) client for interacting with MCP servers.
 
 This module provides utilities for connecting to MCP servers and accessing
 their tools for use with LiteLLM agents.
@@ -36,8 +34,7 @@ logger = logging.getLogger(__name__)
 
 
 class MCPToolClient:
-    """
-    Client for accessing MCP tools from one or more MCP servers.
+    """Client for accessing MCP tools from one or more MCP servers.
 
     Supports both legacy single-server mode and multi-server mode via ToolRegistry.
     """
@@ -48,8 +45,7 @@ class MCPToolClient:
         server_configs: Optional[Dict[str, Dict[str, str]]] = None,
         tool_registry: Optional["ToolRegistry"] = None,
     ):
-        """
-        Initialize the MCP client.
+        """Initialize the MCP client.
 
         Args:
             server_url: URL of a single MCP server (legacy mode). If None, reads from
@@ -72,15 +68,19 @@ class MCPToolClient:
         # determine server configuration
         if tool_registry is not None:
             # use registry-provided server configs
-            self._server_configs = tool_registry.get_server_configs_for_langchain()
-            logger.debug(f"using {len(self._server_configs)} servers from tool registry")
+            self._server_configs = tool_registry.get_server_configs_for_langchain(
+            )
+            logger.debug(
+                f"using {len(self._server_configs)} servers from tool registry")
         elif server_configs is not None:
             self._server_configs = server_configs
-            logger.debug(f"using {len(self._server_configs)} provided server configs")
+            logger.debug(
+                f"using {len(self._server_configs)} provided server configs")
         else:
             # legacy single-server mode
             if server_url is None:
-                server_url = os.environ.get("MCP_SERVER_URL", "http://localhost:8888/mcp")
+                server_url = os.environ.get("MCP_SERVER_URL",
+                                            "http://localhost:8888/mcp")
             self._server_configs = {
                 "default": {
                     "transport": "streamable_http",
@@ -90,7 +90,8 @@ class MCPToolClient:
             logger.debug(f"using single server: {server_url}")
 
         # store for backwards compatibility
-        self.server_url = list(self._server_configs.values())[0].get("url") if self._server_configs else None
+        self.server_url = list(self._server_configs.values())[0].get(
+            "url") if self._server_configs else None
 
     async def initialize(self):
         """Initialize the client and fetch available tools from all servers."""
@@ -102,7 +103,9 @@ class MCPToolClient:
             raise RuntimeError("no server configurations available")
 
         server_names = list(self._server_configs.keys())
-        logger.info(f"initializing MCP client for {len(server_names)} server(s): {server_names}")
+        logger.info(
+            f"initializing MCP client for {len(server_names)} server(s): {server_names}"
+        )
 
         self._client = MultiServerMCPClient(self._server_configs)
         tools = await self._client.get_tools()
@@ -117,7 +120,8 @@ class MCPToolClient:
             # MultiServerMCPClient prefixes tools with server name in some versions
             # For now, we'll track based on the tool registry if available
             if self._tool_registry:
-                tool_config = self._tool_registry.get_tool_by_mcp_name(tool.name)
+                tool_config = self._tool_registry.get_tool_by_mcp_name(
+                    tool.name)
                 if tool_config:
                     self._tool_to_server[tool.name] = tool_config.server
 
@@ -129,8 +133,7 @@ class MCPToolClient:
         )
 
     async def call_tool(self, tool_name: str, **kwargs) -> str:
-        """
-        Call an MCP tool directly with arguments.
+        """Call an MCP tool directly with arguments.
 
         This is a convenience method for calling tools directly without
         constructing a LiteLLM-style tool call object.
@@ -147,13 +150,13 @@ class MCPToolClient:
             ValueError: If tool not found
         """
         if self._tools_dict is None:
-            raise RuntimeError("mcp client not initialized. call initialize() first.")
+            raise RuntimeError(
+                "mcp client not initialized. call initialize() first.")
 
         if tool_name not in self._tools_dict:
             raise ValueError(
                 f"tool '{tool_name}' not found. "
-                f"available tools: {list(self._tools_dict.keys())}"
-            )
+                f"available tools: {list(self._tools_dict.keys())}")
 
         logger.debug(f"calling mcp tool: {tool_name} with args: {kwargs}")
 
@@ -166,14 +169,12 @@ class MCPToolClient:
 
         logger.debug(
             f"mcp tool result for {tool_name}: "
-            f"{str(result)[:200]}{'...' if len(str(result)) > 200 else ''}"
-        )
+            f"{str(result)[:200]}{'...' if len(str(result)) > 200 else ''}")
 
         return result
 
     async def execute_tool_call(self, tool_call) -> Dict[str, Any]:
-        """
-        Execute an MCP tool call.
+        """Execute an MCP tool call.
 
         Args:
             tool_call: Tool call object from LiteLLM with function name and arguments
@@ -182,7 +183,8 @@ class MCPToolClient:
             Dictionary formatted as a tool response message
         """
         if self._tools_dict is None:
-            raise RuntimeError("mcp client not initialized. call initialize() first.")
+            raise RuntimeError(
+                "mcp client not initialized. call initialize() first.")
 
         tool_name = tool_call.function.name
         tool_args = json.loads(tool_call.function.arguments)
@@ -204,10 +206,10 @@ class MCPToolClient:
         }
 
     def get_tools(
-        self, whitelist: Optional[List[str]] = None
+        self,
+        whitelist: Optional[List[str]] = None
     ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
-        """
-        Get MCP tools, optionally filtered by whitelist.
+        """Get MCP tools, optionally filtered by whitelist.
 
         Args:
             whitelist: Optional list of tool names to include. If None, returns all tools.
@@ -218,13 +220,16 @@ class MCPToolClient:
             - openai_tools: List of tools in OpenAI format for LiteLLM
         """
         if self._tools_dict is None or self._openai_tools is None:
-            raise RuntimeError("MCP client not initialized. Call initialize() first.")
+            raise RuntimeError(
+                "MCP client not initialized. Call initialize() first.")
 
         if whitelist is None:
             return self._tools_dict, self._openai_tools
 
         # filter tools by whitelist
-        filtered_tools_dict = {k: v for k, v in self._tools_dict.items() if k in whitelist}
+        filtered_tools_dict = {
+            k: v for k, v in self._tools_dict.items() if k in whitelist
+        }
         filtered_openai_tools = [
             convert_to_openai_tool(filtered_tools_dict[k])
             for k in whitelist
@@ -238,8 +243,7 @@ class MCPToolClient:
         return filtered_tools_dict, filtered_openai_tools
 
     def get_server_for_tool(self, tool_name: str) -> Optional[str]:
-        """
-        Get the server ID that provides a specific tool.
+        """Get the server ID that provides a specific tool.
 
         Args:
             tool_name: Name of the tool
@@ -271,8 +275,7 @@ async def check_literature_source_available(
     server_url: Optional[str] = None,
     tool_registry: Optional["ToolRegistry"] = None,
 ) -> bool:
-    """
-    Check if the literature source is available via MCP server.
+    """Check if the literature source is available via MCP server.
 
     Queries the configured availability check tool (e.g., check_pubmed_available)
     to verify the literature source is accessible.
@@ -296,41 +299,53 @@ async def check_literature_source_available(
         if workflow:
             if workflow.availability_check:
                 # explicit check tool configured
-                tool_config = tool_registry.get_tool(workflow.availability_check)
+                tool_config = tool_registry.get_tool(
+                    workflow.availability_check)
                 if tool_config:
                     check_tool_name = tool_config.mcp_tool_name
             else:
                 # availability_check is null/None - skip the check
                 skip_availability_check = True
-                logger.debug("availability check disabled in config (availability_check: null)")
+                logger.debug(
+                    "availability check disabled in config (availability_check: null)"
+                )
 
     # default for backwards compat when no registry
     if check_tool_name is None and not skip_availability_check and tool_registry is None:
         check_tool_name = "check_pubmed_available"
 
     if server_url is None and tool_registry is None:
-        server_url = os.environ.get("MCP_SERVER_URL", "http://localhost:8888/mcp")
+        server_url = os.environ.get("MCP_SERVER_URL",
+                                    "http://localhost:8888/mcp")
 
     try:
         # first check if MCP server is up
         if not await check_mcp_available(server_url, tool_registry):
-            logger.debug("mcp server unavailable, literature source unavailable")
+            logger.debug(
+                "mcp server unavailable, literature source unavailable")
             return False
 
         # if no availability check configured, assume available since MCP is up
         if skip_availability_check:
-            logger.info("MCP server available, skipping source-specific availability check")
+            logger.info(
+                "MCP server available, skipping source-specific availability check"
+            )
             return True
 
         # if no check tool configured but we have a registry, assume available
         if check_tool_name is None:
-            logger.info("no availability check tool configured, assuming source available")
+            logger.info(
+                "no availability check tool configured, assuming source available"
+            )
             return True
 
-        logger.debug(f"checking literature source availability (tool: {check_tool_name})")
+        logger.debug(
+            f"checking literature source availability (tool: {check_tool_name})"
+        )
 
         # create client
-        mcp_client = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
+        mcp_client = MCPToolClient(server_url=server_url,
+                                   tool_registry=tool_registry)
         await mcp_client.initialize()
 
         # get available tools
@@ -340,8 +355,7 @@ async def check_literature_source_available(
         if check_tool_name not in all_tools_dict:
             logger.warning(
                 f"availability check tool '{check_tool_name}' not found. "
-                f"available tools: {list(all_tools_dict.keys())}"
-            )
+                f"available tools: {list(all_tools_dict.keys())}")
             return False
 
         logger.debug(f"{check_tool_name} tool found, executing")
@@ -355,11 +369,14 @@ async def check_literature_source_available(
         elif isinstance(result, str):
             return result.lower() == "true"
         else:
-            logger.warning(f"unexpected result from {check_tool_name}: {result}")
+            logger.warning(
+                f"unexpected result from {check_tool_name}: {result}")
             return False
 
-    except Exception as e:
-        logger.warning(f"error checking literature source availability: {type(e).__name__}: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning(
+            f"error checking literature source availability: {type(e).__name__}: {e}"
+        )
         logger.debug(f"full traceback: {e}", exc_info=True)
         return False
 
@@ -377,8 +394,7 @@ async def check_mcp_available(
     server_url: Optional[str] = None,
     tool_registry: Optional["ToolRegistry"] = None,
 ) -> bool:
-    """
-    Check if MCP server is available and responding.
+    """Check if MCP server is available and responding.
 
     Args:
         server_url: URL of the MCP server (legacy)
@@ -388,26 +404,32 @@ async def check_mcp_available(
         True if MCP server is available and responding, False otherwise
     """
     if server_url is None and tool_registry is None:
-        server_url = os.environ.get("MCP_SERVER_URL", "http://localhost:8888/mcp")
+        server_url = os.environ.get("MCP_SERVER_URL",
+                                    "http://localhost:8888/mcp")
 
     try:
         if tool_registry:
-            logger.debug(f"testing mcp availability for {len(tool_registry.get_enabled_servers())} server(s)")
+            logger.debug(
+                f"testing mcp availability for {len(tool_registry.get_enabled_servers())} server(s)"
+            )
         else:
             logger.debug(f"testing mcp server availability at {server_url}")
 
-        test_client = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
+        test_client = MCPToolClient(server_url=server_url,
+                                    tool_registry=tool_registry)
         await test_client.initialize()
 
         # check if we got any tools
-        if test_client._tools_dict and len(test_client._tools_dict) > 0:
-            logger.info(f"MCP server available with {len(test_client._tools_dict)} tools")
+        if test_client._tools_dict and len(test_client._tools_dict) > 0:  # pylint: disable=protected-access
+            logger.info(
+                f"MCP server available with {len(test_client._tools_dict)} tools"  # pylint: disable=protected-access
+            )
             return True
         else:
             logger.warning("MCP server responded but provided no tools")
             return False
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         if tool_registry:
             logger.warning(f"MCP servers unavailable: {e}")
         else:
@@ -420,8 +442,7 @@ async def get_mcp_client(
     tool_registry: Optional["ToolRegistry"] = None,
     force_new: bool = False,
 ) -> MCPToolClient:
-    """
-    Get or create the global MCP client instance.
+    """Get or create the global MCP client instance.
 
     Args:
         server_url: URL of the MCP server (legacy)
@@ -434,7 +455,8 @@ async def get_mcp_client(
     global _global_client
 
     if _global_client is None or force_new:
-        _global_client = MCPToolClient(server_url=server_url, tool_registry=tool_registry)
+        _global_client = MCPToolClient(server_url=server_url,
+                                       tool_registry=tool_registry)
 
     # always ensure it's initialized (safe to call multiple times)
     await _global_client.initialize()

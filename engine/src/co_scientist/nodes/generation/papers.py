@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Shared utilities for extracting and matching papers_used on hypotheses.
+"""Shared utilities for extracting and matching papers_used on hypotheses.
 
 Matches author-year citations in literature_grounding text (e.g. "Roepert et al., 2020")
 against candidate paper metadata to determine which papers a hypothesis actually cites.
@@ -100,16 +98,12 @@ def articles_to_candidates(articles):
     """Convert Article objects to candidate dicts for filter_papers_by_grounding."""
     if not articles:
         return []
-    return [
-        {
-            "title": getattr(art, "title", ""),
-            "url": getattr(art, "url", "") or "",
-            "authors": getattr(art, "authors", []),
-            "year": getattr(art, "year", None),
-        }
-        for art in articles
-        if getattr(art, "used_in_analysis", False)
-    ]
+    return [{
+        "title": getattr(art, "title", ""),
+        "url": getattr(art, "url", "") or "",
+        "authors": getattr(art, "authors", []),
+        "year": getattr(art, "year", None),
+    } for art in articles if getattr(art, "used_in_analysis", False)]
 
 
 def analyses_to_candidates(novelty_analyses):

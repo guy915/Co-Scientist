@@ -35,8 +35,8 @@ dependencies = [
 dev = [
     "pytest~=9.0.2",
     "pytest-asyncio~=1.3.0",
-    "black~=25.12.0",
-    "ruff~=0.14.11",
+    "yapf~=0.43.0",
+    "pylint~=3.3",
     "mypy~=1.19.1",
     "python-dotenv~=1.2.1",
 ]
@@ -52,13 +52,9 @@ include = ["co_scientist*"]
 [tool.setuptools.package-data]
 co_scientist = ["prompts/*.md", "config/*.yaml"]
 
-[tool.black]
-line-length = 100
-target-version = ["py310"]
-
-[tool.ruff]
-line-length = 100
-target-version = "py310"
+[tool.yapf]
+based_on_style = "google"
+column_limit = 80
 
 [tool.mypy]
 python_version = "3.10"

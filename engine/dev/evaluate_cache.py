@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Test LLM caching functionality.
+"""Test LLM caching functionality.
 
 This script runs the same workflow twice to demonstrate cache speedup.
 """
@@ -71,7 +69,9 @@ async def main():
     print("-" * 70)
     time1 = await run_generation()
     stats1 = get_cache_stats()
-    print(f"Cache after run 1: {stats1['cache_files']} files ({stats1['total_size_mb']:.2f} MB)")
+    print(
+        f"Cache after run 1: {stats1['cache_files']} files ({stats1['total_size_mb']:.2f} MB)"
+    )
     print()
 
     # Second run (warm cache)
@@ -79,7 +79,9 @@ async def main():
     print("-" * 70)
     time2 = await run_generation()
     stats2 = get_cache_stats()
-    print(f"Cache after run 2: {stats2['cache_files']} files ({stats2['total_size_mb']:.2f} MB)")
+    print(
+        f"Cache after run 2: {stats2['cache_files']} files ({stats2['total_size_mb']:.2f} MB)"
+    )
     print()
 
     # Results
@@ -92,7 +94,9 @@ async def main():
     print(f"Speedup:    {speedup:.1f}x faster")
     print()
     print(f"Cache directory: {stats2['cache_dir']}")
-    print(f"Cache size:      {stats2['total_size_mb']:.2f} MB ({stats2['cache_files']} files)")
+    print(
+        f"Cache size:      {stats2['total_size_mb']:.2f} MB ({stats2['cache_files']} files)"
+    )
 
 
 if __name__ == "__main__":

@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Data models for hypothesis generation workflow.
+"""Data models for hypothesis generation workflow.
 
 These models maintain compatibility with the original AI-CoScientist
 while providing clean type safety for LangGraph.
@@ -37,8 +35,7 @@ class HypothesisReview:
 
 @dataclass
 class Hypothesis:
-    """
-    A research hypothesis with associated metadata.
+    """A research hypothesis with associated metadata.
 
     Attributes:
         text: The dense technical hypothesis formulation
@@ -77,7 +74,8 @@ class Hypothesis:
     evolution_history: List[str] = field(default_factory=list)
     reflection_notes: Optional[str] = None
     generation_method: Optional[str] = None  # 'literature' or 'debate'
-    debate_id: Optional[int] = None  # None for literature-generated, 0-N for debate-generated
+    debate_id: Optional[
+        int] = None  # None for literature-generated, 0-N for debate-generated
     win_count: int = 0
     loss_count: int = 0
 
@@ -96,7 +94,8 @@ class Hypothesis:
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
-            "text": self.text,  # Also referred to as "hypothesis" in other contexts
+            "text":
+                self.text,  # Also referred to as "hypothesis" in other contexts
             "explanation": self.explanation,
             "literature_grounding": self.literature_grounding,
             "experiment": self.experiment,
@@ -106,17 +105,14 @@ class Hypothesis:
             "citation_map": self.citation_map,
             "score": self.score,
             "elo_rating": self.elo_rating,
-            "reviews": [
-                {
-                    "review_summary": r.review_summary,
-                    "scores": r.scores,
-                    "safety_ethical_concerns": r.safety_ethical_concerns,
-                    "detailed_feedback": r.detailed_feedback,
-                    "constructive_feedback": r.constructive_feedback,
-                    "overall_score": r.overall_score,
-                }
-                for r in self.reviews
-            ],
+            "reviews": [{
+                "review_summary": r.review_summary,
+                "scores": r.scores,
+                "safety_ethical_concerns": r.safety_ethical_concerns,
+                "detailed_feedback": r.detailed_feedback,
+                "constructive_feedback": r.constructive_feedback,
+                "overall_score": r.overall_score,
+            } for r in self.reviews],
             "similarity_cluster_id": self.similarity_cluster_id,
             "evolution_history": self.evolution_history,
             "reflection_notes": self.reflection_notes,
@@ -151,11 +147,10 @@ def create_metrics_update(
     total_time: Optional[float] = None,
     phase_times: Optional[Dict[str, float]] = None,
 ) -> ExecutionMetrics:
-    """
-    create new ExecutionMetrics with ONLY the deltas (not cumulative).
+    """Create new ExecutionMetrics with ONLY the deltas (not cumulative).
 
-    the merge_metrics reducer will add these deltas to the existing state.
-    do NOT pass base metrics - only pass the increments from this node.
+    The merge_metrics reducer will add these deltas to the existing state.
+    Do NOT pass base metrics - only pass the increments from this node.
 
     Args:
         hypothesis_count: new total hypothesis count (replaces via max(), not adds)
@@ -170,7 +165,8 @@ def create_metrics_update(
         new ExecutionMetrics object with ONLY deltas
     """
     return ExecutionMetrics(
-        hypothesis_count=hypothesis_count if hypothesis_count is not None else 0,
+        hypothesis_count=hypothesis_count
+        if hypothesis_count is not None else 0,
         reviews_count=reviews_count_delta,
         tournaments_count=tournaments_count_delta,
         evolutions_count=evolutions_count_delta,
@@ -182,8 +178,7 @@ def create_metrics_update(
 
 @dataclass
 class Article:
-    """
-    A literature article with extracted content and metadata.
+    """A literature article with extracted content and metadata.
 
     Note: In PubMed-only mode, `content` and `pdf_links` are unused.
     Fulltext content is accessed directly by PaperQA from HTML files.
@@ -196,10 +191,12 @@ class Article:
     venue: Optional[str] = None
     citations: int = 0
     abstract: Optional[str] = None
-    content: Optional[str] = None  # unused in PubMed-only mode (PaperQA reads HTML files directly)
+    content: Optional[
+        str] = None  # unused in PubMed-only mode (PaperQA reads HTML files directly)
     source_id: Optional[str] = None
     source: str = "pubmed"  # default changed to "pubmed" (was "google_scholar")
-    pdf_links: List[str] = field(default_factory=list)  # unused in PubMed-only mode (HTML-only)
+    pdf_links: List[str] = field(
+        default_factory=list)  # unused in PubMed-only mode (HTML-only)
     used_in_analysis: bool = False  # flag indicating if this article was analyzed by the agent
 
     def to_dict(self) -> Dict[str, Any]:

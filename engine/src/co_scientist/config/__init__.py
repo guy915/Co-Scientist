@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Configuration module for tool registry and MCP server definitions.
+"""Configuration module for tool registry and MCP server definitions.
 
 Provides YAML-based configuration for bringing your own MCP tools.
 """

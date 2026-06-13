@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Tool-based literature generation - two-phase approach.
+"""Tool-based literature generation - two-phase approach.
 
 Phase 1 (draft.py): Read papers and draft hypotheses
 Phase 2 (validate.py): Search literature and validate/refine novelty
@@ -43,8 +41,7 @@ async def generate_with_tools(
     count: int,
     reference_index: Optional["ReferenceIndex"] = None,
 ) -> List[Hypothesis]:
-    """
-    Generate hypotheses with two-phase tool-based process (draft -> validate).
+    """Generates hypotheses with two-phase tool-based process (draft -> validate).
 
     Phase 1: draft hypotheses by reading papers and identifying gaps
     Phase 2: validate novelty by searching and refining/pivoting
@@ -57,7 +54,8 @@ async def generate_with_tools(
     Returns:
         List of validated hypotheses with generation_method="literature_tools"
     """
-    logger.info(f"Generating {count} hypotheses with two-phase tool-based process")
+    logger.info(
+        f"Generating {count} hypotheses with two-phase tool-based process")
 
     tool_registry = state.get("tool_registry")
 
@@ -75,8 +73,7 @@ async def generate_with_tools(
         )
         if used_count > 0:
             articles_with_pdfs = sum(
-                1 for art in articles if art.used_in_analysis and art.pdf_links
-            )
+                1 for art in articles if art.used_in_analysis and art.pdf_links)
             logger.info(
                 f"Including {used_count} analyzed articles in prompt ({articles_with_pdfs} with PDFs, {used_count - articles_with_pdfs} abstract-only)"
             )
@@ -86,15 +83,21 @@ async def generate_with_tools(
             )
 
     draft_hyps = await draft_hypotheses(
-        state=state, count=count, mcp_client=mcp_client, tool_registry=tool_registry,
+        state=state,
+        count=count,
+        mcp_client=mcp_client,
+        tool_registry=tool_registry,
         reference_index=reference_index,
     )
 
     logger.info(f"Phase 1 complete: drafted {len(draft_hyps)} hypotheses")
 
     hypotheses = await validate_hypotheses(
-        state=state, draft_hypotheses=draft_hyps, mcp_client=mcp_client,
-        tool_registry=tool_registry, reference_index=reference_index,
+        state=state,
+        draft_hypotheses=draft_hyps,
+        mcp_client=mcp_client,
+        tool_registry=tool_registry,
+        reference_index=reference_index,
     )
 
     logger.info(f"Phase 2 complete: validated {len(hypotheses)} hypotheses")

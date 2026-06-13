@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Ranking node - Elo-based pairwise comparison of hypotheses.
-"""
+"""Ranking node - Elo-based pairwise comparison of hypotheses."""
 
 import asyncio
 import hashlib
@@ -40,11 +37,10 @@ logger = logging.getLogger(__name__)
 _ranking_semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
 
-def calculate_elo_update(
-    winner_elo: int, loser_elo: int, k_factor: int = ELO_K_FACTOR
-) -> Tuple[int, int]:
-    """
-    Calculate updated Elo ratings for winner and loser.
+def calculate_elo_update(winner_elo: int,
+                         loser_elo: int,
+                         k_factor: int = ELO_K_FACTOR) -> Tuple[int, int]:
+    """Calculates updated Elo ratings for winner and loser.
 
     Args:
         winner_elo: Current Elo rating of winner
@@ -55,8 +51,8 @@ def calculate_elo_update(
         Tuple of (new_winner_elo, new_loser_elo)
     """
     # Calculate expected scores
-    expected_winner = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
-    expected_loser = 1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))
+    expected_winner = 1 / (1 + 10**((loser_elo - winner_elo) / 400))
+    expected_loser = 1 / (1 + 10**((winner_elo - loser_elo) / 400))
 
     # Calculate new ratings
     new_winner_elo = winner_elo + k_factor * (1 - expected_winner)
@@ -75,8 +71,7 @@ async def judge_matchup(
     matchup_index: int | None = None,
     tool_registry: Any | None = None,
 ) -> Tuple[str, Dict[str, Any]]:
-    """
-    Have LLM judge which hypothesis is superior.
+    """Has an LLM judge which hypothesis is superior.
 
     Args:
         hypothesis_a: First hypothesis
@@ -113,9 +108,8 @@ async def judge_matchup(
         # extract classification from notes
         classification_a = "unknown"
         if "Classification:" in reflection_notes_a:
-            classification_a = (
-                reflection_notes_a.split("Classification:")[-1].strip().split("\n")[0]
-            )
+            classification_a = (reflection_notes_a.split("Classification:")
+                                [-1].strip().split("\n")[0])
         logger.debug(
             f"hypothesis A: has reflection ({len(reflection_notes_a)} chars, classification: {classification_a})"
         )
@@ -127,9 +121,8 @@ async def judge_matchup(
         # extract classification from notes
         classification_b = "unknown"
         if "Classification:" in reflection_notes_b:
-            classification_b = (
-                reflection_notes_b.split("Classification:")[-1].strip().split("\n")[0]
-            )
+            classification_b = (reflection_notes_b.split("Classification:")
+                                [-1].strip().split("\n")[0])
         logger.debug(
             f"hypothesis B: has reflection ({len(reflection_notes_b)} chars, classification: {classification_b})"
         )
@@ -151,11 +144,10 @@ async def judge_matchup(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk
+        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
-        filename = (
-            f"ranking_matchup_{matchup_index}" if matchup_index is not None else "ranking_matchup"
-        )
+        filename = (f"ranking_matchup_{matchup_index}"
+                    if matchup_index is not None else "ranking_matchup")
         save_prompt_to_disk(
             run_id=run_id,
             prompt_name=filename,
@@ -172,7 +164,8 @@ async def judge_matchup(
         if "Reflection Notes" in prompt:
             logger.debug("prompt includes 'Reflection Notes' section")
         else:
-            logger.debug("warning: Reflection notes provided but not found in prompt")
+            logger.debug(
+                "warning: Reflection notes provided but not found in prompt")
 
     # Use semaphore to limit concurrent calls (avoid rate limits)
     async with _ranking_semaphore:
@@ -193,8 +186,7 @@ async def judge_matchup(
 
 
 async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
-    """
-    Run tournament-style pairwise comparisons with Elo rating updates.
+    """Runs tournament-style pairwise comparisons with Elo rating updates.
 
     This node runs multiple rounds of random pairwise matchups where an LLM
     judges which hypothesis is superior. Elo ratings are updated after each
@@ -214,9 +206,11 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
         Dictionary with updated state fields (hypotheses sorted by Elo)
     """
     hypotheses = state["hypotheses"]
-    logger.info(f"Starting ranking tournament with {len(hypotheses)} hypotheses")
+    logger.info(
+        f"Starting ranking tournament with {len(hypotheses)} hypotheses")
 
-    hypotheses_with_reflection = sum(1 for h in hypotheses if h.reflection_notes)
+    hypotheses_with_reflection = sum(
+        1 for h in hypotheses if h.reflection_notes)
     logger.debug("\n=== ranking tournament debug ===")
     logger.debug(f"total hypotheses: {len(hypotheses)}")
     logger.debug(
@@ -238,13 +232,20 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
     # This provides initial ordering based on review scores
     # Use hypothesis text as tiebreaker for deterministic ordering when scores are equal
     hypotheses.sort(key=lambda h: (h.score, h.text), reverse=True)
-    logger.info(f"Sorted hypotheses by review score (top score: {hypotheses[0].score:.2f})")
+    logger.info(
+        f"Sorted hypotheses by review score (top score: {hypotheses[0].score:.2f})"
+    )
 
     # Emit progress
     if state.get("progress_callback"):
         await state["progress_callback"](
             "tournament_start",
-            {"message": f"Running tournament with {len(hypotheses)} hypotheses...", "progress": 65},
+            {
+                "message":
+                    f"Running tournament with {len(hypotheses)} hypotheses...",
+                "progress":
+                    65
+            },
         )
 
     # Initialize Elo ratings if not already set
@@ -270,41 +271,39 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
     random.seed(seed)
 
     # Prepare all random pairwise matchups and judge them in parallel
-    pairings = [tuple(random.sample(hypotheses, 2)) for _ in range(tournament_rounds)]
-    results = await asyncio.gather(
-        *[
-            judge_matchup(
-                a,
-                b,
-                state["research_goal"],
-                state["model_name"],
-                supervisor_guidance,
-                run_id=state.get("run_id"),
-                matchup_index=i,
-                tool_registry=tool_registry,
-            )
-            for i, (a, b) in enumerate(pairings)
-        ]
-    )
+    pairings = [
+        tuple(random.sample(hypotheses, 2)) for _ in range(tournament_rounds)
+    ]
+    results = await asyncio.gather(*[
+        judge_matchup(
+            a,
+            b,
+            state["research_goal"],
+            state["model_name"],
+            supervisor_guidance,
+            run_id=state.get("run_id"),
+            matchup_index=i,
+            tool_registry=tool_registry,
+        ) for i, (a, b) in enumerate(pairings)
+    ])
 
     # Apply Elo updates based on judged results and collect matchup details
     llm_calls = tournament_rounds
     matchup_details = []
 
     for (hyp_a, hyp_b), (winner, response) in zip(pairings, results):
-        winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b, hyp_a)
+        winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b,
+                                                                      hyp_a)
         old_winner_elo = winner_hyp.elo_rating
         old_loser_elo = loser_hyp.elo_rating
 
         new_winner_elo, new_loser_elo = calculate_elo_update(
             winner_elo=winner_hyp.elo_rating,
             loser_elo=loser_hyp.elo_rating,
-            k_factor=ELO_K_FACTOR
-        )
+            k_factor=ELO_K_FACTOR)
         logger.debug(
             f"Matchup result: Winner {winner_hyp.elo_rating} → {new_winner_elo}, "
-            f"Loser {loser_hyp.elo_rating} → {new_loser_elo}"
-        )
+            f"Loser {loser_hyp.elo_rating} → {new_loser_elo}")
 
         # Store matchup details for display
         # Extract reasoning from response (can be decision_summary or judgment_explanation)
@@ -312,23 +311,33 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
         if not reasoning and "judgment_explanation" in response:
             # Fallback: combine judgment details if decision_summary is missing
             judgment = response["judgment_explanation"]
-            reasoning = " | ".join([f"{k}: {v}" for k, v in judgment.items() if v])
+            reasoning = " | ".join(
+                [f"{k}: {v}" for k, v in judgment.items() if v])
         if not reasoning:
             reasoning = "No reasoning provided"
 
-        matchup_details.append(
-            {
-                "hypothesis_a": hyp_a.text[:200] + "..." if len(hyp_a.text) > 200 else hyp_a.text,
-                "hypothesis_b": hyp_b.text[:200] + "..." if len(hyp_b.text) > 200 else hyp_b.text,
-                "winner": winner,
-                "reasoning": reasoning,
-                "confidence": response.get("confidence_level", "Unknown"),
-                "winner_elo_before": old_winner_elo,
-                "winner_elo_after": new_winner_elo,
-                "loser_elo_before": old_loser_elo,
-                "loser_elo_after": new_loser_elo,
-            }
-        )
+        matchup_details.append({
+            "hypothesis_a":
+                hyp_a.text[:200] +
+                "..." if len(hyp_a.text) > 200 else hyp_a.text,
+            "hypothesis_b":
+                hyp_b.text[:200] +
+                "..." if len(hyp_b.text) > 200 else hyp_b.text,
+            "winner":
+                winner,
+            "reasoning":
+                reasoning,
+            "confidence":
+                response.get("confidence_level", "Unknown"),
+            "winner_elo_before":
+                old_winner_elo,
+            "winner_elo_after":
+                new_winner_elo,
+            "loser_elo_before":
+                old_loser_elo,
+            "loser_elo_after":
+                new_loser_elo,
+        })
 
         winner_hyp.elo_rating = new_winner_elo
         loser_hyp.elo_rating = new_loser_elo
@@ -355,26 +364,26 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
         )
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
-    metrics = create_metrics_update(
-        llm_calls_delta=llm_calls, tournaments_count_delta=tournament_rounds
-    )
+    metrics = create_metrics_update(llm_calls_delta=llm_calls,
+                                    tournaments_count_delta=tournament_rounds)
     logger.debug(
         f"ranking node creating metrics delta: tournaments={tournament_rounds}, llm_calls={llm_calls}"
     )
 
     return {
-        "hypotheses": hypotheses,  # Now sorted by Elo rating
-        "tournament_matchups": matchup_details,
-        "metrics": metrics,
-        "messages": [
-            {
-                "role": "assistant",
-                "content": f"Completed {tournament_rounds} tournament rounds",
-                "metadata": {
-                    "phase": "ranking",
-                    "rounds": tournament_rounds,
-                    "top_elo": hypotheses[0].elo_rating,
-                },
-            }
-        ],
+        "hypotheses":
+            hypotheses,  # Now sorted by Elo rating
+        "tournament_matchups":
+            matchup_details,
+        "metrics":
+            metrics,
+        "messages": [{
+            "role": "assistant",
+            "content": f"Completed {tournament_rounds} tournament rounds",
+            "metadata": {
+                "phase": "ranking",
+                "rounds": tournament_rounds,
+                "top_elo": hypotheses[0].elo_rating,
+            },
+        }],
     }

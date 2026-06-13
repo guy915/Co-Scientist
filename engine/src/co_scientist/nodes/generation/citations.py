@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Structured citation utilities for hypothesis generation.
+"""Structured citation utilities for hypothesis generation.
 
 Replaces fragile author-year string matching with explicit citation keys.
 All sources use sequential [C*] keys regardless of type — domain-agnostic

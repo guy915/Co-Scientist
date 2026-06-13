@@ -11,16 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-JSON schemas for LLM responses.
+"""JSON schemas for LLM responses.
 
 These schemas are used with response_format of type json_schema
 to constrain LLM outputs to specific formats.
 """
 
 from typing import Dict, Any, Optional
-
 
 # Generation schema
 GENERATION_SCHEMA: Dict[str, Any] = {
@@ -35,23 +32,34 @@ GENERATION_SCHEMA: Dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis": {
-                            "type": "string",
-                            "description": "Dense technical hypothesis following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum)",
+                            "type":
+                                "string",
+                            "description":
+                                "Dense technical hypothesis following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum)",
                         },
                         "explanation": {
-                            "type": "string",
-                            "description": "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
+                            "type":
+                                "string",
+                            "description":
+                                "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
                         },
                         "literature_grounding": {
-                            "type": "string",
-                            "description": "2-4 sentences grounding the hypothesis in the provided reference list. Use ONLY the bracketed [C*] citation keys supplied (e.g. [C1], [C2], [C3]) — do NOT invent author-year citations. If no reference list was provided, state that explicitly.",
+                            "type":
+                                "string",
+                            "description":
+                                "2-4 sentences grounding the hypothesis in the provided reference list. Use ONLY the bracketed [C*] citation keys supplied (e.g. [C1], [C2], [C3]) — do NOT invent author-year citations. If no reference list was provided, state that explicitly.",
                         },
                         "experiment": {
-                            "type": "string",
-                            "description": "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                            "type":
+                                "string",
+                            "description":
+                                "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
                         },
                     },
-                    "required": ["hypothesis", "explanation", "literature_grounding", "experiment"],
+                    "required": [
+                        "hypothesis", "explanation", "literature_grounding",
+                        "experiment"
+                    ],
                     "additionalProperties": False,
                 },
             }
@@ -74,24 +82,34 @@ GENERATION_DRAFT_SCHEMA: Dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis": {
-                            "type": "string",
-                            "description": "Dense technical hypothesis following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum)",
+                            "type":
+                                "string",
+                            "description":
+                                "Dense technical hypothesis following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum)",
                         },
                         "explanation": {
-                            "type": "string",
-                            "description": "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
+                            "type":
+                                "string",
+                            "description":
+                                "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
                         },
                         "experiment": {
-                            "type": "string",
-                            "description": "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                            "type":
+                                "string",
+                            "description":
+                                "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
                         },
                         "gap_reasoning": {
-                            "type": "string",
-                            "description": "Brief explanation of what gap in the literature this hypothesis addresses and why it seems promising",
+                            "type":
+                                "string",
+                            "description":
+                                "Brief explanation of what gap in the literature this hypothesis addresses and why it seems promising",
                         },
                         "literature_sources": {
-                            "type": "string",
-                            "description": "Sources from the reference list that informed this gap. Use ONLY the bracketed [C*] keys provided (e.g. [C1], [C2], [C3]). Example: 'Gap identified via retinal imaging findings [C1] and tau isoform research [C2][C3].'",
+                            "type":
+                                "string",
+                            "description":
+                                "Sources from the reference list that informed this gap. Use ONLY the bracketed [C*] keys provided (e.g. [C1], [C2], [C3]). Example: 'Gap identified via retinal imaging findings [C1] and tau isoform research [C2][C3].'",
                         },
                     },
                     "required": [
@@ -123,20 +141,28 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: Dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis": {
-                            "type": "string",
-                            "description": "Final dense technical hypothesis text, following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum) (approved/refined/pivoted)",
+                            "type":
+                                "string",
+                            "description":
+                                "Final dense technical hypothesis text, following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum) (approved/refined/pivoted)",
                         },
                         "explanation": {
-                            "type": "string",
-                            "description": "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
+                            "type":
+                                "string",
+                            "description":
+                                "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
                         },
                         "literature_grounding": {
-                            "type": "string",
-                            "description": "2-4 sentences grounding the hypothesis in the provided reference list. Use ONLY the bracketed [C*] citation keys supplied (e.g. [C1], [C2], [C3]) — do NOT invent author-year citations. If no reference list was provided, state that explicitly.",
+                            "type":
+                                "string",
+                            "description":
+                                "2-4 sentences grounding the hypothesis in the provided reference list. Use ONLY the bracketed [C*] citation keys supplied (e.g. [C1], [C2], [C3]) — do NOT invent author-year citations. If no reference list was provided, state that explicitly.",
                         },
                         "experiment": {
-                            "type": "string",
-                            "description": "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                            "type":
+                                "string",
+                            "description":
+                                "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
                         },
                         "novelty_validation": {
                             "type": "object",
@@ -174,7 +200,10 @@ REVIEW_SCHEMA: Dict[str, Any] = {
     "schema": {
         "type": "object",
         "properties": {
-            "hypothesis_text": {"type": "string", "description": "The hypothesis being reviewed"},
+            "hypothesis_text": {
+                "type": "string",
+                "description": "The hypothesis being reviewed"
+            },
             "review_summary": {
                 "type": "string",
                 "description": "Overall assessment (2-3 sentences)",
@@ -215,28 +244,40 @@ REVIEW_SCHEMA: Dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "scientific_soundness": {
-                        "type": "string",
-                        "description": "Specific feedback on theoretical foundation and logical consistency",
+                        "type":
+                            "string",
+                        "description":
+                            "Specific feedback on theoretical foundation and logical consistency",
                     },
                     "novelty": {
-                        "type": "string",
-                        "description": "Specific feedback on originality and unique contribution",
+                        "type":
+                            "string",
+                        "description":
+                            "Specific feedback on originality and unique contribution",
                     },
                     "relevance": {
-                        "type": "string",
-                        "description": "Specific feedback on alignment with research goal",
+                        "type":
+                            "string",
+                        "description":
+                            "Specific feedback on alignment with research goal",
                     },
                     "testability": {
-                        "type": "string",
-                        "description": "Specific feedback on feasibility of testing",
+                        "type":
+                            "string",
+                        "description":
+                            "Specific feedback on feasibility of testing",
                     },
                     "clarity": {
-                        "type": "string",
-                        "description": "Specific feedback on precision and clarity of formulation",
+                        "type":
+                            "string",
+                        "description":
+                            "Specific feedback on precision and clarity of formulation",
                     },
                     "potential_impact": {
-                        "type": "string",
-                        "description": "Specific feedback on potential significance",
+                        "type":
+                            "string",
+                        "description":
+                            "Specific feedback on potential significance",
                     },
                 },
                 "required": [
@@ -250,8 +291,10 @@ REVIEW_SCHEMA: Dict[str, Any] = {
                 "additionalProperties": False,
             },
             "constructive_feedback": {
-                "type": "string",
-                "description": "Specific, actionable suggestions for improvement",
+                "type":
+                    "string",
+                "description":
+                    "Specific, actionable suggestions for improvement",
             },
             "safety_ethical_concerns": {
                 "type": "string",
@@ -275,7 +318,6 @@ REVIEW_SCHEMA: Dict[str, Any] = {
     },
 }
 
-
 # Batch review schema - for reviewing multiple hypotheses together
 REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
     "name": "hypothesis_batch_review",
@@ -290,8 +332,10 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis_index": {
-                            "type": "integer",
-                            "description": "Index of the hypothesis being reviewed (0-based)",
+                            "type":
+                                "integer",
+                            "description":
+                                "Index of the hypothesis being reviewed (0-based)",
                         },
                         "hypothesis_text": {
                             "type": "string",
@@ -337,28 +381,40 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
                             "type": "object",
                             "properties": {
                                 "scientific_soundness": {
-                                    "type": "string",
-                                    "description": "Specific feedback on theoretical foundation and logical consistency",
+                                    "type":
+                                        "string",
+                                    "description":
+                                        "Specific feedback on theoretical foundation and logical consistency",
                                 },
                                 "novelty": {
-                                    "type": "string",
-                                    "description": "Specific feedback on originality and unique contribution",
+                                    "type":
+                                        "string",
+                                    "description":
+                                        "Specific feedback on originality and unique contribution",
                                 },
                                 "relevance": {
-                                    "type": "string",
-                                    "description": "Specific feedback on alignment with research goal",
+                                    "type":
+                                        "string",
+                                    "description":
+                                        "Specific feedback on alignment with research goal",
                                 },
                                 "testability": {
-                                    "type": "string",
-                                    "description": "Specific feedback on feasibility of testing",
+                                    "type":
+                                        "string",
+                                    "description":
+                                        "Specific feedback on feasibility of testing",
                                 },
                                 "clarity": {
-                                    "type": "string",
-                                    "description": "Specific feedback on precision and clarity of formulation",
+                                    "type":
+                                        "string",
+                                    "description":
+                                        "Specific feedback on precision and clarity of formulation",
                                 },
                                 "potential_impact": {
-                                    "type": "string",
-                                    "description": "Specific feedback on potential significance",
+                                    "type":
+                                        "string",
+                                    "description":
+                                        "Specific feedback on potential significance",
                                 },
                             },
                             "required": [
@@ -372,16 +428,20 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
                             "additionalProperties": False,
                         },
                         "constructive_feedback": {
-                            "type": "string",
-                            "description": "Specific, actionable suggestions for improvement",
+                            "type":
+                                "string",
+                            "description":
+                                "Specific, actionable suggestions for improvement",
                         },
                         "safety_ethical_concerns": {
                             "type": "string",
                             "description": "Any ethical or safety concerns",
                         },
                         "comparative_notes": {
-                            "type": "string",
-                            "description": "Brief note on how this hypothesis compares to the others",
+                            "type":
+                                "string",
+                            "description":
+                                "Brief note on how this hypothesis compares to the others",
                         },
                     },
                     "required": [
@@ -402,7 +462,6 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
     },
 }
 
-
 # Evolution schema
 EVOLUTION_SCHEMA: Dict[str, Any] = {
     "name": "hypothesis_evolution",
@@ -411,20 +470,28 @@ EVOLUTION_SCHEMA: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "hypothesis": {
-                "type": "string",
-                "description": "Refined dense technical hypothesis following 'We want to develop [X] to enable [Y]' format. Similar sentence count to original hypothesis.",
+                "type":
+                    "string",
+                "description":
+                    "Refined dense technical hypothesis following 'We want to develop [X] to enable [Y]' format. Similar sentence count to original hypothesis.",
             },
             "refinement_summary": {
-                "type": "string",
-                "description": "Summary of changes and improvements made during evolution.",
+                "type":
+                    "string",
+                "description":
+                    "Summary of changes and improvements made during evolution.",
             },
             "explanation": {
-                "type": "string",
-                "description": "Updated step-by-step layman explanation reflecting any refinements made (4-6 sentences)",
+                "type":
+                    "string",
+                "description":
+                    "Updated step-by-step layman explanation reflecting any refinements made (4-6 sentences)",
             },
             "experiment": {
-                "type": "string",
-                "description": "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                "type":
+                    "string",
+                "description":
+                    "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
             },
         },
         "required": [
@@ -436,7 +503,6 @@ EVOLUTION_SCHEMA: Dict[str, Any] = {
         "additionalProperties": False,
     },
 }
-
 
 # Meta-review schema
 META_REVIEW_SCHEMA: Dict[str, Any] = {
@@ -454,24 +520,48 @@ META_REVIEW_SCHEMA: Dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "theme": {"type": "string"},
-                        "description": {"type": "string"},
-                        "frequency": {"type": "string"},
+                        "theme": {
+                            "type": "string"
+                        },
+                        "description": {
+                            "type": "string"
+                        },
+                        "frequency": {
+                            "type": "string"
+                        },
                     },
                     "required": ["theme", "description", "frequency"],
                     "additionalProperties": False,
                 },
             },
-            "strengths": {"type": "array", "items": {"type": "string"}},
-            "weaknesses": {"type": "array", "items": {"type": "string"}},
+            "strengths": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
+            "weaknesses": {
+                "type": "array",
+                "items": {
+                    "type": "string"
+                }
+            },
             "process_assessment": {
                 "type": "object",
                 "properties": {
-                    "generation_process": {"type": "string"},
-                    "review_process": {"type": "string"},
-                    "evolution_process": {"type": "string"},
+                    "generation_process": {
+                        "type": "string"
+                    },
+                    "review_process": {
+                        "type": "string"
+                    },
+                    "evolution_process": {
+                        "type": "string"
+                    },
                 },
-                "required": ["generation_process", "review_process", "evolution_process"],
+                "required": [
+                    "generation_process", "review_process", "evolution_process"
+                ],
                 "additionalProperties": False,
             },
             "strategic_recommendations": {
@@ -479,11 +569,19 @@ META_REVIEW_SCHEMA: Dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "focus_area": {"type": "string"},
-                        "recommendation": {"type": "string"},
-                        "justification": {"type": "string"},
+                        "focus_area": {
+                            "type": "string"
+                        },
+                        "recommendation": {
+                            "type": "string"
+                        },
+                        "justification": {
+                            "type": "string"
+                        },
                     },
-                    "required": ["focus_area", "recommendation", "justification"],
+                    "required": [
+                        "focus_area", "recommendation", "justification"
+                    ],
                     "additionalProperties": False,
                 },
             },
@@ -492,11 +590,23 @@ META_REVIEW_SCHEMA: Dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "related_hypotheses": {"type": "array", "items": {"type": "string"}},
-                        "connection_type": {"type": "string"},
-                        "synthesis_opportunity": {"type": "string"},
+                        "related_hypotheses": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "connection_type": {
+                            "type": "string"
+                        },
+                        "synthesis_opportunity": {
+                            "type": "string"
+                        },
                     },
-                    "required": ["related_hypotheses", "connection_type", "synthesis_opportunity"],
+                    "required": [
+                        "related_hypotheses", "connection_type",
+                        "synthesis_opportunity"
+                    ],
                     "additionalProperties": False,
                 },
             },
@@ -514,7 +624,6 @@ META_REVIEW_SCHEMA: Dict[str, Any] = {
     },
 }
 
-
 # Ranking schema
 RANKING_SCHEMA: Dict[str, Any] = {
     "name": "ranking_judgment",
@@ -522,9 +631,15 @@ RANKING_SCHEMA: Dict[str, Any] = {
     "schema": {
         "type": "object",
         "properties": {
-            "research_goal": {"type": "string"},
-            "hypothesis_a": {"type": "string"},
-            "hypothesis_b": {"type": "string"},
+            "research_goal": {
+                "type": "string"
+            },
+            "hypothesis_a": {
+                "type": "string"
+            },
+            "hypothesis_b": {
+                "type": "string"
+            },
             "winner": {
                 "type": "string",
                 "enum": ["a", "b"],
@@ -533,13 +648,27 @@ RANKING_SCHEMA: Dict[str, Any] = {
             "judgment_explanation": {
                 "type": "object",
                 "properties": {
-                    "scientific_soundness_comparison": {"type": "string"},
-                    "novelty_comparison": {"type": "string"},
-                    "relevance_comparison": {"type": "string"},
-                    "testability_comparison": {"type": "string"},
-                    "clarity_comparison": {"type": "string"},
-                    "impact_comparison": {"type": "string"},
-                    "feasibility_comparison": {"type": "string"},
+                    "scientific_soundness_comparison": {
+                        "type": "string"
+                    },
+                    "novelty_comparison": {
+                        "type": "string"
+                    },
+                    "relevance_comparison": {
+                        "type": "string"
+                    },
+                    "testability_comparison": {
+                        "type": "string"
+                    },
+                    "clarity_comparison": {
+                        "type": "string"
+                    },
+                    "impact_comparison": {
+                        "type": "string"
+                    },
+                    "feasibility_comparison": {
+                        "type": "string"
+                    },
                 },
                 "required": [
                     "scientific_soundness_comparison",
@@ -552,8 +681,13 @@ RANKING_SCHEMA: Dict[str, Any] = {
                 ],
                 "additionalProperties": False,
             },
-            "decision_summary": {"type": "string"},
-            "confidence_level": {"type": "string", "enum": ["High", "Medium", "Low"]},
+            "decision_summary": {
+                "type": "string"
+            },
+            "confidence_level": {
+                "type": "string",
+                "enum": ["High", "Medium", "Low"]
+            },
         },
         "required": [
             "research_goal",
@@ -568,7 +702,6 @@ RANKING_SCHEMA: Dict[str, Any] = {
     },
 }
 
-
 # Proximity schema
 PROXIMITY_SCHEMA: Dict[str, Any] = {
     "name": "proximity_analysis",
@@ -581,15 +714,23 @@ PROXIMITY_SCHEMA: Dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "cluster_id": {"type": "string"},
-                        "cluster_name": {"type": "string"},
-                        "central_theme": {"type": "string"},
+                        "cluster_id": {
+                            "type": "string"
+                        },
+                        "cluster_name": {
+                            "type": "string"
+                        },
+                        "central_theme": {
+                            "type": "string"
+                        },
                         "similar_hypotheses": {
                             "type": "array",
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "text": {"type": "string"},
+                                    "text": {
+                                        "type": "string"
+                                    },
                                     "similarity_degree": {
                                         "type": "string",
                                         "enum": ["high", "medium", "low"],
@@ -599,7 +740,9 @@ PROXIMITY_SCHEMA: Dict[str, Any] = {
                                 "additionalProperties": False,
                             },
                         },
-                        "synthesis_potential": {"type": "string"},
+                        "synthesis_potential": {
+                            "type": "string"
+                        },
                     },
                     "required": [
                         "cluster_id",
@@ -611,14 +754,20 @@ PROXIMITY_SCHEMA: Dict[str, Any] = {
                     "additionalProperties": False,
                 },
             },
-            "diversity_assessment": {"type": "string"},
-            "redundancy_assessment": {"type": "string"},
+            "diversity_assessment": {
+                "type": "string"
+            },
+            "redundancy_assessment": {
+                "type": "string"
+            },
         },
-        "required": ["similarity_clusters", "diversity_assessment", "redundancy_assessment"],
+        "required": [
+            "similarity_clusters", "diversity_assessment",
+            "redundancy_assessment"
+        ],
         "additionalProperties": False,
     },
 }
-
 
 # Reflection schema
 REFLECTION_SCHEMA: Dict[str, Any] = {
@@ -627,13 +776,17 @@ REFLECTION_SCHEMA: Dict[str, Any] = {
     "schema": {
         "type": "object",
         "properties": {
-            "hypothesis_text": {"type": "string", "description": "The hypothesis being analyzed"},
+            "hypothesis_text": {
+                "type": "string",
+                "description": "The hypothesis being analyzed"
+            },
             "reasoning": {
                 "type": "string",
                 "description": "Detailed reasoning for the classification",
             },
             "classification": {
-                "type": "string",
+                "type":
+                    "string",
                 "enum": [
                     "already explained",
                     "other explanations more likely",
@@ -641,14 +794,14 @@ REFLECTION_SCHEMA: Dict[str, Any] = {
                     "neutral",
                     "disproved",
                 ],
-                "description": "Classification of hypothesis based on literature observations",
+                "description":
+                    "Classification of hypothesis based on literature observations",
             },
         },
         "required": ["hypothesis_text", "reasoning", "classification"],
         "additionalProperties": False,
     },
 }
-
 
 # Supervisor schema
 SUPERVISOR_SCHEMA: Dict[str, Any] = {
@@ -661,12 +814,29 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "goal_summary": {
-                        "type": "string",
-                        "description": "concise restatement of the research goal",
+                        "type":
+                            "string",
+                        "description":
+                            "concise restatement of the research goal",
                     },
-                    "key_areas": {"type": "array", "items": {"type": "string"}},
-                    "constraints_identified": {"type": "array", "items": {"type": "string"}},
-                    "success_criteria": {"type": "array", "items": {"type": "string"}},
+                    "key_areas": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "constraints_identified": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "success_criteria": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                 },
                 "required": [
                     "goal_summary",
@@ -682,23 +852,38 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                     "generation_phase": {
                         "type": "object",
                         "properties": {
-                            "focus_areas": {"type": "array", "items": {"type": "string"}},
+                            "focus_areas": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
                             "diversity_targets": {
-                                "type": "string",
-                                "description": "description of diversity targets for hypotheses",
+                                "type":
+                                    "string",
+                                "description":
+                                    "description of diversity targets for hypotheses",
                             },
                             "quantity_target": {
                                 "type": "string",
                                 "description": "target number of hypotheses",
                             },
                         },
-                        "required": ["focus_areas", "diversity_targets", "quantity_target"],
+                        "required": [
+                            "focus_areas", "diversity_targets",
+                            "quantity_target"
+                        ],
                         "additionalProperties": False,
                     },
                     "review_phase": {
                         "type": "object",
                         "properties": {
-                            "critical_criteria": {"type": "array", "items": {"type": "string"}},
+                            "critical_criteria": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
                             "review_depth": {
                                 "type": "string",
                                 "description": "depth of review required",
@@ -711,10 +896,17 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                         "type": "object",
                         "properties": {
                             "ranking_approach": {
-                                "type": "string",
-                                "description": "description of ranking approach",
+                                "type":
+                                    "string",
+                                "description":
+                                    "description of ranking approach",
                             },
-                            "selection_criteria": {"type": "array", "items": {"type": "string"}},
+                            "selection_criteria": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
                         },
                         "required": ["ranking_approach", "selection_criteria"],
                         "additionalProperties": False,
@@ -722,13 +914,22 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                     "evolution_phase": {
                         "type": "object",
                         "properties": {
-                            "refinement_priorities": {"type": "array", "items": {"type": "string"}},
+                            "refinement_priorities": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
                             "iteration_strategy": {
-                                "type": "string",
-                                "description": "description of iteration strategy",
+                                "type":
+                                    "string",
+                                "description":
+                                    "description of iteration strategy",
                             },
                         },
-                        "required": ["refinement_priorities", "iteration_strategy"],
+                        "required": [
+                            "refinement_priorities", "iteration_strategy"
+                        ],
                         "additionalProperties": False,
                     },
                 },
@@ -747,33 +948,50 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                         "type": "string",
                         "description": "assessment of current workflow status",
                     },
-                    "bottlenecks_identified": {"type": "array", "items": {"type": "string"}},
+                    "bottlenecks_identified": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                     "agent_performance": {
                         "type": "object",
                         "properties": {
                             "generation_agent": {
-                                "type": "string",
-                                "description": "assessment of generation agent performance",
+                                "type":
+                                    "string",
+                                "description":
+                                    "assessment of generation agent performance",
                             },
                             "reflection_agent": {
-                                "type": "string",
-                                "description": "assessment of reflection agent performance",
+                                "type":
+                                    "string",
+                                "description":
+                                    "assessment of reflection agent performance",
                             },
                             "ranking_agent": {
-                                "type": "string",
-                                "description": "assessment of ranking agent performance",
+                                "type":
+                                    "string",
+                                "description":
+                                    "assessment of ranking agent performance",
                             },
                             "evolution_agent": {
-                                "type": "string",
-                                "description": "assessment of evolution agent performance",
+                                "type":
+                                    "string",
+                                "description":
+                                    "assessment of evolution agent performance",
                             },
                             "proximity_agent": {
-                                "type": "string",
-                                "description": "assessment of proximity agent performance",
+                                "type":
+                                    "string",
+                                "description":
+                                    "assessment of proximity agent performance",
                             },
                             "meta_review_agent": {
-                                "type": "string",
-                                "description": "assessment of meta-review agent performance",
+                                "type":
+                                    "string",
+                                "description":
+                                    "assessment of meta-review agent performance",
                             },
                         },
                         "required": [
@@ -787,7 +1005,10 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                         "additionalProperties": False,
                     },
                 },
-                "required": ["current_status", "bottlenecks_identified", "agent_performance"],
+                "required": [
+                    "current_status", "bottlenecks_identified",
+                    "agent_performance"
+                ],
                 "additionalProperties": False,
             },
             "adjustment_recommendations": {
@@ -795,7 +1016,10 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "aspect": {"type": "string", "description": "aspect to adjust"},
+                        "aspect": {
+                            "type": "string",
+                            "description": "aspect to adjust"
+                        },
                         "adjustment": {
                             "type": "string",
                             "description": "description of adjustment",
@@ -813,14 +1037,23 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "hypothesis_selection_strategy": {
-                        "type": "string",
-                        "description": "strategy for selecting final hypotheses",
+                        "type":
+                            "string",
+                        "description":
+                            "strategy for selecting final hypotheses",
                     },
                     "presentation_format": {
-                        "type": "string",
-                        "description": "format for presenting results to scientist",
+                        "type":
+                            "string",
+                        "description":
+                            "format for presenting results to scientist",
                     },
-                    "key_insights_to_highlight": {"type": "array", "items": {"type": "string"}},
+                    "key_insights_to_highlight": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
                 },
                 "required": [
                     "hypothesis_selection_strategy",
@@ -841,7 +1074,6 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
     },
 }
 
-
 # Literature review query generation schema
 LITERATURE_QUERY_SCHEMA: Dict[str, Any] = {
     "name": "pubmed_query_generation",
@@ -850,11 +1082,15 @@ LITERATURE_QUERY_SCHEMA: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "queries": {
-                "type": "array",
-                "description": "Natural language search queries for PubMed literature search",
+                "type":
+                    "array",
+                "description":
+                    "Natural language search queries for PubMed literature search",
                 "items": {
-                    "type": "string",
-                    "description": "A focused search phrase covering a specific aspect of the research goal",
+                    "type":
+                        "string",
+                    "description":
+                        "A focused search phrase covering a specific aspect of the research goal",
                 },
             }
         },
@@ -862,7 +1098,6 @@ LITERATURE_QUERY_SCHEMA: Dict[str, Any] = {
         "additionalProperties": False,
     },
 }
-
 
 # Literature review paper analysis schema
 LITERATURE_PAPER_ANALYSIS_SCHEMA: Dict[str, Any] = {
@@ -876,8 +1111,10 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: Dict[str, Any] = {
                 "description": "main contributions and results from this work",
             },
             "gaps_identified": {
-                "type": "string",
-                "description": "limitations or gaps explicitly mentioned by authors",
+                "type":
+                    "string",
+                "description":
+                    "limitations or gaps explicitly mentioned by authors",
             },
             "future_work": {
                 "type": "string",
@@ -907,7 +1144,6 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: Dict[str, Any] = {
         "additionalProperties": False,
     },
 }
-
 
 # Hypothesis novelty analysis schema
 HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: Dict[str, Any] = {
@@ -941,13 +1177,20 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: Dict[str, Any] = {
                 "description": "future directions the authors propose",
             },
             "novelty_assessment": {
-                "type": "string",
-                "description": "how hypothesis compares to this paper",
-                "enum": ["overlapping", "complementary", "orthogonal", "addresses_gaps"],
+                "type":
+                    "string",
+                "description":
+                    "how hypothesis compares to this paper",
+                "enum": [
+                    "overlapping", "complementary", "orthogonal",
+                    "addresses_gaps"
+                ],
             },
             "overlap_explanation": {
-                "type": "string",
-                "description": "detailed explanation of how hypothesis compares to this paper",
+                "type":
+                    "string",
+                "description":
+                    "detailed explanation of how hypothesis compares to this paper",
             },
         },
         "required": [
@@ -966,8 +1209,7 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: Dict[str, Any] = {
 
 
 def get_schema_for_prompt(prompt_name: str) -> Optional[Dict[str, Any]]:
-    """
-    Get the JSON schema for a given prompt name.
+    """Get the JSON schema for a given prompt name.
 
     Args:
         prompt_name: Name of the prompt (e.g., "generation", "review")
@@ -976,22 +1218,38 @@ def get_schema_for_prompt(prompt_name: str) -> Optional[Dict[str, Any]]:
         JSON schema dict or None if no schema is defined for this prompt
     """
     schema_map = {
-        "generation_draft_with_tools": GENERATION_DRAFT_SCHEMA,
-        "generation_debate_and_literature": GENERATION_SCHEMA,
-        "generation_after_debate": GENERATION_SCHEMA,
-        "review": REVIEW_SCHEMA,
-        "review_batch": REVIEW_BATCH_SCHEMA,
-        "evolution": EVOLUTION_SCHEMA,
-        "meta_review": META_REVIEW_SCHEMA,
-        "ranking": RANKING_SCHEMA,
-        "proximity": PROXIMITY_SCHEMA,
-        "reflection_observations": REFLECTION_SCHEMA,
-        "supervisor": SUPERVISOR_SCHEMA,
-        "literature_query_generation": LITERATURE_QUERY_SCHEMA,
-        "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
-        "hypothesis_novelty_analysis": HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
-        "hypothesis_validation_synthesis": HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
-        "hypothesis_validation_synthesis_with_tools": HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+        "generation_draft_with_tools":
+            GENERATION_DRAFT_SCHEMA,
+        "generation_debate_and_literature":
+            GENERATION_SCHEMA,
+        "generation_after_debate":
+            GENERATION_SCHEMA,
+        "review":
+            REVIEW_SCHEMA,
+        "review_batch":
+            REVIEW_BATCH_SCHEMA,
+        "evolution":
+            EVOLUTION_SCHEMA,
+        "meta_review":
+            META_REVIEW_SCHEMA,
+        "ranking":
+            RANKING_SCHEMA,
+        "proximity":
+            PROXIMITY_SCHEMA,
+        "reflection_observations":
+            REFLECTION_SCHEMA,
+        "supervisor":
+            SUPERVISOR_SCHEMA,
+        "literature_query_generation":
+            LITERATURE_QUERY_SCHEMA,
+        "literature_review_paper_analysis":
+            LITERATURE_PAPER_ANALYSIS_SCHEMA,
+        "hypothesis_novelty_analysis":
+            HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
+        "hypothesis_validation_synthesis":
+            HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+        "hypothesis_validation_synthesis_with_tools":
+            HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
     }
 
     return schema_map.get(prompt_name)

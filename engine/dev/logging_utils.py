@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Centralized logging utilities for co-scientist dev scripts.
+"""Centralized logging utilities for co-scientist dev scripts.
 
 provides:
 - File-based console logging with no truncation
@@ -50,8 +48,7 @@ def get_logs_dir() -> Path:
 
 
 def initialize_run_logging(run_id: str) -> None:
-    """
-    Initialize file-based logging for a specific run.
+    """Initialize file-based logging for a specific run.
 
     args:
         run_id: unique identifier for this run (e.g., task_id from server)
@@ -72,7 +69,9 @@ def initialize_run_logging(run_id: str) -> None:
     _log_file_handle = open(log_file_path, "w", encoding="utf-8")
 
     # write start timestamp to file
-    _log_file_handle.write(f"=== run started at {_run_start_time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+    _log_file_handle.write(
+        f"=== run started at {_run_start_time.strftime('%Y-%m-%d %H:%M:%S')} ===\n"
+    )
     _log_file_handle.write(f"=== run_id: {run_id} ===\n\n")
     _log_file_handle.flush()
 
@@ -86,7 +85,8 @@ def initialize_run_logging(run_id: str) -> None:
         tab_size=4,
     )
 
-    logger.info(f"initialized file logging for run_id={run_id} at {log_file_path}")
+    logger.info(
+        f"initialized file logging for run_id={run_id} at {log_file_path}")
 
 
 def cleanup_run_logging() -> None:
@@ -97,7 +97,9 @@ def cleanup_run_logging() -> None:
         # write end timestamp to file
         end_time = datetime.now()
         duration = end_time - _run_start_time
-        _log_file_handle.write(f"\n\n=== run ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')} ===\n")
+        _log_file_handle.write(
+            f"\n\n=== run ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')} ===\n"
+        )
         _log_file_handle.write(f"=== duration: {duration} ===\n")
         _log_file_handle.flush()
         _log_file_handle.close()
@@ -109,8 +111,7 @@ def cleanup_run_logging() -> None:
 
 
 def get_console() -> Console:
-    """
-    get the console for detailed logging.
+    """Get the console for detailed logging.
 
     returns file-based console if run logging is initialized,
     otherwise returns a default console (for backwards compatibility).
@@ -120,14 +121,15 @@ def get_console() -> Console:
     else:
         # fallback: create default console if not initialized
         # this ensures backwards compatibility if called without initialization
-        logger.warning("console requested but run logging not initialized, using default console")
+        logger.warning(
+            "console requested but run logging not initialized, using default console"
+        )
         return Console()
 
 
 @contextmanager
 def run_logging_context(run_id: str):
-    """
-    context manager for run-specific logging.
+    """Context manager for run-specific logging.
 
     usage:
         with run_logging_context("task_123"):

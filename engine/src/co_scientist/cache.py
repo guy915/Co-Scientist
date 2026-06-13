@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Simple file-based cache for LLM responses.
+"""Simple file-based cache for LLM responses.
 
 This cache dramatically speeds up development and testing by avoiding
 redundant LLM calls for identical requests.
@@ -36,9 +34,10 @@ logger = logging.getLogger(__name__)
 class LLMCache:
     """Simple file-based cache for LLM responses."""
 
-    def __init__(self, cache_dir: str = DEFAULT_CACHE_DIR, enabled: bool = DEFAULT_CACHE_ENABLED):
-        """
-        Initialize the LLM cache.
+    def __init__(self,
+                 cache_dir: str = DEFAULT_CACHE_DIR,
+                 enabled: bool = DEFAULT_CACHE_ENABLED):
+        """Initialize the LLM cache.
 
         Args:
             cache_dir: Directory to store cache files
@@ -61,8 +60,7 @@ class LLMCache:
         json_schema: Optional[Dict[str, Any]] = None,
         force_json: Optional[bool] = None,
     ) -> str:
-        """
-        Generate a unique cache key for the request.
+        """Generate a unique cache key for the request.
 
         Args:
             prompt: The prompt text
@@ -105,8 +103,7 @@ class LLMCache:
         json_schema: Optional[Dict[str, Any]] = None,
         force_json: Optional[bool] = None,
     ) -> Optional[Dict[str, Any]]:
-        """
-        Get cached response if available.
+        """Get cached response if available.
 
         Args:
             prompt: The prompt text
@@ -123,16 +120,16 @@ class LLMCache:
         if not self.enabled:
             return None
 
-        cache_key = self._generate_cache_key(
-            prompt, model_name, temperature, max_tokens, tools, json_schema, force_json
-        )
+        cache_key = self._generate_cache_key(prompt, model_name, temperature,
+                                             max_tokens, tools, json_schema,
+                                             force_json)
         cache_file = self.cache_dir / f"{cache_key}.json"
 
         if cache_file.exists():
             try:
                 # Use atomic read: if file is being written, this will either
                 # read the old complete file or fail gracefully
-                with open(cache_file, "r") as f:
+                with open(cache_file, "r", encoding="utf-8") as f:
                     cached_data = json.load(f)
                 logger.debug(f"cache HIT for key {cache_key[:8]}...")
                 return cached_data["response"]
@@ -164,8 +161,7 @@ class LLMCache:
         json_schema: Optional[Dict[str, Any]] = None,
         force_json: Optional[bool] = None,
     ) -> None:
-        """
-        Store response in cache.
+        """Store response in cache.
 
         Args:
             prompt: The prompt text
@@ -180,18 +176,22 @@ class LLMCache:
         if not self.enabled:
             return
 
-        cache_key = self._generate_cache_key(
-            prompt, model_name, temperature, max_tokens, tools, json_schema, force_json
-        )
+        cache_key = self._generate_cache_key(prompt, model_name, temperature,
+                                             max_tokens, tools, json_schema,
+                                             force_json)
         cache_file = self.cache_dir / f"{cache_key}.json"
 
         try:
             cache_data = {
                 "request": {
-                    "model": model_name,
-                    "temperature": temperature,
-                    "max_tokens": max_tokens,
-                    "prompt_preview": prompt[:200] + "..." if len(prompt) > 200 else prompt,
+                    "model":
+                        model_name,
+                    "temperature":
+                        temperature,
+                    "max_tokens":
+                        max_tokens,
+                    "prompt_preview":
+                        prompt[:200] + "..." if len(prompt) > 200 else prompt,
                 },
                 "response": response,
             }
@@ -200,7 +200,7 @@ class LLMCache:
             # This prevents race conditions when multiple processes write the same cache file
             temp_file = cache_file.with_suffix(".tmp")
             try:
-                with open(temp_file, "w") as f:
+                with open(temp_file, "w", encoding="utf-8") as f:
                     json.dump(cache_data, f, indent=2)
                 # Atomic rename - if this fails, temp file will be cleaned up on next access
                 temp_file.replace(cache_file)
@@ -211,13 +211,14 @@ class LLMCache:
                     temp_file.unlink()
                 except OSError:
                     pass
-                logger.debug(f"cache write conflict for {cache_key[:8]}... (concurrent write): {e}")
-        except Exception as e:
+                logger.debug(
+                    f"cache write conflict for {cache_key[:8]}... (concurrent write): {e}"
+                )
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Failed to cache response: {e}")
 
     def clear(self) -> int:
-        """
-        Clear all cached responses.
+        """Clear all cached responses.
 
         Returns:
             Number of cache files deleted
@@ -234,8 +235,7 @@ class LLMCache:
         return count
 
     def get_stats(self) -> Dict[str, Any]:
-        """
-        Get cache statistics.
+        """Get cache statistics.
 
         Returns:
             Dictionary with cache statistics
@@ -264,9 +264,8 @@ def get_cache() -> LLMCache:
 
     if _global_cache is None:
         # Check environment variable for cache configuration
-        cache_enabled_str = os.getenv(
-            "COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower()
-        )
+        cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
+                                      str(DEFAULT_CACHE_ENABLED).lower())
         cache_enabled = cache_enabled_str.lower() == "true"
         cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
 
@@ -291,8 +290,7 @@ def get_cache_stats() -> Dict[str, Any]:
 
 
 class NodeCache:
-    """
-    Cache for entire node outputs (e.g., literature review).
+    """Cache for entire node outputs (e.g., literature review).
 
     This caches the full output of heavy nodes to avoid redundant
     work when the same inputs are provided again.
@@ -300,9 +298,10 @@ class NodeCache:
     Controlled by the same COSCIENTIST_CACHE_ENABLED flag as LLM caching.
     """
 
-    def __init__(self, cache_dir: str = DEFAULT_CACHE_DIR, enabled: bool = True):
-        """
-        Initialize the node cache.
+    def __init__(self,
+                 cache_dir: str = DEFAULT_CACHE_DIR,
+                 enabled: bool = True):
+        """Initialize the node cache.
 
         Args:
             cache_dir: Base directory to store cache files
@@ -316,8 +315,7 @@ class NodeCache:
             logger.debug(f"node cache initialized at {self.cache_dir}")
 
     def _generate_cache_key(self, node_name: str, **key_params) -> str:
-        """
-        Generate a unique cache key for the node with given parameters.
+        """Generate a unique cache key for the node with given parameters.
 
         Args:
             node_name: Name of the node (e.g., "literature_review")
@@ -330,9 +328,11 @@ class NodeCache:
         key_string = json.dumps(key_data, sort_keys=True)
         return hashlib.sha256(key_string.encode()).hexdigest()
 
-    def get(self, node_name: str, force: bool = False, **key_params) -> Optional[Dict[str, Any]]:
-        """
-        Get cached node output if available.
+    def get(self,
+            node_name: str,
+            force: bool = False,
+            **key_params) -> Optional[Dict[str, Any]]:
+        """Get cached node output if available.
 
         Args:
             node_name: Name of the node
@@ -352,24 +352,28 @@ class NodeCache:
             try:
                 with open(cache_file, "rb") as f:
                     cached_data = pickle.load(f)
-                logger.debug(f"node cache HIT for {node_name} (key {cache_key[:8]}...)")
+                logger.debug(
+                    f"node cache HIT for {node_name} (key {cache_key[:8]}...)")
                 return cached_data
             except (pickle.PickleError, IOError, OSError) as e:
-                logger.debug(f"node cache read failed for {cache_key[:8]}...: {e}")
+                logger.debug(
+                    f"node cache read failed for {cache_key[:8]}...: {e}")
                 try:
                     cache_file.unlink()
                 except OSError:
                     pass
                 return None
 
-        logger.debug(f"node cache MISS for {node_name} (key {cache_key[:8]}...)")
+        logger.debug(
+            f"node cache MISS for {node_name} (key {cache_key[:8]}...)")
         return None
 
-    def set(
-        self, node_name: str, output: Dict[str, Any], force: bool = False, **key_params
-    ) -> None:
-        """
-        Store node output in cache.
+    def set(self,
+            node_name: str,
+            output: Dict[str, Any],
+            force: bool = False,
+            **key_params) -> None:
+        """Store node output in cache.
 
         Args:
             node_name: Name of the node
@@ -392,13 +396,13 @@ class NodeCache:
             with open(temp_file, "wb") as f:
                 pickle.dump(output, f)
             temp_file.replace(cache_file)
-            logger.debug(f"cached node output for {node_name} (key {cache_key[:8]}...)")
-        except Exception as e:
+            logger.debug(
+                f"cached node output for {node_name} (key {cache_key[:8]}...)")
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning(f"Failed to cache node output for {node_name}: {e}")
 
     def clear(self) -> int:
-        """
-        Clear all cached node outputs.
+        """Clear all cached node outputs.
 
         Returns:
             Number of cache files deleted
@@ -415,8 +419,7 @@ class NodeCache:
         return count
 
     def get_stats(self) -> Dict[str, Any]:
-        """
-        Get node cache statistics.
+        """Get node cache statistics.
 
         Returns:
             Dictionary with cache statistics
@@ -445,13 +448,13 @@ def get_node_cache() -> NodeCache:
 
     if _global_node_cache is None:
         # reuse same cache enabled flag as LLM cache
-        cache_enabled_str = os.getenv(
-            "COSCIENTIST_CACHE_ENABLED", str(DEFAULT_CACHE_ENABLED).lower()
-        )
+        cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
+                                      str(DEFAULT_CACHE_ENABLED).lower())
         cache_enabled = cache_enabled_str.lower() in ("true", "1", "yes")
         cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
 
-        _global_node_cache = NodeCache(cache_dir=cache_dir, enabled=cache_enabled)
+        _global_node_cache = NodeCache(cache_dir=cache_dir,
+                                       enabled=cache_enabled)
 
         if cache_enabled:
             logger.info(f"Node caching enabled (dir: {cache_dir}/nodes)")

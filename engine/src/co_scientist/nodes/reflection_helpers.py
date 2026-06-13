@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-helpers for INDRA knowledge graph integration in the reflection node.
+"""Helpers for INDRA knowledge graph integration in the reflection node.
 
 Pre-fetches structured mechanistic evidence from INDRA CoGex to augment
 reflection analysis. Extracts likely gene/protein names from hypothesis
@@ -36,22 +34,98 @@ _STANDALONE_RE = re.compile(r"\b([A-Z][A-Z0-9]{2,5})\b")
 # common false positives: english words, non-gene abbreviations, protein families
 _STOP = frozenset({
     # english
-    "THE", "AND", "FOR", "WITH", "THIS", "THAT", "FROM", "INTO",
-    "BUT", "NOT", "HAS", "CAN", "MAY", "WILL", "ARE", "WAS",
-    "TWO", "ONE", "USE", "NEW", "ALL", "HOW", "ANY", "ITS",
-    "VIA", "WHO", "WHY", "YET", "SET", "OUR", "OUT", "WAY",
-    "TRY", "LET", "PUT", "GET", "END", "DID", "HIS", "HER",
-    "BEEN", "ALSO", "SHOW", "THAN", "DOES", "SUCH", "HAVE",
-    "BEEN", "MORE", "WELL", "MOST", "ONLY", "BOTH", "SOME",
+    "THE",
+    "AND",
+    "FOR",
+    "WITH",
+    "THIS",
+    "THAT",
+    "FROM",
+    "INTO",
+    "BUT",
+    "NOT",
+    "HAS",
+    "CAN",
+    "MAY",
+    "WILL",
+    "ARE",
+    "WAS",
+    "TWO",
+    "ONE",
+    "USE",
+    "NEW",
+    "ALL",
+    "HOW",
+    "ANY",
+    "ITS",
+    "VIA",
+    "WHO",
+    "WHY",
+    "YET",
+    "SET",
+    "OUR",
+    "OUT",
+    "WAY",
+    "TRY",
+    "LET",
+    "PUT",
+    "GET",
+    "END",
+    "DID",
+    "HIS",
+    "HER",
+    "BEEN",
+    "ALSO",
+    "SHOW",
+    "THAN",
+    "DOES",
+    "SUCH",
+    "HAVE",
+    "MORE",
+    "WELL",
+    "MOST",
+    "ONLY",
+    "BOTH",
+    "SOME",
     # tech/science abbreviations (not genes)
-    "MCP", "LLM", "API", "PDF", "URL", "PCT", "KEY", "RED",
-    "DNA", "RNA", "ATP", "ADP", "GDP", "GTP", "USA", "NIH",
+    "MCP",
+    "LLM",
+    "API",
+    "PDF",
+    "URL",
+    "PCT",
+    "KEY",
+    "RED",
+    "DNA",
+    "RNA",
+    "ATP",
+    "ADP",
+    "GDP",
+    "GTP",
+    "USA",
+    "NIH",
     # biomedical non-gene abbreviations
-    "CSF", "CNS", "BBB", "PPI", "PET", "MRI", "CVE", "ROS",
-    "iPSC", "CRISPR", "ELISA", "GWAS", "SNP", "DOID", "MESH",
-    "HGNC", "CHEBI",
+    "CSF",
+    "CNS",
+    "BBB",
+    "PPI",
+    "PET",
+    "MRI",
+    "CVE",
+    "ROS",
+    "iPSC",
+    "CRISPR",
+    "ELISA",
+    "GWAS",
+    "SNP",
+    "DOID",
+    "MESH",
+    "HGNC",
+    "CHEBI",
     # protein families/classes (too broad for INDRA single-agent queries)
-    "CYP450", "CSPG", "CSPGS",
+    "CYP450",
+    "CSPG",
+    "CSPGS",
 })
 
 # known informal → canonical mappings for common biomedical abbreviations
@@ -121,7 +195,8 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
     return result[:max_entities]
 
 
-def get_kg_tools_for_workflow(tool_registry: Optional[Any], workflow_name: str) -> list[str]:
+def get_kg_tools_for_workflow(tool_registry: Optional[Any],
+                              workflow_name: str) -> list[str]:
     """Resolve which MCP tool names the yaml config assigned to a workflow's search_tools.
 
     Returns an empty list when:
@@ -138,7 +213,7 @@ def get_kg_tools_for_workflow(tool_registry: Optional[Any], workflow_name: str) 
         if not tool_ids:
             return []
         return tool_registry.get_mcp_tool_names(tool_ids)
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return []
 
 
@@ -170,7 +245,7 @@ async def fetch_indra_evidence(
         return empty
 
     try:
-        from ..mcp_client import get_mcp_client
+        from ..mcp_client import get_mcp_client  # pylint: disable=import-outside-toplevel
 
         client = await get_mcp_client(tool_registry=tool_registry)
 
@@ -178,7 +253,8 @@ async def fetch_indra_evidence(
         if not tool_name:
             return empty
 
-        all_stmts = await _query_entities(client, tool_name, entities, max_statements)
+        all_stmts = await _query_entities(client, tool_name, entities,
+                                          max_statements)
         if not all_stmts:
             return empty
 
@@ -188,7 +264,7 @@ async def fetch_indra_evidence(
             "enrichment_items": _build_enrichment_items(capped, entities),
         }
 
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.debug(f"reflection evidence fetch skipped: {e}")
         return empty
 
@@ -205,22 +281,31 @@ _EVIDENCE_LIMIT = 25
 
 
 async def _query_single_entity(
-    client: Any, tool_name: str, entity: str, max_per_entity: int,
+    client: Any,
+    tool_name: str,
+    entity: str,
+    max_per_entity: int,
 ) -> list[dict]:
     """Query a knowledge graph tool for one entity; returns its statements."""
     try:
         raw = await client.call_tool(
-            tool_name, agent=entity, limit=max_per_entity, evidence_limit=_EVIDENCE_LIMIT,
+            tool_name,
+            agent=entity,
+            limit=max_per_entity,
+            evidence_limit=_EVIDENCE_LIMIT,
         )
         result = _parse_tool_result(raw)
         return result.get("statements", [])
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.debug(f"entity query failed for '{entity}' via {tool_name}: {e}")
         return []
 
 
 async def _query_entities(
-    client: Any, tool_name: str, entities: list[str], max_per_entity: int,
+    client: Any,
+    tool_name: str,
+    entities: list[str],
+    max_per_entity: int,
 ) -> list[dict]:
     """Query a knowledge graph tool for all entities in parallel."""
     tasks = [
@@ -243,15 +328,14 @@ def _parse_tool_result(raw: Any) -> dict:
     return {}
 
 
-def _format_evidence(statements: list[dict], queried_entities: list[str]) -> str:
+def _format_evidence(statements: list[dict],
+                     queried_entities: list[str]) -> str:
     """Format INDRA statements concisely for prompt injection.
 
     Target: ~200-300 tokens for 5 statements. Each line is one relationship.
     """
-    header = (
-        "Structured knowledge from the INDRA biomedical knowledge graph "
-        f"(queried for: {', '.join(queried_entities)}):"
-    )
+    header = ("Structured knowledge from the INDRA biomedical knowledge graph "
+              f"(queried for: {', '.join(queried_entities)}):")
     lines = [header]
 
     for stmt in statements:
@@ -278,26 +362,23 @@ def _format_single_statement(stmt: dict) -> str:
     obj = _agent_name(stmt, "obj")
 
     if subj and obj:
-        return (
-            f"- {subj} --[{rel_type}]--> {obj} "
-            f"(belief: {belief:.2f}, {ev_str} papers)"
-        )
+        return (f"- {subj} --[{rel_type}]--> {obj} "
+                f"(belief: {belief:.2f}, {ev_str} papers)")
 
     # complex/family statements have members instead of subj/obj
     members = stmt.get("members", [])
     if members:
         names = [m.get("name", "?") for m in members if isinstance(m, dict)]
         if names:
-            return (
-                f"- Complex({', '.join(names)}) [{rel_type}] "
-                f"(belief: {belief:.2f}, {ev_str} papers)"
-            )
+            return (f"- Complex({', '.join(names)}) [{rel_type}] "
+                    f"(belief: {belief:.2f}, {ev_str} papers)")
 
     return ""
 
 
 def _build_enrichment_items(
-    statements: list[dict], queried_entities: list[str],
+    statements: list[dict],
+    queried_entities: list[str],
 ) -> list[dict[str, str]]:
     """Build structured items for hypothesis.enrichments (UI rendering).
 

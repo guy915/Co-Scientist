@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""
-Tool registry for managing MCP tool configurations.
+"""Tool registry for managing MCP tool configurations.
 
 Handles loading YAML configs, environment variable substitution,
 merging user configs with defaults, and providing access to tool definitions.
@@ -42,8 +40,7 @@ USER_CONFIG_PATHS = [
 
 
 def substitute_env_vars(value: Any) -> Any:
-    """
-    Substitute environment variables in a value.
+    """Substitute environment variables in a value.
 
     Supports formats:
     - ${VAR} - required env var
@@ -68,7 +65,9 @@ def substitute_env_vars(value: Any) -> Any:
             if default is not None:
                 return default
             # return empty string if no env var and no default
-            logger.warning(f"environment variable {var_name} not set and no default provided")
+            logger.warning(
+                f"environment variable {var_name} not set and no default provided"
+            )
             return ""
 
         return re.sub(pattern, replacer, value)
@@ -88,8 +87,7 @@ def parse_bool_env(value: str) -> bool:
 
 
 class ToolRegistry:
-    """
-    Central registry for tool configurations.
+    """Central registry for tool configurations.
 
     Loads tool definitions from YAML configs, supports user overrides,
     and provides access methods for nodes and prompt builders.
@@ -101,8 +99,7 @@ class ToolRegistry:
         disabled_tools: Optional[List[str]] = None,
         skip_user_config: bool = False,
     ):
-        """
-        Initialize the tool registry.
+        """Initialize the tool registry.
 
         Args:
             config_path: Optional path to custom YAML config (overrides defaults)
@@ -122,7 +119,9 @@ class ToolRegistry:
         # start with default config
         default_data = self._load_yaml_file(DEFAULT_CONFIG_PATH)
         if default_data is None:
-            logger.warning(f"default config not found at {DEFAULT_CONFIG_PATH}, using empty config")
+            logger.warning(
+                f"default config not found at {DEFAULT_CONFIG_PATH}, using empty config"
+            )
             default_data = {}
 
         # load user config if exists
@@ -139,9 +138,11 @@ class ToolRegistry:
         if self._custom_config_path:
             custom_data = self._load_yaml_file(Path(self._custom_config_path))
             if custom_data is not None:
-                logger.info(f"loaded custom config from {self._custom_config_path}")
+                logger.info(
+                    f"loaded custom config from {self._custom_config_path}")
             else:
-                logger.warning(f"custom config not found at {self._custom_config_path}")
+                logger.warning(
+                    f"custom config not found at {self._custom_config_path}")
 
         # merge configs
         merged_data = self._merge_configs(default_data, user_data, custom_data)
@@ -160,16 +161,15 @@ class ToolRegistry:
 
         logger.info(
             f"tool registry initialized: {len(self._config.servers)} servers, "
-            f"{len(self._config.get_enabled_tools())} enabled tools"
-        )
+            f"{len(self._config.get_enabled_tools())} enabled tools")
 
     def _load_yaml_file(self, path: Path) -> Optional[Dict[str, Any]]:
         """Load a YAML file, returning None if not found."""
         try:
             if path.exists():
-                with open(path) as f:
+                with open(path, encoding="utf-8") as f:
                     return yaml.safe_load(f)
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error(f"failed to load {path}: {e}")
         return None
 
@@ -192,8 +192,7 @@ class ToolRegistry:
         user: Optional[Dict[str, Any]],
         custom: Optional[Dict[str, Any]],
     ) -> Dict[str, Any]:
-        """
-        Merge configuration dicts based on merge strategy.
+        """Merge configuration dicts based on merge strategy.
 
         Priority: custom > user > default
         """
@@ -202,9 +201,11 @@ class ToolRegistry:
         # determine merge strategy (from user or custom config)
         strategy = "override"
         if custom and "settings" in custom:
-            strategy = custom.get("settings", {}).get("merge_strategy", "override")
+            strategy = custom.get("settings", {}).get("merge_strategy",
+                                                      "override")
         elif user and "settings" in user:
-            strategy = user.get("settings", {}).get("merge_strategy", "override")
+            strategy = user.get("settings", {}).get("merge_strategy",
+                                                    "override")
 
         # apply user config
         if user:
@@ -216,11 +217,9 @@ class ToolRegistry:
 
         return result
 
-    def _merge_dict(
-        self, base: Dict[str, Any], overlay: Dict[str, Any], strategy: str
-    ) -> Dict[str, Any]:
-        """
-        Merge overlay dict into base dict.
+    def _merge_dict(self, base: Dict[str, Any], overlay: Dict[str, Any],
+                    strategy: str) -> Dict[str, Any]:
+        """Merge overlay dict into base dict.
 
         Strategies:
         - override: overlay values replace base values for matching keys
@@ -286,8 +285,7 @@ class ToolRegistry:
         return self.config.get_enabled_tools()
 
     def get_tools_for_workflow(self, workflow_name: str) -> List[str]:
-        """
-        Get list of tool IDs for a workflow phase.
+        """Get list of tool IDs for a workflow phase.
 
         Args:
             workflow_name: Name of workflow (literature_review, draft_generation, validation)
@@ -308,7 +306,9 @@ class ToolRegistry:
             if tool and tool.enabled:
                 enabled_ids.append(tool_id)
             elif tool_id:  # only warn if tool_id is not empty
-                logger.debug(f"tool '{tool_id}' in workflow '{workflow_name}' is disabled or missing")
+                logger.debug(
+                    f"tool '{tool_id}' in workflow '{workflow_name}' is disabled or missing"
+                )
 
         return enabled_ids
 
@@ -317,8 +317,7 @@ class ToolRegistry:
         return self.config.workflows.get(workflow_name)
 
     def get_mcp_tool_names(self, tool_ids: List[str]) -> List[str]:
-        """
-        Convert tool IDs to MCP tool names.
+        """Convert tool IDs to MCP tool names.
 
         Args:
             tool_ids: List of internal tool IDs
@@ -334,8 +333,7 @@ class ToolRegistry:
         return mcp_names
 
     def get_tool_by_mcp_name(self, mcp_tool_name: str) -> Optional[ToolConfig]:
-        """
-        Find a tool config by its MCP tool name.
+        """Find a tool config by its MCP tool name.
 
         Args:
             mcp_tool_name: The actual tool name on the MCP server
@@ -352,7 +350,9 @@ class ToolRegistry:
         """Get the domain-specific prompts configuration."""
         return self.config.prompts
 
-    def get_enrichment_configs(self, workflow: str = "generation") -> List[EnrichmentConfig]:
+    def get_enrichment_configs(self,
+                               workflow: str = "generation"
+                              ) -> List[EnrichmentConfig]:
         """Get enabled enrichment configurations for a given workflow phase.
 
         Args:
@@ -366,8 +366,7 @@ class ToolRegistry:
         ]
 
     def get_server_configs_for_langchain(self) -> Dict[str, Dict[str, str]]:
-        """
-        Get server configs in format expected by langchain MultiServerMCPClient.
+        """Get server configs in format expected by langchain MultiServerMCPClient.
 
         Returns:
             Dict of {server_id: {"transport": ..., "url": ...}}
@@ -390,8 +389,7 @@ def get_tool_registry(
     disabled_tools: Optional[List[str]] = None,
     force_reload: bool = False,
 ) -> ToolRegistry:
-    """
-    Get or create the global tool registry instance.
+    """Get or create the global tool registry instance.
 
     Args:
         config_path: Optional path to custom config (only used on first call or force_reload)
