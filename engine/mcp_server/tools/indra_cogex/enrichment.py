@@ -30,7 +30,8 @@ async def run_enrichment_analysis(
     minimum_evidence_count: int = 1,
     minimum_belief: float = 0.0,
 ) -> dict[str, Any]:
-    """Runs statistical enrichment analysis on gene or phosphosite sets.
+    # pylint: disable=line-too-long
+    """Runs statistical enrichment analysis on gene or phosphosite sets via INDRA.
 
     Three analysis types available:
     - "discrete": Over-representation analysis on a gene list. Finds enriched
@@ -56,6 +57,7 @@ async def run_enrichment_analysis(
     Returns:
         Dict with enrichment results and metadata.
     """
+    # pylint: enable=line-too-long
     query_meta = {
         "analysis_type": analysis_type,
         "gene_count": len(gene_list),

@@ -36,15 +36,15 @@ class DocumentSource(ABC):
     qualified_path: Path | None
 
     async def fetch_for_query(
-            self,  # pylint: disable=unused-argument
-            query: str,
-            slug: str = "",
-            max_papers: int = 10):
+        self,
+        query: str,  # pylint: disable=unused-argument
+        slug: str = "",  # pylint: disable=unused-argument
+        max_papers: int = 10):  # pylint: disable=unused-argument
         """Fetches papers for a given query and writes them to qualified_path.
 
         Returns details relevant for an agent to read, in an unspecified format.
         """
-        raise NotImplementedError
+        ...  # pylint: disable=unnecessary-ellipsis
 
 
 class LiteratureReviewAgent:
@@ -613,8 +613,11 @@ class PubmedSource(DocumentSource):
                     "(total: %s/%s)", len(papers_to_supplement),
                     len(papers_to_use), max_papers)
             else:
+                # pylint: disable=line-too-long
                 logger.warning(
-                    "No suitable papers found in shared pool for supplement")
+                    "No suitable papers found in shared pool for supplementation"
+                )
+                # pylint: enable=line-too-long
 
         # save manifest for this run if run_id provided
         if run_id and run_dir:

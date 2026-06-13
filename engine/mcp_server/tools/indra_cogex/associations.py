@@ -27,7 +27,8 @@ async def query_gene_disease_network(
     include_variants: bool = False,
     max_results: int = 50,
 ) -> dict[str, Any]:
-    """Queries gene-disease-variant associations from the INDRA knowledge graph.
+    # pylint: disable=line-too-long
+    """Queries gene-disease-variant associations from the INDRA biomedical knowledge graph.
 
     Given a disease, find associated genes (and optionally genetic variants).
     Given a gene, find associated diseases (and optionally genetic variants).
@@ -46,6 +47,7 @@ async def query_gene_disease_network(
     Returns:
         Dict with associated entities, counts, and query metadata.
     """
+    # pylint: enable=line-too-long
     try:  # pylint: disable=broad-exception-caught
         curie = parse_id(identifier)
         result: dict[str, Any] = {

@@ -35,6 +35,7 @@ async def pubmed_search_with_fulltext(query: str,
                                       max_papers: int = 10,
                                       recency_years: int = 0,
                                       run_id: str = None) -> Dict[str, Any]:
+    # pylint: disable=line-too-long
     """Searches PubMed and downloads fulltexts (HTML from PMC).
 
     Initializes Entrez credentials from environment and performs search
@@ -48,13 +49,12 @@ async def pubmed_search_with_fulltext(query: str,
         slug: Snake_case identifier for organizing results (research goal hash).
         max_papers: Maximum papers to retrieve.
         recency_years: Filter to papers from last N years (0 = no filter).
-        run_id: Unique run identifier for this execution (enables per-run
-            tracking).
+        run_id: Unique run identifier for this execution (enables per-run tracking).
 
     Returns:
-        Dict mapping paper_id to metadata (title, abstract, authors, doi,
-        pmc_full_text_id, etc.).
+        Dict mapping paper_id to metadata (title, abstract, authors, doi, pmc_full_text_id, etc.).
     """
+    # pylint: enable=line-too-long
     # initialize entrez credentials
     if (entrez_email := os.environ.get("ENTREZ_EMAIL", None)):
         Entrez.email = entrez_email

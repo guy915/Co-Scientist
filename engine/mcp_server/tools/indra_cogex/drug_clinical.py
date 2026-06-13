@@ -34,6 +34,7 @@ async def query_drug_info(
     query_type: str = "targets",
     max_results: int = 50,
 ) -> dict[str, Any]:
+    # pylint: disable=line-too-long
     """Queries drug-related information from the INDRA knowledge graph.
 
     Looks up drug targets (proteins), drugs for a protein target,
@@ -41,8 +42,7 @@ async def query_drug_info(
 
     Args:
         identifier: Entity in "NAMESPACE:id" format.
-            For drugs: "CHEBI:CHEBI:27690" (metformin),
-                "CHEBI:CHEBI:90227" (sotorasib)
+            For drugs: "CHEBI:CHEBI:27690" (metformin), "CHEBI:CHEBI:90227" (sotorasib)
             For protein targets: "HGNC:6407" (KRAS), "HGNC:3236" (EGFR)
         query_type: What to query:
             "targets" - protein targets of this drug (identifier=drug)
@@ -54,6 +54,7 @@ async def query_drug_info(
     Returns:
         Dict with query results and metadata.
     """
+    # pylint: enable=line-too-long
     try:  # pylint: disable=broad-exception-caught
         curie = parse_id(identifier)
         result: dict[str, Any] = {
