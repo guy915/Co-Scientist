@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Pure-Python Elo helpers used by the mock workflow and tests.
 
 Mirrors the formula in `co_scientist.nodes.ranking.calculate_elo_update`
@@ -40,7 +39,7 @@ DEFAULT_K_FACTOR: int = _env_int("ELO_K_FACTOR", 24)
 
 def expected_score(player_elo: float, opponent_elo: float) -> float:
     """Standard Elo expected score for `player` against `opponent`."""
-    return 1.0 / (1.0 + 10.0 ** ((opponent_elo - player_elo) / 400.0))
+    return 1.0 / (1.0 + 10.0**((opponent_elo - player_elo) / 400.0))
 
 
 def update_pair(
@@ -97,6 +96,5 @@ def run_round_robin(
                 loser_elo_before=l_before,
                 loser_elo_after=l_after,
                 rationale=rationale,
-            )
-        )
+            ))
     return matches

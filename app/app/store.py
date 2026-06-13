@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""SQLite-backed persistence for runs, events, hypotheses, evidence, matches,
-reviews, reports, and safety decisions.
+"""SQLite-backed persistence for runs, hypotheses, evidence, and reports.
 
 Design choices:
 
@@ -28,6 +26,7 @@ Design choices:
 - Reports are stored both as a structured JSON blob and a rendered Markdown
   artifact on disk (path tracked in the row).
 """
+# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -46,7 +45,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-
 # ---------------------------------------------------------------------------
 # Connection management
 # ---------------------------------------------------------------------------
@@ -60,7 +58,7 @@ def _now() -> float:
 
 
 def _resolved_db_path(path: str | None = None) -> str:
-    # Read env on every call so test fixtures and runtime overrides are picked up.
+    # Read env on every call so test fixtures and runtime overrides are picked up.  # pylint: disable=line-too-long
     return path or os.getenv("COSCIENTIST_DB_PATH") or "./coscientist.db"
 
 
@@ -71,11 +69,15 @@ def _reports_dir() -> Path:
 
 
 @contextlib.contextmanager
-def connect(path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
+def connect(
+        path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
     """Yield a sqlite3 connection with WAL + row factory enabled."""
     db_path = _resolved_db_path(path)
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(db_path, timeout=30, isolation_level=None, check_same_thread=False)
+    conn = sqlite3.connect(db_path,
+                           timeout=30,
+                           isolation_level=None,
+                           check_same_thread=False)
     conn.row_factory = sqlite3.Row
     try:
         if db_path not in _initialized:
@@ -96,9 +98,12 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
-    cols = {row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()}
+    cols = {
+        row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()
+    }
     if "client_id" not in cols:
-        conn.execute("ALTER TABLE runs ADD COLUMN client_id TEXT NOT NULL DEFAULT ''")
+        conn.execute(
+            "ALTER TABLE runs ADD COLUMN client_id TEXT NOT NULL DEFAULT ''")
         logger.info("migration: added client_id column to runs")
     # Remove runs that predate client isolation (no client_id assigned).
     conn.execute("DELETE FROM runs WHERE client_id = ''")
@@ -266,7 +271,6 @@ CREATE TABLE IF NOT EXISTS messages (
 CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, id);
 """
 
-
 # ---------------------------------------------------------------------------
 # Run CRUD
 # ---------------------------------------------------------------------------
@@ -274,6 +278,8 @@ CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, id);
 
 @dataclass
 class RunRow:
+    """Represents a single run row from the runs table."""
+
     id: str
     research_goal: str
     profile: str
@@ -304,6 +310,8 @@ class RunRow:
 
 @dataclass
 class MessageRow:
+    """Represents a single message row from the messages table."""
+
     id: int
     run_id: str
     sender: str
@@ -352,11 +360,13 @@ def create_run(
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO runs (id, research_goal, profile, status, provider, config_json, client_id, created_at, updated_at) "
+            "INSERT INTO runs (id, research_goal, profile, status, provider, config_json, client_id, created_at, updated_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?,?,?,?)",
-            (run_id, research_goal, profile, "draft", provider, json.dumps(config), client_id, now, now),
+            (run_id, research_goal, profile, "draft", provider,
+             json.dumps(config), client_id, now, now),
         )
-    logger.info("created run %s profile=%s provider=%s client_id=%s", run_id, profile, provider, client_id)
+    logger.info("created run %s profile=%s provider=%s client_id=%s", run_id,
+                profile, provider, client_id)
     return RunRow(
         id=run_id,
         research_goal=research_goal,
@@ -374,14 +384,17 @@ def create_run(
 
 def get_run(run_id: str, db_path: str | None = None) -> RunRow | None:
     with connect(db_path) as conn:
-        row = conn.execute("SELECT * FROM runs WHERE id = ?", (run_id,)).fetchone()
+        row = conn.execute("SELECT * FROM runs WHERE id = ?",
+                           (run_id,)).fetchone()
         return _row_to_run(row) if row else None
 
 
-def list_runs(client_id: str = "", limit: int = 100, db_path: str | None = None) -> list[RunRow]:
+def list_runs(client_id: str = "",
+              limit: int = 100,
+              db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM runs WHERE client_id = ? ORDER BY created_at DESC LIMIT ?",
+            "SELECT * FROM runs WHERE client_id = ? ORDER BY created_at DESC LIMIT ?",  # pylint: disable=line-too-long
             (client_id, limit),
         ).fetchall()
         return [_row_to_run(r) for r in rows]
@@ -394,11 +407,12 @@ def update_run_status(
     db_path: str | None = None,
 ) -> None:
     now = _now()
-    completed_at = now if status in ("completed", "failed", "blocked", "cancelled") else None
+    completed_at = now if status in ("completed", "failed", "blocked",
+                                     "cancelled") else None
     with connect(db_path) as conn:
         if completed_at is not None:
             conn.execute(
-                "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",
+                "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
                 (status, error, now, completed_at, run_id),
             )
         else:
@@ -421,11 +435,11 @@ def append_event(
 ) -> int:
     with connect(db_path) as conn:
         row = conn.execute(
-            "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?", (run_id,)
-        ).fetchone()
+            "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?",
+            (run_id,)).fetchone()
         seq = (row["s"] if row else 0) + 1
         conn.execute(
-            "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) VALUES (?,?,?,?,?)",
+            "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) VALUES (?,?,?,?,?)",  # pylint: disable=line-too-long
             (run_id, seq, type_, json.dumps(payload), _now()),
         )
     return seq
@@ -444,14 +458,12 @@ def list_events(
         ).fetchall()
         out: list[dict[str, Any]] = []
         for r in rows:
-            out.append(
-                {
-                    "seq": r["seq"],
-                    "type": r["type"],
-                    "payload": json.loads(r["payload_json"]),
-                    "created_at": r["created_at"],
-                }
-            )
+            out.append({
+                "seq": r["seq"],
+                "type": r["type"],
+                "payload": json.loads(r["payload_json"]),
+                "created_at": r["created_at"],
+            })
         return out
 
 
@@ -477,7 +489,7 @@ def add_hypothesis(
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO hypotheses (id, run_id, parent_id, generation, title, statement, mechanism, "
+            "INSERT INTO hypotheses (id, run_id, parent_id, generation, title, statement, mechanism, "  # pylint: disable=line-too-long
             "expected_effect, experimental_context, created_by_agent, created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
@@ -495,7 +507,7 @@ def add_hypothesis(
             ),
         )
         conn.execute(
-            "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, updated_at) VALUES (?,?,?)",
+            "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, updated_at) VALUES (?,?,?)",  # pylint: disable=line-too-long
             (hyp_id, int(os.getenv("ELO_INITIAL", "1200")), now),
         )
     return hyp_id
@@ -549,29 +561,31 @@ def update_hypothesis_state(
     params.append(hypothesis_id)
     with connect(db_path) as conn:
         conn.execute(
-            f"UPDATE hypothesis_state SET {', '.join(sets)} WHERE hypothesis_id=?",
+            f"UPDATE hypothesis_state SET {', '.join(sets)} WHERE hypothesis_id=?",  # pylint: disable=line-too-long
             params,
         )
 
 
-def list_hypotheses(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
+def list_hypotheses(run_id: str,
+                    db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "
+            "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "  # pylint: disable=line-too-long
             "s.testability_score, s.safety_status, s.status, s.cluster_id "
-            "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "
+            "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "  # pylint: disable=line-too-long
             "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
             (run_id,),
         ).fetchall()
         return [dict(r) for r in rows]
 
 
-def get_hypothesis(hypothesis_id: str, db_path: str | None = None) -> dict[str, Any] | None:
+def get_hypothesis(hypothesis_id: str,
+                   db_path: str | None = None) -> dict[str, Any] | None:
     with connect(db_path) as conn:
         row = conn.execute(
-            "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "
+            "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "  # pylint: disable=line-too-long
             "s.testability_score, s.safety_status, s.status, s.cluster_id "
-            "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "
+            "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "  # pylint: disable=line-too-long
             "WHERE h.id=?",
             (hypothesis_id,),
         ).fetchone()
@@ -598,7 +612,7 @@ def add_evidence(
     ev_id = str(uuid.uuid4())
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO evidence (id, run_id, title, source, url, authors_json, year, abstract, available, created_at) "
+            "INSERT INTO evidence (id, run_id, title, source, url, authors_json, year, abstract, available, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 ev_id,
@@ -616,11 +630,12 @@ def add_evidence(
     return ev_id
 
 
-def list_evidence(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
+def list_evidence(run_id: str,
+                  db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM evidence WHERE run_id=? ORDER BY created_at ASC", (run_id,)
-        ).fetchall()
+            "SELECT * FROM evidence WHERE run_id=? ORDER BY created_at ASC",
+            (run_id,)).fetchall()
         out = []
         for r in rows:
             d = dict(r)
@@ -640,17 +655,18 @@ def add_citation(
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO citations (run_id, hypothesis_id, evidence_id, claim, state, created_at) "
+            "INSERT INTO citations (run_id, hypothesis_id, evidence_id, claim, state, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?)",
             (run_id, hypothesis_id, evidence_id, claim, state, _now()),
         )
 
 
-def list_citations(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
+def list_citations(run_id: str,
+                   db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM citations WHERE run_id=? ORDER BY created_at ASC", (run_id,)
-        ).fetchall()
+            "SELECT * FROM citations WHERE run_id=? ORDER BY created_at ASC",
+            (run_id,)).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -674,8 +690,8 @@ def add_review(
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO reviews (run_id, hypothesis_id, reviewer_agent, summary, critique, "
-            "novelty, plausibility, testability, overall, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO reviews (run_id, hypothesis_id, reviewer_agent, summary, critique, "  # pylint: disable=line-too-long
+            "novelty, plausibility, testability, overall, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",  # pylint: disable=line-too-long
             (
                 run_id,
                 hypothesis_id,
@@ -691,11 +707,12 @@ def add_review(
         )
 
 
-def list_reviews(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
+def list_reviews(run_id: str,
+                 db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM reviews WHERE run_id=? ORDER BY created_at ASC", (run_id,)
-        ).fetchall()
+            "SELECT * FROM reviews WHERE run_id=? ORDER BY created_at ASC",
+            (run_id,)).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -718,8 +735,8 @@ def add_match(
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO matches (run_id, iteration, winner_id, loser_id, winner_elo_before, "
-            "winner_elo_after, loser_elo_before, loser_elo_after, rationale, created_at) "
+            "INSERT INTO matches (run_id, iteration, winner_id, loser_id, winner_elo_before, "  # pylint: disable=line-too-long
+            "winner_elo_after, loser_elo_before, loser_elo_after, rationale, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
@@ -736,11 +753,12 @@ def add_match(
         )
 
 
-def list_matches(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
+def list_matches(run_id: str,
+                 db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM matches WHERE run_id=? ORDER BY created_at ASC", (run_id,)
-        ).fetchall()
+            "SELECT * FROM matches WHERE run_id=? ORDER BY created_at ASC",
+            (run_id,)).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -759,17 +777,18 @@ def add_safety_decision(
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO safety_decisions (run_id, stage, decision, reason, matches_json, created_at) "
+            "INSERT INTO safety_decisions (run_id, stage, decision, reason, matches_json, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?)",
             (run_id, stage, decision, reason, json.dumps(matches), _now()),
         )
 
 
-def list_safety_decisions(run_id: str, db_path: str | None = None) -> list[dict[str, Any]]:
+def list_safety_decisions(run_id: str,
+                          db_path: str | None = None) -> list[dict[str, Any]]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM safety_decisions WHERE run_id=? ORDER BY created_at ASC", (run_id,)
-        ).fetchall()
+            "SELECT * FROM safety_decisions WHERE run_id=? ORDER BY created_at ASC",  # pylint: disable=line-too-long
+            (run_id,)).fetchall()
         out = []
         for r in rows:
             d = dict(r)
@@ -794,18 +813,19 @@ def save_report(
     md_path.write_text(markdown, encoding="utf-8")
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO reports (id, run_id, payload_json, markdown_path, created_at) "
+            "INSERT INTO reports (id, run_id, payload_json, markdown_path, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?)",
             (report_id, run_id, json.dumps(payload), str(md_path), _now()),
         )
     return {"id": report_id, "markdown_path": str(md_path)}
 
 
-def get_latest_report(run_id: str, db_path: str | None = None) -> dict[str, Any] | None:
+def get_latest_report(run_id: str,
+                      db_path: str | None = None) -> dict[str, Any] | None:
     with connect(db_path) as conn:
         row = conn.execute(
-            "SELECT * FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1", (run_id,)
-        ).fetchone()
+            "SELECT * FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1",  # pylint: disable=line-too-long
+            (run_id,)).fetchone()
         if not row:
             return None
         return {
@@ -842,17 +862,23 @@ def append_message(
     now = _now()
     with connect(db_path) as conn:
         cur = conn.execute(
-            "INSERT INTO messages (run_id, sender, content, kind, created_at, applied) VALUES (?,?,?,?,?,0)",
+            "INSERT INTO messages (run_id, sender, content, kind, created_at, applied) VALUES (?,?,?,?,?,0)",  # pylint: disable=line-too-long
             (run_id, sender, content, kind, now),
         )
         msg_id = cur.lastrowid or 0
-    return MessageRow(id=msg_id, run_id=run_id, sender=sender, content=content, kind=kind, created_at=now, applied=False)
+    return MessageRow(id=msg_id,
+                      run_id=run_id,
+                      sender=sender,
+                      content=content,
+                      kind=kind,
+                      created_at=now,
+                      applied=False)
 
 
 def list_messages(run_id: str, db_path: str | None = None) -> list[MessageRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "
+            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "  # pylint: disable=line-too-long
             "WHERE run_id=? ORDER BY id ASC",
             (run_id,),
         ).fetchall()
@@ -865,16 +891,16 @@ def list_messages(run_id: str, db_path: str | None = None) -> list[MessageRow]:
                 kind=r["kind"],
                 created_at=r["created_at"],
                 applied=bool(r["applied"]),
-            )
-            for r in rows
+            ) for r in rows
         ]
 
 
-def get_pending_steering(run_id: str, db_path: str | None = None) -> list[MessageRow]:
+def get_pending_steering(run_id: str,
+                         db_path: str | None = None) -> list[MessageRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "
-            "WHERE run_id=? AND kind='steering' AND applied=0 ORDER BY id ASC",
+            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "  # pylint: disable=line-too-long
+            "WHERE run_id=? AND kind='steering' AND applied=0 ORDER BY id ASC",  # pylint: disable=line-too-long
             (run_id,),
         ).fetchall()
         return [
@@ -886,8 +912,7 @@ def get_pending_steering(run_id: str, db_path: str | None = None) -> list[Messag
                 kind=r["kind"],
                 created_at=r["created_at"],
                 applied=bool(r["applied"]),
-            )
-            for r in rows
+            ) for r in rows
         ]
 
 
@@ -896,4 +921,5 @@ def mark_steering_applied(ids: list[int], db_path: str | None = None) -> None:
         return
     placeholders = ",".join("?" * len(ids))
     with connect(db_path) as conn:
-        conn.execute(f"UPDATE messages SET applied=1 WHERE id IN ({placeholders})", ids)
+        conn.execute(
+            f"UPDATE messages SET applied=1 WHERE id IN ({placeholders})", ids)

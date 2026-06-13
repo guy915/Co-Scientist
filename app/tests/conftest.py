@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Shared pytest fixtures."""
 from __future__ import annotations
 
@@ -31,7 +30,7 @@ def isolated_db(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[str]:
     monkeypatch.setenv("COSCIENTIST_REPORTS_DIR", reports_dir)
     monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", "1")
     # Wipe any cached default-path init flags from previous tests.
-    from app import store as _store
+    from app import store as _store  # pylint: disable=import-outside-toplevel
 
-    _store._initialized.discard(db_path)
+    _store._initialized.discard(db_path)  # pylint: disable=protected-access
     yield db_path

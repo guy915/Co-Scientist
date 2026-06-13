@@ -11,9 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Append-only evolution: evolved hypotheses are new rows with parent_id set;
-parent rows are never mutated."""
+"""Tests for append-only evolution and hypothesis lineage."""
+# pylint: disable=unused-argument
 from __future__ import annotations
 
 import time
@@ -22,7 +21,7 @@ from fastapi.testclient import TestClient
 
 
 def _client():
-    from app.main import app
+    from app.main import app  # pylint: disable=import-outside-toplevel
 
     return TestClient(app)
 
@@ -41,7 +40,10 @@ def test_evolution_creates_new_rows_with_parent_lineage(isolated_db):
     client = _client()
     rid = client.post(
         "/api/runs",
-        json={"research_goal": "Targeted apoptosis in glioma stem cells", "profile": "advanced"},
+        json={
+            "research_goal": "Targeted apoptosis in glioma stem cells",
+            "profile": "advanced"
+        },
     ).json()["id"]
     client.post(f"/api/runs/{rid}/start", json={})
     _wait_completed(client, rid, timeout=30.0)
@@ -82,11 +84,14 @@ def test_evolution_creates_new_rows_with_parent_lineage(isolated_db):
 
 
 def test_evolution_event_emitted(isolated_db):
-    """The evolve agent emits at least one event; the citation/audit step follows."""
+    """The evolve agent emits at least one event; the citation/audit step follows."""  # pylint: disable=line-too-long
     client = _client()
     rid = client.post(
         "/api/runs",
-        json={"research_goal": "Lipid raft remodelling in viral entry", "profile": "standard"},
+        json={
+            "research_goal": "Lipid raft remodelling in viral entry",
+            "profile": "standard"
+        },
     ).json()["id"]
     client.post(f"/api/runs/{rid}/start", json={})
     _wait_completed(client, rid)
@@ -99,4 +104,6 @@ def test_evolution_event_emitted(isolated_db):
 
     matches = client.get(f"/api/runs/{rid}/matches").json()["matches"]
     iterations = {m["iteration"] for m in matches}
-    assert len(iterations) >= 2, "standard run should have >=2 ranking iterations (pre/post evolve)"
+    assert len(
+        iterations
+    ) >= 2, "standard run should have >=2 ranking iterations (pre/post evolve)"  # pylint: disable=line-too-long

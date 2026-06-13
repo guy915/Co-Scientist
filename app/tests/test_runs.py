@@ -11,18 +11,17 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Run lifecycle: create, start, persistence, reopen."""
+# pylint: disable=unused-argument
 from __future__ import annotations
 
-import asyncio
 import time
 
 from fastapi.testclient import TestClient
 
 
 def _client():
-    from app.main import app
+    from app.main import app  # pylint: disable=import-outside-toplevel
 
     return TestClient(app)
 
@@ -40,7 +39,10 @@ def test_create_run_returns_draft_status():
     client = _client()
     res = client.post(
         "/api/runs",
-        json={"research_goal": "Explore mitochondrial dynamics in neurons", "profile": "standard"},
+        json={
+            "research_goal": "Explore mitochondrial dynamics in neurons",
+            "profile": "standard"
+        },
     )
     assert res.status_code == 200
     data = res.json()
@@ -53,7 +55,12 @@ def test_standard_mock_run_completes_and_persists(isolated_db):
     client = _client()
     res = client.post(
         "/api/runs",
-        json={"research_goal": "Investigate ferroptosis as a tumor-suppression mechanism", "profile": "standard"},
+        json={
+            "research_goal":
+                "Investigate ferroptosis as a tumor-suppression mechanism",
+            "profile":
+                "standard"
+        },
     )
     run_id = res.json()["id"]
 
@@ -64,7 +71,8 @@ def test_standard_mock_run_completes_and_persists(isolated_db):
         r = client.get(f"/api/runs/{run_id}")
         return r.status_code == 200 and r.json()["status"] == "completed"
 
-    assert _wait_for(is_completed, timeout=20.0), "run did not reach 'completed'"
+    assert _wait_for(is_completed,
+                     timeout=20.0), "run did not reach 'completed'"
 
     # Sanity: hypotheses, evidence, matches, citations, report all persisted.
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
@@ -92,7 +100,10 @@ def test_run_reopens_after_restart(isolated_db):
     client = _client()
     res = client.post(
         "/api/runs",
-        json={"research_goal": "Senescent cell removal in aged tissues", "profile": "standard"},
+        json={
+            "research_goal": "Senescent cell removal in aged tissues",
+            "profile": "standard"
+        },
     )
     run_id = res.json()["id"]
     client.post(f"/api/runs/{run_id}/start", json={})
@@ -104,11 +115,11 @@ def test_run_reopens_after_restart(isolated_db):
     assert _wait_for(is_completed, timeout=20.0)
 
     # Discard the client and re-import the app, simulating a fresh process.
-    import importlib
-    import app.main
+    import importlib  # pylint: disable=import-outside-toplevel
+    import app.main  # pylint: disable=import-outside-toplevel
 
     importlib.reload(app.main)
-    from fastapi.testclient import TestClient as TC
+    from fastapi.testclient import TestClient as TC  # pylint: disable=import-outside-toplevel,reimported
 
     new_client = TC(app.main.app)
 
@@ -134,8 +145,10 @@ def test_advanced_run_produces_more_artifacts(isolated_db):
     res = client.post(
         "/api/runs",
         json={
-            "research_goal": "Cytokine-storm modulation via gut-microbiome metabolites",
-            "profile": "advanced",
+            "research_goal":
+                "Cytokine-storm modulation via gut-microbiome metabolites",
+            "profile":
+                "advanced",
         },
     )
     run_id = res.json()["id"]
@@ -149,6 +162,6 @@ def test_advanced_run_produces_more_artifacts(isolated_db):
 
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
     matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
-    # Advanced > standard in initial pool, tournament pairs, evolution iterations.
+    # Advanced > standard in initial pool, tournament pairs, evolution iterations.  # pylint: disable=line-too-long
     assert len(hyps) >= 8
     assert len(matches) >= 12

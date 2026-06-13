@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Tests for the messages store layer."""
+# pylint: disable=unused-argument
 from __future__ import annotations
 
 import time
@@ -23,12 +23,24 @@ from app import store
 
 
 def test_append_and_list_messages(isolated_db):
-    store.create_run("rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db)
+    store.create_run("rg",
+                     "standard",
+                     "mock", {},
+                     client_id="c1",
+                     db_path=isolated_db)
     runs = store.list_runs(client_id="c1", db_path=isolated_db)
     run_id = runs[0].id
 
-    store.append_message(run_id, "user", "focus on cytokines", "steering", db_path=isolated_db)
-    store.append_message(run_id, "system", "Research plan ready", "milestone", db_path=isolated_db)
+    store.append_message(run_id,
+                         "user",
+                         "focus on cytokines",
+                         "steering",
+                         db_path=isolated_db)
+    store.append_message(run_id,
+                         "system",
+                         "Research plan ready",
+                         "milestone",
+                         db_path=isolated_db)
 
     msgs = store.list_messages(run_id, db_path=isolated_db)
     assert len(msgs) == 2
@@ -39,12 +51,28 @@ def test_append_and_list_messages(isolated_db):
 
 
 def test_get_pending_steering(isolated_db):
-    store.create_run("rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db)
+    store.create_run("rg",
+                     "standard",
+                     "mock", {},
+                     client_id="c1",
+                     db_path=isolated_db)
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
-    store.append_message(run_id, "user", "steer A", "steering", db_path=isolated_db)
-    store.append_message(run_id, "system", "milestone msg", "milestone", db_path=isolated_db)
-    store.append_message(run_id, "user", "steer B", "steering", db_path=isolated_db)
+    store.append_message(run_id,
+                         "user",
+                         "steer A",
+                         "steering",
+                         db_path=isolated_db)
+    store.append_message(run_id,
+                         "system",
+                         "milestone msg",
+                         "milestone",
+                         db_path=isolated_db)
+    store.append_message(run_id,
+                         "user",
+                         "steer B",
+                         "steering",
+                         db_path=isolated_db)
 
     pending = store.get_pending_steering(run_id, db_path=isolated_db)
     assert len(pending) == 2
@@ -53,11 +81,23 @@ def test_get_pending_steering(isolated_db):
 
 
 def test_mark_steering_applied(isolated_db):
-    store.create_run("rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db)
+    store.create_run("rg",
+                     "standard",
+                     "mock", {},
+                     client_id="c1",
+                     db_path=isolated_db)
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
-    store.append_message(run_id, "user", "steer A", "steering", db_path=isolated_db)
-    store.append_message(run_id, "user", "steer B", "steering", db_path=isolated_db)
+    store.append_message(run_id,
+                         "user",
+                         "steer A",
+                         "steering",
+                         db_path=isolated_db)
+    store.append_message(run_id,
+                         "user",
+                         "steer B",
+                         "steering",
+                         db_path=isolated_db)
 
     pending = store.get_pending_steering(run_id, db_path=isolated_db)
     ids = [m.id for m in pending]
@@ -71,10 +111,18 @@ def test_mark_steering_applied(isolated_db):
 
 
 def test_message_to_dict(isolated_db):
-    store.create_run("rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db)
+    store.create_run("rg",
+                     "standard",
+                     "mock", {},
+                     client_id="c1",
+                     db_path=isolated_db)
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
-    msg = store.append_message(run_id, "user", "hello", "steering", db_path=isolated_db)
+    msg = store.append_message(run_id,
+                               "user",
+                               "hello",
+                               "steering",
+                               db_path=isolated_db)
     d = msg.to_dict()
     assert d["sender"] == "user"
     assert d["content"] == "hello"
@@ -90,12 +138,16 @@ def test_message_to_dict(isolated_db):
 
 
 def _client():
-    from app.main import app
+    from app.main import app  # pylint: disable=import-outside-toplevel
     return TestClient(app)
 
 
 def _make_run(client, goal="test goal"):
-    res = client.post("/api/runs", json={"research_goal": goal, "profile": "standard"},
+    res = client.post("/api/runs",
+                      json={
+                          "research_goal": goal,
+                          "profile": "standard"
+                      },
                       headers={"X-Client-ID": "test-client"})
     assert res.status_code == 200
     return res.json()["id"]
@@ -115,7 +167,7 @@ def test_send_message_endpoint(isolated_db):
 
 
 def test_send_message_always_stores_as_steering(isolated_db):
-    """POST /messages always stores as steering; Q&A routing is the frontend's job."""
+    """POST /messages always stores as steering; Q&A routing is the frontend's job."""  # pylint: disable=line-too-long
     client = _client()
     run_id = _make_run(client)
 
@@ -147,12 +199,15 @@ def test_list_messages_404_on_unknown_run(isolated_db):
 
 
 def test_steering_messages_applied_after_run(isolated_db):
-    """Steering messages sent before a run starts should be marked applied when the run completes."""
+    """Steering messages sent before a run starts should be marked applied when the run completes."""  # pylint: disable=line-too-long
     client = _client()
     run_id = _make_run(client, goal="test steering injection")
 
     client.post(f"/api/runs/{run_id}/messages",
-                json={"content": "focus on apoptosis pathways", "kind": "steering"})
+                json={
+                    "content": "focus on apoptosis pathways",
+                    "kind": "steering"
+                })
 
     msgs_before = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
     assert msgs_before[0]["applied"] is False

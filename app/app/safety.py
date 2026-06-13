@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Lightweight safety filter for intake and final output.
 
 Goals:
@@ -30,30 +29,25 @@ from dataclasses import dataclass, field
 
 SAFETY_MODE = os.getenv("SAFETY_MODE", "standard").lower()
 
-
 # Hard-block patterns: production of weaponized agents, mass-casualty intent.
-# These are deliberately narrow keyword combinations to avoid blocking legitimate
+# These are deliberately narrow keyword combinations to avoid blocking legitimate  # pylint: disable=line-too-long
 # defensive / educational research.
 _BLOCK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(p, re.IGNORECASE)
-    for p in (
-        r"\b(synthes(?:is|e|ize)|engineer|weaponize)\b.{0,40}\b(nerve agent|sarin|vx|tabun|novichok)\b",
-        r"\b(enhance|engineer|weaponize)\b.{0,40}\b(smallpox|anthrax|ebola|marburg)\b.{0,40}\b(transmiss|lethal|virulen)",
-        r"\b(build|construct|assemble)\b.{0,40}\b(nuclear|radiological)\b.{0,20}\b(weapon|bomb|device)\b",
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\b(synthes(?:is|e|ize)|engineer|weaponize)\b.{0,40}\b(nerve agent|sarin|vx|tabun|novichok)\b",  # pylint: disable=line-too-long
+        r"\b(enhance|engineer|weaponize)\b.{0,40}\b(smallpox|anthrax|ebola|marburg)\b.{0,40}\b(transmiss|lethal|virulen)",  # pylint: disable=line-too-long
+        r"\b(build|construct|assemble)\b.{0,40}\b(nuclear|radiological)\b.{0,20}\b(weapon|bomb|device)\b",  # pylint: disable=line-too-long
         r"\bgain[- ]of[- ]function\b.{0,40}\b(human-to-human|airborne)\b",
-        r"\b(produce|manufacture)\b.{0,40}\b(fentanyl|methamphetamine)\b.{0,20}\b(scale|kilogram)\b",
-    )
-)
+        r"\b(produce|manufacture)\b.{0,40}\b(fentanyl|methamphetamine)\b.{0,20}\b(scale|kilogram)\b",  # pylint: disable=line-too-long
+    ))
 
 # Redact patterns: mark output as dual-use when present, but do not block.
 _REDACT_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(p, re.IGNORECASE)
-    for p in (
-        r"\b(pathogen|toxin|virus|bacterium)\b.{0,30}\b(transmiss|lethal|host range)\b",
+    re.compile(p, re.IGNORECASE) for p in (
+        r"\b(pathogen|toxin|virus|bacterium)\b.{0,30}\b(transmiss|lethal|host range)\b",  # pylint: disable=line-too-long
         r"\b(cbrn|chem-bio|bio-?weapon)\b",
         r"\b(dual[- ]use|select agent)\b",
-    )
-)
+    ))
 
 
 @dataclass
@@ -91,7 +85,8 @@ def screen_intake(goal: str) -> SafetyDecision:
         return SafetyDecision(
             stage="intake",
             decision="block",
-            reason="Input matches a hard-block pattern (weaponization or mass-casualty intent).",
+            reason=
+            "Input matches a hard-block pattern (weaponization or mass-casualty intent).",  # pylint: disable=line-too-long
             matches=blocked,
         )
     flagged = _scan(text, _REDACT_PATTERNS)
@@ -99,7 +94,8 @@ def screen_intake(goal: str) -> SafetyDecision:
         return SafetyDecision(
             stage="intake",
             decision="redact",
-            reason="Input flagged dual-use; strict mode requires explicit oversight.",
+            reason=
+            "Input flagged dual-use; strict mode requires explicit oversight.",
             matches=flagged,
         )
     return SafetyDecision(stage="intake", decision="allow")
@@ -113,7 +109,8 @@ def screen_final(report_markdown: str) -> SafetyDecision:
         return SafetyDecision(
             stage="final",
             decision="block",
-            reason="Generated report contains a hard-block pattern; refusing to publish.",
+            reason=
+            "Generated report contains a hard-block pattern; refusing to publish.",  # pylint: disable=line-too-long
             matches=blocked,
         )
     flagged = _scan(text, _REDACT_PATTERNS)
@@ -121,7 +118,8 @@ def screen_final(report_markdown: str) -> SafetyDecision:
         return SafetyDecision(
             stage="final",
             decision="redact",
-            reason="Output contains dual-use language; flagged for human review.",
+            reason=
+            "Output contains dual-use language; flagged for human review.",
             matches=flagged,
         )
     return SafetyDecision(stage="final", decision="allow")

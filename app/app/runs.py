@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Run lifecycle router.
 
 Endpoints:
@@ -20,7 +19,7 @@ Endpoints:
 - GET    /api/runs/{id}                   read run + summary counts
 - POST   /api/runs/{id}/start             start the workflow (background)
 - POST   /api/runs/{id}/cancel            cancel a running workflow
-- GET    /api/runs/{id}/events            SSE stream (live + replay from `?after=`)
+- GET    /api/runs/{id}/events            SSE stream (live + replay from `?after=`)  # pylint: disable=line-too-long
 - GET    /api/runs/{id}/hypotheses        list hypotheses with state + lineage
 - GET    /api/runs/{id}/evidence          list retrieved evidence
 - GET    /api/runs/{id}/matches           tournament matches
@@ -34,6 +33,7 @@ The router maintains a per-run cancellation event in `_active`. Streams are
 backed by the persisted event log so they survive client reconnects and full
 backend restarts.
 """
+# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -53,13 +53,14 @@ from . import engine_adapter, store
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
-
 # ---------------------------------------------------------------------------
 # Active run registry (cancellation + new-event signalling per process)
 # ---------------------------------------------------------------------------
 
 
 class _RunHandle:
+    """Per-run handle tracking cancellation and new-event signalling."""
+
     def __init__(self) -> None:
         self.cancelled = asyncio.Event()
         self.new_event = asyncio.Event()
@@ -145,14 +146,20 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         research_goal=req.research_goal,
         profile=req.profile,
         provider=provider,
-        config={k: v for k, v in config.items() if v is not None},
+        config={
+            k: v for k, v in config.items() if v is not None
+        },
         client_id=_client_id(request),
         db_path=_db_path(),
     )
     store.append_event(
         run.id,
         "lifecycle",
-        {"event": "created", "profile": req.profile, "provider": provider},
+        {
+            "event": "created",
+            "profile": req.profile,
+            "provider": provider
+        },
         db_path=_db_path(),
     )
     return run.to_dict()
@@ -177,9 +184,8 @@ async def get_run(run_id: str) -> dict[str, Any]:
 
 
 @router.post("/{run_id}/start")
-async def start_run(
-    run_id: str, req: StartRunRequest, background: BackgroundTasks
-) -> dict[str, Any]:
+async def start_run(run_id: str, req: StartRunRequest,
+                    background: BackgroundTasks) -> dict[str, Any]:
     run = _run_or_404(run_id)
     if run.status in ("running", "synthesizing"):
         raise HTTPException(status_code=409, detail="run already in progress")
@@ -193,26 +199,34 @@ async def start_run(
         _active[run_id] = handle
 
     store.update_run_status(run_id, "queued", db_path=_db_path())
-    store.append_event(run_id, "lifecycle", {"event": "queued"}, db_path=_db_path())
+    store.append_event(run_id,
+                       "lifecycle", {"event": "queued"},
+                       db_path=_db_path())
 
     async def runner() -> None:
         try:
-            async for _event in engine_adapter.run_workflow(
-                run_id=run_id,
-                research_goal=run.research_goal,
-                profile=run.profile,
-                config=run.config,
-                db_path=_db_path(),
-                cancelled=handle.cancelled,
-                force_provider=req.force_provider,
+            async for _ in engine_adapter.run_workflow(
+                    run_id=run_id,
+                    research_goal=run.research_goal,
+                    profile=run.profile,
+                    config=run.config,
+                    db_path=_db_path(),
+                    cancelled=handle.cancelled,
+                    force_provider=req.force_provider,
             ):
                 handle.new_event.set()
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("workflow failed: %s", e)
-            store.update_run_status(run_id, "failed", error=str(e), db_path=_db_path())
-            store.append_event(
-                run_id, "status", {"status": "failed", "error": str(e)}, db_path=_db_path()
-            )
+            store.update_run_status(run_id,
+                                    "failed",
+                                    error=str(e),
+                                    db_path=_db_path())
+            store.append_event(run_id,
+                               "status", {
+                                   "status": "failed",
+                                   "error": str(e)
+                               },
+                               db_path=_db_path())
             handle.new_event.set()
         finally:
             async with _active_lock:
@@ -230,7 +244,9 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
     if not handle:
         raise HTTPException(status_code=404, detail="run is not active")
     handle.cancelled.set()
-    store.append_event(run_id, "lifecycle", {"event": "cancel_requested"}, db_path=_db_path())
+    store.append_event(run_id,
+                       "lifecycle", {"event": "cancel_requested"},
+                       db_path=_db_path())
     return {"id": run_id, "status": "cancelling"}
 
 
@@ -241,9 +257,9 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
 
 @router.get("/{run_id}/events")
 async def stream_events(
-    run_id: str,
-    request: Request,
-    after: int = Query(0, ge=0),
+        run_id: str,
+        request: Request,
+        after: int = Query(0, ge=0),
 ) -> StreamingResponse:
     run = _run_or_404(run_id)
 
@@ -251,7 +267,9 @@ async def stream_events(
         last_seq = after
 
         # Replay historical events first.
-        history = store.list_events(run_id, after_seq=last_seq, db_path=_db_path())
+        history = store.list_events(run_id,
+                                    after_seq=last_seq,
+                                    db_path=_db_path())
         for ev in history:
             last_seq = ev["seq"]
             yield _sse(ev)
@@ -259,7 +277,13 @@ async def stream_events(
         # If terminal already, send a final marker and return.
         terminal = run.status in ("completed", "failed", "cancelled", "blocked")
         if terminal:
-            yield _sse({"type": "_terminal", "payload": {"status": run.status}, "seq": last_seq})
+            yield _sse({
+                "type": "_terminal",
+                "payload": {
+                    "status": run.status
+                },
+                "seq": last_seq
+            })
             return
 
         async with _active_lock:
@@ -281,17 +305,24 @@ async def stream_events(
             else:
                 await asyncio.sleep(0.5)
 
-            new_events = store.list_events(run_id, after_seq=last_seq, db_path=_db_path())
+            new_events = store.list_events(run_id,
+                                           after_seq=last_seq,
+                                           db_path=_db_path())
             for ev in new_events:
                 last_seq = ev["seq"]
                 yield _sse(ev)
 
             # Re-check run status; exit on terminal.
             current = store.get_run(run_id, db_path=_db_path())
-            if current and current.status in ("completed", "failed", "cancelled", "blocked"):
-                yield _sse(
-                    {"type": "_terminal", "payload": {"status": current.status}, "seq": last_seq}
-                )
+            if current and current.status in ("completed", "failed",
+                                              "cancelled", "blocked"):
+                yield _sse({
+                    "type": "_terminal",
+                    "payload": {
+                        "status": current.status
+                    },
+                    "seq": last_seq
+                })
                 return
 
     return StreamingResponse(
@@ -389,7 +420,11 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue a user steering message for the next iteration."""
     _run_or_404(run_id)
-    msg = store.append_message(run_id, "user", req.content, "steering", db_path=_db_path())
+    msg = store.append_message(run_id,
+                               "user",
+                               req.content,
+                               "steering",
+                               db_path=_db_path())
     return {**msg.to_dict(), "status": "queued"}
 
 
@@ -403,73 +438,89 @@ async def list_messages(run_id: str) -> dict[str, Any]:
 
 @router.post("/{run_id}/messages/ask")
 async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
-    """Answer a question about the run using a fast LLM, streaming the response."""
+    """Answer a question about the run using a fast LLM, streaming the response."""  # pylint: disable=line-too-long
     run = _run_or_404(run_id)
 
-    question_msg = store.append_message(run_id, "user", req.question, "qa", db_path=_db_path())
+    question_msg = store.append_message(run_id,
+                                        "user",
+                                        req.question,
+                                        "qa",
+                                        db_path=_db_path())
 
     hypotheses = store.list_hypotheses(run_id, db_path=_db_path())
     reviews = store.list_reviews(run_id, db_path=_db_path())
     matches = store.list_matches(run_id, db_path=_db_path())
     history = store.list_messages(run_id, db_path=_db_path())[:-1]
 
-    top_hyps = sorted(hypotheses, key=lambda h: -int(h.get("elo_rating") or 1200))[:5]
+    top_hyps = sorted(hypotheses,
+                      key=lambda h: -int(h.get("elo_rating") or 1200))[:5]
     hyp_lines = "\n".join(
-        f"- [{h['title']}] Elo {h.get('elo_rating', 1200)}, {h.get('win_count', 0)}W/{h.get('loss_count', 0)}L"
-        for h in top_hyps
-    )
+        f"- [{h['title']}] Elo {h.get('elo_rating', 1200)}, {h.get('win_count', 0)}W/{h.get('loss_count', 0)}L"  # pylint: disable=line-too-long
+        for h in top_hyps)
     review_lines = "\n".join(
-        f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"
-        for r in reviews[-5:]
-    )
+        f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"  # pylint: disable=line-too-long
+        for r in reviews[-5:])
     match_lines = "\n".join(
-        f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — {(m.get('rationale') or '')[:100]}"
-        for m in matches[-3:]
-    )
+        f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — {(m.get('rationale') or '')[:100]}"  # pylint: disable=line-too-long
+        for m in matches[-3:])
     conv_lines = "\n".join(
         f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
-        for m in history[-10:]
-    )
+        for m in history[-10:])
 
     system_prompt = (
-        f"You are a concise research assistant helping the user understand an ongoing "
+        f"You are a concise research assistant helping the user understand an ongoing "  # pylint: disable=line-too-long
         f"AI-driven hypothesis generation run.\n\n"
         f"Research goal: {run.research_goal}\n\n"
         f"Top hypotheses by Elo:\n{hyp_lines or '(none yet)'}\n\n"
         f"Recent reviews:\n{review_lines or '(none yet)'}\n\n"
         f"Recent tournament matches:\n{match_lines or '(none yet)'}\n\n"
         f"Conversation history:\n{conv_lines or '(none)'}\n\n"
-        f"Answer concisely and accurately. Do not repeat the question."
-    )
+        f"Answer concisely and accurately. Do not repeat the question.")
 
-    model = os.getenv("CHAT_MODEL_NAME") or os.getenv("MODEL_NAME", "deepseek/deepseek-chat")
+    model = os.getenv("CHAT_MODEL_NAME") or os.getenv("MODEL_NAME",
+                                                      "deepseek/deepseek-chat")
 
     async def _stream() -> AsyncGenerator[str, None]:
         try:
-            import litellm  # type: ignore[import-untyped]
+            import litellm  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
 
             full: list[str] = []
             response = await litellm.acompletion(
                 model=model,
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": req.question},
+                    {
+                        "role": "system",
+                        "content": system_prompt
+                    },
+                    {
+                        "role": "user",
+                        "content": req.question
+                    },
                 ],
                 stream=True,
             )
             async for chunk in response:
-                delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+                delta = (chunk.choices[0].delta.content or
+                         "") if chunk.choices else ""
                 if delta:
                     full.append(delta)
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"
+                    yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"  # pylint: disable=line-too-long
 
             answer = "".join(full)
-            store.append_message(run_id, "system", answer, "qa", db_path=_db_path())
-            yield f"data: {json.dumps({'type': 'done', 'question_id': question_msg.id})}\n\n"
-        except Exception as exc:
+            store.append_message(run_id,
+                                 "system",
+                                 answer,
+                                 "qa",
+                                 db_path=_db_path())
+            yield f"data: {json.dumps({'type': 'done', 'question_id': question_msg.id})}\n\n"  # pylint: disable=line-too-long
+        except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("Q&A stream error for run %s: %s", run_id, exc)
-            fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."
-            store.append_message(run_id, "system", fallback, "qa", db_path=_db_path())
-            yield f"data: {json.dumps({'type': 'error', 'message': fallback})}\n\n"
+            fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."  # pylint: disable=line-too-long
+            store.append_message(run_id,
+                                 "system",
+                                 fallback,
+                                 "qa",
+                                 db_path=_db_path())
+            yield f"data: {json.dumps({'type': 'error', 'message': fallback})}\n\n"  # pylint: disable=line-too-long
 
     return StreamingResponse(_stream(), media_type="text/event-stream")

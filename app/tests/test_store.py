@@ -11,8 +11,8 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Storage-layer invariants: append-only event log, evidence/citation linkage, reports survive."""
+"""Storage-layer invariants: append-only event log, evidence/citation linkage, reports survive."""  # pylint: disable=line-too-long
+# pylint: disable=unused-argument,redefined-outer-name
 from __future__ import annotations
 
 import os
@@ -52,8 +52,12 @@ def test_list_events_filters_after_seq(db: str):
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str):
     run = store.create_run("decoupling test", "standard", "mock", {})
     hid = store.add_hypothesis(
-        run.id, title="t", statement="s", mechanism="m",
-        expected_effect="e", experimental_context="x",
+        run.id,
+        title="t",
+        statement="s",
+        mechanism="m",
+        expected_effect="e",
+        experimental_context="x",
         created_by_agent="generation",
     )
     # Mutate state.
@@ -70,12 +74,18 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str):
 def test_evolved_hypothesis_has_parent_and_higher_generation(db: str):
     run = store.create_run("lineage", "standard", "mock", {})
     parent = store.add_hypothesis(
-        run.id, title="P", statement="ps",
+        run.id,
+        title="P",
+        statement="ps",
         created_by_agent="generation",
     )
     child = store.add_hypothesis(
-        run.id, title="C", statement="cs",
-        created_by_agent="evolution", parent_id=parent, generation=1,
+        run.id,
+        title="C",
+        statement="cs",
+        created_by_agent="evolution",
+        parent_id=parent,
+        generation=1,
     )
     rows = store.list_hypotheses(run.id)
     by_id = {r["id"]: r for r in rows}
@@ -97,7 +107,8 @@ def test_reports_round_trip_markdown_to_disk(db: str):
 
 def test_safety_decision_persists_matches_array(db: str):
     run = store.create_run("safety", "standard", "mock", {})
-    store.add_safety_decision(run.id, "intake", "block", "test reason", ["match-a", "match-b"])
+    store.add_safety_decision(run.id, "intake", "block", "test reason",
+                              ["match-a", "match-b"])
     rows = store.list_safety_decisions(run.id)
     assert rows[0]["decision"] == "block"
     assert rows[0]["matches"] == ["match-a", "match-b"]

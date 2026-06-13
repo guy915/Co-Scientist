@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Engine adapter — chooses real engine or mock workflow at runtime.
 
 Logic:
@@ -22,6 +21,7 @@ Logic:
 
 The `mock` provider is the only one we exercise in CI / tests.
 """
+# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -40,8 +40,7 @@ from .mock_workflow import resolved_config, run_mock_workflow
 # Inject the sibling engine src into sys.path at import time so that
 # `from co_scientist import HypothesisGenerator` in main.py succeeds.
 _engine_src = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "engine", "src")
-)
+    os.path.join(os.path.dirname(__file__), "..", "..", "engine", "src"))
 if os.path.isdir(_engine_src) and _engine_src not in sys.path:
     sys.path.insert(0, _engine_src)
 
@@ -50,22 +49,20 @@ logger = logging.getLogger(__name__)
 
 def _has_provider_key() -> bool:
     return any(
-        bool(os.getenv(k))
-        for k in (
+        bool(os.getenv(k)) for k in (
             "GEMINI_API_KEY",
             "OPENAI_API_KEY",
             "ANTHROPIC_API_KEY",
             "AZURE_API_KEY",
             "DEEPSEEK_API_KEY",
-        )
-    )
+        ))
 
 
 def _engine_importable() -> bool:
     try:
-        import importlib.util
+        import importlib.util  # pylint: disable=import-outside-toplevel
         return importlib.util.find_spec("co_scientist") is not None
-    except Exception:
+    except Exception:  # pylint: disable=broad-exception-caught
         return False
 
 
@@ -104,7 +101,8 @@ def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
         label = f"iteration {itr}" if itr else "initial"
         return f"{count} hypotheses generated ({label})"
     if node_type == "ranking":
-        count = payload.get("hypothesis_count") or payload.get("matches_count", 0)
+        count = payload.get("hypothesis_count") or payload.get(
+            "matches_count", 0)
         itr = payload.get("iteration", 0)
         return f"Tournament complete (iteration {itr}, {count} matches)"
     if node_type == "meta_review":
@@ -131,60 +129,67 @@ async def run_workflow(
     provider = force_provider or select_provider()
     cfg = resolved_config(profile, config)
 
-    logger.info("starting workflow run=%s provider=%s profile=%s", run_id, provider, profile)
+    logger.info("starting workflow run=%s provider=%s profile=%s", run_id,
+                provider, profile)
 
     if provider == "mock":
         pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
         if pre_run_steering:
-            store.mark_steering_applied([m.id for m in pre_run_steering], db_path=db_path)
+            store.mark_steering_applied([m.id for m in pre_run_steering],
+                                        db_path=db_path)
 
         async for event in run_mock_workflow(
-            run_id=run_id,
-            research_goal=research_goal,
-            profile=profile,
-            config=cfg,
-            db_path=db_path,
-            cancelled=cancelled,
-            sleep_seconds=sleep_seconds,
+                run_id=run_id,
+                research_goal=research_goal,
+                profile=profile,
+                config=cfg,
+                db_path=db_path,
+                cancelled=cancelled,
+                sleep_seconds=sleep_seconds,
         ):
-            milestone = _format_milestone(event.get("type", ""), event.get("payload", {}))
+            milestone = _format_milestone(event.get("type", ""),
+                                          event.get("payload", {}))
             if milestone:
-                store.append_message(run_id, "system", milestone, "milestone", db_path=db_path)
+                store.append_message(run_id,
+                                     "system",
+                                     milestone,
+                                     "milestone",
+                                     db_path=db_path)
             yield event
         return
 
     # Real engine path — bridge engine streaming events into our event log.
     try:
-        from co_scientist import HypothesisGenerator  # type: ignore[import-untyped]
-    except Exception as e:  # pragma: no cover (defensive)
+        from co_scientist import HypothesisGenerator  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
+    except Exception as e:  # pragma: no cover (defensive)  # pylint: disable=broad-exception-caught
         logger.error("engine import failed: %s — falling back to mock", e)
         async for event in run_mock_workflow(
-            run_id=run_id,
-            research_goal=research_goal,
-            profile=profile,
-            config=cfg,
-            db_path=db_path,
-            cancelled=cancelled,
-            sleep_seconds=sleep_seconds,
+                run_id=run_id,
+                research_goal=research_goal,
+                profile=profile,
+                config=cfg,
+                db_path=db_path,
+                cancelled=cancelled,
+                sleep_seconds=sleep_seconds,
         ):
             yield event
         return
 
-    # DeepSeek doesn't support response_format=json_schema. Two patches are needed:
-    # 1. acompletion: downgrade json_schema → json_object and inject schema as prompt text.
-    # 2. validate_json_schema: fill in default values for any fields DeepSeek still omits,
+    # DeepSeek doesn't support response_format=json_schema. Two patches are needed:  # pylint: disable=line-too-long
+    # 1. acompletion: downgrade json_schema → json_object and inject schema as prompt text.  # pylint: disable=line-too-long
+    # 2. validate_json_schema: fill in default values for any fields DeepSeek still omits,  # pylint: disable=line-too-long
     #    so schema validation doesn't abort the run over missing nested keys like
     #    performance_assessment.agent_performance.reflection_agent.
     model_name_env = os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash")
     if "deepseek" in model_name_env.lower():
         try:
-            import json as _json
+            import json as _json  # pylint: disable=import-outside-toplevel
 
-            import litellm as _litellm  # type: ignore[import-untyped]
-            import co_scientist.llm as _oc_llm  # type: ignore[import-untyped]
+            import litellm as _litellm  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
+            import co_scientist.llm as _oc_llm  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
 
             # --- patch 1: acompletion ---
-            _orig_acompletion = _litellm.acompletion
+            _orig_acompletion = _litellm.acompletion  # pylint: disable=invalid-name
 
             async def _patched_acompletion(**kwargs: Any) -> Any:
                 rf = kwargs.get("response_format")
@@ -198,12 +203,11 @@ async def run_workflow(
                         if new_messages[i].get("role") == "user":
                             new_messages[i] = dict(new_messages[i])
                             new_messages[i]["content"] = (
-                                str(new_messages[i].get("content", ""))
-                                + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
+                                str(new_messages[i].get("content", "")) +
+                                "\n\n---\nRESPOND WITH VALID JSON ONLY. "
                                 "Your output MUST strictly match this JSON schema "
-                                "(all required fields must be present):\n"
-                                + schema_str
-                            )
+                                "(all required fields must be present):\n" +
+                                schema_str)
                             break
                     kwargs = dict(kwargs)
                     kwargs["messages"] = new_messages
@@ -212,8 +216,8 @@ async def run_workflow(
 
             _litellm.acompletion = _patched_acompletion
 
-            # --- patch 2: validate_json_schema — fill defaults before validation ---
-            _orig_validate = _oc_llm.validate_json_schema
+            # --- patch 2: validate_json_schema — fill defaults before validation ---  # pylint: disable=line-too-long
+            _orig_validate = _oc_llm.validate_json_schema  # pylint: disable=invalid-name
 
             def _fill_schema_defaults(obj: Any, schema: dict[str, Any]) -> None:
                 """Recursively fill missing required fields with empty defaults."""
@@ -225,7 +229,8 @@ async def run_workflow(
                         fs = props[field]
                         t = fs.get("type")
                         if t == "string":
-                            obj[field] = fs.get("enum", [""])[0] if "enum" in fs else ""
+                            obj[field] = fs.get("enum",
+                                                [""])[0] if "enum" in fs else ""
                         elif t == "object":
                             obj[field] = {}
                         elif t == "array":
@@ -238,7 +243,9 @@ async def run_workflow(
                     if key in props:
                         _fill_schema_defaults(val, props[key])
 
-            def _patched_validate(result: Any, json_schema: Any) -> None:  # type: ignore[misc]
+            def _patched_validate(
+                    result: Any,
+                    json_schema: Any) -> None:  # type: ignore[misc]
                 if json_schema is not None and isinstance(result, dict):
                     actual = json_schema.get("schema", json_schema)
                     _fill_schema_defaults(result, actual)
@@ -246,8 +253,10 @@ async def run_workflow(
 
             _oc_llm.validate_json_schema = _patched_validate  # type: ignore[assignment]
 
-        except Exception as _patch_err:
-            logger.warning("could not patch litellm/validate for deepseek compat: %s", _patch_err)
+        except Exception as _patch_err:  # pylint: disable=broad-exception-caught,invalid-name
+            logger.warning(
+                "could not patch litellm/validate for deepseek compat: %s",
+                _patch_err)
 
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         seq = store.append_event(run_id, type_, payload, db_path=db_path)
@@ -260,7 +269,8 @@ async def run_workflow(
     if pending_steering:
         guidance = "\n".join(f"- {m.content}" for m in pending_steering)
         initial_opts["preferences"] = f"User steering guidance:\n{guidance}"
-        store.mark_steering_applied([m.id for m in pending_steering], db_path=db_path)
+        store.mark_steering_applied([m.id for m in pending_steering],
+                                    db_path=db_path)
 
     generator = HypothesisGenerator(
         model_name=os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash"),
@@ -279,11 +289,11 @@ async def run_workflow(
         "evolution_details": [],
     }
     try:
-        async for node_name, state in generator.generate_hypotheses(  # type: ignore[union-attr]
-            research_goal=research_goal,
-            stream=True,
-            run_id=run_id,
-            opts=initial_opts if initial_opts else None,
+        async for node_name, state in generator.generate_hypotheses(  # type: ignore[union-attr]  # pylint: disable=line-too-long
+                research_goal=research_goal,
+                stream=True,
+                run_id=run_id,
+                opts=initial_opts if initial_opts else None,
         ):
             if cancelled and cancelled.is_set():
                 store.update_run_status(run_id, "cancelled", db_path=db_path)
@@ -291,7 +301,8 @@ async def run_workflow(
                 return
 
             # Update final_state from each yielded cumulative snapshot.
-            for key in ("hypotheses", "articles", "tournament_matchups", "meta_review", "evolution_details"):
+            for key in ("hypotheses", "articles", "tournament_matchups",
+                        "meta_review", "evolution_details"):
                 if state.get(key) is not None:
                     final_state[key] = state[key]
 
@@ -304,13 +315,18 @@ async def run_workflow(
             }
             milestone = _format_milestone(node_name, payload)
             if milestone:
-                store.append_message(run_id, "system", milestone, "milestone", db_path=db_path)
+                store.append_message(run_id,
+                                     "system",
+                                     milestone,
+                                     "milestone",
+                                     db_path=db_path)
             yield await _emit(f"engine.{node_name}", payload)
 
         # ---- Drain final state into the store ----
         hyps: list[dict[str, Any]] = final_state["hypotheses"] or []
         articles: list[dict[str, Any]] = final_state["articles"] or []
-        matchups: list[dict[str, Any]] = final_state["tournament_matchups"] or []
+        matchups: list[dict[str,
+                            Any]] = final_state["tournament_matchups"] or []
 
         # 1. Evidence: persist retrieved articles.
         ev_id_by_title: dict[str, str] = {}
@@ -348,8 +364,10 @@ async def run_workflow(
                 created_by_agent=agent,
                 db_path=db_path,
             )
-            hyp_id_by_text[text[:200]] = hyp_id         # exact 200-char truncation
-            hyp_id_by_text[text[:200] + "..."] = hyp_id  # engine appends "..." when truncated
+            hyp_id_by_text[text[:200]] = hyp_id  # exact 200-char truncation
+            hyp_id_by_text[
+                text[:200] +
+                "..."] = hyp_id  # engine appends "..." when truncated
             hyp_id_by_text[text] = hyp_id
 
             # Update mutable state: Elo, wins, losses, scores.
@@ -370,9 +388,14 @@ async def run_workflow(
                     reviewer_agent="review",
                     summary=rv.get("review_summary", ""),
                     critique=rv.get("constructive_feedback", ""),
-                    novelty=float(rv.get("scores", {}).get("novelty", 0) or 0) or None,
-                    plausibility=float(rv.get("scores", {}).get("scientific_soundness", 0) or 0) or None,
-                    testability=float(rv.get("scores", {}).get("testability", 0) or 0) or None,
+                    novelty=float(rv.get("scores", {}).get("novelty", 0) or
+                                  0) or None,
+                    plausibility=float(
+                        rv.get("scores", {}).get("scientific_soundness", 0) or
+                        0) or None,
+                    testability=float(
+                        rv.get("scores", {}).get("testability", 0) or 0) or
+                    None,
                     overall=float(rv.get("overall_score", 0) or 0) or None,
                     db_path=db_path,
                 )
@@ -396,9 +419,14 @@ async def run_workflow(
                     )
                     ev_id_by_title[cite_title] = ev_id
                 claim = f"[{cite_key}] cited in hypothesis"
-                store.add_citation(run_id, hyp_id, ev_id, claim, "verified", db_path=db_path)
+                store.add_citation(run_id,
+                                   hyp_id,
+                                   ev_id,
+                                   claim,
+                                   "verified",
+                                   db_path=db_path)
 
-        # 3. Tournament matches: match by hypothesis text prefix (engine truncates at 200).
+        # 3. Tournament matches: match by hypothesis text prefix (engine truncates at 200).  # pylint: disable=line-too-long
         for m in matchups:
             h_a_text = m.get("hypothesis_a", "")
             h_b_text = m.get("hypothesis_b", "")
@@ -426,17 +454,15 @@ async def run_workflow(
             )
 
         # 4. Build and persist the report.
-        sorted_hyps = sorted(hyps, key=lambda h: -int(h.get("elo_rating", 1200)))
-        leaderboard = [
-            {
-                "rank": idx + 1,
-                "title": h.get("text", "")[:120],
-                "elo": h.get("elo_rating", 1200),
-                "wins": h.get("win_count", 0),
-                "losses": h.get("loss_count", 0),
-            }
-            for idx, h in enumerate(sorted_hyps[:10])
-        ]
+        sorted_hyps = sorted(hyps,
+                             key=lambda h: -int(h.get("elo_rating", 1200)))
+        leaderboard = [{
+            "rank": idx + 1,
+            "title": h.get("text", "")[:120],
+            "elo": h.get("elo_rating", 1200),
+            "wins": h.get("win_count", 0),
+            "losses": h.get("loss_count", 0),
+        } for idx, h in enumerate(sorted_hyps[:10])]
         report_payload = {
             "research_goal": research_goal,
             "profile": profile,
@@ -450,11 +476,12 @@ async def run_workflow(
         }
         md_lines = [
             f"# Co-Scientist Run — {research_goal}",
-            f"\n**Profile:** {profile} | **Provider:** engine | **Hypotheses:** {len(hyps)}",
+            f"\n**Profile:** {profile} | **Provider:** engine | **Hypotheses:** {len(hyps)}",  # pylint: disable=line-too-long
             "\n## Top hypotheses by Elo\n",
         ]
         for entry in leaderboard:
-            md_lines.append(f"{entry['rank']}. **{entry['title']}** — Elo {entry['elo']}")
+            md_lines.append(
+                f"{entry['rank']}. **{entry['title']}** — Elo {entry['elo']}")
         meta = final_state.get("meta_review") or {}
         if meta and isinstance(meta, dict):
             md_lines.append("\n## Meta-review insights\n")
@@ -493,7 +520,7 @@ async def run_workflow(
         yield await _emit("report", report_payload)
         store.update_run_status(run_id, "completed", db_path=db_path)
         yield await _emit("status", {"status": "completed"})
-    except Exception as e:
+    except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("engine run failed: %s", e)
         store.update_run_status(run_id, "failed", error=str(e), db_path=db_path)
         yield await _emit("status", {"status": "failed", "error": str(e)})

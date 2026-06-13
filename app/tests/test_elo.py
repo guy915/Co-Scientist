@@ -11,8 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-"""Elo invariants: initial rating, expected score, configurable K factor, symmetric update."""
+"""Elo invariants: initial rating, expected score, configurable K factor, symmetric update."""  # pylint: disable=line-too-long
 from __future__ import annotations
 
 from app.elo import DEFAULT_K_FACTOR, INITIAL_ELO, expected_score, update_pair
@@ -50,6 +49,6 @@ def test_update_pair_respects_k_factor():
 
 def test_update_pair_upset_amplifies_change():
     """Beating a much stronger opponent yields a larger swing than peer wins."""
-    w_upset, l_upset = update_pair(1400, 1600)
+    w_upset, _ = update_pair(1400, 1600)
     w_peer, _ = update_pair(1200, 1200)
     assert (w_upset - 1400) > (w_peer - 1200)

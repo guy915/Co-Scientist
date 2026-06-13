@@ -14,10 +14,10 @@ test:
 	pytest
 
 format:
-	black . && ruff check --fix .
+	yapf -ir app tests
 
 lint:
-	ruff check .
+	pylint --rcfile=../pylintrc app tests
 
 typecheck:
 	mypy .

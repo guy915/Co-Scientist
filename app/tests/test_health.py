@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Backend health + status endpoints."""
 from __future__ import annotations
 
@@ -19,7 +18,7 @@ from fastapi.testclient import TestClient
 
 
 def _client():
-    from app.main import app
+    from app.main import app  # pylint: disable=import-outside-toplevel
 
     return TestClient(app)
 

@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """FastAPI application main module."""
 
 import asyncio
@@ -34,20 +33,20 @@ from rich.console import Console
 # Load .env file before importing settings
 load_dotenv()
 
-from . import engine_adapter
-from .config import settings
-from .runs import router as runs_router
-from .seed import seed_demo_runs
+from . import engine_adapter  # pylint: disable=wrong-import-position
+from .config import settings  # pylint: disable=wrong-import-position
+from .runs import router as runs_router  # pylint: disable=wrong-import-position
+from .seed import seed_demo_runs  # pylint: disable=wrong-import-position
 
 try:
     from litellm import acompletion  # type: ignore
-except Exception:  # pragma: no cover - litellm optional in mock mode
+except Exception:  # pragma: no cover - litellm optional in mock mode  # pylint: disable=broad-exception-caught
     acompletion = None  # type: ignore
 
 try:
     from co_scientist import HypothesisGenerator  # type: ignore
-except Exception:  # pragma: no cover - engine optional in mock mode
-    HypothesisGenerator = None  # type: ignore
+except Exception:  # pragma: no cover - engine optional in mock mode  # pylint: disable=broad-exception-caught
+    HypothesisGenerator = None  # type: ignore  # pylint: disable=invalid-name
 
 # Configure logging
 # Set root logger to INFO to suppress DEBUG logs from dependencies (httpx, etc.)
@@ -55,7 +54,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-# Set application loggers (viewer and co_scientist) to DEBUG if debug mode is enabled
+# Set application loggers (viewer and co_scientist) to DEBUG if debug mode is enabled  # pylint: disable=line-too-long
 logger = logging.getLogger(__name__)
 coscientist_logger = logging.getLogger("co_scientist")
 if settings.debug:
@@ -75,15 +74,15 @@ if settings.coscientist_cache_enabled:
 if settings.coscientist_cache_dir:
     os.environ["COSCIENTIST_CACHE_DIR"] = settings.coscientist_cache_dir
 if settings.coscientist_lit_review_papers_count:
-    os.environ["COSCIENTIST_LIT_REVIEW_PAPERS_COUNT"] = str(settings.coscientist_lit_review_papers_count)
+    os.environ["COSCIENTIST_LIT_REVIEW_PAPERS_COUNT"] = str(
+        settings.coscientist_lit_review_papers_count)
 
 # Set MCP server URL if available
 if settings.mcp_server_url:
     os.environ["MCP_SERVER_URL"] = settings.mcp_server_url
-    logger.info(f"mcp_server_url configured: {settings.mcp_server_url}")
+    logger.info("mcp_server_url configured: %s", settings.mcp_server_url)
 else:
     logger.info("mcp_server_url not set - literature review will be disabled")
-
 
 # Global generator instance (can be reused)
 _generator = None  # type: ignore[var-annotated]
@@ -96,25 +95,24 @@ _active_tasks_lock = asyncio.Lock()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    """
-    Lifespan context manager for startup/shutdown.
-    """
+async def lifespan(app: FastAPI):  # pylint: disable=redefined-outer-name,unused-argument
+    """Manages FastAPI application startup and shutdown."""
     global _generator
 
     # Startup
     logger.info("Starting Co-Scientist server...")
-    logger.info(f"Model: {settings.model_name}")
-    logger.info(f"Max iterations: {settings.max_iterations}")
-    logger.info(f"Initial hypotheses count: {settings.initial_hypotheses_count}")
-    logger.info(f"Evolution max count: {settings.evolution_max_count}")
+    logger.info("Model: %s", settings.model_name)
+    logger.info("Max iterations: %s", settings.max_iterations)
+    logger.info("Initial hypotheses count: %s",
+                settings.initial_hypotheses_count)
+    logger.info("Evolution max count: %s", settings.evolution_max_count)
     if settings.tools_config:
-        logger.info(f"Tools config: {settings.tools_config}")
+        logger.info("Tools config: %s", settings.tools_config)
     else:
         logger.info("Tools config: not set (generator defaults)")
 
     provider = engine_adapter.select_provider()
-    logger.info(f"Workflow provider: {provider}")
+    logger.info("Workflow provider: %s", provider)
 
     if HypothesisGenerator is not None and provider == "engine":
         _generator = HypothesisGenerator(
@@ -124,11 +122,13 @@ async def lifespan(app: FastAPI):
             initial_hypotheses_count=settings.initial_hypotheses_count,
             evolution_max_count=settings.evolution_max_count,
             enable_cache=settings.coscientist_cache_enabled,
-            cache_dir=settings.coscientist_cache_dir if settings.coscientist_cache_dir else None,
+            cache_dir=settings.coscientist_cache_dir
+            if settings.coscientist_cache_dir else None,
             tools_config=settings.tools_config,
         )
     else:
-        logger.info("Engine generator not initialised; mock workflow will be used.")
+        logger.info(
+            "Engine generator not initialised; mock workflow will be used.")
         _generator = None
 
     await seed_demo_runs(db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
@@ -148,11 +148,9 @@ app = FastAPI(
 
 # CORS middleware
 _allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-_allowed_origins = (
-    [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
-    if _allowed_origins_env
-    else ["*"]
-)
+_allowed_origins = ([
+    o.strip() for o in _allowed_origins_env.split(",") if o.strip()
+] if _allowed_origins_env else ["*"])
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -171,23 +169,20 @@ class GenerateRequest(BaseModel):
 
     research_goal: str = Field(..., description="The research question or goal")
     model_name: str | None = Field(
-        None, description="Override default model name (optional)"
-    )
+        None, description="Override default model name (optional)")
     max_iterations: int | None = Field(
-        None, description="Override default max iterations (optional)"
-    )
+        None, description="Override default max iterations (optional)")
     initial_hypotheses_count: int | None = Field(
-        None, description="Override default initial hypotheses count (optional)"
-    )
+        None,
+        description="Override default initial hypotheses count (optional)")
     evolution_max_count: int | None = Field(
-        None, description="Override default evolution max count (optional)"
-    )
+        None, description="Override default evolution max count (optional)")
     supervisor_model_name: str | None = Field(
-        None, description="Override supervisor/meta-review model (optional)"
-    )
+        None, description="Override supervisor/meta-review model (optional)")
     enable_literature_review_node: bool | None = Field(
         None,
-        description="Whether to include literature review node (default: auto-detect based on mcp server availability)",
+        description=
+        "Whether to include literature review node (default: auto-detect based on mcp server availability)",  # pylint: disable=line-too-long
     )
 
 
@@ -220,29 +215,43 @@ class ConfigResponse(BaseModel):
 class SystemStatusResponse(BaseModel):
     """System availability status response."""
 
-    mcp_available: bool = Field(..., description="whether mcp server is available")
-    pubmed_available: bool = Field(..., description="whether pubmed api is available")
+    mcp_available: bool = Field(...,
+                                description="whether mcp server is available")
+    pubmed_available: bool = Field(
+        ..., description="whether pubmed api is available")
     literature_review_available: bool = Field(
-        ..., description="whether literature review is available (requires both mcp and pubmed)"
-    )
+        ...,
+        description=
+        "whether literature review is available (requires both mcp and pubmed)")
     mcp_server_url: str = Field(..., description="configured mcp server url")
-    provider: str = Field("mock", description="active workflow provider: 'mock' | 'engine'")
-    mock_mode: bool = Field(False, description="true when running deterministic mock workflow")
-    has_provider_key: bool = Field(False, description="any LLM provider key is set")
-    engine_importable: bool = Field(False, description="co_scientist package is importable")
+    provider: str = Field(
+        "mock", description="active workflow provider: 'mock' | 'engine'")
+    mock_mode: bool = Field(
+        False, description="true when running deterministic mock workflow")
+    has_provider_key: bool = Field(False,
+                                   description="any LLM provider key is set")
+    engine_importable: bool = Field(
+        False, description="co_scientist package is importable")
     model_name: str = Field("", description="configured model id")
 
 
 class ParsedResearchGoal(BaseModel):
     """Parsed structure from user input."""
 
-    research_goal: str = Field(..., description="The core research question or goal")
-    preferences: str | None = Field(None, description="Desired approach or focus")
-    attributes: list[str] | None = Field(None, description="Key qualities to prioritize")
-    constraints: list[str] | None = Field(None, description="Requirements or boundaries")
-    user_inputs: dict | None = Field(None, description="Additional user-provided context")
+    research_goal: str = Field(...,
+                               description="The core research question or goal")
+    preferences: str | None = Field(None,
+                                    description="Desired approach or focus")
+    attributes: list[str] | None = Field(
+        None, description="Key qualities to prioritize")
+    constraints: list[str] | None = Field(
+        None, description="Requirements or boundaries")
+    user_inputs: dict | None = Field(
+        None, description="Additional user-provided context")
     enable_literature_review_node: bool | None = Field(
-        None, description="Whether to include literature review node (optional, auto-detect if not specified)"
+        None,
+        description=
+        "Whether to include literature review node (optional, auto-detect if not specified)"  # pylint: disable=line-too-long
     )
 
 
@@ -262,12 +271,12 @@ def _get_cached_parse(raw_input: str) -> ParsedResearchGoal | None:
         cache_file = cache_dir / f"{cache_key}.json"
 
         if cache_file.exists():
-            with open(cache_file) as f:
+            with open(cache_file, encoding="utf-8") as f:
                 cached_data = json.load(f)
-            logger.info(f"parse cache hit for input: {raw_input[:50]}...")
+            logger.info("parse cache hit for input: %s...", raw_input[:50])
             return ParsedResearchGoal(**cached_data)
-    except Exception as e:
-        logger.warning(f"failed to read parse cache: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning("failed to read parse cache: %s", e)
 
     return None
 
@@ -279,11 +288,11 @@ def _cache_parse(raw_input: str, parsed: ParsedResearchGoal) -> None:
         cache_key = hashlib.md5(raw_input.encode()).hexdigest()
         cache_file = cache_dir / f"{cache_key}.json"
 
-        with open(cache_file, "w") as f:
+        with open(cache_file, "w", encoding="utf-8") as f:
             json.dump(parsed.model_dump(), f, indent=2)
 
-    except Exception as e:
-        logger.warning(f"Failed to cache parse: {e}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning("Failed to cache parse: %s", e)
 
 
 async def parse_research_goal_input(raw_input: str) -> ParsedResearchGoal:
@@ -294,6 +303,7 @@ async def parse_research_goal_input(raw_input: str) -> ParsedResearchGoal:
     if cached is not None:
         return cached
 
+    # pylint: disable=line-too-long
     prompt = f"""Parse the following research goal input and extract structured information.
 
 User Input:
@@ -308,6 +318,7 @@ Extract:
 
 If a field is not clearly present in the input, omit it or return null/empty.
 Return ONLY valid JSON matching the schema."""
+    # pylint: enable=line-too-long
 
     response_schema = {
         "type": "object",
@@ -317,29 +328,43 @@ Return ONLY valid JSON matching the schema."""
                 "description": "The core research question or goal"
             },
             "preferences": {
-                "type": "string",
-                "description": "Desired approach or focus (empty string if not present)"
+                "type":
+                    "string",
+                "description":
+                    "Desired approach or focus (empty string if not present)"
             },
             "attributes": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Key qualities to prioritize (empty array if not present)"
+                "type":
+                    "array",
+                "items": {
+                    "type": "string"
+                },
+                "description":
+                    "Key qualities to prioritize (empty array if not present)"
             },
             "constraints": {
-                "type": "array",
-                "items": {"type": "string"},
-                "description": "Requirements or boundaries (empty array if not present)"
+                "type":
+                    "array",
+                "items": {
+                    "type": "string"
+                },
+                "description":
+                    "Requirements or boundaries (empty array if not present)"
             },
             "user_inputs": {
                 "type": "object",
                 "properties": {
                     "starting_hypotheses": {
                         "type": "array",
-                        "items": {"type": "string"}
+                        "items": {
+                            "type": "string"
+                        }
                     },
                     "literature": {
                         "type": "array",
-                        "items": {"type": "string"}
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "description": "Additional user-provided context"
@@ -349,11 +374,18 @@ Return ONLY valid JSON matching the schema."""
     }
 
     try:
-        response = await acompletion(
-            model=settings.model_name,
-            messages=[{"role": "user", "content": prompt}],
-            response_format={"type": "json_schema", "json_schema": {"name": "research_goal_parser", "schema": response_schema}}
-        )
+        response = await acompletion(model=settings.model_name,
+                                     messages=[{
+                                         "role": "user",
+                                         "content": prompt
+                                     }],
+                                     response_format={
+                                         "type": "json_schema",
+                                         "json_schema": {
+                                             "name": "research_goal_parser",
+                                             "schema": response_schema
+                                         }
+                                     })
 
         parsed_json = json.loads(response.choices[0].message.content)
 
@@ -367,7 +399,7 @@ Return ONLY valid JSON matching the schema."""
         if "user_inputs" in parsed_json and not parsed_json["user_inputs"]:
             parsed_json["user_inputs"] = None
 
-        logger.info(f"Parsed research goal: {parsed_json}")
+        logger.info("Parsed research goal: %s", parsed_json)
         parsed_goal = ParsedResearchGoal(**parsed_json)
 
         # cache the result
@@ -375,8 +407,10 @@ Return ONLY valid JSON matching the schema."""
 
         return parsed_goal
 
-    except Exception as e:
-        logger.error(f"Error parsing research goal with LLM: {e}", exc_info=True)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Error parsing research goal with LLM: %s",
+                     e,
+                     exc_info=True)
         # Fallback: treat entire input as research_goal
         logger.warning("Falling back to using entire input as research_goal")
         fallback_goal = ParsedResearchGoal(research_goal=raw_input)
@@ -419,24 +453,23 @@ async def get_config():
 
 @app.get("/status", response_model=SystemStatusResponse, tags=["system"])
 async def get_system_status():
-    """
-    Check system availability for literature review features.
+    """Checks system availability for literature review features.
 
-    returns availability status for mcp server and pubmed api, plus
+    Returns availability status for mcp server and pubmed api, plus
     provider/mock-mode info from the engine adapter so the UI can render
     a "Mock Mode" banner.
     """
     mcp_available = False
     pubmed_available = False
     try:
-        from co_scientist.mcp_client import (
+        from co_scientist.mcp_client import (  # pylint: disable=import-outside-toplevel
             check_mcp_available,  # type: ignore
             check_pubmed_available_via_mcp,  # type: ignore
         )
 
         mcp_available = await check_mcp_available()
         pubmed_available = await check_pubmed_available_via_mcp()
-    except Exception:  # pragma: no cover - engine optional in mock mode
+    except Exception:  # pragma: no cover - engine optional in mock mode  # pylint: disable=broad-exception-caught
         mcp_available = False
         pubmed_available = False
 
@@ -453,11 +486,10 @@ async def get_system_status():
 
 @app.post("/generate", response_model=GenerateResponse, tags=["hypotheses"])
 async def generate_hypotheses(request: GenerateRequest):
-    """
-    Generate hypotheses for a research goal.
+    """Generates hypotheses for a research goal.
 
-    This endpoint runs the full hypothesis generation workflow and returns
-    the complete results when finished.
+    Runs the full hypothesis generation workflow and returns the complete
+    results when finished.
     """
     if _generator is None:
         raise HTTPException(status_code=503, detail="Generator not initialized")
@@ -465,49 +497,41 @@ async def generate_hypotheses(request: GenerateRequest):
     try:
         # Use request overrides or fall back to settings/defaults
         generator = _generator
-        if any(
-            [
+        if any([
                 request.model_name,
                 request.supervisor_model_name,
                 request.max_iterations is not None,
                 request.initial_hypotheses_count is not None,
                 request.evolution_max_count is not None,
-            ]
-        ):
+        ]):
             # Capture values with default fallbacks
             model_name = request.model_name or settings.model_name
             supervisor_model_name = request.supervisor_model_name or settings.supervisor_model_name
-            max_iterations = (
-                request.max_iterations
-                if request.max_iterations is not None
-                else settings.max_iterations
-            )
-            initial_hypotheses_count = (
-                request.initial_hypotheses_count
-                if request.initial_hypotheses_count is not None
-                else settings.initial_hypotheses_count
-            )
-            evolution_max_count = (
-                request.evolution_max_count
-                if request.evolution_max_count is not None
-                else settings.evolution_max_count
-            )
+            max_iterations = (request.max_iterations if request.max_iterations
+                              is not None else settings.max_iterations)
+            initial_hypotheses_count = (request.initial_hypotheses_count
+                                        if request.initial_hypotheses_count
+                                        is not None else
+                                        settings.initial_hypotheses_count)
+            evolution_max_count = (request.evolution_max_count
+                                   if request.evolution_max_count is not None
+                                   else settings.evolution_max_count)
             enable_cache = settings.coscientist_cache_enabled
-            cache_dir = (
-                settings.coscientist_cache_dir
-                if settings.coscientist_cache_dir
-                else None
-            )
+            cache_dir = (settings.coscientist_cache_dir
+                         if settings.coscientist_cache_dir else None)
 
             # Log all values being used
-            logger.info("Creating HypothesisGenerator (no streaming) with parameters:")
-            logger.info(f"  model_name: {model_name}")
-            logger.info(f"  supervisor_model_name: {supervisor_model_name or model_name}")
-            logger.info(f"  max_iterations: {max_iterations}")
-            logger.info(f"  initial_hypotheses_count: {initial_hypotheses_count}")
-            logger.info(f"  evolution_max_count: {evolution_max_count}")
-            logger.info(f"  enable_cache: {enable_cache}")
-            logger.info(f"  cache_dir: {cache_dir}")
+            logger.info(
+                "Creating HypothesisGenerator (no streaming) with parameters:")
+            logger.info("  model_name: %s", model_name)
+            logger.info("  supervisor_model_name: %s", supervisor_model_name or
+                        model_name)
+            logger.info("  max_iterations: %s", max_iterations)
+            logger.info("  initial_hypotheses_count: %s",
+                        initial_hypotheses_count)
+            logger.info("  evolution_max_count: %s", evolution_max_count)
+            logger.info("  enable_cache: %s", enable_cache)
+            logger.info("  cache_dir: %s", cache_dir)
 
             # Create a new generator with overrides
             generator = HypothesisGenerator(
@@ -522,25 +546,26 @@ async def generate_hypotheses(request: GenerateRequest):
             )
 
         # generate run_id for non-streaming endpoint
-        import uuid
+        import uuid  # pylint: disable=import-outside-toplevel
         run_id = str(uuid.uuid4())
 
         # prepare opts with enable_literature_review_node if specified
         opts = {}
         if request.enable_literature_review_node is not None:
-            opts["enable_literature_review_node"] = request.enable_literature_review_node
+            opts[
+                "enable_literature_review_node"] = request.enable_literature_review_node
 
         result = await generator.generate_hypotheses(
             research_goal=request.research_goal,
             opts=opts if opts else None,
-            run_id=run_id
-        )
+            run_id=run_id)
 
         return GenerateResponse(**result)
 
-    except Exception as e:
-        logger.error(f"Error generating hypotheses: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Generation failed: {str(e)}")
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Error generating hypotheses: %s", e, exc_info=True)
+        raise HTTPException(status_code=500,
+                            detail=f"Generation failed: {str(e)}") from e
 
 
 async def stream_generator(
@@ -551,8 +576,10 @@ async def stream_generator(
 ) -> AsyncGenerator[str, None]:
     """Generate Server-Sent Events stream from hypothesis generation."""
     try:
-        console.print("\n[bold yellow]═══ sse stream starting ═══[/bold yellow]")
-        console.print(f"[cyan]research goal:[/cyan] {parsed_goal.research_goal[:100]}...")
+        console.print(
+            "\n[bold yellow]═══ sse stream starting ═══[/bold yellow]")
+        console.print(
+            f"[cyan]research goal:[/cyan] {parsed_goal.research_goal[:100]}...")
 
         # Send initial event with parsed goal data
         start_event = {
@@ -566,7 +593,8 @@ async def stream_generator(
                 "user_inputs": parsed_goal.user_inputs,
             }
         }
-        console.print("[green]→ Sending sse event:[/green] [dim]type=start[/dim]")
+        console.print(
+            "[green]→ Sending sse event:[/green] [dim]type=start[/dim]")
         yield f"data: {json.dumps(start_event)}\n\n"
 
         # Track iteration for UI grouping
@@ -586,25 +614,25 @@ async def stream_generator(
 
         # add enable_literature_review_node if specified
         if parsed_goal.enable_literature_review_node is not None:
-            opts["enable_literature_review_node"] = parsed_goal.enable_literature_review_node
+            opts[
+                "enable_literature_review_node"] = parsed_goal.enable_literature_review_node
 
         async for node_name, state in generator.generate_hypotheses(
-            research_goal=parsed_goal.research_goal,
-            opts=opts,
-            run_id=task_id,
-            stream=True
-        ):
+                research_goal=parsed_goal.research_goal,
+                opts=opts,
+                run_id=task_id,
+                stream=True):
             # Check if cancelled before processing each node
             if cancelled_event.is_set():
                 console.print("[red]✗ generation cancelled by user[/red]")
                 logger.info("generation cancelled by user")
-                yield "data: {\"type\": \"cancelled\", \"message\": \"generation cancelled\"}\n\n"
+                yield "data: {\"type\": \"cancelled\", \"message\": \"generation cancelled\"}\n\n"  # pylint: disable=line-too-long
                 return
 
             # Format as Server-Sent Event
 
             # Determine UI iteration based on workflow phase
-            # Initial generation (iteration 0): supervisor → literature_review → generate → reflection → review → ranking
+            # Initial generation (iteration 0): supervisor → literature_review → generate → reflection → review → ranking  # pylint: disable=line-too-long
             # Evolution iterations (1+): meta_review → evolve → review → ranking → proximity
 
             if node_name == "meta_review":
@@ -618,7 +646,8 @@ async def stream_generator(
 
             # Add iteration info to state
             state["ui_iteration"] = ui_iteration
-            state["iteration_phase"] = "initial" if ui_iteration == 0 else f"iteration_{ui_iteration}"
+            state[
+                "iteration_phase"] = "initial" if ui_iteration == 0 else f"iteration_{ui_iteration}"  # pylint: disable=line-too-long
 
             event_data = {
                 "type": "update",
@@ -626,7 +655,9 @@ async def stream_generator(
                 "state": state,
             }
 
-            console.print(f"[green]→ Sending sse event:[/green] [cyan]type=update, node={node_name}[/cyan]")
+            console.print(
+                f"[green]→ Sending sse event:[/green] [cyan]type=update, node={node_name}[/cyan]"  # pylint: disable=line-too-long
+            )
 
             yield f"data: {json.dumps(event_data)}\n\n"
 
@@ -636,103 +667,99 @@ async def stream_generator(
         # Check if cancelled before sending completion
         if cancelled_event.is_set():
             console.print("[red]Generation cancelled by user[/red]")
-            yield "data: {\"type\": \"cancelled\", \"message\": \"generation cancelled\"}\n\n"
+            yield "data: {\"type\": \"cancelled\", \"message\": \"generation cancelled\"}\n\n"  # pylint: disable=line-too-long
             return
 
         # Send completion event
-        console.print("[bold green]Sending sse event: type=complete[/bold green]")
-        yield "data: {\"type\": \"complete\", \"message\": \"hypothesis generation completed\"}\n\n"
+        console.print(
+            "[bold green]Sending sse event: type=complete[/bold green]")
+        yield "data: {\"type\": \"complete\", \"message\": \"hypothesis generation completed\"}\n\n"  # pylint: disable=line-too-long
 
     except asyncio.CancelledError:
         console.print("[red]Generation cancelled (CancelledError)[/red]")
-        yield "data: {\"type\": \"cancelled\", \"message\": \"generation cancelled\"}\n\n"
-    except Exception as e:
-        logger.error(f"error in streaming: {e}", exc_info=True)
+        yield "data: {\"type\": \"cancelled\", \"message\": \"generation cancelled\"}\n\n"  # pylint: disable=line-too-long
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("error in streaming: %s", e, exc_info=True)
         error_data = {"type": "error", "message": str(e)}
         yield f"data: {json.dumps(error_data)}\n\n"
 
 
 @app.post("/generate/start", tags=["hypotheses"])
 async def start_generation(request: GenerateRequest):
-    """
-    Start hypothesis generation and return a task ID.
+    """Starts hypothesis generation and returns a task ID.
 
-    Use the returned task_id to subscribe to the SSE stream via GET /generate/stream/{task_id}
+    Use the returned task_id to subscribe to the SSE stream via
+    GET /generate/stream/{task_id}.
     """
     if _generator is None:
         raise HTTPException(status_code=503, detail="Generator not initialized")
 
     try:
-        import uuid
+        import uuid  # pylint: disable=import-outside-toplevel
         task_id = str(uuid.uuid4())
 
         # Parse the research goal input to extract structured information
-        logger.info(f"parsing research goal input for task {task_id}")
+        logger.info("parsing research goal input for task %s", task_id)
         parsed_goal = await parse_research_goal_input(request.research_goal)
 
         # override with explicit enable_literature_review_node from request if provided
         if request.enable_literature_review_node is not None:
             parsed_goal.enable_literature_review_node = request.enable_literature_review_node
 
-        logger.info(f"parsed goal - core: '{parsed_goal.research_goal[:100]}...'")
+        logger.info("parsed goal - core: '%s...'",
+                    parsed_goal.research_goal[:100])
         if parsed_goal.preferences:
-            logger.info(f"  preferences: {parsed_goal.preferences}")
+            logger.info("  preferences: %s", parsed_goal.preferences)
         if parsed_goal.attributes:
-            logger.info(f"  attributes: {parsed_goal.attributes}")
+            logger.info("  attributes: %s", parsed_goal.attributes)
         if parsed_goal.constraints:
-            logger.info(f"  constraints: {parsed_goal.constraints}")
+            logger.info("  constraints: %s", parsed_goal.constraints)
         if parsed_goal.user_inputs:
-            logger.info(f"  user inputs: {parsed_goal.user_inputs}")
+            logger.info("  user inputs: %s", parsed_goal.user_inputs)
         if parsed_goal.enable_literature_review_node is not None:
-            logger.info(f"  enable_literature_review_node: {parsed_goal.enable_literature_review_node}")
+            logger.info("  enable_literature_review_node: %s",
+                        parsed_goal.enable_literature_review_node)
 
         # Use request overrides or fall back to settings/defaults
         generator = _generator
-        if any(
-            [
+        if any([
                 request.model_name,
                 request.supervisor_model_name,
                 request.max_iterations is not None,
                 request.initial_hypotheses_count is not None,
                 request.evolution_max_count is not None,
-            ]
-        ):
+        ]):
             # Capture values with default fallbacks
             model_name = request.model_name or settings.model_name
             supervisor_model_name = request.supervisor_model_name or settings.supervisor_model_name
-            max_iterations = (
-                request.max_iterations
-                if request.max_iterations is not None
-                else settings.max_iterations
-            )
-            initial_hypotheses_count = (
-                request.initial_hypotheses_count
-                if request.initial_hypotheses_count is not None
-                else settings.initial_hypotheses_count
-            )
-            evolution_max_count = (
-                request.evolution_max_count
-                if request.evolution_max_count is not None
-                else settings.evolution_max_count
-            )
+            max_iterations = (request.max_iterations if request.max_iterations
+                              is not None else settings.max_iterations)
+            initial_hypotheses_count = (request.initial_hypotheses_count
+                                        if request.initial_hypotheses_count
+                                        is not None else
+                                        settings.initial_hypotheses_count)
+            evolution_max_count = (request.evolution_max_count
+                                   if request.evolution_max_count is not None
+                                   else settings.evolution_max_count)
             enable_cache = settings.coscientist_cache_enabled
-            cache_dir = (
-                settings.coscientist_cache_dir
-                if settings.coscientist_cache_dir
-                else None
-            )
+            cache_dir = (settings.coscientist_cache_dir
+                         if settings.coscientist_cache_dir else None)
 
             # Log all values being used
-            logger.info("Creating HypothesisGenerator (streaming) with parameters:")
-            logger.info(f"  model_name: {model_name}")
-            logger.info(f"  supervisor_model_name: {supervisor_model_name or model_name}")
-            logger.info(f"  max_iterations: {max_iterations}")
-            logger.info(f"  initial_hypotheses_count: {initial_hypotheses_count}")
-            logger.info(f"  evolution_max_count: {evolution_max_count}")
-            logger.info(f"  enable_cache: {enable_cache}")
-            logger.info(f"  cache_dir: {cache_dir}")
+            logger.info(
+                "Creating HypothesisGenerator (streaming) with parameters:")
+            logger.info("  model_name: %s", model_name)
+            logger.info("  supervisor_model_name: %s", supervisor_model_name or
+                        model_name)
+            logger.info("  max_iterations: %s", max_iterations)
+            logger.info("  initial_hypotheses_count: %s",
+                        initial_hypotheses_count)
+            logger.info("  evolution_max_count: %s", evolution_max_count)
+            logger.info("  enable_cache: %s", enable_cache)
+            logger.info("  cache_dir: %s", cache_dir)
 
-            logger.info(f"Parsed goal details: '{parsed_goal.model_dump_json(indent=2)}'")
+            logger.info("Parsed goal details: '%s'",
+                        parsed_goal.model_dump_json(indent=2))
 
             # Create a new generator with overrides
             generator = HypothesisGenerator(
@@ -752,26 +779,28 @@ async def start_generation(request: GenerateRequest):
         # Store the generator coroutine and cancellation event (thread-safe)
         async with _active_tasks_lock:
             _active_tasks[task_id] = {
-                "generator": stream_generator(parsed_goal, generator, cancelled_event, task_id),
-                "cancelled": cancelled_event,
+                "generator":
+                    stream_generator(parsed_goal, generator, cancelled_event,
+                                     task_id),
+                "cancelled":
+                    cancelled_event,
             }
 
-        logger.info(f"Started generation task {task_id}")
+        logger.info("Started generation task %s", task_id)
         return {"task_id": task_id, "status": "started"}
 
-    except Exception as e:
-        logger.error(f"Error starting generation: {e}", exc_info=True)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Error starting generation: %s", e, exc_info=True)
         raise HTTPException(
-            status_code=500, detail=f"Failed to start generation: {str(e)}"
-        )
+            status_code=500,
+            detail=f"Failed to start generation: {str(e)}") from e
 
 
 @app.get("/generate/stream/{task_id}", tags=["hypotheses"])
 async def stream_generation(task_id: str):
-    """
-    Subscribe to Server-Sent Events stream for a started generation task.
+    """Subscribes to the SSE stream for a started generation task.
 
-    Use the task_id returned from POST /generate/start
+    Use the task_id returned from POST /generate/start.
     """
     # Check if task exists and get generator (thread-safe)
     async with _active_tasks_lock:
@@ -784,8 +813,11 @@ async def stream_generation(task_id: str):
         try:
             async for event in stream:
                 yield event
-        except Exception as e:
-            logger.error(f"Error in stream for task {task_id}: {e}", exc_info=True)
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Error in stream for task %s: %s",
+                         task_id,
+                         e,
+                         exc_info=True)
             error_data = {"type": "error", "message": str(e)}
             yield f"data: {json.dumps(error_data)}\n\n"
         finally:
@@ -793,7 +825,7 @@ async def stream_generation(task_id: str):
             async with _active_tasks_lock:
                 if task_id in _active_tasks:
                     del _active_tasks[task_id]
-                    logger.info(f"Cleaned up task {task_id}")
+                    logger.info("Cleaned up task %s", task_id)
 
     return StreamingResponse(
         event_stream(),
@@ -813,43 +845,44 @@ class CancelRequest(BaseModel):
 
 @app.post("/cancel_hypothesis_generation", tags=["hypotheses"])
 async def cancel_generation(request: CancelRequest):
-    """
-    Cancel an ongoing hypothesis generation task.
+    """Cancels an ongoing hypothesis generation task.
 
-    This stops the streaming and prevents further processing of the generation workflow.
-    Note: LLM calls already in progress will complete, but no new nodes will be processed.
+    Stops the streaming and prevents further processing. LLM calls already in
+    progress will complete, but no new nodes will be processed.
     """
     task_id = request.task_id
 
     # Check if task exists and get cancellation event (thread-safe)
     async with _active_tasks_lock:
         if task_id not in _active_tasks:
-            logger.warning(f"Attempted to cancel non-existent task: {task_id}")
-            raise HTTPException(status_code=404, detail="Task not found or already completed")
+            logger.warning("Attempted to cancel non-existent task: %s", task_id)
+            raise HTTPException(status_code=404,
+                                detail="Task not found or already completed")
         task_data = _active_tasks[task_id]
         cancelled_event = task_data["cancelled"]
 
     try:
         # Set cancellation event - the generator will check this and exit gracefully
         cancelled_event.set()
-        logger.info(f"Set cancellation flag for task {task_id}")
+        logger.info("Set cancellation flag for task %s", task_id)
 
         # Note: We don't remove the task from _active_tasks here
         # The streaming endpoint will clean it up when the generator exits
         # This prevents race conditions between cancellation and stream cleanup
 
         return {
-            "status": "cancelled",
-            "task_id": task_id,
-            "message": "Generation task cancellation requested. The stream will stop after the current node completes."
+            "status":
+                "cancelled",
+            "task_id":
+                task_id,
+            "message":
+                "Generation task cancellation requested. The stream will stop after the current node completes."  # pylint: disable=line-too-long
         }
 
-    except Exception as e:
-        logger.error(f"Error cancelling task {task_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to cancel task: {str(e)}"
-        )
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("Error cancelling task %s: %s", task_id, e, exc_info=True)
+        raise HTTPException(status_code=500,
+                            detail=f"Failed to cancel task: {str(e)}") from e
 
 
 if __name__ == "__main__":
@@ -859,4 +892,3 @@ if __name__ == "__main__":
         port=settings.port,
         reload=settings.debug,
     )
-

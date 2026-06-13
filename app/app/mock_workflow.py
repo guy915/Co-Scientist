@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
 """Deterministic mock workflow used when no LLM provider is configured.
 
 It emits the full agent-equivalent sequence the real engine produces — so the
@@ -37,6 +36,7 @@ Stages emitted (in order):
 The output is fully deterministic given (research_goal, profile, config). This
 matters: tests assert against the workflow's behaviour, not flaky LLM output.
 """
+# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -53,7 +53,6 @@ from .elo import DEFAULT_K_FACTOR, INITIAL_ELO, update_pair
 from .safety import screen_final, screen_intake
 
 logger = logging.getLogger(__name__)
-
 
 PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
     "standard": {
@@ -72,13 +71,13 @@ PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
     },
 }
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-def resolved_config(profile: str, overrides: dict[str, int] | None = None) -> dict[str, int]:
+def resolved_config(profile: str,
+                    overrides: dict[str, int] | None = None) -> dict[str, int]:
     base = dict(PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS["standard"]))
     if overrides:
         for k, v in overrides.items():
@@ -89,7 +88,8 @@ def resolved_config(profile: str, overrides: dict[str, int] | None = None) -> di
 
 
 def _seeded_rng(*parts: str) -> random.Random:
-    seed = int(hashlib.sha256("|".join(parts).encode()).hexdigest(), 16) % (2**32)
+    seed = int(hashlib.sha256("|".join(parts).encode()).hexdigest(), 16) % (2**
+                                                                            32)
     return random.Random(seed)
 
 
@@ -118,21 +118,18 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
     target = rng.choice(targets)
     title = f"H{idx + 1}: {angle.capitalize()} {target}".strip()
     statement = (
-        f"In the context of '{goal[:120]}', we hypothesise that {angle} {target} will "
-        "produce a measurable effect via a mechanism distinct from current consensus."
+        f"In the context of '{goal[:120]}', we hypothesise that {angle} {target} will "  # pylint: disable=line-too-long
+        "produce a measurable effect via a mechanism distinct from current consensus."  # pylint: disable=line-too-long
     )
     mechanism = (
-        f"The proposed pathway operates by {angle} {target}, with feedback at two checkpoints; "
-        "the predicted intermediate state is detectable by standard assays."
-    )
+        f"The proposed pathway operates by {angle} {target}, with feedback at two checkpoints; "  # pylint: disable=line-too-long
+        "the predicted intermediate state is detectable by standard assays.")
     expected = (
-        "We expect a dose-dependent effect with a saturating response curve, distinguishable "
-        "from baseline within standard error bounds."
-    )
+        "We expect a dose-dependent effect with a saturating response curve, distinguishable "  # pylint: disable=line-too-long
+        "from baseline within standard error bounds.")
     experiment = (
-        "Run a controlled in-vitro perturbation series with three replicates per condition; "
-        "validate top hits in an orthogonal model system."
-    )
+        "Run a controlled in-vitro perturbation series with three replicates per condition; "  # pylint: disable=line-too-long
+        "validate top hits in an orthogonal model system.")
     return {
         "title": title,
         "statement": statement,
@@ -143,7 +140,8 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
 
 
 def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
-    keywords = [t for t in goal.lower().split() if len(t) > 4][:3] or ["mechanism"]
+    keywords = [t for t in goal.lower().split() if len(t) > 4
+               ][:3] or ["mechanism"]
     keyword = rng.choice(keywords)
     available = rng.random() > 0.15  # ~15% unavailable
     year = rng.randint(2015, 2025)
@@ -153,10 +151,9 @@ def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
         "authors": [f"Author{idx + 1}.A.", f"Author{idx + 1}.B."],
         "year": year,
         "abstract": (
-            f"This mock abstract discusses {keyword} dynamics, mechanism, regulatory feedback, "
-            "and a measurable effect under controlled perturbation. It is provided in mock mode "
-            "so the workflow can be exercised without external network calls."
-        ),
+            f"This mock abstract discusses {keyword} dynamics, mechanism, regulatory feedback, "  # pylint: disable=line-too-long
+            "and a measurable effect under controlled perturbation. It is provided in mock mode "  # pylint: disable=line-too-long
+            "so the workflow can be exercised without external network calls."),
         "available": available,
     }
 
@@ -180,7 +177,7 @@ async def run_mock_workflow(
     cancelled: asyncio.Event | None = None,
     sleep_seconds: float = 0.05,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Execute the deterministic mock workflow and yield events as they happen."""
+    """Execute the deterministic mock workflow and yield events as they happen."""  # pylint: disable=line-too-long
     cfg = resolved_config(profile, config)
     rng = _seeded_rng("mock", run_id, research_goal, profile)
 
@@ -194,13 +191,22 @@ async def run_mock_workflow(
 
     # ---- 1. Intake / Safety (input gate) ----
     intake = screen_intake(research_goal)
-    store.add_safety_decision(
-        run_id, intake.stage, intake.decision, intake.reason, intake.matches, db_path=db_path
-    )
+    store.add_safety_decision(run_id,
+                              intake.stage,
+                              intake.decision,
+                              intake.reason,
+                              intake.matches,
+                              db_path=db_path)
     yield await emit("safety.intake", intake.to_dict())
     if intake.decision == "block":
-        store.update_run_status(run_id, "blocked", error=intake.reason, db_path=db_path)
-        yield await emit("status", {"status": "blocked", "error": intake.reason})
+        store.update_run_status(run_id,
+                                "blocked",
+                                error=intake.reason,
+                                db_path=db_path)
+        yield await emit("status", {
+            "status": "blocked",
+            "error": intake.reason
+        })
         return
 
     store.update_run_status(run_id, "running", db_path=db_path)
@@ -222,13 +228,14 @@ async def run_mock_workflow(
             "safety",
             "report",
         ],
-        "profile": profile,
-        "config": cfg,
+        "profile":
+            profile,
+        "config":
+            cfg,
         "narrative": (
-            f"Plan a {profile} run for the research goal. Allocate compute across literature, "
-            f"generation ({cfg['initial_hypotheses_count']} candidates), {cfg['max_iterations']} "
-            "iterations of reflect/rank/evolve, then synthesize a report."
-        ),
+            f"Plan a {profile} run for the research goal. Allocate compute across literature, "  # pylint: disable=line-too-long
+            f"generation ({cfg['initial_hypotheses_count']} candidates), {cfg['max_iterations']} "  # pylint: disable=line-too-long
+            "iterations of reflect/rank/evolve, then synthesize a report."),
     }
     yield await emit("supervisor.plan", plan)
     if _check_cancel():
@@ -257,7 +264,10 @@ async def run_mock_workflow(
         evidence_payload.append({"id": ev_id, **ev})
     yield await emit(
         "literature_review",
-        {"count": len(evidence_payload), "evidence": evidence_payload},
+        {
+            "count": len(evidence_payload),
+            "evidence": evidence_payload
+        },
     )
 
     # ---- 4. Generation ----
@@ -278,16 +288,22 @@ async def run_mock_workflow(
             db_path=db_path,
         )
         hyp_ids.append(hid)
-        hyp_payloads.append({"id": hid, **h, "elo_rating": INITIAL_ELO, "generation": 0})
-    yield await emit("generate", {"count": len(hyp_payloads), "hypotheses": hyp_payloads})
+        hyp_payloads.append({
+            "id": hid,
+            **h, "elo_rating": INITIAL_ELO,
+            "generation": 0
+        })
+    yield await emit("generate", {
+        "count": len(hyp_payloads),
+        "hypotheses": hyp_payloads
+    })
 
     # ---- 5. Reflection ----
     for hid, h in zip(hyp_ids, hyp_payloads):
         critique = (
-            f"Reflection: '{h['title']}' offers a plausible mechanism but should be checked against "
-            "the {N} retrieved sources for prior work; novelty is moderate; testability is high if "
-            "the experimental context is constrained."
-        ).format(N=evidence_count)
+            f"Reflection: '{h['title']}' offers a plausible mechanism but should be checked against "  # pylint: disable=line-too-long
+            "the {N} retrieved sources for prior work; novelty is moderate; testability is high if "  # pylint: disable=line-too-long
+            "the experimental context is constrained.").format(N=evidence_count)
         store.add_review(
             run_id,
             hid,
@@ -308,18 +324,21 @@ async def run_mock_workflow(
         cid = _cluster_id(i)
         clusters.setdefault(cid, []).append(hid)
         store.update_hypothesis_state(hid, cluster_id=cid, db_path=db_path)
-    yield await emit("proximity", {"clusters": {k: len(v) for k, v in clusters.items()}})
+    yield await emit("proximity",
+                     {"clusters": {
+                         k: len(v) for k, v in clusters.items()
+                     }})
 
     # ---- 7. First ranking round ----
     elo_state: dict[str, int] = {hid: INITIAL_ELO for hid in hyp_ids}
 
     def _judge(a: str, b: str) -> tuple[str, str, str]:
         # deterministic: pick by hash so tests are stable
-        if hashlib.sha256((run_id + a + b).encode()).hexdigest() < hashlib.sha256(
-            (run_id + b + a).encode()
-        ).hexdigest():
+        if hashlib.sha256(
+            (run_id + a + b).encode()).hexdigest() < hashlib.sha256(
+                (run_id + b + a).encode()).hexdigest():
             return a, b, "Mock judge: 'a' has stronger mechanistic specificity."
-        return b, a, "Mock judge: 'b' presents a more decisive experimental test."
+        return b, a, "Mock judge: 'b' presents a more decisive experimental test."  # pylint: disable=line-too-long
 
     pairs = []
     pair_count = cfg["tournament_pairs"]
@@ -331,8 +350,10 @@ async def run_mock_workflow(
         pending = store.get_pending_steering(run_id, db_path=db_path)
         if pending:
             steering_note = "; ".join(m.content for m in pending)
-            logger.info("run %s iteration %d: applying steering: %s", run_id, itr, steering_note)
-            store.mark_steering_applied([m.id for m in pending], db_path=db_path)
+            logger.info("run %s iteration %d: applying steering: %s", run_id,
+                        itr, steering_note)
+            store.mark_steering_applied([m.id for m in pending],
+                                        db_path=db_path)
         round_matches = []
         for a, b in pairs:
             winner, loser, rationale = _judge(a, b)
@@ -341,8 +362,14 @@ async def run_mock_workflow(
             wa, la = update_pair(wb, lb, k_factor=cfg["k_factor"])
             elo_state[winner] = wa
             elo_state[loser] = la
-            store.update_hypothesis_state(winner, elo_rating=wa, win_delta=1, db_path=db_path)
-            store.update_hypothesis_state(loser, elo_rating=la, loss_delta=1, db_path=db_path)
+            store.update_hypothesis_state(winner,
+                                          elo_rating=wa,
+                                          win_delta=1,
+                                          db_path=db_path)
+            store.update_hypothesis_state(loser,
+                                          elo_rating=la,
+                                          loss_delta=1,
+                                          db_path=db_path)
             store.add_match(
                 run_id,
                 iteration=itr,
@@ -355,20 +382,25 @@ async def run_mock_workflow(
                 rationale=rationale,
                 db_path=db_path,
             )
-            round_matches.append(
-                {
-                    "winner_id": winner,
-                    "loser_id": loser,
-                    "winner_elo_before": wb,
-                    "winner_elo_after": wa,
-                    "loser_elo_before": lb,
-                    "loser_elo_after": la,
-                    "rationale": rationale,
-                }
-            )
+            round_matches.append({
+                "winner_id": winner,
+                "loser_id": loser,
+                "winner_elo_before": wb,
+                "winner_elo_after": wa,
+                "loser_elo_before": lb,
+                "loser_elo_after": la,
+                "rationale": rationale,
+            })
         yield await emit(
             "ranking",
-            {"iteration": itr, "matches": round_matches, "leaderboard": sorted(elo_state.items(), key=lambda kv: -kv[1])[:5]},
+            {
+                "iteration":
+                    itr,
+                "matches":
+                    round_matches,
+                "leaderboard":
+                    sorted(elo_state.items(), key=lambda kv: -kv[1])[:5]
+            },
         )
 
         if _check_cancel():
@@ -379,17 +411,20 @@ async def run_mock_workflow(
         # only run evolve/meta inside iterations, not after the final ranking pass
         if itr <= cfg["max_iterations"]:
             # ---- 8. Evolve top-k ----
-            top_k = sorted(elo_state.items(), key=lambda kv: -kv[1])[: cfg["evolution_max_count"]]
+            top_k = sorted(elo_state.items(),
+                           key=lambda kv: -kv[1])[:cfg["evolution_max_count"]]
             children: list[dict[str, Any]] = []
-            for parent_id, _parent_elo in top_k:
+            for parent_id, _ in top_k:
                 parent = store.get_hypothesis(parent_id, db_path=db_path)
                 if not parent:
                     continue
-                child_h = _hypothesis_seed(rng, research_goal, len(hyp_ids) + len(children))
-                child_h["title"] = f"{child_h['title']} (evolved from {parent['title'][:30]}...)"
+                child_h = _hypothesis_seed(rng, research_goal,
+                                           len(hyp_ids) + len(children))
+                child_h[
+                    "title"] = f"{child_h['title']} (evolved from {parent['title'][:30]}...)"  # pylint: disable=line-too-long
                 child_h["statement"] = (
-                    f"Evolved variant of '{parent['title']}': {child_h['statement']} "
-                    "Carries forward the parent's mechanistic frame with sharpened predictions."
+                    f"Evolved variant of '{parent['title']}': {child_h['statement']} "  # pylint: disable=line-too-long
+                    "Carries forward the parent's mechanistic frame with sharpened predictions."  # pylint: disable=line-too-long
                 )
                 child_id = store.add_hypothesis(
                     run_id,
@@ -405,15 +440,18 @@ async def run_mock_workflow(
                 )
                 hyp_ids.append(child_id)
                 elo_state[child_id] = INITIAL_ELO
-                children.append({"id": child_id, "parent_id": parent_id, **child_h})
+                children.append({
+                    "id": child_id,
+                    "parent_id": parent_id,
+                    **child_h
+                })
             yield await emit("evolve", {"children": children, "iteration": itr})
 
             # ---- 9. Meta-review (per iteration) ----
             mr_critique = (
-                f"Meta-review (iter {itr}): the leading hypotheses cluster around the same mechanistic "
-                "frame; recommend diversifying the experimental context in the next round and "
-                "tightening the citation grounding for the top three."
-            )
+                f"Meta-review (iter {itr}): the leading hypotheses cluster around the same mechanistic "  # pylint: disable=line-too-long
+                "frame; recommend diversifying the experimental context in the next round and "  # pylint: disable=line-too-long
+                "tightening the citation grounding for the top three.")
             store.add_review(
                 run_id,
                 top_k[0][0] if top_k else hyp_ids[0],
@@ -424,15 +462,24 @@ async def run_mock_workflow(
             )
             yield await emit(
                 "meta_review",
-                {"iteration": itr, "critique": mr_critique, "top_k_ids": [t[0] for t in top_k]},
+                {
+                    "iteration": itr,
+                    "critique": mr_critique,
+                    "top_k_ids": [t[0] for t in top_k]
+                },
             )
 
     # ---- 10. Citation audit ----
-    cit_summary = {"verified": 0, "partial": 0, "unsupported": 0, "unavailable": 0}
-    for hid in hyp_ids[: max(3, len(hyp_ids) // 2)]:
+    cit_summary = {
+        "verified": 0,
+        "partial": 0,
+        "unsupported": 0,
+        "unavailable": 0
+    }
+    for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
         # link first 2 evidence items to each hypothesis as supporting citations
         for ev in evidence_payload[:2]:
-            claim = f"Mechanism mentioned in {ev['title'][:30]} supports hypothesis"
+            claim = f"Mechanism mentioned in {ev['title'][:30]} supports hypothesis"  # pylint: disable=line-too-long
             state = classify_citation(
                 CitationRecord(
                     title=ev["title"],
@@ -440,15 +487,24 @@ async def run_mock_workflow(
                     abstract=ev["abstract"],
                     claim=claim,
                     available=ev["available"],
-                )
-            )
+                ))
             cit_summary[state] += 1
-            store.add_citation(run_id, hid, ev["id"], claim, state, db_path=db_path)
+            store.add_citation(run_id,
+                               hid,
+                               ev["id"],
+                               claim,
+                               state,
+                               db_path=db_path)
     yield await emit("citation_audit", cit_summary)
 
     # ---- 11. Final safety + report ----
-    leaderboard_ids = [hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])]
-    top_hypotheses = [store.get_hypothesis(hid, db_path=db_path) for hid in leaderboard_ids[:5]]
+    leaderboard_ids = [
+        hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])
+    ]
+    top_hypotheses = [
+        store.get_hypothesis(hid, db_path=db_path)
+        for hid in leaderboard_ids[:5]
+    ]
     top_hypotheses = [h for h in top_hypotheses if h]
 
     md_lines: list[str] = []
@@ -458,7 +514,7 @@ async def run_mock_workflow(
     md_lines.append("")
     md_lines.append("## Summary")
     md_lines.append(
-        "This run was executed in deterministic mock mode. Hypotheses, citations, and tournament "
+        "This run was executed in deterministic mock mode. Hypotheses, citations, and tournament "  # pylint: disable=line-too-long
         "results below are illustrative artefacts produced without any LLM provider."
     )
     md_lines.append("")
@@ -476,8 +532,11 @@ async def run_mock_workflow(
         md_lines.append(f"- {state}: {count}")
     md_lines.append("")
     md_lines.append("## Notes")
-    md_lines.append("- Append-only evolution: evolved hypotheses appear as new rows with `parent_id`.")
-    md_lines.append("- Elo: initial 1200, K = " + str(cfg["k_factor"]) + ", standard formula.")
+    md_lines.append(
+        "- Append-only evolution: evolved hypotheses appear as new rows with `parent_id`."  # pylint: disable=line-too-long
+    )
+    md_lines.append("- Elo: initial 1200, K = " + str(cfg["k_factor"]) +
+                    ", standard formula.")
     md_lines.append("")
     markdown = "\n".join(md_lines)
 
@@ -493,15 +552,25 @@ async def run_mock_workflow(
     yield await emit("safety.final", final_safety.to_dict())
 
     if final_safety.decision == "block":
-        store.update_run_status(run_id, "blocked", error=final_safety.reason, db_path=db_path)
-        yield await emit("status", {"status": "blocked", "error": final_safety.reason})
+        store.update_run_status(run_id,
+                                "blocked",
+                                error=final_safety.reason,
+                                db_path=db_path)
+        yield await emit("status", {
+            "status": "blocked",
+            "error": final_safety.reason
+        })
         return
 
     payload = {
         "research_goal": research_goal,
         "profile": profile,
         "provider": "mock",
-        "leaderboard": [{"id": h["id"], "title": h["title"], "elo": h["elo_rating"]} for h in top_hypotheses],
+        "leaderboard": [{
+            "id": h["id"],
+            "title": h["title"],
+            "elo": h["elo_rating"]
+        } for h in top_hypotheses],
         "citation_summary": cit_summary,
         "evidence_count": len(evidence_payload),
         "matches_count": len(pairs) * (cfg["max_iterations"] + 1),
