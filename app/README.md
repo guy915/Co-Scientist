@@ -186,8 +186,8 @@ Interactive docs are available when the server is running:
 make install     # install with dev deps
 make dev         # hot-reload server on :8008
 make test        # pytest
-make format      # black + ruff --fix
-make lint        # ruff check
+make format      # yapf -ir
+make lint        # pylint
 make typecheck   # mypy
 ```
 
@@ -208,8 +208,8 @@ Pixi users can substitute `pixi run <task>` for any `make` target:
 bun install
 bun run dev      # Vite dev server on :5173
 bun run build    # tsc && vite build
-bun run check    # biome check --write (lint + format + import sort)
-bun run lint     # biome lint
+bun run lint     # gts lint
+bun run fix      # gts fix (format + autofix)
 ```
 
 ## Mock mode

@@ -134,7 +134,7 @@ produce the same view.
     translating event names.
 -   FastAPI single-file app is preserved; the new router is mounted alongside
     the existing `/generate` endpoints.
--   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + Biome.
+-   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
     New code lives under `src/workbench/`; legacy single-page shell remains on
     disk but is no longer mounted.
 -   The mock workflow exists so the system has **observable behaviour without

@@ -47,7 +47,6 @@ cache/
 .coscientist_prompts/
 .pytest_cache/
 .mypy_cache/
-.ruff_cache/
 ai-coscientist-app/frontend/dist/
 ai-coscientist-app/frontend/.vite/
 .playwright-mcp/
