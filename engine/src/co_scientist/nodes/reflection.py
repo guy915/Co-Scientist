@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Reflection node - analyzes hypotheses against literature observations."""
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import logging
@@ -52,9 +53,11 @@ async def analyze_single_hypothesis(
     returns:
         dict with classification and reasoning, or None if failed
     """
-    logger.debug(f"\n→ analyzing hypothesis {hypothesis_index}/{total_count}")
+    logger.debug("\n→ analyzing hypothesis %s/%s", hypothesis_index,
+                 total_count)
 
-    # pre-fetch INDRA evidence for this hypothesis (non-critical, skip on failure)
+    # pre-fetch INDRA evidence for this hypothesis (non-critical, skip on
+    # failure)
     indra_data = await _fetch_indra_for_hypothesis(
         hypothesis.text,
         tool_registry,
@@ -96,8 +99,8 @@ async def analyze_single_hypothesis(
         classification = response.get("classification", "neutral")
         reasoning = response.get("reasoning", "")
 
-        logger.debug(
-            f"hypothesis {hypothesis_index} classification: {classification}")
+        logger.debug("hypothesis %s classification: %s", hypothesis_index,
+                     classification)
 
         return {
             "classification": classification,
@@ -106,8 +109,8 @@ async def analyze_single_hypothesis(
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error(
-            f"Reflection failed for hypothesis {hypothesis_index}: {e}")
+        logger.error("Reflection failed for hypothesis %s: %s",
+                     hypothesis_index, e)
         return None
 
 
@@ -143,24 +146,22 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
         logger.warning("No hypotheses in state, skipping reflection")
         return {}
 
-    logger.debug(f"analyzing {len(hypotheses)} hypotheses against literature")
+    logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
 
     # emit progress
     if state.get("progress_callback"):
         await state["progress_callback"](
             "reflection_start",
             {
-                "message":
-                    f"Analyzing {len(hypotheses)} hypotheses against literature...",
-                "progress":
-                    PROGRESS_REFLECTION_START,
-                "hypotheses_count":
-                    len(hypotheses),
+                "message": f"Analyzing {len(hypotheses)} hypotheses"
+                           " against literature...",
+                "progress": PROGRESS_REFLECTION_START,
+                "hypotheses_count": len(hypotheses),
             },
         )
 
     # analyze all hypotheses in parallel
-    logger.info(f"Running {len(hypotheses)} reflection analyses in parallel")
+    logger.info("Running %s reflection analyses in parallel", len(hypotheses))
 
     tool_registry = state.get("tool_registry")
     analysis_tasks = [
@@ -183,13 +184,16 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
         if result:
             classification = result.get("classification", "neutral")
             reasoning = result.get("reasoning", "")
-            hypothesis.reflection_notes = f"{reasoning}\n\nClassification: {classification}"
-            # store knowledge graph evidence in enrichments (yaml-driven, only present for biomedical configs)
+            hypothesis.reflection_notes = (
+                f"{reasoning}\n\nClassification: {classification}")
+            # store knowledge graph evidence in enrichments (yaml-driven,
+            # only present for biomedical configs)
             enrichment_items = result.get("indra_enrichment_items", [])
             if enrichment_items:
                 hypothesis.enrichments["indra_evidence"] = enrichment_items
         else:
-            hypothesis.reflection_notes = "Analysis failed\n\nClassification: neutral"
+            hypothesis.reflection_notes = (
+                "Analysis failed\n\nClassification: neutral")
 
     # emit progress
     if state.get("progress_callback"):
@@ -202,17 +206,16 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
             },
         )
 
-    logger.info(
-        f"Completed reflection analysis for {len(hypotheses)} hypotheses")
+    logger.info("Completed reflection analysis for %s hypotheses",
+                len(hypotheses))
 
     return {
         "hypotheses":
             hypotheses,
         "messages": [{
-            "role":
-                "assistant",
-            "content":
-                f"completed reflection analysis for {len(hypotheses)} hypotheses",
+            "role": "assistant",
+            "content": (f"completed reflection analysis for"
+                        f" {len(hypotheses)} hypotheses"),
             "metadata": {
                 "phase": "reflection"
             },
@@ -244,10 +247,11 @@ async def _fetch_indra_for_hypothesis(
         prompt_text = result.get("prompt_text", "")
         if prompt_text:
             logger.debug(
-                f"hypothesis {hypothesis_index}: fetched INDRA evidence "
-                f"({len(prompt_text)} chars, {len(result.get('enrichment_items', []))} items)"
-            )
+                "hypothesis %s: fetched INDRA evidence (%s chars, %s items)",
+                hypothesis_index, len(prompt_text),
+                len(result.get('enrichment_items', [])))
         return result
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.debug(f"hypothesis {hypothesis_index}: INDRA fetch skipped: {e}")
+        logger.debug("hypothesis %s: INDRA fetch skipped: %s", hypothesis_index,
+                     e)
         return empty

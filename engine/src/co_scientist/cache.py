@@ -48,7 +48,7 @@ class LLMCache:
 
         if self.enabled:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
-            logger.debug(f"LLM cache initialized at {self.cache_dir}")
+            logger.debug("LLM cache initialized at %s", self.cache_dir)
 
     def _generate_cache_key(
         self,
@@ -131,14 +131,16 @@ class LLMCache:
                 # read the old complete file or fail gracefully
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached_data = json.load(f)
-                logger.debug(f"cache HIT for key {cache_key[:8]}...")
+                logger.debug("cache HIT for key %s...", cache_key[:8])
                 return cached_data["response"]
             except (json.JSONDecodeError, KeyError, IOError, OSError) as e:
-                # Handle race conditions: file might be partially written or locked
+                # Handle race conditions: file might be partially written or
+                # locked
                 logger.debug(
-                    f"cache read failed for {cache_key[:8]}... (may be concurrent write): {e}"
-                )
-                # Don't remove file on IOError - it might just be locked by another process
+                    "cache read failed for %s... (may be concurrent write): %s",
+                    cache_key[:8], e)
+                # Don't remove file on IOError - it might just be locked by
+                # another process
                 if isinstance(e, (json.JSONDecodeError, KeyError)):
                     # Only remove on actual corruption, not on I/O errors
                     try:
@@ -147,7 +149,7 @@ class LLMCache:
                         pass  # File might have been removed by another process
                 return None
 
-        logger.debug(f"cache MISS for key {cache_key[:8]}...")
+        logger.debug("cache MISS for key %s...", cache_key[:8])
         return None
 
     def set(
@@ -196,26 +198,29 @@ class LLMCache:
                 "response": response,
             }
 
-            # Use atomic write: write to temp file, then rename (atomic on most filesystems)
-            # This prevents race conditions when multiple processes write the same cache file
+            # Use atomic write: write to temp file, then rename (atomic on most
+            # filesystems) This prevents race conditions when multiple processes
+            # write the same cache file
             temp_file = cache_file.with_suffix(".tmp")
             try:
                 with open(temp_file, "w", encoding="utf-8") as f:
                     json.dump(cache_data, f, indent=2)
-                # Atomic rename - if this fails, temp file will be cleaned up on next access
+                # Atomic rename - if this fails, temp file will be cleaned up on
+                # next access
                 temp_file.replace(cache_file)
-                logger.debug(f"cached response for key {cache_key[:8]}...")
+                logger.debug("cached response for key %s...", cache_key[:8])
             except (OSError, IOError) as e:
-                # If rename fails (e.g., file locked), remove temp file and continue
+                # If rename fails (e.g., file locked), remove temp file and
+                # continue
                 try:
                     temp_file.unlink()
                 except OSError:
                     pass
                 logger.debug(
-                    f"cache write conflict for {cache_key[:8]}... (concurrent write): {e}"
-                )
+                    "cache write conflict for %s... (concurrent write): %s",
+                    cache_key[:8], e)
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Failed to cache response: {e}")
+            logger.warning("Failed to cache response: %s", e)
 
     def clear(self) -> int:
         """Clear all cached responses.
@@ -231,7 +236,7 @@ class LLMCache:
             cache_file.unlink()
             count += 1
 
-        logger.info(f"Cleared {count} cached responses")
+        logger.info("Cleared %s cached responses", count)
         return count
 
     def get_stats(self) -> Dict[str, Any]:
@@ -272,7 +277,7 @@ def get_cache() -> LLMCache:
         _global_cache = LLMCache(cache_dir=cache_dir, enabled=cache_enabled)
 
         if cache_enabled:
-            logger.info(f"LLM caching enabled (dir: {cache_dir})")
+            logger.info("LLM caching enabled (dir: %s)", cache_dir)
         else:
             logger.info("LLM caching disabled")
 
@@ -312,14 +317,15 @@ class NodeCache:
 
         if self.enabled:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
-            logger.debug(f"node cache initialized at {self.cache_dir}")
+            logger.debug("node cache initialized at %s", self.cache_dir)
 
     def _generate_cache_key(self, node_name: str, **key_params) -> str:
         """Generate a unique cache key for the node with given parameters.
 
         Args:
             node_name: Name of the node (e.g., "literature_review")
-            **key_params: Parameters that affect the node output (e.g., research_goal)
+            **key_params: Parameters that affect the node output (e.g.,
+            research_goal)
 
         Returns:
             SHA256 hash of the node name and parameters
@@ -336,7 +342,8 @@ class NodeCache:
 
         Args:
             node_name: Name of the node
-            force: If True, check cache even if globally disabled (for dev/testing)
+            force: If True, check cache even if globally disabled
+                (for dev/testing)
             **key_params: Parameters to match (e.g., research_goal="...")
 
         Returns:
@@ -352,20 +359,20 @@ class NodeCache:
             try:
                 with open(cache_file, "rb") as f:
                     cached_data = pickle.load(f)
-                logger.debug(
-                    f"node cache HIT for {node_name} (key {cache_key[:8]}...)")
+                logger.debug("node cache HIT for %s (key %s...)", node_name,
+                             cache_key[:8])
                 return cached_data
             except (pickle.PickleError, IOError, OSError) as e:
-                logger.debug(
-                    f"node cache read failed for {cache_key[:8]}...: {e}")
+                logger.debug("node cache read failed for %s...: %s",
+                             cache_key[:8], e)
                 try:
                     cache_file.unlink()
                 except OSError:
                     pass
                 return None
 
-        logger.debug(
-            f"node cache MISS for {node_name} (key {cache_key[:8]}...)")
+        logger.debug("node cache MISS for %s (key %s...)", node_name,
+                     cache_key[:8])
         return None
 
     def set(self,
@@ -379,12 +386,14 @@ class NodeCache:
             node_name: Name of the node
             output: The node output dictionary to cache
             force: If True, cache even if globally disabled (for dev/testing)
-            **key_params: Parameters that affect the output (e.g., research_goal="...")
+            **key_params: Parameters that affect the output
+                (e.g., research_goal="...")
         """
         if not self.enabled and not force:
             return
 
-        # ensure cache dir exists if forcing (may not exist if globally disabled)
+        # ensure cache dir exists if forcing (may not exist if globally
+        # disabled)
         if force and not self.cache_dir.exists():
             self.cache_dir.mkdir(exist_ok=True, parents=True)
 
@@ -396,10 +405,11 @@ class NodeCache:
             with open(temp_file, "wb") as f:
                 pickle.dump(output, f)
             temp_file.replace(cache_file)
-            logger.debug(
-                f"cached node output for {node_name} (key {cache_key[:8]}...)")
+            logger.debug("cached node output for %s (key %s...)", node_name,
+                         cache_key[:8])
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Failed to cache node output for {node_name}: {e}")
+            logger.warning("Failed to cache node output for %s: %s", node_name,
+                           e)
 
     def clear(self) -> int:
         """Clear all cached node outputs.
@@ -415,7 +425,7 @@ class NodeCache:
             cache_file.unlink()
             count += 1
 
-        logger.info(f"Cleared {count} cached node outputs")
+        logger.info("Cleared %s cached node outputs", count)
         return count
 
     def get_stats(self) -> Dict[str, Any]:
@@ -457,7 +467,7 @@ def get_node_cache() -> NodeCache:
                                        enabled=cache_enabled)
 
         if cache_enabled:
-            logger.info(f"Node caching enabled (dir: {cache_dir}/nodes)")
+            logger.info("Node caching enabled (dir: %s/nodes)", cache_dir)
         else:
             logger.info("Node caching disabled")
 

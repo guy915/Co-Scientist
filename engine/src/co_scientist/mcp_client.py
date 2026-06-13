@@ -18,6 +18,7 @@ their tools for use with LiteLLM agents.
 
 Supports both single-server (legacy) and multi-server configurations.
 """
+# pylint: disable=inconsistent-quotes
 
 import json
 import logging
@@ -36,7 +37,8 @@ logger = logging.getLogger(__name__)
 class MCPToolClient:
     """Client for accessing MCP tools from one or more MCP servers.
 
-    Supports both legacy single-server mode and multi-server mode via ToolRegistry.
+    Supports both legacy single-server mode and multi-server mode via
+    ToolRegistry.
     """
 
     def __init__(
@@ -48,14 +50,18 @@ class MCPToolClient:
         """Initialize the MCP client.
 
         Args:
-            server_url: URL of a single MCP server (legacy mode). If None, reads from
-                       MCP_SERVER_URL env var, falling back to http://localhost:8888/mcp
+            server_url: URL of a single MCP server (legacy mode). If None,
+                       reads from MCP_SERVER_URL env var, falling back to
+                       http://localhost:8888/mcp
             server_configs: Dict of server configs for multi-server mode.
-                           Format: {server_id: {"transport": "...", "url": "..."}}
-            tool_registry: ToolRegistry instance for config-driven multi-server mode.
-                          Takes precedence over server_configs and server_url.
+                           Format: {server_id: {"transport": "...",
+                           "url": "..."}}
+            tool_registry: ToolRegistry instance for config-driven
+                          multi-server mode. Takes precedence over
+                          server_configs and server_url.
 
-        At least one of server_url, server_configs, or tool_registry must be provided
+        At least one of server_url, server_configs, or tool_registry must be
+        provided
         (or server_url will default from environment).
         """
         self._tool_registry = tool_registry
@@ -68,14 +74,14 @@ class MCPToolClient:
         # determine server configuration
         if tool_registry is not None:
             # use registry-provided server configs
-            self._server_configs = tool_registry.get_server_configs_for_langchain(
-            )
-            logger.debug(
-                f"using {len(self._server_configs)} servers from tool registry")
+            self._server_configs = (
+                tool_registry.get_server_configs_for_langchain())
+            logger.debug("using %s servers from tool registry",
+                         len(self._server_configs))
         elif server_configs is not None:
             self._server_configs = server_configs
-            logger.debug(
-                f"using {len(self._server_configs)} provided server configs")
+            logger.debug("using %s provided server configs",
+                         len(self._server_configs))
         else:
             # legacy single-server mode
             if server_url is None:
@@ -87,7 +93,7 @@ class MCPToolClient:
                     "url": server_url,
                 }
             }
-            logger.debug(f"using single server: {server_url}")
+            logger.debug("using single server: %s", server_url)
 
         # store for backwards compatibility
         self.server_url = list(self._server_configs.values())[0].get(
@@ -103,9 +109,8 @@ class MCPToolClient:
             raise RuntimeError("no server configurations available")
 
         server_names = list(self._server_configs.keys())
-        logger.info(
-            f"initializing MCP client for {len(server_names)} server(s): {server_names}"
-        )
+        logger.info("initializing MCP client for %s server(s): %s",
+                    len(server_names), server_names)
 
         self._client = MultiServerMCPClient(self._server_configs)
         tools = await self._client.get_tools()
@@ -117,8 +122,9 @@ class MCPToolClient:
         for tool in tools:
             self._tools_dict[tool.name] = tool
             # infer server from tool metadata if available
-            # MultiServerMCPClient prefixes tools with server name in some versions
-            # For now, we'll track based on the tool registry if available
+            # MultiServerMCPClient prefixes tools with server name in some
+            # versions For now, we'll track based on the tool registry if
+            # available
             if self._tool_registry:
                 tool_config = self._tool_registry.get_tool_by_mcp_name(
                     tool.name)
@@ -128,9 +134,8 @@ class MCPToolClient:
         # convert to OpenAI format for LiteLLM
         self._openai_tools = [convert_to_openai_tool(tool) for tool in tools]
 
-        logger.info(
-            f"MCP client initialized with {len(self._tools_dict)} tools: {list(self._tools_dict.keys())}"
-        )
+        logger.info("MCP client initialized with %s tools: %s",
+                    len(self._tools_dict), list(self._tools_dict.keys()))
 
     async def call_tool(self, tool_name: str, **kwargs) -> str:
         """Call an MCP tool directly with arguments.
@@ -158,7 +163,7 @@ class MCPToolClient:
                 f"tool '{tool_name}' not found. "
                 f"available tools: {list(self._tools_dict.keys())}")
 
-        logger.debug(f"calling mcp tool: {tool_name} with args: {kwargs}")
+        logger.debug("calling mcp tool: %s with args: %s", tool_name, kwargs)
 
         result = await self._tools_dict[tool_name].ainvoke(kwargs)
 
@@ -167,9 +172,8 @@ class MCPToolClient:
             if isinstance(result[0], dict) and "text" in result[0]:
                 result = result[0]["text"]
 
-        logger.debug(
-            f"mcp tool result for {tool_name}: "
-            f"{str(result)[:200]}{'...' if len(str(result)) > 200 else ''}")
+        logger.debug("mcp tool result for %s: %s%s", tool_name,
+                     str(result)[:200], "..." if len(str(result)) > 200 else "")
 
         return result
 
@@ -177,7 +181,8 @@ class MCPToolClient:
         """Execute an MCP tool call.
 
         Args:
-            tool_call: Tool call object from LiteLLM with function name and arguments
+            tool_call: Tool call object from LiteLLM with function name
+                and arguments
 
         Returns:
             Dictionary formatted as a tool response message
@@ -189,14 +194,14 @@ class MCPToolClient:
         tool_name = tool_call.function.name
         tool_args = json.loads(tool_call.function.arguments)
 
-        logger.debug(f"executing mcp tool: {tool_name} with args: {tool_args}")
+        logger.debug("executing mcp tool: %s with args: %s", tool_name,
+                     tool_args)
 
         # execute using the original MCP tool
         result = await self._tools_dict[tool_name].ainvoke(tool_args)
 
-        logger.debug(
-            f"mcp tool result for {tool_name}: {str(result)[:200]}{'...' if len(str(result)) > 200 else ''}"
-        )
+        logger.debug("mcp tool result for %s: %s%s", tool_name,
+                     str(result)[:200], '...' if len(str(result)) > 200 else '')
 
         return {
             "role": "tool",
@@ -212,7 +217,8 @@ class MCPToolClient:
         """Get MCP tools, optionally filtered by whitelist.
 
         Args:
-            whitelist: Optional list of tool names to include. If None, returns all tools.
+            whitelist: Optional list of tool names to include. If None,
+                returns all tools.
 
         Returns:
             Tuple of (tools_dict, openai_tools) where:
@@ -236,9 +242,8 @@ class MCPToolClient:
             if k in filtered_tools_dict
         ]
 
-        logger.debug(
-            f"filtered to {len(filtered_tools_dict)} tools: {list(filtered_tools_dict.keys())}"
-        )
+        logger.debug("filtered to %s tools: %s", len(filtered_tools_dict),
+                     list(filtered_tools_dict.keys()))
 
         return filtered_tools_dict, filtered_openai_tools
 
@@ -277,14 +282,17 @@ async def check_literature_source_available(
 ) -> bool:
     """Check if the literature source is available via MCP server.
 
-    Queries the configured availability check tool (e.g., check_pubmed_available)
+    Queries the configured availability check tool (e.g.,
+    check_pubmed_available)
     to verify the literature source is accessible.
 
-    If no availability check tool is configured (availability_check: null in YAML),
+    If no availability check tool is configured (availability_check: null in
+    YAML),
     assumes the source is available as long as MCP server responds.
 
     Args:
-        server_url: URL of the MCP server (legacy). If None, reads from MCP_SERVER_URL
+        server_url: URL of the MCP server (legacy). If None, reads from
+            MCP_SERVER_URL
         tool_registry: Optional ToolRegistry for config-driven tool lookup
 
     Returns:
@@ -306,12 +314,12 @@ async def check_literature_source_available(
             else:
                 # availability_check is null/None - skip the check
                 skip_availability_check = True
-                logger.debug(
-                    "availability check disabled in config (availability_check: null)"
-                )
+                logger.debug("availability check disabled in config"
+                             " (availability_check: null)")
 
     # default for backwards compat when no registry
-    if check_tool_name is None and not skip_availability_check and tool_registry is None:
+    if (check_tool_name is None and not skip_availability_check and
+            tool_registry is None):
         check_tool_name = "check_pubmed_available"
 
     if server_url is None and tool_registry is None:
@@ -327,21 +335,18 @@ async def check_literature_source_available(
 
         # if no availability check configured, assume available since MCP is up
         if skip_availability_check:
-            logger.info(
-                "MCP server available, skipping source-specific availability check"
-            )
+            logger.info("MCP server available, skipping source-specific"
+                        " availability check")
             return True
 
         # if no check tool configured but we have a registry, assume available
         if check_tool_name is None:
-            logger.info(
-                "no availability check tool configured, assuming source available"
-            )
+            logger.info("no availability check tool configured,"
+                        " assuming source available")
             return True
 
-        logger.debug(
-            f"checking literature source availability (tool: {check_tool_name})"
-        )
+        logger.debug("checking literature source availability (tool: %s)",
+                     check_tool_name)
 
         # create client
         mcp_client = MCPToolClient(server_url=server_url,
@@ -350,15 +355,15 @@ async def check_literature_source_available(
 
         # get available tools
         all_tools_dict, _ = mcp_client.get_tools()
-        logger.debug(f"available mcp tools: {list(all_tools_dict.keys())}")
+        logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
 
         if check_tool_name not in all_tools_dict:
             logger.warning(
-                f"availability check tool '{check_tool_name}' not found. "
-                f"available tools: {list(all_tools_dict.keys())}")
+                "availability check tool '%s' not found. Available tools: %s",
+                check_tool_name, list(all_tools_dict.keys()))
             return False
 
-        logger.debug(f"{check_tool_name} tool found, executing")
+        logger.debug("%s tool found, executing", check_tool_name)
 
         # call tool directly
         result = await mcp_client.call_tool(check_tool_name)
@@ -369,15 +374,14 @@ async def check_literature_source_available(
         elif isinstance(result, str):
             return result.lower() == "true"
         else:
-            logger.warning(
-                f"unexpected result from {check_tool_name}: {result}")
+            logger.warning("unexpected result from %s: %s", check_tool_name,
+                           result)
             return False
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(
-            f"error checking literature source availability: {type(e).__name__}: {e}"
-        )
-        logger.debug(f"full traceback: {e}", exc_info=True)
+        logger.warning("error checking literature source availability: %s: %s",
+                       type(e).__name__, e)
+        logger.debug("full traceback: %s", e, exc_info=True)
         return False
 
 
@@ -409,11 +413,10 @@ async def check_mcp_available(
 
     try:
         if tool_registry:
-            logger.debug(
-                f"testing mcp availability for {len(tool_registry.get_enabled_servers())} server(s)"
-            )
+            logger.debug("testing mcp availability for %s server(s)",
+                         len(tool_registry.get_enabled_servers()))
         else:
-            logger.debug(f"testing mcp server availability at {server_url}")
+            logger.debug("testing mcp server availability at %s", server_url)
 
         test_client = MCPToolClient(server_url=server_url,
                                     tool_registry=tool_registry)
@@ -422,7 +425,8 @@ async def check_mcp_available(
         # check if we got any tools
         if test_client._tools_dict and len(test_client._tools_dict) > 0:  # pylint: disable=protected-access
             logger.info(
-                f"MCP server available with {len(test_client._tools_dict)} tools"  # pylint: disable=protected-access
+                "MCP server available with %s tools",
+                len(test_client._tools_dict)  # pylint: disable=protected-access
             )
             return True
         else:
@@ -431,9 +435,9 @@ async def check_mcp_available(
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         if tool_registry:
-            logger.warning(f"MCP servers unavailable: {e}")
+            logger.warning("MCP servers unavailable: %s", e)
         else:
-            logger.warning(f"MCP server unavailable at {server_url}")
+            logger.warning("MCP server unavailable at %s", server_url)
         return False
 
 

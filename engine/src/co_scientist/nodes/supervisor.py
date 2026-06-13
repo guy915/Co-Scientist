@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Supervisor node - create research plan and workflow guidance."""
+# pylint: disable=inconsistent-quotes
 
 import logging
 from typing import Any, Dict
@@ -44,7 +45,8 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
         Dictionary with updated state fields (supervisor_guidance)
     """
     research_goal = state["research_goal"]
-    logger.info(f"Supervisor analyzing research goal: {research_goal[:100]}...")
+    logger.info("Supervisor analyzing research goal: %s...",
+                research_goal[:100])
 
     # extract optional user inputs from state
     preferences = state.get("preferences")
@@ -125,8 +127,8 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
     key_areas = goal_analysis.get("key_areas", [])
     if key_areas:
-        logger.info(
-            f"Key research areas identified: {', '.join(key_areas[:3])}")
+        logger.info("Key research areas identified: %s",
+                    ', '.join(key_areas[:3]))
 
     # Emit progress
     if state.get("progress_callback"):

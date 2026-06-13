@@ -23,6 +23,7 @@ Create a .env file in this directory (dev/) with your API keys:
   GEMINI_API_KEY=your_key
   MCP_SERVER_URL=http://localhost:8888/mcp  (or your MCP server URL)
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import os
@@ -42,14 +43,13 @@ try:
         load_dotenv(env_file)
         console.print(f"[dim]Loaded environment from {env_file}[/dim]")
     else:
-        console.print(
-            f"[dim]No .env file found at {env_file}, using system environment variables[/dim]"
-        )
+        console.print(f"[dim]No .env file found at {env_file},"
+                      " using system environment variables[/dim]")
 except ImportError:
-    console.print(
-        "[dim]python-dotenv not installed, using system environment variables only[/dim]"
-    )
+    console.print("[dim]python-dotenv not installed,"
+                  " using system environment variables only[/dim]")
 
+# pylint: disable=wrong-import-position
 from state_helpers import make_base_state
 from logging_utils import initialize_run_logging, cleanup_run_logging
 from co_scientist.nodes.literature_review import literature_review_node
@@ -57,6 +57,7 @@ from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 
 
+# pylint: enable=wrong-import-position
 async def test_literature_review():
     """Run literature review node with minimal state."""
 
@@ -102,9 +103,8 @@ async def test_literature_review():
         for error in errors:
             console.print(f"  [red]{error}[/red]")
         console.print("\n[yellow]Fix these issues and try again[/yellow]")
-        console.print(
-            "[dim]Tip: create a .env file in dev/ directory with your API keys[/dim]"
-        )
+        console.print("[dim]Tip: create a .env file in dev/ directory"
+                      " with your API keys[/dim]")
         return
 
     if warnings:
@@ -130,9 +130,8 @@ async def test_literature_review():
         f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n")
 
     # Run node
-    console.print(
-        "[yellow]Calling literature review node (this may take a couple of minutes)...[/yellow]\n"
-    )
+    console.print("[yellow]Calling literature review node"
+                  " (this may take a couple of minutes)...[/yellow]\n")
     result = await literature_review_node(state)
 
     # Display results
@@ -143,9 +142,8 @@ async def test_literature_review():
     # Check if literature review failed
     if summary == LITERATURE_REVIEW_FAILED:
         console.print("\n[bold red]Literature review failed![/bold red]")
-        console.print(
-            "[yellow]The system will fall back to standard generation without literature context[/yellow]"
-        )
+        console.print("[yellow]The system will fall back to standard generation"
+                      " without literature context[/yellow]")
         return
 
     # Show article breakdown by source (PubMed-only now)
@@ -178,11 +176,10 @@ async def test_literature_review():
 
     # Summary
     console.print(
-        Panel(
-            summary[:500] + "..." if len(summary) > 500 else summary,
-            title=
-            "[bold green]Literature review summary (first 500 chars)[/bold green]",
-            border_style="green"))
+        Panel(summary[:500] + "..." if len(summary) > 500 else summary,
+              title="[bold green]Literature review summary"
+              " (first 500 chars)[/bold green]",
+              border_style="green"))
 
     console.print("\n[bold]Summary stats:[/bold]")
     console.print(f"  Queries generated: {len(queries)}")

@@ -22,7 +22,9 @@ logger = logging.getLogger(__name__)
 
 # Literature review status markers
 LITERATURE_REVIEW_FAILED = "__LIT_REVIEW_FAILED__"
-"""Marker indicating literature review failed and should not be used for generation."""
+"""Marker indicating literature review failed and should not be used for
+generation.
+"""
 
 # Elo rating system parameters
 INITIAL_ELO_RATING = 1200
@@ -55,11 +57,15 @@ MEDIUM_TEMPERATURE = 0.5
 """Medium temperature for balanced creativity and consistency."""
 
 HIGH_TEMPERATURE = 0.7
-"""Higher temperature for diverse, creative responses (generation, evolution, review)."""
+"""Higher temperature for diverse, creative responses (generation, evolution,
+review).
+"""
 
 # Review strategy threshold
 COMPARATIVE_BATCH_THRESHOLD = 5
-"""Maximum hypotheses for comparative batch review. Above this, use parallel individual reviews."""
+"""Maximum hypotheses for comparative batch review. Above this, use parallel
+individual reviews.
+"""
 
 # Concurrency limits
 MAX_CONCURRENT_LLM_CALLS = 5
@@ -84,7 +90,8 @@ DEFAULT_EVOLUTION_MAX_COUNT = 3
 
 # Similarity thresholds
 DUPLICATE_SIMILARITY_THRESHOLD = 0.95
-"""Similarity threshold above which hypotheses are considered duplicates (0-1)."""
+"""Similarity threshold above which hypotheses are considered duplicates (0-1).
+"""
 
 PROXIMITY_SIMILARITY_THRESHOLD = 0.85
 """Similarity threshold for proximity-based deduplication (0-1)."""
@@ -110,10 +117,13 @@ DEFAULT_CACHE_DIR = ".coscientist_cache"
 """Default directory for LLM response caching."""
 
 DEFAULT_CACHE_ENABLED = True
-"""Whether caching is enabled by default (controls both LLM and node-level caching)."""
+"""Whether caching is enabled by default (controls both LLM and node-level
+caching).
+"""
 
 LITERATURE_REVIEW_PAPERS_COUNT = 10
-"""number of papers to collect from MCP servers/tools (configurable via env var)"""
+"""number of papers to collect from MCP servers/tools (configurable via env var)
+"""
 
 LITERATURE_REVIEW_PAPERS_COUNT_DEV = 4
 """number of papers in dev mode for faster iteration"""
@@ -145,7 +155,8 @@ def get_validate_max_iterations(hypotheses_count: int) -> int:
 
     formula: per-hypothesis budget for search + read + refine
     - each hypothesis needs: search (2) + read papers (3-5) + refine (2-3)
-    - allow extra for internal iteration (Option B - agent iterates within single call)
+    - allow extra for internal iteration (Option B - agent iterates within
+    single call)
     - ~10 iterations per hypothesis
     - cap at 50 to prevent runaway
 
@@ -161,5 +172,8 @@ GENERATE_LIT_TOOL_MAX_PAPERS = 3
 """max papers to examine in draft/validate phase.."""
 
 VALIDATION_SYNTHESIS_BATCH_SIZE = 3
-"""hypotheses per validation synthesis call. smaller = less output per call, more reliable for
-models with tight output token budgets (e.g. gemini-3-pro). trade-off: more parallel api calls."""
+"""Hypotheses per validation synthesis call.
+
+Smaller = less output per call, more reliable for models with tight output
+token budgets (e.g. gemini-3-pro). Trade-off: more parallel API calls.
+"""

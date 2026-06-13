@@ -16,6 +16,7 @@
 - Small batches (≤5): Comparative batch review for differentiated scores
 - Large batches (>5): Parallel individual reviews for scalability
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import logging
@@ -93,7 +94,8 @@ async def review_single_hypothesis(
         json_schema=schema,
     )
 
-    # Calculate overall_score from criterion scores (more consistent than LLM-provided)
+    # Calculate overall_score from criterion scores (more consistent than LLM-
+    # provided)
     scores = response.get("scores", {})
     if scores:
         overall_score = sum(scores.values()) / len(scores)
@@ -204,8 +206,8 @@ async def review_comparative_batch(
             },
         )
         logger.debug(
-            f"saved batch review prompt to .coscientist_prompts/{run_id}/review_batch.txt"
-        )
+            "saved batch review prompt to"
+            " .coscientist_prompts/%s/review_batch.txt", run_id)
 
     # scale max_tokens based on hypothesis count in batch
     # base: 18000 (THINKING_MAX_TOKENS), add 1500 per hypothesis beyond 5
@@ -215,9 +217,8 @@ async def review_comparative_batch(
         24000,  # reasonable upper limit for batch review
     )
 
-    logger.debug(
-        f"batch review: {hypothesis_count} hypotheses, max_tokens={scaled_max_tokens}"
-    )
+    logger.debug("batch review: %s hypotheses, max_tokens=%s", hypothesis_count,
+                 scaled_max_tokens)
 
     response = await call_llm_json(
         prompt=prompt,
@@ -233,19 +234,20 @@ async def review_comparative_batch(
     reviews_data = response.get("reviews", [])
 
     # debug logging
-    logger.info(f"Batch review response keys: {list(response.keys())}")
-    logger.info(
-        f"Reviews data type: {type(reviews_data)}, length: {len(reviews_data) if isinstance(reviews_data, list) else 'N/A'}"
-    )
-    logger.info(
-        f"Expected {len(hypotheses)} reviews, received {len(reviews_data)}")
+    logger.info("Batch review response keys: %s", list(response.keys()))
+    logger.info("Reviews data type: %s, length: %s", type(reviews_data),
+                len(reviews_data) if isinstance(reviews_data, list) else 'N/A')
+    logger.info("Expected %s reviews, received %s", len(hypotheses),
+                len(reviews_data))
 
     if len(reviews_data) != len(hypotheses):
         logger.error(
-            f"MISMATCH: Expected {len(hypotheses)} reviews but got {len(reviews_data)}. "
-            f"This indicates the LLM may have hit output token limits or failed to generate all reviews. "
-            f"Check the saved prompt at .coscientist_prompts/{run_id}/review_batch.txt"
-        )
+            "MISMATCH: Expected %s reviews but got %s. "
+            "This indicates the LLM may have hit output token limits"
+            " or failed to generate all reviews. "
+            "Check the saved prompt at"
+            " .coscientist_prompts/%s/review_batch.txt", len(hypotheses),
+            len(reviews_data), run_id)
 
     # Convert to HypothesisReview objects
     reviews = []
@@ -273,7 +275,7 @@ async def review_comparative_batch(
             reviews.append(review)
         else:
             # missing review - create empty one
-            logger.error(f"No review data for hypothesis {i}")
+            logger.error("No review data for hypothesis %s", i)
             reviews.append(
                 HypothesisReview(
                     review_summary="Review unavailable",
@@ -305,20 +307,18 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
     hypotheses = state["hypotheses"]
     num_hypotheses = len(hypotheses)
 
-    logger.info(f"Reviewing {num_hypotheses} hypotheses")
+    logger.info("Reviewing %s hypotheses", num_hypotheses)
 
     # Choose strategy based on count
     use_comparative = num_hypotheses <= COMPARATIVE_BATCH_THRESHOLD
 
     if use_comparative:
-        logger.info(
-            f"Reviewing {num_hypotheses} hypotheses via comparative batch (≤{COMPARATIVE_BATCH_THRESHOLD})"
-        )
+        logger.info("Reviewing %s hypotheses via comparative batch (≤%s)",
+                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
         strategy_name = "comparative batch"
     else:
-        logger.info(
-            f"Reviewing {num_hypotheses} hypotheses via parallel individual (>{COMPARATIVE_BATCH_THRESHOLD})"
-        )
+        logger.info("Reviewing %s hypotheses via parallel individual (>%s)",
+                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
         strategy_name = "parallel"
 
     # Emit progress
@@ -367,7 +367,8 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
         if r.review_summary == "Review unavailable"
     ]
     if invalid_reviews:
-        error_msg = f"review node failed: {len(invalid_reviews)}/{len(reviews)} reviews invalid"
+        error_msg = (f"review node failed: {len(invalid_reviews)}"
+                     f"/{len(reviews)} reviews invalid")
         logger.error(error_msg)
         raise ValueError(error_msg)
 
@@ -376,8 +377,8 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
         hypothesis.reviews.append(review)
         hypothesis.score = review.overall_score
 
-    logger.info(
-        f"Completed {len(reviews)} reviews using {strategy_name} strategy")
+    logger.info("Completed %s reviews using %s strategy", len(reviews),
+                strategy_name)
 
     # Emit progress
     if state.get("progress_callback"):
@@ -393,9 +394,8 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(reviews_count_delta=len(reviews),
                                     llm_calls_delta=llm_calls)
-    logger.debug(
-        f"review node creating metrics delta: reviews={len(reviews)}, llm_calls={llm_calls}"
-    )
+    logger.debug("review node creating metrics delta: reviews=%s, llm_calls=%s",
+                 len(reviews), llm_calls)
 
     return {
         "hypotheses":

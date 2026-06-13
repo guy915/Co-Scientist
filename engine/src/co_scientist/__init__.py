@@ -49,12 +49,14 @@ if sys.version_info < (3, 10):
     raise RuntimeError("Co-Scientist requires Python >= 3.10. "
                        "Please upgrade to Python 3.10 or newer.")
 
+# pylint: disable=wrong-import-position
 from .generator import HypothesisGenerator
 from .models import Hypothesis, HypothesisReview, ExecutionMetrics
 from .state import WorkflowState, WorkflowConfig
 from .cache import clear_cache, get_cache_stats, clear_node_cache, get_node_cache_stats
 from .console import ConsoleReporter
 from .config import ToolRegistry, get_tool_registry
+# pylint: enable=wrong-import-position
 
 __version__ = "0.2.0"
 __all__ = [

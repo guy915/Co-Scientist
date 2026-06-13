@@ -35,25 +35,36 @@ GENERATION_SCHEMA: Dict[str, Any] = {
                             "type":
                                 "string",
                             "description":
-                                "Dense technical hypothesis following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum)",
+                                ("Dense technical hypothesis following"
+                                 " 'We want to develop [X] to enable [Y]'"
+                                 " format (2-3 sentences maximum)"),
                         },
                         "explanation": {
                             "type":
                                 "string",
                             "description":
-                                "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
+                                ("Step-by-step layman explanation breaking"
+                                 " down the technical hypothesis"
+                                 " (4-6 sentences)"),
                         },
                         "literature_grounding": {
                             "type":
                                 "string",
                             "description":
-                                "2-4 sentences grounding the hypothesis in the provided reference list. Use ONLY the bracketed [C*] citation keys supplied (e.g. [C1], [C2], [C3]) — do NOT invent author-year citations. If no reference list was provided, state that explicitly.",
+                                ("2-4 sentences grounding the hypothesis in"
+                                 " the provided reference list. Use ONLY the"
+                                 " bracketed [C*] citation keys supplied"
+                                 " (e.g. [C1], [C2], [C3]) — do NOT invent"
+                                 " author-year citations. If no reference"
+                                 " list was provided, state that explicitly."),
                         },
                         "experiment": {
                             "type":
                                 "string",
                             "description":
-                                "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                                ("Concrete experiment design with models,"
+                                 " datasets, metrics, and validation"
+                                 " criteria (4-6 sentences)"),
                         },
                     },
                     "required": [
@@ -85,31 +96,44 @@ GENERATION_DRAFT_SCHEMA: Dict[str, Any] = {
                             "type":
                                 "string",
                             "description":
-                                "Dense technical hypothesis following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum)",
+                                ("Dense technical hypothesis following"
+                                 " 'We want to develop [X] to enable [Y]'"
+                                 " format (2-3 sentences maximum)"),
                         },
                         "explanation": {
                             "type":
                                 "string",
                             "description":
-                                "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
+                                ("Step-by-step layman explanation breaking"
+                                 " down the technical hypothesis"
+                                 " (4-6 sentences)"),
                         },
                         "experiment": {
                             "type":
                                 "string",
                             "description":
-                                "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                                ("Concrete experiment design with models,"
+                                 " datasets, metrics, and validation"
+                                 " criteria (4-6 sentences)"),
                         },
                         "gap_reasoning": {
                             "type":
                                 "string",
                             "description":
-                                "Brief explanation of what gap in the literature this hypothesis addresses and why it seems promising",
+                                ("Brief explanation of what gap in the"
+                                 " literature this hypothesis addresses and"
+                                 " why it seems promising"),
                         },
                         "literature_sources": {
                             "type":
                                 "string",
                             "description":
-                                "Sources from the reference list that informed this gap. Use ONLY the bracketed [C*] keys provided (e.g. [C1], [C2], [C3]). Example: 'Gap identified via retinal imaging findings [C1] and tau isoform research [C2][C3].'",
+                                ("Sources from the reference list that"
+                                 " informed this gap. Use ONLY the bracketed"
+                                 " [C*] keys provided (e.g. [C1], [C2],"
+                                 " [C3]). Example: 'Gap identified via"
+                                 " retinal imaging findings [C1] and tau"
+                                 " isoform research [C2][C3].'"),
                         },
                     },
                     "required": [
@@ -144,25 +168,37 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: Dict[str, Any] = {
                             "type":
                                 "string",
                             "description":
-                                "Final dense technical hypothesis text, following 'We want to develop [X] to enable [Y]' format (2-3 sentences maximum) (approved/refined/pivoted)",
+                                ("Final dense technical hypothesis text,"
+                                 " following 'We want to develop [X] to"
+                                 " enable [Y]' format (2-3 sentences maximum)"
+                                 " (approved/refined/pivoted)"),
                         },
                         "explanation": {
                             "type":
                                 "string",
                             "description":
-                                "Step-by-step layman explanation breaking down the technical hypothesis (4-6 sentences)",
+                                ("Step-by-step layman explanation breaking"
+                                 " down the technical hypothesis"
+                                 " (4-6 sentences)"),
                         },
                         "literature_grounding": {
                             "type":
                                 "string",
                             "description":
-                                "2-4 sentences grounding the hypothesis in the provided reference list. Use ONLY the bracketed [C*] citation keys supplied (e.g. [C1], [C2], [C3]) — do NOT invent author-year citations. If no reference list was provided, state that explicitly.",
+                                ("2-4 sentences grounding the hypothesis in"
+                                 " the provided reference list. Use ONLY the"
+                                 " bracketed [C*] citation keys supplied"
+                                 " (e.g. [C1], [C2], [C3]) — do NOT invent"
+                                 " author-year citations. If no reference"
+                                 " list was provided, state that explicitly."),
                         },
                         "experiment": {
                             "type":
                                 "string",
                             "description":
-                                "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                                ("Concrete experiment design with models,"
+                                 " datasets, metrics, and validation"
+                                 " criteria (4-6 sentences)"),
                         },
                         "novelty_validation": {
                             "type": "object",
@@ -247,37 +283,40 @@ REVIEW_SCHEMA: Dict[str, Any] = {
                         "type":
                             "string",
                         "description":
-                            "Specific feedback on theoretical foundation and logical consistency",
+                            ("Specific feedback on theoretical foundation"
+                             " and logical consistency"),
                     },
                     "novelty": {
                         "type":
                             "string",
                         "description":
-                            "Specific feedback on originality and unique contribution",
+                            ("Specific feedback on originality and unique"
+                             " contribution"),
                     },
                     "relevance": {
                         "type":
                             "string",
-                        "description":
-                            "Specific feedback on alignment with research goal",
+                        "description": ("Specific feedback on alignment with"
+                                        " research goal"),
                     },
                     "testability": {
                         "type":
                             "string",
-                        "description":
-                            "Specific feedback on feasibility of testing",
+                        "description": ("Specific feedback on feasibility of"
+                                        " testing"),
                     },
                     "clarity": {
                         "type":
                             "string",
                         "description":
-                            "Specific feedback on precision and clarity of formulation",
+                            ("Specific feedback on precision and clarity"
+                             " of formulation"),
                     },
                     "potential_impact": {
                         "type":
                             "string",
                         "description":
-                            "Specific feedback on potential significance",
+                            ("Specific feedback on potential significance"),
                     },
                 },
                 "required": [
@@ -294,7 +333,7 @@ REVIEW_SCHEMA: Dict[str, Any] = {
                 "type":
                     "string",
                 "description":
-                    "Specific, actionable suggestions for improvement",
+                    ("Specific, actionable suggestions for improvement"),
             },
             "safety_ethical_concerns": {
                 "type": "string",
@@ -335,7 +374,8 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
                             "type":
                                 "integer",
                             "description":
-                                "Index of the hypothesis being reviewed (0-based)",
+                                ("Index of the hypothesis being reviewed"
+                                 " (0-based)"),
                         },
                         "hypothesis_text": {
                             "type": "string",
@@ -384,37 +424,44 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
                                     "type":
                                         "string",
                                     "description":
-                                        "Specific feedback on theoretical foundation and logical consistency",
+                                        ("Specific feedback on theoretical"
+                                         " foundation and logical"
+                                         " consistency"),
                                 },
                                 "novelty": {
                                     "type":
                                         "string",
                                     "description":
-                                        "Specific feedback on originality and unique contribution",
+                                        ("Specific feedback on originality"
+                                         " and unique contribution"),
                                 },
                                 "relevance": {
                                     "type":
                                         "string",
                                     "description":
-                                        "Specific feedback on alignment with research goal",
+                                        ("Specific feedback on alignment"
+                                         " with research goal"),
                                 },
                                 "testability": {
                                     "type":
                                         "string",
                                     "description":
-                                        "Specific feedback on feasibility of testing",
+                                        ("Specific feedback on feasibility"
+                                         " of testing"),
                                 },
                                 "clarity": {
                                     "type":
                                         "string",
                                     "description":
-                                        "Specific feedback on precision and clarity of formulation",
+                                        ("Specific feedback on precision"
+                                         " and clarity of formulation"),
                                 },
                                 "potential_impact": {
                                     "type":
                                         "string",
                                     "description":
-                                        "Specific feedback on potential significance",
+                                        ("Specific feedback on potential"
+                                         " significance"),
                                 },
                             },
                             "required": [
@@ -431,7 +478,8 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
                             "type":
                                 "string",
                             "description":
-                                "Specific, actionable suggestions for improvement",
+                                ("Specific, actionable suggestions for"
+                                 " improvement"),
                         },
                         "safety_ethical_concerns": {
                             "type": "string",
@@ -441,7 +489,8 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
                             "type":
                                 "string",
                             "description":
-                                "Brief note on how this hypothesis compares to the others",
+                                ("Brief note on how this hypothesis compares"
+                                 " to the others"),
                         },
                     },
                     "required": [
@@ -473,25 +522,30 @@ EVOLUTION_SCHEMA: Dict[str, Any] = {
                 "type":
                     "string",
                 "description":
-                    "Refined dense technical hypothesis following 'We want to develop [X] to enable [Y]' format. Similar sentence count to original hypothesis.",
+                    ("Refined dense technical hypothesis following"
+                     " 'We want to develop [X] to enable [Y]' format."
+                     " Similar sentence count to original hypothesis."),
             },
             "refinement_summary": {
                 "type":
                     "string",
                 "description":
-                    "Summary of changes and improvements made during evolution.",
+                    ("Summary of changes and improvements made during"
+                     " evolution."),
             },
             "explanation": {
                 "type":
                     "string",
                 "description":
-                    "Updated step-by-step layman explanation reflecting any refinements made (4-6 sentences)",
+                    ("Updated step-by-step layman explanation reflecting"
+                     " any refinements made (4-6 sentences)"),
             },
             "experiment": {
                 "type":
                     "string",
                 "description":
-                    "Concrete experiment design with models, datasets, metrics, and validation criteria (4-6 sentences)",
+                    ("Concrete experiment design with models, datasets,"
+                     " metrics, and validation criteria (4-6 sentences)"),
             },
         },
         "required": [
@@ -795,7 +849,8 @@ REFLECTION_SCHEMA: Dict[str, Any] = {
                     "disproved",
                 ],
                 "description":
-                    "Classification of hypothesis based on literature observations",
+                    ("Classification of hypothesis based on literature"
+                     " observations"),
             },
         },
         "required": ["hypothesis_text", "reasoning", "classification"],
@@ -862,7 +917,8 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                                 "type":
                                     "string",
                                 "description":
-                                    "description of diversity targets for hypotheses",
+                                    ("description of diversity targets"
+                                     " for hypotheses"),
                             },
                             "quantity_target": {
                                 "type": "string",
@@ -960,38 +1016,39 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
                             "generation_agent": {
                                 "type":
                                     "string",
-                                "description":
-                                    "assessment of generation agent performance",
+                                "description": ("assessment of generation agent"
+                                                " performance"),
                             },
                             "reflection_agent": {
                                 "type":
                                     "string",
-                                "description":
-                                    "assessment of reflection agent performance",
+                                "description": ("assessment of reflection agent"
+                                                " performance"),
                             },
                             "ranking_agent": {
                                 "type":
                                     "string",
-                                "description":
-                                    "assessment of ranking agent performance",
+                                "description": ("assessment of ranking agent"
+                                                " performance"),
                             },
                             "evolution_agent": {
                                 "type":
                                     "string",
-                                "description":
-                                    "assessment of evolution agent performance",
+                                "description": ("assessment of evolution agent"
+                                                " performance"),
                             },
                             "proximity_agent": {
                                 "type":
                                     "string",
-                                "description":
-                                    "assessment of proximity agent performance",
+                                "description": ("assessment of proximity agent"
+                                                " performance"),
                             },
                             "meta_review_agent": {
                                 "type":
                                     "string",
                                 "description":
-                                    "assessment of meta-review agent performance",
+                                    ("assessment of meta-review agent"
+                                     " performance"),
                             },
                         },
                         "required": [
@@ -1082,15 +1139,15 @@ LITERATURE_QUERY_SCHEMA: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "queries": {
-                "type":
-                    "array",
-                "description":
-                    "Natural language search queries for PubMed literature search",
+                "type": "array",
+                "description": ("Natural language search queries for PubMed"
+                                " literature search"),
                 "items": {
                     "type":
                         "string",
                     "description":
-                        "A focused search phrase covering a specific aspect of the research goal",
+                        ("A focused search phrase covering a specific"
+                         " aspect of the research goal"),
                 },
             }
         },
@@ -1190,7 +1247,8 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: Dict[str, Any] = {
                 "type":
                     "string",
                 "description":
-                    "detailed explanation of how hypothesis compares to this paper",
+                    ("detailed explanation of how hypothesis compares"
+                     " to this paper"),
             },
         },
         "required": [

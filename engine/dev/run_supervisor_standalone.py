@@ -15,6 +15,7 @@
 
 Simplest node to test - no dependencies, just creates research plan.
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import json
@@ -56,12 +57,10 @@ async def test_supervisor():
 
     # Show what would be passed to next nodes
     console.print("\n[bold]Key fields for downstream nodes:[/bold]")
-    console.print(
-        f"  approach_description: {len(guidance.get('approach_description', ''))} chars"
-    )
-    console.print(
-        f"  key_considerations: {len(guidance.get('key_considerations', []))} items"
-    )
+    n_approach = len(guidance.get('approach_description', ''))
+    n_considerations = len(guidance.get('key_considerations', []))
+    console.print(f"  approach_description: {n_approach} chars")
+    console.print(f"  key_considerations: {n_considerations} items")
     console.print(
         f"  search_strategy: {len(guidance.get('search_strategy', {}))} keys")
 

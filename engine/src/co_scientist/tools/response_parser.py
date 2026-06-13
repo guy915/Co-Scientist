@@ -67,8 +67,8 @@ class ResponseParser:
             try:
                 return json.loads(response)
             except json.JSONDecodeError:
-                logger.warning(
-                    f"failed to parse JSON response: {response[:100]}...")
+                logger.warning("failed to parse JSON response: %s...",
+                               response[:100])
                 return response
 
         return response
@@ -100,7 +100,7 @@ class ResponseParser:
         if self.response_format.is_dict:
             # results is a dict {key: item}
             if not isinstance(results, dict):
-                logger.warning(f"expected dict but got {type(results)}")
+                logger.warning("expected dict but got %s", type(results))
                 return []
 
             for key, item in results.items():
@@ -109,7 +109,7 @@ class ResponseParser:
                     if article:
                         articles.append(article)
                 except Exception as e:  # pylint: disable=broad-exception-caught
-                    logger.error(f"failed to map item {key}: {e}")
+                    logger.error("failed to map item %s: %s", key, e)
         else:
             # results is a list
             if not isinstance(results, list):
@@ -122,9 +122,9 @@ class ResponseParser:
                     if article:
                         articles.append(article)
                 except Exception as e:  # pylint: disable=broad-exception-caught
-                    logger.error(f"failed to map item {i}: {e}")
+                    logger.error("failed to map item %s: %s", i, e)
 
-        logger.debug(f"parsed {len(articles)} articles from response")
+        logger.debug("parsed %s articles from response", len(articles))
         return articles
 
     def _navigate_path(self, data: Any, path: str) -> Any:
@@ -178,7 +178,7 @@ class ResponseParser:
             Article object or None if mapping fails
         """
         if not isinstance(item, dict):
-            logger.warning(f"expected dict item but got {type(item)}")
+            logger.warning("expected dict item but got %s", type(item))
             return None
 
         mapping = self.response_format.field_mapping
@@ -192,7 +192,8 @@ class ResponseParser:
                 value = self._evaluate_expression(expr, item, dict_key)
                 kwargs[article_field] = value
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.debug(f"failed to evaluate {article_field}={expr}: {e}")
+                logger.debug("failed to evaluate %s=%s: %s", article_field,
+                             expr, e)
                 # use None for failed mappings
                 kwargs[article_field] = None
 
@@ -294,7 +295,8 @@ class ResponseParser:
         """Apply a transform to a value.
 
         Args:
-            transform: Transform specification (e.g., "split:/", "index:0", "int")
+            transform: Transform specification
+                (e.g., "split:/", "index:0", "int")
             value: Value to transform
 
         Returns:
@@ -357,7 +359,7 @@ class ResponseParser:
                 return value
             return [value]
 
-        logger.warning(f"unknown transform: {transform}")
+        logger.warning("unknown transform: %s", transform)
         return value
 
 

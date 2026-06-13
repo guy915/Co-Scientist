@@ -16,6 +16,7 @@
 These create the bare minimum state required to run a node without errors.
 Intentionally kept minimal to avoid mock data drift - add fields as needed.
 """
+# pylint: disable=inconsistent-quotes
 
 import time
 from rich.console import Console
@@ -24,10 +25,12 @@ from co_scientist.models import ExecutionMetrics
 
 console = Console()
 
+_DEFAULT_RESEARCH_GOAL = (
+    "How can we detect Alzheimer's disease earlier using retinal imaging?")
+
 
 def make_base_state(
-    research_goal:
-    str = "How can we detect Alzheimer's disease earlier using retinal imaging?",
+    research_goal: str = _DEFAULT_RESEARCH_GOAL,
     model_name: str = "gemini/gemini-2.5-flash",
     initial_hypotheses_count: int = 3,
     max_iterations: int = 0,
@@ -60,8 +63,7 @@ def make_base_state(
 
 
 def make_supervisor_state(
-    research_goal:
-    str = "How can we detect Alzheimer's disease earlier using retinal imaging?",
+    research_goal: str = _DEFAULT_RESEARCH_GOAL,
     model_name: str = "gemini/gemini-2.5-flash",
 ) -> WorkflowState:
     """Base state with supervisor guidance populated.
@@ -80,16 +82,14 @@ def make_supervisor_state(
     result = asyncio.run(supervisor_node(base))
 
     base.update(result)
-    console.print(
-        f"[dim]Supervisor guidance keys: {list(base['supervisor_guidance'].keys())}[/dim]"
-    )
+    keys = list(base['supervisor_guidance'].keys())
+    console.print(f"[dim]Supervisor guidance keys: {keys}[/dim]")
 
     return base
 
 
 def make_literature_state(
-    research_goal:
-    str = "How can we detect Alzheimer's disease earlier using retinal imaging?",
+    research_goal: str = _DEFAULT_RESEARCH_GOAL,
     model_name: str = "gemini/gemini-2.5-flash",
     run_real_lit_review: bool = False,
 ) -> WorkflowState:
@@ -98,8 +98,9 @@ def make_literature_state(
     Use this for nodes that depend on literature review (eg reflection node).
 
     Args:
-        run_real_lit_review: if True, calls real lit review node (requires MCP server)
-                            if False, uses minimal mock data
+        run_real_lit_review: if True, calls real lit review node
+                            (requires MCP server); if False, uses
+                            minimal mock data
     """
     from co_scientist.nodes.literature_review import literature_review_node  # pylint: disable=import-outside-toplevel
     from co_scientist.models import Article  # pylint: disable=import-outside-toplevel
@@ -108,9 +109,8 @@ def make_literature_state(
     base = make_base_state(research_goal, model_name)
 
     if run_real_lit_review:
-        console.print(
-            "[dim]Running literature review node to create realistic state...[/dim]"
-        )
+        console.print("[dim]Running literature review node to create"
+                      " realistic state...[/dim]")
         console.print("[dim](Requires MCP server available)[/dim]")
         result = asyncio.run(literature_review_node(base))
         base.update(result)
@@ -144,8 +144,7 @@ microvasculature changes appear years before cognitive symptoms
 
 
 def make_generate_state(
-    research_goal:
-    str = "How can we detect Alzheimer's disease earlier using retinal imaging?",
+    research_goal: str = _DEFAULT_RESEARCH_GOAL,
     model_name: str = "gemini/gemini-2.5-flash",
     with_literature: bool = False,
 ) -> WorkflowState:

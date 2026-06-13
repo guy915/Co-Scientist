@@ -25,7 +25,8 @@ from rich.panel import Panel
 """
 Prerequisites:
 - MCP server running (on http://localhost:8888/mcp)
-- Set OPEN_AI_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in your environment before running,
+- Set OPEN_AI_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in your environment
+before running,
 which depends on the MODEL_NAME you set below.
 """
 # pylint: enable=pointless-string-statement
@@ -40,8 +41,9 @@ async def main():
     console.print(
         Panel(
             "[bold]Enter research goal[/bold]\n\n"
-            "[dim]For example:[/dim] Develop novel approaches for early detection of "
-            "Alzheimer's disease using non-invasive biomarkers",
+            "[dim]For example:[/dim] Develop novel approaches for early"
+            " detection of Alzheimer's disease using non-invasive"
+            " biomarkers",
             title="[cyan]Research Goal[/cyan]",
             border_style="cyan",
         ))
@@ -78,5 +80,6 @@ async def main():
 
 
 if __name__ == "__main__":
-    # wrap with run_console for graceful shutdown on KeyboardInterrupt and hide internal warnings
+    # wrap with run_console for graceful shutdown on KeyboardInterrupt and hide
+    # internal warnings
     run_console(main())

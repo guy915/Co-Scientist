@@ -58,7 +58,8 @@ class PythonToolRegistry:
 
         def decorator(func: Callable) -> Callable:
             tool_name = name or func.__name__
-            tool_description = description or func.__doc__ or f"call {tool_name}"
+            tool_description = (description or func.__doc__ or
+                                f"call {tool_name}")
 
             # generate JSON schema from type hints
             schema = self._generate_schema(func, tool_name, tool_description)
@@ -71,7 +72,7 @@ class PythonToolRegistry:
             openai_tool = {"type": "function", "function": schema}
             self._openai_tools.append(openai_tool)
 
-            logger.debug(f"registered Python tool: {tool_name}")
+            logger.debug("registered Python tool: %s", tool_name)
 
             return func
 
@@ -140,8 +141,8 @@ class PythonToolRegistry:
                 # Optional[T] case - recurse on T
                 return self._type_to_schema(non_none_types[0], param_name)
             else:
-                logger.warning(
-                    f"complex Union type for {param_name}, using string")
+                logger.warning("complex Union type for %s, using string",
+                               param_name)
                 return {"type": "string"}
 
         # handle List[T]
@@ -171,8 +172,8 @@ class PythonToolRegistry:
             return {"type": "string"}
         else:
             # default to string for unknown types
-            logger.debug(
-                f"unknown type {python_type} for {param_name}, using string")
+            logger.debug("unknown type %s for %s, using string", python_type,
+                         param_name)
             return {"type": "string"}
 
     def get_function(self, name: str) -> Optional[Callable]:

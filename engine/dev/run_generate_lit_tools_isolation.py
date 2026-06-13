@@ -21,6 +21,7 @@ this script enables dev isolation mode which:
 useful for debugging the two-phase tool-based generation without
 distraction from debate output or slow lit review calls.
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import os
@@ -36,9 +37,10 @@ from co_scientist.nodes.generate import generate_node
 console = Console()
 
 
-async def test_lit_tools_isolation(research_goal: str,  # pylint: disable=redefined-outer-name
-                                   model_name: str,  # pylint: disable=redefined-outer-name
-                                   hypotheses_count: int = 3):  # pylint: disable=redefined-outer-name
+async def test_lit_tools_isolation(
+    research_goal: str,  # pylint: disable=redefined-outer-name
+    model_name: str,  # pylint: disable=redefined-outer-name
+    hypotheses_count: int = 3):  # pylint: disable=redefined-outer-name
     """Run generate node with lit tools in isolation mode.
 
     args:
@@ -47,15 +49,13 @@ async def test_lit_tools_isolation(research_goal: str,  # pylint: disable=redefi
         hypotheses_count: number of hypotheses to generate
     """
 
-    console.print(
-        "\n[bold cyan]testing generate node with lit tools (isolation mode)[/bold cyan]\n"
-    )
+    console.print("\n[bold cyan]testing generate node with lit tools"
+                  " (isolation mode)[/bold cyan]\n")
 
     # disable global cache so we see fresh generate output
     os.environ["COSCIENTIST_CACHE_ENABLED"] = "false"
-    console.print(
-        "[yellow]global cache disabled (will see fresh generate output)[/yellow]"
-    )
+    console.print("[yellow]global cache disabled"
+                  " (will see fresh generate output)[/yellow]")
 
     # create base state with supervisor
     console.print(
@@ -82,23 +82,21 @@ async def test_lit_tools_isolation(research_goal: str,  # pylint: disable=redefi
     state.update(lit_result)
 
     if state.get("articles_with_reasoning"):
-        console.print(
-            f"[green]literature review complete: {len(state.get('articles', []))} articles found[/green]"
-        )
+        n_arts = len(state.get('articles', []))
+        console.print(f"[green]literature review complete:"
+                      f" {n_arts} articles found[/green]")
     else:
         console.print("[red]error: no literature review data available[/red]")
         return
 
     console.print(f"\n[yellow]research goal:[/yellow] {state['research_goal']}")
-    console.print(
-        f"[yellow]hypotheses to generate:[/yellow] {state['initial_hypotheses_count']}"
-    )
+    n_hyps = state['initial_hypotheses_count']
+    console.print(f"[yellow]hypotheses to generate:[/yellow] {n_hyps}")
     console.print(f"[yellow]model:[/yellow] {state['model_name']}\n")
 
     # run generate node with lit tools
-    console.print(
-        "[yellow]calling generate node with lit tools (this may take 2-3 minutes)...[/yellow]"
-    )
+    console.print("[yellow]calling generate node with lit tools"
+                  " (this may take 2-3 minutes)...[/yellow]")
     console.print("[dim]phase 1: draft hypotheses by reading papers[/dim]")
     console.print(
         "[dim]phase 2: validate novelty by searching literature[/dim]\n")
@@ -156,25 +154,24 @@ async def test_lit_tools_isolation(research_goal: str,  # pylint: disable=redefi
     console.print(f"  debate: {debate_count}")
 
     if debate_count > 0:
-        console.print(
-            "\n[red]warning: expected 0 debate hypotheses in isolation mode, got {debate_count}[/red]"
-        )
+        console.print("\n[red]warning: expected 0 debate hypotheses in"
+                      " isolation mode, got {debate_count}[/red]")
     if lit_tools_count != len(hypotheses):
-        console.print(
-            f"[red]warning: expected all hypotheses to be lit_tools, got {lit_tools_count}/{len(hypotheses)}[/red]"
-        )
+        n_total = len(hypotheses)
+        console.print(f"[red]warning: expected all hypotheses to be lit_tools,"
+                      f" got {lit_tools_count}/{n_total}[/red]")
 
     if lit_tools_count == len(hypotheses):
-        console.print(
-            "\n[bold green]success: all hypotheses generated with lit tools![/bold green]"
-        )
+        console.print("\n[bold green]success: all hypotheses generated"
+                      " with lit tools![/bold green]")
 
 
 if __name__ == "__main__":
     import sys
 
     # default research goal
-    research_goal = "How can we detect Alzheimer's disease earlier using retinal imaging?"
+    research_goal = (
+        "How can we detect Alzheimer's disease earlier using retinal imaging?")
 
     # check for custom research goal
     if len(sys.argv) > 1 and sys.argv[1] not in ["--model", "--count"]:

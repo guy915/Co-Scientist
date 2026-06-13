@@ -17,6 +17,7 @@ Pre-fetches structured mechanistic evidence from INDRA CoGex to augment
 reflection analysis. Extracts likely gene/protein names from hypothesis
 text and queries INDRA for known causal relationships.
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import json
@@ -26,12 +27,14 @@ from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
 
-# matches hyphenated bio names first (IL-6, YKL-40, IL-1B), then standalone (KRAS, TREM2)
-# hyphenated suffix is 1-2 digits + optional letter — avoids pathway notation like RAGE-JAK2
+# matches hyphenated bio names first (IL-6, YKL-40, IL-1B), then standalone
+# (KRAS, TREM2) hyphenated suffix is 1-2 digits + optional letter — avoids
+# pathway notation like RAGE-JAK2
 _HYPHENATED_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,5}-[0-9]{1,2}[A-Z]?)\b")
 _STANDALONE_RE = re.compile(r"\b([A-Z][A-Z0-9]{2,5})\b")
 
-# common false positives: english words, non-gene abbreviations, protein families
+# common false positives: english words, non-gene abbreviations, protein
+# families
 _STOP = frozenset({
     # english
     "THE",
@@ -182,7 +185,8 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
     for raw in standalone:
         if len(result) >= max_entities:
             break
-        # skip mutation notations like G12C, V600E, L858R (single letter + digit)
+        # skip mutation notations like G12C, V600E, L858R (single letter +
+        # digit)
         if len(raw) >= 2 and raw[0].isupper() and raw[1].isdigit():
             continue
         normalized = _normalize_entity(raw)
@@ -197,14 +201,15 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
 
 def get_kg_tools_for_workflow(tool_registry: Optional[Any],
                               workflow_name: str) -> list[str]:
-    """Resolve which MCP tool names the yaml config assigned to a workflow's search_tools.
+    """Resolve which MCP tool names the yaml config assigned to search_tools.
 
     Returns an empty list when:
     - no tool_registry is configured
     - no workflow entry exists in the yaml
     - the workflow lists no enabled tools
 
-    This is the gate: if the list is empty, no tool calls happen for that workflow.
+    This is the gate: if the list is empty, no tool calls happen for that
+    workflow.
     """
     if tool_registry is None:
         return []
@@ -265,12 +270,14 @@ async def fetch_indra_evidence(
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.debug(f"reflection evidence fetch skipped: {e}")
+        logger.debug("reflection evidence fetch skipped: %s", e)
         return empty
 
 
 def _pick_available_tool(client: Any, mcp_names: list[str]) -> str:
-    """Return the first tool from the workflow list that exists on the MCP server."""
+    """Return the first tool from the workflow list that exists on the MCP
+    server.
+    """
     for name in mcp_names:
         if client.has_tool(name):
             return name
@@ -297,7 +304,8 @@ async def _query_single_entity(
         result = _parse_tool_result(raw)
         return result.get("statements", [])
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.debug(f"entity query failed for '{entity}' via {tool_name}: {e}")
+        logger.debug("entity query failed for '%s' via %s: %s", entity,
+                     tool_name, e)
         return []
 
 
@@ -347,7 +355,8 @@ def _format_evidence(statements: list[dict],
 
 
 def _ev_count_str(ev_count: int) -> str:
-    """Format evidence count, appending '+' when truncated at the fetch limit."""
+    """Format evidence count, appending '+' when truncated at the fetch limit.
+    """
     return f"{ev_count}+" if ev_count >= _EVIDENCE_LIMIT else str(ev_count)
 
 

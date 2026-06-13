@@ -60,7 +60,8 @@ async def draft_hypotheses(
     Returns:
         List of draft dicts with text, gap_reasoning, literature_sources
     """
-    logger.info(f"Phase 1: Drafting {count} hypotheses by examining literature")
+    logger.info("Phase 1: Drafting %s hypotheses by examining literature",
+                count)
 
     # get state variables
     supervisor_guidance = state.get("supervisor_guidance", {})
@@ -74,7 +75,7 @@ async def draft_hypotheses(
     research_goal = state["research_goal"]
     shared_slug = "research_" + hashlib.md5(
         research_goal.encode()).hexdigest()[:8]
-    logger.info(f"Using shared corpus slug: {shared_slug}")
+    logger.info("Using shared corpus slug: %s", shared_slug)
 
     # store slug in state for validation phase to reuse
     state["generation_corpus_slug"] = shared_slug
@@ -83,12 +84,11 @@ async def draft_hypotheses(
     if articles_with_reasoning:
         logger.info("Including lit review summary as context for drafting")
         logger.info(
-            f"Warm start: corpus already populated with {len(articles)} papers from literature review"
-        )
+            "Warm start: corpus already populated with %s papers"
+            " from literature review", len(articles))
     else:
-        logger.warning(
-            "No lit review summary available - agent will examine papers directly"
-        )
+        logger.warning("No lit review summary available"
+                       " - agent will examine papers directly")
 
     # initialize hybrid tool provider with draft-specific whitelist
     provider = HybridToolProvider(mcp_client=mcp_client,
@@ -102,12 +102,12 @@ async def draft_hypotheses(
             tool_registry = get_tool_registry()
             logger.info("Using global tool registry")
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning(f"Failed to get tool registry: {e}")
+            logger.warning("Failed to get tool registry: %s", e)
 
     if tool_registry:
         tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
         mcp_whitelist = tool_registry.get_mcp_tool_names(tool_ids)
-        logger.info(f"Using tool registry whitelist: {mcp_whitelist}")
+        logger.info("Using tool registry whitelist: %s", mcp_whitelist)
     else:
         # no registry available - let provider use all available tools
         mcp_whitelist = None
@@ -118,12 +118,12 @@ async def draft_hypotheses(
     tools_dict, openai_tools = provider.get_tools(
         mcp_whitelist=mcp_whitelist, python_whitelist=python_whitelist)
 
-    logger.info(f"Initialized draft provider with {len(tools_dict)} tools")
+    logger.info("Initialized draft provider with %s tools", len(tools_dict))
 
     # calculate dynamic iteration budget based on hypotheses count
     max_iterations = get_draft_max_iterations(count)
-    logger.info(
-        f"Draft budget: {max_iterations} iterations for {count} hypotheses")
+    logger.info("Draft budget: %s iterations for %s hypotheses", max_iterations,
+                count)
 
     # build draft prompt with lit review summary as context
     ref_text = reference_index.text if reference_index else ""
@@ -166,7 +166,7 @@ async def draft_hypotheses(
         # track all tool calls
         tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + 1
         call_num = tool_call_counts[tool_name]
-        logger.info(f"Draft: {tool_name} call #{call_num}")
+        logger.info("Draft: %s call #%s", tool_name, call_num)
 
         # execute tool
         return await provider.execute_tool_call(tool_call)
@@ -174,9 +174,8 @@ async def draft_hypotheses(
     # call LLM with tools for drafting
     # scale token budget based on hypotheses count (~200 tokens per hypothesis)
     draft_max_tokens = min(EXTENDED_MAX_TOKENS + (count * 200), 16000)
-    logger.info(
-        f"Calling draft agent: {max_iterations} iterations, {draft_max_tokens} max tokens"
-    )
+    logger.info("Calling draft agent: %s iterations, %s max tokens",
+                max_iterations, draft_max_tokens)
 
     try:
         final_response, _ = await call_llm_with_tools(
@@ -189,14 +188,14 @@ async def draft_hypotheses(
             max_iterations=max_iterations,
         )
     except Exception as e:
-        logger.error(f"Draft phase failed: {e}")
+        logger.error("Draft phase failed: %s", e)
         raise
 
     total_calls = sum(tool_call_counts.values())
     calls_summary = ", ".join(
         f"{name}={count}" for name, count in tool_call_counts.items())
-    logger.info(
-        f"Draft phase complete: {total_calls} tool calls ({calls_summary})")
+    logger.info("Draft phase complete: %s tool calls (%s)", total_calls,
+                calls_summary)
 
     # parse JSON response (strip markdown if present, then use repair logic)
     response_text = final_response.strip()
@@ -233,7 +232,7 @@ async def draft_hypotheses(
     if response_data is None:
         logger.error(
             "Failed to parse draft JSON response after all repair attempts")
-        logger.error(f"Response: {final_response[:500]}...")
+        logger.error("Response: %s...", final_response[:500])
         raise ValueError(
             "Draft phase returned invalid JSON that could not be repaired")
 
@@ -242,5 +241,5 @@ async def draft_hypotheses(
             "Draft JSON response required major repairs (possible truncation)")
 
     drafts = response_data.get("drafts", [])
-    logger.info(f"Parsed {len(drafts)} draft hypotheses")
+    logger.info("Parsed %s draft hypotheses", len(drafts))
     return drafts

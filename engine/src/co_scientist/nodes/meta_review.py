@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Meta-review node - synthesize insights from all reviews."""
+# pylint: disable=inconsistent-quotes
 
 import json
 import logging
@@ -47,7 +48,7 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
         Dictionary with updated state fields (meta_review)
     """
     hypotheses = state["hypotheses"]
-    logger.info(f"Synthesizing meta-review from {len(hypotheses)} hypotheses")
+    logger.info("Synthesizing meta-review from %s hypotheses", len(hypotheses))
 
     # Emit progress
     if state.get("progress_callback"):
@@ -131,13 +132,13 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
-        max_tokens=
-        THINKING_MAX_TOKENS,  # Meta-review needs more space for aggregating all reviews
+        max_tokens=THINKING_MAX_TOKENS,  # more space to aggregate all reviews
         temperature=MEDIUM_TEMPERATURE,
         json_schema=schema,
     )
 
-    # Schema returns recurring_themes as objects {theme, description, frequency}; flatten to strings.
+    # Schema returns recurring_themes as objects {theme, description,
+    # frequency}; flatten to strings.
     recurring_themes = response.get("recurring_themes", [])
     emerging_themes = [
         t["theme"] if isinstance(t, dict) else str(t) for t in recurring_themes
@@ -166,10 +167,9 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     }
 
     logger.info("Meta-review complete")
-    logger.info(f"Common strengths: {len(meta_review['common_strengths'])}")
-    logger.info(
-        f"Strategic recommendations: {len(meta_review['strategic_recommendations'])}"
-    )
+    logger.info("Common strengths: %s", len(meta_review['common_strengths']))
+    logger.info("Strategic recommendations: %s",
+                len(meta_review['strategic_recommendations']))
 
     # Emit progress
     if state.get("progress_callback"):

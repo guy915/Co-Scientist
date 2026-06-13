@@ -16,8 +16,10 @@
 provides:
 - File-based console logging with no truncation
 - Run-specific log files keyed by task_id/run_id
-- Separation of terminal logging (logger.info) from detailed file logging (console.print)
+- Separation of terminal logging (logger.info) from detailed file logging
+(console.print)
 """
+# pylint: disable=inconsistent-quotes
 
 import logging
 import os
@@ -53,7 +55,8 @@ def initialize_run_logging(run_id: str) -> None:
     args:
         run_id: unique identifier for this run (e.g., task_id from server)
     """
-    global _current_run_id, _current_file_console, _log_file_handle, _run_start_time
+    global _current_run_id, _current_file_console
+    global _log_file_handle, _run_start_time
 
     _current_run_id = run_id
     _run_start_time = datetime.now()
@@ -69,9 +72,8 @@ def initialize_run_logging(run_id: str) -> None:
     _log_file_handle = open(log_file_path, "w", encoding="utf-8")
 
     # write start timestamp to file
-    _log_file_handle.write(
-        f"=== run started at {_run_start_time.strftime('%Y-%m-%d %H:%M:%S')} ===\n"
-    )
+    ts = _run_start_time.strftime('%Y-%m-%d %H:%M:%S')
+    _log_file_handle.write(f"=== run started at {ts} ===\n")
     _log_file_handle.write(f"=== run_id: {run_id} ===\n\n")
     _log_file_handle.flush()
 
@@ -85,21 +87,21 @@ def initialize_run_logging(run_id: str) -> None:
         tab_size=4,
     )
 
-    logger.info(
-        f"initialized file logging for run_id={run_id} at {log_file_path}")
+    logger.info("initialized file logging for run_id=%s at %s", run_id,
+                log_file_path)
 
 
 def cleanup_run_logging() -> None:
     """cleanup file-based logging for current run."""
-    global _current_run_id, _current_file_console, _log_file_handle, _run_start_time
+    global _current_run_id, _current_file_console
+    global _log_file_handle, _run_start_time
 
     if _log_file_handle and _run_start_time:
         # write end timestamp to file
         end_time = datetime.now()
         duration = end_time - _run_start_time
-        _log_file_handle.write(
-            f"\n\n=== run ended at {end_time.strftime('%Y-%m-%d %H:%M:%S')} ===\n"
-        )
+        ts = end_time.strftime('%Y-%m-%d %H:%M:%S')
+        _log_file_handle.write(f"\n\n=== run ended at {ts} ===\n")
         _log_file_handle.write(f"=== duration: {duration} ===\n")
         _log_file_handle.flush()
         _log_file_handle.close()
@@ -121,9 +123,8 @@ def get_console() -> Console:
     else:
         # fallback: create default console if not initialized
         # this ensures backwards compatibility if called without initialization
-        logger.warning(
-            "console requested but run logging not initialized, using default console"
-        )
+        logger.warning("console requested but run logging not initialized,"
+                       " using default console")
         return Console()
 
 

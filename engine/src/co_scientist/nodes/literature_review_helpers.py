@@ -55,10 +55,12 @@ class SearchConfig:
 
 
 def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
-    """Extract source name from tool config's response_format field_mapping."""
+    """Extract source name from tool config's response_format field_mapping.
+    """
     if not tool_config:
         return "unknown"
-    if tool_config.response_format and tool_config.response_format.field_mapping:
+    if (tool_config.response_format and
+            tool_config.response_format.field_mapping):
         source_val = tool_config.response_format.field_mapping.get("source", "")
         if source_val.startswith("'") and source_val.endswith("'"):
             return source_val[1:-1]
@@ -177,10 +179,10 @@ def _build_article_url(paper_id: str, metadata: Dict[str, Any],
 
 
 def build_articles_from_metadata(
-    all_paper_metadata: Dict[str, Dict[str, Any]],
-    paper_source_map: Dict[str, str],  # pylint: disable=unused-argument
-    default_source_name: str,
-    tool_registry: Optional["ToolRegistry"] = None,  # pylint: disable=unused-argument
+        all_paper_metadata: Dict[str, Dict[str, Any]],
+        paper_source_map: Dict[str, str],  # pylint: disable=unused-argument
+        default_source_name: str,
+        tool_registry: Optional["ToolRegistry"] = None,  # pylint: disable=unused-argument
 ) -> List[Article]:
     """Build Article objects from collected paper metadata."""
     articles = []
@@ -239,8 +241,8 @@ def get_papers_with_content(
         elif metadata.get("pdf_url") and metadata.get("abstract"):
             papers_with_content[pid] = metadata
             logger.debug(
-                f"Paper {pid}: using abstract for analysis (fulltext not downloaded)"
-            )
+                "Paper %s: using abstract for analysis"
+                " (fulltext not downloaded)", pid)
     return papers_with_content
 
 
@@ -287,10 +289,9 @@ def make_success_result(
         "articles":
             articles,
         "messages": [{
-            "role":
-                "assistant",
-            "content":
-                f"completed literature review with {len(queries)} queries, {len(articles)} articles analyzed",
+            "role": "assistant",
+            "content": (f"completed literature review with {len(queries)}"
+                        f" queries, {len(articles)} articles analyzed"),
             "metadata": {
                 "phase": "literature_review"
             },
@@ -355,10 +356,9 @@ def determine_query_source_type(
                 source_types.append(tool_cfg.source_type)
 
         if "knowledge_graph" in source_types and len(source_types) > 1:
-            logger.warning(
-                "Multi-source mode with knowledge_graph detected. "
-                "Using generic queries. For best results, use per-source query generation."
-            )
+            logger.warning("Multi-source mode with knowledge_graph detected. "
+                           "Using generic queries. For best results, use"
+                           " per-source query generation.")
             return "academic"
         elif "knowledge_graph" in source_types:
             return "knowledge_graph"
@@ -390,8 +390,8 @@ def calculate_papers_per_query(
     if papers_per_query < 2:
         papers_per_query = 2
         logger.warning(
-            f"Target {total_papers} papers with {num_queries} queries gives <2 per query, using 2 minimum"
-        )
+            "Target %s papers with %s queries gives <2 per query,"
+            " using 2 minimum", total_papers, num_queries)
 
     return papers_per_query, remainder
 
@@ -418,7 +418,7 @@ def merge_search_results(
             if deduplicate and isinstance(metadata, dict):
                 title = (metadata.get("title") or "").lower().strip()
                 if title and title in seen_titles:
-                    logger.debug(f"Skipping duplicate: {title[:60]}...")
+                    logger.debug("Skipping duplicate: %s...", title[:60])
                     continue
                 if title:
                     seen_titles.add(title)
@@ -553,7 +553,8 @@ def build_content_config(
         for source in workflow.get_enabled_search_sources():
             src_content_tool = source.content_tool or workflow_content_tool
             src_url_field = source.content_url_field or workflow_url_field
-            # merge workflow params with source-specific params (source takes priority)
+            # merge workflow params with source-specific params (source takes
+            # priority)
             src_params = {**workflow_content_params, **source.content_params}
 
             if src_content_tool:
@@ -629,6 +630,6 @@ def get_paper_content_for_analysis(metadata: Dict[str, Any],
     """Get paper content for analysis, with truncation if needed."""
     content = metadata.get("fulltext") or metadata.get("abstract") or ""
     if len(content) > max_chars:
-        logger.debug(f"Truncating paper content to {max_chars} chars")
+        logger.debug("Truncating paper content to %s chars", max_chars)
         content = content[:max_chars] + "\n\n[... truncated for length ...]"
     return content

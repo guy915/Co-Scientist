@@ -13,8 +13,9 @@
 # limitations under the License.
 """Shared utilities for extracting and matching papers_used on hypotheses.
 
-Matches author-year citations in literature_grounding text (e.g. "Roepert et al., 2020")
-against candidate paper metadata to determine which papers a hypothesis actually cites.
+Matches author-year citations in literature_grounding text
+(e.g. "Roepert et al., 2020") against candidate paper metadata to
+determine which papers a hypothesis actually cites.
 """
 
 import logging
@@ -87,15 +88,17 @@ def filter_papers_by_grounding(
 
     if not matched:
         logger.debug(
-            f"no author-year matches in literature_grounding "
-            f"({len(candidates)} candidates, grounding length={len(literature_grounding)})"
-        )
+            "no author-year matches in literature_grounding"
+            " (%s candidates, grounding length=%s)", len(candidates),
+            len(literature_grounding))
 
     return matched
 
 
 def articles_to_candidates(articles):
-    """Convert Article objects to candidate dicts for filter_papers_by_grounding."""
+    """Convert Article objects to candidate dicts for
+    filter_papers_by_grounding.
+    """
     if not articles:
         return []
     return [{

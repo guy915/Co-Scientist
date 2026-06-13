@@ -15,6 +15,7 @@
 
 Provides composition pattern wrapping MCPToolClient and PythonToolRegistry.
 """
+# pylint: disable=inconsistent-quotes
 
 import json
 import logging
@@ -94,15 +95,15 @@ class HybridToolProvider:
                 merged_tools_dict.update(mcp_tools_dict)
                 merged_openai_tools.extend(mcp_openai_tools)
 
-                logger.debug(f"added {len(mcp_tools_dict)} MCP tools")
+                logger.debug("added %s MCP tools", len(mcp_tools_dict))
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.warning(f"Failed to get MCP tools: {e}")
+                logger.warning("Failed to get MCP tools: %s", e)
 
         # get Python tools
         if self.python_registry is not None and python_whitelist is not None:
             try:
-                python_functions, python_openai_tools = self.python_registry.get_tools(
-                    whitelist=python_whitelist)
+                python_functions, python_openai_tools = (
+                    self.python_registry.get_tools(whitelist=python_whitelist))
 
                 # track tool sources
                 for tool_name in python_functions.keys():
@@ -113,15 +114,15 @@ class HybridToolProvider:
                 merged_tools_dict.update(python_functions)
                 merged_openai_tools.extend(python_openai_tools)
 
-                logger.debug(f"added {len(python_functions)} Python tools")
+                logger.debug("added %s Python tools", len(python_functions))
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.warning(f"Failed to get Python tools: {e}")
+                logger.warning("Failed to get Python tools: %s", e)
 
         logger.info(
-            f"hybrid provider ready: {len(merged_tools_dict)} total tools "
-            f"({len([s for s in self._tool_sources.values() if s == 'mcp'])} MCP, "
-            f"{len([s for s in self._tool_sources.values() if s == 'python'])} Python)"
-        )
+            "hybrid provider ready: %s total tools (%s MCP, %s Python)",
+            len(merged_tools_dict),
+            len([s for s in self._tool_sources.values() if s == 'mcp']),
+            len([s for s in self._tool_sources.values() if s == 'python']))
 
         return merged_tools_dict, merged_openai_tools
 
@@ -129,10 +130,12 @@ class HybridToolProvider:
         """Execute a tool call by routing to appropriate executor.
 
         args:
-            tool_call: LiteLLM tool call object with .id, .function.name, .function.arguments
+            tool_call: LiteLLM tool call object with .id, .function.name,
+                .function.arguments
 
         returns:
-            tool response message dict: {role: "tool", name: ..., tool_call_id: ..., content: ...}
+            tool response message dict:
+                {role: "tool", name: ..., tool_call_id: ..., content: ...}
         """
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
@@ -160,7 +163,7 @@ class HybridToolProvider:
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             error_msg = f"tool execution failed: {str(e)}"
-            logger.error(f"{tool_name} error: {error_msg}")
+            logger.error("%s error: %s", tool_name, error_msg)
             return self._create_error_response(tool_name, tool_call_id,
                                                error_msg)
 
@@ -205,7 +208,8 @@ class HybridToolProvider:
         except json.JSONDecodeError as e:
             raise ValueError(f"invalid JSON arguments: {e}") from e
 
-        logger.debug(f"calling Python tool: {tool_name} with args: {args_dict}")
+        logger.debug("calling Python tool: %s with args: %s", tool_name,
+                     args_dict)
 
         # call function
         result = await func(**args_dict)

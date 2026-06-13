@@ -111,9 +111,9 @@ async def judge_matchup(
             classification_a = (reflection_notes_a.split("Classification:")
                                 [-1].strip().split("\n")[0])
         logger.debug(
-            f"hypothesis A: has reflection ({len(reflection_notes_a)} chars, classification: {classification_a})"
-        )
-        logger.debug(f"hypothesis A reflection: {reflection_notes_a[:200]}...")
+            "hypothesis A: has reflection (%s chars, classification: %s)",
+            len(reflection_notes_a), classification_a)
+        logger.debug("hypothesis A reflection: %s...", reflection_notes_a[:200])
     else:
         logger.debug("hypothesis A: missing reflection notes")
 
@@ -124,9 +124,9 @@ async def judge_matchup(
             classification_b = (reflection_notes_b.split("Classification:")
                                 [-1].strip().split("\n")[0])
         logger.debug(
-            f"hypothesis B: has reflection ({len(reflection_notes_b)} chars, classification: {classification_b})"
-        )
-        logger.debug(f"hypothesis B reflection: {reflection_notes_b[:200]}...")
+            "hypothesis B: has reflection (%s chars, classification: %s)",
+            len(reflection_notes_b), classification_b)
+        logger.debug("hypothesis B reflection: %s...", reflection_notes_b[:200])
     else:
         logger.debug("hypothesis B: missing reflection notes")
 
@@ -179,7 +179,7 @@ async def judge_matchup(
 
     winner = response.get("winner", "a").lower()
     if winner not in ["a", "b"]:
-        logger.warning(f"Invalid winner '{winner}', defaulting to 'a'")
+        logger.warning("Invalid winner '%s', defaulting to 'a'", winner)
         winner = "a"
 
     return winner, response
@@ -206,16 +206,15 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
         Dictionary with updated state fields (hypotheses sorted by Elo)
     """
     hypotheses = state["hypotheses"]
-    logger.info(
-        f"Starting ranking tournament with {len(hypotheses)} hypotheses")
+    logger.info("Starting ranking tournament with %s hypotheses",
+                len(hypotheses))
 
     hypotheses_with_reflection = sum(
         1 for h in hypotheses if h.reflection_notes)
     logger.debug("\n=== ranking tournament debug ===")
-    logger.debug(f"total hypotheses: {len(hypotheses)}")
-    logger.debug(
-        f"hypotheses with reflection notes: {hypotheses_with_reflection}/{len(hypotheses)}"
-    )
+    logger.debug("total hypotheses: %s", len(hypotheses))
+    logger.debug("hypotheses with reflection notes: %s/%s",
+                 hypotheses_with_reflection, len(hypotheses))
 
     if hypotheses_with_reflection == 0:
         logger.debug("warning: No hypotheses have reflection notes!")
@@ -230,11 +229,11 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
 
     # Sort hypotheses by review score before tournament
     # This provides initial ordering based on review scores
-    # Use hypothesis text as tiebreaker for deterministic ordering when scores are equal
+    # Use hypothesis text as tiebreaker for deterministic ordering when scores
+    # are equal
     hypotheses.sort(key=lambda h: (h.score, h.text), reverse=True)
-    logger.info(
-        f"Sorted hypotheses by review score (top score: {hypotheses[0].score:.2f})"
-    )
+    logger.info("Sorted hypotheses by review score (top score: %.2f)",
+                hypotheses[0].score)
 
     # Emit progress
     if state.get("progress_callback"):
@@ -255,15 +254,16 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
 
     # Calculate number of tournament rounds
     tournament_rounds = len(hypotheses) * 1
-    logger.info(f"Running {tournament_rounds} tournament rounds")
+    logger.info("Running %s tournament rounds", tournament_rounds)
 
     # Get supervisor guidance and tool registry from state
     supervisor_guidance = state.get("supervisor_guidance")
     tool_registry = state.get("tool_registry")
 
     # Set deterministic random seed based on research goal and iteration
-    # this ensures same inputs produce same tournament pairings for cache consistency
-    # use hashlib instead of hash() for deterministic results across python processes
+    # this ensures same inputs produce same tournament pairings for cache
+    # consistency use hashlib instead of hash() for deterministic results across
+    # python processes
     research_goal = state["research_goal"]
     current_iteration = state.get("current_iteration", 0)
     seed_string = f"{research_goal}_{current_iteration}"
@@ -301,12 +301,13 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
             winner_elo=winner_hyp.elo_rating,
             loser_elo=loser_hyp.elo_rating,
             k_factor=ELO_K_FACTOR)
-        logger.debug(
-            f"Matchup result: Winner {winner_hyp.elo_rating} → {new_winner_elo}, "
-            f"Loser {loser_hyp.elo_rating} → {new_loser_elo}")
+        logger.debug("Matchup result: Winner %s -> %s, Loser %s -> %s",
+                     winner_hyp.elo_rating, new_winner_elo,
+                     loser_hyp.elo_rating, new_loser_elo)
 
         # Store matchup details for display
-        # Extract reasoning from response (can be decision_summary or judgment_explanation)
+        # Extract reasoning from response (can be decision_summary or
+        # judgment_explanation)
         reasoning = response.get("decision_summary", "")
         if not reasoning and "judgment_explanation" in response:
             # Fallback: combine judgment details if decision_summary is missing
@@ -345,11 +346,12 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
         loser_hyp.loss_count += 1
 
     # Sort hypotheses by Elo rating (highest first)
-    # Use hypothesis text as tiebreaker for deterministic ordering when Elo ratings are equal
+    # Use hypothesis text as tiebreaker for deterministic ordering when Elo
+    # ratings are equal
     hypotheses.sort(key=lambda h: (h.elo_rating, h.text), reverse=True)
 
-    logger.info(f"Tournament complete. Top Elo: {hypotheses[0].elo_rating}")
-    logger.info(f"Top hypothesis: {hypotheses[0].text[:100]}...")
+    logger.info("Tournament complete. Top Elo: %s", hypotheses[0].elo_rating)
+    logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])
 
     # Emit progress
     if state.get("progress_callback"):
@@ -367,8 +369,8 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
     metrics = create_metrics_update(llm_calls_delta=llm_calls,
                                     tournaments_count_delta=tournament_rounds)
     logger.debug(
-        f"ranking node creating metrics delta: tournaments={tournament_rounds}, llm_calls={llm_calls}"
-    )
+        "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
+        tournament_rounds, llm_calls)
 
     return {
         "hypotheses":

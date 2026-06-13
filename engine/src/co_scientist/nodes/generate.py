@@ -16,6 +16,7 @@
 Main entry point for the LangGraph workflow. All generation logic
 has been moved to the generation/ package for better organization.
 """
+# pylint: disable=inconsistent-quotes
 
 import logging
 from typing import Any, Dict
@@ -32,7 +33,8 @@ async def generate_node(state: WorkflowState) -> Dict[str, Any]:
 
     Delegates to generation coordinator which orchestrates all strategies:
     - Literature usage (standard or tool-based)
-    - Debate generation (with or without literature review, depending on configuration and availability)
+    - Debate generation (with or without literature review, depending on
+      configuration and availability)
 
     args:
         state: current workflow state
@@ -51,8 +53,7 @@ async def generate_node(state: WorkflowState) -> Dict[str, Any]:
     metrics = create_metrics_update(hypothesis_count=hypothesis_count)
     result["metrics"] = metrics
 
-    logger.info(
-        f"Generate node complete: {result.get('message', 'generated hypotheses')}"
-    )
+    logger.info("Generate node complete: %s",
+                result.get('message', 'generated hypotheses'))
 
     return result

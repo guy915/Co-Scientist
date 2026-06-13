@@ -21,6 +21,7 @@ Orchestrates a multi-phase literature review process:
 5. Analyze each paper for gaps/limitations
 6. Synthesize findings into articles_with_reasoning
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import hashlib
@@ -100,17 +101,15 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
     if is_multi_source:
         enabled_sources = workflow.get_enabled_search_sources()
         source_names = [s.tool for s in enabled_sources]
-        logger.info(
-            f"Multi-source mode: {len(enabled_sources)} sources configured: {source_names}"
-        )
+        logger.info("Multi-source mode: %s sources configured: %s",
+                    len(enabled_sources), source_names)
     elif tool_registry and workflow and workflow.primary_search:
         search_tool_config = tool_registry.get_tool(workflow.primary_search)
         if search_tool_config:
             search_tool_name = search_tool_config.mcp_tool_name
             source_name = extract_source_name(search_tool_config)
-            logger.info(
-                f"Single-source mode: {search_tool_name} (source: {source_name})"
-            )
+            logger.info("Single-source mode: %s (source: %s)", search_tool_name,
+                        source_name)
 
     # dev mode detection
     is_dev_mode = os.getenv("COSCIENTIST_DEV_MODE",
@@ -149,10 +148,11 @@ async def _generate_queries_via_mcp(
             query_format=query_format,
         )
         queries = parse_mcp_query_result(result)
-        logger.info(f"MCP query generation returned {len(queries)} queries")
+        logger.info("MCP query generation returned %s queries", len(queries))
         return queries
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"MCP query generation failed: {e}, falling back to LLM")
+        logger.warning("MCP query generation failed: %s, falling back to LLM",
+                       e)
         return []
 
 
@@ -167,7 +167,7 @@ async def _generate_queries_via_llm(
         config.search_tool_config,
         config.is_multi_source,
     )
-    logger.debug(f"Using {source_type} query generation prompt")
+    logger.debug("Using %s query generation prompt", source_type)
 
     prompt = get_literature_review_query_generation_prompt(
         research_goal=state["research_goal"],
@@ -188,7 +188,7 @@ async def _generate_queries_via_llm(
         )
         return result.get("queries", [])
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"LLM query generation failed: {e}")
+        logger.warning("LLM query generation failed: %s", e)
         return []
 
 
@@ -203,14 +203,14 @@ async def _phase1_generate_queries(
     queries = []
 
     # try MCP-based generation first if configured
-    if config.tool_registry and config.workflow and config.workflow.query_generation_tool:
+    if (config.tool_registry and config.workflow and
+            config.workflow.query_generation_tool):
         tool_cfg = config.tool_registry.get_tool(
             config.workflow.query_generation_tool)
         if tool_cfg:
             query_format = config.workflow.query_format or "boolean"
-            logger.info(
-                f"Using MCP query generation: {tool_cfg.mcp_tool_name} (format: {query_format})"
-            )
+            logger.info("Using MCP query generation: %s (format: %s)",
+                        tool_cfg.mcp_tool_name, query_format)
             queries = await _generate_queries_via_mcp(
                 mcp_client,
                 state["research_goal"],
@@ -230,9 +230,9 @@ async def _phase1_generate_queries(
     # limit to 3 queries max
     queries = queries[:3]
 
-    logger.info(f"Generated {len(queries)} search queries")
+    logger.info("Generated %s search queries", len(queries))
     for i, q in enumerate(queries, 1):
-        logger.debug(f"Query {i}: {q}")
+        logger.debug("Query %s: %s", i, q)
 
     return queries
 
@@ -253,17 +253,16 @@ async def _search_single_source(
     """Search a single source with all queries."""
     tool_config = tool_registry.get_tool(source_config.tool)
     if not tool_config:
-        logger.warning(
-            f"Tool config not found for source: {source_config.tool}")
+        logger.warning("Tool config not found for source: %s",
+                       source_config.tool)
         return (source_config.tool, {})
 
     mcp_tool_name = tool_config.mcp_tool_name
     src_name = extract_source_name(tool_config)
     papers_per_query = source_config.papers_per_query
 
-    logger.info(
-        f"Searching {src_name} ({mcp_tool_name}): {papers_per_query} papers/query"
-    )
+    logger.info("Searching %s (%s): %s papers/query", src_name, mcp_tool_name,
+                papers_per_query)
 
     source_results = {}
     for query in queries:
@@ -291,9 +290,9 @@ async def _search_single_source(
             source_results.update(normalized)
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"Query failed for {src_name}: {e}")
+            logger.error("Query failed for %s: %s", src_name, e)
 
-    logger.info(f"Source {src_name}: collected {len(source_results)} papers")
+    logger.info("Source %s: collected %s papers", src_name, len(source_results))
     return (source_config.tool, source_results)
 
 
@@ -308,8 +307,8 @@ async def _search_single_query(
     mcp_client: MCPToolClient,
 ) -> Tuple[int, Dict[str, Dict[str, Any]]]:
     """Search single query (for single-source mode)."""
-    logger.debug(
-        f"Searching query {index} ({papers_count} papers): {query[:80]}...")
+    logger.debug("Searching query %s (%s papers): %s...", index, papers_count,
+                 query[:80])
 
     try:
         canonical_params = {
@@ -332,11 +331,11 @@ async def _search_single_query(
         result_data = json.loads(result) if isinstance(result, str) else result
         normalized = normalize_search_response(result_data, search_tool_config)
 
-        logger.debug(f"Query {index}: found {len(normalized)} papers")
+        logger.debug("Query %s: found %s papers", index, len(normalized))
         return (index, normalized)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error(f"Query {index} failed: {e}")
+        logger.error("Query %s failed: %s", index, e)
         return (index, {})
 
 
@@ -347,10 +346,11 @@ async def _phase2_collect_papers_multi_source(
     config: SearchConfig,
     mcp_client: MCPToolClient,
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
-    """Phase 2 (multi-source): Collect papers from multiple sources in parallel."""
+    """Phase 2 (multi-source): Collect papers from multiple sources in parallel.
+    """
     enabled_sources = config.workflow.get_enabled_search_sources()
-    logger.info(
-        f"Phase 2: collecting papers from {len(enabled_sources)} sources")
+    logger.info("Phase 2: collecting papers from %s sources",
+                len(enabled_sources))
 
     # search all sources in parallel
     tasks = [
@@ -372,8 +372,8 @@ async def _phase2_collect_papers_multi_source(
     )
 
     logger.info(
-        f"Multi-source search complete: {len(all_paper_metadata)} unique papers "
-        f"from {len(enabled_sources)} sources")
+        "Multi-source search complete: %s unique papers from %s sources",
+        len(all_paper_metadata), len(enabled_sources))
 
     return all_paper_metadata, paper_source_map
 
@@ -386,15 +386,15 @@ async def _phase2_collect_papers_single_source(
     mcp_client: MCPToolClient,
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
     """Phase 2 (single-source): Collect papers with legacy distribution."""
-    logger.info(f"Phase 2: collecting papers with {config.search_tool_name}")
+    logger.info("Phase 2: collecting papers with %s", config.search_tool_name)
 
     papers_per_query, remainder = calculate_papers_per_query(
         config.papers_to_read_count,
         len(queries),
     )
 
-    logger.info(f"Distributing {config.papers_to_read_count} papers: "
-                f"{papers_per_query} per query (+ {remainder} extra)")
+    logger.info("Distributing %s papers: %s per query (+ %s extra)",
+                config.papers_to_read_count, papers_per_query, remainder)
 
     # search all queries in parallel
     tasks = [
@@ -437,14 +437,14 @@ async def _discover_pdf_link(
         return (paper_id, None)
 
     try:
-        logger.debug(f"Discovering PDF links for {paper_id}: {landing_url}")
+        logger.debug("Discovering PDF links for %s: %s", paper_id, landing_url)
         result = await mcp_client.call_tool(tool_name, url=landing_url)
         pdf_url = parse_pdf_discovery_result(result)
         if pdf_url:
-            logger.debug(f"Found PDF link for {paper_id}: {pdf_url}")
+            logger.debug("Found PDF link for %s: %s", paper_id, pdf_url)
         return (paper_id, pdf_url)
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to discover PDF links for {paper_id}: {e}")
+        logger.warning("Failed to discover PDF links for %s: %s", paper_id, e)
         return (paper_id, None)
 
 
@@ -473,9 +473,8 @@ async def _phase2_4_discover_pdf_links(
     if not papers_needing_discovery:
         return
 
-    logger.info(
-        f"Phase 2.4: discovering PDF links for {len(papers_needing_discovery)} papers"
-    )
+    logger.info("Phase 2.4: discovering PDF links for %s papers",
+                len(papers_needing_discovery))
 
     # discover in parallel
     tasks = [
@@ -491,9 +490,8 @@ async def _phase2_4_discover_pdf_links(
             all_paper_metadata[paper_id]["pdf_url"] = pdf_url
             discovered_count += 1
 
-    logger.info(
-        f"PDF discovery complete: {discovered_count}/{len(papers_needing_discovery)} papers"
-    )
+    logger.info("PDF discovery complete: %s/%s papers", discovered_count,
+                len(papers_needing_discovery))
 
 
 # =============================================================================
@@ -523,20 +521,20 @@ async def _fetch_paper_content(
         # build tool call args: url is always required, add any resolved params
         tool_args = {"url": content_url, **resolved_params}
 
-        logger.debug(
-            f"Fetching content for {paper_id} via {content_cfg.mcp_tool_name}: {content_url}"
-        )
+        logger.debug("Fetching content for %s via %s: %s", paper_id,
+                     content_cfg.mcp_tool_name, content_url)
         if resolved_params:
-            logger.debug(f"  with params: {list(resolved_params.keys())}")
+            logger.debug("  with params: %s", list(resolved_params.keys()))
 
         result = await mcp_client.call_tool(content_cfg.mcp_tool_name,
                                             **tool_args)
         content = parse_content_result(result)
         if content:
-            logger.debug(f"Retrieved {len(content)} chars for paper {paper_id}")
+            logger.debug("Retrieved %s chars for paper %s", len(content),
+                         paper_id)
         return (paper_id, content)
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.warning(f"Failed to fetch content for {paper_id}: {e}")
+        logger.warning("Failed to fetch content for %s: %s", paper_id, e)
         return (paper_id, None)
 
 
@@ -558,8 +556,8 @@ async def _phase2_5_fetch_content(
         return
 
     if content_config:
-        logger.info(
-            f"Content retrieval configured for {len(content_config)} source(s)")
+        logger.info("Content retrieval configured for %s source(s)",
+                    len(content_config))
 
     papers_needing_content = get_papers_needing_content(
         all_paper_metadata,
@@ -570,8 +568,8 @@ async def _phase2_5_fetch_content(
     if not papers_needing_content:
         return
 
-    logger.info(
-        f"Phase 2.5: fetching content for {len(papers_needing_content)} papers")
+    logger.info("Phase 2.5: fetching content for %s papers",
+                len(papers_needing_content))
 
     # build runtime context for param resolution
     runtime_context = {
@@ -595,9 +593,8 @@ async def _phase2_5_fetch_content(
             all_paper_metadata[paper_id]["fulltext"] = content
             fetched_count += 1
 
-    logger.info(
-        f"Content retrieval complete: {fetched_count}/{len(papers_needing_content)} papers"
-    )
+    logger.info("Content retrieval complete: %s/%s papers", fetched_count,
+                len(papers_needing_content))
 
 
 # =============================================================================
@@ -619,15 +616,15 @@ async def _call_enrichment_tool_for_entity(
     try:
         return await mcp_client.call_tool(tool_name, **mapped_params)
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.debug(f"context enrichment call failed ({tool_name}): {e}")
+        logger.debug("context enrichment call failed (%s): %s", tool_name, e)
         return None
 
 
 def _parse_enrichment_result(raw: Any) -> tuple[str, List[Dict[str, Any]]]:
-    """Extract formatted text AND structured items from an enrichment tool result.
+    """Extract formatted text AND structured items from an enrichment result.
 
-    Returns (display_text, structured_items) where structured_items is a list
-    of dicts suitable for storage in context_enrichment_sources.
+    Returns (display_text, structured_items) where structured_items is a
+    list of dicts suitable for storage in context_enrichment_sources.
     """
     data = raw
     if isinstance(raw, str):
@@ -652,7 +649,8 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, List[Dict[str, Any]]]:
                 rel = s.get("type", "")
                 belief = s.get("belief", 0)
                 if subj and obj:
-                    display = f"{subj} \u2192 {obj} [{rel}] (belief: {belief:.2f})"
+                    display = (f"{subj} \u2192 {obj} [{rel}]"
+                               f" (belief: {belief:.2f})")
                     lines.append(f"- {display}")
                     items.append({"display": f"INDRA: {display}", "data": s})
             return "\n".join(lines), items
@@ -732,7 +730,7 @@ async def _phase2_6_fetch_context_enrichment(
     config: SearchConfig,
     mcp_client: MCPToolClient,
 ) -> tuple[str, List[Dict[str, Any]]]:
-    """Phase 2.6: fetch background context from configured knowledge-graph tools.
+    """Phase 2.6: fetch background context from knowledge-graph tools.
 
     Completely YAML-driven: only runs when the literature_review workflow
     lists tools under 'context_enrichment_tools'. Returns ("", []) when not
@@ -761,8 +759,8 @@ async def _phase2_6_fetch_context_enrichment(
         return empty
 
     logger.info(
-        f"Phase 2.6: fetching context enrichment for entities {entities} "
-        f"via {len(workflow.context_enrichment_tools)} tool(s)")
+        "Phase 2.6: fetching context enrichment for entities %s via %s tool(s)",
+        entities, len(workflow.context_enrichment_tools))
 
     tool_configs = []
     for tool_id in workflow.context_enrichment_tools:
@@ -773,7 +771,8 @@ async def _phase2_6_fetch_context_enrichment(
             tool_configs.append(tc)
         else:
             logger.debug(
-                f"context enrichment: tool '{tool_id}' unavailable or disabled")
+                "context enrichment: tool '%s' unavailable or disabled",
+                tool_id)
 
     if not tool_configs:
         return empty
@@ -788,8 +787,8 @@ async def _phase2_6_fetch_context_enrichment(
     all_structured: List[Dict[str, Any]] = []
     for tc, result in zip(tool_configs, tool_results):
         if isinstance(result, Exception):
-            logger.debug(
-                f"context enrichment: {tc.mcp_tool_name} raised {result}")
+            logger.debug("context enrichment: %s raised %s", tc.mcp_tool_name,
+                         result)
             continue
         text, items = result
         if text:
@@ -808,13 +807,14 @@ async def _phase2_6_fetch_context_enrichment(
         combined = combined[:_CONTEXT_ENRICHMENT_MAX_CHARS] + "\n[...truncated]"
 
     logger.info(
-        f"Phase 2.6 complete: {len(sections)} tool(s), {len(all_structured)} structured items "
-        f"({len(combined)} chars)")
+        "Phase 2.6 complete: %s tool(s), %s structured items (%s chars)",
+        len(sections), len(all_structured), len(combined))
     return combined, all_structured
 
 
 # =============================================================================
-# KG evidence section formatting (appended to synthesis after articles are built)
+# KG evidence section formatting (appended to synthesis after articles are
+# built)
 # =============================================================================
 
 
@@ -824,10 +824,11 @@ def _format_kg_section_with_keys(
 ) -> str:
     """Format context enrichment sources as a labeled [C*] section.
 
-    Keys start at C{paper_count + 1}, exactly matching what build_reference_index
-    will assign at generation time (papers fill C1..Cn first, then these entries
-    follow). This lets the generation LLM see the same [C*] handles in
-    articles_with_reasoning that appear in its Citation Reference List.
+    Keys start at C{paper_count + 1}, exactly matching what
+    build_reference_index will assign at generation time (papers fill
+    C1..Cn first, then these entries follow). This lets the generation LLM
+    see the same [C*] handles in articles_with_reasoning that appear in its
+    Citation Reference List.
     """
     if not context_enrichment_sources:
         return ""
@@ -877,9 +878,8 @@ async def _analyze_single_paper(
             temperature=HIGH_TEMPERATURE,
         )
 
-        logger.debug(
-            f"Analyzed paper {paper_id}: {metadata.get('title', 'Unknown')[:60]}"
-        )
+        logger.debug("Analyzed paper %s: %s", paper_id,
+                     metadata.get('title', 'Unknown')[:60])
         return {
             "paper_id": paper_id,
             "metadata": metadata,
@@ -887,7 +887,7 @@ async def _analyze_single_paper(
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error(f"Failed to analyze paper {paper_id}: {e}")
+        logger.error("Failed to analyze paper %s: %s", paper_id, e)
         return None
 
 
@@ -902,8 +902,8 @@ async def _phase3_analyze_papers(
         logger.error("No papers have content for analysis")
         return []
 
-    logger.info(
-        f"Phase 3: analyzing {len(papers_with_content)} papers (parallel)")
+    logger.info("Phase 3: analyzing %s papers (parallel)",
+                len(papers_with_content))
 
     tasks = [
         _analyze_single_paper(
@@ -917,15 +917,14 @@ async def _phase3_analyze_papers(
 
     # filter out failed analyses
     analyses = [r for r in results if r is not None]
-    logger.info(
-        f"Completed {len(analyses)}/{len(papers_with_content)} paper analyses")
+    logger.info("Completed %s/%s paper analyses", len(analyses),
+                len(papers_with_content))
 
     # debug logging
     if analyses:
         first = analyses[0]
-        logger.debug(
-            f"Sample analysis structure - keys: {list(first.get('analysis', {}).keys())}"
-        )
+        logger.debug("Sample analysis structure - keys: %s",
+                     list(first.get('analysis', {}).keys()))
 
     return analyses
 
@@ -964,9 +963,8 @@ async def _phase4_synthesize(
             },
         )
 
-        logger.info(
-            f"Calling synthesis LLM with {len(prompt)} chars, {len(paper_analyses)} papers"
-        )
+        logger.info("Calling synthesis LLM with %s chars, %s papers",
+                    len(prompt), len(paper_analyses))
 
         synthesis = await call_llm(
             prompt=prompt,
@@ -975,13 +973,13 @@ async def _phase4_synthesize(
             temperature=HIGH_TEMPERATURE,
         )
 
-        logger.info(f"Synthesis complete - length: {len(synthesis)} chars")
-        logger.debug(f"Synthesis preview: {synthesis[:500]}...")
+        logger.info("Synthesis complete - length: %s chars", len(synthesis))
+        logger.debug("Synthesis preview: %s...", synthesis[:500])
 
         return synthesis
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error(f"Synthesis failed: {e}")
+        logger.error("Synthesis failed: %s", e)
         return LITERATURE_REVIEW_FAILED
 
 
@@ -991,7 +989,7 @@ async def _phase4_synthesize(
 
 
 async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
-    """Conducts literature review using configured MCP tools with direct LLM analysis.
+    """Conducts literature review using configured MCP tools with LLM analysis.
 
     Orchestrates the following phases:
     1. Generate search queries (MCP tool or LLM)
@@ -1005,9 +1003,8 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
 
     # setup configuration
     config = _get_search_config(state)
-    logger.info(
-        f"Literature review config: dev_mode={config.is_dev_mode}, papers={config.papers_to_read_count}"
-    )
+    logger.info("Literature review config: dev_mode=%s, papers=%s",
+                config.is_dev_mode, config.papers_to_read_count)
 
     # check cache
     node_cache = get_node_cache()
@@ -1053,11 +1050,13 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
         state["research_goal"].encode()).hexdigest()[:8]
 
     if config.is_multi_source:
-        all_paper_metadata, paper_source_map = await _phase2_collect_papers_multi_source(
-            queries, slug, state, config, mcp_client)
+        all_paper_metadata, paper_source_map = (
+            await _phase2_collect_papers_multi_source(queries, slug, state,
+                                                      config, mcp_client))
     else:
-        all_paper_metadata, paper_source_map = await _phase2_collect_papers_single_source(
-            queries, slug, state, config, mcp_client)
+        all_paper_metadata, paper_source_map = (
+            await _phase2_collect_papers_single_source(queries, slug, state,
+                                                       config, mcp_client))
 
     # phase 2.4: discover PDF links
     await _phase2_4_discover_pdf_links(all_paper_metadata, paper_source_map,
@@ -1074,13 +1073,12 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
     # check fulltext availability
     with_fulltext, without_fulltext = count_papers_with_fulltext(
         all_paper_metadata)
-    logger.info(
-        f"Collected {len(all_paper_metadata)} papers ({with_fulltext} with fulltext)"
-    )
+    logger.info("Collected %s papers (%s with fulltext)",
+                len(all_paper_metadata), with_fulltext)
 
     if without_fulltext > 0:
-        logger.warning(
-            f"{without_fulltext} papers do not have fulltexts available")
+        logger.warning("%s papers do not have fulltexts available",
+                       without_fulltext)
 
     # handle edge cases
     if len(all_paper_metadata) == 0:
@@ -1093,10 +1091,12 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
     if with_fulltext == 0:
         logger.error(
             "No papers have fulltexts available - cannot perform analysis")
+        n = len(all_paper_metadata)
         await emit_progress(
             state,
             "literature_review_complete",
-            f"Literature review failed ({len(all_paper_metadata)} papers found but none have fulltexts)",
+            f"Literature review failed ({n} papers found but none"
+            " have fulltexts)",
             0.2,
         )
         articles = build_articles_from_metadata(all_paper_metadata,
@@ -1104,7 +1104,7 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
                                                 config.source_name,
                                                 config.tool_registry)
         return make_failure_result(
-            f"{len(all_paper_metadata)} papers found but none have fulltexts for analysis",
+            f"{n} papers found but none have fulltexts for analysis",
             queries=queries,
             articles=articles,
         )
@@ -1114,9 +1114,8 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
         has_ft = bool(
             meta.get("pmc_full_text_id") or meta.get("fulltext") or
             meta.get("pdf_url"))
-        logger.debug(
-            f"Paper {paper_id}: title='{meta.get('title', '')[:60]}...' has_fulltext={has_ft}"
-        )
+        logger.debug("Paper %s: title='%s...' has_fulltext=%s", paper_id,
+                     meta.get('title', '')[:60], has_ft)
 
     # phase 3: analyze papers
     paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
@@ -1134,11 +1133,12 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
                                             paper_source_map,
                                             config.source_name,
                                             config.tool_registry)
-    logger.info(f"Created {len(articles)} article objects")
+    logger.info("Created %s article objects", len(articles))
 
-    # append knowledge graph evidence with [C*] keys aligned to the reference index.
-    # keys start after the analyzed papers so they match what build_reference_index
-    # will assign at generation time — giving the generation LLM explicit handles to cite.
+    # append knowledge graph evidence with [C*] keys aligned to the reference
+    # index. keys start after the analyzed papers so they match what
+    # build_reference_index will assign at generation time — giving the
+    # generation LLM explicit handles to cite.
     if context_enrichment_sources and synthesis != LITERATURE_REVIEW_FAILED:
         used_paper_count = sum(
             1 for a in articles if getattr(a, "used_in_analysis", False))
@@ -1147,8 +1147,8 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
         if kg_section:
             synthesis = synthesis + kg_section
             logger.info(
-                f"Appended {len(context_enrichment_sources)} KG source(s) with "
-                f"[C{used_paper_count + 1}...] keys to synthesis")
+                "Appended %s KG source(s) with [C%s...] keys to synthesis",
+                len(context_enrichment_sources), used_paper_count + 1)
 
     # emit completion
     await emit_progress(
@@ -1161,8 +1161,8 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
     )
 
     logger.info(
-        f"Literature review complete: {len(articles)} articles from {len(queries)} queries, "
-        f"{len(synthesis)} char synthesis")
+        "Literature review complete: %s articles from %s queries,"
+        " %s char synthesis", len(articles), len(queries), len(synthesis))
 
     # build and cache result
     result = make_success_result(synthesis, queries, articles)

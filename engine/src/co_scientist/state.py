@@ -46,18 +46,20 @@ def deduplicate_hypotheses(existing: List[Hypothesis],
     if not new:
         return existing
 
-    # Check if this is a replacement (same count or updating existing hypotheses)
-    # vs. adding new hypotheses
+    # Check if this is a replacement (same count or updating existing
+    # hypotheses) vs. adding new hypotheses
     if len(new) > 0:
         # If first hypothesis in new has same id characteristics as existing,
         # this is a replacement operation, not addition
         existing_texts = {hyp.text.strip().lower() for hyp in existing}
         new_texts = {hyp.text.strip().lower() for hyp in new}
 
-        # If substantial overlap, this is a replacement (e.g., updating metadata)
+        # If substantial overlap, this is a replacement (e.g., updating
+        # metadata)
         overlap = existing_texts & new_texts
         if len(overlap) > len(new) * 0.5:  # More than 50% overlap
-            # Replacement operation - use new list as-is but deduplicate within it
+            # Replacement operation - use new list as-is but deduplicate within
+            # it
             all_hyps = new
         else:
             # Addition operation - merge and deduplicate
@@ -79,8 +81,8 @@ def deduplicate_hypotheses(existing: List[Hypothesis],
             # Only log if this is truly a duplicate (not from replacement)
             if len(all_hyps) > len(new):
                 logger.warning(
-                    f"Automatic dedup: Removed duplicate hypothesis: {hyp.text[:80]}..."
-                )
+                    "Automatic dedup: Removed duplicate hypothesis: %s...",
+                    hyp.text[:80])
 
     return deduplicated
 
@@ -141,7 +143,9 @@ class WorkflowState(TypedDict):
     """LLM model to use (litellm format) for worker nodes."""
 
     supervisor_model_name: str
-    """LLM model to use for supervisor and meta-review nodes (falls back to model_name if not set)."""
+    """LLM model to use for supervisor and meta-review nodes (falls back to
+    model_name if not set).
+    """
 
     max_iterations: int
     """Number of refinement iterations to run."""
@@ -176,7 +180,8 @@ class WorkflowState(TypedDict):
 
     # Metrics
     metrics: Annotated[ExecutionMetrics, merge_metrics]
-    """Execution metrics for the workflow (auto-merged from concurrent updates)."""
+    """Execution metrics for the workflow (auto-merged from concurrent updates).
+    """
 
     start_time: float
     """Workflow start timestamp."""
@@ -209,19 +214,25 @@ class WorkflowState(TypedDict):
     """Optional: User-provided literature references to incorporate."""
 
     articles_with_reasoning: Optional[str]
-    """Literature review results with analytical reasoning (formatted for prompts)."""
+    """Literature review results with analytical reasoning (formatted for
+    prompts).
+    """
 
     literature_review_queries: Optional[List[str]]
     """Generated search queries for literature review."""
 
     articles: Optional[List[Article]]
-    """Individual articles extracted from literature review (for hypothesis comparison)."""
+    """Individual articles extracted from literature review (for hypothesis
+    comparison).
+    """
 
     generation_corpus_slug: Optional[str]
     """Shared corpus slug for reuse across draft and validation phases."""
 
     debate_transcripts: Optional[List[Dict[str, Any]]]
-    """Internal debate transcripts from parallel debates. Each entry: {debate_id, transcript, hypothesis_text}"""
+    """Internal debate transcripts from parallel debates. Each entry:
+    {debate_id, transcript, hypothesis_text}
+    """
 
     mcp_available: Optional[bool]
     """Whether MCP server (for literature review tools) is available."""
@@ -230,18 +241,25 @@ class WorkflowState(TypedDict):
     """Whether PubMed API (Entrez) is available."""
 
     enable_tool_calling_generation: Optional[bool]
-    """Enable tool-calling generation where generate node queries literature tools directly (requires enable_literature_review_node=True + MCP server, default False)."""
+    """Enable tool-calling generation where generate node queries literature
+    tools directly (requires enable_literature_review_node=True + MCP server,
+    default False).
+    """
 
     dev_test_lit_tools_isolation: Optional[bool]
-    """Development mode: force cache on lit review, allocate all hypotheses to lit tools (no debate)."""
+    """Development mode: force cache on lit review, allocate all hypotheses to
+    lit tools (no debate).
+    """
 
     tool_registry: Optional[Any]
     """Optional ToolRegistry for config-driven tool selection."""
 
     context_enrichment_sources: Optional[List[Dict[str, Any]]]
-    """Structured sources returned by context enrichment tools during literature review
-    (e.g., INDRA mechanistic statements). Used to build [KG1]-style citation keys
-    for hypothesis generation. Domain-agnostic: any enrichment tool can populate this."""
+    """Structured sources returned by context enrichment tools during
+    literature review (e.g., INDRA mechanistic statements). Used to build
+    [KG1]-style citation keys for hypothesis generation. Domain-agnostic:
+    any enrichment tool can populate this.
+    """
 
 
 class WorkflowConfig(TypedDict):

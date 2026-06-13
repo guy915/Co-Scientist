@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Proximity node - cluster and deduplicate similar hypotheses."""
+# pylint: disable=inconsistent-quotes
 
 import logging
 from typing import Any, Dict, List
@@ -46,7 +47,7 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
         Dictionary with updated state fields (deduplicated hypotheses)
     """
     hypotheses = state["hypotheses"]
-    logger.info(f"Analyzing proximity of {len(hypotheses)} hypotheses")
+    logger.info("Analyzing proximity of %s hypotheses", len(hypotheses))
 
     current_iteration = state.get("current_iteration", 0)
     next_iteration = current_iteration + 1
@@ -163,7 +164,8 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
 
         if high_similarity:
             # For high-similarity duplicates, keep only the best
-            # Sort by: Elo rating (primary), then score (secondary), then text (tiebreaker)
+            # Sort by: Elo rating (primary), then score (secondary), then text
+            # (tiebreaker)
             high_similarity.sort(key=lambda h: (h.elo_rating, h.score, h.text),
                                  reverse=True)
 
@@ -182,18 +184,19 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
                     "score": duplicate.score,
                 })
                 logger.info(
-                    f"Removed duplicate from cluster {cluster_id}: "
-                    f"{duplicate.text[:100]}... (Elo: {duplicate.elo_rating})")
+                    "Removed duplicate from cluster %s: %s... (Elo: %s)",
+                    cluster_id, duplicate.text[:100], duplicate.elo_rating)
 
-    logger.info(f"Proximity analysis complete: "
-                f"{len(hypotheses)} → {len(hypotheses_to_keep)} hypotheses "
-                f"({len(removed_duplicates)} duplicates removed)")
+    logger.info(
+        "Proximity analysis complete: %s → %s hypotheses"
+        " (%s duplicates removed)", len(hypotheses), len(hypotheses_to_keep),
+        len(removed_duplicates))
 
     if removed_duplicates:
-        logger.warning(
-            f"Removed {len(removed_duplicates)} high-similarity duplicates:")
+        logger.warning("Removed %s high-similarity duplicates:",
+                       len(removed_duplicates))
         for dup in removed_duplicates[:3]:  # Log first 3
-            logger.warning(f"- {dup['text'][:80]}...")
+            logger.warning("- %s...", dup['text'][:80])
 
     # Emit progress
     if state.get("progress_callback"):
@@ -226,10 +229,10 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
         "current_iteration":
             next_iteration,
         "messages": [{
-            "role":
-                "assistant",
-            "content":
-                f"Deduplication: {len(hypotheses)} → {len(hypotheses_to_keep)} ({len(removed_duplicates)} removed)",
+            "role": "assistant",
+            "content": (f"Deduplication: {len(hypotheses)}"
+                        f" → {len(hypotheses_to_keep)}"
+                        f" ({len(removed_duplicates)} removed)"),
             "metadata": {
                 "phase": "proximity",
                 "duplicates_removed": len(removed_duplicates),

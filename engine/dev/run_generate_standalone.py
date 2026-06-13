@@ -16,6 +16,7 @@
 Depends on supervisor node output (will run supervisor first).
 Optionally can test with literature review results.
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 from rich.console import Console
@@ -28,7 +29,8 @@ from co_scientist.nodes.generate import generate_node
 
 console = Console()
 
-RESEARCH_GOAL = "How can we detect Alzheimer's disease earlier using retinal imaging?"
+RESEARCH_GOAL = (
+    "How can we detect Alzheimer's disease earlier using retinal imaging?")
 MODEL_NAME = "gemini/gemini-2.5-flash"
 
 
@@ -56,14 +58,12 @@ async def test_generate(with_literature: bool = False):
         console.print("[yellow]No literature review data[/yellow]")
 
     console.print(f"\n[yellow]research goal:[/yellow] {state['research_goal']}")
-    console.print(
-        f"[yellow]hypotheses to generate:[/yellow] {state['initial_hypotheses_count']}\n"
-    )
+    n_hyps = state['initial_hypotheses_count']
+    console.print(f"[yellow]hypotheses to generate:[/yellow] {n_hyps}\n")
 
     # run node
-    console.print(
-        "[yellow]calling generate node (this may take 1-2 minutes)...[/yellow]\n"
-    )
+    console.print("[yellow]calling generate node"
+                  " (this may take 1-2 minutes)...[/yellow]\n")
     result = await generate_node(state)
 
     # display results
@@ -103,24 +103,21 @@ async def test_generate(with_literature: bool = False):
 
     # debate info
     if debate_transcripts:
-        console.print(
-            f"\n[bold]debate transcripts:[/bold] {len(debate_transcripts)} debates recorded"
-        )
-        console.print(
-            f"  example debate turns: {len(debate_transcripts[0].get('debate_turns', []))} turns"
-        )
+        n_debates = len(debate_transcripts)
+        n_turns = len(debate_transcripts[0].get('debate_turns', []))
+        console.print(f"\n[bold]debate transcripts:[/bold]"
+                      f" {n_debates} debates recorded")
+        console.print(f"  example debate turns: {n_turns} turns")
 
+    n_debate = sum(1 for h in hypotheses if h.generation_method == 'debate')
+    n_lit = sum(1 for h in hypotheses if h.generation_method == 'literature')
+    n_std = sum(1 for h in hypotheses
+                if not h.generation_method or h.generation_method == 'standard')
     console.print("\n[bold]summary stats:[/bold]")
     console.print(f"  hypotheses generated: {len(hypotheses)}")
-    console.print(
-        f"  debate-based: {sum(1 for h in hypotheses if h.generation_method == 'debate')}"
-    )
-    console.print(
-        f"  literature-based: {sum(1 for h in hypotheses if h.generation_method == 'literature')}"
-    )
-    console.print(
-        f"  standard: {sum(1 for h in hypotheses if not h.generation_method or h.generation_method == 'standard')}"
-    )
+    console.print(f"  debate-based: {n_debate}")
+    console.print(f"  literature-based: {n_lit}")
+    console.print(f"  standard: {n_std}")
 
 
 if __name__ == "__main__":

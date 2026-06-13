@@ -15,6 +15,7 @@
 
 This script runs the same workflow twice to demonstrate cache speedup.
 """
+# pylint: disable=inconsistent-quotes
 
 import os
 import sys
@@ -26,10 +27,12 @@ sys.path.insert(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")),
 )
 
+# pylint: disable=wrong-import-position
 import asyncio
 from co_scientist import HypothesisGenerator, clear_cache, get_cache_stats
 
 
+# pylint: enable=wrong-import-position
 async def run_generation():
     """Run a simple generation to test caching."""
     generator = HypothesisGenerator(
@@ -40,7 +43,8 @@ async def run_generation():
         enable_cache=True,  # Explicitly enable cache
     )
 
-    research_goal = "Develop novel approaches for early detection of Alzheimer's disease"
+    research_goal = (
+        "Develop novel approaches for early detection of Alzheimer's disease")
 
     print(f"Research goal: {research_goal}\n")
 
@@ -69,9 +73,9 @@ async def main():
     print("-" * 70)
     time1 = await run_generation()
     stats1 = get_cache_stats()
-    print(
-        f"Cache after run 1: {stats1['cache_files']} files ({stats1['total_size_mb']:.2f} MB)"
-    )
+    n1 = stats1['cache_files']
+    mb1 = stats1['total_size_mb']
+    print(f"Cache after run 1: {n1} files ({mb1:.2f} MB)")
     print()
 
     # Second run (warm cache)
@@ -79,9 +83,9 @@ async def main():
     print("-" * 70)
     time2 = await run_generation()
     stats2 = get_cache_stats()
-    print(
-        f"Cache after run 2: {stats2['cache_files']} files ({stats2['total_size_mb']:.2f} MB)"
-    )
+    n2 = stats2['cache_files']
+    mb2 = stats2['total_size_mb']
+    print(f"Cache after run 2: {n2} files ({mb2:.2f} MB)")
     print()
 
     # Results
@@ -94,9 +98,7 @@ async def main():
     print(f"Speedup:    {speedup:.1f}x faster")
     print()
     print(f"Cache directory: {stats2['cache_dir']}")
-    print(
-        f"Cache size:      {stats2['total_size_mb']:.2f} MB ({stats2['cache_files']} files)"
-    )
+    print(f"Cache size:      {mb2:.2f} MB ({n2} files)")
 
 
 if __name__ == "__main__":

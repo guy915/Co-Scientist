@@ -40,13 +40,18 @@ class Hypothesis:
     Attributes:
         text: The dense technical hypothesis formulation
         explanation: Step-by-step layman explanation of the hypothesis
-        literature_grounding: Explicit grounding in literature review with [P1]/[KG1]-style citation keys
+        literature_grounding: Explicit grounding in literature review with
+            [P1]/[KG1]-style citation keys
         experiment: Practical experiment design to test the hypothesis
-        novelty_validation: Summary of search queries used to validate novelty and findings (tool-based generation only)
-        enrichments: Post-generation enrichment data from configured tools (e.g., related CVEs)
+        novelty_validation: Summary of search queries used to validate
+            novelty and findings (tool-based generation only)
+        enrichments: Post-generation enrichment data from configured tools
+            (e.g., related CVEs)
         citation_map: Resolves inline citation keys to full source metadata.
-            Paper entries: {"type": "paper", "title": ..., "url": ..., "authors": [...], "year": ...}
-            KG entries:    {"type": "knowledge_graph", "display": ..., "tool_id": ..., "data": {...}}
+            Paper entries: {"type": "paper", "title": ..., "url": ...,
+            "authors": [...], "year": ...}
+            KG entries: {"type": "knowledge_graph", "display": ...,
+            "tool_id": ..., "data": {...}}
         score: Overall quality score (0-100)
         elo_rating: Elo rating from tournament selection
         reviews: List of reviews received
@@ -54,7 +59,8 @@ class Hypothesis:
         evolution_history: List of refinement summaries
         reflection_notes: Reflection analysis from literature comparison
         generation_method: Method used to generate ('literature' or 'debate')
-        debate_id: Debate ID for debate-generated hypotheses (None for literature)
+        debate_id: Debate ID for debate-generated hypotheses
+            (None for literature)
         win_count: Tournament wins
         loss_count: Tournament losses
         total_matches: Total tournament matches
@@ -153,7 +159,8 @@ def create_metrics_update(
     Do NOT pass base metrics - only pass the increments from this node.
 
     Args:
-        hypothesis_count: new total hypothesis count (replaces via max(), not adds)
+        hypothesis_count: new total hypothesis count
+            (replaces via max(), not adds)
         reviews_count_delta: number of reviews to add (delta only)
         tournaments_count_delta: number of tournaments to add (delta only)
         evolutions_count_delta: number of evolutions to add (delta only)
@@ -191,13 +198,14 @@ class Article:
     venue: Optional[str] = None
     citations: int = 0
     abstract: Optional[str] = None
-    content: Optional[
-        str] = None  # unused in PubMed-only mode (PaperQA reads HTML files directly)
+    # unused in PubMed-only mode (PaperQA reads HTML files directly)
+    content: Optional[str] = None
     source_id: Optional[str] = None
     source: str = "pubmed"  # default changed to "pubmed" (was "google_scholar")
     pdf_links: List[str] = field(
         default_factory=list)  # unused in PubMed-only mode (HTML-only)
-    used_in_analysis: bool = False  # flag indicating if this article was analyzed by the agent
+    # flag indicating if this article was analyzed by the agent
+    used_in_analysis: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""

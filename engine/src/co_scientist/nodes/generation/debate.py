@@ -37,7 +37,7 @@ logger = logging.getLogger(__name__)
 
 
 def _match_papers_to_grounding(articles, literature_grounding):
-    """Match lit review articles against a hypothesis's literature_grounding text.
+    """Match lit review articles against a hypothesis's literature_grounding.
 
     Uses author last name + year matching against citation patterns like
     "(Roepert et al., 2020; Erba et al., 2021)" in the grounding text.
@@ -183,7 +183,7 @@ async def generate_with_debate(
     if count == 0:
         return [], []
 
-    logger.info(f"Running {count} parallel debates")
+    logger.info("Running %s parallel debates", count)
 
     debate_tasks = [
         _run_single_debate(
@@ -203,5 +203,5 @@ async def generate_with_debate(
         "hypothesis_text": debate_hypotheses[i].text
     } for i, (_, transcript) in enumerate(debate_results)]
 
-    logger.info(f"Generated {len(debate_hypotheses)} hypotheses from debates")
+    logger.info("Generated %s hypotheses from debates", len(debate_hypotheses))
     return debate_hypotheses, debate_transcripts

@@ -16,11 +16,13 @@
 Provides an interface inspired by the original AI-CoScientist integration,
 but uses LangGraph under the hood.
 """
+# pylint: disable=inconsistent-quotes
 
 import logging
 import time
 import uuid
-from typing import Any, AsyncIterator, Callable, Dict, List, Literal, Optional, Tuple, Union, overload
+from typing import (Any, AsyncIterator, Callable, Dict, List, Literal, Optional,
+                    Tuple, Union, overload)
 
 from langgraph.graph import END, StateGraph
 
@@ -79,10 +81,13 @@ class HypothesisGenerator:
             max_iterations: Number of refinement iterations
             initial_hypotheses_count: Number of initial hypotheses
             evolution_max_count: Number of top hypotheses to evolve
-            enable_cache: Enable/disable LLM response caching (None = use env var)
+            enable_cache: Enable/disable LLM response caching
+                (None = use env var)
             cache_dir: Directory for cache files (None = use default)
-            tools_config: Path to custom tools YAML config file (None = use defaults)
-            disable_tools: List of tool IDs to disable (None = use all enabled tools)
+            tools_config: Path to custom tools YAML config file
+                (None = use defaults)
+            disable_tools: List of tool IDs to disable
+                (None = use all enabled tools)
         """
         self.model_name = model_name
         self.supervisor_model_name = supervisor_model_name or model_name
@@ -94,8 +99,8 @@ class HypothesisGenerator:
         if enable_cache is not None:
             import os  # pylint: disable=import-outside-toplevel
 
-            os.environ[
-                "COSCIENTIST_CACHE_ENABLED"] = "true" if enable_cache else "false"
+            val = "true" if enable_cache else "false"
+            os.environ["COSCIENTIST_CACHE_ENABLED"] = val
         if cache_dir is not None:
             import os  # pylint: disable=import-outside-toplevel
 
@@ -110,14 +115,14 @@ class HypothesisGenerator:
                 config_path=tools_config,
                 disabled_tools=disable_tools,
             )
-            logger.info(
-                f"Initialized tool registry: {len(self._tool_registry.get_enabled_tools())} enabled tools"
-            )
+            logger.info("Initialized tool registry: %s enabled tools",
+                        len(self._tool_registry.get_enabled_tools()))
 
         # Build the graph (lazy - only once)
         self._graph = None
 
-        # Cache availability checks per instance (lazy init on first generate call)
+        # Cache availability checks per instance (lazy init on first generate
+        # call)
         self._mcp_available: Optional[bool] = None
         self._pubmed_available: Optional[bool] = None
 
@@ -127,9 +132,11 @@ class HypothesisGenerator:
 
         Complete workflow:
         1. SUPERVISOR → creates research plan
-        2. LITERATURE_REVIEW → search and analyze literature (optional, if MCP available)
+        2. LITERATURE_REVIEW → search and analyze literature (optional, if MCP
+        available)
         3. GENERATE → initial hypotheses
-        4. REFLECTION → analyze hypotheses against literature (skipped if no lit review)
+        4. REFLECTION → analyze hypotheses against literature (skipped if no lit
+        review)
         5. REVIEW → parallel peer reviews
         6. RANKING → sort by score, then run Elo tournaments
         7. ITERATIONS (if max_iterations > 0):
@@ -142,7 +149,8 @@ class HypothesisGenerator:
         8. END → return top hypotheses
 
         Args:
-            enable_literature_review_node: Whether to include literature review node (requires MCP server)
+            enable_literature_review_node: Whether to include literature
+                review node (requires MCP server)
         """
         workflow = StateGraph(WorkflowState)
 
@@ -164,7 +172,8 @@ class HypothesisGenerator:
         workflow.set_entry_point("supervisor")
 
         if enable_literature_review_node:
-            # Full flow: supervisor → literature_review → generate → reflection → review → ranking
+            # Full flow: supervisor → literature_review → generate → reflection
+            # → review → ranking
             workflow.add_edge("supervisor", "literature_review")
             workflow.add_edge("literature_review", "generate")
             workflow.add_edge("generate", "reflection")
@@ -187,21 +196,22 @@ class HypothesisGenerator:
             """Decide what to do after ranking based on workflow state."""
             current_iteration = state.get("current_iteration", 0)
             max_iterations = state.get("max_iterations", 0)
-            # Check if we've already run meta_review (indicates we're in iteration cycle)
+            # Check if we've already run meta_review (indicates we're in
+            # iteration cycle)
             has_meta_review = bool(state.get("meta_review", {}))
 
             if not has_meta_review:
                 # First ranking - check if we should start iterating
                 if current_iteration < max_iterations:
-                    logger.info(
-                        f"Starting iteration {current_iteration + 1}/{max_iterations}"
-                    )
+                    logger.info("Starting iteration %s/%s",
+                                current_iteration + 1, max_iterations)
                     return "iterate"
                 else:
                     logger.info("No iterations needed, ending workflow")
                     return "end"
             else:
-                # We're in an iteration cycle - go through proximity for deduplication
+                # We're in an iteration cycle - go through proximity for
+                # deduplication
                 logger.info("Going through proximity check")
                 return "proximity"
 
@@ -219,9 +229,8 @@ class HypothesisGenerator:
             max_iterations = state.get("max_iterations", 0)
 
             if current_iteration < max_iterations:
-                logger.info(
-                    f"Continuing to iteration {current_iteration + 1}/{max_iterations}"
-                )
+                logger.info("Continuing to iteration %s/%s",
+                            current_iteration + 1, max_iterations)
                 return "iterate"
             else:
                 logger.info("All iterations complete after deduplication")
@@ -241,7 +250,7 @@ class HypothesisGenerator:
         opts: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
     ) -> Tuple[WorkflowState, float, str]:
-        """Prepare generation by setting up state, checking MCP availability, and building graph.
+        """Prepare generation: set up state, check MCP, build graph.
 
         Returns:
             Tuple of (initial_state, start_time, run_id)
@@ -252,7 +261,7 @@ class HypothesisGenerator:
         if run_id is None:
             run_id = str(uuid.uuid4())
 
-        logger.info(f"Starting hypothesis generation with run_id={run_id}")
+        logger.info("Starting hypothesis generation with run_id=%s", run_id)
 
         # Extract optional fields from opts
         opts = opts or {}
@@ -263,8 +272,9 @@ class HypothesisGenerator:
         enable_literature_review_node_opt = opts.get(
             "enable_literature_review_node")
 
-        # Only check MCP availability if literature review node is requested (explicitly or by default)
-        # If explicitly False, skip MCP checks entirely
+        # Only check MCP availability if literature review node is requested
+        # (explicitly or by default) If explicitly False, skip MCP checks
+        # entirely
         if enable_literature_review_node_opt is False:
             # Literature review explicitly disabled, no need to check MCP
             mcp_available = False
@@ -288,14 +298,14 @@ class HypothesisGenerator:
             pubmed_available = self._pubmed_available
 
             # Determine if literature review node should be included
-            # user can override via opts, otherwise auto-detect based on MCP availability
+            # user can override via opts, otherwise auto-detect based on MCP
+            # availability
             enable_literature_review_node = opts.get(
                 "enable_literature_review_node", mcp_available)
 
             if not mcp_available and enable_literature_review_node:
-                logger.warning(
-                    "Literature review node requested but MCP server unavailable - disabling"
-                )
+                logger.warning("Literature review node requested but MCP server"
+                               " unavailable - disabling")
                 enable_literature_review_node = False
 
         # Determine if generate node should use tool-calling generation
@@ -303,39 +313,46 @@ class HypothesisGenerator:
         enable_tool_calling_generation = opts.get(
             "enable_tool_calling_generation", False)
 
-        # Validate: tool-calling generation requires literature review node + MCP
+        # Validate: tool-calling generation requires literature review node +
+        # MCP
         if enable_tool_calling_generation:
-            # Check MCP availability first - if unavailable, disable tool calling
+            # Check MCP availability first - if unavailable, disable tool
+            # calling
             if not mcp_available:
                 logger.warning(
-                    "enable_tool_calling_generation=True but MCP server unavailable - disabling tool-calling mode"
-                )
+                    "enable_tool_calling_generation=True but MCP server"
+                    " unavailable - disabling tool-calling mode")
                 enable_tool_calling_generation = False
             # Then check if literature review node is enabled
-            # Only raise error if user explicitly disabled literature review but enabled tool calling
+            # Only raise error if user explicitly disabled literature review but
+            # enabled tool calling
             elif not enable_literature_review_node:
                 # Check if literature review was explicitly disabled by user
                 if enable_literature_review_node_opt is False:
                     raise ValueError(
-                        "enable_tool_calling_generation requires enable_literature_review_node=True. "
-                        "Tool-calling generation needs literature context from the review node."
-                    )
+                        "enable_tool_calling_generation requires"
+                        " enable_literature_review_node=True. "
+                        "Tool-calling generation needs literature context"
+                        " from the review node.")
                 else:
-                    # Literature review was disabled due to MCP unavailability, disable tool calling
+                    # Literature review was disabled due to MCP unavailability,
+                    # disable tool calling
                     logger.warning(
-                        "enable_tool_calling_generation=True but literature review node unavailable - disabling tool-calling mode"
+                        "enable_tool_calling_generation=True but literature"
+                        " review node unavailable - disabling tool-calling mode"
                     )
                     enable_tool_calling_generation = False
 
-        # dev isolation mode: force cache on lit review, allocate all to lit tools
+        # dev isolation mode: force cache on lit review, allocate all to lit
+        # tools
         dev_test_lit_tools_isolation = opts.get("dev_test_lit_tools_isolation",
                                                 False)
         if dev_test_lit_tools_isolation:
-            logger.info(
-                "Dev isolation mode enabled: forcing lit review cache + all hypotheses to lit tools"
-            )
+            logger.info("Dev isolation mode enabled: forcing lit review cache"
+                        " + all hypotheses to lit tools")
 
-        # Build graph if not already built, or rebuild if literature review setting changed
+        # Build graph if not already built, or rebuild if literature review
+        # setting changed
         if self._graph is None:
             self._graph = self._build_graph(
                 enable_literature_review_node=enable_literature_review_node)
@@ -417,17 +434,25 @@ class HypothesisGenerator:
                 - preferences: Desired approach or focus
                 - attributes: Key qualities to prioritize
                 - constraints: Requirements or boundaries
-                - enable_literature_review_node: Whether to include literature review node (default: auto-detect MCP availability)
-                - enable_tool_calling_generation: Enable tool-calling generation where generate node queries literature tools directly (requires enable_literature_review_node=True + MCP server, default: False)
-                - dev_test_lit_tools_isolation: Dev mode - force lit review cache, all hypotheses to lit tools (default: False)
+                - enable_literature_review_node: Whether to include literature
+                review node (default: auto-detect MCP availability)
+                - enable_tool_calling_generation: Enable tool-calling
+                  generation where generate node queries literature tools
+                  directly (requires enable_literature_review_node=True
+                  + MCP server, default: False)
+                - dev_test_lit_tools_isolation: Dev mode - force lit
+                  review cache, all hypotheses to lit tools (default: False)
                 - user_inputs: Dictionary with:
                   - starting_hypotheses: User-provided starting hypotheses
                   - literature: User-provided literature references
-            run_id: Optional unique identifier for this run (generated if not provided)
-            stream: If True, yields (node_name, state_dict) tuples. If False, returns final result dict.
+            run_id: Optional unique identifier for this run
+                (generated if not provided)
+            stream: If True, yields (node_name, state_dict) tuples.
+                If False, returns final result dict.
 
         Returns:
-            If stream=False: Coroutine that when awaited returns dictionary with results:
+            If stream=False: Coroutine that when awaited returns a
+            dictionary with results:
             {
                 "hypotheses": [...],
                 "meta_review": {...},
@@ -439,10 +464,10 @@ class HypothesisGenerator:
 
         Example:
             >>> # Non-streaming
-            >>> result = await generator.generate_hypotheses(research_goal="...", stream=False)
+            >>> result = await generator.generate_hypotheses(research_goal="...", stream=False)  # pylint: disable=line-too-long
             >>>
             >>> # Streaming
-            >>> async for node_name, state in generator.generate_hypotheses(research_goal="...", stream=True):
+            >>> async for node_name, state in generator.generate_hypotheses(research_goal="...", stream=True):  # pylint: disable=line-too-long
             >>>     print(f"Completed {node_name}")
         """
         if stream:
@@ -482,7 +507,8 @@ class HypothesisGenerator:
         )
 
         try:
-            # Run the workflow. Uses 100 recursion limit to support higher max iterations.
+            # Run the workflow. Uses 100 recursion limit to support higher max
+            # iterations.
             final_state = await self._graph.ainvoke(
                 initial_state, config={"recursion_limit": 100})
 
@@ -522,7 +548,7 @@ class HypothesisGenerator:
             }
 
         except Exception as e:
-            logger.error(f"Hypothesis generation failed: {e}", exc_info=True)
+            logger.error("Hypothesis generation failed: %s", e, exc_info=True)
             raise
 
     async def _generate_hypotheses_with_streaming(
@@ -565,7 +591,8 @@ class HypothesisGenerator:
         """
         try:
             # Maintain cumulative state across nodes
-            # LangGraph's astream only yields fields updated by each node, not full state
+            # LangGraph's astream only yields fields updated by each node, not
+            # full state
             cumulative_state = {
                 "hypotheses": [],
                 "meta_review": {},
@@ -586,15 +613,14 @@ class HypothesisGenerator:
                 initial_state, config={"recursion_limit": 100}):
                 # chunk is a dict with node names as keys
                 for node_name, node_state in chunk.items():
-                    logger.debug(f"streaming node: {node_name}")
+                    logger.debug("streaming node: %s", node_name)
 
                     # Update cumulative state with fields from this node
                     if "hypotheses" in node_state:
                         cumulative_state["hypotheses"] = node_state[
                             "hypotheses"]
-                        logger.debug(
-                            f"updated hypotheses: {len(node_state['hypotheses'])} items"
-                        )
+                        logger.debug("updated hypotheses: %s items",
+                                     len(node_state['hypotheses']))
                     if "meta_review" in node_state:
                         cumulative_state["meta_review"] = node_state[
                             "meta_review"]
@@ -606,15 +632,13 @@ class HypothesisGenerator:
                     if "tournament_matchups" in node_state:
                         cumulative_state["tournament_matchups"] = node_state[
                             "tournament_matchups"]
-                        logger.debug(
-                            f"updated tournament_matchups: {len(node_state['tournament_matchups'])} items"
-                        )
+                        logger.debug("updated tournament_matchups: %s items",
+                                     len(node_state['tournament_matchups']))
                     if "evolution_details" in node_state:
                         cumulative_state["evolution_details"] = node_state[
                             "evolution_details"]
-                        logger.debug(
-                            f"updated evolution_details: {len(node_state['evolution_details'])} items"
-                        )
+                        logger.debug("updated evolution_details: %s items",
+                                     len(node_state['evolution_details']))
                     if "similarity_clusters" in node_state:
                         cumulative_state["similarity_clusters"] = node_state[
                             "similarity_clusters"]
@@ -622,20 +646,22 @@ class HypothesisGenerator:
                     if "current_iteration" in node_state:
                         cumulative_state["current_iteration"] = node_state[
                             "current_iteration"]
-                        logger.debug(
-                            f"updated current_iteration: {node_state['current_iteration']}"
-                        )
+                        logger.debug("updated current_iteration: %s",
+                                     node_state['current_iteration'])
                     if "metrics" in node_state:
-                        # Import merge_metrics to properly combine metrics (don't just replace!)
+                        # Import merge_metrics to properly combine metrics
+                        # (don't just replace!)
                         from .state import merge_metrics  # pylint: disable=import-outside-toplevel
 
                         cumulative_state["metrics"] = merge_metrics(
                             cumulative_state["metrics"], node_state["metrics"])
                         logger.debug(
-                            f"merged metrics: reviews={cumulative_state['metrics'].reviews_count}, "
-                            f"tournaments={cumulative_state['metrics'].tournaments_count}, "
-                            f"evolutions={cumulative_state['metrics'].evolutions_count}, "
-                            f"llm_calls={cumulative_state['metrics'].llm_calls}"
+                            "merged metrics: reviews=%s, "
+                            "tournaments=%s, evolutions=%s, llm_calls=%s",
+                            cumulative_state['metrics'].reviews_count,
+                            cumulative_state['metrics'].tournaments_count,
+                            cumulative_state['metrics'].evolutions_count,
+                            cumulative_state['metrics'].llm_calls,
                         )
                     if "articles_with_reasoning" in node_state:
                         cumulative_state[
@@ -644,26 +670,25 @@ class HypothesisGenerator:
                         chars = (len(node_state["articles_with_reasoning"]) if
                                  node_state["articles_with_reasoning"] else 0)
                         logger.debug(
-                            f"updated articles_with_reasoning: {chars} chars")
+                            "updated articles_with_reasoning: %s chars", chars)
                     if "literature_review_queries" in node_state:
                         cumulative_state[
                             "literature_review_queries"] = node_state[
                                 "literature_review_queries"]
                         logger.debug(
-                            f"updated literature_review_queries: {len(node_state['literature_review_queries'])} queries"
-                        )
+                            "updated literature_review_queries: %s queries",
+                            len(node_state['literature_review_queries']))
                     if "articles" in node_state:
                         cumulative_state["articles"] = node_state["articles"]
-                        logger.debug(
-                            f"updated articles: {len(node_state['articles'])} items"
-                        )
+                        logger.debug("updated articles: %s items",
+                                     len(node_state['articles']))
                     if "debate_transcripts" in node_state:
                         cumulative_state["debate_transcripts"] = node_state[
                             "debate_transcripts"]
                         count = (len(node_state["debate_transcripts"])
                                  if node_state["debate_transcripts"] else 0)
-                        logger.debug(
-                            f"updated debate_transcripts: {count} debates")
+                        logger.debug("updated debate_transcripts: %s debates",
+                                     count)
 
                     # Yield the node name and CUMULATIVE state
                     state_dict = {
@@ -705,12 +730,13 @@ class HypothesisGenerator:
                         },
                     }
 
-                    logger.debug(f"yielding state for node: {node_name}")
+                    logger.debug("yielding state for node: %s", node_name)
 
                     yield node_name, state_dict
 
         except Exception as e:
-            logger.error(f"Hypothesis generation streaming failed: {e}",
+            logger.error("Hypothesis generation streaming failed: %s",
+                         e,
                          exc_info=True)
             raise
 

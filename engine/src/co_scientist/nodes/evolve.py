@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Evolve node - refine top hypotheses with context-aware evolution."""
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import json
@@ -73,8 +74,8 @@ def sample_context_hypotheses(all_hypotheses: List[Hypothesis],
     context_hypotheses = top_performers + sampled_others
 
     logger.debug(
-        f"sampled {len(context_hypotheses)} context hypotheses "
-        f"(top 5 + {len(sampled_others)} random) from {len(others)} total")
+        "sampled %s context hypotheses (top 5 + %s random) from %s total",
+        len(context_hypotheses), len(sampled_others), len(others))
 
     return [h.text for h in context_hypotheses]
 
@@ -116,20 +117,22 @@ async def evolve_single_hypothesis(
     hypothesis_index: int | None = None,
     tool_registry: Any | None = None,
 ) -> Hypothesis:
-    """Evolve a single hypothesis with strategically sampled context to prevent convergence.
+    """Evolve a single hypothesis with strategically sampled context.
 
-    This is the CRITICAL anti-duplicate strategy: we pass a subset of other hypotheses
-    (top 5 by Elo + random samples) so the LLM knows what to avoid while keeping
-    token budget manageable for large hypothesis pools.
+    This is the CRITICAL anti-duplicate strategy: we pass a subset of other
+    hypotheses (top 5 by Elo + random samples) so the LLM knows what to
+    avoid while keeping token budget manageable for large hypothesis pools.
 
     Args:
         hypothesis: Hypothesis to evolve
-        other_hypotheses_texts: Strategically sampled subset of other hypotheses (max 15)
+        other_hypotheses_texts: Strategically sampled subset of other
+            hypotheses (max 15)
         meta_review: Meta-review insights for strategic guidance
         model_name: LLM model to use
         removed_duplicates: Previously removed duplicate texts to avoid
         supervisor_guidance: Optional supervisor guidance for evolution phase
-        articles_with_reasoning: Optional literature review synthesis for context
+        articles_with_reasoning: Optional literature review synthesis
+            for context
 
     Returns:
         Updated hypothesis with evolved text
@@ -145,27 +148,27 @@ async def evolve_single_hypothesis(
     emerging_themes = meta_review.get("emerging_themes", [])
 
     if common_strengths:
-        logger.debug(f"common Strengths ({len(common_strengths)}):")
+        logger.debug("common Strengths (%s):", len(common_strengths))
         for strength in common_strengths[:3]:  # Show first 3
-            logger.debug(
-                f"- {strength[:100]}{'...' if len(strength) > 100 else ''}")
+            logger.debug("- %s%s", strength[:100],
+                         '...' if len(strength) > 100 else '')
 
     if common_weaknesses:
-        logger.debug(f"common Weaknesses ({len(common_weaknesses)}):")
+        logger.debug("common Weaknesses (%s):", len(common_weaknesses))
         for weakness in common_weaknesses[:3]:  # Show first 3
-            logger.debug(
-                f"- {weakness[:100]}{'...' if len(weakness) > 100 else ''}")
+            logger.debug("- %s%s", weakness[:100],
+                         '...' if len(weakness) > 100 else '')
 
     if strategic_recommendations:
-        logger.debug(
-            f"strategic Recommendations ({len(strategic_recommendations)}):")
+        logger.debug("strategic Recommendations (%s):",
+                     len(strategic_recommendations))
         for rec in strategic_recommendations[:3]:  # Show first 3
-            logger.debug(f"- {rec}")
+            logger.debug("- %s", rec)
 
     if emerging_themes:
-        logger.debug(f"emerging Themes ({len(emerging_themes)}):")
+        logger.debug("emerging Themes (%s):", len(emerging_themes))
         for theme in emerging_themes[:3]:  # Show first 3
-            logger.debug(f"- {theme}")
+            logger.debug("- %s", theme)
 
     # Get latest review feedback
     review_feedback = ""
@@ -212,12 +215,11 @@ async def evolve_single_hypothesis(
                 guidance_sections.append(
                     f"**Refinement Priorities:** {priorities}\n")
             if evolution_phase.get("iteration_strategy"):
-                guidance_sections.append(
-                    f"**Iteration Strategy:** {evolution_phase['iteration_strategy']}\n"
-                )
+                strat = evolution_phase['iteration_strategy']
+                guidance_sections.append(f"**Iteration Strategy:** {strat}\n")
             guidance_sections.append(
-                "\nUse this guidance to align your refinement with the research plan.\n"
-            )
+                "\nUse this guidance to align your refinement"
+                " with the research plan.\n")
             supervisor_guidance_text = "".join(guidance_sections)
 
     # Build context-aware evolution prompt with domain variables
@@ -271,7 +273,8 @@ DO:
     if run_id:
         from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
-        filename = f"evolve_{hypothesis_index}" if hypothesis_index is not None else "evolve"
+        filename = (f"evolve_{hypothesis_index}"
+                    if hypothesis_index is not None else "evolve")
         save_prompt_to_disk(
             run_id=run_id,
             prompt_name=filename,
@@ -289,8 +292,8 @@ DO:
     scaled_max_tokens = min(
         EXTENDED_MAX_TOKENS + (len(other_hypotheses_texts) * 800), 20000)
 
-    logger.debug(f"evolution token budget: {scaled_max_tokens} "
-                 f"({len(other_hypotheses_texts)} context hypotheses)")
+    logger.debug("evolution token budget: %s (%s context hypotheses)",
+                 scaled_max_tokens, len(other_hypotheses_texts))
 
     # Call LLM to evolve hypothesis
     response = await call_llm_json(
@@ -330,10 +333,10 @@ DO:
     # If too similar, keep original
     if max_similarity > DUPLICATE_SIMILARITY_THRESHOLD:
         logger.warning(
-            f"Evolution created near-duplicate! Similarity: {max_similarity:.2f}. "
-            f"Keeping original hypothesis.")
-        logger.debug(f"original: {hypothesis.text[:100]}...")
-        logger.debug(f"similar to: {most_similar_text[:100]}...")
+            "Evolution created near-duplicate! Similarity: %.2f."
+            " Keeping original hypothesis.", max_similarity)
+        logger.debug("original: %s...", hypothesis.text[:100])
+        logger.debug("similar to: %s...", most_similar_text[:100])
         return hypothesis, None  # Keep original, no evolution details
 
     # Update hypothesis
@@ -344,7 +347,7 @@ DO:
     hypothesis.experiment = experiment
     hypothesis.evolution_history.append(original_text)
 
-    logger.debug(f"evolved hypothesis (max similarity: {max_similarity:.2f})")
+    logger.debug("evolved hypothesis (max similarity: %.2f)", max_similarity)
 
     # Return both hypothesis and evolution details
     evolution_detail = {
@@ -374,10 +377,11 @@ async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
     hypotheses = state["hypotheses"]
     evolution_max_count = state.get("evolution_max_count", 10)
 
-    # Calculate actual number to evolve (may be less than max if fewer hypotheses available)
+    # Calculate actual number to evolve (may be less than max if fewer
+    # hypotheses available)
     actual_count = min(len(hypotheses), evolution_max_count)
 
-    logger.info(f"Evolving top {actual_count} hypotheses")
+    logger.info("Evolving top %s hypotheses", actual_count)
 
     # Emit progress
     if state.get("progress_callback"):
@@ -393,8 +397,8 @@ async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
     top_k = hypotheses[:evolution_max_count]
 
     logger.info(
-        f"Evolving {len(top_k)} hypotheses with strategic context sampling "
-        f"(max 15 context hypotheses per evolution)")
+        "Evolving %s hypotheses with strategic context sampling "
+        "(max 15 context hypotheses per evolution)", len(top_k))
 
     # Get previously removed duplicates
     removed_duplicates = [
@@ -405,7 +409,8 @@ async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
     supervisor_guidance = state.get("supervisor_guidance")
 
     # Evolve each hypothesis with strategically sampled context (PARALLEL)
-    # instead of including ALL other hypotheses, we sample a subset to control token budget
+    # instead of including ALL other hypotheses, we sample a subset to control
+    # token budget
     evolution_tasks = [
         evolve_single_hypothesis(
             hypothesis=hyp,
@@ -442,12 +447,11 @@ async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
     hypotheses = evolved_hypotheses
     discarded_count = original_count - len(evolved_hypotheses)
     logger.info(
-        f"Keeping only {len(hypotheses)} evolved hypotheses (discarded {discarded_count} lower-ranked)"
-    )
+        "Keeping only %s evolved hypotheses (discarded %s lower-ranked)",
+        len(hypotheses), discarded_count)
 
-    logger.info(
-        f"Evolved {len(evolved_hypotheses)} hypotheses, {len(evolution_details)} with changes"
-    )
+    logger.info("Evolved %s hypotheses, %s with changes",
+                len(evolved_hypotheses), len(evolution_details))
 
     # Emit progress
     if state.get("progress_callback"):
@@ -465,8 +469,8 @@ async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
         llm_calls_delta=len(evolved_hypotheses),
         evolutions_count_delta=len(evolved_hypotheses))
     logger.debug(
-        f"evolve node creating metrics delta: evolutions={len(evolved_hypotheses)}, llm_calls={len(evolved_hypotheses)}"
-    )
+        "evolve node creating metrics delta: evolutions=%s, llm_calls=%s",
+        len(evolved_hypotheses), len(evolved_hypotheses))
 
     return {
         "hypotheses":

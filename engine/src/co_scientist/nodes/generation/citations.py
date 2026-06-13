@@ -19,7 +19,8 @@ and works uniformly for papers, knowledge-graph statements, CVE entries, etc.
 
 Usage:
   1. Build a ReferenceIndex before generation.
-  2. Inject reference_index.text into LLM prompts via citation_reference_section.
+  2. Inject reference_index.text into LLM prompts via
+  citation_reference_section.
   3. After the LLM writes literature_grounding, call resolve_citation_keys()
      to build citation_map from the keys it used.
 """
@@ -51,15 +52,17 @@ def build_reference_index(
     articles: Optional[List[Any]],
     context_enrichment_sources: Optional[List[Dict[str, Any]]],
 ) -> ReferenceIndex:
-    """Build a sequential reference index from lit-review articles and enrichment sources.
+    """Build a sequential reference index from lit-review articles and sources.
 
     All sources share a single [C*] key namespace — domain-agnostic.
-    Papers come first (they're the primary grounding), enrichment sources follow.
+    Papers come first (they're the primary grounding), enrichment sources
+    follow.
     Only includes articles with used_in_analysis=True.
 
     Args:
         articles: Article objects from state.articles
-        context_enrichment_sources: Structured items from state.context_enrichment_sources
+        context_enrichment_sources: Structured items from
+            state.context_enrichment_sources
 
     Returns:
         ReferenceIndex with formatted text and sources dict
@@ -112,7 +115,8 @@ def resolve_citation_keys(
     """Parse [C*] keys from text and resolve them to source metadata.
 
     Returns a citation_map dict: {key: full source metadata dict}.
-    Keys that appear in the text but are absent from sources are silently dropped.
+    Keys that appear in the text but are absent from sources are silently
+    dropped.
     Preserves insertion order (first occurrence of each key).
     """
     if not literature_grounding or not sources:

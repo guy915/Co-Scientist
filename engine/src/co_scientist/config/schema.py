@@ -15,6 +15,7 @@
 
 Uses dataclasses to match existing codebase patterns.
 """
+# pylint: disable=inconsistent-quotes
 
 import re
 from dataclasses import dataclass, field
@@ -23,11 +24,12 @@ from typing import Any, Dict, List, Optional
 
 def resolve_content_params(params: Dict[str, Any],
                            context: Dict[str, Any]) -> Dict[str, Any]:
-    """Resolve content params by substituting {placeholders} with context values.
+    """Resolve content params by substituting {placeholders} with context.
 
     Supports:
         - {research_goal} - the current research goal
-        - {focus_areas} - list of focus areas (from hypothesis categories, etc.)
+        - {focus_areas} - list of focus areas (from hypothesis categories,
+          etc.)
         - Any other context key
 
     Args:
@@ -109,9 +111,11 @@ class ResponseFormat:
 
     Attributes:
         type: Response type (json, boolean_string, etc.)
-        results_path: JSONPath-like path to results (e.g., "." for root, "results" for nested)
+        results_path: JSONPath-like path to results (e.g., "." for root,
+            "results" for nested)
         is_dict: Whether results are a dict (True) or list (False)
-        field_mapping: Maps Article fields to response fields with optional transforms
+        field_mapping: Maps Article fields to response fields with optional
+            transforms
     """
 
     type: str = "json"
@@ -169,7 +173,8 @@ class ToolConfig:
         response_format: Configuration for parsing responses
         prompt_snippet: Prompt text to include when this tool is available
         parameters: Tool parameter configurations
-        parameter_mapping: Maps canonical parameter names to tool-specific names
+        parameter_mapping: Maps canonical parameter names to tool-specific
+            names
         applies_to: Which sources this tool applies to (for generic tools)
     """
 
@@ -220,10 +225,12 @@ class ToolConfig:
         """Map canonical parameter names to tool-specific parameter names.
 
         Args:
-            canonical_params: Parameters using canonical names (e.g., max_papers, recency_years)
+            canonical_params: Parameters using canonical names (e.g.,
+                max_papers, recency_years)
 
         Returns:
-            Parameters using tool-specific names (e.g., max_results, starting_year)
+            Parameters using tool-specific names (e.g., max_results,
+            starting_year)
         """
         if not self.parameter_mapping:
             # no mapping configured, return as-is
@@ -238,12 +245,14 @@ class ToolConfig:
                     # explicitly ignore this parameter (null in YAML)
                     continue
                 # handle special conversions
-                if canonical_name == "recency_years" and tool_param_name == "starting_year":
-                    # convert recency_years (e.g., 7) to starting_year (e.g., 2019)
+                if (canonical_name == "recency_years" and
+                        tool_param_name == "starting_year"):
+                    # convert recency_years (e.g., 7) to starting_year (e.g.,
+                    # 2019)
                     import datetime  # pylint: disable=import-outside-toplevel
                     current_year = datetime.datetime.now().year
-                    mapped[
-                        tool_param_name] = current_year - value if value > 0 else None
+                    mapped[tool_param_name] = (current_year -
+                                               value if value > 0 else None)
                 else:
                     mapped[tool_param_name] = value
             else:
@@ -255,17 +264,23 @@ class ToolConfig:
 
 @dataclass
 class SearchSourceConfig:
-    """Configuration for a single search source in multi-source literature review.
+    """Configuration for a single search source in multi-source lit review.
 
     Attributes:
-        tool: Tool ID for this search source (e.g., "pubmed_fulltext", "arxiv_search")
+        tool: Tool ID for this search source (e.g., "pubmed_fulltext",
+            "arxiv_search")
         papers_per_query: Number of papers to fetch per query from this source
         enabled: Whether this source is enabled
-        content_tool: Optional tool to fetch content (overrides workflow-level setting)
-        content_url_field: Field containing content URL (overrides workflow-level setting)
-        content_params: Extra parameters to pass to content tool (supports {research_goal} substitution)
-        pdf_discovery_tool: Optional tool to discover PDF links from landing page URL
-        pdf_discovery_url_field: Field containing the URL to pass to pdf_discovery_tool
+        content_tool: Optional tool to fetch content (overrides workflow-level
+            setting)
+        content_url_field: Field containing content URL (overrides
+            workflow-level setting)
+        content_params: Extra parameters to pass to content tool (supports
+            {research_goal} substitution)
+        pdf_discovery_tool: Optional tool to discover PDF links from landing
+            page URL
+        pdf_discovery_url_field: Field containing the URL to pass to
+            pdf_discovery_tool
     """
 
     tool: str
@@ -322,14 +337,15 @@ class WorkflowConfig:
     utility_tools: List[str] = field(default_factory=list)
 
     # Knowledge-graph / external context tools called once per workflow phase.
-    # Results are injected as background context into the phase's synthesis prompt.
-    # Domain-agnostic: any workflow can list tools here; the node checks this field
-    # and skips enrichment when the list is empty.
+    # Results are injected as background context into the phase's synthesis
+    # prompt. Domain-agnostic: any workflow can list tools here; the node checks
+    # this field and skips enrichment when the list is empty.
     context_enrichment_tools: List[str] = field(default_factory=list)
 
     # Query generation via MCP tool (replaces hardcoded prompts)
     query_generation_tool: Optional[str] = None
-    query_format: str = "boolean"  # "boolean" for PubMed, "natural_language" for arXiv/Scholar
+    # "boolean" for PubMed, "natural_language" for arXiv/Scholar
+    query_format: str = "boolean"
 
     # Content retrieval for sources that don't return fulltext (e.g., arXiv)
     # Can be overridden per-source in search_sources
@@ -338,7 +354,8 @@ class WorkflowConfig:
     content_params: Dict[str, Any] = field(default_factory=dict)
 
     # Two-step content retrieval: first discover PDF links from landing page
-    # Used for sources like Google Scholar that return landing page URLs, not direct PDFs
+    # Used for sources like Google Scholar that return landing page URLs, not
+    # direct PDFs
     pdf_discovery_tool: Optional[str] = None  # e.g., "find_pdf_links"
     pdf_discovery_url_field: str = "url"  # field containing landing page URL
 
@@ -417,16 +434,19 @@ class EnrichmentConfig:
 
     Attributes:
         tool: Tool ID from tools section (e.g., "nvd_cve_search")
-        input_field: Hypothesis field to use as input (text, explanation, etc.)
+        input_field: Hypothesis field to use as input (text, explanation,
+            etc.)
         output_key: Key in hypothesis.enrichments dict (e.g., "related_cves")
         enabled: Whether this enrichment is enabled
         max_results: Max results to request from the tool
-        results_path: Dot-path to extract from response (e.g., "results" to unwrap a
-            response wrapper). Empty string means use the full response as-is.
+        results_path: Dot-path to extract from response (e.g., "results" to
+            unwrap a response wrapper). Empty string means use the full
+            response as-is.
         workflow: Which pipeline phase runs this enrichment.
-            "generation" (default) = called by the generation coordinator per hypothesis.
-            "reflection" = called by the reflection node using entity-level lookups;
-            these are skipped by the coordinator's general enrichment loop.
+            "generation" (default) = called by the generation coordinator per
+            hypothesis. "reflection" = called by the reflection node using
+            entity-level lookups; these are skipped by the coordinator's
+            general enrichment loop.
     """
 
     tool: str
@@ -473,20 +493,21 @@ class Settings:
 
 @dataclass
 class PromptsConfig:
-    """Domain-specific prompt customizations injected via {{domain_*}} placeholders.
+    """Domain-specific prompt customizations via {{domain_*}} placeholders.
 
     All fields are optional. When absent, placeholders resolve to empty strings
     and prompts behave identically to the defaults.
 
     Attributes:
-        domain_context: Injected at the top of all prompts. Use for role framing,
-            terminology mappings, and domain description.
-        generation_guidance: Injected into generation prompts. Use for domain-specific
-            categories, hypothesis format requirements, and output expectations.
+        domain_context: Injected at the top of all prompts. Use for role
+            framing, terminology mappings, and domain description.
+        generation_guidance: Injected into generation prompts. Use for
+            domain-specific categories, hypothesis format requirements, and
+            output expectations.
         review_guidance: Injected into review and ranking prompts. Use for
             domain-specific evaluation criteria.
-        evolution_guidance: Injected into evolution and meta-review prompts. Use for
-            domain-specific refinement priorities.
+        evolution_guidance: Injected into evolution and meta-review prompts.
+            Use for domain-specific refinement priorities.
     """
 
     domain_context: str = ""

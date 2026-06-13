@@ -66,8 +66,8 @@ def substitute_env_vars(value: Any) -> Any:
                 return default
             # return empty string if no env var and no default
             logger.warning(
-                f"environment variable {var_name} not set and no default provided"
-            )
+                "environment variable %s not set and no default provided",
+                var_name)
             return ""
 
         return re.sub(pattern, replacer, value)
@@ -102,9 +102,11 @@ class ToolRegistry:
         """Initialize the tool registry.
 
         Args:
-            config_path: Optional path to custom YAML config (overrides defaults)
+            config_path: Optional path to custom YAML config
+                (overrides defaults)
             disabled_tools: Optional list of tool IDs to disable
-            skip_user_config: If True, don't load user config from ~/.coscientist/
+            skip_user_config: If True, don't load user config from
+                ~/.coscientist/
         """
         self._config: Optional[ToolsConfig] = None
         self._custom_config_path = config_path
@@ -119,9 +121,8 @@ class ToolRegistry:
         # start with default config
         default_data = self._load_yaml_file(DEFAULT_CONFIG_PATH)
         if default_data is None:
-            logger.warning(
-                f"default config not found at {DEFAULT_CONFIG_PATH}, using empty config"
-            )
+            logger.warning("default config not found at %s, using empty config",
+                           DEFAULT_CONFIG_PATH)
             default_data = {}
 
         # load user config if exists
@@ -130,7 +131,7 @@ class ToolRegistry:
             for user_path in USER_CONFIG_PATHS:
                 user_data = self._load_yaml_file(user_path)
                 if user_data is not None:
-                    logger.info(f"loaded user config from {user_path}")
+                    logger.info("loaded user config from %s", user_path)
                     break
 
         # load custom config if specified
@@ -138,11 +139,11 @@ class ToolRegistry:
         if self._custom_config_path:
             custom_data = self._load_yaml_file(Path(self._custom_config_path))
             if custom_data is not None:
-                logger.info(
-                    f"loaded custom config from {self._custom_config_path}")
+                logger.info("loaded custom config from %s",
+                            self._custom_config_path)
             else:
-                logger.warning(
-                    f"custom config not found at {self._custom_config_path}")
+                logger.warning("custom config not found at %s",
+                               self._custom_config_path)
 
         # merge configs
         merged_data = self._merge_configs(default_data, user_data, custom_data)
@@ -159,9 +160,9 @@ class ToolRegistry:
         # apply disabled tools
         self._apply_disabled_tools()
 
-        logger.info(
-            f"tool registry initialized: {len(self._config.servers)} servers, "
-            f"{len(self._config.get_enabled_tools())} enabled tools")
+        logger.info("Tool registry initialized: %s servers, %s enabled tools",
+                    len(self._config.servers),
+                    len(self._config.get_enabled_tools()))
 
     def _load_yaml_file(self, path: Path) -> Optional[Dict[str, Any]]:
         """Load a YAML file, returning None if not found."""
@@ -170,11 +171,12 @@ class ToolRegistry:
                 with open(path, encoding="utf-8") as f:
                     return yaml.safe_load(f)
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"failed to load {path}: {e}")
+            logger.error("failed to load %s: %s", path, e)
         return None
 
     def _parse_enabled_values(self, data: Dict[str, Any]) -> None:
-        """Parse 'enabled' fields that might be string booleans from env vars."""
+        """Parse 'enabled' fields that might be string booleans from env vars.
+        """
         # parse server enabled values
         for server_data in data.get("servers", {}).values():
             if isinstance(server_data.get("enabled"), str):
@@ -255,7 +257,7 @@ class ToolRegistry:
             tool = self._config.get_tool(tool_id)
             if tool:
                 tool.enabled = False
-                logger.debug(f"disabled tool: {tool_id}")
+                logger.debug("disabled tool: %s", tool_id)
 
     @property
     def config(self) -> ToolsConfig:
@@ -288,14 +290,15 @@ class ToolRegistry:
         """Get list of tool IDs for a workflow phase.
 
         Args:
-            workflow_name: Name of workflow (literature_review, draft_generation, validation)
+            workflow_name: Name of workflow
+                (literature_review, draft_generation, validation)
 
         Returns:
             List of tool IDs configured for this workflow
         """
         workflow = self.config.workflows.get(workflow_name)
         if not workflow:
-            logger.warning(f"workflow '{workflow_name}' not found in config")
+            logger.warning("workflow '%s' not found in config", workflow_name)
             return []
 
         # get all referenced tools, filtering to only enabled ones
@@ -307,8 +310,8 @@ class ToolRegistry:
                 enabled_ids.append(tool_id)
             elif tool_id:  # only warn if tool_id is not empty
                 logger.debug(
-                    f"tool '{tool_id}' in workflow '{workflow_name}' is disabled or missing"
-                )
+                    "tool '%s' in workflow '%s' is disabled or missing",
+                    tool_id, workflow_name)
 
         return enabled_ids
 
@@ -356,9 +359,12 @@ class ToolRegistry:
         """Get enabled enrichment configurations for a given workflow phase.
 
         Args:
-            workflow: "generation" (default) returns configs run by the generation
-                      coordinator. "reflection" returns configs for the reflection node.
-                      Passing "all" returns every enabled config regardless of phase.
+            workflow: "generation" (default) returns configs run by the
+                      generation coordinator. "reflection" returns configs
+                      for the
+                      reflection node.
+                      Passing "all" returns every enabled config regardless of
+                      phase.
         """
         return [
             e for e in self.config.enrichments
@@ -366,7 +372,8 @@ class ToolRegistry:
         ]
 
     def get_server_configs_for_langchain(self) -> Dict[str, Dict[str, str]]:
-        """Get server configs in format expected by langchain MultiServerMCPClient.
+        """Get server configs in format expected by langchain
+        MultiServerMCPClient.
 
         Returns:
             Dict of {server_id: {"transport": ..., "url": ...}}
@@ -392,8 +399,10 @@ def get_tool_registry(
     """Get or create the global tool registry instance.
 
     Args:
-        config_path: Optional path to custom config (only used on first call or force_reload)
-        disabled_tools: Optional list of tools to disable (only used on first call or force_reload)
+        config_path: Optional path to custom config (only used on first
+            call or force_reload)
+        disabled_tools: Optional list of tools to disable (only used on
+            first call or force_reload)
         force_reload: If True, reload configuration even if already initialized
 
     Returns:

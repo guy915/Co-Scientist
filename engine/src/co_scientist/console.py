@@ -13,8 +13,10 @@
 # limitations under the License.
 """Console reporter for rich terminal output.
 
-Provides pretty-printed progress and results for hypothesis generation using Rich formatting.
+Provides pretty-printed progress and results for hypothesis generation using
+Rich formatting.
 """
+# pylint: disable=inconsistent-quotes
 
 import asyncio
 import json
@@ -132,7 +134,8 @@ class ConsoleReporter:
 
         Args:
             console: Rich console instance (creates new one if None)
-            filter_stderr: Whether to filter SSL/asyncio cleanup errors from stderr
+            filter_stderr: Whether to filter SSL/asyncio cleanup errors
+                from stderr
         """
         self.console = console or Console()
         self.filter_stderr = filter_stderr
@@ -258,7 +261,8 @@ class ConsoleReporter:
                 self.console.print(
                     Panel(
                         "[bold red]Literature review failed![/bold red]\n\n"
-                        "The system will fall back to standard generation without literature context.",
+                        "The system will fall back to standard generation"
+                        " without literature context.",
                         title="[red]Literature Review Failed[/red]",
                         border_style="red",
                         expand=False,
@@ -287,7 +291,8 @@ class ConsoleReporter:
             # get generation method badge
             method_badge = get_generation_method_badge(
                 hyp.get("generation_method"), hypothesis=hyp)
-            title = f"[bold cyan]Initial Hypothesis {i}[/bold cyan] {method_badge}"
+            title = (f"[bold cyan]Initial Hypothesis {i}[/bold cyan]"
+                     f" {method_badge}")
 
             self.console.print()
             self.console.rule(title)
@@ -295,15 +300,17 @@ class ConsoleReporter:
             hyp_content = f"[bold]Hypothesis:[/bold]\n{hyp['text']}"
 
             if hyp.get("explanation"):
-                hyp_content += f"\n\n[bold]Explanation:[/bold]\n{hyp['explanation']}"
+                hyp_content += (
+                    f"\n\n[bold]Explanation:[/bold]\n{hyp['explanation']}")
 
             if hyp.get("literature_grounding"):
+                lit = hyp['literature_grounding']
                 hyp_content += (
-                    f"\n\n[bold]Literature Grounding:[/bold]\n{hyp['literature_grounding']}"
-                )
+                    f"\n\n[bold]Literature Grounding:[/bold]\n{lit}")
 
             if hyp.get("experiment"):
-                hyp_content += f"\n\n[bold]Experiment:[/bold]\n{hyp['experiment']}"
+                hyp_content += (
+                    f"\n\n[bold]Experiment:[/bold]\n{hyp['experiment']}")
 
             self.console.print(
                 Panel(hyp_content, border_style="cyan", expand=True))
@@ -373,17 +380,30 @@ class ConsoleReporter:
             self.console.rule(
                 "[bold magenta]Tournament Matchups[/bold magenta]")
             for i, matchup in enumerate(matchups, 1):
+                ha_raw = matchup['hypothesis_a']
+                ha = (ha_raw[:150] + '...' if len(ha_raw) > 150 else ha_raw)
+                hb_raw = matchup['hypothesis_b']
+                hb = (hb_raw[:150] + '...' if len(hb_raw) > 150 else hb_raw)
+                w_before = matchup['winner_elo_before']
+                w_after = matchup['winner_elo_after']
+                l_before = matchup['loser_elo_before']
+                l_after = matchup['loser_elo_after']
                 self.console.print()
                 self.console.print(f"[bold cyan]Matchup {i}:[/bold cyan]")
                 self.console.print(
                     Panel(
-                        f"[bold yellow]Hypothesis A:[/bold yellow]\n{matchup['hypothesis_a'][:150] + '...' if len(matchup['hypothesis_a']) > 150 else matchup['hypothesis_a']}\n\n"
-                        f"[bold yellow]Hypothesis B:[/bold yellow]\n{matchup['hypothesis_b'][:150] + '...' if len(matchup['hypothesis_b']) > 150 else matchup['hypothesis_b']}\n\n"
-                        f"[bold green]Winner: {matchup['winner'].upper()}[/bold green]\n\n"
-                        f"[bold]Reasoning:[/bold]\n{matchup['reasoning']}\n\n"
+                        f"[bold yellow]Hypothesis A:[/bold yellow]\n{ha}"
+                        f"\n\n[bold yellow]Hypothesis B:[/bold yellow]"
+                        f"\n{hb}\n\n"
+                        f"[bold green]Winner: "
+                        f"{matchup['winner'].upper()}[/bold green]\n\n"
+                        f"[bold]Reasoning:[/bold]\n"
+                        f"{matchup['reasoning']}\n\n"
                         f"[dim]Elo Changes:[/dim]\n"
-                        f"[dim]Winner: {matchup['winner_elo_before']} → {matchup['winner_elo_after']} ({matchup['winner_elo_after'] - matchup['winner_elo_before']:+d})[/dim]\n"
-                        f"[dim]Loser: {matchup['loser_elo_before']} → {matchup['loser_elo_after']} ({matchup['loser_elo_after'] - matchup['loser_elo_before']:+d})[/dim]",
+                        f"[dim]Winner: {w_before} → {w_after}"
+                        f" ({w_after - w_before:+d})[/dim]\n"
+                        f"[dim]Loser: {l_before} → {l_after}"
+                        f" ({l_after - l_before:+d})[/dim]",
                         border_style="magenta",
                         expand=True,
                     ))
@@ -449,11 +469,16 @@ class ConsoleReporter:
             for i, detail in enumerate(evolution_details, 1):
                 self.console.print()
                 self.console.print(f"[bold green]Evolution {i}:[/bold green]")
+                orig = detail['original']
+                evolved = detail['evolved']
+                rationale = detail['rationale']
                 self.console.print(
                     Panel(
-                        f"[bold yellow]Original Hypothesis:[/bold yellow]\n{detail['original']}\n\n"
-                        f"[bold green]Evolved Hypothesis:[/bold green]\n{detail['evolved']}\n\n"
-                        f"[bold]Evolution Rationale:[/bold]\n{detail['rationale']}",
+                        f"[bold yellow]Original Hypothesis:[/bold yellow]"
+                        f"\n{orig}\n\n"
+                        f"[bold green]Evolved Hypothesis:[/bold green]"
+                        f"\n{evolved}\n\n"
+                        f"[bold]Evolution Rationale:[/bold]\n{rationale}",
                         border_style="green",
                         expand=True,
                     ))
@@ -472,8 +497,8 @@ class ConsoleReporter:
         else:
             self.console.print()
             self.console.print(
-                "[dim yellow]No hypotheses were significantly evolved (changes too similar to existing)[/dim yellow]"
-            )
+                "[dim yellow]No hypotheses were significantly evolved"
+                " (changes too similar to existing)[/dim yellow]")
             self.console.file.flush()
 
     def _show_final_summary(self, last_state: Optional[Dict[str, Any]],
@@ -492,7 +517,8 @@ class ConsoleReporter:
             for i, hyp in enumerate(sorted_final, 1):
                 method_badge = get_generation_method_badge(
                     hyp.get("generation_method"), hypothesis=hyp)
-                title = f"[bold cyan]Final Hypothesis {i}[/bold cyan] {method_badge}"
+                title = (f"[bold cyan]Final Hypothesis {i}[/bold cyan]"
+                         f" {method_badge}")
 
                 # build stats line with tournament info
                 stats_parts = [
@@ -507,9 +533,8 @@ class ConsoleReporter:
                 total_matches = hyp.get("total_matches", 0)
                 if total_matches > 0:
                     win_rate = hyp.get("win_rate", 0)
-                    stats_parts.append(
-                        f"[bold]Tournament:[/bold] {win_count}W-{loss_count}L ({win_rate:.1f}%)"
-                    )
+                    stats_parts.append(f"[bold]Tournament:[/bold] {win_count}W-"
+                                       f"{loss_count}L ({win_rate:.1f}%)")
 
                 stats_line = " | ".join(stats_parts)
 
@@ -519,14 +544,17 @@ class ConsoleReporter:
                 hyp_display = f"[bold]Hypothesis:[/bold]\n{hyp['text']}\n\n"
 
                 if hyp.get("explanation"):
-                    hyp_display += f"[bold]Explanation:[/bold]\n{hyp['explanation']}\n\n"
+                    hyp_display += (f"[bold]Explanation:[/bold]\n"
+                                    f"{hyp['explanation']}\n\n")
 
                 if hyp.get("literature_grounding"):
                     lit_ground = hyp["literature_grounding"]
-                    hyp_display += f"[bold]Literature Grounding:[/bold]\n{lit_ground}\n\n"
+                    hyp_display += (f"[bold]Literature Grounding:[/bold]\n"
+                                    f"{lit_ground}\n\n")
 
                 if hyp.get("experiment"):
-                    hyp_display += f"[bold]Experiment:[/bold]\n{hyp['experiment']}\n\n"
+                    hyp_display += (f"[bold]Experiment:[/bold]\n"
+                                    f"{hyp['experiment']}\n\n")
 
                 hyp_display += stats_line
 
@@ -565,10 +593,12 @@ class ConsoleReporter:
 
         self.console.print()
         self.console.rule("[bold green]COMPLETED[/bold green]")
+        hyp_count = (len(last_state.get('hypotheses', [])) if last_state else 0)
         self.console.print(
             Panel(
-                f"[bold]Total Execution Time:[/bold] {execution_time:.2f} seconds\n"
-                f"[bold]Final Hypotheses:[/bold] {len(last_state.get('hypotheses', [])) if last_state else 0}",
+                f"[bold]Total Execution Time:[/bold]"
+                f" {execution_time:.2f} seconds\n"
+                f"[bold]Final Hypotheses:[/bold] {hyp_count}",
                 title="[green]Summary[/green]",
                 border_style="green",
             ))
