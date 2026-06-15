@@ -29,7 +29,7 @@ from ...constants import (
     INITIAL_ELO_RATING,
 )
 from ...llm import call_llm, call_llm_json
-from ...models import Article, Hypothesis
+from ...models import Article, GenerationMethod, Hypothesis
 from ...prompts import get_debate_generation_prompt, save_prompt_to_disk
 from ...state import WorkflowState
 
@@ -145,7 +145,7 @@ async def _run_single_debate(
                 experiment=experiment,
                 score=0.0,
                 elo_rating=INITIAL_ELO_RATING,
-                generation_method="debate",
+                generation_method=GenerationMethod.DEBATE,
                 debate_id=debate_id,
                 citation_map=citation_map,
             )

@@ -17,8 +17,16 @@ These models maintain compatibility with the original AI-CoScientist
 while providing clean type safety for LangGraph.
 """
 
+import enum
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
+
+
+class GenerationMethod(str, enum.Enum):
+    """How a hypothesis was generated."""
+
+    DEBATE = "debate"
+    LITERATURE_TOOLS = "literature_tools"
 
 
 @dataclass
@@ -58,7 +66,8 @@ class Hypothesis:
         similarity_cluster_id: Cluster ID from proximity analysis
         evolution_history: List of refinement summaries
         reflection_notes: Reflection analysis from literature comparison
-        generation_method: Method used to generate ('literature' or 'debate')
+        generation_method: Method used to generate ('debate' or
+            'literature_tools')
         debate_id: Debate ID for debate-generated hypotheses
             (None for literature)
         win_count: Tournament wins
@@ -80,7 +89,8 @@ class Hypothesis:
     similarity_degree: Optional[str] = None  # 'high', 'medium', or 'low'
     evolution_history: List[str] = field(default_factory=list)
     reflection_notes: Optional[str] = None
-    generation_method: Optional[str] = None  # 'literature' or 'debate'
+    # 'debate' or 'literature_tools'
+    generation_method: Optional[GenerationMethod] = None
     debate_id: Optional[
         int] = None  # None for literature-generated, 0-N for debate-generated
     win_count: int = 0
@@ -100,6 +110,8 @@ class Hypothesis:
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
+        generation_method = (self.generation_method.value
+                             if self.generation_method else None)
         return {
             "text":
                 self.text,  # Also referred to as "hypothesis" in other contexts
@@ -123,7 +135,7 @@ class Hypothesis:
             "similarity_cluster_id": self.similarity_cluster_id,
             "evolution_history": self.evolution_history,
             "reflection_notes": self.reflection_notes,
-            "generation_method": self.generation_method,
+            "generation_method": generation_method,
             "debate_id": self.debate_id,
             "win_count": self.win_count,
             "loss_count": self.loss_count,

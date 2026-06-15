@@ -33,7 +33,7 @@ from ....constants import (
     get_validate_max_iterations,
 )
 from ....llm import call_llm_json, call_llm_with_tools, attempt_json_repair
-from ....models import Hypothesis
+from ....models import GenerationMethod, Hypothesis
 from ....prompts import (
     get_hypothesis_novelty_analysis_prompt,
     get_validation_synthesis_prompt_with_tools,
@@ -555,7 +555,7 @@ async def validate_hypotheses(
             novelty_validation=hyp_data.get("novelty_validation"),
             score=0.0,
             elo_rating=INITIAL_ELO_RATING,
-            generation_method="literature_tools",
+            generation_method=GenerationMethod.LITERATURE_TOOLS,
             citation_map=citation_map,
         )
         hypotheses.append(hypothesis)

@@ -29,13 +29,26 @@ stable labels for tests and screenshots.
 
 from __future__ import annotations
 
+import enum
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Literal
 
-CitationState = Literal["verified", "partial", "unsupported", "unavailable"]
-ALL_STATES: tuple[CitationState,
-                  ...] = ("verified", "partial", "unsupported", "unavailable")
+
+class CitationState(str, enum.Enum):
+    """States the UI surfaces for a single citation."""
+
+    VERIFIED = "verified"
+    PARTIAL = "partial"
+    UNSUPPORTED = "unsupported"
+    UNAVAILABLE = "unavailable"
+
+
+ALL_STATES: tuple[CitationState, ...] = (
+    CitationState.VERIFIED,
+    CitationState.PARTIAL,
+    CitationState.UNSUPPORTED,
+    CitationState.UNAVAILABLE,
+)
 
 
 @dataclass
@@ -70,13 +83,13 @@ def classify_citation(record: CitationRecord) -> CitationState:
     - Otherwise → unsupported.
     """
     if not record.available or not record.url:
-        return "unavailable"
+        return CitationState.UNAVAILABLE
     overlap = _token_overlap(record.claim, record.abstract)
     if overlap >= 0.35:
-        return "verified"
+        return CitationState.VERIFIED
     if overlap >= 0.10:
-        return "partial"
-    return "unsupported"
+        return CitationState.PARTIAL
+    return CitationState.UNSUPPORTED
 
 
 def classify_many(records: Iterable[CitationRecord]) -> list[CitationState]:

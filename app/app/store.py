@@ -30,6 +30,7 @@ Design choices:
 from __future__ import annotations
 
 import contextlib
+import enum
 import json
 import logging
 import os
@@ -42,7 +43,31 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .citations import CitationState
+
 logger = logging.getLogger(__name__)
+
+
+class RunStatus(str, enum.Enum):
+    """Lifecycle states of a run, persisted in the runs.status column."""
+
+    DRAFT = "draft"
+    QUEUED = "queued"
+    RUNNING = "running"
+    SYNTHESIZING = "synthesizing"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+
+
+# Statuses that mark a run as finished; reaching one sets `completed_at`.
+TERMINAL_STATUSES: tuple[RunStatus, ...] = (
+    RunStatus.COMPLETED,
+    RunStatus.FAILED,
+    RunStatus.BLOCKED,
+    RunStatus.CANCELLED,
+)
 
 # ---------------------------------------------------------------------------
 # Connection management
@@ -361,7 +386,7 @@ def create_run(
         conn.execute(
             "INSERT INTO runs (id, research_goal, profile, status, provider, config_json, client_id, created_at, updated_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?,?,?,?)",
-            (run_id, research_goal, profile, "draft", provider,
+            (run_id, research_goal, profile, RunStatus.DRAFT.value, provider,
              json.dumps(config), client_id, now, now),
         )
     logger.info("created run %s profile=%s provider=%s client_id=%s", run_id,
@@ -370,7 +395,7 @@ def create_run(
         id=run_id,
         research_goal=research_goal,
         profile=profile,
-        status="draft",
+        status=RunStatus.DRAFT.value,
         provider=provider,
         config=config,
         client_id=client_id,
@@ -401,23 +426,22 @@ def list_runs(client_id: str = "",
 
 def update_run_status(
     run_id: str,
-    status: str,
+    status: RunStatus,
     error: str | None = None,
     db_path: str | None = None,
 ) -> None:
     now = _now()
-    completed_at = now if status in ("completed", "failed", "blocked",
-                                     "cancelled") else None
+    completed_at = now if status in TERMINAL_STATUSES else None
     with connect(db_path) as conn:
         if completed_at is not None:
             conn.execute(
                 "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
-                (status, error, now, completed_at, run_id),
+                (status.value, error, now, completed_at, run_id),
             )
         else:
             conn.execute(
                 "UPDATE runs SET status=?, error=?, updated_at=? WHERE id=?",
-                (status, error, now, run_id),
+                (status.value, error, now, run_id),
             )
 
 
@@ -650,14 +674,14 @@ def add_citation(
     hypothesis_id: str,
     evidence_id: str,
     claim: str,
-    state: str,
+    state: CitationState,
     db_path: str | None = None,
 ) -> None:
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO citations (run_id, hypothesis_id, evidence_id, claim, state, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?)",
-            (run_id, hypothesis_id, evidence_id, claim, state, _now()),
+            (run_id, hypothesis_id, evidence_id, claim, state.value, _now()),
         )
 
 

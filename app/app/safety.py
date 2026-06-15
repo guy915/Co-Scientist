@@ -22,12 +22,30 @@ Goals:
 
 from __future__ import annotations
 
+import enum
 import os
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-SAFETY_MODE = os.getenv("SAFETY_MODE", "standard").lower()
+
+class SafetyMode(str, enum.Enum):
+    """How aggressively the safety filter treats dual-use content."""
+
+    STANDARD = "standard"
+    STRICT = "strict"
+
+
+def _resolve_safety_mode() -> SafetyMode:
+    """Parse the SAFETY_MODE env var, defaulting to STANDARD when invalid."""
+    raw = os.getenv("SAFETY_MODE", SafetyMode.STANDARD.value).lower()
+    try:
+        return SafetyMode(raw)
+    except ValueError:
+        return SafetyMode.STANDARD
+
+
+SAFETY_MODE = _resolve_safety_mode()
 
 # Hard-block patterns: production of weaponized agents, mass-casualty intent.
 # These are deliberately narrow keyword combinations to avoid blocking legitimate  # pylint: disable=line-too-long
@@ -90,7 +108,7 @@ def screen_intake(goal: str) -> SafetyDecision:
             matches=blocked,
         )
     flagged = _scan(text, _REDACT_PATTERNS)
-    if flagged and SAFETY_MODE == "strict":
+    if flagged and SAFETY_MODE == SafetyMode.STRICT:
         return SafetyDecision(
             stage="intake",
             decision="redact",

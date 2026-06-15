@@ -34,7 +34,9 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from . import store
+from .citations import CitationState
 from .mock_workflow import resolved_config, run_mock_workflow
+from .store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
 # Inject the sibling engine src into sys.path at import time so that
@@ -294,7 +296,9 @@ async def run_workflow(
                 opts=initial_opts if initial_opts else None,
         ):
             if cancelled and cancelled.is_set():
-                store.update_run_status(run_id, "cancelled", db_path=db_path)
+                store.update_run_status(run_id,
+                                        RunStatus.CANCELLED,
+                                        db_path=db_path)
                 yield await _emit("status", {"status": "cancelled"})
                 return
 
@@ -421,7 +425,7 @@ async def run_workflow(
                                    hyp_id,
                                    cite_ev_id,
                                    claim,
-                                   "verified",
+                                   CitationState.VERIFIED,
                                    db_path=db_path)
 
         # 3. Tournament matches: match by hypothesis text prefix (engine truncates at 200).  # pylint: disable=line-too-long
@@ -516,9 +520,12 @@ async def run_workflow(
 
         store.save_report(run_id, report_payload, markdown, db_path=db_path)
         yield await _emit("report", report_payload)
-        store.update_run_status(run_id, "completed", db_path=db_path)
+        store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
         yield await _emit("status", {"status": "completed"})
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("engine run failed: %s", e)
-        store.update_run_status(run_id, "failed", error=str(e), db_path=db_path)
+        store.update_run_status(run_id,
+                                RunStatus.FAILED,
+                                error=str(e),
+                                db_path=db_path)
         yield await _emit("status", {"status": "failed", "error": str(e)})

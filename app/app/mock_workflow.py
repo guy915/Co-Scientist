@@ -51,6 +51,7 @@ from . import store
 from .citations import CitationRecord, classify_citation
 from .elo import DEFAULT_K_FACTOR, INITIAL_ELO, update_pair
 from .safety import screen_final, screen_intake
+from .store import RunStatus
 
 logger = logging.getLogger(__name__)
 
@@ -200,7 +201,7 @@ async def run_mock_workflow(
     yield await emit("safety.intake", intake.to_dict())
     if intake.decision == "block":
         store.update_run_status(run_id,
-                                "blocked",
+                                RunStatus.BLOCKED,
                                 error=intake.reason,
                                 db_path=db_path)
         yield await emit("status", {
@@ -209,7 +210,7 @@ async def run_mock_workflow(
         })
         return
 
-    store.update_run_status(run_id, "running", db_path=db_path)
+    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     yield await emit("status", {"status": "running"})
 
     # ---- 2. Supervisor plan ----
@@ -239,7 +240,7 @@ async def run_mock_workflow(
     }
     yield await emit("supervisor.plan", plan)
     if _check_cancel():
-        store.update_run_status(run_id, "cancelled", db_path=db_path)
+        store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
         yield await emit("status", {"status": "cancelled"})
         return
 
@@ -404,7 +405,9 @@ async def run_mock_workflow(
         )
 
         if _check_cancel():
-            store.update_run_status(run_id, "cancelled", db_path=db_path)
+            store.update_run_status(run_id,
+                                    RunStatus.CANCELLED,
+                                    db_path=db_path)
             yield await emit("status", {"status": "cancelled"})
             return
 
@@ -553,7 +556,7 @@ async def run_mock_workflow(
 
     if final_safety.decision == "block":
         store.update_run_status(run_id,
-                                "blocked",
+                                RunStatus.BLOCKED,
                                 error=final_safety.reason,
                                 db_path=db_path)
         yield await emit("status", {
@@ -578,5 +581,5 @@ async def run_mock_workflow(
     saved = store.save_report(run_id, payload, markdown, db_path=db_path)
     yield await emit("report", {**payload, "report_id": saved["id"]})
 
-    store.update_run_status(run_id, "completed", db_path=db_path)
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
     yield await emit("status", {"status": "completed"})

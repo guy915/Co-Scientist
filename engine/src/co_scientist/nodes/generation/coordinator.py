@@ -287,16 +287,20 @@ def _log_generation_summary(results: GenerationResults) -> None:
         len(results.debate_only_hypotheses))
 
     if results.tools_hypotheses:
-        logger.debug("tool-based generation_methods: %s",
-                     [h.generation_method for h in results.tools_hypotheses])
+        logger.debug("tool-based generation_methods: %s", [
+            h.generation_method.value if h.generation_method else None
+            for h in results.tools_hypotheses
+        ])
     if results.debate_with_lit_hypotheses:
-        logger.debug(
-            "debate-with-Lit generation_methods: %s",
-            [h.generation_method for h in results.debate_with_lit_hypotheses])
+        logger.debug("debate-with-Lit generation_methods: %s", [
+            h.generation_method.value if h.generation_method else None
+            for h in results.debate_with_lit_hypotheses
+        ])
     if results.debate_only_hypotheses:
-        logger.debug(
-            "debate-only generation_methods: %s",
-            [h.generation_method for h in results.debate_only_hypotheses])
+        logger.debug("debate-only generation_methods: %s", [
+            h.generation_method.value if h.generation_method else None
+            for h in results.debate_only_hypotheses
+        ])
 
 
 def _build_summary_message_parts(results: GenerationResults,

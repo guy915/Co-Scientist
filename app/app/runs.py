@@ -49,7 +49,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import engine_adapter, store
-from .store import RunRow
+from .store import RunRow, RunStatus, TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -188,9 +188,9 @@ async def get_run(run_id: str) -> dict[str, Any]:
 async def start_run(run_id: str, req: StartRunRequest,
                     background: BackgroundTasks) -> dict[str, Any]:
     run = _run_or_404(run_id)
-    if run.status in ("running", "synthesizing"):
+    if run.status in (RunStatus.RUNNING, RunStatus.SYNTHESIZING):
         raise HTTPException(status_code=409, detail="run already in progress")
-    if run.status == "completed":
+    if run.status == RunStatus.COMPLETED:
         raise HTTPException(status_code=409, detail="run already completed")
 
     async with _active_lock:
@@ -199,7 +199,7 @@ async def start_run(run_id: str, req: StartRunRequest,
         handle = _RunHandle()
         _active[run_id] = handle
 
-    store.update_run_status(run_id, "queued", db_path=_db_path())
+    store.update_run_status(run_id, RunStatus.QUEUED, db_path=_db_path())
     store.append_event(run_id,
                        "lifecycle", {"event": "queued"},
                        db_path=_db_path())
@@ -219,7 +219,7 @@ async def start_run(run_id: str, req: StartRunRequest,
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("workflow failed: %s", e)
             store.update_run_status(run_id,
-                                    "failed",
+                                    RunStatus.FAILED,
                                     error=str(e),
                                     db_path=_db_path())
             store.append_event(run_id,
@@ -276,7 +276,7 @@ async def stream_events(
             yield _sse(ev)
 
         # If terminal already, send a final marker and return.
-        terminal = run.status in ("completed", "failed", "cancelled", "blocked")
+        terminal = run.status in TERMINAL_STATUSES
         if terminal:
             yield _sse({
                 "type": "_terminal",
@@ -315,8 +315,7 @@ async def stream_events(
 
             # Re-check run status; exit on terminal.
             current = store.get_run(run_id, db_path=_db_path())
-            if current and current.status in ("completed", "failed",
-                                              "cancelled", "blocked"):
+            if current and current.status in TERMINAL_STATUSES:
                 yield _sse({
                     "type": "_terminal",
                     "payload": {

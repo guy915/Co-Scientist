@@ -107,9 +107,10 @@ async def generate_with_tools(
     logger.info("Phase 2 complete: validated %s hypotheses", len(hypotheses))
 
     for i, hyp in enumerate(hypotheses):
+        method = hyp.generation_method
         logger.debug(
             "tool-generated hypothesis %s: generation_method=%s, text=%s...",
-            i + 1, hyp.generation_method, hyp.text[:80])
+            i + 1, method.value if method else None, hyp.text[:80])
 
     return hypotheses
 
