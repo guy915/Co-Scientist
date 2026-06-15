@@ -19,7 +19,7 @@ papers using tools and drafts initial hypothesis ideas based on identified gaps.
 
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from ....constants import (
     EXTENDED_MAX_TOKENS,
@@ -68,9 +68,7 @@ async def draft_hypotheses(
     articles_with_reasoning = state.get("articles_with_reasoning")
     preferences = state.get("preferences")
     attributes = state.get("attributes")
-    user_hypotheses = cast(Dict[str, Any],
-                           state.get("user_inputs",
-                                     {})).get("starting_hypotheses")
+    user_hypotheses = state.get("starting_hypotheses")
     articles = state.get("articles") or []
 
     # create shared slug for corpus (reuse lit review slug for warm start)
