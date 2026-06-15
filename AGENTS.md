@@ -26,7 +26,7 @@ LangGraph-based multi-agent hypothesis-generation framework. Package name: `co-s
 ```bash
 pip install -e '.[dev]'          # install with dev deps
 python examples/run.py            # interactive CLI demo
-pytest                            # tests (testpaths = ["tests"], none committed yet)
+pytest                            # unit tests (testpaths = ["tests"])
 yapf -ir src dev examples         # format (Google style, 80 cols)
 pylint --rcfile=../pylintrc src/co_scientist   # lint
 mypy .                            # typecheck
