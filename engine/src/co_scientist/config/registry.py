@@ -21,7 +21,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, cast, Dict, List, Optional
 
 import yaml
 
@@ -56,7 +56,7 @@ def substitute_env_vars(value: Any) -> Any:
         # pattern: ${VAR} or ${VAR:-default}
         pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
 
-        def replacer(match: re.Match) -> str:
+        def replacer(match: "re.Match[str]") -> str:
             var_name = match.group(1)
             default = match.group(2)
             env_value = os.environ.get(var_name)
@@ -169,7 +169,7 @@ class ToolRegistry:
         try:
             if path.exists():
                 with open(path, encoding="utf-8") as f:
-                    return yaml.safe_load(f)
+                    return cast(Optional[Dict[str, Any]], yaml.safe_load(f))
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("failed to load %s: %s", path, e)
         return None

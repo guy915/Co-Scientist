@@ -20,6 +20,7 @@ so the clone's tournament behaviour is consistent across mock and real paths.
 from __future__ import annotations
 
 import os
+from collections.abc import Callable
 from dataclasses import dataclass
 
 
@@ -39,7 +40,8 @@ DEFAULT_K_FACTOR: int = _env_int("ELO_K_FACTOR", 24)
 
 def expected_score(player_elo: float, opponent_elo: float) -> float:
     """Standard Elo expected score for `player` against `opponent`."""
-    return 1.0 / (1.0 + 10.0**((opponent_elo - player_elo) / 400.0))
+    result: float = 1.0 / (1.0 + 10.0**((opponent_elo - player_elo) / 400.0))
+    return result
 
 
 def update_pair(
@@ -71,7 +73,7 @@ class Match:
 def run_round_robin(
     hypotheses_elo: dict[str, int],
     pairs: list[tuple[str, str]],
-    judge,
+    judge: Callable[[str, str], tuple[str, str, str]],
     k_factor: int = DEFAULT_K_FACTOR,
 ) -> list[Match]:
     """Apply Elo updates for an ordered list of pairs.

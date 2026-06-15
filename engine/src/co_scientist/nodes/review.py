@@ -322,8 +322,9 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
         strategy_name = "parallel"
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "review_start",
             {
                 "message": f"Reviewing {num_hypotheses} hypotheses...",
@@ -381,8 +382,9 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
                 strategy_name)
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "review_complete",
             {
                 "message": f"Completed {len(reviews)} reviews",

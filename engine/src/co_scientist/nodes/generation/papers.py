@@ -24,7 +24,7 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-def _extract_author_last_names(authors):
+def _extract_author_last_names(authors: List[str]) -> List[str]:
     """Extract last names from an authors list.
 
     Handles formats like ["John Smith", "J. Smith", "Smith"] by taking
@@ -39,7 +39,8 @@ def _extract_author_last_names(authors):
     return last_names
 
 
-def _match_author_year(grounding_lower, last_names, year):
+def _match_author_year(grounding_lower: str, last_names: List[str],
+                       year: Optional[int]) -> bool:
     """Check if any author last name + year pair appears in grounding text."""
     if not year:
         return False
@@ -95,7 +96,8 @@ def filter_papers_by_grounding(
     return matched
 
 
-def articles_to_candidates(articles):
+def articles_to_candidates(
+        articles: Optional[List[Any]]) -> List[Dict[str, Any]]:
     """Convert Article objects to candidate dicts for
     filter_papers_by_grounding.
     """
@@ -109,11 +111,13 @@ def articles_to_candidates(articles):
     } for art in articles if getattr(art, "used_in_analysis", False)]
 
 
-def analyses_to_candidates(novelty_analyses):
+def analyses_to_candidates(
+        novelty_analyses: Optional[List[Dict[str,
+                                             Any]]]) -> List[Dict[str, Any]]:
     """Convert novelty analysis paper_metadata to candidate dicts."""
     if not novelty_analyses:
         return []
-    candidates = []
+    candidates: List[Dict[str, Any]] = []
     seen = set()
     for analysis in novelty_analyses:
         meta = analysis.get("paper_metadata", {})

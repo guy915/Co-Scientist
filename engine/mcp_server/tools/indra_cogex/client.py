@@ -92,7 +92,7 @@ async def indra_post(endpoint: str, payload: dict[str, Any]) -> Any:
         return resp.json()
 
 
-def cap_results(items: list | Any, limit: int) -> tuple[list, int]:
+def cap_results(items: list[Any] | Any, limit: int) -> tuple[list[Any], int]:
     """Caps a list at limit and returns (capped_list, original_count).
 
     Args:

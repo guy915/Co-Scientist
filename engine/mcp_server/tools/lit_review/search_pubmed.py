@@ -20,7 +20,7 @@ import os
 import ssl
 import traceback
 from time import sleep
-from typing import List
+from typing import Any, List, cast
 from urllib.error import HTTPError, URLError
 
 from Bio import Entrez
@@ -32,7 +32,7 @@ logger = logging.getLogger(__name__)
 _entrez_initialized = False
 
 
-def _initialize_entrez():
+def _initialize_entrez() -> None:
     """Initializes Entrez with email and API key from environment.
 
     Only logs warnings once on first call.
@@ -65,7 +65,9 @@ def _initialize_entrez():
             logger.info("ENTREZ_API_KEY not set - using default rate limits")
 
     if not ssl_verify:
-        ssl._create_default_https_context = ssl._create_unverified_context  # pylint: disable=protected-access
+        # Deliberate runtime monkeypatch to disable cert verification; the two
+        # SSL context factory signatures are interchangeable at call sites here.
+        ssl._create_default_https_context = ssl._create_unverified_context  # type: ignore[assignment]  # pylint: disable=protected-access
 
 
 def check_pubmed_available() -> str:
@@ -108,9 +110,9 @@ def check_pubmed_available() -> str:
         try:  # pylint: disable=broad-exception-caught
             if hasattr(e, 'read'):
                 error_body = e.read()
-                if isinstance(error_body, bytes):
-                    error_body = error_body.decode('utf-8', errors='ignore')
-                logger.debug("Error response body: %s", error_body[:500])
+                error_text = (error_body.decode('utf-8', errors='ignore')
+                              if isinstance(error_body, bytes) else error_body)
+                logger.debug("Error response body: %s", error_text[:500])
         except Exception:  # pylint: disable=broad-exception-caught
             pass
 
@@ -143,7 +145,7 @@ def check_pubmed_available() -> str:
         return "false"
 
 
-def _entrez_read(handle) -> dict:
+def _entrez_read(handle: Any) -> dict[str, Any]:
     """Reads an Entrez response handle with rate limiting.
 
     Args:
@@ -161,7 +163,7 @@ def _entrez_read(handle) -> dict:
     try:
         results = Entrez.read(handle)
         handle.close()
-        return results
+        return cast(dict[str, Any], results)
     except HTTPError as e:
         # Log HTTP error details
         logger.error("Entrez HTTP error (%s): %s %s",
@@ -175,9 +177,9 @@ def _entrez_read(handle) -> dict:
         try:  # pylint: disable=broad-exception-caught
             if hasattr(e, 'read'):
                 error_body = e.read()
-                if isinstance(error_body, bytes):
-                    error_body = error_body.decode('utf-8', errors='ignore')
-                logger.debug("Error response body: %s", error_body[:1000])
+                error_text = (error_body.decode('utf-8', errors='ignore')
+                              if isinstance(error_body, bytes) else error_body)
+                logger.debug("Error response body: %s", error_text[:1000])
         except Exception as read_err:  # pylint: disable=broad-exception-caught
             logger.debug("Could not read error response body: %s", read_err)
 

@@ -24,7 +24,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Coroutine, Dict, List, Optional, Tuple
 
 from ...constants import (
     PROGRESS_GENERATE_START,
@@ -117,7 +117,8 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
     )
 
 
-def _log_generation_strategy(counts: GenerationCounts, total_count: int):
+def _log_generation_strategy(counts: GenerationCounts,
+                             total_count: int) -> None:
     """Log which generation strategy is being used."""
     if counts.is_dev_isolation:
         logger.info("Dev isolation mode: allocating all hypotheses"
@@ -141,7 +142,7 @@ def _log_generation_strategy(counts: GenerationCounts, total_count: int):
 
 
 async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts,
-                               total_count: int):
+                               total_count: int) -> None:
     """Emit progress callback for generation start."""
     progress_callback = state.get("progress_callback")
     if not progress_callback:
@@ -197,13 +198,13 @@ async def _execute_generation_tasks(
     reference_index: ReferenceIndex,
 ) -> GenerationResults:
     """Execute parallel generation tasks and return results."""
-    tools_hypotheses = []
-    debate_with_lit_hypotheses = []
-    debate_only_hypotheses = []
-    debate_transcripts = []
+    tools_hypotheses: List[Hypothesis] = []
+    debate_with_lit_hypotheses: List[Hypothesis] = []
+    debate_only_hypotheses: List[Hypothesis] = []
+    debate_transcripts: List[Dict[str, Any]] = []
 
     # collect tasks to run in parallel
-    tasks = []
+    tasks: List[Tuple[str, Coroutine[Any, Any, Any]]] = []
 
     if counts.tools_count > 0:
         logger.info("Running tool-based generation for %s hypotheses",
@@ -260,7 +261,7 @@ async def _execute_generation_tasks(
     )
 
 
-def _apply_degraded_mode_fallback(hypotheses: List[Hypothesis]):
+def _apply_degraded_mode_fallback(hypotheses: List[Hypothesis]) -> None:
     """Set explicit literature_grounding message for hypotheses without
     literature review.
     """
@@ -274,7 +275,7 @@ def _apply_degraded_mode_fallback(hypotheses: List[Hypothesis]):
             " verified.")
 
 
-def _log_generation_summary(results: GenerationResults):
+def _log_generation_summary(results: GenerationResults) -> None:
     """Log summary of generated hypotheses."""
     total = (len(results.tools_hypotheses) +
              len(results.debate_with_lit_hypotheses) +
@@ -316,7 +317,7 @@ def _build_summary_message_parts(results: GenerationResults,
 
 async def _emit_complete_progress(state: WorkflowState,
                                   results: GenerationResults,
-                                  counts: GenerationCounts):
+                                  counts: GenerationCounts) -> None:
     """Emit progress callback for generation complete."""
     progress_callback = state.get("progress_callback")
     if not progress_callback:
@@ -415,8 +416,9 @@ async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
 
     supervisor_guidance = state.get("supervisor_guidance")
     articles_with_reasoning = state.get("articles_with_reasoning")
-    mcp_available = state.get("mcp_available", False)
-    enable_tool_calling = state.get("enable_tool_calling_generation", False)
+    mcp_available = bool(state.get("mcp_available", False))
+    enable_tool_calling = bool(
+        state.get("enable_tool_calling_generation", False))
     total_count = state["initial_hypotheses_count"]
 
     if not supervisor_guidance:

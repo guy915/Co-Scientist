@@ -19,7 +19,7 @@ removing clutter like references, figure captions, and metadata.
 # pylint: disable=inconsistent-quotes
 
 import logging
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 logger = logging.getLogger(__name__)
 
@@ -79,27 +79,28 @@ def extract_text_from_pmc_html(html_content: str,
 
                 # skip nested sections (we'll get them separately)
                 # only process top-level sections
-                if section.parent.name != 'sec':
+                parent = section.parent
+                if parent is not None and parent.name != 'sec':
                     # get direct paragraphs only (not from nested sections)
-                    paragraphs = []
+                    body_paragraphs: list[str] = []
                     for p in section.find_all('p', recursive=False):
                         text = p.get_text(strip=True)
                         if text:
-                            paragraphs.append(text)
+                            body_paragraphs.append(text)
 
                     # also check for paragraphs in direct children
                     # (not nested sections)
                     for child in section.children:
-                        if hasattr(child, 'name') and child.name not in [
+                        if isinstance(child, Tag) and child.name not in [
                                 'sec', 'title', 'label'
                         ]:
                             for p in child.find_all('p'):
                                 text = p.get_text(strip=True)
                                 if text:
-                                    paragraphs.append(text)
+                                    body_paragraphs.append(text)
 
-                    if paragraphs:
-                        content = '\n\n'.join(paragraphs)
+                    if body_paragraphs:
+                        content = '\n\n'.join(body_paragraphs)
                         sections.append(f"## {heading_text}\n\n{content}")
 
         # combine abstract and body

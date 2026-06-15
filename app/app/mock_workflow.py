@@ -501,11 +501,11 @@ async def run_mock_workflow(
     leaderboard_ids = [
         hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])
     ]
-    top_hypotheses = [
+    top_hypotheses_raw = [
         store.get_hypothesis(hid, db_path=db_path)
         for hid in leaderboard_ids[:5]
     ]
-    top_hypotheses = [h for h in top_hypotheses if h]
+    top_hypotheses = [h for h in top_hypotheses_raw if h]
 
     md_lines: list[str] = []
     md_lines.append(f"# Research Report — {research_goal}")
@@ -528,8 +528,8 @@ async def run_mock_workflow(
         md_lines.append(f"**Expected effect:** {h['expected_effect']}")
         md_lines.append("")
     md_lines.append("## Citation audit")
-    for state, count in cit_summary.items():
-        md_lines.append(f"- {state}: {count}")
+    for cit_state, count in cit_summary.items():
+        md_lines.append(f"- {cit_state}: {count}")
     md_lines.append("")
     md_lines.append("## Notes")
     md_lines.append(

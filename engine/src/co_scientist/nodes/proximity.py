@@ -57,8 +57,9 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "proximity_start",
             {
                 "message":
@@ -125,14 +126,14 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
                 # Match by text (first 100 chars for robustness)
                 if hyp.text[:100] == hyp_text[:100]:
                     hyp.similarity_cluster_id = cluster_id
-                    # Store similarity degree in a custom attribute
-                    if not hasattr(hyp, "similarity_degree"):
+                    # Store similarity degree (only set if not already set)
+                    if hyp.similarity_degree is None:
                         hyp.similarity_degree = similarity_degree
                     break
 
     # Identify and remove high-similarity duplicates
-    removed_duplicates = []
-    hypotheses_to_keep = []
+    removed_duplicates: List[Dict[str, Any]] = []
+    hypotheses_to_keep: List[Hypothesis] = []
 
     # Group by cluster
     clusters_dict: Dict[str, List[Hypothesis]] = {}
@@ -199,8 +200,9 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
             logger.warning("- %s...", dup['text'][:80])
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "proximity_complete",
             {
                 "message": f"Removed {len(removed_duplicates)} duplicates",

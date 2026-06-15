@@ -28,7 +28,7 @@ import hashlib
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, cast, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from ..constants import (
     DEFAULT_MAX_TOKENS,
@@ -91,14 +91,14 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
     tool_registry = state.get("tool_registry")
     workflow = tool_registry.get_workflow(
         "literature_review") if tool_registry else None
-    is_multi_source = workflow and workflow.is_multi_source()
+    is_multi_source = bool(workflow and workflow.is_multi_source())
 
     # defaults for backwards compatibility
     search_tool_name = "pubmed_search_with_fulltext"
     source_name = "pubmed"
     search_tool_config = None
 
-    if is_multi_source:
+    if is_multi_source and workflow is not None:
         enabled_sources = workflow.get_enabled_search_sources()
         source_names = [s.tool for s in enabled_sources]
         logger.info("Multi-source mode: %s sources configured: %s",
@@ -186,7 +186,7 @@ async def _generate_queries_via_llm(
             temperature=HIGH_TEMPERATURE,
             json_schema=LITERATURE_QUERY_SCHEMA,
         )
-        return result.get("queries", [])
+        return cast(List[str], result.get("queries", []))
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning("LLM query generation failed: %s", e)
         return []
@@ -348,6 +348,9 @@ async def _phase2_collect_papers_multi_source(
 ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
     """Phase 2 (multi-source): Collect papers from multiple sources in parallel.
     """
+    # Multi-source mode guarantees a configured workflow and tool registry.
+    assert config.workflow is not None
+    assert config.tool_registry is not None
     enabled_sources = config.workflow.get_enabled_search_sources()
     logger.info("Phase 2: collecting papers from %s sources",
                 len(enabled_sources))
@@ -786,7 +789,7 @@ async def _phase2_6_fetch_context_enrichment(
     sections: List[str] = []
     all_structured: List[Dict[str, Any]] = []
     for tc, result in zip(tool_configs, tool_results):
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             logger.debug("context enrichment: %s raised %s", tc.mcp_tool_name,
                          result)
             continue
@@ -1009,7 +1012,7 @@ async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
     # check cache
     node_cache = get_node_cache()
     cache_params = {"research_goal": state["research_goal"]}
-    force_cache = state.get("dev_test_lit_tools_isolation", False)
+    force_cache = bool(state.get("dev_test_lit_tools_isolation", False))
 
     if force_cache:
         logger.info("Dev isolation mode: forcing literature review cache")

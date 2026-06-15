@@ -24,7 +24,7 @@ Small, composable functions for the literature review node phases:
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, cast, Dict, List, Optional, Tuple, TYPE_CHECKING
 
 from ..constants import LITERATURE_REVIEW_FAILED
 from ..models import Article
@@ -103,7 +103,7 @@ def normalize_search_response(
         if source_id_field.startswith("@"):
             source_id_field = "arxiv_id"
 
-        normalized = {}
+        normalized: Dict[str, Any] = {}
         for paper in result_data:
             paper_id = (paper.get(source_id_field) or paper.get("arxiv_id") or
                         paper.get("id") or str(len(normalized)))
@@ -167,7 +167,7 @@ def _build_article_url(paper_id: str, metadata: Dict[str, Any],
     """Build URL for article, using metadata URL or constructing default."""
     url = metadata.get("url")
     if url:
-        return url
+        return cast(str, url)
 
     if source_name == "pubmed":
         return f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
@@ -253,8 +253,8 @@ def get_papers_with_content(
 
 def make_failure_result(
     reason: str,
-    queries: List[str] = None,
-    articles: List[Article] = None,
+    queries: Optional[List[str]] = None,
+    articles: Optional[List[Article]] = None,
 ) -> Dict[str, Any]:
     """Create a failure result dict for early returns."""
     return {
@@ -309,7 +309,7 @@ async def emit_progress(
     event: str,
     message: str,
     progress: float,
-    **extra,
+    **extra: Any,
 ) -> None:
     """Emit progress callback if configured."""
     callback = state.get("progress_callback")
@@ -333,7 +333,7 @@ def parse_mcp_query_result(result: Any) -> List[str]:
             result_data = json.loads(result)
             if isinstance(result_data, list):
                 return result_data
-            return result_data.get("queries", [])
+            return cast(List[str], result_data.get("queries", []))
         except json.JSONDecodeError:
             return []
     elif isinstance(result, list):
@@ -411,7 +411,7 @@ def merge_search_results(
     """
     all_paper_metadata: Dict[str, Dict[str, Any]] = {}
     paper_source_map: Dict[str, str] = {}
-    seen_titles: set = set()
+    seen_titles: set[str] = set()
 
     for source_tool_id, results in source_results:
         for paper_id, metadata in results.items():
@@ -471,7 +471,7 @@ def get_papers_needing_pdf_discovery(
     all_paper_metadata: Dict[str, Dict[str, Any]],
     paper_source_map: Dict[str, str],
     pdf_discovery_config: Dict[str, Tuple[str, str]],
-) -> List[Tuple[str, Dict, str, str]]:
+) -> List[Tuple[str, Dict[str, Any], str, str]]:
     """Identify papers that need PDF discovery.
 
     Returns:
@@ -502,7 +502,7 @@ def parse_pdf_discovery_result(result: Any) -> Optional[str]:
         try:
             result_data = json.loads(result)
             if isinstance(result_data, list) and result_data:
-                return result_data[0]
+                return cast(Optional[str], result_data[0])
             if isinstance(result_data, dict):
                 links = result_data.get("pdf_links") or result_data.get(
                     "links") or []
@@ -582,7 +582,7 @@ def get_papers_needing_content(
     all_paper_metadata: Dict[str, Dict[str, Any]],
     paper_source_map: Dict[str, str],
     content_config: Dict[str, ContentToolConfig],
-) -> List[Tuple[str, Dict, ContentToolConfig]]:
+) -> List[Tuple[str, Dict[str, Any], ContentToolConfig]]:
     """Identify papers that need content retrieval.
 
     Returns:

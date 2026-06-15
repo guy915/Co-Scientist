@@ -18,7 +18,7 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 from ..constants import (
     EXTENDED_MAX_TOKENS,
@@ -116,7 +116,7 @@ async def evolve_single_hypothesis(
     run_id: str | None = None,
     hypothesis_index: int | None = None,
     tool_registry: Any | None = None,
-) -> Hypothesis:
+) -> Tuple[Hypothesis, Optional[Dict[str, Any]]]:
     """Evolve a single hypothesis with strategically sampled context.
 
     This is the CRITICAL anti-duplicate strategy: we pass a subset of other
@@ -336,6 +336,7 @@ DO:
             "Evolution created near-duplicate! Similarity: %.2f."
             " Keeping original hypothesis.", max_similarity)
         logger.debug("original: %s...", hypothesis.text[:100])
+        assert most_similar_text is not None
         logger.debug("similar to: %s...", most_similar_text[:100])
         return hypothesis, None  # Keep original, no evolution details
 
@@ -384,8 +385,9 @@ async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
     logger.info("Evolving top %s hypotheses", actual_count)
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "evolve_start",
             {
                 "message": f"Evolving top {actual_count} hypotheses...",
@@ -454,8 +456,9 @@ async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
                 len(evolved_hypotheses), len(evolution_details))
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "evolve_complete",
             {
                 "message": f"Evolved {len(evolved_hypotheses)} hypotheses",

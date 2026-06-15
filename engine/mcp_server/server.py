@@ -97,7 +97,7 @@ app.add_middleware(
 
 
 @app.get("/")
-async def root():
+async def root() -> JSONResponse:
     """Returns API status and available tool list."""
     return JSONResponse({
         "status": "running",

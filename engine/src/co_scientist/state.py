@@ -17,7 +17,7 @@ The state is passed through all nodes and tracks the complete workflow.
 """
 
 import logging
-from typing import Annotated, Any, Callable, Dict, List, Optional
+from typing import (Annotated, Any, Awaitable, Callable, Dict, List, Optional)
 
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
@@ -190,8 +190,9 @@ class WorkflowState(TypedDict):
     """Unique identifier for this run (used for logging)."""
 
     # Progress Callback
-    progress_callback: Optional[Callable[[str, Dict[str, Any]], None]]
-    """Optional callback for progress updates."""
+    progress_callback: Optional[Callable[[str, Dict[str, Any]],
+                                         Awaitable[None]]]
+    """Optional async callback for progress updates."""
 
     # Messages (for LangSmith tracing)
     messages: Annotated[List[Dict[str, Any]], add_messages]

@@ -41,9 +41,24 @@ dev = [
 where = ["."]
 include = ["mcp_server*"]
 
+[tool.setuptools.package-data]
+mcp_server = ["py.typed"]
+
 [tool.yapf]
 based_on_style = "google"
 column_limit = 80
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+# Biopython ships a py.typed marker but leaves Bio.Entrez functions and
+# attributes unannotated. Skip following its imports so its untyped surface
+# does not propagate Any into typed call sites.
+[[tool.mypy.overrides]]
+module = ["Bio.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

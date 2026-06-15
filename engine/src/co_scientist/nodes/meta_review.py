@@ -51,8 +51,9 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     logger.info("Synthesizing meta-review from %s hypotheses", len(hypotheses))
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "meta_review_start",
             {
                 "message": "Synthesizing insights from all reviews...",
@@ -172,8 +173,9 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
                 len(meta_review['strategic_recommendations']))
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "meta_review_complete",
             {
                 "message":

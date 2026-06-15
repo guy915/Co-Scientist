@@ -19,7 +19,7 @@ Multiple debates can run in parallel.
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, cast, Dict, List, Optional, Tuple
 
 from .citations import ReferenceIndex, resolve_citation_keys
 from ...constants import (
@@ -29,14 +29,17 @@ from ...constants import (
     INITIAL_ELO_RATING,
 )
 from ...llm import call_llm, call_llm_json
-from ...models import Hypothesis
+from ...models import Article, Hypothesis
 from ...prompts import get_debate_generation_prompt, save_prompt_to_disk
 from ...state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
 
-def _match_papers_to_grounding(articles, literature_grounding):
+def _match_papers_to_grounding(
+    articles: List[Article],
+    literature_grounding: Optional[str],
+) -> List[Dict[str, str]]:
     """Match lit review articles against a hypothesis's literature_grounding.
 
     Uses author last name + year matching against citation patterns like
@@ -88,7 +91,7 @@ async def _run_single_debate(
             transcript=transcript,
             supervisor_guidance=supervisor_guidance,
             preferences=preferences,
-            attributes=attributes,
+            attributes=cast(Optional[str], attributes),
             is_final_turn=is_final,
             articles_with_reasoning=articles_with_reasoning,
             articles=state.get("articles"),

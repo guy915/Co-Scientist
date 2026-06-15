@@ -160,7 +160,7 @@ async def run_workflow(
 
     # Real engine path — bridge engine streaming events into our event log.
     try:
-        from co_scientist import HypothesisGenerator  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
+        from co_scientist import HypothesisGenerator  # type: ignore[import-not-found]  # pylint: disable=import-outside-toplevel
     except Exception as e:  # pragma: no cover (defensive)  # pylint: disable=broad-exception-caught
         logger.error("engine import failed: %s — falling back to mock", e)
         async for event in run_mock_workflow(
@@ -185,8 +185,8 @@ async def run_workflow(
         try:
             import json as _json  # pylint: disable=import-outside-toplevel
 
-            import litellm as _litellm  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
-            import co_scientist.llm as _oc_llm  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
+            import litellm as _litellm  # pylint: disable=import-outside-toplevel
+            import co_scientist.llm as _oc_llm  # type: ignore[import-not-found]  # pylint: disable=import-outside-toplevel
 
             # --- patch 1: acompletion ---
             _orig_acompletion = _litellm.acompletion  # pylint: disable=invalid-name
@@ -243,15 +243,13 @@ async def run_workflow(
                     if key in props:
                         _fill_schema_defaults(val, props[key])
 
-            def _patched_validate(
-                    result: Any,
-                    json_schema: Any) -> None:  # type: ignore[misc]
+            def _patched_validate(result: Any, json_schema: Any) -> None:
                 if json_schema is not None and isinstance(result, dict):
                     actual = json_schema.get("schema", json_schema)
                     _fill_schema_defaults(result, actual)
                 _orig_validate(result, json_schema)
 
-            _oc_llm.validate_json_schema = _patched_validate  # type: ignore[assignment]
+            _oc_llm.validate_json_schema = _patched_validate
 
         except Exception as _patch_err:  # pylint: disable=broad-exception-caught,invalid-name
             logger.warning(
@@ -289,7 +287,7 @@ async def run_workflow(
         "evolution_details": [],
     }
     try:
-        async for node_name, state in generator.generate_hypotheses(  # type: ignore[union-attr]  # pylint: disable=line-too-long
+        async for node_name, state in generator.generate_hypotheses(  # pylint: disable=line-too-long
                 research_goal=research_goal,
                 stream=True,
                 run_id=run_id,
@@ -403,10 +401,10 @@ async def run_workflow(
             # Persist citations from the hypothesis citation_map.
             for cite_key, cite_info in (h.get("citation_map") or {}).items():
                 cite_title = cite_info.get("title", cite_key)
-                ev_id = ev_id_by_title.get(cite_title)
-                if ev_id is None:
+                cite_ev_id = ev_id_by_title.get(cite_title)
+                if cite_ev_id is None:
                     # Add evidence on the fly for this citation source.
-                    ev_id = store.add_evidence(
+                    cite_ev_id = store.add_evidence(
                         run_id,
                         cite_title,
                         source=cite_info.get("type", "engine"),
@@ -417,11 +415,11 @@ async def run_workflow(
                         available=True,
                         db_path=db_path,
                     )
-                    ev_id_by_title[cite_title] = ev_id
+                    ev_id_by_title[cite_title] = cite_ev_id
                 claim = f"[{cite_key}] cited in hypothesis"
                 store.add_citation(run_id,
                                    hyp_id,
-                                   ev_id,
+                                   cite_ev_id,
                                    claim,
                                    "verified",
                                    db_path=db_path)

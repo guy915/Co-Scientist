@@ -149,8 +149,9 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
     logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
 
     # emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "reflection_start",
             {
                 "message": f"Analyzing {len(hypotheses)} hypotheses"
@@ -196,8 +197,9 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
                 "Analysis failed\n\nClassification: neutral")
 
     # emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "reflection_complete",
             {
                 "message": "Reflection analysis complete",

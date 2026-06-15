@@ -21,10 +21,11 @@ but uses LangGraph under the hood.
 import logging
 import time
 import uuid
-from typing import (Any, AsyncIterator, Callable, Dict, List, Literal, Optional,
-                    Tuple, Union, overload)
+from typing import (Any, AsyncIterator, Awaitable, Callable, Dict, List,
+                    Literal, Optional, Tuple, Union, overload)
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 
 from .constants import (
     DEFAULT_MAX_ITERATIONS,
@@ -44,6 +45,10 @@ from .nodes.supervisor import supervisor_node
 from .state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+# Compiled LangGraph workflow. The fourth type parameter (StateT) is left
+# loose because langgraph's compile() leaks an unbound type variable.
+CompiledWorkflow = CompiledStateGraph[Any, Any, Any, Any]
 
 
 class HypothesisGenerator:
@@ -119,15 +124,16 @@ class HypothesisGenerator:
                         len(self._tool_registry.get_enabled_tools()))
 
         # Build the graph (lazy - only once)
-        self._graph = None
+        self._graph: Optional[CompiledWorkflow] = None
 
         # Cache availability checks per instance (lazy init on first generate
         # call)
         self._mcp_available: Optional[bool] = None
         self._pubmed_available: Optional[bool] = None
 
-    def _build_graph(self,
-                     enable_literature_review_node: bool = True) -> StateGraph:
+    def _build_graph(
+            self,
+            enable_literature_review_node: bool = True) -> CompiledWorkflow:
         """Build the LangGraph workflow.
 
         Complete workflow:
@@ -246,7 +252,8 @@ class HypothesisGenerator:
     async def _prepare_generation(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, dict], None]] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]],
+                                             Awaitable[None]]] = None,
         opts: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
     ) -> Tuple[WorkflowState, float, str]:
@@ -390,6 +397,13 @@ class HypothesisGenerator:
             "constraints": opts.get("constraints"),
             "starting_hypotheses": user_inputs.get("starting_hypotheses"),
             "literature": user_inputs.get("literature"),
+            # Literature review outputs (populated by downstream nodes)
+            "articles_with_reasoning": None,
+            "literature_review_queries": None,
+            "articles": None,
+            "generation_corpus_slug": None,
+            "debate_transcripts": None,
+            "context_enrichment_sources": None,
         }
 
         return initial_state, start_time, run_id
@@ -398,18 +412,20 @@ class HypothesisGenerator:
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, dict], None]] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]],
+                                             Awaitable[None]]] = None,
         opts: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
         stream: Literal[False] = False,
-    ) -> Dict[str, Any]:
+    ) -> Awaitable[Dict[str, Any]]:
         ...
 
     @overload
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, dict], None]] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]],
+                                             Awaitable[None]]] = None,
         opts: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
         stream: Literal[True] = True,
@@ -419,11 +435,13 @@ class HypothesisGenerator:
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, dict], None]] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]],
+                                             Awaitable[None]]] = None,
         opts: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
         stream: bool = False,
-    ) -> Union[Dict[str, Any], AsyncIterator[Tuple[str, Dict[str, Any]]]]:
+    ) -> Union[Awaitable[Dict[str, Any]], AsyncIterator[Tuple[str, Dict[str,
+                                                                        Any]]]]:
         """Generate hypotheses, with optional streaming.
 
         Args:
@@ -490,7 +508,8 @@ class HypothesisGenerator:
     async def _generate_hypotheses_without_streaming(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, dict], None]] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]],
+                                             Awaitable[None]]] = None,
         opts: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
     ) -> Dict[str, Any]:
@@ -506,6 +525,7 @@ class HypothesisGenerator:
             run_id=run_id,
         )
 
+        assert self._graph is not None  # built by _prepare_generation
         try:
             # Run the workflow. Uses 100 recursion limit to support higher max
             # iterations.
@@ -554,7 +574,8 @@ class HypothesisGenerator:
     async def _generate_hypotheses_with_streaming(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, dict], None]] = None,
+        progress_callback: Optional[Callable[[str, Dict[str, Any]],
+                                             Awaitable[None]]] = None,
         opts: Optional[Dict[str, Any]] = None,
         run_id: Optional[str] = None,
     ) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
@@ -589,11 +610,12 @@ class HypothesisGenerator:
         Yields:
             Tuple of (node_name, state_dict) after each node completes
         """
+        assert self._graph is not None  # built by _prepare_generation
         try:
             # Maintain cumulative state across nodes
             # LangGraph's astream only yields fields updated by each node, not
             # full state
-            cumulative_state = {
+            cumulative_state: Dict[str, Any] = {
                 "hypotheses": [],
                 "meta_review": {},
                 "research_plan": {},

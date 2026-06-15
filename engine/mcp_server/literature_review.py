@@ -19,10 +19,10 @@ from time import sleep
 import os
 import logging
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 import traceback
 import json
-from abc import ABC
+from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
@@ -35,14 +35,24 @@ class DocumentSource(ABC):
     # set when added to LiteratureReviewAgent or manually
     qualified_path: Path | None
 
-    async def fetch_for_query(
-        self,
-        query: str,  # pylint: disable=unused-argument
-        slug: str = "",  # pylint: disable=unused-argument
-        max_papers: int = 10):  # pylint: disable=unused-argument
+    @abstractmethod
+    async def fetch_for_query(self,
+                              query: str,
+                              slug: str = "",
+                              max_papers: int = 10,
+                              recency_years: int = 0,
+                              run_id: str | None = None) -> dict[str, Any]:
         """Fetches papers for a given query and writes them to qualified_path.
 
-        Returns details relevant for an agent to read, in an unspecified format.
+        Args:
+            query: Search query string.
+            slug: Identifier for organizing results.
+            max_papers: Maximum number of papers to retrieve.
+            recency_years: Filter to papers from last N years (0 = no filter).
+            run_id: Unique run identifier for per-run tracking.
+
+        Returns:
+            Mapping of paper_id to metadata, in a source-specific format.
         """
         ...  # pylint: disable=unnecessary-ellipsis
 
@@ -66,7 +76,7 @@ class LiteratureReviewAgent:
         logger.info("Initialized LiteratureReviewAgent with source root: %s",
                     source_root)
 
-    def add_source(self, name: str, source: DocumentSource):
+    def add_source(self, name: str, source: DocumentSource) -> None:
         """Registers a document source under a given name.
 
         Args:
@@ -83,7 +93,7 @@ class LiteratureReviewAgent:
                               slug: str,
                               max_papers: int = 10,
                               recency_years: int = 0,
-                              run_id: str = None):
+                              run_id: str | None = None) -> dict[str, Any]:
         """Fetches papers from a named source for the given query.
 
         Args:
@@ -104,7 +114,7 @@ class LiteratureReviewAgent:
 class PubmedSource(DocumentSource):
     """PubMed document source with fulltext download from PMC."""
 
-    def __init__(self, qualified_path=None):
+    def __init__(self, qualified_path: Path | None = None):
         """Initializes the PubMed source.
 
         Args:
@@ -115,10 +125,10 @@ class PubmedSource(DocumentSource):
 
     async def fetch_for_query(self,
                               query: str,
-                              slug: str,
+                              slug: str = "",
                               max_papers: int = 10,
                               recency_years: int = 0,
-                              run_id: str = None):
+                              run_id: str | None = None) -> dict[str, Any]:
         """Fetches papers from PubMed for the given query.
 
         Args:
@@ -149,19 +159,22 @@ class PubmedSource(DocumentSource):
                 "LiteratureReviewAgent.")
         return self.qualified_path
 
-    def entrez_read(self, handle) -> dict:
+    def entrez_read(self, handle: Any) -> Any:
         """Reads an Entrez handle with rate-limit delay.
+
+        Entrez.read parses XML into either a dict-like or list-like structure
+        depending on the query, so the return type is intentionally opaque.
 
         Args:
             handle: Open Entrez response handle.
 
         Returns:
-            Parsed result dict from Entrez.read().
+            Parsed result from Entrez.read() (dict-like or list-like).
         """
         sleep(0.25)  # rate limits - recommended by entrez docs
         results = Entrez.read(handle)
         handle.close()
-        return results  # type: ignore
+        return results
 
     def pubmed_search_ids(self,
                           query: str,
@@ -198,11 +211,14 @@ class PubmedSource(DocumentSource):
         logger.debug("searching pubmed with sort=pub_date (most recent first)")
         results = self.entrez_read(Entrez.esearch(**search_params))
         if (id_list := results.get("IdList", None)):
-            return id_list
+            return [str(paper_id) for paper_id in id_list]
         logger.warning("No results found for query: %s", query)
         return []
 
-    def get_pubmed_fulltext(self, pmc_id: str, slug: str, run_id: str = None):
+    def get_pubmed_fulltext(self,
+                            pmc_id: str,
+                            slug: str,
+                            run_id: str | None = None) -> str | None:
         """Downloads the fulltext of a PMC paper and saves it to shared pool.
 
         Uses shared pool architecture - saves to slug/shared/ and creates a
@@ -282,13 +298,14 @@ class PubmedSource(DocumentSource):
                          pmc_id,
                          type(e).__name__, e)
             logger.debug(traceback.format_exc())
+            return None
 
     async def pubmed_search(self,
                             query: str,
                             slug: str,
                             max_papers: int = 10,
                             recency_years: int = 0,
-                            run_id: str = None):
+                            run_id: str | None = None) -> dict[str, Any]:
         """Searches PubMed and downloads fulltext HTML from PMC.
 
         HTML-only implementation - no PDF fallback.
@@ -352,7 +369,7 @@ class PubmedSource(DocumentSource):
         semaphore = asyncio.Semaphore(3)
 
         async def fetch_paper_metadata(
-                paper_id: str) -> tuple[str, dict | None]:
+                paper_id: str) -> tuple[str, dict[str, Any] | None]:
             """Fetches metadata for a single paper with rate limiting.
 
             Args:
@@ -561,7 +578,7 @@ class PubmedSource(DocumentSource):
                                      paper_id, e)
 
             # sort candidates by date (most recent first)
-            def get_year(paper_tuple):
+            def get_year(paper_tuple: tuple[str, dict[str, Any]]) -> int:
                 """Extracts publication year from paper metadata tuple.
 
                 Args:

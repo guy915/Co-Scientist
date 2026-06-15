@@ -23,7 +23,10 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, Optional
+from typing import Any, cast, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..config import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -199,7 +202,7 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
     return result[:max_entities]
 
 
-def get_kg_tools_for_workflow(tool_registry: Optional[Any],
+def get_kg_tools_for_workflow(tool_registry: Optional["ToolRegistry"],
                               workflow_name: str) -> list[str]:
     """Resolve which MCP tool names the yaml config assigned to search_tools.
 
@@ -224,7 +227,7 @@ def get_kg_tools_for_workflow(tool_registry: Optional[Any],
 
 async def fetch_indra_evidence(
     hypothesis_text: str,
-    tool_registry: Optional[Any] = None,
+    tool_registry: Optional["ToolRegistry"] = None,
     max_statements: int = 5,
     workflow_name: str = "reflection",
 ) -> dict[str, Any]:
@@ -292,7 +295,7 @@ async def _query_single_entity(
     tool_name: str,
     entity: str,
     max_per_entity: int,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Query a knowledge graph tool for one entity; returns its statements."""
     try:
         raw = await client.call_tool(
@@ -302,7 +305,7 @@ async def _query_single_entity(
             evidence_limit=_EVIDENCE_LIMIT,
         )
         result = _parse_tool_result(raw)
-        return result.get("statements", [])
+        return cast("list[dict[str, Any]]", result.get("statements", []))
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.debug("entity query failed for '%s' via %s: %s", entity,
                      tool_name, e)
@@ -314,7 +317,7 @@ async def _query_entities(
     tool_name: str,
     entities: list[str],
     max_per_entity: int,
-) -> list[dict]:
+) -> list[dict[str, Any]]:
     """Query a knowledge graph tool for all entities in parallel."""
     tasks = [
         _query_single_entity(client, tool_name, entity, max_per_entity)
@@ -324,11 +327,11 @@ async def _query_entities(
     return [stmt for stmts in results for stmt in stmts]
 
 
-def _parse_tool_result(raw: Any) -> dict:
+def _parse_tool_result(raw: Any) -> dict[str, Any]:
     """Parse MCP tool result which may be string JSON or already a dict."""
     if isinstance(raw, str):
         try:
-            return json.loads(raw)
+            return cast("dict[str, Any]", json.loads(raw))
         except (json.JSONDecodeError, TypeError):
             return {}
     if isinstance(raw, dict):
@@ -336,7 +339,7 @@ def _parse_tool_result(raw: Any) -> dict:
     return {}
 
 
-def _format_evidence(statements: list[dict],
+def _format_evidence(statements: list[dict[str, Any]],
                      queried_entities: list[str]) -> str:
     """Format INDRA statements concisely for prompt injection.
 
@@ -360,7 +363,7 @@ def _ev_count_str(ev_count: int) -> str:
     return f"{ev_count}+" if ev_count >= _EVIDENCE_LIMIT else str(ev_count)
 
 
-def _format_single_statement(stmt: dict) -> str:
+def _format_single_statement(stmt: dict[str, Any]) -> str:
     """Format one INDRA statement as a concise line."""
     rel_type = stmt.get("type", "Unknown")
     belief = stmt.get("belief", 0)
@@ -386,7 +389,7 @@ def _format_single_statement(stmt: dict) -> str:
 
 
 def _build_enrichment_items(
-    statements: list[dict],
+    statements: list[dict[str, Any]],
     queried_entities: list[str],
 ) -> list[dict[str, str]]:
     """Build structured items for hypothesis.enrichments (UI rendering).
@@ -405,7 +408,8 @@ def _build_enrichment_items(
     return items
 
 
-def _statement_to_enrichment_item(stmt: dict) -> dict[str, str] | None:
+def _statement_to_enrichment_item(
+        stmt: dict[str, Any]) -> dict[str, str] | None:
     """Convert one INDRA statement into a flat dict for UI display."""
     rel_type = stmt.get("type", "Unknown")
     belief = stmt.get("belief", 0)
@@ -436,9 +440,9 @@ def _statement_to_enrichment_item(stmt: dict) -> dict[str, str] | None:
     return None
 
 
-def _agent_name(stmt: dict, role: str) -> str:
+def _agent_name(stmt: dict[str, Any], role: str) -> str:
     """Extract agent name from an INDRA statement."""
     agent = stmt.get(role, {})
     if isinstance(agent, dict):
-        return agent.get("name", "")
+        return cast(str, agent.get("name", ""))
     return ""

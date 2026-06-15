@@ -21,6 +21,7 @@ import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
 import uvicorn
 from dotenv import load_dotenv
@@ -39,14 +40,14 @@ from .runs import router as runs_router  # pylint: disable=wrong-import-position
 from .seed import seed_demo_runs  # pylint: disable=wrong-import-position
 
 try:
-    from litellm import acompletion  # type: ignore
+    from litellm import acompletion
 except Exception:  # pragma: no cover - litellm optional in mock mode  # pylint: disable=broad-exception-caught
-    acompletion = None  # type: ignore
+    acompletion = None
 
 try:
-    from co_scientist import HypothesisGenerator  # type: ignore
+    from co_scientist import HypothesisGenerator  # type: ignore[import-not-found]
 except Exception:  # pragma: no cover - engine optional in mock mode  # pylint: disable=broad-exception-caught
-    HypothesisGenerator = None  # type: ignore  # pylint: disable=invalid-name
+    HypothesisGenerator = None  # pylint: disable=invalid-name
 
 # Configure logging
 # Set root logger to INFO to suppress DEBUG logs from dependencies (httpx, etc.)
@@ -85,17 +86,19 @@ else:
     logger.info("mcp_server_url not set - literature review will be disabled")
 
 # Global generator instance (can be reused)
-_generator = None  # type: ignore[var-annotated]
+_generator = None
 
 # Active generation tasks
 # task_id -> {"generator": AsyncGenerator, "cancelled": asyncio.Event}
 # Protected by lock for thread-safe concurrent access
-_active_tasks: dict[str, dict] = {}
+_active_tasks: dict[str, dict[str, Any]] = {}
 _active_tasks_lock = asyncio.Lock()
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):  # pylint: disable=redefined-outer-name,unused-argument
+async def lifespan(
+    app: FastAPI,  # pylint: disable=redefined-outer-name,unused-argument
+) -> AsyncGenerator[None, None]:
     """Manages FastAPI application startup and shutdown."""
     global _generator
 
@@ -188,13 +191,13 @@ class GenerateRequest(BaseModel):
 
 class GenerateResponse(BaseModel):
     """Response model for hypothesis generation (non streaming)."""
-    hypotheses: list[dict]
-    meta_review: dict
-    research_plan: dict
-    tournament_matchups: list[dict]
-    evolution_details: list[dict]
+    hypotheses: list[dict[str, Any]]
+    meta_review: dict[str, Any]
+    research_plan: dict[str, Any]
+    tournament_matchups: list[dict[str, Any]]
+    evolution_details: list[dict[str, Any]]
     execution_time: float
-    metrics: dict
+    metrics: dict[str, Any]
 
 
 class HealthResponse(BaseModel):
@@ -246,7 +249,7 @@ class ParsedResearchGoal(BaseModel):
         None, description="Key qualities to prioritize")
     constraints: list[str] | None = Field(
         None, description="Requirements or boundaries")
-    user_inputs: dict | None = Field(
+    user_inputs: dict[str, Any] | None = Field(
         None, description="Additional user-provided context")
     enable_literature_review_node: bool | None = Field(
         None,
@@ -413,7 +416,14 @@ Return ONLY valid JSON matching the schema."""
                      exc_info=True)
         # Fallback: treat entire input as research_goal
         logger.warning("Falling back to using entire input as research_goal")
-        fallback_goal = ParsedResearchGoal(research_goal=raw_input)
+        fallback_goal = ParsedResearchGoal(
+            research_goal=raw_input,
+            preferences=None,
+            attributes=None,
+            constraints=None,
+            user_inputs=None,
+            enable_literature_review_node=None,
+        )
 
         # cache the fallback too
         _cache_parse(raw_input, fallback_goal)
@@ -422,7 +432,7 @@ Return ONLY valid JSON matching the schema."""
 
 
 @app.get("/", tags=["root"])
-async def root():
+async def root() -> dict[str, str]:
     """Root endpoint."""
     return {
         "message": "Co-Scientist API",
@@ -432,7 +442,7 @@ async def root():
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
-async def health():
+async def health() -> HealthResponse:
     """Health check endpoint."""
     return HealthResponse(
         status="healthy",
@@ -442,7 +452,7 @@ async def health():
 
 
 @app.get("/config", response_model=ConfigResponse, tags=["config"])
-async def get_config():
+async def get_config() -> ConfigResponse:
     """Get default configuration values."""
     return ConfigResponse(
         max_iterations=settings.max_iterations,
@@ -452,7 +462,7 @@ async def get_config():
 
 
 @app.get("/status", response_model=SystemStatusResponse, tags=["system"])
-async def get_system_status():
+async def get_system_status() -> dict[str, Any]:
     """Checks system availability for literature review features.
 
     Returns availability status for mcp server and pubmed api, plus
@@ -462,9 +472,8 @@ async def get_system_status():
     mcp_available = False
     pubmed_available = False
     try:
-        from co_scientist.mcp_client import (  # pylint: disable=import-outside-toplevel
-            check_mcp_available,  # type: ignore
-            check_pubmed_available_via_mcp,  # type: ignore
+        from co_scientist.mcp_client import (  # type: ignore[import-not-found]  # pylint: disable=import-outside-toplevel
+            check_mcp_available, check_pubmed_available_via_mcp,
         )
 
         mcp_available = await check_mcp_available()
@@ -485,7 +494,7 @@ async def get_system_status():
 
 
 @app.post("/generate", response_model=GenerateResponse, tags=["hypotheses"])
-async def generate_hypotheses(request: GenerateRequest):
+async def generate_hypotheses(request: GenerateRequest) -> GenerateResponse:
     """Generates hypotheses for a research goal.
 
     Runs the full hypothesis generation workflow and returns the complete
@@ -685,7 +694,7 @@ async def stream_generator(
 
 
 @app.post("/generate/start", tags=["hypotheses"])
-async def start_generation(request: GenerateRequest):
+async def start_generation(request: GenerateRequest) -> dict[str, str]:
     """Starts hypothesis generation and returns a task ID.
 
     Use the returned task_id to subscribe to the SSE stream via
@@ -797,7 +806,7 @@ async def start_generation(request: GenerateRequest):
 
 
 @app.get("/generate/stream/{task_id}", tags=["hypotheses"])
-async def stream_generation(task_id: str):
+async def stream_generation(task_id: str) -> StreamingResponse:
     """Subscribes to the SSE stream for a started generation task.
 
     Use the task_id returned from POST /generate/start.
@@ -809,7 +818,7 @@ async def stream_generation(task_id: str):
         task_data = _active_tasks[task_id]
         stream = task_data["generator"]
 
-    async def event_stream():
+    async def event_stream() -> AsyncGenerator[str, None]:
         try:
             async for event in stream:
                 yield event
@@ -844,7 +853,7 @@ class CancelRequest(BaseModel):
 
 
 @app.post("/cancel_hypothesis_generation", tags=["hypotheses"])
-async def cancel_generation(request: CancelRequest):
+async def cancel_generation(request: CancelRequest) -> dict[str, str]:
     """Cancels an ongoing hypothesis generation task.
 
     Stops the streaming and prevents further processing. LLM calls already in

@@ -38,6 +38,8 @@ dev = [
     "yapf~=0.43.0",
     "pylint~=3.3",
     "mypy~=1.19.1",
+    "types-PyYAML",
+    "types-jsonschema",
     "python-dotenv~=1.2.1",
 ]
 
@@ -50,7 +52,7 @@ where = ["src"]
 include = ["co_scientist*"]
 
 [tool.setuptools.package-data]
-co_scientist = ["prompts/*.md", "config/*.yaml"]
+co_scientist = ["prompts/*.md", "config/*.yaml", "py.typed"]
 
 [tool.yapf]
 based_on_style = "google"
@@ -58,9 +60,11 @@ column_limit = 80
 
 [tool.mypy]
 python_version = "3.10"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["jsonschema", "jsonschema.*", "yaml"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

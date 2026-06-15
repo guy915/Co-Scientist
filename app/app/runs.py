@@ -49,6 +49,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from . import engine_adapter, store
+from .store import RunRow
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -116,7 +117,7 @@ def _summary_counts(run_id: str) -> dict[str, int]:
     }
 
 
-def _run_or_404(run_id: str):
+def _run_or_404(run_id: str) -> RunRow:
     run = store.get_run(run_id, db_path=_db_path())
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
@@ -482,7 +483,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
 
     async def _stream() -> AsyncGenerator[str, None]:
         try:
-            import litellm  # type: ignore[import-untyped]  # pylint: disable=import-outside-toplevel
+            import litellm  # pylint: disable=import-outside-toplevel
 
             full: list[str] = []
             response = await litellm.acompletion(

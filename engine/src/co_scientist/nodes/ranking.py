@@ -236,8 +236,9 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
                 hypotheses[0].score)
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "tournament_start",
             {
                 "message":
@@ -354,8 +355,9 @@ async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
     logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "tournament_complete",
             {
                 "message": f"Tournament complete ({tournament_rounds} rounds)",

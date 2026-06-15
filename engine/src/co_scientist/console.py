@@ -24,7 +24,7 @@ import logging
 import sys
 import time
 import warnings
-from typing import Any, AsyncIterator, Coroutine, Dict, Optional, Tuple
+from typing import Any, AsyncIterator, Coroutine, Dict, Optional, TextIO, Tuple, cast
 
 from rich.console import Console
 from rich.panel import Panel
@@ -37,7 +37,7 @@ from .constants import LITERATURE_REVIEW_FAILED
 class FilteredStderr:
     """Filter out SSL cleanup errors from stderr."""
 
-    def __init__(self, original_stderr):
+    def __init__(self, original_stderr: TextIO) -> None:
         self.original_stderr = original_stderr
         self.skip_patterns = [
             "Fatal error on SSL transport",
@@ -55,7 +55,7 @@ class FilteredStderr:
         self.buffer = ""
         self.skip_block = False
 
-    def write(self, text):
+    def write(self, text: str) -> None:
         # accumulate text
         self.buffer += text
 
@@ -73,14 +73,16 @@ class FilteredStderr:
             self.buffer = ""
             self.skip_block = False
 
-    def flush(self):
+    def flush(self) -> None:
         if self.buffer and not self.skip_block:
             self.original_stderr.write(self.buffer)
             self.buffer = ""
         self.original_stderr.flush()
 
 
-def get_generation_method_badge(method: str, hypothesis: dict = None) -> str:
+def get_generation_method_badge(method: str,
+                                hypothesis: Optional[Dict[str,
+                                                          Any]] = None) -> str:
     """Get a colored badge for the generation method.
 
     For debate method, checks literature_grounding to distinguish:
@@ -106,7 +108,7 @@ def get_generation_method_badge(method: str, hypothesis: dict = None) -> str:
         return ""
 
 
-async def default_progress_callback(phase: str, data: dict):  # pylint: disable=unused-argument
+async def default_progress_callback(phase: str, data: Dict[str, Any]) -> None:  # pylint: disable=unused-argument
     """Simple progress callback that prints updates."""
     console = Console()
     console.print(f" [dim cyan]{data.get('message', '')}[/dim cyan]")
@@ -144,16 +146,16 @@ class ConsoleReporter:
         self._displayed_research_plan = False
         self._displayed_literature_review = False
         self._displayed_meta_review = False
-        self._displayed_hypotheses = {}
+        self._displayed_hypotheses: Dict[str, Dict[str, Any]] = {}
 
         # original stderr for restoration
-        self._original_stderr = None
+        self._original_stderr: Optional[TextIO] = None
 
     async def run(
         self,
         event_stream: AsyncIterator[Tuple[str, Dict[str, Any]]],
         research_goal: Optional[str] = None,
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Run the reporter on a streaming event source.
 
         Args:
@@ -166,11 +168,11 @@ class ConsoleReporter:
         # setup stderr filtering if enabled
         if self.filter_stderr:
             self._original_stderr = sys.stderr
-            sys.stderr = FilteredStderr(self._original_stderr)
+            sys.stderr = cast(TextIO, FilteredStderr(self._original_stderr))
 
         try:
             start_time = time.time()
-            last_state = None
+            last_state: Optional[Dict[str, Any]] = None
 
             # show header
             self.console.rule(
@@ -205,7 +207,8 @@ class ConsoleReporter:
             if self.filter_stderr and self._original_stderr:
                 sys.stderr = self._original_stderr
 
-    async def _handle_event(self, node_name: str, state: Dict[str, Any]):
+    async def _handle_event(self, node_name: str, state: Dict[str,
+                                                              Any]) -> None:
         """Handle a single workflow event."""
         if node_name == "supervisor":
             self._show_research_plan(state)
@@ -224,7 +227,7 @@ class ConsoleReporter:
         elif node_name == "evolve":
             self._show_evolution(state)
 
-    def _show_research_plan(self, state: Dict[str, Any]):
+    def _show_research_plan(self, state: Dict[str, Any]) -> None:
         """Display research plan from supervisor."""
         if self._displayed_research_plan:
             return
@@ -246,7 +249,7 @@ class ConsoleReporter:
             self.console.file.flush()
             self._displayed_research_plan = True
 
-    def _show_literature_review(self, state: Dict[str, Any]):
+    def _show_literature_review(self, state: Dict[str, Any]) -> None:
         """Display literature review results."""
         if self._displayed_literature_review:
             return
@@ -279,7 +282,7 @@ class ConsoleReporter:
             self.console.file.flush()
             self._displayed_literature_review = True
 
-    def _show_generated_hypotheses(self, state: Dict[str, Any]):
+    def _show_generated_hypotheses(self, state: Dict[str, Any]) -> None:
         """Display initial hypotheses when generated."""
         for i, hyp in enumerate(state.get("hypotheses", []), 1):
             hyp_key = hyp["text"][:100]
@@ -316,7 +319,7 @@ class ConsoleReporter:
                 Panel(hyp_content, border_style="cyan", expand=True))
             self.console.file.flush()
 
-    def _show_reviews(self, state: Dict[str, Any]):
+    def _show_reviews(self, state: Dict[str, Any]) -> None:
         """Display reviews after review phase."""
         for i, hyp in enumerate(state.get("hypotheses", []), 1):
             if hyp.get("reviews"):
@@ -347,7 +350,7 @@ class ConsoleReporter:
 
                 self.console.file.flush()
 
-    def _show_rankings(self, state: Dict[str, Any]):
+    def _show_rankings(self, state: Dict[str, Any]) -> None:
         """Display ranking results."""
         self.console.print()
         self.console.rule("[bold green]Ranking Results[/bold green]")
@@ -372,7 +375,7 @@ class ConsoleReporter:
         self.console.print(rank_table)
         self.console.file.flush()
 
-    def _show_tournament(self, state: Dict[str, Any]):
+    def _show_tournament(self, state: Dict[str, Any]) -> None:
         """Display tournament results."""
         matchups = state.get("tournament_matchups", [])
         if matchups:
@@ -438,7 +441,7 @@ class ConsoleReporter:
         self.console.print(elo_table)
         self.console.file.flush()
 
-    def _show_meta_review(self, state: Dict[str, Any]):
+    def _show_meta_review(self, state: Dict[str, Any]) -> None:
         """Display meta review."""
         if self._displayed_meta_review:
             return
@@ -458,7 +461,7 @@ class ConsoleReporter:
             self.console.file.flush()
             self._displayed_meta_review = True
 
-    def _show_evolution(self, state: Dict[str, Any]):
+    def _show_evolution(self, state: Dict[str, Any]) -> None:
         """Display evolved hypotheses with detailed rationale."""
         evolution_details = state.get("evolution_details", [])
 
@@ -502,7 +505,7 @@ class ConsoleReporter:
             self.console.file.flush()
 
     def _show_final_summary(self, last_state: Optional[Dict[str, Any]],
-                            execution_time: float):
+                            execution_time: float) -> None:
         """Display final results summary."""
         self.console.print()
         self.console.rule("[bold green]FINAL RESULTS[/bold green]")
@@ -623,7 +626,7 @@ class SSLCleanupFilter(logging.Filter):
         return True
 
 
-def run_console(coro: Coroutine) -> None:
+def run_console(coro: Coroutine[Any, Any, Any]) -> None:
     """Run an async coroutine with graceful shutdown handling for console apps.
 
     This helper manages event loop lifecycle and ensures clean exits when
@@ -656,7 +659,7 @@ def run_console(coro: Coroutine) -> None:
 
     # filter SSL cleanup errors from stderr during shutdown
     original_stderr = sys.stderr
-    sys.stderr = FilteredStderr(original_stderr)
+    sys.stderr = cast(TextIO, FilteredStderr(original_stderr))
 
     try:
         loop.run_until_complete(coro)

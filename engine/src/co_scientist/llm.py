@@ -22,7 +22,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, cast
 import warnings
 
 import jsonschema
@@ -125,13 +125,13 @@ def attempt_json_repair(
         return result
 
     # Minor repairs (safe, don't indicate truncation)
-    minor_repairs = [
+    minor_repairs: List[Callable[[str], Any]] = [
         # Remove trailing commas before closing braces/brackets
         lambda s: json.loads(re.sub(r",(\s*[}\]])", r"\1", s)),
     ]
 
     # Major repairs (indicate truncation/incomplete, only on final retry)
-    major_repairs = [
+    major_repairs: List[Callable[[str], Any]] = [
         # Close unterminated strings and truncated JSON (most common Gemini
         # issue)
         lambda s: json.loads(close_truncated_json(s)),
@@ -148,8 +148,8 @@ def attempt_json_repair(
         lambda s: json.loads(
             close_truncated_json(s[:s.rfind(",") + 1] if "," in s else s)),
         # Extract first complete JSON object using regex
-        lambda s: (json.loads(re.search(r"\{.*\}", s, re.DOTALL).group(0))
-                   if re.search(r"\{.*\}", s, re.DOTALL) else None),
+        lambda s: (json.loads(m.group(0))
+                   if (m := re.search(r"\{.*\}", s, re.DOTALL)) else None),
     ]
 
     # Try minor repairs first
@@ -284,7 +284,7 @@ async def call_llm(
                                 force_json=force_json)
     if cached_response is not None:
         logger.debug("using cached llm response")
-        return cached_response["text"]
+        return cast(str, cached_response["text"])
 
     logger.debug("cache miss for prompt: %s%s", prompt[:200],
                  '...' if len(prompt) > 200 else '')
@@ -349,7 +349,7 @@ async def call_llm(
             force_json=force_json,
         )
 
-        return content
+        return cast(str, content)
 
     except Exception as e:
         logger.error("LLM call failed: %s", e)
@@ -398,8 +398,8 @@ async def call_llm_json(
 
     logger.debug("cache miss for prompt: %s%s", prompt[:200],
                  '...' if len(prompt) > 200 else '')
-    last_error = None
-    last_response_text = None
+    last_error: Optional[Exception] = None
+    last_response_text: Optional[str] = None
     original_prompt = prompt  # save original for retries with feedback
 
     for attempt in range(1, max_attempts + 1):
@@ -653,7 +653,7 @@ async def call_llm_with_tools(
     prompt: str,
     model_name: str,
     tools: List[Dict[str, Any]],
-    tool_executor: Callable,
+    tool_executor: Callable[[Any], Awaitable[Dict[str, Any]]],
     max_tokens: int = 8000,
     temperature: float = 0.7,
     max_iterations: int = 10,

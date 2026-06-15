@@ -22,7 +22,7 @@ access)
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, cast
 
 from ....constants import (
     EXTENDED_MAX_TOKENS,
@@ -46,13 +46,15 @@ from ....tools.provider import HybridToolProvider
 from ....tools.response_parser import ResponseParser
 
 if TYPE_CHECKING:
-    from ....config import ToolRegistry
+    from ....config import ToolConfig, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
 
-def _extract_papers_for_hypothesis(hypothesis_with_analyses,
-                                   literature_grounding=None):
+def _extract_papers_for_hypothesis(
+    hypothesis_with_analyses: Dict[str, Any],
+    literature_grounding: Optional[str] = None,
+) -> List[Dict[str, str]]:
     """Extract papers cited by this hypothesis from novelty analysis metadata.
 
     When literature_grounding is available, filters to only papers whose
@@ -73,7 +75,9 @@ def _extract_papers_for_hypothesis(hypothesis_with_analyses,
     return [{"title": c["title"], "url": c["url"]} for c in candidates]
 
 
-def _find_search_tool(tool_registry: Optional["ToolRegistry"]):
+def _find_search_tool(
+    tool_registry: Optional["ToolRegistry"]
+) -> Tuple[Optional[str], Optional["ToolConfig"]]:
     """Find the first search-category tool from the validation workflow.
 
     Returns (tool_id, tool_config) or (None, None) if no search tool is
@@ -156,8 +160,8 @@ async def _search_papers_for_hypothesis(
         run_id=run_id,
     )
     if isinstance(result, str):
-        return json.loads(result)
-    return result
+        return cast(Dict[str, Dict[str, Any]], json.loads(result))
+    return cast(Dict[str, Dict[str, Any]], result)
 
 
 async def validate_hypotheses(
@@ -231,7 +235,9 @@ async def validate_hypotheses(
         # stage 1a: analyze each paper in parallel for this hypothesis
         novelty_analysis_tasks = []
 
-        async def analyze_paper_novelty(paper_id: str, metadata: dict) -> dict:
+        async def analyze_paper_novelty(
+                paper_id: str, metadata: Dict[str,
+                                              Any]) -> Optional[Dict[str, Any]]:
             """Analyze single paper for novelty assessment."""
             fulltext = metadata.get("fulltext", "")
 
@@ -278,9 +284,8 @@ async def validate_hypotheses(
                 logger.error(
                     "Failed to analyze paper %s for hypothesis %s: %s",
                     paper_id,
-                    idx,
-                    e  # pylint: disable=cell-var-from-loop
-                )
+                    idx,  # pylint: disable=cell-var-from-loop
+                    e)
                 return None
 
         # analyze all papers in parallel
@@ -426,7 +431,7 @@ async def validate_hypotheses(
 
         tool_call_counts: Dict[str, int] = {}
 
-        async def tracked_executor(tool_call):
+        async def tracked_executor(tool_call: Any) -> Dict[str, Any]:
             name = tool_call.function.name
             tool_call_counts[name] = tool_call_counts.get(name, 0) + 1
             logger.info("Validation batch %s: %s call #%s", batch_label, name,
@@ -463,7 +468,7 @@ async def validate_hypotheses(
         if was_repaired:
             logger.warning("Batch %s JSON required repairs", batch_label)
 
-        result = response_data.get("hypotheses", [])
+        result: List[Dict[str, Any]] = response_data.get("hypotheses", [])
         logger.debug("Batch %s synthesis returned %s hypotheses", batch_label,
                      len(result))
         return result
@@ -481,7 +486,7 @@ async def validate_hypotheses(
     )
 
     all_validated_hypotheses: List[Dict[str, Any]] = []
-    failed_batches: List[tuple] = []
+    failed_batches: List[Tuple[int, List[Dict[str, Any]]]] = []
 
     for i, result in enumerate(raw_results):
         if isinstance(result, Exception):

@@ -103,7 +103,7 @@ async def _query_by_mesh(
     mesh_term: str,
     evidence_limit: int,
     limit: int,
-    query_meta: dict,
+    query_meta: dict[str, Any],
 ) -> dict[str, Any]:
     """Queries statements by MeSH disease/topic annotation.
 
@@ -139,7 +139,7 @@ async def _query_by_agents(
     agent_role: str | None,
     limit: int,
     evidence_limit: int,
-    query_meta: dict,
+    query_meta: dict[str, Any],
 ) -> dict[str, Any]:
     """Queries statements by agent name(s) and optional filters.
 

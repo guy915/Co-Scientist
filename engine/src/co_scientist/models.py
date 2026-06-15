@@ -77,6 +77,7 @@ class Hypothesis:
     elo_rating: int = 1200  # Starting Elo rating
     reviews: List[HypothesisReview] = field(default_factory=list)
     similarity_cluster_id: Optional[str] = None
+    similarity_degree: Optional[str] = None  # 'high', 'medium', or 'low'
     evolution_history: List[str] = field(default_factory=list)
     reflection_notes: Optional[str] = None
     generation_method: Optional[str] = None  # 'literature' or 'debate'

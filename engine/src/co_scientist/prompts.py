@@ -161,7 +161,7 @@ def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
         "Hello World"
     """
 
-    def replacer(match: re.Match) -> str:
+    def replacer(match: "re.Match[str]") -> str:
         var_name = match.group(1).strip()
         value = variables.get(var_name, f"{{{{MISSING:{var_name}}}}}")
         return str(value)
@@ -443,7 +443,7 @@ def get_meta_review_prompt(
 
 
 def get_proximity_prompt(
-    hypotheses: list,
+    hypotheses: List[Any],
     supervisor_guidance: Dict[str, Any] | None = None
 ) -> Tuple[str, Optional[Dict[str, Any]]]:
     """Get the proximity/similarity analysis prompt and schema."""

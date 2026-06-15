@@ -59,12 +59,13 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
     initial_hypotheses_count = state.get("initial_hypotheses_count")
     max_iterations = state.get("max_iterations")
     evolution_max_count = state.get("evolution_max_count")
-    mcp_available = state.get("mcp_available", False)
-    pubmed_available = state.get("pubmed_available", False)
+    mcp_available = bool(state.get("mcp_available", False))
+    pubmed_available = bool(state.get("pubmed_available", False))
 
     # emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "supervisor_start",
             {
                 "message": "Analyzing research goal and creating plan...",
@@ -131,8 +132,9 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
                     ', '.join(key_areas[:3]))
 
     # Emit progress
-    if state.get("progress_callback"):
-        await state["progress_callback"](
+    progress_callback = state.get("progress_callback")
+    if progress_callback is not None:
+        await progress_callback(
             "supervisor_complete",
             {
                 "message": "Research plan created",

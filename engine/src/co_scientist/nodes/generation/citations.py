@@ -122,7 +122,7 @@ def resolve_citation_keys(
     if not literature_grounding or not sources:
         return {}
     keys = re.findall(r"\[C\d+\]", literature_grounding)
-    seen: set = set()
+    seen: set[str] = set()
     result: Dict[str, Dict[str, Any]] = {}
     for raw_key in keys:
         key = raw_key[1:-1]  # strip brackets → "C1"

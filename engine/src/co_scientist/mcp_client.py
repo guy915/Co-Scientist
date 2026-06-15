@@ -23,10 +23,11 @@ Supports both single-server (legacy) and multi-server configurations.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
 
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
+from langchain_mcp_adapters.sessions import Connection
 
 if TYPE_CHECKING:
     from .config import ToolRegistry
@@ -99,7 +100,7 @@ class MCPToolClient:
         self.server_url = list(self._server_configs.values())[0].get(
             "url") if self._server_configs else None
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize the client and fetch available tools from all servers."""
         if self._client is not None:
             logger.debug("MCP client already initialized")
@@ -112,7 +113,8 @@ class MCPToolClient:
         logger.info("initializing MCP client for %s server(s): %s",
                     len(server_names), server_names)
 
-        self._client = MultiServerMCPClient(self._server_configs)
+        self._client = MultiServerMCPClient(
+            cast(Dict[str, Connection], self._server_configs))
         tools = await self._client.get_tools()
 
         # create dict for easy lookup and track which server provides each tool
@@ -137,7 +139,7 @@ class MCPToolClient:
         logger.info("MCP client initialized with %s tools: %s",
                     len(self._tools_dict), list(self._tools_dict.keys()))
 
-    async def call_tool(self, tool_name: str, **kwargs) -> str:
+    async def call_tool(self, tool_name: str, **kwargs: Any) -> str:
         """Call an MCP tool directly with arguments.
 
         This is a convenience method for calling tools directly without
@@ -175,9 +177,9 @@ class MCPToolClient:
         logger.debug("mcp tool result for %s: %s%s", tool_name,
                      str(result)[:200], "..." if len(str(result)) > 200 else "")
 
-        return result
+        return cast(str, result)
 
-    async def execute_tool_call(self, tool_call) -> Dict[str, Any]:
+    async def execute_tool_call(self, tool_call: Any) -> Dict[str, Any]:
         """Execute an MCP tool call.
 
         Args:

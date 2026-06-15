@@ -42,7 +42,7 @@ def resolve_content_params(params: Dict[str, Any],
     if not params:
         return {}
 
-    resolved = {}
+    resolved: Dict[str, Any] = {}
     placeholder_pattern = re.compile(r'\{(\w+)\}')
 
     for key, value in params.items():
@@ -190,6 +190,8 @@ class ToolConfig:
     parameters: Dict[str, ParameterConfig] = field(default_factory=dict)
     parameter_mapping: Dict[str, Optional[str]] = field(default_factory=dict)
     applies_to: str = "all"
+    # Internal: yaml tool_id stashed for downstream citation building.
+    _yaml_tool_id: Optional[str] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any], tool_id: str = "") -> "ToolConfig":

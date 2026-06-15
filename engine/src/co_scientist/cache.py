@@ -132,7 +132,8 @@ class LLMCache:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     cached_data = json.load(f)
                 logger.debug("cache HIT for key %s...", cache_key[:8])
-                return cached_data["response"]
+                response: Dict[str, Any] = cached_data["response"]
+                return response
             except (json.JSONDecodeError, KeyError, IOError, OSError) as e:
                 # Handle race conditions: file might be partially written or
                 # locked
@@ -319,7 +320,7 @@ class NodeCache:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
             logger.debug("node cache initialized at %s", self.cache_dir)
 
-    def _generate_cache_key(self, node_name: str, **key_params) -> str:
+    def _generate_cache_key(self, node_name: str, **key_params: Any) -> str:
         """Generate a unique cache key for the node with given parameters.
 
         Args:
@@ -337,7 +338,7 @@ class NodeCache:
     def get(self,
             node_name: str,
             force: bool = False,
-            **key_params) -> Optional[Dict[str, Any]]:
+            **key_params: Any) -> Optional[Dict[str, Any]]:
         """Get cached node output if available.
 
         Args:
@@ -358,7 +359,7 @@ class NodeCache:
         if cache_file.exists():
             try:
                 with open(cache_file, "rb") as f:
-                    cached_data = pickle.load(f)
+                    cached_data: Dict[str, Any] = pickle.load(f)
                 logger.debug("node cache HIT for %s (key %s...)", node_name,
                              cache_key[:8])
                 return cached_data
@@ -379,7 +380,7 @@ class NodeCache:
             node_name: str,
             output: Dict[str, Any],
             force: bool = False,
-            **key_params) -> None:
+            **key_params: Any) -> None:
         """Store node output in cache.
 
         Args:

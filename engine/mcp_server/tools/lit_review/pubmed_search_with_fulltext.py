@@ -30,11 +30,12 @@ from mcp_server.text_extraction import extract_text_from_pmc_html
 logger = logging.getLogger(__name__)
 
 
-async def pubmed_search_with_fulltext(query: str,
-                                      slug: str,
-                                      max_papers: int = 10,
-                                      recency_years: int = 0,
-                                      run_id: str = None) -> Dict[str, Any]:
+async def pubmed_search_with_fulltext(
+        query: str,
+        slug: str,
+        max_papers: int = 10,
+        recency_years: int = 0,
+        run_id: str | None = None) -> Dict[str, Any]:
     # pylint: disable=line-too-long
     """Searches PubMed and downloads fulltexts (HTML from PMC).
 

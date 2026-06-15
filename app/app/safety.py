@@ -59,7 +59,7 @@ class SafetyDecision:
     reason: str = ""
     matches: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, str | list[str]]:
         return {
             "stage": self.stage,
             "decision": self.decision,
