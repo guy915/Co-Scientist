@@ -27,7 +27,10 @@ Create a .env file in this directory (dev/) with your API keys:
 
 import asyncio
 import os
+from collections.abc import Sequence
 from pathlib import Path
+
+from absl import app
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -191,5 +194,10 @@ async def test_literature_review():
     cleanup_run_logging()
 
 
-if __name__ == "__main__":
+def main(argv: Sequence[str]) -> None:
+    del argv  # Unused.
     asyncio.run(test_literature_review())
+
+
+if __name__ == "__main__":
+    app.run(main)

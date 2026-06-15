@@ -19,6 +19,10 @@ Optionally can test with literature review results.
 # pylint: disable=inconsistent-quotes
 
 import asyncio
+from collections.abc import Sequence
+
+from absl import app
+from absl import flags
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -28,6 +32,11 @@ from state_helpers import make_generate_state
 from co_scientist.nodes.generate import generate_node
 
 console = Console()
+
+FLAGS = flags.FLAGS
+
+flags.DEFINE_bool("with_literature", False,
+                  "Include mocked literature review data.")
 
 RESEARCH_GOAL = (
     "How can we detect Alzheimer's disease earlier using retinal imaging?")
@@ -120,10 +129,10 @@ async def test_generate(with_literature: bool = False):
     console.print(f"  standard: {n_std}")
 
 
+def main(argv: Sequence[str]) -> None:
+    del argv  # Unused.
+    asyncio.run(test_generate(with_literature=FLAGS.with_literature))
+
+
 if __name__ == "__main__":
-    import sys
-
-    # check for --with-literature flag
-    with_lit = "--with-literature" in sys.argv
-
-    asyncio.run(test_generate(with_literature=with_lit))
+    app.run(main)

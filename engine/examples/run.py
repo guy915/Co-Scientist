@@ -16,6 +16,9 @@
 This demonstrates hypothesis generation with literature review integration,
 showing real-time streaming of results as they're generated.
 """
+from collections.abc import Sequence
+
+from absl import app
 from co_scientist import HypothesisGenerator
 from co_scientist.console import ConsoleReporter, default_progress_callback, run_console
 # install rich in your environment
@@ -34,7 +37,7 @@ which depends on the MODEL_NAME you set below.
 MODEL_NAME = "gemini/gemini-2.5-flash"
 
 
-async def main():
+async def _run():
     # Prompt user for research goal with rich formatting
     console = Console()
     console.print()
@@ -79,7 +82,12 @@ async def main():
     )
 
 
-if __name__ == "__main__":
+def main(argv: Sequence[str]) -> None:
+    del argv  # Unused.
     # wrap with run_console for graceful shutdown on KeyboardInterrupt and hide
     # internal warnings
-    run_console(main())
+    run_console(_run())
+
+
+if __name__ == "__main__":
+    app.run(main)

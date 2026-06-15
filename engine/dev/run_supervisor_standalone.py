@@ -19,6 +19,9 @@ Simplest node to test - no dependencies, just creates research plan.
 
 import asyncio
 import json
+from collections.abc import Sequence
+
+from absl import app
 from rich.console import Console
 from rich.panel import Panel
 from rich.json import JSON
@@ -65,5 +68,10 @@ async def test_supervisor():
         f"  search_strategy: {len(guidance.get('search_strategy', {}))} keys")
 
 
-if __name__ == "__main__":
+def main(argv: Sequence[str]) -> None:
+    del argv  # Unused.
     asyncio.run(test_supervisor())
+
+
+if __name__ == "__main__":
+    app.run(main)

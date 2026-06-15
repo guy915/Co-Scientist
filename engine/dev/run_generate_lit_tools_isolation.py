@@ -25,6 +25,10 @@ distraction from debate output or slow lit review calls.
 
 import asyncio
 import os
+from collections.abc import Sequence
+
+from absl import app
+from absl import flags
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -36,11 +40,19 @@ from co_scientist.nodes.generate import generate_node
 
 console = Console()
 
+FLAGS = flags.FLAGS
 
-async def test_lit_tools_isolation(
-    research_goal: str,  # pylint: disable=redefined-outer-name
-    model_name: str,  # pylint: disable=redefined-outer-name
-    hypotheses_count: int = 3):  # pylint: disable=redefined-outer-name
+flags.DEFINE_string("model", "gemini/gemini-2.5-flash", "LLM model to use.")
+flags.DEFINE_integer("count", 3, "Number of hypotheses to generate.")
+
+# Default research goal used when no positional argument is provided.
+DEFAULT_RESEARCH_GOAL = (
+    "How can we detect Alzheimer's disease earlier using retinal imaging?")
+
+
+async def test_lit_tools_isolation(research_goal: str,
+                                   model_name: str,
+                                   hypotheses_count: int = 3):
     """Run generate node with lit tools in isolation mode.
 
     args:
@@ -166,28 +178,16 @@ async def test_lit_tools_isolation(
                       " with lit tools![/bold green]")
 
 
-if __name__ == "__main__":
-    import sys
-
-    # default research goal
-    research_goal = (
-        "How can we detect Alzheimer's disease earlier using retinal imaging?")
-
-    # check for custom research goal
-    if len(sys.argv) > 1 and sys.argv[1] not in ["--model", "--count"]:
-        research_goal = sys.argv[1]
-
-    # parse optional flags
-    model_name = "gemini/gemini-2.5-flash"
-    hypotheses_count = 3
-
-    for i, arg in enumerate(sys.argv):
-        if arg == "--model" and i + 1 < len(sys.argv):
-            model_name = sys.argv[i + 1]
-        elif arg == "--count" and i + 1 < len(sys.argv):
-            hypotheses_count = int(sys.argv[i + 1])
+def main(argv: Sequence[str]) -> None:
+    # absl strips flags, leaving the program name plus any positional args.
+    # An optional positional argument overrides the default research goal.
+    research_goal = argv[1] if len(argv) > 1 else DEFAULT_RESEARCH_GOAL
 
     asyncio.run(
         test_lit_tools_isolation(research_goal=research_goal,
-                                 model_name=model_name,
-                                 hypotheses_count=hypotheses_count))
+                                 model_name=FLAGS.model,
+                                 hypotheses_count=FLAGS.count))
+
+
+if __name__ == "__main__":
+    app.run(main)

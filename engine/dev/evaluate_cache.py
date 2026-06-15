@@ -29,6 +29,9 @@ sys.path.insert(
 
 # pylint: disable=wrong-import-position
 import asyncio
+from collections.abc import Sequence
+
+from absl import app
 from co_scientist import HypothesisGenerator, clear_cache, get_cache_stats
 
 
@@ -58,7 +61,7 @@ async def run_generation():
     return elapsed
 
 
-async def main():
+async def _run():
     print("=" * 70)
     print("Testing LLM Cache Performance")
     print("=" * 70)
@@ -101,5 +104,10 @@ async def main():
     print(f"Cache size:      {mb2:.2f} MB ({n2} files)")
 
 
+def main(argv: Sequence[str]) -> None:
+    del argv  # Unused.
+    asyncio.run(_run())
+
+
 if __name__ == "__main__":
-    asyncio.run(main())
+    app.run(main)
