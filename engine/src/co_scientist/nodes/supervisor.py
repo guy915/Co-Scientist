@@ -126,7 +126,8 @@ async def supervisor_node(state: WorkflowState) -> Dict[str, Any]:
 
     # Log key insights from supervisor
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
-    key_areas = goal_analysis.get("key_areas", [])
+    key_areas = goal_analysis.get("key_areas", []) if isinstance(
+        goal_analysis, dict) else []
     if key_areas:
         logger.info("Key research areas identified: %s",
                     ', '.join(key_areas[:3]))
