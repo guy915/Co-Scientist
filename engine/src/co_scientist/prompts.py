@@ -1100,7 +1100,7 @@ def get_debate_generation_prompt(
     transcript: str,
     supervisor_guidance: Dict[str, Any] | None = None,
     preferences: str | None = None,
-    attributes: str | None = None,
+    attributes: str | list[str] | None = None,
     is_final_turn: bool = False,
     articles_with_reasoning: str | None = None,
     articles: List[Any] | None = None,

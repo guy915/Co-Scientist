@@ -19,7 +19,7 @@ Multiple debates can run in parallel.
 
 import asyncio
 import logging
-from typing import Any, cast, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .citations import ReferenceIndex, resolve_citation_keys
 from ...constants import (
@@ -91,7 +91,7 @@ async def _run_single_debate(
             transcript=transcript,
             supervisor_guidance=supervisor_guidance,
             preferences=preferences,
-            attributes=cast(Optional[str], attributes),
+            attributes=attributes,
             is_final_turn=is_final,
             articles_with_reasoning=articles_with_reasoning,
             articles=state.get("articles"),
