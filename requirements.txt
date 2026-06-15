@@ -1,0 +1,46 @@
+# Copyright 2026 The Co-Scientist Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License").
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Consolidated third-party runtime dependencies for the Bazel (pip.parse) hub.
+#
+# This file is the union of the [project] dependencies declared in:
+#   * engine/pyproject.toml            (co-scientist-engine)
+#   * engine/mcp_server/pyproject.toml (co-scientist-mcp-server)
+#   * app/pyproject.toml               (co-scientist-viewer)
+#
+# Distribution (PyPI) names are used so that requirement() resolves correctly.
+# First-party packages are wired through source labels, not pip, and so are
+# intentionally absent here:
+#   * co-scientist-engine -> //engine:co_scientist
+#
+# Development-only tooling (pytest, yapf, pylint, mypy, ...) lives in the
+# per-package [project.optional-dependencies] dev extras and is excluded.
+
+# --- engine: co-scientist-engine -------------------------------------------
+langgraph~=1.0.6
+langchain-core~=1.2.7
+langchain-mcp-adapters>=0.2.1
+langsmith~=0.6.2
+litellm~=1.80.16
+typing-extensions~=4.15.0
+rich~=14.2.0
+jsonschema~=4.26.0
+pyyaml>=6.0
+
+# --- engine/mcp_server: co-scientist-mcp-server ----------------------------
+fastmcp~=2.14.3
+httpx~=0.28.1
+beautifulsoup4~=4.14.3
+lxml~=6.0.2
+biopython~=1.86
+uvicorn~=0.40.0
+
+# --- app: co-scientist-viewer ----------------------------------------------
+fastapi>=0.128.0
+python-dotenv>=1.2.1
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
