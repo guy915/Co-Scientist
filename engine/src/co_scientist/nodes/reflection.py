@@ -43,14 +43,14 @@ async def analyze_single_hypothesis(
 ) -> Optional[Dict[str, Any]]:
     """Analyze a single hypothesis against literature observations.
 
-    args:
+    Args:
         hypothesis: hypothesis to analyze
         articles_with_reasoning: literature review context
         model_name: llm model to use
         hypothesis_index: index for logging (1-based)
         total_count: total hypotheses count for logging
 
-    returns:
+    Returns:
         dict with classification and reasoning, or None if failed
     """
     logger.debug("\n→ analyzing hypothesis %s/%s", hypothesis_index,
@@ -124,10 +124,10 @@ async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
        missing piece, neutral, or disproved
     4. stores reflection metadata on each hypothesis
 
-    args:
+    Args:
         state: current workflow state
 
-    returns:
+    Returns:
         dictionary with updated state fields
     """
     logger.debug("\n=== reflection node ===")

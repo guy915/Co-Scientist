@@ -69,14 +69,14 @@ async def _run_single_debate(
 ) -> Tuple[Hypothesis, str]:
     """Generate a single hypothesis using multi-turn debate strategy.
 
-    args:
+    Args:
         state: current workflow state
         debate_id: id for this debate (used for tracking and identification)
         num_turns: number of debate turns to run (default from constants)
         articles_with_reasoning: optional literature review context for debate
         reference_index: citation key → source mapping for structured citations
 
-    returns:
+    Returns:
         Tuple of (single generated Hypothesis object, debate transcript string)
     """
     ref_idx = reference_index or ReferenceIndex(text="", sources={})
@@ -181,13 +181,13 @@ async def generate_with_debate(
 
     Each debate generates 1 hypothesis through multi-turn expert discussion
 
-    args:
+    Args:
         state: current workflow state
         count: number of debates to run (= number of hypotheses to generate)
         articles_with_reasoning: optional literature review context for debates
         reference_index: citation key → source mapping for structured citations
 
-    returns:
+    Returns:
         tuple of (debate_hypotheses, debate_transcripts)
     """
     if count == 0:

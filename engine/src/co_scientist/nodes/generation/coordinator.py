@@ -414,10 +414,10 @@ async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
     - Condition (b): no lit review → 100% debate-only
     - Condition (c): lit review but no tools → 100% debate-with-lit
 
-    args:
+    Args:
         state: current workflow state
 
-    returns:
+    Returns:
         dict with hypotheses, debate_transcripts, metrics, and message
     """
     logger.info("Starting hypothesis generation")

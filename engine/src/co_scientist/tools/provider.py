@@ -54,7 +54,7 @@ class HybridToolProvider:
     ):
         """Initialize hybrid tool provider.
 
-        args:
+        Args:
             mcp_client: optional MCP client for MCP tools
             python_registry: optional Python tool registry
         """
@@ -71,11 +71,11 @@ class HybridToolProvider:
     ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
         """Get merged tools from MCP and Python sources.
 
-        args:
+        Args:
             mcp_whitelist: optional list of MCP tool names to include
             python_whitelist: optional list of Python tool names to include
 
-        returns:
+        Returns:
             tuple of (tools_dict, openai_tools_list)
             tools_dict is combined {tool_name: tool_object} for both sources
             openai_tools_list is combined list of OpenAI-format tools
@@ -130,11 +130,11 @@ class HybridToolProvider:
     async def execute_tool_call(self, tool_call: Any) -> Dict[str, Any]:
         """Execute a tool call by routing to appropriate executor.
 
-        args:
+        Args:
             tool_call: LiteLLM tool call object with .id, .function.name,
                 .function.arguments
 
-        returns:
+        Returns:
             tool response message dict:
                 {role: "tool", name: ..., tool_call_id: ..., content: ...}
         """
@@ -171,10 +171,10 @@ class HybridToolProvider:
     async def _execute_mcp_tool(self, tool_call: Any) -> Dict[str, Any]:
         """Execute MCP tool call.
 
-        args:
+        Args:
             tool_call: LiteLLM tool call object
 
-        returns:
+        Returns:
             tool response message dict
         """
         if self.mcp_client is None:
@@ -186,10 +186,10 @@ class HybridToolProvider:
     async def _execute_python_tool(self, tool_call: Any) -> Dict[str, Any]:
         """Execute Python tool call.
 
-        args:
+        Args:
             tool_call: LiteLLM tool call object
 
-        returns:
+        Returns:
             tool response message dict
         """
         if self.python_registry is None:
@@ -230,12 +230,12 @@ class HybridToolProvider:
                                error_msg: str) -> Dict[str, Any]:
         """Create error response message for failed tool call.
 
-        args:
+        Args:
             tool_name: name of tool that failed
             tool_call_id: tool call ID
             error_msg: error message
 
-        returns:
+        Returns:
             tool response message dict with error
         """
         return {

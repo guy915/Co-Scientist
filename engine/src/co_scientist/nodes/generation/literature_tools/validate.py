@@ -183,13 +183,13 @@ async def validate_hypotheses(
     2. synthesis agent decides approve/refine/pivot (with tool access for
     pivoting)
 
-    args:
+    Args:
         state: current workflow state
         draft_hypotheses: list of draft dicts from Phase 1
         mcp_client: MCP client for tool access
         tool_registry: optional ToolRegistry for config-driven tool selection
 
-    returns:
+    Returns:
         list of validated Hypothesis objects with novelty_validation
     """
     logger.info("Phase 2: Validating %s draft hypotheses",
