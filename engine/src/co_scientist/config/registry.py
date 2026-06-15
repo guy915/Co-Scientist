@@ -25,6 +25,7 @@ from typing import Any, cast, Dict, List, Optional
 
 import yaml
 
+from ..exceptions import ConfigError
 from .schema import EnrichmentConfig, PromptsConfig, ServerConfig, ToolConfig, ToolsConfig, WorkflowConfig
 
 logger = logging.getLogger(__name__)
@@ -263,7 +264,7 @@ class ToolRegistry:
     def config(self) -> ToolsConfig:
         """Get the loaded configuration."""
         if self._config is None:
-            raise RuntimeError("tool registry not initialized")
+            raise ConfigError("tool registry not initialized")
         return self._config
 
     def get_server(self, server_id: str) -> Optional[ServerConfig]:

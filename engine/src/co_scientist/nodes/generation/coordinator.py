@@ -31,6 +31,7 @@ from ...constants import (
     PROGRESS_GENERATE_COMPLETE,
     LITERATURE_REVIEW_FAILED,
 )
+from ...exceptions import GenerationError
 from ...mcp_client import get_mcp_client
 from ...models import Hypothesis
 from ...state import WorkflowState
@@ -426,7 +427,8 @@ async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
     total_count = state["initial_hypotheses_count"]
 
     if not supervisor_guidance:
-        raise ValueError("No supervisor_guidance in state for node=generation")
+        raise GenerationError(
+            "No supervisor_guidance in state for node=generation")
 
     has_literature = _check_literature_availability(articles_with_reasoning,
                                                     mcp_available)

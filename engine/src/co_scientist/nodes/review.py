@@ -30,6 +30,7 @@ from ..constants import (
     PROGRESS_REVIEW_COMPLETE,
     COMPARATIVE_BATCH_THRESHOLD,
 )
+from ..exceptions import GenerationError
 from ..llm import call_llm_json
 from ..models import Hypothesis, HypothesisReview, create_metrics_update
 from ..prompts import get_review_batch_prompt, get_review_prompt
@@ -371,7 +372,7 @@ async def review_node(state: WorkflowState) -> Dict[str, Any]:
         error_msg = (f"review node failed: {len(invalid_reviews)}"
                      f"/{len(reviews)} reviews invalid")
         logger.error(error_msg)
-        raise ValueError(error_msg)
+        raise GenerationError(error_msg)
 
     # Attach reviews to hypotheses
     for hypothesis, review in zip(hypotheses, reviews):

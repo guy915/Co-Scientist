@@ -26,6 +26,7 @@ from ....constants import (
     HIGH_TEMPERATURE,
     get_draft_max_iterations,
 )
+from ....exceptions import ResponseParseError
 from ....llm import call_llm_with_tools, attempt_json_repair
 from ....prompts import get_draft_prompt_with_tools
 from ....state import WorkflowState
@@ -233,7 +234,7 @@ async def draft_hypotheses(
         logger.error(
             "Failed to parse draft JSON response after all repair attempts")
         logger.error("Response: %s...", final_response[:500])
-        raise ValueError(
+        raise ResponseParseError(
             "Draft phase returned invalid JSON that could not be repaired")
 
     if was_repaired:

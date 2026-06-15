@@ -32,6 +32,7 @@ from ....constants import (
     VALIDATION_SYNTHESIS_BATCH_SIZE,
     get_validate_max_iterations,
 )
+from ....exceptions import ResponseParseError
 from ....llm import call_llm_json, call_llm_with_tools, attempt_json_repair
 from ....models import GenerationMethod, Hypothesis
 from ....prompts import (
@@ -462,8 +463,9 @@ async def validate_hypotheses(
         if response_data is None:
             logger.error("Failed to parse batch %s JSON response", batch_label)
             logger.error("Response: %s...", final_response[:500])
-            raise ValueError("Validation synthesis returned invalid JSON"
-                             f" (batch {batch_label})")
+            raise ResponseParseError(
+                "Validation synthesis returned invalid JSON"
+                f" (batch {batch_label})")
 
         if was_repaired:
             logger.warning("Batch %s JSON required repairs", batch_label)
