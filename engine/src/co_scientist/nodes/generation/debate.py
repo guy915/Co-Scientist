@@ -28,6 +28,7 @@ from ...constants import (
     HIGH_TEMPERATURE,
     INITIAL_ELO_RATING,
 )
+from ...exceptions import GenerationError
 from ...llm import call_llm, call_llm_json
 from ...models import Article, GenerationMethod, Hypothesis
 from ...prompts import get_debate_generation_prompt, save_prompt_to_disk
@@ -124,7 +125,7 @@ async def _run_single_debate(
 
             hypotheses_data = response.get("hypotheses", [])
             if not hypotheses_data:
-                raise ValueError(
+                raise GenerationError(
                     f"{debate_label} failed to generate hypothesis")
 
             hyp_data = hypotheses_data[0]
@@ -161,7 +162,7 @@ async def _run_single_debate(
 
             transcript += f"\n\nTurn {turn}:\n{response_text}"
 
-    raise ValueError(f"{debate_label} ended without final turn")
+    raise GenerationError(f"{debate_label} ended without final turn")
 
 
 async def generate_with_debate(

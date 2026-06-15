@@ -21,6 +21,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
+from ..exceptions import ConfigError, ToolError
 from ..mcp_client import MCPToolClient
 from .registry import PythonToolRegistry
 
@@ -177,7 +178,7 @@ class HybridToolProvider:
             tool response message dict
         """
         if self.mcp_client is None:
-            raise ValueError("MCP client not configured")
+            raise ConfigError("MCP client not configured")
 
         # delegate to MCP client
         return await self.mcp_client.execute_tool_call(tool_call)
@@ -192,7 +193,7 @@ class HybridToolProvider:
             tool response message dict
         """
         if self.python_registry is None:
-            raise ValueError("Python registry not configured")
+            raise ConfigError("Python registry not configured")
 
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
@@ -200,13 +201,13 @@ class HybridToolProvider:
         # get function
         func = self.python_registry.get_function(tool_name)
         if func is None:
-            raise ValueError(f"Python function not found: {tool_name}")
+            raise ToolError(f"Python function not found: {tool_name}")
 
         # parse arguments
         try:
             args_dict = json.loads(tool_call.function.arguments)
         except json.JSONDecodeError as e:
-            raise ValueError(f"invalid JSON arguments: {e}") from e
+            raise ToolError(f"invalid JSON arguments: {e}") from e
 
         logger.debug("calling Python tool: %s with args: %s", tool_name,
                      args_dict)
