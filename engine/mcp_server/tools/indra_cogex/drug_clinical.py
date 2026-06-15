@@ -16,7 +16,11 @@
 import logging
 from typing import Any
 
-from .client import parse_id, indra_post, cap_results
+from mcp_server.tools.indra_cogex.client import (
+    parse_id,
+    indra_post,
+    cap_results,
+)
 
 logger = logging.getLogger(__name__)
 
