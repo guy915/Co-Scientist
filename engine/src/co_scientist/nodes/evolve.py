@@ -20,17 +20,17 @@ import logging
 import random
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..constants import (
+from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     DUPLICATE_SIMILARITY_THRESHOLD,
     PROGRESS_EVOLVE_START,
     PROGRESS_EVOLVE_COMPLETE,
 )
-from ..llm import call_llm_json
-from ..models import Hypothesis, create_metrics_update
-from ..prompts import load_prompt_with_schema
-from ..state import WorkflowState
+from co_scientist.llm import call_llm_json
+from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.prompts import load_prompt_with_schema
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,7 @@ async def evolve_single_hypothesis(
             supervisor_guidance_text = "".join(guidance_sections)
 
     # Build context-aware evolution prompt with domain variables
-    from ..prompts import _get_domain_variables  # pylint: disable=import-outside-toplevel
+    from co_scientist.prompts import _get_domain_variables  # pylint: disable=import-outside-toplevel
 
     variables = {
         "original_hypothesis": hypothesis.text,
@@ -271,7 +271,7 @@ DO:
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
         filename = (f"evolve_{hypothesis_index}"
                     if hypothesis_index is not None else "evolve")

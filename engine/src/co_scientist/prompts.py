@@ -22,7 +22,7 @@ import re
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple, List
 
-from .schemas import get_schema_for_prompt
+from co_scientist.schemas import get_schema_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -191,7 +191,7 @@ def _get_domain_variables(
 
     if tool_registry is None:
         try:
-            from .config import get_tool_registry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
             tool_registry = get_tool_registry()
         except Exception:  # pylint: disable=broad-exception-caught
             return empty
@@ -1425,7 +1425,7 @@ def build_tool_instructions(
     # if no registry provided, try to get the global one
     if tool_registry is None:
         try:
-            from .config import get_tool_registry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
 
             tool_registry = get_tool_registry()
             # if no tool_ids provided, get them from draft workflow

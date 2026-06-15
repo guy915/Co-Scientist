@@ -24,14 +24,23 @@ import logging
 import sys
 import time
 import warnings
-from typing import Any, AsyncIterator, Coroutine, Dict, Optional, TextIO, Tuple, cast
+from typing import (
+    Any,
+    AsyncIterator,
+    Coroutine,
+    Dict,
+    Optional,
+    TextIO,
+    Tuple,
+    cast,
+)
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.syntax import Syntax
 from rich.table import Table
 
-from .constants import LITERATURE_REVIEW_FAILED
+from co_scientist.constants import LITERATURE_REVIEW_FAILED
 
 
 class FilteredStderr:

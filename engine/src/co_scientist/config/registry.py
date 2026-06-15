@@ -25,8 +25,15 @@ from typing import Any, cast, Dict, List, Optional
 
 import yaml
 
-from ..exceptions import ConfigError
-from .schema import EnrichmentConfig, PromptsConfig, ServerConfig, ToolConfig, ToolsConfig, WorkflowConfig
+from co_scientist.exceptions import ConfigError
+from co_scientist.config.schema import (
+    EnrichmentConfig,
+    PromptsConfig,
+    ServerConfig,
+    ToolConfig,
+    ToolsConfig,
+    WorkflowConfig,
+)
 
 logger = logging.getLogger(__name__)
 

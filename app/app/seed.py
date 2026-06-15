@@ -22,8 +22,8 @@ from __future__ import annotations
 
 import logging
 
-from . import store
-from .mock_workflow import run_mock_workflow
+from app import store
+from app.mock_workflow import run_mock_workflow
 
 logger = logging.getLogger(__name__)
 

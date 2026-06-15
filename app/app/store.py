@@ -43,7 +43,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from .citations import CitationState
+from app.citations import CitationState
 
 logger = logging.getLogger(__name__)
 

@@ -22,7 +22,7 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 
-from ..constants import (
+from co_scientist.constants import (
     THINKING_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
@@ -30,11 +30,15 @@ from ..constants import (
     PROGRESS_REVIEW_COMPLETE,
     COMPARATIVE_BATCH_THRESHOLD,
 )
-from ..exceptions import GenerationError
-from ..llm import call_llm_json
-from ..models import Hypothesis, HypothesisReview, create_metrics_update
-from ..prompts import get_review_batch_prompt, get_review_prompt
-from ..state import WorkflowState
+from co_scientist.exceptions import GenerationError
+from co_scientist.llm import call_llm_json
+from co_scientist.models import (
+    Hypothesis,
+    HypothesisReview,
+    create_metrics_update,
+)
+from co_scientist.prompts import get_review_batch_prompt, get_review_prompt
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +77,7 @@ async def review_single_hypothesis(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
         filename = (f"review_individual_{hypothesis_index}"
                     if hypothesis_index is not None else "review_individual")
@@ -191,7 +195,7 @@ async def review_comparative_batch(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
         scaled_max_tokens = min(
             THINKING_MAX_TOKENS + (max(0,

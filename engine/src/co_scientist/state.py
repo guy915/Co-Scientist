@@ -22,7 +22,7 @@ from typing import (Annotated, Any, Awaitable, Callable, Dict, List, Optional)
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
 
-from .models import Article, ExecutionMetrics, Hypothesis
+from co_scientist.models import Article, ExecutionMetrics, Hypothesis
 
 logger = logging.getLogger(__name__)
 

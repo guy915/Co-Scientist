@@ -48,8 +48,8 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from . import engine_adapter, store
-from .store import RunRow, RunStatus, TERMINAL_STATUSES
+from app import engine_adapter, store
+from app.store import RunRow, RunStatus, TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/runs", tags=["runs"])

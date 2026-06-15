@@ -26,7 +26,7 @@ import re
 from typing import Any, cast, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..config import ToolRegistry
+    from co_scientist.config import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +253,7 @@ async def fetch_indra_evidence(
         return empty
 
     try:
-        from ..mcp_client import get_mcp_client  # pylint: disable=import-outside-toplevel
+        from co_scientist.mcp_client import get_mcp_client  # pylint: disable=import-outside-toplevel
 
         client = await get_mcp_client(tool_registry=tool_registry)
 

@@ -18,16 +18,16 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
-from ..constants import (
+from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
     PROGRESS_REFLECTION_START,
     PROGRESS_REFLECTION_COMPLETE,
 )
-from ..llm import call_llm_json
-from ..models import Hypothesis
-from ..prompts import get_reflection_prompt
-from ..state import WorkflowState
+from co_scientist.llm import call_llm_json
+from co_scientist.models import Hypothesis
+from co_scientist.prompts import get_reflection_prompt
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,7 @@ async def analyze_single_hypothesis(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
         save_prompt_to_disk(
             run_id=run_id,
             prompt_name=f"reflection_{hypothesis_index}",
@@ -239,7 +239,7 @@ async def _fetch_indra_for_hypothesis(
     """
     empty: Dict[str, Any] = {"prompt_text": "", "enrichment_items": []}
     try:
-        from .reflection_helpers import fetch_indra_evidence  # pylint: disable=import-outside-toplevel
+        from co_scientist.nodes.reflection_helpers import fetch_indra_evidence  # pylint: disable=import-outside-toplevel
 
         result = await fetch_indra_evidence(
             hypothesis_text=hypothesis_text,

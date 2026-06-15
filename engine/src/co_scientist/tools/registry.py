@@ -19,7 +19,16 @@ from type hints.
 
 import inspect
 import logging
-from typing import Any, Callable, Dict, List, Optional, get_type_hints, get_origin, get_args
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    get_type_hints,
+    get_origin,
+    get_args,
+)
 
 logger = logging.getLogger(__name__)
 

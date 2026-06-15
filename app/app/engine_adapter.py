@@ -33,10 +33,10 @@ import time
 from collections.abc import AsyncIterator
 from typing import Any
 
-from . import store
-from .citations import CitationState
-from .mock_workflow import resolved_config, run_mock_workflow
-from .store import RunStatus
+from app import store
+from app.citations import CitationState
+from app.mock_workflow import resolved_config, run_mock_workflow
+from app.store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
 # Inject the sibling engine src into sys.path at import time so that

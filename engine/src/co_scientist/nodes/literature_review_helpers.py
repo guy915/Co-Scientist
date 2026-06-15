@@ -26,12 +26,12 @@ import logging
 from dataclasses import dataclass
 from typing import Any, cast, Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from ..constants import LITERATURE_REVIEW_FAILED
-from ..models import Article
+from co_scientist.constants import LITERATURE_REVIEW_FAILED
+from co_scientist.models import Article
 
 if TYPE_CHECKING:
-    from ..config import ToolConfig, WorkflowConfig, ToolRegistry
-    from ..state import WorkflowState
+    from co_scientist.config import ToolConfig, WorkflowConfig, ToolRegistry
+    from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 

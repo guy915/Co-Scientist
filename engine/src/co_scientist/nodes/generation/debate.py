@@ -21,18 +21,24 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 
-from .citations import ReferenceIndex, resolve_citation_keys
-from ...constants import (
+from co_scientist.nodes.generation.citations import (
+    ReferenceIndex,
+    resolve_citation_keys,
+)
+from co_scientist.constants import (
     DEBATE_MAX_TURNS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     INITIAL_ELO_RATING,
 )
-from ...exceptions import GenerationError
-from ...llm import call_llm, call_llm_json
-from ...models import Article, GenerationMethod, Hypothesis
-from ...prompts import get_debate_generation_prompt, save_prompt_to_disk
-from ...state import WorkflowState
+from co_scientist.exceptions import GenerationError
+from co_scientist.llm import call_llm, call_llm_json
+from co_scientist.models import Article, GenerationMethod, Hypothesis
+from co_scientist.prompts import (
+    get_debate_generation_prompt,
+    save_prompt_to_disk,
+)
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +54,7 @@ def _match_papers_to_grounding(
 
     Returns empty list if no grounding text or no matches.
     """
-    from .papers import articles_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
+    from co_scientist.nodes.generation.papers import articles_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
 
     candidates = articles_to_candidates(articles)
     return filter_papers_by_grounding(candidates, literature_grounding)

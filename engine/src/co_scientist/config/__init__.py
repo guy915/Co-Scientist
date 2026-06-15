@@ -16,7 +16,7 @@
 Provides YAML-based configuration for bringing your own MCP tools.
 """
 
-from .schema import (
+from co_scientist.config.schema import (
     EnrichmentConfig,
     ServerConfig,
     ResponseFormat,
@@ -27,7 +27,7 @@ from .schema import (
     ToolsConfig,
     Settings,
 )
-from .registry import ToolRegistry, get_tool_registry
+from co_scientist.config.registry import ToolRegistry, get_tool_registry
 
 __all__ = [
     "EnrichmentConfig",

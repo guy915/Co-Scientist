@@ -27,22 +27,22 @@ from typing import (Any, AsyncIterator, Awaitable, Callable, Dict, List,
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from .constants import (
+from co_scientist.constants import (
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_EVOLUTION_MAX_COUNT,
 )
-from .models import ExecutionMetrics
-from .nodes.generate import generate_node
-from .nodes.literature_review import literature_review_node
-from .nodes.reflection import reflection_node
-from .nodes.review import review_node
-from .nodes.ranking import ranking_node
-from .nodes.meta_review import meta_review_node
-from .nodes.evolve import evolve_node
-from .nodes.proximity import proximity_node
-from .nodes.supervisor import supervisor_node
-from .state import WorkflowState
+from co_scientist.models import ExecutionMetrics
+from co_scientist.nodes.generate import generate_node
+from co_scientist.nodes.literature_review import literature_review_node
+from co_scientist.nodes.reflection import reflection_node
+from co_scientist.nodes.review import review_node
+from co_scientist.nodes.ranking import ranking_node
+from co_scientist.nodes.meta_review import meta_review_node
+from co_scientist.nodes.evolve import evolve_node
+from co_scientist.nodes.proximity import proximity_node
+from co_scientist.nodes.supervisor import supervisor_node
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -114,7 +114,7 @@ class HypothesisGenerator:
         # Initialize tool registry if tools_config or disable_tools specified
         self._tool_registry = None
         if tools_config is not None or disable_tools is not None:
-            from .config import ToolRegistry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import ToolRegistry  # pylint: disable=import-outside-toplevel
 
             self._tool_registry = ToolRegistry(
                 config_path=tools_config,
@@ -289,7 +289,7 @@ class HypothesisGenerator:
             enable_literature_review_node = False
         else:
             # Check system availability (cached per instance)
-            from .mcp_client import check_mcp_available, check_pubmed_available_via_mcp  # pylint: disable=import-outside-toplevel
+            from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp  # pylint: disable=import-outside-toplevel
 
             # Lazy init: check once per instance on first call
             # Only check if we're running with literature review
@@ -673,7 +673,7 @@ class HypothesisGenerator:
                     if "metrics" in node_state:
                         # Import merge_metrics to properly combine metrics
                         # (don't just replace!)
-                        from .state import merge_metrics  # pylint: disable=import-outside-toplevel
+                        from co_scientist.state import merge_metrics  # pylint: disable=import-outside-toplevel
 
                         cumulative_state["metrics"] = merge_metrics(
                             cumulative_state["metrics"], node_state["metrics"])
