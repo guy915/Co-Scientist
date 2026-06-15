@@ -23,16 +23,18 @@ import logging
 from typing import List, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ..citations import ReferenceIndex
+    from co_scientist.nodes.generation.citations import ReferenceIndex
 
 # pylint: disable=wrong-import-position
-from ....mcp_client import get_mcp_client
-from ....models import Hypothesis
-from ....state import WorkflowState
-from ....tools.literature import literature_tools
-from ....tools.provider import HybridToolProvider
-from .draft import draft_hypotheses
-from .validate import validate_hypotheses
+from co_scientist.mcp_client import get_mcp_client
+from co_scientist.models import Hypothesis
+from co_scientist.state import WorkflowState
+from co_scientist.tools.literature import literature_tools
+from co_scientist.tools.provider import HybridToolProvider
+from co_scientist.nodes.generation.literature_tools.draft import (
+    draft_hypotheses,)
+from co_scientist.nodes.generation.literature_tools.validate import (
+    validate_hypotheses,)
 # pylint: enable=wrong-import-position
 
 logger = logging.getLogger(__name__)

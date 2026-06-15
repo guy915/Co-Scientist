@@ -24,7 +24,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, cast
 
-from ....constants import (
+from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     GENERATE_LIT_TOOL_MAX_PAPERS,
     HIGH_TEMPERATURE,
@@ -32,22 +32,26 @@ from ....constants import (
     VALIDATION_SYNTHESIS_BATCH_SIZE,
     get_validate_max_iterations,
 )
-from ....exceptions import ResponseParseError
-from ....llm import call_llm_json, call_llm_with_tools, attempt_json_repair
-from ....models import GenerationMethod, Hypothesis
-from ....prompts import (
+from co_scientist.exceptions import ResponseParseError
+from co_scientist.llm import (
+    call_llm_json,
+    call_llm_with_tools,
+    attempt_json_repair,
+)
+from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.prompts import (
     get_hypothesis_novelty_analysis_prompt,
     get_validation_synthesis_prompt_with_tools,
 )
-from ....schemas import (HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA)
-from ....state import WorkflowState
-from ....tools.literature import literature_tools
-from ..citations import resolve_citation_keys
-from ....tools.provider import HybridToolProvider
-from ....tools.response_parser import ResponseParser
+from co_scientist.schemas import (HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA)
+from co_scientist.state import WorkflowState
+from co_scientist.tools.literature import literature_tools
+from co_scientist.nodes.generation.citations import resolve_citation_keys
+from co_scientist.tools.provider import HybridToolProvider
+from co_scientist.tools.response_parser import ResponseParser
 
 if TYPE_CHECKING:
-    from ....config import ToolConfig, ToolRegistry
+    from co_scientist.config import ToolConfig, ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +66,7 @@ def _extract_papers_for_hypothesis(
     author+year appear in the grounding text. Falls back to all analyzed
     papers for this hypothesis when grounding is empty or has no matches.
     """
-    from ..papers import analyses_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
+    from co_scientist.nodes.generation.papers import analyses_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
 
     analyses = hypothesis_with_analyses.get("novelty_analyses", [])
     candidates = analyses_to_candidates(analyses)
@@ -331,7 +335,7 @@ async def validate_hypotheses(
     # get tool registry if not provided
     if tool_registry is None:
         try:
-            from ....config import get_tool_registry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
             tool_registry = get_tool_registry()
             logger.info("Using global tool registry for validation")
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -407,7 +411,7 @@ async def validate_hypotheses(
             already_validated_texts=already_validated_texts,
         )
 
-        from ....prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
         save_prompt_to_disk(
             run_id=state.get("run_id", "unknown"),
             prompt_name=f"validation_synthesis_batch_{batch_label}",

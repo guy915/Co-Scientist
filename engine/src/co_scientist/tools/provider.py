@@ -21,9 +21,9 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from ..exceptions import ConfigError, ToolError
-from ..mcp_client import MCPToolClient
-from .registry import PythonToolRegistry
+from co_scientist.exceptions import ConfigError, ToolError
+from co_scientist.mcp_client import MCPToolClient
+from co_scientist.tools.registry import PythonToolRegistry
 
 logger = logging.getLogger(__name__)
 

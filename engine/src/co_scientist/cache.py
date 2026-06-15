@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 
 import pickle
 
-from .constants import DEFAULT_CACHE_DIR, DEFAULT_CACHE_ENABLED
+from co_scientist.constants import DEFAULT_CACHE_DIR, DEFAULT_CACHE_ENABLED
 
 logger = logging.getLogger(__name__)
 

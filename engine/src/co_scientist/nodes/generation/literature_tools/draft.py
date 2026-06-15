@@ -21,20 +21,20 @@ import hashlib
 import logging
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from ....constants import (
+from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     get_draft_max_iterations,
 )
-from ....exceptions import ResponseParseError
-from ....llm import call_llm_with_tools, attempt_json_repair
-from ....prompts import get_draft_prompt_with_tools
-from ....state import WorkflowState
-from ....tools.literature import literature_tools
-from ....tools.provider import HybridToolProvider
+from co_scientist.exceptions import ResponseParseError
+from co_scientist.llm import call_llm_with_tools, attempt_json_repair
+from co_scientist.prompts import get_draft_prompt_with_tools
+from co_scientist.state import WorkflowState
+from co_scientist.tools.literature import literature_tools
+from co_scientist.tools.provider import HybridToolProvider
 
 if TYPE_CHECKING:
-    from ....config import ToolRegistry
+    from co_scientist.config import ToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -98,7 +98,7 @@ async def draft_hypotheses(
     # get tool whitelist from registry or try global registry
     if tool_registry is None:
         try:
-            from ....config import get_tool_registry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
 
             tool_registry = get_tool_registry()
             logger.info("Using global tool registry")
@@ -143,7 +143,7 @@ async def draft_hypotheses(
     )
 
     # save prompt to disk
-    from ....prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
         run_id=state.get("run_id", "unknown"),

@@ -47,11 +47,11 @@ import random
 from collections.abc import AsyncIterator
 from typing import Any
 
-from . import store
-from .citations import CitationRecord, classify_citation
-from .elo import DEFAULT_K_FACTOR, INITIAL_ELO, update_pair
-from .safety import screen_final, screen_intake
-from .store import RunStatus
+from app import store
+from app.citations import CitationRecord, classify_citation
+from app.elo import DEFAULT_K_FACTOR, INITIAL_ELO, update_pair
+from app.safety import screen_final, screen_intake
+from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
 

@@ -29,7 +29,7 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 import litellm
 
-from .cache import get_cache
+from co_scientist.cache import get_cache
 
 logger = logging.getLogger(__name__)
 

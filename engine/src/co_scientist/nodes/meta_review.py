@@ -18,16 +18,16 @@ import json
 import logging
 from typing import Any, Dict
 
-from ..constants import (
+from co_scientist.constants import (
     THINKING_MAX_TOKENS,
     MEDIUM_TEMPERATURE,
     PROGRESS_META_REVIEW_START,
     PROGRESS_META_REVIEW_COMPLETE,
 )
-from ..llm import call_llm_json
-from ..models import create_metrics_update
-from ..prompts import get_meta_review_prompt
-from ..state import WorkflowState
+from co_scientist.llm import call_llm_json
+from co_scientist.models import create_metrics_update
+from co_scientist.prompts import get_meta_review_prompt
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +117,7 @@ async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
     )
 
     # save prompt to disk for debugging
-    from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
         run_id=state.get("run_id", "unknown"),

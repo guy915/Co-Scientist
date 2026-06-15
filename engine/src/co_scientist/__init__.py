@@ -50,12 +50,17 @@ if sys.version_info < (3, 10):
                        "Please upgrade to Python 3.10 or newer.")
 
 # pylint: disable=wrong-import-position
-from .generator import HypothesisGenerator
-from .models import Hypothesis, HypothesisReview, ExecutionMetrics
-from .state import WorkflowState, WorkflowConfig
-from .cache import clear_cache, get_cache_stats, clear_node_cache, get_node_cache_stats
-from .console import ConsoleReporter
-from .config import ToolRegistry, get_tool_registry
+from co_scientist.generator import HypothesisGenerator
+from co_scientist.models import Hypothesis, HypothesisReview, ExecutionMetrics
+from co_scientist.state import WorkflowState, WorkflowConfig
+from co_scientist.cache import (
+    clear_cache,
+    get_cache_stats,
+    clear_node_cache,
+    get_node_cache_stats,
+)
+from co_scientist.console import ConsoleReporter
+from co_scientist.config import ToolRegistry, get_tool_registry
 # pylint: enable=wrong-import-position
 
 __version__ = "0.2.0"

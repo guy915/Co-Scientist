@@ -21,9 +21,9 @@ has been moved to the generation/ package for better organization.
 import logging
 from typing import Any, Dict
 
-from ..models import create_metrics_update
-from ..state import WorkflowState
-from .generation import generate_hypotheses
+from co_scientist.models import create_metrics_update
+from co_scientist.state import WorkflowState
+from co_scientist.nodes.generation import generate_hypotheses
 
 logger = logging.getLogger(__name__)
 

@@ -17,7 +17,7 @@ This module kept for backwards compatibility but contains no registered tools.
 """
 
 import logging
-from .registry import PythonToolRegistry
+from co_scientist.tools.registry import PythonToolRegistry
 
 logger = logging.getLogger(__name__)
 

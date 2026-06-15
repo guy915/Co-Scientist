@@ -30,7 +30,7 @@ import logging
 import os
 from typing import Any, cast, Dict, List, Optional, Tuple, TYPE_CHECKING
 
-from ..constants import (
+from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
@@ -39,20 +39,27 @@ from ..constants import (
     LITERATURE_REVIEW_RECENCY_YEARS,
     LITERATURE_REVIEW_FAILED,
 )
-from ..cache import get_node_cache
-from ..llm import call_llm, call_llm_json
-from ..mcp_client import get_mcp_client, check_literature_source_available, MCPToolClient
-from ..prompts import (
+from co_scientist.cache import get_node_cache
+from co_scientist.llm import call_llm, call_llm_json
+from co_scientist.mcp_client import (
+    get_mcp_client,
+    check_literature_source_available,
+    MCPToolClient,
+)
+from co_scientist.prompts import (
     get_literature_review_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_synthesis_prompt,
     save_prompt_to_disk,
 )
-from ..schemas import LITERATURE_QUERY_SCHEMA, LITERATURE_PAPER_ANALYSIS_SCHEMA
-from ..state import WorkflowState
+from co_scientist.schemas import (
+    LITERATURE_QUERY_SCHEMA,
+    LITERATURE_PAPER_ANALYSIS_SCHEMA,
+)
+from co_scientist.state import WorkflowState
 
-from .reflection_helpers import extract_entity_names
-from .literature_review_helpers import (
+from co_scientist.nodes.reflection_helpers import extract_entity_names
+from co_scientist.nodes.literature_review_helpers import (
     SearchConfig,
     ContentToolConfig,
     extract_source_name,
@@ -77,7 +84,7 @@ from .literature_review_helpers import (
 )
 
 if TYPE_CHECKING:
-    from ..config import ToolRegistry, ToolConfig, SearchSourceConfig
+    from co_scientist.config import ToolRegistry, ToolConfig, SearchSourceConfig
 
 logger = logging.getLogger(__name__)
 
@@ -510,7 +517,7 @@ async def _fetch_paper_content(
     runtime_context: Dict[str, Any],
 ) -> Tuple[str, Optional[str]]:
     """Fetch content for a single paper."""
-    from ..config.schema import resolve_content_params  # pylint: disable=import-outside-toplevel
+    from co_scientist.config.schema import resolve_content_params  # pylint: disable=import-outside-toplevel
 
     content_url = metadata.get(content_cfg.url_field)
     if not content_url:

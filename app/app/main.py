@@ -34,10 +34,10 @@ from rich.console import Console
 # Load .env file before importing settings
 load_dotenv()
 
-from . import engine_adapter  # pylint: disable=wrong-import-position
-from .config import settings  # pylint: disable=wrong-import-position
-from .runs import router as runs_router  # pylint: disable=wrong-import-position
-from .seed import seed_demo_runs  # pylint: disable=wrong-import-position
+from app import engine_adapter  # pylint: disable=wrong-import-position
+from app.config import settings  # pylint: disable=wrong-import-position
+from app.runs import router as runs_router  # pylint: disable=wrong-import-position
+from app.seed import seed_demo_runs  # pylint: disable=wrong-import-position
 
 try:
     from litellm import acompletion

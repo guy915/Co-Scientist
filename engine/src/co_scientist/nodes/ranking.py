@@ -19,17 +19,17 @@ import logging
 import random
 from typing import Any, Dict, Tuple
 
-from ..constants import (
+from co_scientist.constants import (
     INITIAL_ELO_RATING,
     ELO_K_FACTOR,
     THINKING_MAX_TOKENS,
     LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
 )
-from ..llm import call_llm_json
-from ..models import Hypothesis, create_metrics_update
-from ..prompts import get_ranking_prompt
-from ..state import WorkflowState
+from co_scientist.llm import call_llm_json
+from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.prompts import get_ranking_prompt
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -144,7 +144,7 @@ async def judge_matchup(
 
     # save prompt to disk for debugging
     if run_id:
-        from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
         filename = (f"ranking_matchup_{matchup_index}"
                     if matchup_index is not None else "ranking_matchup")

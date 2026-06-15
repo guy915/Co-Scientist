@@ -17,16 +17,16 @@
 import logging
 from typing import Any, Dict, List
 
-from ..constants import (
+from co_scientist.constants import (
     LONG_MAX_TOKENS,
     LOW_TEMPERATURE,
     PROGRESS_PROXIMITY_START,
     PROGRESS_PROXIMITY_COMPLETE,
 )
-from ..llm import call_llm_json
-from ..models import Hypothesis, create_metrics_update
-from ..prompts import get_proximity_prompt
-from ..state import WorkflowState
+from co_scientist.llm import call_llm_json
+from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.prompts import get_proximity_prompt
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +85,7 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
         hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
 
     # save prompt to disk for debugging
-    from ..prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
         run_id=state.get("run_id", "unknown"),

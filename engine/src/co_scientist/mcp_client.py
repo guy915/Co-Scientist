@@ -30,7 +30,7 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
 if TYPE_CHECKING:
-    from .config import ToolRegistry
+    from co_scientist.config import ToolRegistry
 
 logger = logging.getLogger(__name__)
 

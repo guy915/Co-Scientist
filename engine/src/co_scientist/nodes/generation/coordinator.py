@@ -26,18 +26,21 @@ import logging
 from dataclasses import dataclass
 from typing import Any, Coroutine, Dict, List, Optional, Tuple
 
-from ...constants import (
+from co_scientist.constants import (
     PROGRESS_GENERATE_START,
     PROGRESS_GENERATE_COMPLETE,
     LITERATURE_REVIEW_FAILED,
 )
-from ...exceptions import GenerationError
-from ...mcp_client import get_mcp_client
-from ...models import Hypothesis
-from ...state import WorkflowState
-from .citations import ReferenceIndex, build_reference_index
-from .debate import generate_with_debate
-from .literature_tools import generate_with_tools
+from co_scientist.exceptions import GenerationError
+from co_scientist.mcp_client import get_mcp_client
+from co_scientist.models import Hypothesis
+from co_scientist.state import WorkflowState
+from co_scientist.nodes.generation.citations import (
+    ReferenceIndex,
+    build_reference_index,
+)
+from co_scientist.nodes.generation.debate import generate_with_debate
+from co_scientist.nodes.generation.literature_tools import generate_with_tools
 
 logger = logging.getLogger(__name__)
 
