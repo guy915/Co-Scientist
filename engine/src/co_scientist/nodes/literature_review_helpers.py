@@ -628,7 +628,7 @@ def parse_content_result(result: Any) -> Optional[str]:
 def get_paper_content_for_analysis(metadata: Dict[str, Any],
                                    max_chars: int = 200_000) -> str:
     """Get paper content for analysis, with truncation if needed."""
-    content = metadata.get("fulltext") or metadata.get("abstract") or ""
+    content = str(metadata.get("fulltext") or metadata.get("abstract") or "")
     if len(content) > max_chars:
         logger.debug("Truncating paper content to %s chars", max_chars)
         content = content[:max_chars] + "\n\n[... truncated for length ...]"
