@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 320" fill="none">
+  <style>
+    .box { stroke-width: 1.5; }
+    .box-primary { fill: #E0F2F2; stroke: #00696C; }
+    .box-surface { fill: #F5FAFA; stroke: #BEC9C9; }
+    .box-accent { fill: #D3E4FF; stroke: #4B607C; }
+    .box-muted { fill: #F5FAFA; stroke: #BEC9C9; stroke-dasharray: 6 3; }
+    .lbl { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-weight: 600; fill: #002021; text-anchor: middle; dominant-baseline: central; }
+    .lbl-lg { font-size: 13px; }
+    .lbl-sm { font-size: 11px; }
+    .lbl-xs { font-size: 10px; font-weight: 400; fill: #6F7979; text-anchor: middle; dominant-baseline: central; }
+    .lbl-white { fill: #ffffff; }
+    .conn { stroke: #BEC9C9; stroke-width: 1.5; }
+    .conn-label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; font-weight: 600; fill: #00696C; text-anchor: middle; dominant-baseline: central; letter-spacing: 0.05em; }
+    .title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; font-weight: 600; fill: #171D1D; text-anchor: middle; }
+  </style>
+
+  <!-- Title -->
+  <text x="340" y="22" class="title">System Architecture</text>
+
+  <!-- Frontend Layer -->
+  <rect x="160" y="42" width="360" height="48" rx="12" class="box box-primary"/>
+  <text x="340" y="60" class="lbl lbl-lg">React + Vite + TypeScript</text>
+  <text x="340" y="76" class="lbl-xs">Tailwind v4 &#xB7; Material Design 3 &#xB7; Bun</text>
+
+  <!-- SSE connector -->
+  <line x1="340" y1="90" x2="340" y2="114" class="conn"/>
+  <rect x="310" y="95" width="60" height="16" rx="8" fill="#00696C"/>
+  <text x="340" y="103" class="lbl lbl-white" font-size="9" font-weight="600">SSE</text>
+
+  <!-- Backend Layer -->
+  <rect x="160" y="116" width="360" height="48" rx="12" class="box box-primary"/>
+  <text x="340" y="134" class="lbl lbl-lg">FastAPI</text>
+  <text x="340" y="150" class="lbl-xs">/api/runs/* &#xB7; /health &#xB7; /status</text>
+
+  <!-- Connectors down -->
+  <line x1="240" y1="164" x2="240" y2="196" class="conn"/>
+  <line x1="440" y1="164" x2="440" y2="196" class="conn"/>
+
+  <!-- Storage -->
+  <rect x="120" y="198" width="240" height="44" rx="12" class="box box-surface"/>
+  <text x="240" y="214" class="lbl lbl-sm">SQLite</text>
+  <text x="240" y="230" class="lbl-xs">runs &#xB7; hypotheses &#xB7; evidence &#xB7; matches</text>
+
+  <!-- Engine Adapter -->
+  <rect x="380" y="198" width="180" height="44" rx="12" class="box box-accent"/>
+  <text x="470" y="214" class="lbl lbl-sm">EngineAdapter</text>
+  <text x="470" y="230" class="lbl-xs">Mock (default) | LangGraph</text>
+
+  <!-- Connector down from Engine -->
+  <line x1="470" y1="242" x2="470" y2="268" class="conn" stroke-dasharray="6 3"/>
+
+  <!-- MCP Server -->
+  <rect x="380" y="270" width="180" height="38" rx="12" class="box box-muted"/>
+  <text x="470" y="284" class="lbl lbl-sm" fill="#6F7979">MCP Server</text>
+  <text x="470" y="298" class="lbl-xs">optional &#xB7; PubMed + INDRA</text>
+</svg>

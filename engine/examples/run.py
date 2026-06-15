@@ -1,0 +1,93 @@
+# Copyright 2026 The Co-Scientist Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+"""Example for Co-Scientist with streaming output.
+
+This demonstrates hypothesis generation with literature review integration,
+showing real-time streaming of results as they're generated.
+"""
+from collections.abc import Sequence
+
+from absl import app
+from co_scientist import HypothesisGenerator
+from co_scientist.console import ConsoleReporter, default_progress_callback, run_console
+# install rich in your environment
+from rich.console import Console
+from rich.panel import Panel
+# pylint: disable=pointless-string-statement
+"""
+Prerequisites:
+- MCP server running (on http://localhost:8888/mcp)
+- Set OPEN_AI_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in your environment
+before running,
+which depends on the MODEL_NAME you set below.
+"""
+# pylint: enable=pointless-string-statement
+
+MODEL_NAME = "gemini/gemini-2.5-flash"
+
+
+async def _run():
+    # Prompt user for research goal with rich formatting
+    console = Console()
+    console.print()
+    console.print(
+        Panel(
+            "[bold]Enter research goal[/bold]\n\n"
+            "[dim]For example:[/dim] Develop novel approaches for early"
+            " detection of Alzheimer's disease using non-invasive"
+            " biomarkers",
+            title="[cyan]Research Goal[/cyan]",
+            border_style="cyan",
+        ))
+    research_goal = console.input(
+        "\n[bold cyan]Research goal:[/bold cyan] ").strip()
+    if not research_goal:
+        console.print(
+            "[bold red]Error:[/bold red] Research goal cannot be empty.")
+        return
+    generator = HypothesisGenerator(
+        model_name=MODEL_NAME,
+        max_iterations=2,
+        initial_hypotheses_count=7,
+        evolution_max_count=4,
+    )
+
+    # for rich terminal output
+    reporter = ConsoleReporter()
+
+    # wrap with built-in console/terminal reporter
+    await reporter.run(
+        event_stream=generator.generate_hypotheses(
+            research_goal=research_goal,
+            progress_callback=default_progress_callback,
+            # explicitly enable literature review/generate with tool calling
+            opts={
+                "enable_literature_review_node": True,
+                "enable_tool_calling_generation": True,
+            },
+            stream=True,
+        ),
+        research_goal=research_goal,
+    )
+
+
+def main(argv: Sequence[str]) -> None:
+    del argv  # Unused.
+    # wrap with run_console for graceful shutdown on KeyboardInterrupt and hide
+    # internal warnings
+    run_console(_run())
+
+
+if __name__ == "__main__":
+    app.run(main)

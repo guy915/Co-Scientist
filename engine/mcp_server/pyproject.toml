@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "co-scientist-mcp-server"
+version = "0.1.0"
+description = "MCP server for Co-Scientist literature review"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "Apache-2.0"}
+keywords = ["mcp", "pubmed", "literature-review"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "fastmcp~=2.14.3",
+    "fastapi~=0.128.0",
+    "httpx~=0.28.1",
+    "beautifulsoup4~=4.14.3",
+    "lxml~=6.0.2",
+    "biopython~=1.86",
+    "python-dotenv~=1.2.1",
+    "uvicorn~=0.40.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "yapf>=0.43.0",
+    "pylint>=3.3",
+]
+
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mcp_server*"]
+
+[tool.setuptools.package-data]
+mcp_server = ["py.typed"]
+
+[tool.yapf]
+based_on_style = "google"
+column_limit = 80
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+
+# Biopython ships a py.typed marker but leaves Bio.Entrez functions and
+# attributes unannotated. Skip following its imports so its untyped surface
+# does not propagate Any into typed call sites.
+[[tool.mypy.overrides]]
+module = ["Bio.*"]
+follow_imports = "skip"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

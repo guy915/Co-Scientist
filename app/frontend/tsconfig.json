@@ -1,0 +1,44 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["vite/client"],
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    /* Path aliases */
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "src/main.tsx",
+    "src/workbench/**/*",
+    "src/api/runs.ts",
+    "src/hooks/useRunStream.ts",
+    "src/components/ErrorBoundary.tsx",
+    "src/themes/**/*",
+    "src/lib/**/*",
+    "src/components/ui/**/*",
+    "src/public/**/*",
+    "src/types/**/*.d.ts",
+    "src/md3/**/*",
+    "src/workbench/components/LogConsole.tsx",
+    "src/workbench/Layout.tsx"
+  ]
+}

@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "co-scientist-engine"
+version = "0.2.0"
+description = "Open LangGraph-based framework for multi-agent research hypothesis generation, adapted from Google Research's AI Co-Scientist."
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+keywords = ["ai", "research", "hypothesis", "langgraph", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+dependencies = [
+    "langgraph~=1.0.6",
+    "langchain-core~=1.2.7",
+    "langchain-mcp-adapters>=0.2.1",
+    "langsmith~=0.6.2",
+    "litellm~=1.80.16",
+    "typing-extensions~=4.15.0",
+    "rich~=14.2.0",
+    "jsonschema~=4.26.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest~=9.0.2",
+    "pytest-asyncio~=1.3.0",
+    "yapf~=0.43.0",
+    "pylint~=3.3",
+    "mypy~=1.19.1",
+    "types-PyYAML",
+    "types-jsonschema",
+    "python-dotenv~=1.2.1",
+    "absl-py~=2.1",
+]
+
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["co_scientist*"]
+
+[tool.setuptools.package-data]
+co_scientist = ["prompts/*.md", "config/*.yaml", "py.typed"]
+
+[tool.yapf]
+based_on_style = "google"
+column_limit = 80
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+[[tool.mypy.overrides]]
+module = ["jsonschema", "jsonschema.*", "yaml"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

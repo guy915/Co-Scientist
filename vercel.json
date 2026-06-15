@@ -1,0 +1,8 @@
+{
+  "buildCommand": "cd app/frontend && bun run build",
+  "outputDirectory": "app/frontend/dist",
+  "installCommand": "cd app/frontend && bun install",
+  "rewrites": [
+    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+  ]
+}

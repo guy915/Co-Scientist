@@ -1,0 +1,64 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.qodo
+
+# Project
+coscientist.db
+coscientist.db-*
+reports/
+cache/
+.coscientist_cache/
+.coscientist_prompts/
+.pytest_cache/
+.mypy_cache/
+ai-coscientist-app/frontend/dist/
+ai-coscientist-app/frontend/.vite/
+.playwright-mcp/
+
+.vercel
+.superpowers/
+
+# Agents, Claude, and Remember
+.agents/
+.claude/
+.remember/
+
+# Live Footage (Recordings)
+references/google-co-scientist/media/live-footage/
+

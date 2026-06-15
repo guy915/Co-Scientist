@@ -1,0 +1,20 @@
+# Co-Scientist
+
+Co-Scientist is an independent open-source implementation of a multi-agent workbench for scientific hypothesis generation, evidence review, debate, ranking, and synthesis.
+
+The project is inspired by published Google DeepMind research. It is not affiliated with, endorsed by, or an official product of Google or Google DeepMind.
+
+## Primary pages
+
+- [Home](https://ai-co-scientist.com/): Product overview and workbench entry point.
+- [Ferroptosis demo](https://ai-co-scientist.com/demos/ferroptosis-pancreatic-cancer): Completed seeded research demonstration.
+- [Synaptic pruning demo](https://ai-co-scientist.com/demos/synaptic-pruning-cognitive-flexibility): Completed seeded research demonstration.
+- [Biofilm resistance demo](https://ai-co-scientist.com/demos/biofilm-antibiotic-resistance): Completed seeded research demonstration.
+- [Source code](https://github.com/guy915/Co-Scientist): Open-source repository.
+- [Published research](https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/): Background research from Google DeepMind.
+
+## Notes
+
+- Public demo pages summarize illustrative seeded runs.
+- Workbench routes under `/runs` may contain user-created research and should not be indexed.
+- Demonstration output is not medical or clinical guidance.
