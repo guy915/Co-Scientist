@@ -44,12 +44,12 @@ def sample_context_hypotheses(all_hypotheses: List[Hypothesis],
     - Top 5 by Elo rating (avoid copying winners)
     - Up to 10 random samples from the rest (diversity check)
 
-    args:
+    Args:
         all_hypotheses: all hypotheses being evolved
         exclude_hypothesis: the hypothesis being evolved (exclude from context)
         max_context: maximum context hypotheses to include (default 15)
 
-    returns:
+    Returns:
         List of hypothesis texts to use as context
     """
     # filter out the current hypothesis

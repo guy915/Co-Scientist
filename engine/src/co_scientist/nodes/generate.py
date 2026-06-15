@@ -36,10 +36,10 @@ async def generate_node(state: WorkflowState) -> Dict[str, Any]:
     - Debate generation (with or without literature review, depending on
       configuration and availability)
 
-    args:
+    Args:
         state: current workflow state
 
-    returns:
+    Returns:
         dict with hypotheses, debate_transcripts, metrics, and message
     """
     logger.info("Starting generate node")

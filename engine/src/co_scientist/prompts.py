@@ -36,12 +36,12 @@ def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
 
     Ensures the output directory exists and returns the full path.
 
-    args:
+    Args:
         run_id: unique run identifier (from state)
         prompt_name: descriptive name for the prompt file (e.g.,
             "review_batch", "literature_synthesis")
 
-    returns:
+    Returns:
         Path object for the prompt file location
 
     example:
@@ -64,14 +64,14 @@ def save_prompt_to_disk(run_id: str,
                         metadata: Dict[str, Any] | None = None) -> bool:
     """Save a filled-in prompt to disk for debugging.
 
-    args:
+    Args:
         run_id: unique run identifier
         prompt_name: descriptive name for the prompt file
         content: the filled-in prompt content
         metadata: optional dict of metadata to append (e.g., token counts,
             config)
 
-    returns:
+    Returns:
         True if saved successfully, False otherwise
     """
     try:

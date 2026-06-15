@@ -59,11 +59,11 @@ class PythonToolRegistry:
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorate and register a Python function as a tool.
 
-        args:
+        Args:
             name: tool name (defaults to function name)
             description: tool description (defaults to function docstring)
 
-        returns:
+        Returns:
             decorator function
         """
 
@@ -93,12 +93,12 @@ class PythonToolRegistry:
                          description: str) -> Dict[str, Any]:
         """Generate JSON schema from function signature and type hints.
 
-        args:
+        Args:
             func: function to generate schema for
             name: tool name
             description: tool description
 
-        returns:
+        Returns:
             JSON schema dict
         """
         sig = inspect.signature(func)
@@ -138,11 +138,11 @@ class PythonToolRegistry:
 
         supports: str, int, float, bool, List, Dict, Optional
 
-        args:
+        Args:
             python_type: Python type annotation
             param_name: parameter name (for logging)
 
-        returns:
+        Returns:
             JSON schema dict for the type
         """
         origin = get_origin(python_type)
@@ -217,10 +217,10 @@ class PythonToolRegistry:
     ) -> tuple[Dict[str, Callable[..., Any]], List[Dict[str, Any]]]:
         """Get tools filtered by whitelist.
 
-        args:
+        Args:
             whitelist: optional list of tool names to include
 
-        returns:
+        Returns:
             tuple of (functions_dict, openai_tools_list)
         """
         if whitelist is None:
