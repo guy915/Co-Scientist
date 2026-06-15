@@ -43,11 +43,10 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 ```bash
 cd app
 
-# Install Python deps (pulls co-scientist-engine from PyPI)
+# co-scientist-engine is not published to PyPI; install it from the
+# sibling checkout first, then install the app and its remaining deps.
+pip install -e ../engine
 make install
-
-# For local engine changes, pin to the sibling checkout instead:
-# pip install -e ../engine
 
 # Copy and edit the env file
 cp .env.example .env   # set GEMINI_API_KEY at minimum
@@ -101,7 +100,7 @@ This starts three containers:
 | `ui` | 5173 | Vite dev server |
 | `mcp` | 8888 | Reference MCP server (PubMed + INDRA) |
 
-The `api` container mounts the engine from `../engine` (or clones it from GitHub if that path is absent). Override `OPEN_COSCIENTIST_PATH` in `.env` if the engine checkout is elsewhere.
+The `api` container mounts the engine from `../engine` (or clones it from GitHub if that path is absent). Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere.
 
 ## Configuration
 

@@ -2,8 +2,8 @@
 set -e
 
 WORKSPACE=/workspace/co-scientist-engine
-REPO=${OPEN_COSCIENTIST_REPO:-}
-REF=${OPEN_COSCIENTIST_REF:-main}
+REPO=${COSCIENTIST_ENGINE_REPO:-}
+REF=${COSCIENTIST_ENGINE_REF:-main}
 
 if [ -f "$WORKSPACE/pyproject.toml" ]; then
     echo "Found engine checkout at $WORKSPACE, installing..."

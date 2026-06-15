@@ -10,7 +10,7 @@ version: "1.0"
 
 # MCP Server Definitions
 servers:
-  # PubMed MCP server (default open-coscientist server)
+  # PubMed MCP server (default Co-Scientist server)
   reference_server:
     url: "${MCP_SERVER_URL:-http://localhost:8888/mcp}"
     transport: "streamable_http"

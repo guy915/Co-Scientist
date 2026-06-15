@@ -23,12 +23,6 @@ Demo: [AI Co-Scientist — early detection of Alzheimer's disease](https://youtu
 Requires Python 3.10+.
 
 ```bash
-pip install co-scientist-engine
-```
-
-For local development:
-
-```bash
 git clone https://github.com/guy915/Co-Scientist
 cd Co-Scientist/engine
 pip install -e '.[dev]'

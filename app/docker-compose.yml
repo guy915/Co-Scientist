@@ -12,18 +12,18 @@ services:
       - MCP_SERVER_URL=http://mcp:8888/mcp
       - COSCIENTIST_CACHE_DIR=/app/cache
       # override these to clone a different fork/branch of the engine
-      - OPEN_COSCIENTIST_REPO=
-      - OPEN_COSCIENTIST_REF=main
+      - COSCIENTIST_ENGINE_REPO=
+      - COSCIENTIST_ENGINE_REF=main
       # remap TOOLS_CONFIG to the container path (overrides any local absolute path in .env)
-      # engine is mounted at /workspace/open-coscientist
+      # engine is mounted at /workspace/co-scientist-engine
       # Hardcoded to cancer tools using reference mcp server (pubmed + INDRA)
       # can be configured for other files, or removed if PubMed suffices
-      - TOOLS_CONFIG=/workspace/open-coscientist/src/co_scientist/config/examples/indra_cancer.yaml
+      - TOOLS_CONFIG=/workspace/co-scientist-engine/src/co_scientist/config/examples/indra_cancer.yaml
     volumes:
       - ./cache:/app/cache
       - ./app:/app/app
       # mount local engine checkout; entrypoint clones from GitHub if absent
-      - ${OPEN_COSCIENTIST_PATH:-../open-coscientist}:/workspace/open-coscientist
+      - ${COSCIENTIST_ENGINE_PATH:-../engine}:/workspace/co-scientist-engine
     depends_on:
       mcp:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
 
   mcp:
     build:
-      context: ${OPEN_COSCIENTIST_PATH:-../open-coscientist}
+      context: ${COSCIENTIST_ENGINE_PATH:-../engine}
       dockerfile: mcp_server/Dockerfile
     container_name: coscientist-mcp
     ports:
@@ -64,8 +64,8 @@ services:
       # set ENTREZ_EMAIL here (or in .env) for PubMed access; server degrades gracefully without it
       # - ENTREZ_EMAIL=you@example.com
     volumes:
-      - ${OPEN_COSCIENTIST_PATH:-../open-coscientist}/mcp_server/paper_cache:/app/mcp_server/paper_cache
-      - ${OPEN_COSCIENTIST_PATH:-../open-coscientist}/mcp_server:/app/mcp_server
+      - ${COSCIENTIST_ENGINE_PATH:-../engine}/mcp_server/paper_cache:/app/mcp_server/paper_cache
+      - ${COSCIENTIST_ENGINE_PATH:-../engine}/mcp_server:/app/mcp_server
     command: >
       uvicorn mcp_server.server:app
       --host 0.0.0.0
