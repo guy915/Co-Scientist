@@ -9,19 +9,34 @@ replace them; the papers and supplements remain the source of truth).
 ## What's here
 | Folder | What it is |
 |---|---|
-| `prompts/` | The **8 agent prompts** (generation ×2, reflection, ranking ×2, evolution ×2, meta-review), one per file. |
-| `pseudocode/` | The Co-Scientist agents' **pseudo-code** (one listing covering all agents). |
-| `outputs/` | The **outputs the system generated**, grouped by case study — **generated hypotheses**, **full reports** (research overviews + tournament rankings), reflection reviews, ranking debates, meta-review critiques, validated outputs, NIH Specific-Aims, deep-verifications, and a tool-use (AlphaFold) example. |
+| `prompts/` | The **8 agent prompts** (generation ×2, reflection, ranking ×2, evolution ×2, meta-review), one per file. This is the complete published set — both the arXiv report (Appendix A.2) and the Nature supplement (Note 9) print exactly these 8; the system runs more review modes, but their prompts were never published. |
+| `pseudocode/` | The agents' **pseudo-code**, split **per agent** (`01-supervisor` … `07-meta-review`). The source (Nature SI Note 8) prints it as one integrated listing whose Supervisor loop orchestrates every agent; the per-agent files are its constituent functions. |
+| `outputs/` | The **outputs the system generated**, organized **by type** (see below). |
+
+### Output types (`outputs/`)
+| Folder | What it is |
+|---|---|
+| `hypotheses/` | Generated hypotheses (Generation agent) — incl. the full **19-hypothesis** protein-assemblies run under `hypotheses/protein-assemblies/`. |
+| `research-overviews/` | The **full reports** / research overviews (Meta-review) — incl. the protein-assemblies reports + tournament rankings. |
+| `reviews/` | Reflection-agent reviews (novelty, critiques, full review, deep verification, observation review). |
+| `ranking-tournament/` | Tournament debate matches (Ranking agent). |
+| `meta-review-critiques/` | Meta-review critiques. |
+| `specific-aims/` | NIH Specific-Aims-formatted proposals (Givosiran, Selinexor, Lapatinib). |
+| `validated-outputs/` | Full validated outputs (KIRA6, with its critiques + references). |
+| `plan-configs/` | Supervisor research-plan configuration. |
+| `tool-use/` | Tool-use worked example (AlphaFold). |
+| `research-goals/` | The research goals fed in (run inputs). |
 
 ## Tracing back to source
 Most extracted files begin with a `<!-- SOURCE: <original path> · <section> · <lines> -->`
-header. The `outputs/atypical-protein-assemblies/` set (19 generated hypotheses
-+ 3 reports + the research goal) is copied verbatim from the already-organized
-case study under `../supplements/ai-guided-discovery-of-atypical-protein-assemblies/`
-— see the `NOTE.md` in that folder.
+header. The protein-assemblies hypotheses (`outputs/hypotheses/protein-assemblies/`)
+and reports (`outputs/research-overviews/protein-assemblies/`) are verbatim copies
+of the already-organized case study under
+`../supplements/ai-guided-discovery-of-atypical-protein-assemblies/` — see the
+`SOURCE-NOTE.md` in each of those folders.
 
 ## Completeness
-Every source document was read in full and cross-checked, so the prompts,
+Every source document was read **in full** and cross-checked, so the prompts,
 pseudo-code, and output examples here are the complete set of distinct artifacts
 the sources contain. (The running prose of the papers — methodology, results,
 references — lives only in the originals, which is why you keep them.)
