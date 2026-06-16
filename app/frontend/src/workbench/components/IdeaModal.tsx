@@ -19,6 +19,12 @@ import {useMemo} from 'react';
 import type {CitationRow, Evidence, Hypothesis, Review} from '@/api/runs';
 import {MdDialog} from '@/md3/MdDialog';
 
+/**
+ * Renders a dialog with a hypothesis's full detail, lineage, and citations.
+ *
+ * @param props The focused hypothesis plus related reviews, citations, and
+ *   evidence used to build its detail view.
+ */
 export function IdeaModal({
   hypothesis,
   allHypotheses,

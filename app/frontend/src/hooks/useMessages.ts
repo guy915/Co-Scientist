@@ -22,6 +22,7 @@ import {
   sendMessage,
 } from '@/api/runs';
 
+/** State and actions returned by {@link useMessages}. */
 export interface UseMessagesResult {
   messages: Message[];
   isAnswering: boolean;
@@ -30,6 +31,14 @@ export interface UseMessagesResult {
   sendQuestion: (question: string) => Promise<void>;
 }
 
+/**
+ * Loads a run's messages, polling while it is active, and exposes helpers to
+ * send steering messages and ask streamed Q&A questions with optimistic UI.
+ *
+ * @param runId Run to load messages for, or null to stay idle.
+ * @param isRunActive Whether to poll for new messages on an interval.
+ * @returns The message list, answering state, last error, and send actions.
+ */
 export function useMessages(
   runId: string | null,
   isRunActive: boolean,

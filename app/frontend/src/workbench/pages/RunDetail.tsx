@@ -69,6 +69,9 @@ const TAB_ICON_NAMES: Record<TabName, string> = {
   chat: 'chat',
 };
 
+/**
+ * Renders a single run's tabbed detail view with live streaming updates.
+ */
 export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const navigate = useNavigate();

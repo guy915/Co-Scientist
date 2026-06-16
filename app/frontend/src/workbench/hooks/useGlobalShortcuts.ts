@@ -33,6 +33,10 @@ function isTextEditingTarget(t: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
 }
 
+/**
+ * Registers the app-wide keyboard shortcuts (g-d, g-n, and arrow-key tab
+ * navigation) for the lifetime of the calling component.
+ */
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
   const location = useLocation();

@@ -59,6 +59,11 @@ const STYLES: Record<RunStatus, {bg: string; fg: string; label: string}> = {
   },
 };
 
+/**
+ * Renders a colored pill badge for a run's lifecycle status.
+ *
+ * @param props The run status to display.
+ */
 export function RunStatusPill({status}: {status: RunStatus}) {
   const s = STYLES[status] ?? STYLES.draft;
   return (

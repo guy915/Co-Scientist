@@ -22,6 +22,11 @@ import ReactMarkdown from 'react-markdown';
 import type {Report, SafetyDecision} from '@/api/runs';
 import {reportMarkdownUrl} from '@/api/runs';
 
+/**
+ * Renders the synthesized report markdown with export and print actions.
+ *
+ * @param props The run id, its report, and the run's safety decisions.
+ */
 export function ReportTab({
   runId,
   report,

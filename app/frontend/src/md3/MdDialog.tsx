@@ -27,6 +27,11 @@ interface MdDialogProps {
   actions?: React.ReactNode;
 }
 
+/**
+ * Wraps the Material web dialog as a controlled React component.
+ *
+ * @param props Open state, close handler, headline, body, and actions.
+ */
 export function MdDialog({
   open,
   onClose,

@@ -59,6 +59,9 @@ function logText(events: RunEvent[]): string {
     .join('\n\n');
 }
 
+/**
+ * Renders a toggleable panel showing the active run's diagnostic event log.
+ */
 export function LogConsole() {
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<RunEvent[]>([]);

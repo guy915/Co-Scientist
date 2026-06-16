@@ -18,6 +18,9 @@ import '@material/web/icon/icon.js';
 import {useEffect, useState} from 'react';
 import {getSystemStatus, type SystemStatus} from '@/api/runs';
 
+/**
+ * Renders a footer banner indicating live-engine or offline mock mode.
+ */
 export function MockBanner() {
   const [status, setStatus] = useState<SystemStatus | null>(null);
   useEffect(() => {

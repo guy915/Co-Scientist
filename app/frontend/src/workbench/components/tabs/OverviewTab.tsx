@@ -45,6 +45,12 @@ function fmtAgent(t: string) {
   return AGENT_LABELS[t] ?? t.replace(/[._]/g, ' ');
 }
 
+/**
+ * Renders the run summary: pipeline timeline, safety decisions, and stats.
+ *
+ * @param props The run plus its hypotheses, evidence, matches, safety
+ *   decisions, and streamed pipeline events.
+ */
 export function OverviewTab({
   run,
   hypotheses,

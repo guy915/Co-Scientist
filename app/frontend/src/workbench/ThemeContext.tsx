@@ -44,6 +44,11 @@ function getSystemMode(): Mode {
     : 'light';
 }
 
+/**
+ * Provides light/dark theme state and applies the MD3 theme to the document.
+ *
+ * @param props The subtree that consumes the theme context.
+ */
 export function ThemeProvider({children}: {children: ReactNode}) {
   // User override stored in localStorage; null = follow system.
   const [userOverride, setUserOverride] = useState<Mode | null>(() => {
@@ -101,6 +106,11 @@ export function ThemeProvider({children}: {children: ReactNode}) {
   );
 }
 
+/**
+ * Returns the current theme mode and its setters from {@link ThemeProvider}.
+ *
+ * @returns The active mode plus its set and toggle actions.
+ */
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error('useTheme used outside ThemeProvider');

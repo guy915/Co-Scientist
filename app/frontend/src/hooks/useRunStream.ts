@@ -17,6 +17,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {eventsStreamUrl} from '@/api/runs';
 
+/** A single event streamed from a run's SSE timeline. */
 export interface StreamEvent {
   seq: number;
   type: string;
@@ -24,6 +25,7 @@ export interface StreamEvent {
   created_at?: number;
 }
 
+/** State returned by {@link useRunStream}. */
 export interface UseRunStreamResult {
   events: StreamEvent[];
   lastSeq: number;

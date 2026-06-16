@@ -111,6 +111,11 @@ function AnswerBubble({content}: {content: string}) {
   );
 }
 
+/**
+ * Renders the run's message timeline and a steering/Q&A composer.
+ *
+ * @param props The run whose messages and live state are shown.
+ */
 export function ChatTab({run}: Props) {
   const isActive = run?.status === 'running' || run?.status === 'queued';
   const {messages, isAnswering, error, sendSteering, sendQuestion} =

@@ -38,6 +38,11 @@ interface ErrorBoundaryState {
   errorInfo: React.ErrorInfo | null;
 }
 
+/**
+ * Catches render-time errors in its subtree and shows a fallback UI.
+ *
+ * @param props The children to guard and an optional custom fallback.
+ */
 export class ErrorBoundary extends Component<
   ErrorBoundaryProps,
   ErrorBoundaryState

@@ -21,6 +21,7 @@ import '@material/web/button/text-button.js';
 import '@material/web/iconbutton/icon-button.js';
 import type React from 'react';
 
+/** Visual style of a {@link Button}, mapped to a Material web button kind. */
 export type ButtonVariant =
   | 'default'
   | 'destructive'
@@ -29,8 +30,10 @@ export type ButtonVariant =
   | 'ghost'
   | 'link';
 
+/** Size preset controlling a {@link Button}'s height and padding. */
 export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon';
 
+/** Props accepted by the {@link Button} component. */
 export interface ButtonProps {
   variant?: ButtonVariant;
   size?: ButtonSize;
@@ -75,6 +78,11 @@ function sizeStyle(size: ButtonSize | undefined): React.CSSProperties {
   }
 }
 
+/**
+ * Renders a Material web button whose element type follows the variant.
+ *
+ * @param props Variant, size, and standard button attributes.
+ */
 export function Button({
   variant = 'default',
   size,

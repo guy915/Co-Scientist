@@ -19,6 +19,11 @@ import {useMemo} from 'react';
 import type {Hypothesis, MatchRow} from '@/api/runs';
 import {EloTrajectoryChart} from '../EloTrajectoryChart';
 
+/**
+ * Renders the Elo leaderboard, trajectory chart, and pairwise matchups.
+ *
+ * @param props The tournament matches and the hypotheses they rank.
+ */
 export function TournamentTab({
   matches,
   hypotheses,
