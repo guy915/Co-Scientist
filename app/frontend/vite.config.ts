@@ -18,6 +18,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test-setup.ts'],
     include: ['src/**/*.test.{ts,tsx}'],
+    server: {
+      // material-color-utilities ships extensionless ESM imports that Vitest's
+      // default externalizer cannot resolve; inline it so it is bundled.
+      deps: {inline: ['@material/material-color-utilities']},
+    },
   },
   server: {
     port: 5173,
