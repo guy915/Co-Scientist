@@ -61,7 +61,7 @@ from co_scientist.constants import LITERATURE_REVIEW_FAILED
 
 
 # pylint: enable=wrong-import-position
-async def test_literature_review():
+async def test_literature_review() -> None:
     """Run literature review node with minimal state."""
 
     # Initialize run logging to avoid warnings

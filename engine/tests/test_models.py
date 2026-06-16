@@ -23,13 +23,14 @@ import pytest
 
 from co_scientist.models import Article
 from co_scientist.models import ExecutionMetrics
+from co_scientist.models import GenerationMethod
 from co_scientist.models import Hypothesis
 from co_scientist.models import HypothesisReview
 
 # --- Hypothesis: construction and defaults ----------------------------------
 
 
-def test_hypothesis_minimal_construction_defaults():
+def test_hypothesis_minimal_construction_defaults() -> None:
     """Only ``text`` is required; every other field has its documented default.
     """
     hyp = Hypothesis(text="A hypothesis")
@@ -53,7 +54,7 @@ def test_hypothesis_minimal_construction_defaults():
     assert hyp.loss_count == 0
 
 
-def test_hypothesis_mutable_defaults_not_shared():
+def test_hypothesis_mutable_defaults_not_shared() -> None:
     """``default_factory`` fields are independent per instance (no sharing)."""
     a = Hypothesis(text="a")
     b = Hypothesis(text="b")
@@ -68,7 +69,7 @@ def test_hypothesis_mutable_defaults_not_shared():
 # --- Hypothesis: lineage / evolution ----------------------------------------
 
 
-def test_gen_zero_hypothesis_has_no_lineage():
+def test_gen_zero_hypothesis_has_no_lineage() -> None:
     """A fresh (gen-0) hypothesis carries no parent / evolution lineage.
 
     ``models.py`` has no ``parent_id``/``generation`` field; lineage is tracked
@@ -81,12 +82,12 @@ def test_gen_zero_hypothesis_has_no_lineage():
     assert hyp.generation_method is None
 
 
-def test_evolved_hypothesis_records_lineage():
+def test_evolved_hypothesis_records_lineage() -> None:
     """An evolved hypothesis references its origin via ``evolution_history``."""
     evolved = Hypothesis(
         text="refined",
         evolution_history=["Evolved from: origin hypothesis"],
-        generation_method="debate",
+        generation_method=GenerationMethod.DEBATE,
         debate_id=3,
     )
     assert evolved.evolution_history == ["Evolved from: origin hypothesis"]
@@ -97,19 +98,19 @@ def test_evolved_hypothesis_records_lineage():
 # --- Hypothesis: computed properties ----------------------------------------
 
 
-def test_total_matches_sums_wins_and_losses():
+def test_total_matches_sums_wins_and_losses() -> None:
     """``total_matches`` is ``win_count + loss_count``."""
     hyp = Hypothesis(text="x", win_count=3, loss_count=2)
     assert hyp.total_matches == 5
 
 
-def test_win_rate_with_matches():
+def test_win_rate_with_matches() -> None:
     """``win_rate`` is a 0-100 percentage of wins over total matches."""
     hyp = Hypothesis(text="x", win_count=3, loss_count=1)
     assert hyp.win_rate == 75.0
 
 
-def test_win_rate_zero_matches_guard():
+def test_win_rate_zero_matches_guard() -> None:
     """No matches yields ``0.0`` win rate (no ZeroDivisionError)."""
     hyp = Hypothesis(text="x")
     assert hyp.total_matches == 0
@@ -119,7 +120,7 @@ def test_win_rate_zero_matches_guard():
 # --- Hypothesis: serialization ----------------------------------------------
 
 
-def test_hypothesis_to_dict_shape_and_computed_fields():
+def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
     """``to_dict`` adds computed fields and omits ``similarity_degree``.
 
     The computed ``total_matches``/``win_rate`` properties are serialized while
@@ -157,7 +158,7 @@ def test_hypothesis_to_dict_shape_and_computed_fields():
     assert set(d.keys()) == expected_keys
 
 
-def test_hypothesis_to_dict_serializes_reviews():
+def test_hypothesis_to_dict_serializes_reviews() -> None:
     """Nested reviews are flattened to plain dicts inside ``to_dict``."""
     review = _make_review()
     hyp = Hypothesis(text="x", reviews=[review])
@@ -172,7 +173,7 @@ def test_hypothesis_to_dict_serializes_reviews():
 # --- Hypothesis: equality and hashing ---------------------------------------
 
 
-def test_hypothesis_equality_is_field_based():
+def test_hypothesis_equality_is_field_based() -> None:
     """Dataclass equality compares all fields; identical fields are equal."""
     a = Hypothesis(text="same", score=5.0)
     b = Hypothesis(text="same", score=5.0)
@@ -181,7 +182,7 @@ def test_hypothesis_equality_is_field_based():
     assert a != c
 
 
-def test_hypothesis_is_unhashable():
+def test_hypothesis_is_unhashable() -> None:
     """The dataclass is unhashable (eq=True, not frozen): ``hash`` raises."""
     with pytest.raises(TypeError):
         hash(Hypothesis(text="x"))
@@ -190,13 +191,13 @@ def test_hypothesis_is_unhashable():
 # --- HypothesisReview -------------------------------------------------------
 
 
-def test_hypothesis_review_requires_all_fields():
+def test_hypothesis_review_requires_all_fields() -> None:
     """``HypothesisReview`` has no defaults; all six fields are required."""
     with pytest.raises(TypeError):
         HypothesisReview()  # type: ignore[call-arg]
 
 
-def test_hypothesis_review_construction():
+def test_hypothesis_review_construction() -> None:
     """A fully-specified review stores each field verbatim."""
     review = HypothesisReview(
         review_summary="Solid",
@@ -214,7 +215,7 @@ def test_hypothesis_review_construction():
 # --- ExecutionMetrics -------------------------------------------------------
 
 
-def test_execution_metrics_defaults():
+def test_execution_metrics_defaults() -> None:
     """All ``ExecutionMetrics`` fields default to zero / empty."""
     m = ExecutionMetrics()
     assert m.total_time == 0.0
@@ -226,7 +227,7 @@ def test_execution_metrics_defaults():
     assert m.phase_times == {}
 
 
-def test_execution_metrics_phase_times_not_shared():
+def test_execution_metrics_phase_times_not_shared() -> None:
     """``phase_times`` uses a per-instance ``default_factory`` dict."""
     a = ExecutionMetrics()
     b = ExecutionMetrics()
@@ -237,7 +238,7 @@ def test_execution_metrics_phase_times_not_shared():
 # --- Article ----------------------------------------------------------------
 
 
-def test_article_minimal_construction_defaults():
+def test_article_minimal_construction_defaults() -> None:
     """Only ``title`` is required; ``citations`` and ``source`` have defaults."""
     art = Article(title="A paper")
     assert art.title == "A paper"
@@ -254,7 +255,7 @@ def test_article_minimal_construction_defaults():
     assert art.used_in_analysis is False
 
 
-def test_article_mutable_defaults_not_shared():
+def test_article_mutable_defaults_not_shared() -> None:
     """``authors`` and ``pdf_links`` are independent per instance."""
     a = Article(title="a")
     b = Article(title="b")
@@ -264,7 +265,7 @@ def test_article_mutable_defaults_not_shared():
     assert b.pdf_links == []
 
 
-def test_article_to_dict_shape():
+def test_article_to_dict_shape() -> None:
     """``Article.to_dict`` round-trips every field with no extras."""
     art = Article(
         title="A paper",
@@ -301,7 +302,7 @@ def test_article_to_dict_shape():
     assert d["used_in_analysis"] is True
 
 
-def test_article_equality_is_field_based():
+def test_article_equality_is_field_based() -> None:
     """Dataclass equality compares all fields."""
     a = Article(title="same", citations=3)
     b = Article(title="same", citations=3)

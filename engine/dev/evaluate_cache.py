@@ -61,7 +61,7 @@ async def run_generation():
     return elapsed
 
 
-async def _run():
+async def _run() -> None:
     print("=" * 70)
     print("Testing LLM Cache Performance")
     print("=" * 70)
