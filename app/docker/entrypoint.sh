@@ -1,4 +1,10 @@
 #!/bin/bash
+#
+# Container entrypoint for the Co-Scientist API service. Makes the
+# co-scientist-engine package available (using a mounted checkout at
+# $WORKSPACE if present, otherwise cloning COSCIENTIST_ENGINE_REPO at
+# COSCIENTIST_ENGINE_REF), installs it, then launches the FastAPI app
+# under uvicorn.
 set -e
 
 WORKSPACE=/workspace/co-scientist-engine
