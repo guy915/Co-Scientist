@@ -162,7 +162,7 @@ async def run_workflow(
 
     # Real engine path — bridge engine streaming events into our event log.
     try:
-        from co_scientist import HypothesisGenerator  # type: ignore[import-not-found]  # pylint: disable=import-outside-toplevel
+        from co_scientist import HypothesisGenerator  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
     except Exception as e:  # pragma: no cover (defensive)  # pylint: disable=broad-exception-caught
         logger.error("engine import failed: %s — falling back to mock", e)
         async for event in run_mock_workflow(
@@ -188,7 +188,7 @@ async def run_workflow(
             import json as _json  # pylint: disable=import-outside-toplevel
 
             import litellm as _litellm  # pylint: disable=import-outside-toplevel
-            import co_scientist.llm as _oc_llm  # type: ignore[import-not-found]  # pylint: disable=import-outside-toplevel
+            import co_scientist.llm as _oc_llm  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
 
             # --- patch 1: acompletion ---
             _orig_acompletion = _litellm.acompletion  # pylint: disable=invalid-name
