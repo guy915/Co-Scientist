@@ -59,8 +59,11 @@ async def review_single_hypothesis(
         hypothesis_text: The hypothesis to review
         research_goal: The research goal for context
         model_name: LLM model to use
+        supervisor_guidance: Optional planning guidance from the supervisor
+        meta_review: Optional meta-review feedback for context
         run_id: Optional run ID for saving prompts
         hypothesis_index: Optional index for naming saved prompts
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
 
     Returns:
         HypothesisReview object
@@ -135,7 +138,10 @@ async def review_parallel_individual(
         hypotheses: List of hypotheses to review
         research_goal: Research goal for context
         model_name: LLM model to use
+        supervisor_guidance: Optional planning guidance from the supervisor
+        meta_review: Optional meta-review feedback for context
         run_id: Optional run ID for saving prompts
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
 
     Returns:
         List of reviews (one per hypothesis)
@@ -174,7 +180,10 @@ async def review_comparative_batch(
         hypotheses: List of hypotheses to review
         research_goal: Research goal for context
         model_name: LLM model to use
+        supervisor_guidance: Optional planning guidance from the supervisor
+        meta_review: Optional meta-review feedback for context
         run_id: Optional run ID for saving prompts
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
 
     Returns:
         List of reviews (one per hypothesis)

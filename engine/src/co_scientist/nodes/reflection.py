@@ -49,6 +49,8 @@ async def analyze_single_hypothesis(
         model_name: llm model to use
         hypothesis_index: index for logging (1-based)
         total_count: total hypotheses count for logging
+        run_id: optional run ID for saving prompts
+        tool_registry: optional ToolRegistry for dynamic tool instructions
 
     Returns:
         dict with classification and reasoning, or None if failed

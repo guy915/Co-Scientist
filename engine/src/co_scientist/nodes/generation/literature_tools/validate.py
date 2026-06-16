@@ -188,6 +188,8 @@ async def validate_hypotheses(
         draft_hypotheses: list of draft dicts from Phase 1
         mcp_client: MCP client for tool access
         tool_registry: optional ToolRegistry for config-driven tool selection
+        reference_index: optional citation reference index supplying the
+            `[C*]` reference list and source map
 
     Returns:
         list of validated Hypothesis objects with novelty_validation

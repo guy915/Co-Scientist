@@ -33,7 +33,7 @@ persistent=no
 
 # List of plugins (as comma separated values of python modules names) to load,
 # usually to register additional checkers.
-load-plugins=
+load-plugins=pylint.extensions.docparams
 
 # Use multiple processes to speed up Pylint.
 jobs=4
@@ -102,7 +102,6 @@ disable=R,
         long-suffix,
         map-builtin-not-iterating,
         misplaced-comparison-constant,
-        missing-function-docstring,
         metaclass-assignment,
         next-method-called,
         next-method-defined,

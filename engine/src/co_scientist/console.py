@@ -57,6 +57,12 @@ class FilteredStderr:
         self.skip_block = False
 
     def write(self, text: str) -> None:
+        """Buffer and conditionally forward text to the wrapped stderr.
+
+        Args:
+            text: Chunk of text written to stderr; suppressed if it matches a
+                known SSL cleanup error pattern.
+        """
         # accumulate text
         self.buffer += text
 

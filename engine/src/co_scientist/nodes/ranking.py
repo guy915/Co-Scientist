@@ -78,6 +78,10 @@ async def judge_matchup(
         hypothesis_b: Second hypothesis
         research_goal: Research goal for context
         model_name: LLM model to use
+        supervisor_guidance: Optional planning guidance from the supervisor
+        run_id: Optional run ID for saving prompts
+        matchup_index: Optional index for naming saved prompts
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
 
     Returns:
         Tuple of (winner, full_response) where winner is "a" or "b"
