@@ -78,7 +78,7 @@ async def review_single_hypothesis(
         tool_registry=tool_registry,
     )
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     if run_id:
         from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
@@ -202,7 +202,7 @@ async def review_comparative_batch(
         tool_registry=tool_registry,
     )
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     if run_id:
         from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
@@ -223,7 +223,7 @@ async def review_comparative_batch(
             "saved batch review prompt to"
             " .coscientist_prompts/%s/review_batch.txt", run_id)
 
-    # scale max_tokens based on hypothesis count in batch
+    # Scale max_tokens based on hypothesis count in batch
     # base: 18000 (THINKING_MAX_TOKENS), add 1500 per hypothesis beyond 5
     hypothesis_count = len(hypotheses)
     scaled_max_tokens = min(
@@ -244,10 +244,10 @@ async def review_comparative_batch(
         if hypothesis_count > 10 else 5,  # increase retries for large batches
     )
 
-    # extract reviews from response
+    # Extract reviews from response
     reviews_data = response.get("reviews", [])
 
-    # debug logging
+    # Debug logging
     logger.info("Batch review response keys: %s", list(response.keys()))
     logger.info("Reviews data type: %s, length: %s", type(reviews_data),
                 len(reviews_data) if isinstance(reviews_data, list) else 'N/A')
@@ -288,7 +288,7 @@ async def review_comparative_batch(
             )
             reviews.append(review)
         else:
-            # missing review - create empty one
+            # Missing review - create empty one
             logger.error("No review data for hypothesis %s", i)
             reviews.append(
                 HypothesisReview(
@@ -376,7 +376,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
         )
         llm_calls = num_hypotheses  # One call per hypothesis
 
-    # validate reviews before continuing
+    # Validate reviews before continuing
     invalid_reviews = [
         i for i, r in enumerate(reviews)
         if r.review_summary == "Review unavailable"

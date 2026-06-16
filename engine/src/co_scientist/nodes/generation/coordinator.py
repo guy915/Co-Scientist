@@ -67,7 +67,7 @@ class GenerationResults:
     debate_transcripts: list[dict[str, Any]]
 
 
-# helper functions
+# Helper functions
 
 
 def _check_literature_availability(articles_with_reasoning: str | None,
@@ -90,12 +90,12 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
             is_dev_isolation=True,
         )
 
-    # condition (a)
+    # Condition (a)
     if has_literature and enable_tool_calling:
-        # split 50/50, but ensure we don't exceed total_count
+        # Split 50/50, but ensure we don't exceed total_count
         tools_count = max(1, total_count // 2)
         debate_with_lit_count = total_count - tools_count
-        # if total_count=1, tools_count=1, debate_with_lit_count=0
+        # If total_count=1, tools_count=1, debate_with_lit_count=0
         # in this case, adjust to just use tools
         if debate_with_lit_count == 0:
             tools_count = total_count
@@ -105,7 +105,7 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
             debate_only_count=0,
         )
 
-    # condition (c)
+    # Condition (c)
     if has_literature and not enable_tool_calling:
         return GenerationCounts(
             tools_count=0,
@@ -113,7 +113,7 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
             debate_only_count=0,
         )
 
-    # condition (b)
+    # Condition (b)
     return GenerationCounts(
         tools_count=0,
         debate_with_lit_count=0,
@@ -208,7 +208,7 @@ async def _execute_generation_tasks(
     debate_only_hypotheses: list[Hypothesis] = []
     debate_transcripts: list[dict[str, Any]] = []
 
-    # collect tasks to run in parallel
+    # Collect tasks to run in parallel
     tasks: list[tuple[str, Coroutine[Any, Any, Any]]] = []
 
     if counts.tools_count > 0:
@@ -244,10 +244,10 @@ async def _execute_generation_tasks(
             ),
         ))
 
-    # run all tasks in parallel
+    # Run all tasks in parallel
     results = await asyncio.gather(*[task for _, task in tasks])
 
-    # unpack results
+    # Unpack results
     for i, (task_type, _) in enumerate(tasks):
         if task_type == "tools":
             tools_hypotheses = results[i]
@@ -271,7 +271,7 @@ def _apply_degraded_mode_fallback(hypotheses: list[Hypothesis]) -> None:
     literature review.
     """
     for hyp in hypotheses:
-        # always overwrite in non-lit-mcp mode to prevent hallucinated citations
+        # Always overwrite in non-lit-mcp mode to prevent hallucinated citations
         hyp.literature_grounding = (
             "No literature review available. This hypothesis is based"
             " on the model's latent knowledge and has not been"
@@ -349,7 +349,7 @@ async def _emit_complete_progress(state: WorkflowState,
     )
 
 
-# enrichment
+# Enrichment
 
 
 async def _enrich_hypotheses(
@@ -393,7 +393,7 @@ async def _enrich_hypotheses(
                 )
                 parsed = json.loads(result) if isinstance(result,
                                                           str) else result
-                # extract nested array via results_path (e.g., "results" for
+                # Extract nested array via results_path (e.g., "results" for
                 # NvdSearchResponse)
                 if enrichment.results_path and isinstance(parsed, dict):
                     parsed = parsed.get(enrichment.results_path, parsed)
@@ -404,7 +404,7 @@ async def _enrich_hypotheses(
                 hyp.enrichments[output_key] = {"error": str(e)}
 
 
-# main coordinator function
+# Main coordinator function
 
 
 async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
@@ -467,7 +467,7 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
                           results.debate_with_lit_hypotheses +
                           results.debate_only_hypotheses)
 
-        # run post-generation enrichments (e.g., NVD CVE lookup)
+        # Run post-generation enrichments (e.g., NVD CVE lookup)
         await _enrich_hypotheses(all_hypotheses, state)
 
         parts = _build_summary_message_parts(results, counts)

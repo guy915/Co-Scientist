@@ -44,7 +44,7 @@ Example usage:
 
 import sys
 
-# ensure Python version compatibility
+# Ensure Python version compatibility
 if sys.version_info < (3, 10):
     raise RuntimeError("Co-Scientist requires Python >= 3.10. "
                        "Please upgrade to Python 3.10 or newer.")

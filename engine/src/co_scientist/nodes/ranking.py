@@ -109,7 +109,7 @@ async def judge_matchup(
     logger.debug("\n→ Ranking Tournament Matchup")
 
     if reflection_notes_a:
-        # extract classification from notes
+        # Extract classification from notes
         classification_a = "unknown"
         if "Classification:" in reflection_notes_a:
             classification_a = (reflection_notes_a.split("Classification:")
@@ -122,7 +122,7 @@ async def judge_matchup(
         logger.debug("hypothesis A: missing reflection notes")
 
     if reflection_notes_b:
-        # extract classification from notes
+        # Extract classification from notes
         classification_b = "unknown"
         if "Classification:" in reflection_notes_b:
             classification_b = (reflection_notes_b.split("Classification:")
@@ -146,7 +146,7 @@ async def judge_matchup(
         tool_registry=tool_registry,
     )
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     if run_id:
         from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 

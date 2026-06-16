@@ -34,7 +34,7 @@ from co_scientist.cache import get_cache
 
 logger = logging.getLogger(__name__)
 
-# suppress Pydantic serialization warnings from LiteLLM globally
+# Suppress Pydantic serialization warnings from LiteLLM globally
 # these occur when LiteLLM response objects (Pydantic models) are serialized
 # and have mismatched field counts between streaming/non-streaming responses
 warnings.filterwarnings("ignore",
@@ -266,7 +266,7 @@ async def call_llm(
     Raises:
         Exception: If the LLM call fails
     """
-    # clamp temperature for gemini 3 models (requires temp >= 1.0)
+    # Clamp temperature for gemini 3 models (requires temp >= 1.0)
     if "gemini-3" in model_name.lower() and temperature < 1.0:
         original_temp = temperature
         temperature = 1.0
@@ -473,7 +473,7 @@ async def call_llm_json(
                             "Schema validation failed on attempt %s: %s",
                             attempt, e.message)
 
-                        # add validation feedback to prompt for next retry
+                        # Add validation feedback to prompt for next retry
                         if not is_final_attempt:
                             error_path = ".".join(
                                 str(p) for p in e.path) if e.path else "root"
@@ -529,7 +529,7 @@ async def call_llm_json(
                                 "Schema validation failed after repair"
                                 " on attempt %s: %s", attempt, e.message)
 
-                            # add validation feedback to prompt for next retry
+                            # Add validation feedback to prompt for next retry
                             if not is_final_attempt:
                                 error_path = ".".join(
                                     str(p)
@@ -680,7 +680,7 @@ async def call_llm_with_tools(
     Raises:
         Exception: If the LLM call fails or max iterations reached
     """
-    # clamp temperature for gemini 3 models (requires temp >= 1.0)
+    # Clamp temperature for gemini 3 models (requires temp >= 1.0)
     if "gemini-3" in model_name.lower() and temperature < 1.0:
         original_temp = temperature
         temperature = 1.0

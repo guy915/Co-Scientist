@@ -21,6 +21,6 @@ from co_scientist.tools.registry import PythonToolRegistry
 
 logger = logging.getLogger(__name__)
 
-# create empty registry instance for backwards compatibility
+# Create empty registry instance for backwards compatibility
 # (draft.py and validate.py now use python_whitelist = [])
 literature_tools = PythonToolRegistry()

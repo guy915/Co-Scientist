@@ -350,7 +350,7 @@ class HypothesisGenerator:
                     )
                     enable_tool_calling_generation = False
 
-        # dev isolation mode: force cache on lit review, allocate all to lit
+        # Dev isolation mode: force cache on lit review, allocate all to lit
         # tools
         dev_test_lit_tools_isolation = opts.get("dev_test_lit_tools_isolation",
                                                 False)
@@ -384,12 +384,12 @@ class HypothesisGenerator:
             "run_id": run_id,
             "progress_callback": progress_callback,
             "messages": [],
-            # system availability flags
+            # System availability flags
             "mcp_available": mcp_available,
             "pubmed_available": pubmed_available,
             "enable_tool_calling_generation": enable_tool_calling_generation,
             "dev_test_lit_tools_isolation": dev_test_lit_tools_isolation,
-            # tool registry for config-driven tool selection
+            # Tool registry for config-driven tool selection
             "tool_registry": self._tool_registry,
             # Optional user preferences and inputs
             "preferences": opts.get("preferences"),
@@ -633,7 +633,7 @@ class HypothesisGenerator:
             # Stream the workflow execution
             async for chunk in self._graph.astream(
                 initial_state, config={"recursion_limit": 100}):
-                # chunk is a dict with node names as keys
+                # Chunk is a dict with node names as keys
                 for node_name, node_state in chunk.items():
                     logger.debug("streaming node: %s", node_name)
 

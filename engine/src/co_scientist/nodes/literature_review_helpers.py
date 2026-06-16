@@ -89,7 +89,7 @@ def normalize_search_response(
     results_path = tool_config.response_format.results_path
     is_dict = tool_config.response_format.is_dict
 
-    # extract results from nested path
+    # Extract results from nested path
     if results_path and results_path != ".":
         if isinstance(result_data, dict):
             result_data = result_data.get(results_path, result_data)
@@ -553,7 +553,7 @@ def build_content_config(
         for source in workflow.get_enabled_search_sources():
             src_content_tool = source.content_tool or workflow_content_tool
             src_url_field = source.content_url_field or workflow_url_field
-            # merge workflow params with source-specific params (source takes
+            # Merge workflow params with source-specific params (source takes
             # priority)
             src_params = {**workflow_content_params, **source.content_params}
 

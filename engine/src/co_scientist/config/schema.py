@@ -47,14 +47,14 @@ def resolve_content_params(params: dict[str, Any],
 
     for key, value in params.items():
         if isinstance(value, str):
-            # check for placeholders like {research_goal}
+            # Check for placeholders like {research_goal}
             matches = placeholder_pattern.findall(value)
             if matches:
                 resolved_value = value
                 for match in matches:
                     if match in context:
                         context_val = context[match]
-                        # handle full replacement vs partial
+                        # Handle full replacement vs partial
                         if value == f"{{{match}}}":
                             resolved_value = context_val
                         else:
@@ -67,7 +67,7 @@ def resolve_content_params(params: dict[str, Any],
             else:
                 resolved[key] = value
         elif isinstance(value, list):
-            # resolve each item in list
+            # Resolve each item in list
             resolved_list = []
             for item in value:
                 if isinstance(item, str) and placeholder_pattern.search(item):
@@ -196,14 +196,14 @@ class ToolConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any], tool_id: str = "") -> "ToolConfig":
         """Create ToolConfig from dictionary."""
-        # parse parameters
+        # Parse parameters
         params_data = data.get("parameters", {})
         parameters = {}
         for param_name, param_data in params_data.items():
             if isinstance(param_data, dict):
                 parameters[param_name] = ParameterConfig.from_dict(param_data)
             else:
-                # simple value (just a default)
+                # Simple value (just a default)
                 parameters[param_name] = ParameterConfig(default=param_data)
 
         return cls(
@@ -235,21 +235,21 @@ class ToolConfig:
             starting_year)
         """
         if not self.parameter_mapping:
-            # no mapping configured, return as-is
+            # No mapping configured, return as-is
             return canonical_params
 
         mapped = {}
         for canonical_name, value in canonical_params.items():
-            # check if mapping exists
+            # Check if mapping exists
             if canonical_name in self.parameter_mapping:
                 tool_param_name = self.parameter_mapping[canonical_name]
                 if tool_param_name is None:
-                    # explicitly ignore this parameter (null in YAML)
+                    # Explicitly ignore this parameter (null in YAML)
                     continue
-                # handle special conversions
+                # Handle special conversions
                 if (canonical_name == "recency_years" and
                         tool_param_name == "starting_year"):
-                    # convert recency_years (e.g., 7) to starting_year (e.g.,
+                    # Convert recency_years (e.g., 7) to starting_year (e.g.,
                     # 2019)
                     import datetime  # pylint: disable=import-outside-toplevel
                     current_year = datetime.datetime.now().year
@@ -258,7 +258,7 @@ class ToolConfig:
                 else:
                     mapped[tool_param_name] = value
             else:
-                # no mapping, use canonical name
+                # No mapping, use canonical name
                 mapped[canonical_name] = value
 
         return mapped
@@ -299,7 +299,7 @@ class SearchSourceConfig:
     def from_dict(cls, data: dict[str, Any]) -> "SearchSourceConfig":
         """Create SearchSourceConfig from dictionary."""
         if isinstance(data, str):
-            # simple format: just tool name
+            # Simple format: just tool name
             return cls(tool=data)
         return cls(
             tool=data.get("tool", ""),
@@ -367,7 +367,7 @@ class WorkflowConfig:
         if not data:
             return cls()
 
-        # parse search_sources list
+        # Parse search_sources list
         search_sources = []
         for source_data in data.get("search_sources", []):
             search_sources.append(SearchSourceConfig.from_dict(source_data))
@@ -414,7 +414,7 @@ class WorkflowConfig:
             tools.append(self.query_generation_tool)
         if self.content_tool:
             tools.append(self.content_tool)
-        # add tools from search_sources
+        # Add tools from search_sources
         for source in self.search_sources:
             tools.append(source.tool)
             if source.content_tool:
@@ -550,12 +550,12 @@ class ToolsConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ToolsConfig":
         """Create ToolsConfig from dictionary (parsed YAML)."""
-        # parse servers
+        # Parse servers
         servers = {}
         for server_id, server_data in data.get("servers", {}).items():
             servers[server_id] = ServerConfig.from_dict(server_data)
 
-        # parse tools by category
+        # Parse tools by category
         tools: dict[str, dict[str, ToolConfig]] = {}
         tools_data = data.get("tools", {})
         for category, category_tools in tools_data.items():
@@ -564,18 +564,18 @@ class ToolsConfig:
                 tools[category][tool_id] = ToolConfig.from_dict(
                     tool_data, tool_id)
 
-        # parse workflows
+        # Parse workflows
         workflows = {}
         for workflow_id, workflow_data in data.get("workflows", {}).items():
             workflows[workflow_id] = WorkflowConfig.from_dict(workflow_data)
 
-        # parse settings
+        # Parse settings
         settings = Settings.from_dict(data.get("settings", {}))
 
-        # parse prompts
+        # Parse prompts
         prompts = PromptsConfig.from_dict(data.get("prompts", {}))
 
-        # parse enrichments
+        # Parse enrichments
         enrichments = [
             EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])
         ]

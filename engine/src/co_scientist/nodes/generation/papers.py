@@ -34,7 +34,7 @@ def _extract_author_last_names(authors: list[str]) -> list[str]:
     for author in authors:
         parts = author.strip().split()
         if parts:
-            # last token is typically the last name
+            # Last token is typically the last name
             last_names.append(parts[-1].lower().rstrip(".,;"))
     return last_names
 

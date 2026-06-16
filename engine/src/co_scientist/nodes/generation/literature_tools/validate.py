@@ -76,7 +76,7 @@ def _extract_papers_for_hypothesis(
         if matched:
             return matched
 
-    # fallback: return all papers analyzed for this hypothesis
+    # Fallback: return all papers analyzed for this hypothesis
     return [{"title": c["title"], "url": c["url"]} for c in candidates]
 
 
@@ -120,7 +120,7 @@ async def _search_papers_for_hypothesis(
     _, tool_config = _find_search_tool(tool_registry)
 
     if tool_config:
-        # config-driven search
+        # Config-driven search
         canonical_params = {
             "query": hypothesis_text[:200],
             "max_papers": max_papers,
@@ -133,11 +133,11 @@ async def _search_papers_for_hypothesis(
         result = await mcp_client.call_tool(tool_config.mcp_tool_name,
                                             **mapped_params)
 
-        # parse response through ResponseParser -> List[Article]
+        # Parse response through ResponseParser -> List[Article]
         parser = ResponseParser(tool_config)
         articles = parser.parse_to_articles(result)
 
-        # convert List[Article] to the {paper_id: {...}} dict format
+        # Convert List[Article] to the {paper_id: {...}} dict format
         papers = {}
         for article in articles:
             paper_id = article.source_id or article.url or article.title
@@ -150,13 +150,13 @@ async def _search_papers_for_hypothesis(
         return papers
 
     if tool_registry:
-        # registry exists but has no search tools for validation — skip novelty
+        # Registry exists but has no search tools for validation — skip novelty
         # search
         logger.warning("no search tools configured for validation workflow,"
                        " skipping novelty search")
         return {}
 
-    # legacy fallback: no registry at all, try pubmed directly
+    # Legacy fallback: no registry at all, try pubmed directly
     result = await mcp_client.call_tool(
         "pubmed_search_with_fulltext",
         query=hypothesis_text[:200],
@@ -197,14 +197,14 @@ async def validate_hypotheses(
     logger.info("Phase 2: Validating %s draft hypotheses",
                 len(draft_hypotheses))
 
-    # get state variables
+    # Get state variables
     run_id = state.get("run_id")
     research_goal = state["research_goal"]
 
-    # get shared slug from draft phase (warm corpus reuse)
+    # Get shared slug from draft phase (warm corpus reuse)
     shared_slug = state.get("generation_corpus_slug")
     if not shared_slug:
-        # fallback if draft phase didn't set it
+        # Fallback if draft phase didn't set it
         import hashlib  # pylint: disable=import-outside-toplevel
 
         shared_slug = "research_" + hashlib.md5(
@@ -214,7 +214,7 @@ async def validate_hypotheses(
     else:
         logger.info("Reusing shared corpus from draft phase: %s", shared_slug)
 
-    # stage 1: per-hypothesis novelty analysis
+    # Stage 1: per-hypothesis novelty analysis
     hypotheses_with_analyses = []
 
     for idx, draft in enumerate(draft_hypotheses, 1):
@@ -222,7 +222,7 @@ async def validate_hypotheses(
         logger.info("Analyzing hypothesis %s/%s: %s...", idx,
                     len(draft_hypotheses), hypothesis_text[:80])
 
-        # search for papers related to this hypothesis (config-driven)
+        # Search for papers related to this hypothesis (config-driven)
         try:
             papers = await _search_papers_for_hypothesis(
                 hypothesis_text=hypothesis_text,
@@ -239,7 +239,7 @@ async def validate_hypotheses(
                          e)
             papers = {}
 
-        # stage 1a: analyze each paper in parallel for this hypothesis
+        # Stage 1a: analyze each paper in parallel for this hypothesis
         novelty_analysis_tasks = []
 
         async def analyze_paper_novelty(
@@ -248,18 +248,18 @@ async def validate_hypotheses(
             """Analyze single paper for novelty assessment."""
             fulltext = metadata.get("fulltext", "")
 
-            # truncate if too long
+            # Truncate if too long
             max_chars = 200_000
             if len(fulltext) > max_chars:
                 fulltext = (fulltext[:max_chars] +
                             "\n\n[... truncated for length ...]")
 
-            # extract paper info
+            # Extract paper info
             title = metadata.get("title", "Unknown")
             authors = metadata.get("authors", [])
             year = metadata.get("year")
 
-            # get analysis prompt
+            # Get analysis prompt
             prompt = get_hypothesis_novelty_analysis_prompt(
                 hypothesis_text=hypothesis_text,  # pylint: disable=cell-var-from-loop
                 title=title,
@@ -268,7 +268,7 @@ async def validate_hypotheses(
                 fulltext=fulltext,
             )
 
-            # call LLM for structured analysis
+            # Call LLM for structured analysis
             try:
                 analysis = await call_llm_json(
                     prompt=prompt,
@@ -295,7 +295,7 @@ async def validate_hypotheses(
                     e)
                 return None
 
-        # analyze all papers in parallel
+        # Analyze all papers in parallel
         for paper_id, metadata in papers.items():
             task = analyze_paper_novelty(paper_id, metadata)
             novelty_analysis_tasks.append(task)
@@ -307,7 +307,7 @@ async def validate_hypotheses(
             novelty_analyses_results = await asyncio.gather(
                 *novelty_analysis_tasks)
 
-            # filter out failed analyses
+            # Filter out failed analyses
             novelty_analyses = [
                 a for a in novelty_analyses_results if a is not None
             ]
@@ -318,13 +318,13 @@ async def validate_hypotheses(
             logger.warning("No papers with fulltext found for hypothesis %s",
                            idx)
 
-        # collect hypothesis with its analyses
+        # Collect hypothesis with its analyses
         hypotheses_with_analyses.append({
             "draft": draft,
             "novelty_analyses": novelty_analyses
         })
 
-    # stage 2: synthesis - decide approve/refine/pivot for all hypotheses
+    # Stage 2: synthesis - decide approve/refine/pivot for all hypotheses
     # synthesis agent has tool access for searching additional papers when
     # pivoting
     total_hypotheses = len(hypotheses_with_analyses)
@@ -333,7 +333,7 @@ async def validate_hypotheses(
         "Running validation synthesis for %s hypotheses in batches of %s",
         total_hypotheses, VALIDATION_SYNTHESIS_BATCH_SIZE)
 
-    # set up tool provider for synthesis phase
+    # Set up tool provider for synthesis phase
     # get tool registry if not provided
     if tool_registry is None:
         try:
@@ -343,11 +343,11 @@ async def validate_hypotheses(
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning("Failed to get tool registry: %s", e)
 
-    # initialize hybrid tool provider
+    # Initialize hybrid tool provider
     provider = HybridToolProvider(mcp_client=mcp_client,
                                   python_registry=literature_tools)
 
-    # get tool whitelist from registry
+    # Get tool whitelist from registry
     if tool_registry:
         tool_ids = tool_registry.get_tools_for_workflow("validation")
         mcp_whitelist = tool_registry.get_mcp_tool_names(tool_ids)
@@ -361,11 +361,11 @@ async def validate_hypotheses(
     logger.info("Initialized validation provider with %s tools",
                 len(tools_dict))
 
-    # calculate iteration budget for synthesis
+    # Calculate iteration budget for synthesis
     max_iterations = get_validate_max_iterations(total_hypotheses)
     logger.info("Validation synthesis budget: %s iterations", max_iterations)
 
-    # batch hypotheses
+    # Batch hypotheses
     batches = [
         hypotheses_with_analyses[i:i + VALIDATION_SYNTHESIS_BATCH_SIZE]
         for i in range(0, total_hypotheses, VALIDATION_SYNTHESIS_BATCH_SIZE)
@@ -514,7 +514,7 @@ async def validate_hypotheses(
     # -------------------------------------------------------------------------
 
     if failed_batches:
-        # seed context with texts from successful batches
+        # Seed context with texts from successful batches
         accumulated_texts: list[str] = [
             h.get("hypothesis", "")
             for h in all_validated_hypotheses
@@ -529,7 +529,7 @@ async def validate_hypotheses(
                     single_result = await _call_synthesis([hyp_data], label,
                                                           context)
                     all_validated_hypotheses.extend(single_result)
-                    # accumulate for subsequent retries within this loop
+                    # Accumulate for subsequent retries within this loop
                     for h in single_result:
                         text = h.get("hypothesis", "")
                         if text:
@@ -542,7 +542,7 @@ async def validate_hypotheses(
     logger.info("Combined %s validated hypotheses from %s batches",
                 len(all_validated_hypotheses), len(batches))
 
-    # create Hypothesis objects from synthesis
+    # Create Hypothesis objects from synthesis
     # output order matches hypotheses_with_analyses order (batched sequentially)
     ref_sources = reference_index.sources if reference_index else {}
     hypotheses = []

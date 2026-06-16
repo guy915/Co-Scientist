@@ -59,7 +59,7 @@ class ResponseParser:
         Returns:
             Parsed response data
         """
-        # handle string responses (JSON)
+        # Handle string responses (JSON)
         if isinstance(response, str):
             response = response.strip()
             if self.response_format.type == "boolean_string":
@@ -82,13 +82,13 @@ class ResponseParser:
         Returns:
             List of Article objects
         """
-        # parse raw response
+        # Parse raw response
         data = self.parse_response(response)
 
         if data is None:
             return []
 
-        # navigate to results using results_path
+        # Navigate to results using results_path
         results = self._navigate_path(data, self.response_format.results_path)
 
         if results is None:
@@ -98,7 +98,7 @@ class ResponseParser:
         articles = []
 
         if self.response_format.is_dict:
-            # results is a dict {key: item}
+            # Results is a dict {key: item}
             if not isinstance(results, dict):
                 logger.warning("expected dict but got %s", type(results))
                 return []
@@ -111,9 +111,9 @@ class ResponseParser:
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error("failed to map item %s: %s", key, e)
         else:
-            # results is a list
+            # Results is a list
             if not isinstance(results, list):
-                # try to treat as single item
+                # Try to treat as single item
                 results = [results]
 
             for i, item in enumerate(results):
@@ -147,7 +147,7 @@ class ResponseParser:
             if current is None:
                 return None
 
-            # handle array index notation
+            # Handle array index notation
             match = re.match(r"(\w+)\[(\d+)\]", part)
             if match:
                 field, index = match.groups()
@@ -182,10 +182,10 @@ class ResponseParser:
 
         mapping = self.response_format.field_mapping
 
-        # build kwargs for Article
+        # Build kwargs for Article
         kwargs: dict[str, Any] = {}
 
-        # map each field
+        # Map each field
         for article_field, expr in mapping.items():
             try:
                 value = self._evaluate_expression(expr, item, dict_key)
@@ -193,15 +193,15 @@ class ResponseParser:
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.debug("failed to evaluate %s=%s: %s", article_field,
                              expr, e)
-                # use None for failed mappings
+                # Use None for failed mappings
                 kwargs[article_field] = None
 
-        # ensure required field (title)
+        # Ensure required field (title)
         if not kwargs.get("title"):
             logger.warning("article missing title, skipping")
             return None
 
-        # create Article with mapped fields
+        # Create Article with mapped fields
         return Article(
             title=kwargs.get("title", ""),
             url=kwargs.get("url"),
@@ -244,36 +244,36 @@ class ResponseParser:
         Returns:
             Evaluated value
         """
-        # handle static values (quoted strings)
+        # Handle static values (quoted strings)
         if expr.startswith("'") and expr.endswith("'"):
             return expr[1:-1]
 
-        # handle special @key expressions
+        # Handle special @key expressions
         if expr == "@key":
             return dict_key
 
         if expr == "@url_from_key":
-            # construct PubMed URL from paper ID
+            # Construct PubMed URL from paper ID
             if dict_key:
                 return f"https://pubmed.ncbi.nlm.nih.gov/{dict_key}/"
             return None
 
-        # check for transform chain
+        # Check for transform chain
         if "|" in expr:
             parts = expr.split("|")
             field_expr = parts[0]
             transforms = parts[1:]
 
-            # get initial value
+            # Get initial value
             value = self._get_field_value(field_expr, item, dict_key)
 
-            # apply transforms
+            # Apply transforms
             for transform in transforms:
                 value = self._apply_transform(transform, value)
 
             return value
 
-        # simple field access
+        # Simple field access
         return self._get_field_value(expr, item, dict_key)
 
     def _get_field_value(self,
@@ -284,7 +284,7 @@ class ResponseParser:
         if field_expr == "@key":
             return dict_key
 
-        # handle nested paths
+        # Handle nested paths
         if "." in field_expr:
             return self._navigate_path(item, field_expr)
 
@@ -302,45 +302,45 @@ class ResponseParser:
             Transformed value
         """
         if value is None:
-            # check for default transform
+            # Check for default transform
             if transform.startswith("default:"):
                 default_value = transform[8:]
-                # try to parse as int
+                # Try to parse as int
                 try:
                     return int(default_value)
                 except ValueError:
                     return default_value
             return None
 
-        # split transform
+        # Split transform
         if transform.startswith("split:"):
             delimiter = transform[6:]
             if isinstance(value, str):
                 return value.split(delimiter)
             return value
 
-        # index transform
+        # Index transform
         if transform.startswith("index:"):
             index = int(transform[6:])
             if isinstance(value, (list, tuple)) and len(value) > index:
                 return value[index]
             return None
 
-        # int transform
+        # Int transform
         if transform == "int":
             try:
                 return int(value)
             except (ValueError, TypeError):
                 return None
 
-        # float transform
+        # Float transform
         if transform == "float":
             try:
                 return float(value)
             except (ValueError, TypeError):
                 return None
 
-        # default transform
+        # Default transform
         if transform.startswith("default:"):
             if value is None:
                 default_value = transform[8:]
@@ -375,13 +375,13 @@ def parse_tool_response(response: Any,
     """
     parser = ResponseParser(tool_config)
 
-    # for boolean responses
+    # For boolean responses
     if tool_config.response_format.type == "boolean_string":
         return parser.parse_response(response)
 
-    # for search tools, parse to articles
+    # For search tools, parse to articles
     if tool_config.category in ("search", "search_with_content"):
         return parser.parse_to_articles(response)
 
-    # for other tools, just parse the response
+    # For other tools, just parse the response
     return parser.parse_response(response)

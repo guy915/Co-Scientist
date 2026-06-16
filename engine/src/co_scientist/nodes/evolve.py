@@ -52,25 +52,25 @@ def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
     Returns:
         List of hypothesis texts to use as context
     """
-    # filter out the current hypothesis
+    # Filter out the current hypothesis
     others = [h for h in all_hypotheses if h.text != exclude_hypothesis.text]
 
     if len(others) <= max_context:
-        # small pool, include all
+        # Small pool, include all
         return [h.text for h in others]
 
-    # sort by Elo rating (descending)
+    # Sort by Elo rating (descending)
     others_sorted = sorted(others, key=lambda h: h.elo_rating, reverse=True)
 
-    # take top 5 by Elo (the best ones to avoid copying)
+    # Take top 5 by Elo (the best ones to avoid copying)
     top_performers = others_sorted[:5]
     remaining = others_sorted[5:]
 
-    # sample up to 10 more from the rest
+    # Sample up to 10 more from the rest
     sample_count = min(10, len(remaining))
     sampled_others = random.sample(remaining, sample_count) if remaining else []
 
-    # combine: top 5 + sampled 10 = max 15
+    # Combine: top 5 + sampled 10 = max 15
     context_hypotheses = top_performers + sampled_others
 
     logger.debug(
@@ -272,7 +272,7 @@ DO:
 
     full_prompt = prompt + diversity_instruction
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     if run_id:
         from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
@@ -289,7 +289,7 @@ DO:
             },
         )
 
-    # fixed token budget since we strategically sample max 15 context hypotheses
+    # Fixed token budget since we strategically sample max 15 context hypotheses
     # base: 8000, add 800 per context hypothesis (max 15 × 800 = 12,000)
     # total: 8000 + 12,000 = 20,000 tokens (fixed budget for any pool size)
     scaled_max_tokens = min(
@@ -308,7 +308,7 @@ DO:
         max_attempts=7,  # increase retries for evolution (critical node)
     )
 
-    # extract fields from response (match evolution.md prompt format)
+    # Extract fields from response (match evolution.md prompt format)
     refined_text = response.get("hypothesis") or response.get(
         "refined_hypothesis_text", hypothesis.text)
     explanation = response.get("explanation", hypothesis.explanation)
@@ -316,7 +316,7 @@ DO:
     refinement_summary = response.get("refinement_summary",
                                       "no refinement summary provided")
 
-    # preserve original literature_grounding (not re-generated during evolution)
+    # Preserve original literature_grounding (not re-generated during evolution)
     literature_grounding = hypothesis.literature_grounding
 
     # Check if hypothesis actually changed

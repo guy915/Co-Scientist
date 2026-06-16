@@ -64,14 +64,14 @@ class PythonToolRegistry:
             tool_description = (description or func.__doc__ or
                                 f"call {tool_name}")
 
-            # generate JSON schema from type hints
+            # Generate JSON schema from type hints
             schema = self._generate_schema(func, tool_name, tool_description)
 
-            # store function and schema
+            # Store function and schema
             self._functions[tool_name] = func
             self._schemas[tool_name] = schema
 
-            # convert to OpenAI format
+            # Convert to OpenAI format
             openai_tool = {"type": "function", "function": schema}
             self._openai_tools.append(openai_tool)
 
@@ -103,16 +103,16 @@ class PythonToolRegistry:
         }
 
         for param_name, param in sig.parameters.items():
-            # get type hint
+            # Get type hint
             param_type = type_hints.get(param_name, Any)
 
-            # convert to JSON schema type
+            # Convert to JSON schema type
             param_schema = self._type_to_schema(param_type, param_name)
 
-            # add to parameters
+            # Add to parameters
             parameters["properties"][param_name] = param_schema
 
-            # add to required if no default
+            # Add to required if no default
             if param.default == inspect.Parameter.empty:
                 parameters["required"].append(param_name)
 
@@ -139,10 +139,10 @@ class PythonToolRegistry:
         """
         origin = get_origin(python_type)
 
-        # handle Optional[T] (Union[T, None])
+        # Handle Optional[T] (Union[T, None])
         if origin is type(Optional[str]):  # Union type
             args = get_args(python_type)
-            # filter out None type
+            # Filter out None type
             non_none_types = [arg for arg in args if arg is not type(None)]
             if len(non_none_types) == 1:
                 # Optional[T] case - recurse on T
@@ -152,7 +152,7 @@ class PythonToolRegistry:
                                param_name)
                 return {"type": "string"}
 
-        # handle List[T]
+        # Handle List[T]
         if origin is list:
             args = get_args(python_type)
             if args:
@@ -162,11 +162,11 @@ class PythonToolRegistry:
             else:
                 return {"type": "array", "items": {"type": "string"}}
 
-        # handle Dict[K, V]
+        # Handle Dict[K, V]
         if origin is dict:
             return {"type": "object", "additionalProperties": True}
 
-        # handle basic types
+        # Handle basic types
         if python_type == str:
             return {"type": "string"}
         elif python_type == int:
@@ -178,7 +178,7 @@ class PythonToolRegistry:
         elif python_type == Any:
             return {"type": "string"}
         else:
-            # default to string for unknown types
+            # Default to string for unknown types
             logger.debug("unknown type %s for %s, using string", python_type,
                          param_name)
             return {"type": "string"}
@@ -218,14 +218,14 @@ class PythonToolRegistry:
         if whitelist is None:
             return self.get_all_functions(), self.get_openai_tools()
 
-        # filter functions
+        # Filter functions
         filtered_functions = {
             name: func
             for name, func in self._functions.items()
             if name in whitelist
         }
 
-        # filter openai tools
+        # Filter openai tools
         filtered_openai_tools = [
             tool for tool in self._openai_tools
             if tool["function"]["name"] in whitelist

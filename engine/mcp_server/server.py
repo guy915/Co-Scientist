@@ -30,12 +30,12 @@ import fastmcp
 
 fastmcp.settings.stateless_http = True
 
-# import config early to load .env
+# Import config early to load .env
 from mcp_server import config
 
-# configure logging based on .env
+# Configure logging based on .env
 log_level = getattr(logging, config.LOG_LEVEL, logging.INFO)
-# set root logger to INFO (default for all libraries)
+# Set root logger to INFO (default for all libraries)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -60,7 +60,7 @@ from mcp_server.tools.indra_cogex import (
 
 logger = logging.getLogger(__name__)
 
-# log startup configuration
+# Log startup configuration
 entrez_email_present = bool(os.environ.get("ENTREZ_EMAIL"))
 
 logger.info("MCP server starting")
@@ -68,12 +68,12 @@ logger.debug("API keys present: ENTREZ_EMAIL=%s", entrez_email_present)
 
 mcp = FastMCP("co-scientist-lit-review")
 
-# register literature review tools
+# Register literature review tools
 mcp.tool(check_pubmed_available, name="check_pubmed_available")
 mcp.tool(search_pubmed, name="search_pubmed")
 mcp.tool(pubmed_search_with_fulltext, name="pubmed_search_with_fulltext")
 
-# register INDRA CoGex knowledge graph tools
+# Register INDRA CoGex knowledge graph tools
 mcp.tool(query_gene_disease_network, name="query_gene_disease_network")
 mcp.tool(query_gene_codependents, name="query_gene_codependents")
 mcp.tool(query_drug_info, name="query_drug_info")
@@ -86,7 +86,7 @@ mcp.tool(run_enrichment_analysis, name="run_enrichment_analysis")
 mcp_http_app = mcp.http_app()
 app = FastAPI(lifespan=mcp_http_app.lifespan)
 
-# add CORS middleware
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

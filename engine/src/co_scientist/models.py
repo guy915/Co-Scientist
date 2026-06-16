@@ -211,13 +211,13 @@ class Article:
     venue: str | None = None
     citations: int = 0
     abstract: str | None = None
-    # unused in PubMed-only mode (PaperQA reads HTML files directly)
+    # Unused in PubMed-only mode (PaperQA reads HTML files directly)
     content: str | None = None
     source_id: str | None = None
     source: str = "pubmed"  # default changed to "pubmed" (was "google_scholar")
     pdf_links: list[str] = field(
         default_factory=list)  # unused in PubMed-only mode (HTML-only)
-    # flag indicating if this article was analyzed by the agent
+    # Flag indicating if this article was analyzed by the agent
     used_in_analysis: bool = False
 
     def to_dict(self) -> dict[str, Any]:

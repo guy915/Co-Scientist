@@ -393,7 +393,7 @@ class NodeCache:
         if not self.enabled and not force:
             return
 
-        # ensure cache dir exists if forcing (may not exist if globally
+        # Ensure cache dir exists if forcing (may not exist if globally
         # disabled)
         if force and not self.cache_dir.exists():
             self.cache_dir.mkdir(exist_ok=True, parents=True)
@@ -458,7 +458,7 @@ def get_node_cache() -> NodeCache:
     global _global_node_cache
 
     if _global_node_cache is None:
-        # reuse same cache enabled flag as LLM cache
+        # Reuse same cache enabled flag as LLM cache
         cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
                                       str(DEFAULT_CACHE_ENABLED).lower())
         cache_enabled = cache_enabled_str.lower() in ("true", "1", "yes")

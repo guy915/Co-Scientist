@@ -65,7 +65,7 @@ async def pubmed_search_with_fulltext(
     if (entrez_key := os.environ.get("ENTREZ_API_KEY", None)):
         Entrez.api_key = entrez_key
 
-    # initialize literature review agent
+    # Initialize literature review agent
     lit_review_dir = Path(
         os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review"))
     lit_review_dir.mkdir(parents=True, exist_ok=True)
@@ -74,7 +74,7 @@ async def pubmed_search_with_fulltext(
     pubmed_source = PubmedSource()
     agent.add_source("pubmed", pubmed_source)
 
-    # fetch papers with fulltexts (pass run_id for per-run tracking)
+    # Fetch papers with fulltexts (pass run_id for per-run tracking)
     logger.info(
         "Searching pubmed with query: %s, slug: %s, run_id: %s, "
         "max_papers: %s, recency_years: %s", query, slug, run_id, max_papers,
@@ -84,7 +84,7 @@ async def pubmed_search_with_fulltext(
 
     logger.info("Pubmed search complete - found %s papers", len(results))
 
-    # extract fulltext from HTML and add to metadata
+    # Extract fulltext from HTML and add to metadata
     base_dir = lit_review_dir / "pubmed" / slug
     run_dir = base_dir / "runs" / run_id if run_id else base_dir
 
@@ -93,13 +93,13 @@ async def pubmed_search_with_fulltext(
         pmc_id = metadata.get('pmc_full_text_id')
         if pmc_id:
             try:  # pylint: disable=broad-exception-caught
-                # read HTML from cache
+                # Read HTML from cache
                 html_file = run_dir / f"{pmc_id}.fulltext.html"
                 if html_file.exists():
                     with open(html_file, encoding='utf-8') as f:
                         html_content = f.read()
 
-                    # extract clean text/markdown
+                    # Extract clean text/markdown
                     text = extract_text_from_pmc_html(html_content)
                     metadata['fulltext'] = text
                     papers_with_fulltext += 1

@@ -301,7 +301,7 @@ def _cache_parse(raw_input: str, parsed: ParsedResearchGoal) -> None:
 async def parse_research_goal_input(raw_input: str) -> ParsedResearchGoal:
     """Parse broad research goal input using LLM with JSON schema."""
 
-    # check cache first
+    # Check cache first
     cached = _get_cached_parse(raw_input)
     if cached is not None:
         return cached
@@ -392,7 +392,7 @@ Return ONLY valid JSON matching the schema."""
 
         parsed_json = json.loads(response.choices[0].message.content)
 
-        # convert empty strings/arrays to None for optional fields
+        # Convert empty strings/arrays to None for optional fields
         if "preferences" in parsed_json and not parsed_json["preferences"]:
             parsed_json["preferences"] = None
         if "attributes" in parsed_json and not parsed_json["attributes"]:
@@ -405,7 +405,7 @@ Return ONLY valid JSON matching the schema."""
         logger.info("Parsed research goal: %s", parsed_json)
         parsed_goal = ParsedResearchGoal(**parsed_json)
 
-        # cache the result
+        # Cache the result
         _cache_parse(raw_input, parsed_goal)
 
         return parsed_goal
@@ -425,7 +425,7 @@ Return ONLY valid JSON matching the schema."""
             enable_literature_review_node=None,
         )
 
-        # cache the fallback too
+        # Cache the fallback too
         _cache_parse(raw_input, fallback_goal)
 
         return fallback_goal
@@ -554,11 +554,11 @@ async def generate_hypotheses(request: GenerateRequest) -> GenerateResponse:
                 tools_config=settings.tools_config,
             )
 
-        # generate run_id for non-streaming endpoint
+        # Generate run_id for non-streaming endpoint
         import uuid  # pylint: disable=import-outside-toplevel
         run_id = str(uuid.uuid4())
 
-        # prepare opts with enable_literature_review_node if specified
+        # Prepare opts with enable_literature_review_node if specified
         opts = {}
         if request.enable_literature_review_node is not None:
             opts[
@@ -612,7 +612,7 @@ async def stream_generator(
         has_seen_meta_review = False
         ui_iteration = 0  # For UI display (0 = initial, 1+ = iterations)
 
-        # pass all parsed fields to the generator
+        # Pass all parsed fields to the generator
         opts = {
             "preferences": parsed_goal.preferences,
             "attributes": parsed_goal.attributes,
@@ -621,7 +621,7 @@ async def stream_generator(
             "enable_tool_calling_generation": True,
         }
 
-        # add enable_literature_review_node if specified
+        # Add enable_literature_review_node if specified
         if parsed_goal.enable_literature_review_node is not None:
             opts[
                 "enable_literature_review_node"] = parsed_goal.enable_literature_review_node
@@ -651,7 +651,7 @@ async def stream_generator(
             elif not has_seen_meta_review:
                 # Still in initial generation
                 ui_iteration = 0
-            # else: keep current ui_iteration (we're in an evolution cycle)
+            # Else: keep current ui_iteration (we're in an evolution cycle)
 
             # Add iteration info to state
             state["ui_iteration"] = ui_iteration
@@ -711,7 +711,7 @@ async def start_generation(request: GenerateRequest) -> dict[str, str]:
         logger.info("parsing research goal input for task %s", task_id)
         parsed_goal = await parse_research_goal_input(request.research_goal)
 
-        # override with explicit enable_literature_review_node from request if provided
+        # Override with explicit enable_literature_review_node from request if provided
         if request.enable_literature_review_node is not None:
             parsed_goal.enable_literature_review_node = request.enable_literature_review_node
 

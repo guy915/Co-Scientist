@@ -66,7 +66,7 @@ async def draft_hypotheses(
     logger.info("Phase 1: Drafting %s hypotheses by examining literature",
                 count)
 
-    # get state variables
+    # Get state variables
     supervisor_guidance = state.get("supervisor_guidance", {})
     articles_with_reasoning = state.get("articles_with_reasoning")
     preferences = state.get("preferences")
@@ -74,16 +74,16 @@ async def draft_hypotheses(
     user_hypotheses = state.get("starting_hypotheses")
     articles = state.get("articles") or []
 
-    # create shared slug for corpus (reuse lit review slug for warm start)
+    # Create shared slug for corpus (reuse lit review slug for warm start)
     research_goal = state["research_goal"]
     shared_slug = "research_" + hashlib.md5(
         research_goal.encode()).hexdigest()[:8]
     logger.info("Using shared corpus slug: %s", shared_slug)
 
-    # store slug in state for validation phase to reuse
+    # Store slug in state for validation phase to reuse
     state["generation_corpus_slug"] = shared_slug
 
-    # log lit review context
+    # Log lit review context
     if articles_with_reasoning:
         logger.info("Including lit review summary as context for drafting")
         logger.info(
@@ -93,11 +93,11 @@ async def draft_hypotheses(
         logger.warning("No lit review summary available"
                        " - agent will examine papers directly")
 
-    # initialize hybrid tool provider with draft-specific whitelist
+    # Initialize hybrid tool provider with draft-specific whitelist
     provider = HybridToolProvider(mcp_client=mcp_client,
                                   python_registry=literature_tools)
 
-    # get tool whitelist from registry or try global registry
+    # Get tool whitelist from registry or try global registry
     if tool_registry is None:
         try:
             from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
@@ -112,7 +112,7 @@ async def draft_hypotheses(
         mcp_whitelist = tool_registry.get_mcp_tool_names(tool_ids)
         logger.info("Using tool registry whitelist: %s", mcp_whitelist)
     else:
-        # no registry available - let provider use all available tools
+        # No registry available - let provider use all available tools
         mcp_whitelist = None
         logger.warning("No tool registry - using all available MCP tools")
 
@@ -123,12 +123,12 @@ async def draft_hypotheses(
 
     logger.info("Initialized draft provider with %s tools", len(tools_dict))
 
-    # calculate dynamic iteration budget based on hypotheses count
+    # Calculate dynamic iteration budget based on hypotheses count
     max_iterations = get_draft_max_iterations(count)
     logger.info("Draft budget: %s iterations for %s hypotheses", max_iterations,
                 count)
 
-    # build draft prompt with lit review summary as context
+    # Build draft prompt with lit review summary as context
     ref_text = reference_index.text if reference_index else ""
     prompt, _ = get_draft_prompt_with_tools(
         research_goal=state["research_goal"],
@@ -144,7 +144,7 @@ async def draft_hypotheses(
         reference_list=ref_text,
     )
 
-    # save prompt to disk
+    # Save prompt to disk
     from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(
@@ -158,23 +158,23 @@ async def draft_hypotheses(
         },
     )
 
-    # track tool calls in draft phase
+    # Track tool calls in draft phase
     tool_call_counts: dict[str, int] = {}
 
-    # create tracked executor for draft phase
+    # Create tracked executor for draft phase
     async def draft_tracked_executor(tool_call: Any) -> dict[str, Any]:
         """Track and execute tool calls for draft phase."""
         tool_name = tool_call.function.name
 
-        # track all tool calls
+        # Track all tool calls
         tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + 1
         call_num = tool_call_counts[tool_name]
         logger.info("Draft: %s call #%s", tool_name, call_num)
 
-        # execute tool
+        # Execute tool
         return await provider.execute_tool_call(tool_call)
 
-    # call LLM with tools for drafting
+    # Call LLM with tools for drafting
     # scale token budget based on hypotheses count (~200 tokens per hypothesis)
     draft_max_tokens = min(EXTENDED_MAX_TOKENS + (count * 200), 16000)
     logger.info("Calling draft agent: %s iterations, %s max tokens",
@@ -200,24 +200,24 @@ async def draft_hypotheses(
     logger.info("Draft phase complete: %s tool calls (%s)", total_calls,
                 calls_summary)
 
-    # parse JSON response (strip markdown if present, then use repair logic)
+    # Parse JSON response (strip markdown if present, then use repair logic)
     response_text = final_response.strip()
 
-    # handle markdown code blocks (case-insensitive)
+    # Handle markdown code blocks (case-insensitive)
     response_lower = response_text.lower()
     if "```json" in response_lower:
-        # find ```json (case-insensitive)
+        # Find ```json (case-insensitive)
         start_idx = response_lower.find("```json")
         json_start = start_idx + 7  # length of "```json"
-        # find closing ``` after the opening
+        # Find closing ``` after the opening
         json_end = response_text.find("```", json_start)
         if json_end == -1:
-            # no closing ``` found, use rest of text
+            # No closing ``` found, use rest of text
             response_text = response_text[json_start:].strip()
         else:
             response_text = response_text[json_start:json_end].strip()
     elif "```" in response_text:
-        # plain code block without "json"
+        # Plain code block without "json"
         json_start = response_text.find("```") + 3
         json_end = response_text.find("```", json_start)
         if json_end == -1:
@@ -225,10 +225,10 @@ async def draft_hypotheses(
         else:
             response_text = response_text[json_start:json_end].strip()
 
-    # additional cleanup - remove leading/trailing whitespace and newlines
+    # Additional cleanup - remove leading/trailing whitespace and newlines
     response_text = response_text.strip().strip("\n").strip()
 
-    # use attempt_json_repair for robust parsing
+    # Use attempt_json_repair for robust parsing
     response_data, was_repaired = attempt_json_repair(response_text,
                                                       allow_major_repairs=True)
 

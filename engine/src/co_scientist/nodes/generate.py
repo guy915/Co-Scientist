@@ -44,10 +44,10 @@ async def generate_node(state: WorkflowState) -> dict[str, Any]:
     """
     logger.info("Starting generate node")
 
-    # delegate to coordinator
+    # Delegate to coordinator
     result = await generate_hypotheses(state)
 
-    # add metrics
+    # Add metrics
     hypothesis_count = result.get("hypothesis_count",
                                   len(result.get("hypotheses", [])))
     metrics = create_metrics_update(hypothesis_count=hypothesis_count)

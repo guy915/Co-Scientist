@@ -132,7 +132,7 @@ LITERATURE_REVIEW_PAPERS_COUNT_DEV: Final = 4
 LITERATURE_REVIEW_RECENCY_YEARS: Final = 7
 """filter papers to last N years for better relevance (0 = no filter)"""
 
-# generate node literature tool usage parameters
+# Generate node literature tool usage parameters
 
 
 def get_draft_max_iterations(hypotheses_count: int) -> int:

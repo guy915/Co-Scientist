@@ -71,7 +71,7 @@ def build_reference_index(
     lines: list[str] = []
     counter = 1
 
-    # papers first
+    # Papers first
     for article in articles or []:
         if not getattr(article, "used_in_analysis", False):
             continue
@@ -92,7 +92,7 @@ def build_reference_index(
         }
         counter += 1
 
-    # external enrichment sources (e.g. INDRA statements, CVE entries)
+    # External enrichment sources (e.g. INDRA statements, CVE entries)
     for item in context_enrichment_sources or []:
         key = f"C{counter}"
         display = item.get("display", "External source")

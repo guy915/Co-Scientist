@@ -61,7 +61,7 @@ class HybridToolProvider:
         self.mcp_client = mcp_client
         self.python_registry = python_registry
 
-        # track tool sources for routing
+        # Track tool sources for routing
         self._tool_sources: dict[str, str] = {}  # tool_name → "mcp" or "python"
 
     def get_tools(
@@ -83,13 +83,13 @@ class HybridToolProvider:
         merged_tools_dict = {}
         merged_openai_tools = []
 
-        # get MCP tools
+        # Get MCP tools
         if self.mcp_client is not None and mcp_whitelist is not None:
             try:
                 mcp_tools_dict, mcp_openai_tools = self.mcp_client.get_tools(
                     whitelist=mcp_whitelist)
 
-                # track tool sources
+                # Track tool sources
                 for tool_name in mcp_tools_dict.keys():
                     self._tool_sources[tool_name] = "mcp"
 
@@ -100,13 +100,13 @@ class HybridToolProvider:
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning("Failed to get MCP tools: %s", e)
 
-        # get Python tools
+        # Get Python tools
         if self.python_registry is not None and python_whitelist is not None:
             try:
                 python_functions, python_openai_tools = (
                     self.python_registry.get_tools(whitelist=python_whitelist))
 
-                # track tool sources
+                # Track tool sources
                 for tool_name in python_functions.keys():
                     self._tool_sources[tool_name] = "python"
 
@@ -141,7 +141,7 @@ class HybridToolProvider:
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
 
-        # check tool source
+        # Check tool source
         tool_source = self._tool_sources.get(tool_name)
 
         if tool_source is None:
@@ -150,7 +150,7 @@ class HybridToolProvider:
             return self._create_error_response(tool_name, tool_call_id,
                                                error_msg)
 
-        # route to appropriate executor
+        # Route to appropriate executor
         try:
             if tool_source == "mcp":
                 return await self._execute_mcp_tool(tool_call)
@@ -180,7 +180,7 @@ class HybridToolProvider:
         if self.mcp_client is None:
             raise ConfigError("MCP client not configured")
 
-        # delegate to MCP client
+        # Delegate to MCP client
         return await self.mcp_client.execute_tool_call(tool_call)
 
     async def _execute_python_tool(self, tool_call: Any) -> dict[str, Any]:
@@ -198,12 +198,12 @@ class HybridToolProvider:
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
 
-        # get function
+        # Get function
         func = self.python_registry.get_function(tool_name)
         if func is None:
             raise ToolError(f"Python function not found: {tool_name}")
 
-        # parse arguments
+        # Parse arguments
         try:
             args_dict = json.loads(tool_call.function.arguments)
         except json.JSONDecodeError as e:
@@ -212,13 +212,13 @@ class HybridToolProvider:
         logger.debug("calling Python tool: %s with args: %s", tool_name,
                      args_dict)
 
-        # call function
+        # Call function
         result = await func(**args_dict)
 
-        # serialize result
+        # Serialize result
         result_json = json.dumps(result)
 
-        # return tool message
+        # Return tool message
         return {
             "role": "tool",
             "name": tool_name,

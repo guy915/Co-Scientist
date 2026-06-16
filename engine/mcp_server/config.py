@@ -21,7 +21,7 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# load environment variables from .env file
+# Load environment variables from .env file
 # looks for .env in mcp_server directory
 env_path = Path(__file__).parent / '.env'
 
@@ -32,7 +32,7 @@ else:
     logger.warning(".env file not found at %s - using system environment only",
                    env_path)
 
-# logging config
+# Logging config
 LOG_LEVEL = os.environ.get('COSCIENTIST_MCP_LOG_LEVEL') or os.environ.get(
     'LOG_LEVEL', 'INFO')
 LOG_LEVEL = LOG_LEVEL.upper()
