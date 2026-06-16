@@ -424,11 +424,15 @@ def get_meta_review_prompt(
     research_goal: str,
     all_reviews: str,
     supervisor_guidance: dict[str, Any] | None = None,
-    instructions: str | None = None,  # pylint: disable=unused-argument
+    instructions: str | None = None,
     tool_registry: Any | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the meta-review synthesis prompt and schema."""
-    variables = {"research_goal": research_goal, "all_reviews": all_reviews}
+    variables = {
+        "research_goal": research_goal,
+        "all_reviews": all_reviews,
+        "instructions": instructions or "",
+    }
 
     # Add supervisor guidance if available
     variables[
