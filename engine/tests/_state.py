@@ -20,8 +20,24 @@ only has to override the few fields it exercises.
 
 from typing import Any, cast
 
-from co_scientist.models import ExecutionMetrics, Hypothesis
+from co_scientist.models import Article, ExecutionMetrics, Hypothesis
 from co_scientist.state import WorkflowState
+
+
+def make_article(title: str = "An article", **overrides: Any) -> Article:
+    """Build an Article with the given title and field overrides.
+
+    Args:
+        title: The article title.
+        **overrides: Any Article dataclass fields to override (e.g. ``authors``,
+            ``year``, ``source_id``, ``content``).
+
+    Returns:
+        An Article instance.
+    """
+    fields: dict[str, Any] = {"title": title}
+    fields.update(overrides)
+    return Article(**fields)
 
 
 def make_hypothesis(text: str = "a hypothesis", **overrides: Any) -> Hypothesis:
