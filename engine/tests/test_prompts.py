@@ -22,11 +22,8 @@ right shape, and that a few conditional branches change the output.
 
 ``substitute_variables`` replaces any template placeholder the builder does not
 supply with a literal ``{{MISSING:<name>}}`` sentinel rather than raising. The
-healthy builders leave no sentinels behind, so their tests assert
-``"{{MISSING" not in prompt`` to verify *full* interpolation. Three builders do
-leak sentinels in their default call path; those are regression-locked here and
-called out below (see ``test_evolution_*``, ``test_meta_review_*`` and
-``test_generation_*``) as bugs to report, not fix.
+builders leave no sentinels behind, so their tests assert ``"{{MISSING" not in
+prompt`` to verify *full* interpolation.
 
 The builders perform no LLM or network calls, so the tests are deterministic
 with no mocking. Domain-variable injection (``_get_domain_variables``) falls
@@ -40,10 +37,7 @@ from co_scientist.prompts import _get_domain_variables
 from co_scientist.prompts import format_articles_metadata
 from co_scientist.prompts import get_debate_generation_prompt
 from co_scientist.prompts import get_draft_prompt_with_tools
-from co_scientist.prompts import get_evolution_prompt
-from co_scientist.prompts import get_generation_prompt
-from co_scientist.prompts import (
-    get_literature_review_paper_analysis_prompt)
+from co_scientist.prompts import (get_literature_review_paper_analysis_prompt)
 from co_scientist.prompts import (
     get_literature_review_query_generation_pubmed_prompt)
 from co_scientist.prompts import get_meta_review_prompt
@@ -80,14 +74,13 @@ _GUIDANCE: dict[str, Any] = {
     },
 }
 
-
 # --- pure helpers ----------------------------------------------------------
 
 
 def test_substitute_variables_replaces_placeholder() -> None:
     """``{{name}}`` placeholders are replaced by the mapped value."""
-    assert substitute_variables("Hello {{name}}", {"name": "World"}) == (
-        "Hello World")
+    assert substitute_variables("Hello {{name}}",
+                                {"name": "World"}) == ("Hello World")
 
 
 def test_substitute_variables_coerces_non_string_values() -> None:
@@ -274,7 +267,9 @@ def test_meta_review_prompt_supervisor_guidance_branch() -> None:
 def test_proximity_prompt_encodes_dict_and_str_hypotheses() -> None:
     """Proximity JSON-encodes hypothesis texts from both dicts and strings."""
     prompt, schema = get_proximity_prompt(hypotheses=[
-        {"text": "alpha pathway hypothesis"},
+        {
+            "text": "alpha pathway hypothesis"
+        },
         "beta pathway hypothesis",
     ])
     assert "alpha pathway hypothesis" in prompt
@@ -313,7 +308,12 @@ def test_ranking_prompt_review_scores_branch() -> None:
         research_goal="g",
         hypothesis_a="a",
         hypothesis_b="b",
-        review_a={"overall_score": 8.5, "scores": {"novelty": 9}},
+        review_a={
+            "overall_score": 8.5,
+            "scores": {
+                "novelty": 9
+            }
+        },
         review_b={"overall_score": 6.0},
     )
     assert "Review Scores Context" in prompt
@@ -327,89 +327,6 @@ def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
                                    hypothesis_a="a",
                                    hypothesis_b="b")
     assert "No reflection notes available." in prompt
-
-
-# --- get_evolution_prompt --------------------------------------------------
-
-
-def test_evolution_prompt_interpolates_all_inputs() -> None:
-    """The evolution prompt embeds the original, feedback, and insights.
-
-    BUG (locked, not fixed): ``evolution.md`` references
-    ``{{articles_with_reasoning}}``, ``{{supervisor_guidance}}``,
-    ``{{domain_context}}`` and ``{{domain_evolution_guidance}}``, but
-    ``get_evolution_prompt`` supplies none of them (it never calls
-    ``_get_domain_variables``). Those four placeholders therefore leak into the
-    prompt as ``{{MISSING:...}}`` sentinels.
-    """
-    prompt, schema = get_evolution_prompt(
-        original_hypothesis="original ROS hypothesis",
-        review_feedback="needs a control arm",
-        meta_review_insights="favour mechanistic specificity",
-    )
-    assert "original ROS hypothesis" in prompt
-    assert "needs a control arm" in prompt
-    assert "favour mechanistic specificity" in prompt
-    assert "{{MISSING:articles_with_reasoning}}" in prompt
-    assert "{{MISSING:supervisor_guidance}}" in prompt
-    assert isinstance(schema, dict)
-
-
-# --- get_generation_prompt -------------------------------------------------
-
-
-def test_generation_prompt_debate_path_interpolates_goal() -> None:
-    """Without articles the debate template embeds the goal and preferences.
-
-    BUG (locked, not fixed): ``get_generation_prompt`` never supplies the
-    ``transcript`` variable nor calls ``_get_domain_variables``, yet the
-    ``generation_after_debate`` template references ``{{transcript}}``,
-    ``{{domain_context}}`` and ``{{domain_generation_guidance}}``. Those leak as
-    ``{{MISSING:...}}`` sentinels. (The actively-used
-    ``get_debate_generation_prompt`` drives the same template correctly,
-    suggesting ``get_generation_prompt`` is legacy/superseded.)
-    """
-    prompt, schema = get_generation_prompt(
-        research_goal="model amyloid aggregation kinetics",
-        hypotheses_count=3,
-        preferences="prefer falsifiable claims",
-    )
-    assert isinstance(prompt, str)
-    assert "model amyloid aggregation kinetics" in prompt
-    assert "prefer falsifiable claims" in prompt
-    assert "{{MISSING:transcript}}" in prompt
-    assert isinstance(schema, dict)
-
-
-def test_generation_prompt_literature_path_includes_articles() -> None:
-    """With a literature summary the count and summary text are interpolated.
-
-    BUG (locked, not fixed): the literature path of ``get_generation_prompt``
-    also omits ``transcript``/``articles_metadata``/``citation_reference_section``
-    and the domain variables that ``generation_debate_and_literature`` expects,
-    so ``{{MISSING:...}}`` sentinels remain in the prompt.
-    """
-    prompt, schema = get_generation_prompt(
-        research_goal="probe tau spreading",
-        hypotheses_count=5,
-        articles_with_reasoning="Prior work links tau to microtubules.",
-    )
-    assert "probe tau spreading" in prompt
-    assert "Prior work links tau to microtubules." in prompt
-    assert "5" in prompt
-    assert "{{MISSING:transcript}}" in prompt
-    assert isinstance(schema, dict)
-
-
-def test_generation_prompt_supervisor_guidance_branch() -> None:
-    """Supervisor guidance injects a key-research-areas section."""
-    prompt, _ = get_generation_prompt(
-        research_goal="g",
-        hypotheses_count=2,
-        supervisor_guidance=_GUIDANCE,
-    )
-    assert "mitochondrial dysfunction" in prompt
-    assert "Supervisor Guidance" in prompt
 
 
 # --- get_debate_generation_prompt ------------------------------------------

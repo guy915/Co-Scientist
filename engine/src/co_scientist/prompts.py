@@ -213,108 +213,6 @@ def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
 
 
 # Convenience functions for common prompts
-def get_generation_prompt(
-    research_goal: str,
-    hypotheses_count: int,
-    supervisor_guidance: dict[str, Any] | None = None,
-    articles_with_reasoning: str | None = None,
-    preferences: str | None = None,
-    attributes: str | None = None,
-    user_hypotheses: str | None = None,
-    instructions: str | None = None,
-) -> tuple[str, dict[str, Any] | None]:
-    """Get the hypothesis generation prompt and schema.
-
-    If articles_with_reasoning is provided, uses the literature review prompt.
-    Otherwise, uses the debate generation prompt.
-    """
-    # Determine which prompt to use based on whether literature review is
-    # available
-    use_literature_prompt = bool(articles_with_reasoning)
-    prompt_name = ("generation_debate_and_literature"
-                   if use_literature_prompt else "generation_after_debate")
-
-    # Prepare common variables for both prompts
-    variables = {
-        "goal":
-            research_goal,
-        "hypotheses_count":
-            hypotheses_count,
-        "preferences":
-            preferences
-            or "Novel, testable, scientifically sound, specific, and diverse"
-            " hypotheses",
-        "attributes": (", ".join(attributes) if attributes and
-                       isinstance(attributes, list) else (attributes or "N/A")),
-        "user_hypotheses":
-            ("\n".join(f"- {hyp}" for hyp in user_hypotheses)
-             if user_hypotheses and isinstance(user_hypotheses, list) else
-             (user_hypotheses or "N/A")),
-        "instructions":
-            instructions
-            or f"Generate {hypotheses_count} diverse and novel hypotheses.",
-    }
-
-    # Add literature-specific variable if using literature prompt
-    if use_literature_prompt:
-        variables["articles_with_reasoning"] = articles_with_reasoning or ""
-
-    # Format supervisor guidance if available and has content
-    if supervisor_guidance and isinstance(supervisor_guidance, dict):
-        guidance_sections = []
-        has_content = False
-
-        # Add key research areas
-        goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
-        key_areas = goal_analysis.get("key_areas", [])
-        if key_areas:
-            if not has_content:
-                guidance_sections.append("## Supervisor Guidance\n")
-                guidance_sections.append(
-                    "The Supervisor Agent has analyzed the research goal"
-                    " and provided the following guidance to inform your"
-                    " hypothesis generation:\n")
-                has_content = True
-            guidance_sections.append("### Key Research Areas\n")
-            for area in key_areas:
-                guidance_sections.append(f"- {area}\n")
-
-        # Add generation phase guidance
-        workflow_plan = supervisor_guidance.get("workflow_plan", {})
-        generation_phase = workflow_plan.get("generation_phase", {})
-        if generation_phase:
-            if not has_content:
-                guidance_sections.append("## Supervisor Guidance\n")
-                guidance_sections.append(
-                    "The Supervisor Agent has analyzed the research goal"
-                    " and provided the following guidance to inform your"
-                    " hypothesis generation:\n")
-                has_content = True
-            guidance_sections.append("\n### Generation Phase Guidance\n")
-            if generation_phase.get("focus_areas"):
-                focus_areas = generation_phase["focus_areas"]
-                if isinstance(focus_areas, list):
-                    focus_areas = ", ".join(focus_areas)
-                guidance_sections.append(f"**Focus Areas:** {focus_areas}\n")
-            if generation_phase.get("diversity_targets"):
-                div_tgt = generation_phase['diversity_targets']
-                guidance_sections.append(f"**Diversity Targets:** {div_tgt}\n")
-            if generation_phase.get("quantity_target"):
-                qty_tgt = generation_phase['quantity_target']
-                guidance_sections.append(f"**Quantity Target:** {qty_tgt}\n")
-
-        if has_content:
-            guidance_sections.append(
-                "\nUse this guidance to ensure your hypotheses align"
-                " with the research plan and explore the identified"
-                " key areas.\n")
-            variables["supervisor_guidance"] = "".join(guidance_sections)
-        else:
-            variables["supervisor_guidance"] = ""
-    else:
-        variables["supervisor_guidance"] = ""
-
-    return load_prompt_with_schema(prompt_name, variables)
 
 
 def get_review_prompt(
@@ -367,20 +265,6 @@ def get_review_batch_prompt(
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("review_batch", variables)
-
-
-def get_evolution_prompt(
-        original_hypothesis: str, review_feedback: str,
-        meta_review_insights: str) -> tuple[str, dict[str, Any] | None]:
-    """Get the hypothesis evolution prompt and schema."""
-    return load_prompt_with_schema(
-        "evolution",
-        {
-            "original_hypothesis": original_hypothesis,
-            "review_feedback": review_feedback,
-            "meta_review_insights": meta_review_insights,
-        },
-    )
 
 
 def get_ranking_prompt(
