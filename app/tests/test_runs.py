@@ -17,16 +17,21 @@ from __future__ import annotations
 
 import time
 
+from collections.abc import Callable
+
 from fastapi.testclient import TestClient
 
 
-def _client():
+def _client() -> TestClient:
     from app.main import app  # pylint: disable=import-outside-toplevel
 
     return TestClient(app)
 
 
-def _wait_for(predicate, *, timeout=10.0, interval=0.05):
+def _wait_for(predicate: Callable[[], bool],
+              *,
+              timeout: float = 10.0,
+              interval: float = 0.05) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         if predicate():
@@ -35,7 +40,7 @@ def _wait_for(predicate, *, timeout=10.0, interval=0.05):
     return False
 
 
-def test_create_run_returns_draft_status():
+def test_create_run_returns_draft_status() -> None:
     client = _client()
     res = client.post(
         "/api/runs",
@@ -51,7 +56,7 @@ def test_create_run_returns_draft_status():
     assert data["profile"] == "standard"
 
 
-def test_standard_mock_run_completes_and_persists(isolated_db):
+def test_standard_mock_run_completes_and_persists(isolated_db: str) -> None:
     client = _client()
     res = client.post(
         "/api/runs",
@@ -95,7 +100,7 @@ def test_standard_mock_run_completes_and_persists(isolated_db):
     assert report["payload"]["leaderboard"]
 
 
-def test_run_reopens_after_restart(isolated_db):
+def test_run_reopens_after_restart(isolated_db: str) -> None:
     """Run completes; new TestClient (= simulated restart) can still read it."""
     client = _client()
     res = client.post(
@@ -140,7 +145,7 @@ def test_run_reopens_after_restart(isolated_db):
     assert "Research Report" in md.text
 
 
-def test_advanced_run_produces_more_artifacts(isolated_db):
+def test_advanced_run_produces_more_artifacts(isolated_db: str) -> None:
     client = _client()
     res = client.post(
         "/api/runs",

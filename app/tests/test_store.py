@@ -27,7 +27,7 @@ def db(isolated_db: str) -> str:
     return os.environ["COSCIENTIST_DB_PATH"]
 
 
-def test_event_log_is_append_only_and_strictly_increasing(db: str):
+def test_event_log_is_append_only_and_strictly_increasing(db: str) -> None:
     run = store.create_run("test", "standard", "mock", {})
     seqs = []
     for i in range(5):
@@ -38,7 +38,7 @@ def test_event_log_is_append_only_and_strictly_increasing(db: str):
     assert all(seqs[i] < seqs[i + 1] for i in range(4))
 
 
-def test_list_events_filters_after_seq(db: str):
+def test_list_events_filters_after_seq(db: str) -> None:
     run = store.create_run("filter test", "standard", "mock", {})
     for i in range(4):
         store.append_event(run.id, "log", {"i": i})
@@ -49,7 +49,7 @@ def test_list_events_filters_after_seq(db: str):
         assert ev["seq"] > half
 
 
-def test_hypothesis_state_decoupled_from_hypothesis_row(db: str):
+def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
     run = store.create_run("decoupling test", "standard", "mock", {})
     hid = store.add_hypothesis(
         run.id,
@@ -64,6 +64,7 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str):
     store.update_hypothesis_state(hid, elo_rating=1300, win_delta=1)
     store.update_hypothesis_state(hid, elo_rating=1350, win_delta=1)
     h = store.get_hypothesis(hid)
+    assert h is not None
     assert h["elo_rating"] == 1350
     assert h["win_count"] == 2
     # Original immutable fields on `hypotheses` row stay untouched.
@@ -71,7 +72,7 @@ def test_hypothesis_state_decoupled_from_hypothesis_row(db: str):
     assert h["statement"] == "s"
 
 
-def test_evolved_hypothesis_has_parent_and_higher_generation(db: str):
+def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
     run = store.create_run("lineage", "standard", "mock", {})
     parent = store.add_hypothesis(
         run.id,
@@ -95,7 +96,7 @@ def test_evolved_hypothesis_has_parent_and_higher_generation(db: str):
     assert by_id[parent]["generation"] == 0
 
 
-def test_reports_round_trip_markdown_to_disk(db: str):
+def test_reports_round_trip_markdown_to_disk(db: str) -> None:
     run = store.create_run("report rt", "standard", "mock", {})
     saved = store.save_report(run.id, {"k": "v"}, "# Hello\nbody", db_path=db)
     assert saved["markdown_path"].endswith(".md")
@@ -105,7 +106,7 @@ def test_reports_round_trip_markdown_to_disk(db: str):
     assert rep and rep["payload"] == {"k": "v"}
 
 
-def test_safety_decision_persists_matches_array(db: str):
+def test_safety_decision_persists_matches_array(db: str) -> None:
     run = store.create_run("safety", "standard", "mock", {})
     store.add_safety_decision(run.id, "intake", "block", "test reason",
                               ["match-a", "match-b"])
@@ -114,7 +115,7 @@ def test_safety_decision_persists_matches_array(db: str):
     assert rows[0]["matches"] == ["match-a", "match-b"]
 
 
-def test_match_log_preserves_pre_post_elo(db: str):
+def test_match_log_preserves_pre_post_elo(db: str) -> None:
     run = store.create_run("matches", "standard", "mock", {})
     store.add_match(run.id, 1, "w", "l", 1200, 1212, 1200, 1188, "rationale")
     rows = store.list_matches(run.id)

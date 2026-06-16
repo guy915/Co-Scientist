@@ -22,13 +22,13 @@ from app.citations import (
 )
 
 
-def test_states_are_exactly_four():
+def test_states_are_exactly_four() -> None:
     assert set(ALL_STATES) == {
         "verified", "partial", "unsupported", "unavailable"
     }
 
 
-def test_unavailable_when_no_url():
+def test_unavailable_when_no_url() -> None:
     r = CitationRecord(title="x",
                        url="",
                        abstract="anything",
@@ -37,7 +37,7 @@ def test_unavailable_when_no_url():
     assert classify_citation(r) == "unavailable"
 
 
-def test_unavailable_when_flag_false():
+def test_unavailable_when_flag_false() -> None:
     r = CitationRecord(title="x",
                        url="https://example.org",
                        abstract="anything",
@@ -46,7 +46,7 @@ def test_unavailable_when_flag_false():
     assert classify_citation(r) == "unavailable"
 
 
-def test_verified_when_strong_overlap():
+def test_verified_when_strong_overlap() -> None:
     r = CitationRecord(
         title="x",
         url="https://example.org/1",
@@ -58,7 +58,7 @@ def test_verified_when_strong_overlap():
     assert classify_citation(r) == "verified"
 
 
-def test_partial_when_some_overlap():
+def test_partial_when_some_overlap() -> None:
     r = CitationRecord(
         title="x",
         url="https://example.org/1",
@@ -79,7 +79,7 @@ def test_partial_when_some_overlap():
     assert classify_citation(r2) in {"partial", "verified"}
 
 
-def test_unsupported_when_no_overlap():
+def test_unsupported_when_no_overlap() -> None:
     r = CitationRecord(
         title="x",
         url="https://example.org/1",
@@ -89,7 +89,7 @@ def test_unsupported_when_no_overlap():
     assert classify_citation(r) == "unsupported"
 
 
-def test_classify_many_returns_correct_length():
+def test_classify_many_returns_correct_length() -> None:
     recs = [
         CitationRecord(url="", abstract="x", claim="x", available=False),
         CitationRecord(
