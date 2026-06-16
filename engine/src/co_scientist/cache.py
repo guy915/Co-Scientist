@@ -22,7 +22,7 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pickle
 
@@ -56,9 +56,9 @@ class LLMCache:
         model_name: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        json_schema: Optional[Dict[str, Any]] = None,
-        force_json: Optional[bool] = None,
+        tools: list[dict[str, Any]] | None = None,
+        json_schema: dict[str, Any] | None = None,
+        force_json: bool | None = None,
     ) -> str:
         """Generate a unique cache key for the request.
 
@@ -99,10 +99,10 @@ class LLMCache:
         model_name: str,
         temperature: float,
         max_tokens: int,
-        tools: Optional[List[Dict[str, Any]]] = None,
-        json_schema: Optional[Dict[str, Any]] = None,
-        force_json: Optional[bool] = None,
-    ) -> Optional[Dict[str, Any]]:
+        tools: list[dict[str, Any]] | None = None,
+        json_schema: dict[str, Any] | None = None,
+        force_json: bool | None = None,
+    ) -> dict[str, Any] | None:
         """Get cached response if available.
 
         Args:
@@ -129,12 +129,12 @@ class LLMCache:
             try:
                 # Use atomic read: if file is being written, this will either
                 # read the old complete file or fail gracefully
-                with open(cache_file, "r", encoding="utf-8") as f:
+                with open(cache_file, encoding="utf-8") as f:
                     cached_data = json.load(f)
                 logger.debug("cache HIT for key %s...", cache_key[:8])
-                response: Dict[str, Any] = cached_data["response"]
+                response: dict[str, Any] = cached_data["response"]
                 return response
-            except (json.JSONDecodeError, KeyError, IOError, OSError) as e:
+            except (json.JSONDecodeError, KeyError, OSError) as e:
                 # Handle race conditions: file might be partially written or
                 # locked
                 logger.debug(
@@ -159,10 +159,10 @@ class LLMCache:
         model_name: str,
         temperature: float,
         max_tokens: int,
-        response: Dict[str, Any],
-        tools: Optional[List[Dict[str, Any]]] = None,
-        json_schema: Optional[Dict[str, Any]] = None,
-        force_json: Optional[bool] = None,
+        response: dict[str, Any],
+        tools: list[dict[str, Any]] | None = None,
+        json_schema: dict[str, Any] | None = None,
+        force_json: bool | None = None,
     ) -> None:
         """Store response in cache.
 
@@ -210,7 +210,7 @@ class LLMCache:
                 # next access
                 temp_file.replace(cache_file)
                 logger.debug("cached response for key %s...", cache_key[:8])
-            except (OSError, IOError) as e:
+            except OSError as e:
                 # If rename fails (e.g., file locked), remove temp file and
                 # continue
                 try:
@@ -240,7 +240,7 @@ class LLMCache:
         logger.info("Cleared %s cached responses", count)
         return count
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics.
 
         Returns:
@@ -261,7 +261,7 @@ class LLMCache:
 
 
 # Global cache instance (can be configured via environment variable)
-_global_cache: Optional[LLMCache] = None
+_global_cache: LLMCache | None = None
 
 
 def get_cache() -> LLMCache:
@@ -290,7 +290,7 @@ def clear_cache() -> int:
     return get_cache().clear()
 
 
-def get_cache_stats() -> Dict[str, Any]:
+def get_cache_stats() -> dict[str, Any]:
     """Get global cache statistics."""
     return get_cache().get_stats()
 
@@ -338,7 +338,7 @@ class NodeCache:
     def get(self,
             node_name: str,
             force: bool = False,
-            **key_params: Any) -> Optional[Dict[str, Any]]:
+            **key_params: Any) -> dict[str, Any] | None:
         """Get cached node output if available.
 
         Args:
@@ -359,11 +359,11 @@ class NodeCache:
         if cache_file.exists():
             try:
                 with open(cache_file, "rb") as f:
-                    cached_data: Dict[str, Any] = pickle.load(f)
+                    cached_data: dict[str, Any] = pickle.load(f)
                 logger.debug("node cache HIT for %s (key %s...)", node_name,
                              cache_key[:8])
                 return cached_data
-            except (pickle.PickleError, IOError, OSError) as e:
+            except (pickle.PickleError, OSError) as e:
                 logger.debug("node cache read failed for %s...: %s",
                              cache_key[:8], e)
                 try:
@@ -378,7 +378,7 @@ class NodeCache:
 
     def set(self,
             node_name: str,
-            output: Dict[str, Any],
+            output: dict[str, Any],
             force: bool = False,
             **key_params: Any) -> None:
         """Store node output in cache.
@@ -429,7 +429,7 @@ class NodeCache:
         logger.info("Cleared %s cached node outputs", count)
         return count
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """Get node cache statistics.
 
         Returns:
@@ -450,7 +450,7 @@ class NodeCache:
 
 
 # Global node cache instance
-_global_node_cache: Optional[NodeCache] = None
+_global_node_cache: NodeCache | None = None
 
 
 def get_node_cache() -> NodeCache:
@@ -480,6 +480,6 @@ def clear_node_cache() -> int:
     return get_node_cache().clear()
 
 
-def get_node_cache_stats() -> Dict[str, Any]:
+def get_node_cache_stats() -> dict[str, Any]:
     """Get global node cache statistics."""
     return get_node_cache().get_stats()

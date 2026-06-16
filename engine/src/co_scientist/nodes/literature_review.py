@@ -28,7 +28,7 @@ import hashlib
 import json
 import logging
 import os
-from typing import Any, cast, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, cast, Optional, TYPE_CHECKING
 
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
@@ -146,7 +146,7 @@ async def _generate_queries_via_mcp(
     research_goal: str,
     tool_name: str,
     query_format: str,
-) -> List[str]:
+) -> list[str]:
     """Generate queries using MCP tool."""
     try:
         result = await mcp_client.call_tool(
@@ -166,7 +166,7 @@ async def _generate_queries_via_mcp(
 async def _generate_queries_via_llm(
     state: WorkflowState,
     config: SearchConfig,
-) -> List[str]:
+) -> list[str]:
     """Generate queries using LLM with source-aware prompt."""
     source_type = determine_query_source_type(
         config.workflow,
@@ -193,7 +193,7 @@ async def _generate_queries_via_llm(
             temperature=HIGH_TEMPERATURE,
             json_schema=LITERATURE_QUERY_SCHEMA,
         )
-        return cast(List[str], result.get("queries", []))
+        return cast(list[str], result.get("queries", []))
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning("LLM query generation failed: %s", e)
         return []
@@ -203,7 +203,7 @@ async def _phase1_generate_queries(
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
-) -> List[str]:
+) -> list[str]:
     """Phase 1: Generate search queries."""
     logger.info("Phase 1: generating search queries")
 
@@ -251,12 +251,12 @@ async def _phase1_generate_queries(
 
 async def _search_single_source(
     source_config: "SearchSourceConfig",
-    queries: List[str],
+    queries: list[str],
     slug: str,
     run_id: str,
     tool_registry: "ToolRegistry",
     mcp_client: MCPToolClient,
-) -> Tuple[str, Dict[str, Dict[str, Any]]]:
+) -> tuple[str, dict[str, dict[str, Any]]]:
     """Search a single source with all queries."""
     tool_config = tool_registry.get_tool(source_config.tool)
     if not tool_config:
@@ -312,7 +312,7 @@ async def _search_single_query(
     search_tool_name: str,
     search_tool_config: Optional["ToolConfig"],
     mcp_client: MCPToolClient,
-) -> Tuple[int, Dict[str, Dict[str, Any]]]:
+) -> tuple[int, dict[str, dict[str, Any]]]:
     """Search single query (for single-source mode)."""
     logger.debug("Searching query %s (%s papers): %s...", index, papers_count,
                  query[:80])
@@ -347,12 +347,12 @@ async def _search_single_query(
 
 
 async def _phase2_collect_papers_multi_source(
-    queries: List[str],
+    queries: list[str],
     slug: str,
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
-) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Phase 2 (multi-source): Collect papers from multiple sources in parallel.
     """
     # Multi-source mode guarantees a configured workflow and tool registry.
@@ -389,12 +389,12 @@ async def _phase2_collect_papers_multi_source(
 
 
 async def _phase2_collect_papers_single_source(
-    queries: List[str],
+    queries: list[str],
     slug: str,
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
-) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Phase 2 (single-source): Collect papers with legacy distribution."""
     logger.info("Phase 2: collecting papers with %s", config.search_tool_name)
 
@@ -436,11 +436,11 @@ async def _phase2_collect_papers_single_source(
 
 async def _discover_pdf_link(
     paper_id: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     tool_name: str,
     url_field: str,
     mcp_client: MCPToolClient,
-) -> Tuple[str, Optional[str]]:
+) -> tuple[str, str | None]:
     """Discover PDF link for a single paper."""
     landing_url = metadata.get(url_field)
     if not landing_url:
@@ -459,8 +459,8 @@ async def _discover_pdf_link(
 
 
 async def _phase2_4_discover_pdf_links(
-    all_paper_metadata: Dict[str, Dict[str, Any]],
-    paper_source_map: Dict[str, str],
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
     config: SearchConfig,
     mcp_client: MCPToolClient,
 ) -> None:
@@ -511,11 +511,11 @@ async def _phase2_4_discover_pdf_links(
 
 async def _fetch_paper_content(
     paper_id: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     content_cfg: "ContentToolConfig",
     mcp_client: MCPToolClient,
-    runtime_context: Dict[str, Any],
-) -> Tuple[str, Optional[str]]:
+    runtime_context: dict[str, Any],
+) -> tuple[str, str | None]:
     """Fetch content for a single paper."""
     from co_scientist.config.schema import resolve_content_params  # pylint: disable=import-outside-toplevel
 
@@ -549,8 +549,8 @@ async def _fetch_paper_content(
 
 
 async def _phase2_5_fetch_content(
-    all_paper_metadata: Dict[str, Dict[str, Any]],
-    paper_source_map: Dict[str, str],
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
     config: SearchConfig,
     mcp_client: MCPToolClient,
     state: "WorkflowState",
@@ -619,7 +619,7 @@ _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY = 4
 
 async def _call_enrichment_tool_for_entity(
     tool_name: str,
-    mapped_params: Dict[str, Any],
+    mapped_params: dict[str, Any],
     mcp_client: MCPToolClient,
 ) -> Any:
     """Call one enrichment tool for one entity; returns raw result or None."""
@@ -630,7 +630,7 @@ async def _call_enrichment_tool_for_entity(
         return None
 
 
-def _parse_enrichment_result(raw: Any) -> tuple[str, List[Dict[str, Any]]]:
+def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
     """Extract formatted text AND structured items from an enrichment result.
 
     Returns (display_text, structured_items) where structured_items is a
@@ -693,9 +693,9 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, List[Dict[str, Any]]]:
 
 async def _call_enrichment_tool_for_entities(
     tool_config: Any,
-    entities: List[str],
+    entities: list[str],
     mcp_client: MCPToolClient,
-) -> tuple[str, List[Dict[str, Any]]]:
+) -> tuple[str, list[dict[str, Any]]]:
     """Call one enrichment tool for all entities in parallel.
 
     Returns (formatted_text, structured_items) where structured_items carry
@@ -708,7 +708,7 @@ async def _call_enrichment_tool_for_entities(
         "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY
     }
 
-    async def _query_one(entity: str) -> tuple[str, List[Dict[str, Any]]]:
+    async def _query_one(entity: str) -> tuple[str, list[dict[str, Any]]]:
         params = tool_config.map_parameters({
             **canonical, "entity_name": entity
         })
@@ -725,8 +725,8 @@ async def _call_enrichment_tool_for_entities(
 
     per_entity = await asyncio.gather(*[_query_one(e) for e in entities])
 
-    text_lines: List[str] = []
-    all_items: List[Dict[str, Any]] = []
+    text_lines: list[str] = []
+    all_items: list[dict[str, Any]] = []
     for entity, (text, items) in zip(entities, per_entity):
         if text:
             text_lines.append(f"[{entity}]\n{text}")
@@ -739,7 +739,7 @@ async def _phase2_6_fetch_context_enrichment(
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
-) -> tuple[str, List[Dict[str, Any]]]:
+) -> tuple[str, list[dict[str, Any]]]:
     """Phase 2.6: fetch background context from knowledge-graph tools.
 
     Completely YAML-driven: only runs when the literature_review workflow
@@ -752,7 +752,7 @@ async def _phase2_6_fetch_context_enrichment(
     Returns:
         (formatted_text_for_synthesis, structured_items_for_citation_index)
     """
-    empty: tuple[str, List[Dict[str, Any]]] = ("", [])
+    empty: tuple[str, list[dict[str, Any]]] = ("", [])
 
     workflow = config.workflow
     if not workflow or not workflow.context_enrichment_tools:
@@ -793,8 +793,8 @@ async def _phase2_6_fetch_context_enrichment(
     ]
     tool_results = await asyncio.gather(*tool_tasks, return_exceptions=True)
 
-    sections: List[str] = []
-    all_structured: List[Dict[str, Any]] = []
+    sections: list[str] = []
+    all_structured: list[dict[str, Any]] = []
     for tc, result in zip(tool_configs, tool_results):
         if isinstance(result, BaseException):
             logger.debug("context enrichment: %s raised %s", tc.mcp_tool_name,
@@ -829,7 +829,7 @@ async def _phase2_6_fetch_context_enrichment(
 
 
 def _format_kg_section_with_keys(
-    context_enrichment_sources: List[Dict[str, Any]],
+    context_enrichment_sources: list[dict[str, Any]],
     paper_count: int,
 ) -> str:
     """Format context enrichment sources as a labeled [C*] section.
@@ -857,10 +857,10 @@ def _format_kg_section_with_keys(
 
 async def _analyze_single_paper(
     paper_id: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     research_goal: str,
     model_name: str,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Analyze a single paper for gaps and opportunities."""
     try:
         year = metadata.get("year")
@@ -902,9 +902,9 @@ async def _analyze_single_paper(
 
 
 async def _phase3_analyze_papers(
-    all_paper_metadata: Dict[str, Dict[str, Any]],
+    all_paper_metadata: dict[str, dict[str, Any]],
     state: WorkflowState,
-) -> List[Dict[str, Any]]:
+) -> list[dict[str, Any]]:
     """Phase 3: Analyze papers with content for gaps and opportunities."""
     papers_with_content = get_papers_with_content(all_paper_metadata)
 
@@ -945,7 +945,7 @@ async def _phase3_analyze_papers(
 
 
 async def _phase4_synthesize(
-    paper_analyses: List[Dict[str, Any]],
+    paper_analyses: list[dict[str, Any]],
     state: WorkflowState,
     background_context: str = "",
 ) -> str:
@@ -998,7 +998,7 @@ async def _phase4_synthesize(
 # =============================================================================
 
 
-async def literature_review_node(state: WorkflowState) -> Dict[str, Any]:
+async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     """Conducts literature review using configured MCP tools with LLM analysis.
 
     Orchestrates the following phases:

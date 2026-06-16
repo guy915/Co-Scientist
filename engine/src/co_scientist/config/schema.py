@@ -19,11 +19,11 @@ Uses dataclasses to match existing codebase patterns.
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
-def resolve_content_params(params: Dict[str, Any],
-                           context: Dict[str, Any]) -> Dict[str, Any]:
+def resolve_content_params(params: dict[str, Any],
+                           context: dict[str, Any]) -> dict[str, Any]:
     """Resolve content params by substituting {placeholders} with context.
 
     Supports:
@@ -42,7 +42,7 @@ def resolve_content_params(params: Dict[str, Any],
     if not params:
         return {}
 
-    resolved: Dict[str, Any] = {}
+    resolved: dict[str, Any] = {}
     placeholder_pattern = re.compile(r'\{(\w+)\}')
 
     for key, value in params.items():
@@ -96,7 +96,7 @@ class ServerConfig:
     enabled: bool = True
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ServerConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "ServerConfig":
         """Create ServerConfig from dictionary."""
         return cls(
             url=data.get("url", ""),
@@ -121,10 +121,10 @@ class ResponseFormat:
     type: str = "json"
     results_path: str = "."
     is_dict: bool = False
-    field_mapping: Dict[str, str] = field(default_factory=dict)
+    field_mapping: dict[str, str] = field(default_factory=dict)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ResponseFormat":
+    def from_dict(cls, data: dict[str, Any]) -> "ResponseFormat":
         """Create ResponseFormat from dictionary."""
         if not data:
             return cls()
@@ -141,12 +141,12 @@ class ParameterConfig:
     """Configuration for a tool parameter."""
 
     type: str = "string"
-    default: Optional[Any] = None
+    default: Any | None = None
     required: bool = False
     description: str = ""
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ParameterConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "ParameterConfig":
         """Create ParameterConfig from dictionary."""
         if not data:
             return cls()
@@ -187,14 +187,14 @@ class ToolConfig:
     enabled: bool = True
     response_format: ResponseFormat = field(default_factory=ResponseFormat)
     prompt_snippet: str = ""
-    parameters: Dict[str, ParameterConfig] = field(default_factory=dict)
-    parameter_mapping: Dict[str, Optional[str]] = field(default_factory=dict)
+    parameters: dict[str, ParameterConfig] = field(default_factory=dict)
+    parameter_mapping: dict[str, str | None] = field(default_factory=dict)
     applies_to: str = "all"
     # Internal: yaml tool_id stashed for downstream citation building.
-    _yaml_tool_id: Optional[str] = None
+    _yaml_tool_id: str | None = None
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any], tool_id: str = "") -> "ToolConfig":
+    def from_dict(cls, data: dict[str, Any], tool_id: str = "") -> "ToolConfig":
         """Create ToolConfig from dictionary."""
         # parse parameters
         params_data = data.get("parameters", {})
@@ -222,8 +222,8 @@ class ToolConfig:
             applies_to=data.get("applies_to", "all"),
         )
 
-    def map_parameters(self, canonical_params: Dict[str,
-                                                    Any]) -> Dict[str, Any]:
+    def map_parameters(self, canonical_params: dict[str,
+                                                    Any]) -> dict[str, Any]:
         """Map canonical parameter names to tool-specific parameter names.
 
         Args:
@@ -288,15 +288,15 @@ class SearchSourceConfig:
     tool: str
     papers_per_query: int = 3
     enabled: bool = True
-    content_tool: Optional[str] = None
-    content_url_field: Optional[str] = None
-    content_params: Dict[str, Any] = field(default_factory=dict)
+    content_tool: str | None = None
+    content_url_field: str | None = None
+    content_params: dict[str, Any] = field(default_factory=dict)
     # Two-step content retrieval: first discover PDF links, then fetch content
-    pdf_discovery_tool: Optional[str] = None  # e.g., "find_pdf_links"
-    pdf_discovery_url_field: Optional[str] = None  # e.g., "url" (landing page)
+    pdf_discovery_tool: str | None = None  # e.g., "find_pdf_links"
+    pdf_discovery_url_field: str | None = None  # e.g., "url" (landing page)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "SearchSourceConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "SearchSourceConfig":
         """Create SearchSourceConfig from dictionary."""
         if isinstance(data, str):
             # simple format: just tool name
@@ -324,45 +324,45 @@ class WorkflowConfig:
     """
 
     # Single-source mode (legacy/simple)
-    primary_search: Optional[str] = None
-    fallback_search: Optional[str] = None
-    availability_check: Optional[str] = None
+    primary_search: str | None = None
+    fallback_search: str | None = None
+    availability_check: str | None = None
 
     # Multi-source mode
-    search_sources: List[SearchSourceConfig] = field(default_factory=list)
+    search_sources: list[SearchSourceConfig] = field(default_factory=list)
     multi_source_strategy: str = "parallel"  # parallel, sequential
     deduplicate_across_sources: bool = True
 
     # General tool lists
-    search_tools: List[str] = field(default_factory=list)
-    read_tools: List[str] = field(default_factory=list)
-    utility_tools: List[str] = field(default_factory=list)
+    search_tools: list[str] = field(default_factory=list)
+    read_tools: list[str] = field(default_factory=list)
+    utility_tools: list[str] = field(default_factory=list)
 
     # Knowledge-graph / external context tools called once per workflow phase.
     # Results are injected as background context into the phase's synthesis
     # prompt. Domain-agnostic: any workflow can list tools here; the node checks
     # this field and skips enrichment when the list is empty.
-    context_enrichment_tools: List[str] = field(default_factory=list)
+    context_enrichment_tools: list[str] = field(default_factory=list)
 
     # Query generation via MCP tool (replaces hardcoded prompts)
-    query_generation_tool: Optional[str] = None
+    query_generation_tool: str | None = None
     # "boolean" for PubMed, "natural_language" for arXiv/Scholar
     query_format: str = "boolean"
 
     # Content retrieval for sources that don't return fulltext (e.g., arXiv)
     # Can be overridden per-source in search_sources
-    content_tool: Optional[str] = None
+    content_tool: str | None = None
     content_url_field: str = "pdf_url"
-    content_params: Dict[str, Any] = field(default_factory=dict)
+    content_params: dict[str, Any] = field(default_factory=dict)
 
     # Two-step content retrieval: first discover PDF links from landing page
     # Used for sources like Google Scholar that return landing page URLs, not
     # direct PDFs
-    pdf_discovery_tool: Optional[str] = None  # e.g., "find_pdf_links"
+    pdf_discovery_tool: str | None = None  # e.g., "find_pdf_links"
     pdf_discovery_url_field: str = "url"  # field containing landing page URL
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "WorkflowConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "WorkflowConfig":
         """Create WorkflowConfig from dictionary."""
         if not data:
             return cls()
@@ -393,7 +393,7 @@ class WorkflowConfig:
             pdf_discovery_url_field=data.get("pdf_discovery_url_field", "url"),
         )
 
-    def get_enabled_search_sources(self) -> List[SearchSourceConfig]:
+    def get_enabled_search_sources(self) -> list[SearchSourceConfig]:
         """Get list of enabled search sources."""
         return [s for s in self.search_sources if s.enabled]
 
@@ -401,7 +401,7 @@ class WorkflowConfig:
         """Check if this workflow uses multi-source configuration."""
         return len(self.search_sources) > 0
 
-    def get_all_tools(self) -> List[str]:
+    def get_all_tools(self) -> list[str]:
         """Get all tool IDs referenced in this workflow."""
         tools = []
         if self.primary_search:
@@ -460,7 +460,7 @@ class EnrichmentConfig:
     workflow: str = "generation"
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "EnrichmentConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "EnrichmentConfig":
         """Create EnrichmentConfig from dictionary."""
         return cls(
             tool=data.get("tool", ""),
@@ -482,7 +482,7 @@ class Settings:
     allow_disable_builtins: bool = True
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Settings":
+    def from_dict(cls, data: dict[str, Any]) -> "Settings":
         """Create Settings from dictionary."""
         if not data:
             return cls()
@@ -519,7 +519,7 @@ class PromptsConfig:
     reflection_guidance: str = ""
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "PromptsConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "PromptsConfig":
         """Create PromptsConfig from dictionary."""
         if not data:
             return cls()
@@ -540,15 +540,15 @@ class ToolsConfig:
     """
 
     version: str = "1.0"
-    servers: Dict[str, ServerConfig] = field(default_factory=dict)
-    tools: Dict[str, Dict[str, ToolConfig]] = field(default_factory=dict)
-    workflows: Dict[str, WorkflowConfig] = field(default_factory=dict)
+    servers: dict[str, ServerConfig] = field(default_factory=dict)
+    tools: dict[str, dict[str, ToolConfig]] = field(default_factory=dict)
+    workflows: dict[str, WorkflowConfig] = field(default_factory=dict)
     settings: Settings = field(default_factory=Settings)
     prompts: PromptsConfig = field(default_factory=PromptsConfig)
-    enrichments: List[EnrichmentConfig] = field(default_factory=list)
+    enrichments: list[EnrichmentConfig] = field(default_factory=list)
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "ToolsConfig":
+    def from_dict(cls, data: dict[str, Any]) -> "ToolsConfig":
         """Create ToolsConfig from dictionary (parsed YAML)."""
         # parse servers
         servers = {}
@@ -556,7 +556,7 @@ class ToolsConfig:
             servers[server_id] = ServerConfig.from_dict(server_data)
 
         # parse tools by category
-        tools: Dict[str, Dict[str, ToolConfig]] = {}
+        tools: dict[str, dict[str, ToolConfig]] = {}
         tools_data = data.get("tools", {})
         for category, category_tools in tools_data.items():
             tools[category] = {}
@@ -590,21 +590,21 @@ class ToolsConfig:
             enrichments=enrichments,
         )
 
-    def get_tool(self, tool_id: str) -> Optional[ToolConfig]:
+    def get_tool(self, tool_id: str) -> ToolConfig | None:
         """Get a tool config by ID, searching all categories."""
         for category_tools in self.tools.values():
             if tool_id in category_tools:
                 return category_tools[tool_id]
         return None
 
-    def get_all_tools(self) -> Dict[str, ToolConfig]:
+    def get_all_tools(self) -> dict[str, ToolConfig]:
         """Get all tools as a flat dict."""
         all_tools = {}
         for category_tools in self.tools.values():
             all_tools.update(category_tools)
         return all_tools
 
-    def get_enabled_tools(self) -> Dict[str, ToolConfig]:
+    def get_enabled_tools(self) -> dict[str, ToolConfig]:
         """Get all enabled tools as a flat dict."""
         return {
             tool_id: tool
@@ -612,11 +612,11 @@ class ToolsConfig:
             if tool.enabled
         }
 
-    def get_tools_by_category(self, category: str) -> Dict[str, ToolConfig]:
+    def get_tools_by_category(self, category: str) -> dict[str, ToolConfig]:
         """Get tools in a specific category."""
         return self.tools.get(category, {})
 
-    def get_tools_for_server(self, server_id: str) -> Dict[str, ToolConfig]:
+    def get_tools_for_server(self, server_id: str) -> dict[str, ToolConfig]:
         """Get all tools belonging to a specific server."""
         return {
             tool_id: tool

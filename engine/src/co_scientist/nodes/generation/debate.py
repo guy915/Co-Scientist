@@ -19,7 +19,7 @@ Multiple debates can run in parallel.
 
 import asyncio
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from co_scientist.nodes.generation.citations import (
     ReferenceIndex,
@@ -44,9 +44,9 @@ logger = logging.getLogger(__name__)
 
 
 def _match_papers_to_grounding(
-    articles: List[Article],
-    literature_grounding: Optional[str],
-) -> List[Dict[str, str]]:
+    articles: list[Article],
+    literature_grounding: str | None,
+) -> list[dict[str, str]]:
     """Match lit review articles against a hypothesis's literature_grounding.
 
     Uses author last name + year matching against citation patterns like
@@ -62,11 +62,11 @@ def _match_papers_to_grounding(
 
 async def _run_single_debate(
     state: WorkflowState,
-    debate_id: Optional[int] = None,
+    debate_id: int | None = None,
     num_turns: int = DEBATE_MAX_TURNS,
-    articles_with_reasoning: Optional[str] = None,
-    reference_index: Optional[ReferenceIndex] = None,
-) -> Tuple[Hypothesis, str]:
+    articles_with_reasoning: str | None = None,
+    reference_index: ReferenceIndex | None = None,
+) -> tuple[Hypothesis, str]:
     """Generate a single hypothesis using multi-turn debate strategy.
 
     Args:
@@ -174,9 +174,9 @@ async def _run_single_debate(
 async def generate_with_debate(
     state: WorkflowState,
     count: int,
-    articles_with_reasoning: Optional[str] = None,
-    reference_index: Optional[ReferenceIndex] = None,
-) -> Tuple[List[Hypothesis], List[Dict[str, Any]]]:
+    articles_with_reasoning: str | None = None,
+    reference_index: ReferenceIndex | None = None,
+) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
     """Generate hypotheses using parallel debate strategy.
 
     Each debate generates 1 hypothesis through multi-turn expert discussion

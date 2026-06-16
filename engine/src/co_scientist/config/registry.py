@@ -21,7 +21,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, cast, Dict, List, Optional
+from typing import Any, cast, Optional
 
 import yaml
 
@@ -103,8 +103,8 @@ class ToolRegistry:
 
     def __init__(
         self,
-        config_path: Optional[str] = None,
-        disabled_tools: Optional[List[str]] = None,
+        config_path: str | None = None,
+        disabled_tools: list[str] | None = None,
         skip_user_config: bool = False,
     ):
         """Initialize the tool registry.
@@ -116,7 +116,7 @@ class ToolRegistry:
             skip_user_config: If True, don't load user config from
                 ~/.coscientist/
         """
-        self._config: Optional[ToolsConfig] = None
+        self._config: ToolsConfig | None = None
         self._custom_config_path = config_path
         self._disabled_tools = set(disabled_tools or [])
         self._skip_user_config = skip_user_config
@@ -172,17 +172,17 @@ class ToolRegistry:
                     len(self._config.servers),
                     len(self._config.get_enabled_tools()))
 
-    def _load_yaml_file(self, path: Path) -> Optional[Dict[str, Any]]:
+    def _load_yaml_file(self, path: Path) -> dict[str, Any] | None:
         """Load a YAML file, returning None if not found."""
         try:
             if path.exists():
                 with open(path, encoding="utf-8") as f:
-                    return cast(Optional[Dict[str, Any]], yaml.safe_load(f))
+                    return cast(Optional[dict[str, Any]], yaml.safe_load(f))
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("failed to load %s: %s", path, e)
         return None
 
-    def _parse_enabled_values(self, data: Dict[str, Any]) -> None:
+    def _parse_enabled_values(self, data: dict[str, Any]) -> None:
         """Parse 'enabled' fields that might be string booleans from env vars.
         """
         # parse server enabled values
@@ -198,10 +198,10 @@ class ToolRegistry:
 
     def _merge_configs(
         self,
-        default: Dict[str, Any],
-        user: Optional[Dict[str, Any]],
-        custom: Optional[Dict[str, Any]],
-    ) -> Dict[str, Any]:
+        default: dict[str, Any],
+        user: dict[str, Any] | None,
+        custom: dict[str, Any] | None,
+    ) -> dict[str, Any]:
         """Merge configuration dicts based on merge strategy.
 
         Priority: custom > user > default
@@ -227,8 +227,8 @@ class ToolRegistry:
 
         return result
 
-    def _merge_dict(self, base: Dict[str, Any], overlay: Dict[str, Any],
-                    strategy: str) -> Dict[str, Any]:
+    def _merge_dict(self, base: dict[str, Any], overlay: dict[str, Any],
+                    strategy: str) -> dict[str, Any]:
         """Merge overlay dict into base dict.
 
         Strategies:
@@ -274,11 +274,11 @@ class ToolRegistry:
             raise ConfigError("tool registry not initialized")
         return self._config
 
-    def get_server(self, server_id: str) -> Optional[ServerConfig]:
+    def get_server(self, server_id: str) -> ServerConfig | None:
         """Get a server configuration by ID."""
         return self.config.servers.get(server_id)
 
-    def get_enabled_servers(self) -> Dict[str, ServerConfig]:
+    def get_enabled_servers(self) -> dict[str, ServerConfig]:
         """Get all enabled server configurations."""
         return {
             server_id: server
@@ -286,15 +286,15 @@ class ToolRegistry:
             if server.enabled
         }
 
-    def get_tool(self, tool_id: str) -> Optional[ToolConfig]:
+    def get_tool(self, tool_id: str) -> ToolConfig | None:
         """Get a tool configuration by ID."""
         return self.config.get_tool(tool_id)
 
-    def get_enabled_tools(self) -> Dict[str, ToolConfig]:
+    def get_enabled_tools(self) -> dict[str, ToolConfig]:
         """Get all enabled tool configurations."""
         return self.config.get_enabled_tools()
 
-    def get_tools_for_workflow(self, workflow_name: str) -> List[str]:
+    def get_tools_for_workflow(self, workflow_name: str) -> list[str]:
         """Get list of tool IDs for a workflow phase.
 
         Args:
@@ -323,11 +323,11 @@ class ToolRegistry:
 
         return enabled_ids
 
-    def get_workflow(self, workflow_name: str) -> Optional[WorkflowConfig]:
+    def get_workflow(self, workflow_name: str) -> WorkflowConfig | None:
         """Get a workflow configuration by name."""
         return self.config.workflows.get(workflow_name)
 
-    def get_mcp_tool_names(self, tool_ids: List[str]) -> List[str]:
+    def get_mcp_tool_names(self, tool_ids: list[str]) -> list[str]:
         """Convert tool IDs to MCP tool names.
 
         Args:
@@ -343,7 +343,7 @@ class ToolRegistry:
                 mcp_names.append(tool.mcp_tool_name)
         return mcp_names
 
-    def get_tool_by_mcp_name(self, mcp_tool_name: str) -> Optional[ToolConfig]:
+    def get_tool_by_mcp_name(self, mcp_tool_name: str) -> ToolConfig | None:
         """Find a tool config by its MCP tool name.
 
         Args:
@@ -363,7 +363,7 @@ class ToolRegistry:
 
     def get_enrichment_configs(self,
                                workflow: str = "generation"
-                              ) -> List[EnrichmentConfig]:
+                              ) -> list[EnrichmentConfig]:
         """Get enabled enrichment configurations for a given workflow phase.
 
         Args:
@@ -379,7 +379,7 @@ class ToolRegistry:
             if e.enabled and (workflow == "all" or e.workflow == workflow)
         ]
 
-    def get_server_configs_for_langchain(self) -> Dict[str, Dict[str, str]]:
+    def get_server_configs_for_langchain(self) -> dict[str, dict[str, str]]:
         """Get server configs in format expected by langchain
         MultiServerMCPClient.
 
@@ -396,12 +396,12 @@ class ToolRegistry:
 
 
 # global registry instance
-_global_registry: Optional[ToolRegistry] = None
+_global_registry: ToolRegistry | None = None
 
 
 def get_tool_registry(
-    config_path: Optional[str] = None,
-    disabled_tools: Optional[List[str]] = None,
+    config_path: str | None = None,
+    disabled_tools: list[str] | None = None,
     force_reload: bool = False,
 ) -> ToolRegistry:
     """Get or create the global tool registry instance.

@@ -19,7 +19,7 @@ Provides composition pattern wrapping MCPToolClient and PythonToolRegistry.
 
 import json
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from co_scientist.exceptions import ConfigError, ToolError
 from co_scientist.mcp_client import MCPToolClient
@@ -49,8 +49,8 @@ class HybridToolProvider:
 
     def __init__(
         self,
-        mcp_client: Optional[MCPToolClient] = None,
-        python_registry: Optional[PythonToolRegistry] = None,
+        mcp_client: MCPToolClient | None = None,
+        python_registry: PythonToolRegistry | None = None,
     ):
         """Initialize hybrid tool provider.
 
@@ -62,13 +62,13 @@ class HybridToolProvider:
         self.python_registry = python_registry
 
         # track tool sources for routing
-        self._tool_sources: Dict[str, str] = {}  # tool_name → "mcp" or "python"
+        self._tool_sources: dict[str, str] = {}  # tool_name → "mcp" or "python"
 
     def get_tools(
         self,
-        mcp_whitelist: Optional[List[str]] = None,
-        python_whitelist: Optional[List[str]] = None,
-    ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        mcp_whitelist: list[str] | None = None,
+        python_whitelist: list[str] | None = None,
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Get merged tools from MCP and Python sources.
 
         Args:
@@ -127,7 +127,7 @@ class HybridToolProvider:
 
         return merged_tools_dict, merged_openai_tools
 
-    async def execute_tool_call(self, tool_call: Any) -> Dict[str, Any]:
+    async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         """Execute a tool call by routing to appropriate executor.
 
         Args:
@@ -168,7 +168,7 @@ class HybridToolProvider:
             return self._create_error_response(tool_name, tool_call_id,
                                                error_msg)
 
-    async def _execute_mcp_tool(self, tool_call: Any) -> Dict[str, Any]:
+    async def _execute_mcp_tool(self, tool_call: Any) -> dict[str, Any]:
         """Execute MCP tool call.
 
         Args:
@@ -183,7 +183,7 @@ class HybridToolProvider:
         # delegate to MCP client
         return await self.mcp_client.execute_tool_call(tool_call)
 
-    async def _execute_python_tool(self, tool_call: Any) -> Dict[str, Any]:
+    async def _execute_python_tool(self, tool_call: Any) -> dict[str, Any]:
         """Execute Python tool call.
 
         Args:
@@ -227,7 +227,7 @@ class HybridToolProvider:
         }
 
     def _create_error_response(self, tool_name: str, tool_call_id: str,
-                               error_msg: str) -> Dict[str, Any]:
+                               error_msg: str) -> dict[str, Any]:
         """Create error response message for failed tool call.
 
         Args:

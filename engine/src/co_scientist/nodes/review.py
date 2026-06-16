@@ -20,7 +20,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from co_scientist.constants import (
     THINKING_MAX_TOKENS,
@@ -47,8 +47,8 @@ async def review_single_hypothesis(
     hypothesis_text: str,
     research_goal: str,
     model_name: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
-    meta_review: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
+    meta_review: dict[str, Any] | None = None,
     run_id: str | None = None,
     hypothesis_index: int | None = None,
     tool_registry: Any | None = None,
@@ -118,14 +118,14 @@ async def review_single_hypothesis(
 
 
 async def review_parallel_individual(
-    hypotheses: List[Hypothesis],
+    hypotheses: list[Hypothesis],
     research_goal: str,
     model_name: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
-    meta_review: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
+    meta_review: dict[str, Any] | None = None,
     run_id: str | None = None,
     tool_registry: Any | None = None,
-) -> List[HypothesisReview]:
+) -> list[HypothesisReview]:
     """Reviews hypotheses in parallel (original approach).
 
     Each hypothesis is reviewed independently without seeing others.
@@ -157,14 +157,14 @@ async def review_parallel_individual(
 
 
 async def review_comparative_batch(
-    hypotheses: List[Hypothesis],
+    hypotheses: list[Hypothesis],
     research_goal: str,
     model_name: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
-    meta_review: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
+    meta_review: dict[str, Any] | None = None,
     run_id: str | None = None,
     tool_registry: Any | None = None,
-) -> List[HypothesisReview]:
+) -> list[HypothesisReview]:
     """Reviews hypotheses in a single comparative batch.
 
     All hypotheses are shown to one LLM call for relative comparison.
@@ -294,7 +294,7 @@ async def review_comparative_batch(
     return reviews
 
 
-async def review_node(state: WorkflowState) -> Dict[str, Any]:
+async def review_node(state: WorkflowState) -> dict[str, Any]:
     """Reviews all hypotheses using adaptive strategy.
 
     Strategy selection:

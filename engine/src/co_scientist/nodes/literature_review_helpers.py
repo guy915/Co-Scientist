@@ -24,7 +24,7 @@ Small, composable functions for the literature review node phases:
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, cast, Dict, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, cast, Optional, TYPE_CHECKING
 
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.models import Article
@@ -75,7 +75,7 @@ def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
 def normalize_search_response(
     result_data: Any,
     tool_config: Optional["ToolConfig"],
-) -> Dict[str, Dict[str, Any]]:
+) -> dict[str, dict[str, Any]]:
     """Normalize search tool response to standard {paper_id: metadata} format.
 
     Handles both dict responses (PubMed-style) and list responses (arXiv-style).
@@ -103,7 +103,7 @@ def normalize_search_response(
         if source_id_field.startswith("@"):
             source_id_field = "arxiv_id"
 
-        normalized: Dict[str, Any] = {}
+        normalized: dict[str, Any] = {}
         for paper in result_data:
             paper_id = (paper.get(source_id_field) or paper.get("arxiv_id") or
                         paper.get("id") or str(len(normalized)))
@@ -120,7 +120,7 @@ def normalize_search_response(
 
 def build_article_from_metadata(
     paper_id: str,
-    metadata: Dict[str, Any],
+    metadata: dict[str, Any],
     source_name: str = "pubmed",
     used_in_analysis: bool = True,
 ) -> Article:
@@ -144,7 +144,7 @@ def build_article_from_metadata(
     )
 
 
-def _parse_year_from_metadata(metadata: Dict[str, Any]) -> Optional[int]:
+def _parse_year_from_metadata(metadata: dict[str, Any]) -> int | None:
     """Parse year from metadata, handling multiple formats."""
     if "year" in metadata and metadata["year"]:
         try:
@@ -162,7 +162,7 @@ def _parse_year_from_metadata(metadata: Dict[str, Any]) -> Optional[int]:
     return None
 
 
-def _build_article_url(paper_id: str, metadata: Dict[str, Any],
+def _build_article_url(paper_id: str, metadata: dict[str, Any],
                        source_name: str) -> str:
     """Build URL for article, using metadata URL or constructing default."""
     url = metadata.get("url")
@@ -179,11 +179,11 @@ def _build_article_url(paper_id: str, metadata: Dict[str, Any],
 
 
 def build_articles_from_metadata(
-        all_paper_metadata: Dict[str, Dict[str, Any]],
-        paper_source_map: Dict[str, str],  # pylint: disable=unused-argument
+        all_paper_metadata: dict[str, dict[str, Any]],
+        paper_source_map: dict[str, str],  # pylint: disable=unused-argument
         default_source_name: str,
         tool_registry: Optional["ToolRegistry"] = None,  # pylint: disable=unused-argument
-) -> List[Article]:
+) -> list[Article]:
     """Build Article objects from collected paper metadata."""
     articles = []
     for paper_id, metadata in all_paper_metadata.items():
@@ -206,7 +206,7 @@ def build_articles_from_metadata(
 
 
 def count_papers_with_fulltext(
-        all_paper_metadata: Dict[str, Dict[str, Any]]) -> Tuple[int, int]:
+        all_paper_metadata: dict[str, dict[str, Any]]) -> tuple[int, int]:
     """Count papers with and without fulltext indicators.
 
     Returns:
@@ -225,8 +225,8 @@ def count_papers_with_fulltext(
 
 
 def get_papers_with_content(
-    all_paper_metadata: Dict[str, Dict[str,
-                                       Any]],) -> Dict[str, Dict[str, Any]]:
+    all_paper_metadata: dict[str, dict[str,
+                                       Any]],) -> dict[str, dict[str, Any]]:
     """Get papers that have content available for analysis.
 
     Papers with fulltext are preferred. Papers with pdf_url and abstract
@@ -253,9 +253,9 @@ def get_papers_with_content(
 
 def make_failure_result(
     reason: str,
-    queries: Optional[List[str]] = None,
-    articles: Optional[List[Article]] = None,
-) -> Dict[str, Any]:
+    queries: list[str] | None = None,
+    articles: list[Article] | None = None,
+) -> dict[str, Any]:
     """Create a failure result dict for early returns."""
     return {
         "articles_with_reasoning":
@@ -277,9 +277,9 @@ def make_failure_result(
 
 def make_success_result(
     synthesis: str,
-    queries: List[str],
-    articles: List[Article],
-) -> Dict[str, Any]:
+    queries: list[str],
+    articles: list[Article],
+) -> dict[str, Any]:
     """Create a success result dict."""
     return {
         "articles_with_reasoning":
@@ -326,14 +326,14 @@ async def emit_progress(
 # =============================================================================
 
 
-def parse_mcp_query_result(result: Any) -> List[str]:
+def parse_mcp_query_result(result: Any) -> list[str]:
     """Parse MCP tool result into list of queries."""
     if isinstance(result, str):
         try:
             result_data = json.loads(result)
             if isinstance(result_data, list):
                 return result_data
-            return cast(List[str], result_data.get("queries", []))
+            return cast(list[str], result_data.get("queries", []))
         except json.JSONDecodeError:
             return []
     elif isinstance(result, list):
@@ -378,7 +378,7 @@ def determine_query_source_type(
 def calculate_papers_per_query(
     total_papers: int,
     num_queries: int,
-) -> Tuple[int, int]:
+) -> tuple[int, int]:
     """Calculate papers per query with remainder distribution.
 
     Returns:
@@ -397,9 +397,9 @@ def calculate_papers_per_query(
 
 
 def merge_search_results(
-    source_results: List[Tuple[str, Dict[str, Dict[str, Any]]]],
+    source_results: list[tuple[str, dict[str, dict[str, Any]]]],
     deduplicate: bool = True,
-) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, str]]:
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Merge results from multiple sources.
 
     Args:
@@ -409,8 +409,8 @@ def merge_search_results(
     Returns:
         Tuple of (merged_metadata, paper_source_map)
     """
-    all_paper_metadata: Dict[str, Dict[str, Any]] = {}
-    paper_source_map: Dict[str, str] = {}
+    all_paper_metadata: dict[str, dict[str, Any]] = {}
+    paper_source_map: dict[str, str] = {}
     seen_titles: set[str] = set()
 
     for source_tool_id, results in source_results:
@@ -438,13 +438,13 @@ def build_pdf_discovery_config(
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
     is_multi_source: bool,
-) -> Dict[str, Tuple[str, str]]:
+) -> dict[str, tuple[str, str]]:
     """Build PDF discovery configuration mapping.
 
     Returns:
         Dict mapping source_tool_id -> (mcp_tool_name, url_field)
     """
-    config: Dict[str, Tuple[str, str]] = {}
+    config: dict[str, tuple[str, str]] = {}
 
     if is_multi_source and workflow and tool_registry:
         for source in workflow.get_enabled_search_sources():
@@ -468,10 +468,10 @@ def build_pdf_discovery_config(
 
 
 def get_papers_needing_pdf_discovery(
-    all_paper_metadata: Dict[str, Dict[str, Any]],
-    paper_source_map: Dict[str, str],
-    pdf_discovery_config: Dict[str, Tuple[str, str]],
-) -> List[Tuple[str, Dict[str, Any], str, str]]:
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    pdf_discovery_config: dict[str, tuple[str, str]],
+) -> list[tuple[str, dict[str, Any], str, str]]:
     """Identify papers that need PDF discovery.
 
     Returns:
@@ -496,7 +496,7 @@ def get_papers_needing_pdf_discovery(
     return papers
 
 
-def parse_pdf_discovery_result(result: Any) -> Optional[str]:
+def parse_pdf_discovery_result(result: Any) -> str | None:
     """Parse PDF discovery result to extract PDF URL."""
     if isinstance(result, str):
         try:
@@ -530,20 +530,20 @@ class ContentToolConfig:
 
     mcp_tool_name: str
     url_field: str
-    content_params: Dict[str, Any]
+    content_params: dict[str, Any]
 
 
 def build_content_config(
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
     is_multi_source: bool,
-) -> Dict[str, ContentToolConfig]:
+) -> dict[str, ContentToolConfig]:
     """Build content retrieval configuration mapping.
 
     Returns:
         Dict mapping source_tool_id -> ContentToolConfig
     """
-    config: Dict[str, ContentToolConfig] = {}
+    config: dict[str, ContentToolConfig] = {}
 
     if is_multi_source and workflow and tool_registry:
         workflow_content_tool = workflow.content_tool
@@ -579,10 +579,10 @@ def build_content_config(
 
 
 def get_papers_needing_content(
-    all_paper_metadata: Dict[str, Dict[str, Any]],
-    paper_source_map: Dict[str, str],
-    content_config: Dict[str, ContentToolConfig],
-) -> List[Tuple[str, Dict[str, Any], ContentToolConfig]]:
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    content_config: dict[str, ContentToolConfig],
+) -> list[tuple[str, dict[str, Any], ContentToolConfig]]:
     """Identify papers that need content retrieval.
 
     Returns:
@@ -606,7 +606,7 @@ def get_papers_needing_content(
     return papers
 
 
-def parse_content_result(result: Any) -> Optional[str]:
+def parse_content_result(result: Any) -> str | None:
     """Parse content fetch result to extract text content."""
     if isinstance(result, str):
         try:
@@ -625,7 +625,7 @@ def parse_content_result(result: Any) -> Optional[str]:
 # =============================================================================
 
 
-def get_paper_content_for_analysis(metadata: Dict[str, Any],
+def get_paper_content_for_analysis(metadata: dict[str, Any],
                                    max_chars: int = 200_000) -> str:
     """Get paper content for analysis, with truncation if needed."""
     content = str(metadata.get("fulltext") or metadata.get("abstract") or "")

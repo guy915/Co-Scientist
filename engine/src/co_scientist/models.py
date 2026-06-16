@@ -19,7 +19,7 @@ while providing clean type safety for LangGraph.
 
 import enum
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class GenerationMethod(str, enum.Enum):
@@ -34,9 +34,9 @@ class HypothesisReview:
     """Review of a hypothesis with scores and feedback."""
 
     review_summary: str
-    scores: Dict[str, int]  # scientific_soundness, novelty, relevance, etc.
+    scores: dict[str, int]  # scientific_soundness, novelty, relevance, etc.
     safety_ethical_concerns: str
-    detailed_feedback: Dict[str, str]
+    detailed_feedback: dict[str, str]
     constructive_feedback: str
     overall_score: float
 
@@ -76,23 +76,23 @@ class Hypothesis:
     """
 
     text: str
-    explanation: Optional[str] = None
-    literature_grounding: Optional[str] = None
-    experiment: Optional[str] = None
-    novelty_validation: Optional[str] = None
-    enrichments: Dict[str, Any] = field(default_factory=dict)
-    citation_map: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    explanation: str | None = None
+    literature_grounding: str | None = None
+    experiment: str | None = None
+    novelty_validation: str | None = None
+    enrichments: dict[str, Any] = field(default_factory=dict)
+    citation_map: dict[str, dict[str, Any]] = field(default_factory=dict)
     score: float = 0.0
     elo_rating: int = 1200  # Starting Elo rating
-    reviews: List[HypothesisReview] = field(default_factory=list)
-    similarity_cluster_id: Optional[str] = None
-    similarity_degree: Optional[str] = None  # 'high', 'medium', or 'low'
-    evolution_history: List[str] = field(default_factory=list)
-    reflection_notes: Optional[str] = None
+    reviews: list[HypothesisReview] = field(default_factory=list)
+    similarity_cluster_id: str | None = None
+    similarity_degree: str | None = None  # 'high', 'medium', or 'low'
+    evolution_history: list[str] = field(default_factory=list)
+    reflection_notes: str | None = None
     # 'debate' or 'literature_tools'
-    generation_method: Optional[GenerationMethod] = None
-    debate_id: Optional[
-        int] = None  # None for literature-generated, 0-N for debate-generated
+    generation_method: GenerationMethod | None = None
+    debate_id: None | (
+        int) = None  # None for literature-generated, 0-N for debate-generated
     win_count: int = 0
     loss_count: int = 0
 
@@ -108,7 +108,7 @@ class Hypothesis:
             return 0.0
         return (self.win_count / self.total_matches) * 100
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         generation_method = (self.generation_method.value
                              if self.generation_method else None)
@@ -154,17 +154,17 @@ class ExecutionMetrics:
     tournaments_count: int = 0
     evolutions_count: int = 0
     llm_calls: int = 0  # Total LLM calls made
-    phase_times: Dict[str, float] = field(default_factory=dict)
+    phase_times: dict[str, float] = field(default_factory=dict)
 
 
 def create_metrics_update(
-    hypothesis_count: Optional[int] = None,
+    hypothesis_count: int | None = None,
     reviews_count_delta: int = 0,
     tournaments_count_delta: int = 0,
     evolutions_count_delta: int = 0,
     llm_calls_delta: int = 0,
-    total_time: Optional[float] = None,
-    phase_times: Optional[Dict[str, float]] = None,
+    total_time: float | None = None,
+    phase_times: dict[str, float] | None = None,
 ) -> ExecutionMetrics:
     """Create new ExecutionMetrics with ONLY the deltas (not cumulative).
 
@@ -205,22 +205,22 @@ class Article:
     """
 
     title: str
-    url: Optional[str] = None
-    authors: List[str] = field(default_factory=list)
-    year: Optional[int] = None
-    venue: Optional[str] = None
+    url: str | None = None
+    authors: list[str] = field(default_factory=list)
+    year: int | None = None
+    venue: str | None = None
     citations: int = 0
-    abstract: Optional[str] = None
+    abstract: str | None = None
     # unused in PubMed-only mode (PaperQA reads HTML files directly)
-    content: Optional[str] = None
-    source_id: Optional[str] = None
+    content: str | None = None
+    source_id: str | None = None
     source: str = "pubmed"  # default changed to "pubmed" (was "google_scholar")
-    pdf_links: List[str] = field(
+    pdf_links: list[str] = field(
         default_factory=list)  # unused in PubMed-only mode (HTML-only)
     # flag indicating if this article was analyzed by the agent
     used_in_analysis: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "title": self.title,

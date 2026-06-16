@@ -24,7 +24,8 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Coroutine, Dict, List, Optional, Tuple
+from typing import Any
+from collections.abc import Coroutine
 
 from co_scientist.constants import (
     PROGRESS_GENERATE_START,
@@ -60,16 +61,16 @@ class GenerationCounts:
 class GenerationResults:
     """Encapsulates results from parallel generation execution."""
 
-    tools_hypotheses: List[Hypothesis]
-    debate_with_lit_hypotheses: List[Hypothesis]
-    debate_only_hypotheses: List[Hypothesis]
-    debate_transcripts: List[Dict[str, Any]]
+    tools_hypotheses: list[Hypothesis]
+    debate_with_lit_hypotheses: list[Hypothesis]
+    debate_only_hypotheses: list[Hypothesis]
+    debate_transcripts: list[dict[str, Any]]
 
 
 # helper functions
 
 
-def _check_literature_availability(articles_with_reasoning: Optional[str],
+def _check_literature_availability(articles_with_reasoning: str | None,
                                    mcp_available: bool) -> bool:
     """Determine if literature review is available and valid."""
     return (articles_with_reasoning is not None and
@@ -198,17 +199,17 @@ async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts,
 async def _execute_generation_tasks(
     state: WorkflowState,
     counts: GenerationCounts,
-    articles_with_reasoning: Optional[str],
+    articles_with_reasoning: str | None,
     reference_index: ReferenceIndex,
 ) -> GenerationResults:
     """Execute parallel generation tasks and return results."""
-    tools_hypotheses: List[Hypothesis] = []
-    debate_with_lit_hypotheses: List[Hypothesis] = []
-    debate_only_hypotheses: List[Hypothesis] = []
-    debate_transcripts: List[Dict[str, Any]] = []
+    tools_hypotheses: list[Hypothesis] = []
+    debate_with_lit_hypotheses: list[Hypothesis] = []
+    debate_only_hypotheses: list[Hypothesis] = []
+    debate_transcripts: list[dict[str, Any]] = []
 
     # collect tasks to run in parallel
-    tasks: List[Tuple[str, Coroutine[Any, Any, Any]]] = []
+    tasks: list[tuple[str, Coroutine[Any, Any, Any]]] = []
 
     if counts.tools_count > 0:
         logger.info("Running tool-based generation for %s hypotheses",
@@ -265,7 +266,7 @@ async def _execute_generation_tasks(
     )
 
 
-def _apply_degraded_mode_fallback(hypotheses: List[Hypothesis]) -> None:
+def _apply_degraded_mode_fallback(hypotheses: list[Hypothesis]) -> None:
     """Set explicit literature_grounding message for hypotheses without
     literature review.
     """
@@ -308,7 +309,7 @@ def _log_generation_summary(results: GenerationResults) -> None:
 
 
 def _build_summary_message_parts(results: GenerationResults,
-                                 counts: GenerationCounts) -> List[str]:
+                                 counts: GenerationCounts) -> list[str]:
     """Build message parts for summary output."""
     parts = []
     if counts.tools_count > 0:
@@ -352,7 +353,7 @@ async def _emit_complete_progress(state: WorkflowState,
 
 
 async def _enrich_hypotheses(
-    hypotheses: List[Hypothesis],
+    hypotheses: list[Hypothesis],
     state: WorkflowState,
 ) -> None:
     """Run post-generation enrichment tools and attach results to hypotheses.
@@ -406,7 +407,7 @@ async def _enrich_hypotheses(
 # main coordinator function
 
 
-async def generate_hypotheses(state: WorkflowState) -> Dict[str, Any]:
+async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
     """Coordinate hypothesis generation using appropriate strategies.
 
     Implements 3-condition strategy:

@@ -18,7 +18,7 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
@@ -35,9 +35,9 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def sample_context_hypotheses(all_hypotheses: List[Hypothesis],
+def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
                               exclude_hypothesis: Hypothesis,
-                              max_context: int = 15) -> List[str]:
+                              max_context: int = 15) -> list[str]:
     """Strategically sample a subset of other hypotheses for evolution context.
 
     To prevent token explosion with large hypothesis pools, we sample:
@@ -107,16 +107,16 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
 
 async def evolve_single_hypothesis(
     hypothesis: Hypothesis,
-    other_hypotheses_texts: List[str],
-    meta_review: Dict[str, Any],
+    other_hypotheses_texts: list[str],
+    meta_review: dict[str, Any],
     model_name: str,
-    removed_duplicates: List[str],
-    supervisor_guidance: Dict[str, Any] | None = None,
+    removed_duplicates: list[str],
+    supervisor_guidance: dict[str, Any] | None = None,
     articles_with_reasoning: str | None = None,
     run_id: str | None = None,
     hypothesis_index: int | None = None,
     tool_registry: Any | None = None,
-) -> Tuple[Hypothesis, Optional[Dict[str, Any]]]:
+) -> tuple[Hypothesis, dict[str, Any] | None]:
     """Evolve a single hypothesis with strategically sampled context.
 
     This is the CRITICAL anti-duplicate strategy: we pass a subset of other
@@ -362,7 +362,7 @@ DO:
     return hypothesis, evolution_detail
 
 
-async def evolve_node(state: WorkflowState) -> Dict[str, Any]:
+async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     """Evolve top-k hypotheses with context-aware refinement.
 
     This node implements the most impactful anti-duplicate strategy:

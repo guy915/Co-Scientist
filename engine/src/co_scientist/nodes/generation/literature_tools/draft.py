@@ -19,7 +19,7 @@ papers using tools and drafts initial hypothesis ideas based on identified gaps.
 
 import hashlib
 import logging
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
@@ -44,8 +44,8 @@ async def draft_hypotheses(
     count: int,
     mcp_client: Any,
     tool_registry: Optional["ToolRegistry"] = None,
-    reference_index: Optional[Any] = None,
-) -> List[Dict[str, str]]:
+    reference_index: Any | None = None,
+) -> list[dict[str, str]]:
     """Phase 1: draft hypotheses by searching literature sources for metadata.
 
     Uses tools for searching research literature.
@@ -114,7 +114,7 @@ async def draft_hypotheses(
         mcp_whitelist = None
         logger.warning("No tool registry - using all available MCP tools")
 
-    python_whitelist: List[str] = []
+    python_whitelist: list[str] = []
 
     tools_dict, openai_tools = provider.get_tools(
         mcp_whitelist=mcp_whitelist, python_whitelist=python_whitelist)
@@ -157,10 +157,10 @@ async def draft_hypotheses(
     )
 
     # track tool calls in draft phase
-    tool_call_counts: Dict[str, int] = {}
+    tool_call_counts: dict[str, int] = {}
 
     # create tracked executor for draft phase
-    async def draft_tracked_executor(tool_call: Any) -> Dict[str, Any]:
+    async def draft_tracked_executor(tool_call: Any) -> dict[str, Any]:
         """Track and execute tool calls for draft phase."""
         tool_name = tool_call.function.name
 
@@ -241,6 +241,6 @@ async def draft_hypotheses(
         logger.warning(
             "Draft JSON response required major repairs (possible truncation)")
 
-    drafts: List[Dict[str, str]] = response_data.get("drafts", [])
+    drafts: list[dict[str, str]] = response_data.get("drafts", [])
     logger.info("Parsed %s draft hypotheses", len(drafts))
     return drafts

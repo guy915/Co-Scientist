@@ -15,7 +15,7 @@
 # pylint: disable=inconsistent-quotes
 
 import logging
-from typing import Any, Dict, List
+from typing import Any
 
 from co_scientist.constants import (
     LONG_MAX_TOKENS,
@@ -31,7 +31,7 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
+async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     """Clusters hypotheses by similarity and removes high-similarity duplicates.
 
     This node uses LLM-based semantic similarity analysis to:
@@ -132,11 +132,11 @@ async def proximity_node(state: WorkflowState) -> Dict[str, Any]:
                     break
 
     # Identify and remove high-similarity duplicates
-    removed_duplicates: List[Dict[str, Any]] = []
-    hypotheses_to_keep: List[Hypothesis] = []
+    removed_duplicates: list[dict[str, Any]] = []
+    hypotheses_to_keep: list[Hypothesis] = []
 
     # Group by cluster
-    clusters_dict: Dict[str, List[Hypothesis]] = {}
+    clusters_dict: dict[str, list[Hypothesis]] = {}
     for hyp in hypotheses:
         cluster_id = hyp.similarity_cluster_id or "unclustered"
         if cluster_id not in clusters_dict:

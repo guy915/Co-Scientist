@@ -16,7 +16,7 @@
 
 import asyncio
 import logging
-from typing import Any, Dict, Optional
+from typing import Any
 
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
@@ -40,7 +40,7 @@ async def analyze_single_hypothesis(
     total_count: int,
     run_id: str | None = None,
     tool_registry: Any | None = None,
-) -> Optional[Dict[str, Any]]:
+) -> dict[str, Any] | None:
     """Analyze a single hypothesis against literature observations.
 
     Args:
@@ -114,7 +114,7 @@ async def analyze_single_hypothesis(
         return None
 
 
-async def reflection_node(state: WorkflowState) -> Dict[str, Any]:
+async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     """Analyze each hypothesis against literature observations.
 
     this node:
@@ -229,7 +229,7 @@ async def _fetch_indra_for_hypothesis(
     hypothesis_text: str,
     tool_registry: Any | None,
     hypothesis_index: int,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Pre-fetch INDRA knowledge graph evidence for a hypothesis.
 
     Non-critical: returns empty dict on any failure so reflection
@@ -237,7 +237,7 @@ async def _fetch_indra_for_hypothesis(
 
     Returns dict with "prompt_text" (str) and "enrichment_items" (list).
     """
-    empty: Dict[str, Any] = {"prompt_text": "", "enrichment_items": []}
+    empty: dict[str, Any] = {"prompt_text": "", "enrichment_items": []}
     try:
         from co_scientist.nodes.reflection_helpers import fetch_indra_evidence  # pylint: disable=import-outside-toplevel
 

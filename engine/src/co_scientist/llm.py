@@ -22,7 +22,8 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, cast
+from collections.abc import Awaitable, Callable
 import warnings
 
 import jsonschema
@@ -44,7 +45,7 @@ warnings.filterwarnings("ignore",
 def attempt_json_repair(
         json_str: str,
         allow_major_repairs: bool = False
-) -> Tuple[Optional[Dict[str, Any]], bool]:
+) -> tuple[dict[str, Any] | None, bool]:
     """Attempt to repair common JSON syntax errors from LLM outputs.
 
     With json_schema response formats, most responses should be valid JSON.
@@ -125,13 +126,13 @@ def attempt_json_repair(
         return result
 
     # Minor repairs (safe, don't indicate truncation)
-    minor_repairs: List[Callable[[str], Any]] = [
+    minor_repairs: list[Callable[[str], Any]] = [
         # Remove trailing commas before closing braces/brackets
         lambda s: json.loads(re.sub(r",(\s*[}\]])", r"\1", s)),
     ]
 
     # Major repairs (indicate truncation/incomplete, only on final retry)
-    major_repairs: List[Callable[[str], Any]] = [
+    major_repairs: list[Callable[[str], Any]] = [
         # Close unterminated strings and truncated JSON (most common Gemini
         # issue)
         lambda s: json.loads(close_truncated_json(s)),
@@ -181,8 +182,8 @@ def attempt_json_repair(
     return None, False
 
 
-def validate_json_schema(result: Dict[str, Any],
-                         json_schema: Optional[Dict[str, Any]]) -> None:
+def validate_json_schema(result: dict[str, Any],
+                         json_schema: dict[str, Any] | None) -> None:
     """Validate parsed JSON against the provided schema.
 
     Args:
@@ -211,7 +212,7 @@ def validate_json_schema(result: Dict[str, Any],
 
 
 def get_fallback_response(
-        json_schema: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+        json_schema: dict[str, Any] | None) -> dict[str, Any] | None:
     """Get fallback placeholder data for non-critical nodes that failed.
 
     Args:
@@ -246,7 +247,7 @@ async def call_llm(
     max_tokens: int = 4000,
     temperature: float = 0.7,
     force_json: bool = False,
-    json_schema: Optional[Dict[str, Any]] = None,
+    json_schema: dict[str, Any] | None = None,
 ) -> str:
     """Call an LLM via litellm and return the response.
 
@@ -362,9 +363,9 @@ async def call_llm_json(
     model_name: str,
     max_tokens: int = 4000,
     temperature: float = 0.7,
-    json_schema: Optional[Dict[str, Any]] = None,
+    json_schema: dict[str, Any] | None = None,
     max_attempts: int = 5,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Call LLM and parse response as JSON with validation and retry logic.
 
     Args:
@@ -398,8 +399,8 @@ async def call_llm_json(
 
     logger.debug("cache miss for prompt: %s%s", prompt[:200],
                  '...' if len(prompt) > 200 else '')
-    last_error: Optional[Exception] = None
-    last_response_text: Optional[str] = None
+    last_error: Exception | None = None
+    last_response_text: str | None = None
     original_prompt = prompt  # save original for retries with feedback
 
     for attempt in range(1, max_attempts + 1):
@@ -652,12 +653,12 @@ async def call_llm_json(
 async def call_llm_with_tools(
     prompt: str,
     model_name: str,
-    tools: List[Dict[str, Any]],
-    tool_executor: Callable[[Any], Awaitable[Dict[str, Any]]],
+    tools: list[dict[str, Any]],
+    tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
     max_tokens: int = 8000,
     temperature: float = 0.7,
     max_iterations: int = 10,
-) -> tuple[str, List[Dict[str, Any]]]:
+) -> tuple[str, list[dict[str, Any]]]:
     """Call an LLM with tool access and handle tool execution loop.
 
     This function implements an agent loop where the LLM can call tools,

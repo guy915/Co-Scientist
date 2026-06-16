@@ -44,7 +44,7 @@ async def generate_with_tools(
     state: WorkflowState,
     count: int,
     reference_index: Optional["ReferenceIndex"] = None,
-) -> List[Hypothesis]:
+) -> list[Hypothesis]:
     """Generates hypotheses with two-phase tool-based process
     (draft -> validate).
 

@@ -27,7 +27,7 @@ Usage:
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -41,7 +41,7 @@ class ReferenceIndex:
     Empty string when no sources are available.
     """
 
-    sources: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    sources: dict[str, dict[str, Any]] = field(default_factory=dict)
     """key → source dict, e.g. {'C1': {'type': 'paper', 'title': ..., ...}}"""
 
     def is_empty(self) -> bool:
@@ -49,8 +49,8 @@ class ReferenceIndex:
 
 
 def build_reference_index(
-    articles: Optional[List[Any]],
-    context_enrichment_sources: Optional[List[Dict[str, Any]]],
+    articles: list[Any] | None,
+    context_enrichment_sources: list[dict[str, Any]] | None,
 ) -> ReferenceIndex:
     """Build a sequential reference index from lit-review articles and sources.
 
@@ -67,8 +67,8 @@ def build_reference_index(
     Returns:
         ReferenceIndex with formatted text and sources dict
     """
-    sources: Dict[str, Dict[str, Any]] = {}
-    lines: List[str] = []
+    sources: dict[str, dict[str, Any]] = {}
+    lines: list[str] = []
     counter = 1
 
     # papers first
@@ -109,9 +109,9 @@ def build_reference_index(
 
 
 def resolve_citation_keys(
-    literature_grounding: Optional[str],
-    sources: Dict[str, Dict[str, Any]],
-) -> Dict[str, Dict[str, Any]]:
+    literature_grounding: str | None,
+    sources: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
     """Parse [C*] keys from text and resolve them to source metadata.
 
     Returns a citation_map dict: {key: full source metadata dict}.
@@ -123,7 +123,7 @@ def resolve_citation_keys(
         return {}
     keys = re.findall(r"\[C\d+\]", literature_grounding)
     seen: set[str] = set()
-    result: Dict[str, Dict[str, Any]] = {}
+    result: dict[str, dict[str, Any]] = {}
     for raw_key in keys:
         key = raw_key[1:-1]  # strip brackets → "C1"
         if key in sources and key not in seen:

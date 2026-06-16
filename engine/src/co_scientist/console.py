@@ -24,16 +24,8 @@ import logging
 import sys
 import time
 import warnings
-from typing import (
-    Any,
-    AsyncIterator,
-    Coroutine,
-    Dict,
-    Optional,
-    TextIO,
-    Tuple,
-    cast,
-)
+from typing import Any, TextIO, cast
+from collections.abc import AsyncIterator, Coroutine
 
 from rich.console import Console
 from rich.panel import Panel
@@ -90,8 +82,8 @@ class FilteredStderr:
 
 
 def get_generation_method_badge(method: str,
-                                hypothesis: Optional[Dict[str,
-                                                          Any]] = None) -> str:
+                                hypothesis: None | (dict[str, Any]) = None
+                               ) -> str:
     """Get a colored badge for the generation method.
 
     For debate method, checks literature_grounding to distinguish:
@@ -117,7 +109,7 @@ def get_generation_method_badge(method: str,
         return ""
 
 
-async def default_progress_callback(phase: str, data: Dict[str, Any]) -> None:  # pylint: disable=unused-argument
+async def default_progress_callback(phase: str, data: dict[str, Any]) -> None:  # pylint: disable=unused-argument
     """Simple progress callback that prints updates."""
     console = Console()
     console.print(f" [dim cyan]{data.get('message', '')}[/dim cyan]")
@@ -139,7 +131,7 @@ class ConsoleReporter:
     """
 
     def __init__(self,
-                 console: Optional[Console] = None,
+                 console: Console | None = None,
                  filter_stderr: bool = True):
         """Initialize console reporter.
 
@@ -155,16 +147,16 @@ class ConsoleReporter:
         self._displayed_research_plan = False
         self._displayed_literature_review = False
         self._displayed_meta_review = False
-        self._displayed_hypotheses: Dict[str, Dict[str, Any]] = {}
+        self._displayed_hypotheses: dict[str, dict[str, Any]] = {}
 
         # original stderr for restoration
-        self._original_stderr: Optional[TextIO] = None
+        self._original_stderr: TextIO | None = None
 
     async def run(
         self,
-        event_stream: AsyncIterator[Tuple[str, Dict[str, Any]]],
-        research_goal: Optional[str] = None,
-    ) -> Optional[Dict[str, Any]]:
+        event_stream: AsyncIterator[tuple[str, dict[str, Any]]],
+        research_goal: str | None = None,
+    ) -> dict[str, Any] | None:
         """Run the reporter on a streaming event source.
 
         Args:
@@ -181,7 +173,7 @@ class ConsoleReporter:
 
         try:
             start_time = time.time()
-            last_state: Optional[Dict[str, Any]] = None
+            last_state: dict[str, Any] | None = None
 
             # show header
             self.console.rule(
@@ -216,7 +208,7 @@ class ConsoleReporter:
             if self.filter_stderr and self._original_stderr:
                 sys.stderr = self._original_stderr
 
-    async def _handle_event(self, node_name: str, state: Dict[str,
+    async def _handle_event(self, node_name: str, state: dict[str,
                                                               Any]) -> None:
         """Handle a single workflow event."""
         if node_name == "supervisor":
@@ -236,7 +228,7 @@ class ConsoleReporter:
         elif node_name == "evolve":
             self._show_evolution(state)
 
-    def _show_research_plan(self, state: Dict[str, Any]) -> None:
+    def _show_research_plan(self, state: dict[str, Any]) -> None:
         """Display research plan from supervisor."""
         if self._displayed_research_plan:
             return
@@ -258,7 +250,7 @@ class ConsoleReporter:
             self.console.file.flush()
             self._displayed_research_plan = True
 
-    def _show_literature_review(self, state: Dict[str, Any]) -> None:
+    def _show_literature_review(self, state: dict[str, Any]) -> None:
         """Display literature review results."""
         if self._displayed_literature_review:
             return
@@ -291,7 +283,7 @@ class ConsoleReporter:
             self.console.file.flush()
             self._displayed_literature_review = True
 
-    def _show_generated_hypotheses(self, state: Dict[str, Any]) -> None:
+    def _show_generated_hypotheses(self, state: dict[str, Any]) -> None:
         """Display initial hypotheses when generated."""
         for i, hyp in enumerate(state.get("hypotheses", []), 1):
             hyp_key = hyp["text"][:100]
@@ -328,7 +320,7 @@ class ConsoleReporter:
                 Panel(hyp_content, border_style="cyan", expand=True))
             self.console.file.flush()
 
-    def _show_reviews(self, state: Dict[str, Any]) -> None:
+    def _show_reviews(self, state: dict[str, Any]) -> None:
         """Display reviews after review phase."""
         for i, hyp in enumerate(state.get("hypotheses", []), 1):
             if hyp.get("reviews"):
@@ -359,7 +351,7 @@ class ConsoleReporter:
 
                 self.console.file.flush()
 
-    def _show_rankings(self, state: Dict[str, Any]) -> None:
+    def _show_rankings(self, state: dict[str, Any]) -> None:
         """Display ranking results."""
         self.console.print()
         self.console.rule("[bold green]Ranking Results[/bold green]")
@@ -384,7 +376,7 @@ class ConsoleReporter:
         self.console.print(rank_table)
         self.console.file.flush()
 
-    def _show_tournament(self, state: Dict[str, Any]) -> None:
+    def _show_tournament(self, state: dict[str, Any]) -> None:
         """Display tournament results."""
         matchups = state.get("tournament_matchups", [])
         if matchups:
@@ -450,7 +442,7 @@ class ConsoleReporter:
         self.console.print(elo_table)
         self.console.file.flush()
 
-    def _show_meta_review(self, state: Dict[str, Any]) -> None:
+    def _show_meta_review(self, state: dict[str, Any]) -> None:
         """Display meta review."""
         if self._displayed_meta_review:
             return
@@ -470,7 +462,7 @@ class ConsoleReporter:
             self.console.file.flush()
             self._displayed_meta_review = True
 
-    def _show_evolution(self, state: Dict[str, Any]) -> None:
+    def _show_evolution(self, state: dict[str, Any]) -> None:
         """Display evolved hypotheses with detailed rationale."""
         evolution_details = state.get("evolution_details", [])
 
@@ -513,7 +505,7 @@ class ConsoleReporter:
                 " (changes too similar to existing)[/dim yellow]")
             self.console.file.flush()
 
-    def _show_final_summary(self, last_state: Optional[Dict[str, Any]],
+    def _show_final_summary(self, last_state: dict[str, Any] | None,
                             execution_time: float) -> None:
         """Display final results summary."""
         self.console.print()

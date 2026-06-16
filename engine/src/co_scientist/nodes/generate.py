@@ -19,7 +19,7 @@ has been moved to the generation/ package for better organization.
 # pylint: disable=inconsistent-quotes
 
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from co_scientist.models import create_metrics_update
 from co_scientist.state import WorkflowState
@@ -28,7 +28,7 @@ from co_scientist.nodes.generation import generate_hypotheses
 logger = logging.getLogger(__name__)
 
 
-async def generate_node(state: WorkflowState) -> Dict[str, Any]:
+async def generate_node(state: WorkflowState) -> dict[str, Any]:
     """LangGraph node for hypothesis generation.
 
     Delegates to generation coordinator which orchestrates all strategies:

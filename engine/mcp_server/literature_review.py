@@ -242,7 +242,7 @@ class PubmedSource(DocumentSource):
             # check if already downloaded to shared pool
             if fulltext_file.exists():
                 logger.info("Fulltext %s found in shared pool, reusing", pmc_id)
-                with open(fulltext_file, 'r', encoding='utf-8') as f:
+                with open(fulltext_file, encoding='utf-8') as f:
                     contents = f.read()
 
                 # create symlink to run directory if needed
@@ -384,7 +384,7 @@ class PubmedSource(DocumentSource):
             if metadata_file.exists():
                 logger.debug("Paper %s metadata found in shared pool, reusing",
                              paper_id)
-                with open(metadata_file, 'r', encoding='utf-8') as f:
+                with open(metadata_file, encoding='utf-8') as f:
                     metadata = json.load(f)
 
                 # create symlink to run directory if run_id provided
@@ -562,7 +562,7 @@ class PubmedSource(DocumentSource):
                 paper_id = metadata_file.stem.replace(".metadata", "")
                 if paper_id not in current_paper_ids_set:
                     try:
-                        with open(metadata_file, 'r', encoding='utf-8') as f:
+                        with open(metadata_file, encoding='utf-8') as f:
                             metadata = json.load(f)
                         # only consider papers with PMC fulltext
                         if metadata.get('pmc_full_text_id'):

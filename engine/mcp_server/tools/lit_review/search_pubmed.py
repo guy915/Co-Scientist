@@ -20,7 +20,7 @@ import os
 import ssl
 import traceback
 from time import sleep
-from typing import Any, List, cast
+from typing import Any, cast
 from urllib.error import HTTPError, URLError
 
 from Bio import Entrez
@@ -328,7 +328,7 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
         return json.dumps({"error": str(e), "results": [], "count": 0})
 
 
-def search_pubmed_raw(query: str, max_papers: int = 10) -> List[Article]:
+def search_pubmed_raw(query: str, max_papers: int = 10) -> list[Article]:
     """Searches PubMed and returns Article objects for direct API usage.
 
     Args:

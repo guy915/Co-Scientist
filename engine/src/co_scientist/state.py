@@ -17,7 +17,8 @@ The state is passed through all nodes and tracks the complete workflow.
 """
 
 import logging
-from typing import (Annotated, Any, Awaitable, Callable, Dict, List, Optional)
+from typing import Annotated, Any
+from collections.abc import Awaitable, Callable
 
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
@@ -27,8 +28,8 @@ from co_scientist.models import Article, ExecutionMetrics, Hypothesis
 logger = logging.getLogger(__name__)
 
 
-def deduplicate_hypotheses(existing: List[Hypothesis],
-                           new: List[Hypothesis]) -> List[Hypothesis]:
+def deduplicate_hypotheses(existing: list[Hypothesis],
+                           new: list[Hypothesis]) -> list[Hypothesis]:
     """State reducer that automatically deduplicates hypotheses on state update.
 
     This is a LangGraph anti-duplicate strategy: duplicates are automatically
@@ -157,25 +158,25 @@ class WorkflowState(TypedDict):
     """Number of top hypotheses to evolve each iteration."""
 
     # Workflow State
-    hypotheses: Annotated[List[Hypothesis], deduplicate_hypotheses]
+    hypotheses: Annotated[list[Hypothesis], deduplicate_hypotheses]
     """Current list of hypotheses being processed (auto-deduplicated)."""
 
     current_iteration: int
     """Current iteration number (0-indexed)."""
 
-    supervisor_guidance: Dict[str, Any]
+    supervisor_guidance: dict[str, Any]
     """Supervisor's research plan and workflow guidance."""
 
-    meta_review: Dict[str, Any]
+    meta_review: dict[str, Any]
     """Meta-review insights for guiding evolution."""
 
-    removed_duplicates: List[Dict[str, Any]]
+    removed_duplicates: list[dict[str, Any]]
     """Tracking removed duplicate hypotheses."""
 
-    tournament_matchups: List[Dict[str, Any]]
+    tournament_matchups: list[dict[str, Any]]
     """List of tournament matchups with reasoning."""
 
-    evolution_details: List[Dict[str, Any]]
+    evolution_details: list[dict[str, Any]]
     """List of evolution transformations with reasoning."""
 
     # Metrics
@@ -190,72 +191,71 @@ class WorkflowState(TypedDict):
     """Unique identifier for this run (used for logging)."""
 
     # Progress Callback
-    progress_callback: Optional[Callable[[str, Dict[str, Any]],
-                                         Awaitable[None]]]
+    progress_callback: None | (Callable[[str, dict[str, Any]], Awaitable[None]])
     """Optional async callback for progress updates."""
 
     # Messages (for LangSmith tracing)
-    messages: Annotated[List[Dict[str, Any]], add_messages]
+    messages: Annotated[list[dict[str, Any]], add_messages]
     """Message history for LangSmith observability."""
 
     # Optional User Preferences and Inputs
-    preferences: Optional[str]
+    preferences: str | None
     """Optional: Desired approach or focus for hypothesis generation."""
 
-    attributes: Optional[List[str]]
+    attributes: list[str] | None
     """Optional: Key qualities to prioritize in hypotheses."""
 
-    constraints: Optional[List[str]]
+    constraints: list[str] | None
     """Optional: Requirements or boundaries for hypothesis generation."""
 
-    starting_hypotheses: Optional[List[str]]
+    starting_hypotheses: list[str] | None
     """Optional: User-provided starting hypotheses to build upon."""
 
-    literature: Optional[List[str]]
+    literature: list[str] | None
     """Optional: User-provided literature references to incorporate."""
 
-    articles_with_reasoning: Optional[str]
+    articles_with_reasoning: str | None
     """Literature review results with analytical reasoning (formatted for
     prompts).
     """
 
-    literature_review_queries: Optional[List[str]]
+    literature_review_queries: list[str] | None
     """Generated search queries for literature review."""
 
-    articles: Optional[List[Article]]
+    articles: list[Article] | None
     """Individual articles extracted from literature review (for hypothesis
     comparison).
     """
 
-    generation_corpus_slug: Optional[str]
+    generation_corpus_slug: str | None
     """Shared corpus slug for reuse across draft and validation phases."""
 
-    debate_transcripts: Optional[List[Dict[str, Any]]]
+    debate_transcripts: list[dict[str, Any]] | None
     """Internal debate transcripts from parallel debates. Each entry:
     {debate_id, transcript, hypothesis_text}
     """
 
-    mcp_available: Optional[bool]
+    mcp_available: bool | None
     """Whether MCP server (for literature review tools) is available."""
 
-    pubmed_available: Optional[bool]
+    pubmed_available: bool | None
     """Whether PubMed API (Entrez) is available."""
 
-    enable_tool_calling_generation: Optional[bool]
+    enable_tool_calling_generation: bool | None
     """Enable tool-calling generation where generate node queries literature
     tools directly (requires enable_literature_review_node=True + MCP server,
     default False).
     """
 
-    dev_test_lit_tools_isolation: Optional[bool]
+    dev_test_lit_tools_isolation: bool | None
     """Development mode: force cache on lit review, allocate all hypotheses to
     lit tools (no debate).
     """
 
-    tool_registry: Optional[Any]
+    tool_registry: Any | None
     """Optional ToolRegistry for config-driven tool selection."""
 
-    context_enrichment_sources: Optional[List[Dict[str, Any]]]
+    context_enrichment_sources: list[dict[str, Any]] | None
     """Structured sources returned by context enrichment tools during
     literature review (e.g., INDRA mechanistic statements). Used to build
     [KG1]-style citation keys for hypothesis generation. Domain-agnostic:

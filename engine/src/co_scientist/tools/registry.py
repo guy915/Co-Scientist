@@ -19,16 +19,8 @@ from type hints.
 
 import inspect
 import logging
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    List,
-    Optional,
-    get_type_hints,
-    get_origin,
-    get_args,
-)
+from typing import Any, Optional, get_type_hints, get_origin, get_args
+from collections.abc import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -48,14 +40,14 @@ class PythonToolRegistry:
     """
 
     def __init__(self) -> None:
-        self._functions: Dict[str, Callable[..., Any]] = {}
-        self._schemas: Dict[str, Dict[str, Any]] = {}
-        self._openai_tools: List[Dict[str, Any]] = []
+        self._functions: dict[str, Callable[..., Any]] = {}
+        self._schemas: dict[str, dict[str, Any]] = {}
+        self._openai_tools: list[dict[str, Any]] = []
 
     def register(
         self,
-        name: Optional[str] = None,
-        description: Optional[str] = None
+        name: str | None = None,
+        description: str | None = None
     ) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Decorate and register a Python function as a tool.
 
@@ -90,7 +82,7 @@ class PythonToolRegistry:
         return decorator
 
     def _generate_schema(self, func: Callable[..., Any], name: str,
-                         description: str) -> Dict[str, Any]:
+                         description: str) -> dict[str, Any]:
         """Generate JSON schema from function signature and type hints.
 
         Args:
@@ -104,7 +96,7 @@ class PythonToolRegistry:
         sig = inspect.signature(func)
         type_hints = get_type_hints(func)
 
-        parameters: Dict[str, Any] = {
+        parameters: dict[str, Any] = {
             "type": "object",
             "properties": {},
             "required": []
@@ -133,7 +125,7 @@ class PythonToolRegistry:
         return schema
 
     def _type_to_schema(self, python_type: Any,
-                        param_name: str) -> Dict[str, Any]:
+                        param_name: str) -> dict[str, Any]:
         """Convert Python type hint to JSON schema.
 
         supports: str, int, float, bool, List, Dict, Optional
@@ -191,30 +183,30 @@ class PythonToolRegistry:
                          param_name)
             return {"type": "string"}
 
-    def get_function(self, name: str) -> Optional[Callable[..., Any]]:
+    def get_function(self, name: str) -> Callable[..., Any] | None:
         """Get registered function by name."""
         return self._functions.get(name)
 
-    def get_schema(self, name: str) -> Optional[Dict[str, Any]]:
+    def get_schema(self, name: str) -> dict[str, Any] | None:
         """Get JSON schema for registered tool by name."""
         return self._schemas.get(name)
 
-    def get_all_functions(self) -> Dict[str, Callable[..., Any]]:
+    def get_all_functions(self) -> dict[str, Callable[..., Any]]:
         """Get all registered functions."""
         return self._functions.copy()
 
-    def get_all_schemas(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_schemas(self) -> dict[str, dict[str, Any]]:
         """Get all JSON schemas."""
         return self._schemas.copy()
 
-    def get_openai_tools(self) -> List[Dict[str, Any]]:
+    def get_openai_tools(self) -> list[dict[str, Any]]:
         """Get tools in OpenAI format for LiteLLM."""
         return self._openai_tools.copy()
 
     def get_tools(
         self,
-        whitelist: Optional[List[str]] = None
-    ) -> tuple[Dict[str, Callable[..., Any]], List[Dict[str, Any]]]:
+        whitelist: list[str] | None = None
+    ) -> tuple[dict[str, Callable[..., Any]], list[dict[str, Any]]]:
         """Get tools filtered by whitelist.
 
         Args:
