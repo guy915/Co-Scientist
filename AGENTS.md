@@ -109,7 +109,10 @@ bun run dev          # vite dev server on :5173
 bun run build        # tsc && vite build
 bun run lint         # gts lint
 bun run fix          # gts fix (format + autofix)
+bun run test         # vitest run (jsdom + React Testing Library)
 ```
+
+Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test-setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
 
 Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/WorkbenchApp.tsx`, with pages under `src/workbench/pages/` (Dashboard, NewRun, RunDetail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/useRunStream.ts`. Theme state is in `src/workbench/ThemeContext.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/ErrorBoundary.tsx`, `src/lib/utils.ts`.
 
