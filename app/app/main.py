@@ -45,7 +45,7 @@ except Exception:  # pragma: no cover - litellm optional in mock mode  # pylint:
     acompletion = None
 
 try:
-    from co_scientist import HypothesisGenerator  # type: ignore[import-not-found]
+    from co_scientist import HypothesisGenerator  # type: ignore[import-not-found, unused-ignore]
 except Exception:  # pragma: no cover - engine optional in mock mode  # pylint: disable=broad-exception-caught
     HypothesisGenerator = None  # pylint: disable=invalid-name
 
@@ -472,7 +472,7 @@ async def get_system_status() -> dict[str, Any]:
     mcp_available = False
     pubmed_available = False
     try:
-        from co_scientist.mcp_client import (  # type: ignore[import-not-found]  # pylint: disable=import-outside-toplevel
+        from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
             check_mcp_available, check_pubmed_available_via_mcp,
         )
 
