@@ -19,7 +19,7 @@ import time
 from fastapi.testclient import TestClient
 
 
-def _client():
+def _client() -> TestClient:
     from app.main import app  # pylint: disable=import-outside-toplevel
 
     return TestClient(app)
@@ -28,7 +28,7 @@ def _client():
 def _wait_status(client: TestClient,
                  rid: str,
                  status: str,
-                 timeout=15.0) -> bool:
+                 timeout: float = 15.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
         r = client.get(f"/api/runs/{rid}")
@@ -38,25 +38,25 @@ def _wait_status(client: TestClient,
     return False
 
 
-def test_create_run_rejects_empty_goal():
+def test_create_run_rejects_empty_goal() -> None:
     c = _client()
     res = c.post("/api/runs", json={"research_goal": "", "profile": "standard"})
     assert res.status_code == 422
 
 
-def test_create_run_rejects_invalid_profile():
+def test_create_run_rejects_invalid_profile() -> None:
     c = _client()
     res = c.post("/api/runs", json={"research_goal": "x", "profile": "bogus"})
     assert res.status_code == 422
 
 
-def test_get_run_returns_404_for_unknown_id():
+def test_get_run_returns_404_for_unknown_id() -> None:
     c = _client()
     res = c.get("/api/runs/not-a-real-id")
     assert res.status_code == 404
 
 
-def test_starting_a_completed_run_is_a_conflict():
+def test_starting_a_completed_run_is_a_conflict() -> None:
     c = _client()
     rid = c.post(
         "/api/runs",
@@ -71,7 +71,7 @@ def test_starting_a_completed_run_is_a_conflict():
     assert again.status_code == 409
 
 
-def test_cancel_requires_active_run():
+def test_cancel_requires_active_run() -> None:
     c = _client()
     rid = c.post(
         "/api/runs",
@@ -85,7 +85,7 @@ def test_cancel_requires_active_run():
     assert res.status_code == 404
 
 
-def test_report_md_404_before_completion():
+def test_report_md_404_before_completion() -> None:
     c = _client()
     rid = c.post(
         "/api/runs",
@@ -98,7 +98,7 @@ def test_report_md_404_before_completion():
     assert res.status_code == 404
 
 
-def test_report_md_has_attachment_disposition_after_completion():
+def test_report_md_has_attachment_disposition_after_completion() -> None:
     c = _client()
     rid = c.post(
         "/api/runs",
@@ -117,7 +117,7 @@ def test_report_md_has_attachment_disposition_after_completion():
     assert "## Top hypotheses" in res.text
 
 
-def test_run_listing_returns_most_recent_first():
+def test_run_listing_returns_most_recent_first() -> None:
     c = _client()
     a = c.post("/api/runs",
                json={
@@ -135,7 +135,7 @@ def test_run_listing_returns_most_recent_first():
     assert ids.index(b) < ids.index(a)
 
 
-def test_status_endpoint_includes_provider_and_mock_flag():
+def test_status_endpoint_includes_provider_and_mock_flag() -> None:
     c = _client()
     res = c.get("/status")
     assert res.status_code == 200
@@ -144,7 +144,7 @@ def test_status_endpoint_includes_provider_and_mock_flag():
     assert data["mock_mode"] is True
 
 
-def test_run_get_includes_summary_counts():
+def test_run_get_includes_summary_counts() -> None:
     c = _client()
     rid = c.post(
         "/api/runs",
@@ -163,7 +163,7 @@ def test_run_get_includes_summary_counts():
     assert summary["matches"] >= 6
 
 
-def test_safety_block_at_intake_short_circuits_workflow():
+def test_safety_block_at_intake_short_circuits_workflow() -> None:
     c = _client()
     rid = c.post(
         "/api/runs",

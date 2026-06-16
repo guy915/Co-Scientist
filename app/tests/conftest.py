@@ -15,13 +15,15 @@
 from __future__ import annotations
 
 import os
+import pathlib
 from collections.abc import Iterator
 
 import pytest
 
 
 @pytest.fixture(autouse=True)
-def isolated_db(monkeypatch: pytest.MonkeyPatch, tmp_path) -> Iterator[str]:
+def isolated_db(monkeypatch: pytest.MonkeyPatch,
+                tmp_path: pathlib.Path) -> Iterator[str]:
     """Point the SQLite store at a per-test database and force mock mode."""
     db_path = str(tmp_path / "test.db")
     reports_dir = str(tmp_path / "reports")

@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import time
 
+from typing import cast
+
 from fastapi.testclient import TestClient
 
 from app import store
 
 
-def test_append_and_list_messages(isolated_db):
+def test_append_and_list_messages(isolated_db: str) -> None:
     store.create_run("rg",
                      "standard",
                      "mock", {},
@@ -50,7 +52,7 @@ def test_append_and_list_messages(isolated_db):
     assert msgs[1].kind == "milestone"
 
 
-def test_get_pending_steering(isolated_db):
+def test_get_pending_steering(isolated_db: str) -> None:
     store.create_run("rg",
                      "standard",
                      "mock", {},
@@ -80,7 +82,7 @@ def test_get_pending_steering(isolated_db):
     assert all(m.applied is False for m in pending)
 
 
-def test_mark_steering_applied(isolated_db):
+def test_mark_steering_applied(isolated_db: str) -> None:
     store.create_run("rg",
                      "standard",
                      "mock", {},
@@ -110,7 +112,7 @@ def test_mark_steering_applied(isolated_db):
     assert all(m.applied is True for m in all_msgs)
 
 
-def test_message_to_dict(isolated_db):
+def test_message_to_dict(isolated_db: str) -> None:
     store.create_run("rg",
                      "standard",
                      "mock", {},
@@ -137,12 +139,12 @@ def test_message_to_dict(isolated_db):
 # ---------------------------------------------------------------------------
 
 
-def _client():
+def _client() -> TestClient:
     from app.main import app  # pylint: disable=import-outside-toplevel
     return TestClient(app)
 
 
-def _make_run(client, goal="test goal"):
+def _make_run(client: TestClient, goal: str = "test goal") -> str:
     res = client.post("/api/runs",
                       json={
                           "research_goal": goal,
@@ -150,10 +152,10 @@ def _make_run(client, goal="test goal"):
                       },
                       headers={"X-Client-ID": "test-client"})
     assert res.status_code == 200
-    return res.json()["id"]
+    return cast(str, res.json()["id"])
 
 
-def test_send_message_endpoint(isolated_db):
+def test_send_message_endpoint(isolated_db: str) -> None:
     client = _client()
     run_id = _make_run(client)
 
@@ -166,7 +168,7 @@ def test_send_message_endpoint(isolated_db):
     assert data["content"] == "focus on cytokines"
 
 
-def test_send_message_always_stores_as_steering(isolated_db):
+def test_send_message_always_stores_as_steering(isolated_db: str) -> None:
     """POST /messages always stores as steering; Q&A routing is the frontend's job."""  # pylint: disable=line-too-long
     client = _client()
     run_id = _make_run(client)
@@ -177,7 +179,7 @@ def test_send_message_always_stores_as_steering(isolated_db):
     assert res.json()["kind"] == "steering"
 
 
-def test_list_messages_endpoint(isolated_db):
+def test_list_messages_endpoint(isolated_db: str) -> None:
     client = _client()
     run_id = _make_run(client)
 
@@ -192,13 +194,13 @@ def test_list_messages_endpoint(isolated_db):
     assert msgs[1]["content"] == "steer B"
 
 
-def test_list_messages_404_on_unknown_run(isolated_db):
+def test_list_messages_404_on_unknown_run(isolated_db: str) -> None:
     client = _client()
     res = client.get("/api/runs/nonexistent-id/messages")
     assert res.status_code == 404
 
 
-def test_steering_messages_applied_after_run(isolated_db):
+def test_steering_messages_applied_after_run(isolated_db: str) -> None:
     """Steering messages sent before a run starts should be marked applied when the run completes."""  # pylint: disable=line-too-long
     client = _client()
     run_id = _make_run(client, goal="test steering injection")
@@ -226,7 +228,7 @@ def test_steering_messages_applied_after_run(isolated_db):
     assert steering[0]["applied"] is True
 
 
-def test_milestone_messages_generated_after_run(isolated_db):
+def test_milestone_messages_generated_after_run(isolated_db: str) -> None:
     """Milestone messages should be generated as the run progresses."""
     client = _client()
     run_id = _make_run(client, goal="test milestone generation")

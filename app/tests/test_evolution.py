@@ -20,13 +20,15 @@ import time
 from fastapi.testclient import TestClient
 
 
-def _client():
+def _client() -> TestClient:
     from app.main import app  # pylint: disable=import-outside-toplevel
 
     return TestClient(app)
 
 
-def _wait_completed(client: TestClient, run_id: str, timeout=20.0) -> None:
+def _wait_completed(client: TestClient,
+                    run_id: str,
+                    timeout: float = 20.0) -> None:
     deadline = time.time() + timeout
     while time.time() < deadline:
         r = client.get(f"/api/runs/{run_id}")
@@ -36,7 +38,8 @@ def _wait_completed(client: TestClient, run_id: str, timeout=20.0) -> None:
     raise AssertionError("run did not complete in time")
 
 
-def test_evolution_creates_new_rows_with_parent_lineage(isolated_db):
+def test_evolution_creates_new_rows_with_parent_lineage(
+        isolated_db: str) -> None:
     client = _client()
     rid = client.post(
         "/api/runs",
@@ -83,7 +86,7 @@ def test_evolution_creates_new_rows_with_parent_lineage(isolated_db):
     assert len(titles_after) == len(initial)
 
 
-def test_evolution_event_emitted(isolated_db):
+def test_evolution_event_emitted(isolated_db: str) -> None:
     """The evolve agent emits at least one event; the citation/audit step follows."""  # pylint: disable=line-too-long
     client = _client()
     rid = client.post(

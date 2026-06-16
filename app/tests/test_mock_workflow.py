@@ -16,20 +16,22 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
+from typing import Any
 
 from app import engine_adapter, store
 
 
-def _drain(coro_gen):
+def _drain(coro_gen: AsyncIterator[Any]) -> list[Any]:
     """Collect all events from an async generator synchronously."""
 
-    async def _run():
+    async def _run() -> list[Any]:
         return [e async for e in coro_gen]
 
     return asyncio.run(_run())
 
 
-def test_mock_workflow_is_deterministic(isolated_db: str):
+def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
     """Same goal + profile + run_id → identical artefacts (deterministic seed)."""  # pylint: disable=line-too-long
     # Manually seed the same run_id twice — the workflow uses (run_id, goal, profile) as seed.  # pylint: disable=line-too-long
     run_a = store.create_run("Identical goal", "standard", "mock", {})
@@ -67,7 +69,7 @@ def test_mock_workflow_is_deterministic(isolated_db: str):
     assert set(types_a) == set(types_b)
 
 
-def test_replaying_same_run_id_is_byte_identical(isolated_db: str):
+def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     """Re-running the inner mock with identical seed inputs yields identical title sequences."""  # pylint: disable=line-too-long
     from app.mock_workflow import run_mock_workflow, resolved_config  # pylint: disable=import-outside-toplevel
 
@@ -81,7 +83,7 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str):
     fixed_id = "fixed-seed-id"
     fixed_goal = "Pinned goal for determinism"
 
-    async def _drain_async(rid: str):
+    async def _drain_async(rid: str) -> list[Any]:
         return [
             e async for e in run_mock_workflow(
                 rid, fixed_goal, "standard", cfg, sleep_seconds=0)
@@ -101,7 +103,7 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str):
     _ = (run_a, run_b)
 
 
-def test_advanced_emits_more_events_than_standard(isolated_db: str):
+def test_advanced_emits_more_events_than_standard(isolated_db: str) -> None:
     run_std = store.create_run("Profile depth test", "standard", "mock", {})
     events_std = _drain(
         engine_adapter.run_workflow(run_std.id,
@@ -124,7 +126,7 @@ def test_advanced_emits_more_events_than_standard(isolated_db: str):
     assert len(matches_adv) > len(matches_std)
 
 
-def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str):
+def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:
     run = store.create_run("Sequence test", "standard", "mock", {})
     events = _drain(
         engine_adapter.run_workflow(run.id,
