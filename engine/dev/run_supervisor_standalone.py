@@ -32,7 +32,7 @@ from co_scientist.nodes.supervisor import supervisor_node
 console = Console()
 
 
-async def test_supervisor():
+async def test_supervisor() -> None:
     """Run supervisor node with minimal state."""
 
     console.print("\n[bold cyan]Testing supervisor node[/bold cyan]\n")

@@ -37,7 +37,7 @@ which depends on the MODEL_NAME you set below.
 MODEL_NAME = "gemini/gemini-2.5-flash"
 
 
-async def _run():
+async def _run() -> None:
     # Prompt user for research goal with rich formatting
     console = Console()
     console.print()
