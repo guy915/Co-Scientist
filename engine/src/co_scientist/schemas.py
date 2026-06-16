@@ -17,10 +17,10 @@ These schemas are used with response_format of type json_schema
 to constrain LLM outputs to specific formats.
 """
 
-from typing import Dict, Any, Optional
+from typing import Any
 
 # Generation schema
-GENERATION_SCHEMA: Dict[str, Any] = {
+GENERATION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_generation",
     "strict": False,
     "schema": {
@@ -81,7 +81,7 @@ GENERATION_SCHEMA: Dict[str, Any] = {
 }
 
 # Generation draft schema (Phase 1: drafting without validation)
-GENERATION_DRAFT_SCHEMA: Dict[str, Any] = {
+GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_draft",
     "strict": False,
     "schema": {
@@ -153,7 +153,7 @@ GENERATION_DRAFT_SCHEMA: Dict[str, Any] = {
 }
 
 # Hypothesis validation synthesis schema (Phase 2)
-HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: Dict[str, Any] = {
+HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_validation_synthesis",
     "strict": False,
     "schema": {
@@ -230,7 +230,7 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: Dict[str, Any] = {
 }
 
 # Review schema
-REVIEW_SCHEMA: Dict[str, Any] = {
+REVIEW_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_review",
     "strict": False,
     "schema": {
@@ -358,7 +358,7 @@ REVIEW_SCHEMA: Dict[str, Any] = {
 }
 
 # Batch review schema - for reviewing multiple hypotheses together
-REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
+REVIEW_BATCH_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_batch_review",
     "strict": False,
     "schema": {
@@ -512,7 +512,7 @@ REVIEW_BATCH_SCHEMA: Dict[str, Any] = {
 }
 
 # Evolution schema
-EVOLUTION_SCHEMA: Dict[str, Any] = {
+EVOLUTION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_evolution",
     "strict": False,
     "schema": {
@@ -559,7 +559,7 @@ EVOLUTION_SCHEMA: Dict[str, Any] = {
 }
 
 # Meta-review schema
-META_REVIEW_SCHEMA: Dict[str, Any] = {
+META_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "meta_review",
     "strict": False,
     "schema": {
@@ -679,7 +679,7 @@ META_REVIEW_SCHEMA: Dict[str, Any] = {
 }
 
 # Ranking schema
-RANKING_SCHEMA: Dict[str, Any] = {
+RANKING_SCHEMA: dict[str, Any] = {
     "name": "ranking_judgment",
     "strict": False,
     "schema": {
@@ -757,7 +757,7 @@ RANKING_SCHEMA: Dict[str, Any] = {
 }
 
 # Proximity schema
-PROXIMITY_SCHEMA: Dict[str, Any] = {
+PROXIMITY_SCHEMA: dict[str, Any] = {
     "name": "proximity_analysis",
     "strict": False,
     "schema": {
@@ -824,7 +824,7 @@ PROXIMITY_SCHEMA: Dict[str, Any] = {
 }
 
 # Reflection schema
-REFLECTION_SCHEMA: Dict[str, Any] = {
+REFLECTION_SCHEMA: dict[str, Any] = {
     "name": "reflection_observations",
     "strict": False,
     "schema": {
@@ -859,7 +859,7 @@ REFLECTION_SCHEMA: Dict[str, Any] = {
 }
 
 # Supervisor schema
-SUPERVISOR_SCHEMA: Dict[str, Any] = {
+SUPERVISOR_SCHEMA: dict[str, Any] = {
     "name": "supervisor_guidance",
     "strict": False,
     "schema": {
@@ -1132,7 +1132,7 @@ SUPERVISOR_SCHEMA: Dict[str, Any] = {
 }
 
 # Literature review query generation schema
-LITERATURE_QUERY_SCHEMA: Dict[str, Any] = {
+LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
     "name": "pubmed_query_generation",
     "strict": False,
     "schema": {
@@ -1157,7 +1157,7 @@ LITERATURE_QUERY_SCHEMA: Dict[str, Any] = {
 }
 
 # Literature review paper analysis schema
-LITERATURE_PAPER_ANALYSIS_SCHEMA: Dict[str, Any] = {
+LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "paper_analysis",
     "strict": False,
     "schema": {
@@ -1203,7 +1203,7 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: Dict[str, Any] = {
 }
 
 # Hypothesis novelty analysis schema
-HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: Dict[str, Any] = {
+HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_novelty_analysis",
     "strict": False,
     "schema": {
@@ -1266,7 +1266,7 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: Dict[str, Any] = {
 }
 
 
-def get_schema_for_prompt(prompt_name: str) -> Optional[Dict[str, Any]]:
+def get_schema_for_prompt(prompt_name: str) -> dict[str, Any] | None:
     """Get the JSON schema for a given prompt name.
 
     Args:

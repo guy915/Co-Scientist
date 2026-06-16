@@ -17,7 +17,7 @@ import asyncio
 import hashlib
 import logging
 import random
-from typing import Any, Dict, Tuple
+from typing import Any
 
 from co_scientist.constants import (
     INITIAL_ELO_RATING,
@@ -39,7 +39,7 @@ _ranking_semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
 def calculate_elo_update(winner_elo: int,
                          loser_elo: int,
-                         k_factor: int = ELO_K_FACTOR) -> Tuple[int, int]:
+                         k_factor: int = ELO_K_FACTOR) -> tuple[int, int]:
     """Calculates updated Elo ratings for winner and loser.
 
     Args:
@@ -66,11 +66,11 @@ async def judge_matchup(
     hypothesis_b: Hypothesis,
     research_goal: str,
     model_name: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
     run_id: str | None = None,
     matchup_index: int | None = None,
     tool_registry: Any | None = None,
-) -> Tuple[str, Dict[str, Any]]:
+) -> tuple[str, dict[str, Any]]:
     """Has an LLM judge which hypothesis is superior.
 
     Args:
@@ -185,7 +185,7 @@ async def judge_matchup(
     return winner, response
 
 
-async def ranking_node(state: WorkflowState) -> Dict[str, Any]:
+async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     """Runs tournament-style pairwise comparisons with Elo rating updates.
 
     This node runs multiple rounds of random pairwise matchups where an LLM

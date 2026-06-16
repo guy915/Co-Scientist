@@ -23,7 +23,7 @@ Supports both single-server (legacy) and multi-server configurations.
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, cast
+from typing import Any, Optional, TYPE_CHECKING, cast
 
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -44,8 +44,8 @@ class MCPToolClient:
 
     def __init__(
         self,
-        server_url: Optional[str] = None,
-        server_configs: Optional[Dict[str, Dict[str, str]]] = None,
+        server_url: str | None = None,
+        server_configs: dict[str, dict[str, str]] | None = None,
         tool_registry: Optional["ToolRegistry"] = None,
     ):
         """Initialize the MCP client.
@@ -66,11 +66,11 @@ class MCPToolClient:
         (or server_url will default from environment).
         """
         self._tool_registry = tool_registry
-        self._server_configs: Dict[str, Dict[str, str]] = {}
-        self._client: Optional[MultiServerMCPClient] = None
-        self._tools_dict: Optional[Dict[str, Any]] = None
-        self._openai_tools: Optional[List[Dict[str, Any]]] = None
-        self._tool_to_server: Dict[str, str] = {}  # maps tool_name -> server_id
+        self._server_configs: dict[str, dict[str, str]] = {}
+        self._client: MultiServerMCPClient | None = None
+        self._tools_dict: dict[str, Any] | None = None
+        self._openai_tools: list[dict[str, Any]] | None = None
+        self._tool_to_server: dict[str, str] = {}  # maps tool_name -> server_id
 
         # determine server configuration
         if tool_registry is not None:
@@ -114,7 +114,7 @@ class MCPToolClient:
                     len(server_names), server_names)
 
         self._client = MultiServerMCPClient(
-            cast(Dict[str, Connection], self._server_configs))
+            cast(dict[str, Connection], self._server_configs))
         tools = await self._client.get_tools()
 
         # create dict for easy lookup and track which server provides each tool
@@ -179,7 +179,7 @@ class MCPToolClient:
 
         return cast(str, result)
 
-    async def execute_tool_call(self, tool_call: Any) -> Dict[str, Any]:
+    async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
         """Execute an MCP tool call.
 
         Args:
@@ -214,8 +214,8 @@ class MCPToolClient:
 
     def get_tools(
         self,
-        whitelist: Optional[List[str]] = None
-    ) -> tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        whitelist: list[str] | None = None
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Get MCP tools, optionally filtered by whitelist.
 
         Args:
@@ -249,7 +249,7 @@ class MCPToolClient:
 
         return filtered_tools_dict, filtered_openai_tools
 
-    def get_server_for_tool(self, tool_name: str) -> Optional[str]:
+    def get_server_for_tool(self, tool_name: str) -> str | None:
         """Get the server ID that provides a specific tool.
 
         Args:
@@ -267,7 +267,7 @@ class MCPToolClient:
         return tool_name in self._tools_dict
 
     @property
-    def available_tools(self) -> List[str]:
+    def available_tools(self) -> list[str]:
         """Get list of available tool names."""
         if self._tools_dict is None:
             return []
@@ -275,11 +275,11 @@ class MCPToolClient:
 
 
 # global client instance
-_global_client: Optional[MCPToolClient] = None
+_global_client: MCPToolClient | None = None
 
 
 async def check_literature_source_available(
-    server_url: Optional[str] = None,
+    server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
 ) -> bool:
     """Check if the literature source is available via MCP server.
@@ -301,7 +301,7 @@ async def check_literature_source_available(
         True if literature source is available via MCP server, False otherwise
     """
     # determine the availability check tool name from registry
-    check_tool_name: Optional[str] = None
+    check_tool_name: str | None = None
     skip_availability_check = False
 
     if tool_registry:
@@ -389,7 +389,7 @@ async def check_literature_source_available(
 
 # backwards compatibility alias
 async def check_pubmed_available_via_mcp(
-    server_url: Optional[str] = None,
+    server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
 ) -> bool:
     """Deprecated: use check_literature_source_available instead."""
@@ -397,7 +397,7 @@ async def check_pubmed_available_via_mcp(
 
 
 async def check_mcp_available(
-    server_url: Optional[str] = None,
+    server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
 ) -> bool:
     """Check if MCP server is available and responding.
@@ -444,7 +444,7 @@ async def check_mcp_available(
 
 
 async def get_mcp_client(
-    server_url: Optional[str] = None,
+    server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
     force_new: bool = False,
 ) -> MCPToolClient:

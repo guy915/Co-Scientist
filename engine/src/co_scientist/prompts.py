@@ -20,7 +20,7 @@ All prompts are stored as markdown files in the prompts/ directory.
 import logging
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Any
 
 from co_scientist.schemas import get_schema_for_prompt
 
@@ -61,7 +61,7 @@ def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
 def save_prompt_to_disk(run_id: str,
                         prompt_name: str,
                         content: str,
-                        metadata: Dict[str, Any] | None = None) -> bool:
+                        metadata: dict[str, Any] | None = None) -> bool:
     """Save a filled-in prompt to disk for debugging.
 
     Args:
@@ -95,7 +95,7 @@ def save_prompt_to_disk(run_id: str,
 
 
 def load_prompt(prompt_name: str,
-                variables: Dict[str, Any] | None = None) -> str:
+                variables: dict[str, Any] | None = None) -> str:
     """Load a prompt from a markdown file and substitute variables.
 
     Args:
@@ -126,8 +126,8 @@ def load_prompt(prompt_name: str,
 
 def load_prompt_with_schema(
     prompt_name: str,
-    variables: Dict[str, Any] | None = None
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    variables: dict[str, Any] | None = None
+) -> tuple[str, dict[str, Any] | None]:
     """Load a prompt and its associated JSON schema.
 
     Args:
@@ -146,7 +146,7 @@ def load_prompt_with_schema(
     return prompt, schema
 
 
-def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
+def substitute_variables(template: str, variables: dict[str, Any]) -> str:
     """Substitute {{variable}} placeholders in a template string.
 
     Args:
@@ -173,8 +173,7 @@ def substitute_variables(template: str, variables: Dict[str, Any]) -> str:
 # domain variable injection from YAML config
 
 
-def _get_domain_variables(
-        tool_registry: Optional[Any] = None) -> Dict[str, str]:
+def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
     """Get domain-specific prompt variables from tool registry config.
 
     Returns dict with domain_context, domain_generation_guidance,
@@ -217,13 +216,13 @@ def _get_domain_variables(
 def get_generation_prompt(
     research_goal: str,
     hypotheses_count: int,
-    supervisor_guidance: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
     articles_with_reasoning: str | None = None,
     preferences: str | None = None,
     attributes: str | None = None,
     user_hypotheses: str | None = None,
     instructions: str | None = None,
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+) -> tuple[str, dict[str, Any] | None]:
     """Get the hypothesis generation prompt and schema.
 
     If articles_with_reasoning is provided, uses the literature review prompt.
@@ -321,10 +320,10 @@ def get_generation_prompt(
 def get_review_prompt(
     research_goal: str,
     hypothesis_text: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
-    meta_review: Dict[str, Any] | None = None,
-    tool_registry: Optional[Any] = None,
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    supervisor_guidance: dict[str, Any] | None = None,
+    meta_review: dict[str, Any] | None = None,
+    tool_registry: Any | None = None,
+) -> tuple[str, dict[str, Any] | None]:
     """Get the hypothesis review prompt and schema."""
     variables = {
         "research_goal": research_goal,
@@ -347,10 +346,10 @@ def get_review_prompt(
 def get_review_batch_prompt(
     research_goal: str,
     hypotheses_list: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
-    meta_review: Dict[str, Any] | None = None,
-    tool_registry: Optional[Any] = None,
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    supervisor_guidance: dict[str, Any] | None = None,
+    meta_review: dict[str, Any] | None = None,
+    tool_registry: Any | None = None,
+) -> tuple[str, dict[str, Any] | None]:
     """Get the comparative batch hypothesis review prompt and schema."""
     variables = {
         "research_goal": research_goal,
@@ -372,7 +371,7 @@ def get_review_batch_prompt(
 
 def get_evolution_prompt(
         original_hypothesis: str, review_feedback: str,
-        meta_review_insights: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+        meta_review_insights: str) -> tuple[str, dict[str, Any] | None]:
     """Get the hypothesis evolution prompt and schema."""
     return load_prompt_with_schema(
         "evolution",
@@ -388,13 +387,13 @@ def get_ranking_prompt(
     research_goal: str,
     hypothesis_a: str,
     hypothesis_b: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
-    review_a: Dict[str, Any] | None = None,
-    review_b: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
+    review_a: dict[str, Any] | None = None,
+    review_b: dict[str, Any] | None = None,
     reflection_notes_a: str | None = None,
     reflection_notes_b: str | None = None,
-    tool_registry: Optional[Any] = None,
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    tool_registry: Any | None = None,
+) -> tuple[str, dict[str, Any] | None]:
     """Get the ranking (and tournament) comparison prompt and schema."""
     variables = {
         "research_goal": research_goal,
@@ -424,10 +423,10 @@ def get_ranking_prompt(
 def get_meta_review_prompt(
     research_goal: str,
     all_reviews: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
     instructions: str | None = None,  # pylint: disable=unused-argument
-    tool_registry: Optional[Any] = None,
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    tool_registry: Any | None = None,
+) -> tuple[str, dict[str, Any] | None]:
     """Get the meta-review synthesis prompt and schema."""
     variables = {"research_goal": research_goal, "all_reviews": all_reviews}
 
@@ -443,9 +442,9 @@ def get_meta_review_prompt(
 
 
 def get_proximity_prompt(
-    hypotheses: List[Any],
-    supervisor_guidance: Dict[str, Any] | None = None
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    hypotheses: list[Any],
+    supervisor_guidance: dict[str, Any] | None = None
+) -> tuple[str, dict[str, Any] | None]:
     """Get the proximity/similarity analysis prompt and schema."""
     import json  # pylint: disable=import-outside-toplevel
 
@@ -476,8 +475,8 @@ def get_supervisor_prompt(
     evolution_max_count: int | None = None,
     mcp_available: bool = False,
     pubmed_available: bool = False,
-    tool_registry: Optional[Any] = None,
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    tool_registry: Any | None = None,
+) -> tuple[str, dict[str, Any] | None]:
     """get the supervisor research planning prompt and schema."""
 
     # Build pipeline description based on available tools
@@ -514,7 +513,7 @@ def get_supervisor_prompt(
 
 # Helper functions to format supervisor guidance for different contexts
 def _format_supervisor_guidance_for_review(
-        supervisor_guidance: Dict[str, Any] | None) -> str:
+        supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -538,7 +537,7 @@ def _format_supervisor_guidance_for_review(
 
 
 def _format_supervisor_guidance_for_ranking(
-        supervisor_guidance: Dict[str, Any] | None) -> str:
+        supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for ranking prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -560,7 +559,7 @@ def _format_supervisor_guidance_for_ranking(
 
 
 def _format_supervisor_guidance_for_proximity(
-        supervisor_guidance: Dict[str, Any] | None) -> str:
+        supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for proximity prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -583,7 +582,7 @@ def _format_supervisor_guidance_for_proximity(
     return "".join(sections) if sections else ""
 
 
-def _format_meta_review_context(meta_review: Dict[str, Any] | None) -> str:
+def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
     """Format meta-review insights for review prompts (when re-reviewing evolved
     hypotheses).
     """
@@ -627,8 +626,8 @@ def _format_meta_review_context(meta_review: Dict[str, Any] | None) -> str:
     return "".join(sections) if sections else ""
 
 
-def _format_review_context(review_a: Dict[str, Any] | None,
-                           review_b: Dict[str, Any] | None) -> str:
+def _format_review_context(review_a: dict[str, Any] | None,
+                           review_b: dict[str, Any] | None) -> str:
     """Format review scores for ranking prompts."""
     if not review_a and not review_b:
         return ""
@@ -667,7 +666,7 @@ def _format_review_context(review_a: Dict[str, Any] | None,
 
 
 def _format_supervisor_guidance_for_meta_review(
-        supervisor_guidance: Dict[str, Any] | None) -> str:
+        supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for meta-review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -709,9 +708,9 @@ def _format_supervisor_guidance_for_meta_review(
 def get_reflection_prompt(
     articles_with_reasoning: str,
     hypothesis_text: str,
-    tool_registry: Optional[Any] = None,
+    tool_registry: Any | None = None,
     indra_evidence: str = "",
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+) -> tuple[str, dict[str, Any] | None]:
     """Get the reflection observations prompt and schema."""
     variables = {
         "articles_with_reasoning": articles_with_reasoning,
@@ -824,7 +823,7 @@ def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
 
 def get_literature_review_synthesis_prompt(
     research_goal: str,
-    paper_analyses: list[Dict[str, Any]],
+    paper_analyses: list[dict[str, Any]],
     background_context: str = "",
 ) -> str:
     """Get the prompt for synthesizing paper analyses."""
@@ -893,9 +892,9 @@ def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
 
 def get_hypothesis_validation_synthesis_prompt(
     research_goal: str,
-    hypotheses_with_analyses: list[Dict[str, Any]],
-    articles: List[Any] | None = None,
-    tool_registry: Optional[Any] = None,
+    hypotheses_with_analyses: list[dict[str, Any]],
+    articles: list[Any] | None = None,
+    tool_registry: Any | None = None,
     reference_list: str = "",
 ) -> str:
     """Get the prompt for validation synthesis based on novelty analyses.
@@ -968,7 +967,7 @@ def get_hypothesis_validation_synthesis_prompt(
 
 
 def _build_already_validated_context(
-        already_validated_texts: Optional[List[str]]) -> str:
+        already_validated_texts: list[str] | None) -> str:
     """Build diversity constraint block for retry path.
 
     Injected only when retrying failed batches individually, so the model
@@ -991,14 +990,14 @@ If your draft overlaps significantly with any entry below, treat it as saturated
 
 def get_validation_synthesis_prompt_with_tools(
     research_goal: str,
-    hypotheses_with_analyses: list[Dict[str, Any]],
-    articles: List[Any] | None = None,
+    hypotheses_with_analyses: list[dict[str, Any]],
+    articles: list[Any] | None = None,
     articles_with_reasoning: str | None = None,
     max_iterations: int = 8,
-    tool_registry: Optional[Any] = None,
+    tool_registry: Any | None = None,
     reference_list: str = "",
-    already_validated_texts: Optional[List[str]] = None,
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+    already_validated_texts: list[str] | None = None,
+) -> tuple[str, dict[str, Any] | None]:
     """Get prompt for validation synthesis with tool access.
 
     This version includes tool instructions so the LLM can search for
@@ -1098,15 +1097,15 @@ def get_debate_generation_prompt(
     research_goal: str,
     hypotheses_count: int,
     transcript: str,
-    supervisor_guidance: Dict[str, Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
     preferences: str | None = None,
     attributes: str | list[str] | None = None,
     is_final_turn: bool = False,
     articles_with_reasoning: str | None = None,
-    articles: List[Any] | None = None,
-    tool_registry: Optional[Any] = None,
+    articles: list[Any] | None = None,
+    tool_registry: Any | None = None,
     reference_list: str = "",
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+) -> tuple[str, dict[str, Any] | None]:
     """Get the debate-based hypothesis generation prompt.
 
     This uses a multi-turn debate strategy where experts discuss and refine
@@ -1266,14 +1265,14 @@ def format_preferences(preferences: str | None) -> str:
     return "Focus on novelty, testability, and potential impact."
 
 
-def format_attributes(attributes: List[str] | None) -> str:
+def format_attributes(attributes: list[str] | None) -> str:
     """Format user attributes for prompts."""
     if attributes:
         return "\n".join(f"- {attr}" for attr in attributes)
     return "- Novel\n- Testable\n- Impactful"
 
 
-def format_user_hypotheses(user_hypotheses: List[str] | None) -> str:
+def format_user_hypotheses(user_hypotheses: list[str] | None) -> str:
     """Format user-provided starting hypotheses for prompts."""
     if user_hypotheses:
         return "\n".join(f"- {hyp}" for hyp in user_hypotheses)
@@ -1281,7 +1280,7 @@ def format_user_hypotheses(user_hypotheses: List[str] | None) -> str:
 
 
 def format_supervisor_guidance_for_generation(
-        supervisor_guidance: Dict[str, Any] | None) -> str:
+        supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for generation prompts with research strategy
     section.
     """
@@ -1358,7 +1357,7 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
     return result
 
 
-def format_articles_metadata(articles: List[Any]) -> str:
+def format_articles_metadata(articles: list[Any]) -> str:
     """Format analyzed articles with metadata for tool-based generation prompts.
 
     Returns structured list of articles with titles, authors, year, citations,
@@ -1410,8 +1409,8 @@ def _build_citation_reference_section(reference_list: str) -> str:
 
 
 def build_tool_instructions(
-    tool_ids: List[str],
-    tool_registry: Optional[Any] = None,
+    tool_ids: list[str],
+    tool_registry: Any | None = None,
 ) -> str:
     """Build dynamic tool instructions section from tool registry.
 
@@ -1469,17 +1468,17 @@ def build_tool_instructions(
 def get_draft_prompt_with_tools(
     research_goal: str,
     hypotheses_count: int,
-    supervisor_guidance: Dict[str, Any] | None = None,
-    articles: List[Any] | None = None,
+    supervisor_guidance: dict[str, Any] | None = None,
+    articles: list[Any] | None = None,
     articles_with_reasoning: str | None = None,
     preferences: str | None = None,
-    attributes: List[str] | None = None,
-    user_hypotheses: List[str] | None = None,
+    attributes: list[str] | None = None,
+    user_hypotheses: list[str] | None = None,
     instructions: str | None = None,
     max_iterations: int = 8,
-    tool_registry: Optional[Any] = None,
+    tool_registry: Any | None = None,
     reference_list: str = "",
-) -> Tuple[str, Optional[Dict[str, Any]]]:
+) -> tuple[str, dict[str, Any] | None]:
     """Get prompt for Phase 1: drafting hypotheses with tools.
 
     Uses generation_draft_with_tools.md template.

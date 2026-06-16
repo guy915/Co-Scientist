@@ -16,7 +16,7 @@
 
 import json
 import logging
-from typing import Any, Dict
+from typing import Any
 
 from co_scientist.constants import (
     THINKING_MAX_TOKENS,
@@ -32,7 +32,7 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-async def meta_review_node(state: WorkflowState) -> Dict[str, Any]:
+async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
     """Synthesizes insights from all reviews across all hypotheses.
 
     This node analyzes all the reviews collectively to identify:

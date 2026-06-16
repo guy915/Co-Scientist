@@ -21,8 +21,8 @@ but uses LangGraph under the hood.
 import logging
 import time
 import uuid
-from typing import (Any, AsyncIterator, Awaitable, Callable, Dict, List,
-                    Literal, Optional, Tuple, Union, overload)
+from typing import Any, Literal, overload
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
@@ -70,14 +70,14 @@ class HypothesisGenerator:
     def __init__(
         self,
         model_name: str = "gemini/gemini-2.5-flash",
-        supervisor_model_name: Optional[str] = None,
+        supervisor_model_name: str | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         initial_hypotheses_count: int = DEFAULT_INITIAL_HYPOTHESES_COUNT,
         evolution_max_count: int = DEFAULT_EVOLUTION_MAX_COUNT,
-        enable_cache: Optional[bool] = None,
-        cache_dir: Optional[str] = None,
-        tools_config: Optional[str] = None,
-        disable_tools: Optional[List[str]] = None,
+        enable_cache: bool | None = None,
+        cache_dir: str | None = None,
+        tools_config: str | None = None,
+        disable_tools: list[str] | None = None,
     ):
         """Initialize the hypothesis generator.
 
@@ -124,12 +124,12 @@ class HypothesisGenerator:
                         len(self._tool_registry.get_enabled_tools()))
 
         # Build the graph (lazy - only once)
-        self._graph: Optional[CompiledWorkflow] = None
+        self._graph: CompiledWorkflow | None = None
 
         # Cache availability checks per instance (lazy init on first generate
         # call)
-        self._mcp_available: Optional[bool] = None
-        self._pubmed_available: Optional[bool] = None
+        self._mcp_available: bool | None = None
+        self._pubmed_available: bool | None = None
 
     def _build_graph(
             self,
@@ -252,11 +252,11 @@ class HypothesisGenerator:
     async def _prepare_generation(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]],
-                                             Awaitable[None]]] = None,
-        opts: Optional[Dict[str, Any]] = None,
-        run_id: Optional[str] = None,
-    ) -> Tuple[WorkflowState, float, str]:
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
+    ) -> tuple[WorkflowState, float, str]:
         """Prepare generation: set up state, check MCP, build graph.
 
         Returns:
@@ -412,36 +412,36 @@ class HypothesisGenerator:
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]],
-                                             Awaitable[None]]] = None,
-        opts: Optional[Dict[str, Any]] = None,
-        run_id: Optional[str] = None,
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
         stream: Literal[False] = False,
-    ) -> Awaitable[Dict[str, Any]]:
+    ) -> Awaitable[dict[str, Any]]:
         ...
 
     @overload
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]],
-                                             Awaitable[None]]] = None,
-        opts: Optional[Dict[str, Any]] = None,
-        run_id: Optional[str] = None,
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
         stream: Literal[True] = True,
-    ) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         ...
 
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]],
-                                             Awaitable[None]]] = None,
-        opts: Optional[Dict[str, Any]] = None,
-        run_id: Optional[str] = None,
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
         stream: bool = False,
-    ) -> Union[Awaitable[Dict[str, Any]], AsyncIterator[Tuple[str, Dict[str,
-                                                                        Any]]]]:
+    ) -> (Awaitable[dict[str, Any]] | AsyncIterator[tuple[str, dict[str, Any]]]
+         ):
         """Generate hypotheses, with optional streaming.
 
         Args:
@@ -508,11 +508,11 @@ class HypothesisGenerator:
     async def _generate_hypotheses_without_streaming(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]],
-                                             Awaitable[None]]] = None,
-        opts: Optional[Dict[str, Any]] = None,
-        run_id: Optional[str] = None,
-    ) -> Dict[str, Any]:
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
+    ) -> dict[str, Any]:
         """Internal method to handle non-streaming generation.
 
         Returns final result dictionary.
@@ -574,11 +574,11 @@ class HypothesisGenerator:
     async def _generate_hypotheses_with_streaming(
         self,
         research_goal: str,
-        progress_callback: Optional[Callable[[str, Dict[str, Any]],
-                                             Awaitable[None]]] = None,
-        opts: Optional[Dict[str, Any]] = None,
-        run_id: Optional[str] = None,
-    ) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         """Internal method to handle streaming generation.
 
         Yields (node_name, state_dict) tuples after each node completes.
@@ -600,7 +600,7 @@ class HypothesisGenerator:
         self,
         initial_state: WorkflowState,
         start_time: float,  # pylint: disable=unused-argument
-    ) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         """Internal method to handle streaming generation.
 
         Args:
@@ -615,7 +615,7 @@ class HypothesisGenerator:
             # Maintain cumulative state across nodes
             # LangGraph's astream only yields fields updated by each node, not
             # full state
-            cumulative_state: Dict[str, Any] = {
+            cumulative_state: dict[str, Any] = {
                 "hypotheses": [],
                 "meta_review": {},
                 "research_plan": {},

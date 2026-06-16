@@ -14,7 +14,7 @@
 """Data models for literature review tools."""
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass
@@ -22,19 +22,19 @@ class Article:
     """A literature article with extracted content and metadata."""
 
     title: str
-    url: Optional[str] = None
-    authors: List[str] = field(default_factory=list)
-    year: Optional[int] = None
-    venue: Optional[str] = None
+    url: str | None = None
+    authors: list[str] = field(default_factory=list)
+    year: int | None = None
+    venue: str | None = None
     citations: int = 0
-    abstract: Optional[str] = None
-    content: Optional[str] = None
-    source_id: Optional[str] = None
+    abstract: str | None = None
+    content: str | None = None
+    source_id: str | None = None
     source: str = "google_scholar"
-    pdf_links: List[str] = field(default_factory=list)
+    pdf_links: list[str] = field(default_factory=list)
     used_in_analysis: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Converts the article to a dictionary for serialization.
 
         Returns:

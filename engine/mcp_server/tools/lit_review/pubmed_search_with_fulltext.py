@@ -21,7 +21,7 @@ search + fulltext download + text extraction as a single MCP tool.
 import os
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 from Bio import Entrez
 
 from mcp_server.literature_review import PubmedSource, LiteratureReviewAgent
@@ -35,7 +35,7 @@ async def pubmed_search_with_fulltext(
         slug: str,
         max_papers: int = 10,
         recency_years: int = 0,
-        run_id: str | None = None) -> Dict[str, Any]:
+        run_id: str | None = None) -> dict[str, Any]:
     # pylint: disable=line-too-long
     """Searches PubMed and downloads fulltexts (HTML from PMC).
 
@@ -96,7 +96,7 @@ async def pubmed_search_with_fulltext(
                 # read HTML from cache
                 html_file = run_dir / f"{pmc_id}.fulltext.html"
                 if html_file.exists():
-                    with open(html_file, 'r', encoding='utf-8') as f:
+                    with open(html_file, encoding='utf-8') as f:
                         html_content = f.read()
 
                     # extract clean text/markdown

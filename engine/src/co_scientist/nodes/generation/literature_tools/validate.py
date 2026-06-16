@@ -22,7 +22,7 @@ access)
 import asyncio
 import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING, cast
+from typing import Any, Optional, TYPE_CHECKING, cast
 
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
@@ -57,9 +57,9 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_papers_for_hypothesis(
-    hypothesis_with_analyses: Dict[str, Any],
-    literature_grounding: Optional[str] = None,
-) -> List[Dict[str, str]]:
+    hypothesis_with_analyses: dict[str, Any],
+    literature_grounding: str | None = None,
+) -> list[dict[str, str]]:
     """Extract papers cited by this hypothesis from novelty analysis metadata.
 
     When literature_grounding is available, filters to only papers whose
@@ -82,7 +82,7 @@ def _extract_papers_for_hypothesis(
 
 def _find_search_tool(
     tool_registry: Optional["ToolRegistry"]
-) -> Tuple[Optional[str], Optional["ToolConfig"]]:
+) -> tuple[str | None, Optional["ToolConfig"]]:
     """Find the first search-category tool from the validation workflow.
 
     Returns (tool_id, tool_config) or (None, None) if no search tool is
@@ -106,8 +106,8 @@ async def _search_papers_for_hypothesis(
     tool_registry: Optional["ToolRegistry"],
     max_papers: int,
     shared_slug: str,
-    run_id: Optional[str],
-) -> Dict[str, Dict[str, Any]]:
+    run_id: str | None,
+) -> dict[str, dict[str, Any]]:
     """Search for papers related to a hypothesis using config-driven tools.
 
     Returns papers in the dict format expected by analyze_paper_novelty:
@@ -165,17 +165,17 @@ async def _search_papers_for_hypothesis(
         run_id=run_id,
     )
     if isinstance(result, str):
-        return cast(Dict[str, Dict[str, Any]], json.loads(result))
-    return cast(Dict[str, Dict[str, Any]], result)
+        return cast(dict[str, dict[str, Any]], json.loads(result))
+    return cast(dict[str, dict[str, Any]], result)
 
 
 async def validate_hypotheses(
     state: WorkflowState,
-    draft_hypotheses: List[Dict[str, str]],
+    draft_hypotheses: list[dict[str, str]],
     mcp_client: Any,
     tool_registry: Optional["ToolRegistry"] = None,
-    reference_index: Optional[Any] = None,
-) -> List[Hypothesis]:
+    reference_index: Any | None = None,
+) -> list[Hypothesis]:
     """Phase 2: validate novelty and refine/pivot drafts.
 
     Two-stage approach:
@@ -241,8 +241,8 @@ async def validate_hypotheses(
         novelty_analysis_tasks = []
 
         async def analyze_paper_novelty(
-                paper_id: str, metadata: Dict[str,
-                                              Any]) -> Optional[Dict[str, Any]]:
+                paper_id: str, metadata: dict[str,
+                                              Any]) -> dict[str, Any] | None:
             """Analyze single paper for novelty assessment."""
             fulltext = metadata.get("fulltext", "")
 
@@ -390,10 +390,10 @@ async def validate_hypotheses(
         return text.strip().strip("\n").strip()
 
     async def _call_synthesis(
-        batch: List[Dict[str, Any]],
+        batch: list[dict[str, Any]],
         batch_label: str,
-        already_validated_texts: Optional[List[str]],
-    ) -> List[Dict[str, Any]]:
+        already_validated_texts: list[str] | None,
+    ) -> list[dict[str, Any]]:
         """Run one synthesis call and return the parsed hypotheses list."""
         batch_size = len(batch)
         logger.info("Processing synthesis batch %s (%s hypotheses)",
@@ -434,9 +434,9 @@ async def validate_hypotheses(
         logger.debug("Batch %s token budget: %s for %s hypotheses", batch_label,
                      synthesis_max_tokens, batch_size)
 
-        tool_call_counts: Dict[str, int] = {}
+        tool_call_counts: dict[str, int] = {}
 
-        async def tracked_executor(tool_call: Any) -> Dict[str, Any]:
+        async def tracked_executor(tool_call: Any) -> dict[str, Any]:
             name = tool_call.function.name
             tool_call_counts[name] = tool_call_counts.get(name, 0) + 1
             logger.info("Validation batch %s: %s call #%s", batch_label, name,
@@ -474,7 +474,7 @@ async def validate_hypotheses(
         if was_repaired:
             logger.warning("Batch %s JSON required repairs", batch_label)
 
-        result: List[Dict[str, Any]] = response_data.get("hypotheses", [])
+        result: list[dict[str, Any]] = response_data.get("hypotheses", [])
         logger.debug("Batch %s synthesis returned %s hypotheses", batch_label,
                      len(result))
         return result
@@ -491,8 +491,8 @@ async def validate_hypotheses(
         return_exceptions=True,
     )
 
-    all_validated_hypotheses: List[Dict[str, Any]] = []
-    failed_batches: List[Tuple[int, List[Dict[str, Any]]]] = []
+    all_validated_hypotheses: list[dict[str, Any]] = []
+    failed_batches: list[tuple[int, list[dict[str, Any]]]] = []
 
     for i, result in enumerate(raw_results):
         if isinstance(result, Exception):
@@ -513,7 +513,7 @@ async def validate_hypotheses(
 
     if failed_batches:
         # seed context with texts from successful batches
-        accumulated_texts: List[str] = [
+        accumulated_texts: list[str] = [
             h.get("hypothesis", "")
             for h in all_validated_hypotheses
             if h.get("hypothesis")

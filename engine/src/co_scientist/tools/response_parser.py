@@ -19,7 +19,7 @@ Supports dynamic field mapping with transformations defined in YAML configs.
 import json
 import logging
 import re
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 from co_scientist.config.schema import ToolConfig
 from co_scientist.models import Article
@@ -73,7 +73,7 @@ class ResponseParser:
 
         return response
 
-    def parse_to_articles(self, response: Any) -> List[Article]:
+    def parse_to_articles(self, response: Any) -> list[Article]:
         """Parse tool response into Article objects.
 
         Args:
@@ -164,10 +164,9 @@ class ResponseParser:
 
         return current
 
-    def _map_item_to_article(
-            self,
-            item: Dict[str, Any],
-            dict_key: Optional[str] = None) -> Optional[Article]:
+    def _map_item_to_article(self,
+                             item: dict[str, Any],
+                             dict_key: str | None = None) -> Article | None:
         """Map a single result item to an Article object.
 
         Args:
@@ -184,7 +183,7 @@ class ResponseParser:
         mapping = self.response_format.field_mapping
 
         # build kwargs for Article
-        kwargs: Dict[str, Any] = {}
+        kwargs: dict[str, Any] = {}
 
         # map each field
         for article_field, expr in mapping.items():
@@ -220,8 +219,8 @@ class ResponseParser:
 
     def _evaluate_expression(self,
                              expr: str,
-                             item: Dict[str, Any],
-                             dict_key: Optional[str] = None) -> Any:
+                             item: dict[str, Any],
+                             dict_key: str | None = None) -> Any:
         """Evaluate a field mapping expression.
 
         Supported expressions:
@@ -279,8 +278,8 @@ class ResponseParser:
 
     def _get_field_value(self,
                          field_expr: str,
-                         item: Dict[str, Any],
-                         dict_key: Optional[str] = None) -> Any:
+                         item: dict[str, Any],
+                         dict_key: str | None = None) -> Any:
         """Get a field value from item, supporting nested paths."""
         if field_expr == "@key":
             return dict_key
@@ -363,9 +362,8 @@ class ResponseParser:
         return value
 
 
-def parse_tool_response(
-        response: Any,
-        tool_config: ToolConfig) -> Union[List[Article], bool, Any]:
+def parse_tool_response(response: Any,
+                        tool_config: ToolConfig) -> list[Article] | bool | Any:
     """Convenience function to parse a tool response.
 
     Args:
