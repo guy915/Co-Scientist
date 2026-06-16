@@ -17,118 +17,119 @@ Centralizes magic numbers and configuration values for better maintainability.
 """
 
 import logging
+from typing import Final
 
 logger = logging.getLogger(__name__)
 
 # Literature review status markers
-LITERATURE_REVIEW_FAILED = "__LIT_REVIEW_FAILED__"
+LITERATURE_REVIEW_FAILED: Final = "__LIT_REVIEW_FAILED__"
 """Marker indicating literature review failed and should not be used for
 generation.
 """
 
 # Elo rating system parameters
-INITIAL_ELO_RATING = 1200
+INITIAL_ELO_RATING: Final = 1200
 """Initial Elo rating for new hypotheses."""
 
-ELO_K_FACTOR = 24
+ELO_K_FACTOR: Final = 24
 """K-factor for Elo rating updates (higher = more volatile ratings)."""
 
 # LLM API parameters
-DEFAULT_MAX_TOKENS = 4000
+DEFAULT_MAX_TOKENS: Final = 4000
 """Default max tokens for standard LLM calls."""
 
-EXTENDED_MAX_TOKENS = 8000
+EXTENDED_MAX_TOKENS: Final = 8000
 """Max tokens for detailed responses (reviews, evolution)."""
 
-LONG_MAX_TOKENS = 10000
+LONG_MAX_TOKENS: Final = 10000
 """Max tokens for complex multi-hypothesis operations."""
 
-LITERATURE_REVIEW_MAX_TOKENS = 8000
+LITERATURE_REVIEW_MAX_TOKENS: Final = 8000
 """Max tokens for literature review analyses (synthesis outputs)."""
 
-THINKING_MAX_TOKENS = 18000
+THINKING_MAX_TOKENS: Final = 18000
 """Max tokens for extended thinking + long responses."""
 
 # Temperature settings
-LOW_TEMPERATURE = 0.3
+LOW_TEMPERATURE: Final = 0.3
 """Low temperature for consistent, deterministic responses (ranking)."""
 
-MEDIUM_TEMPERATURE = 0.5
+MEDIUM_TEMPERATURE: Final = 0.5
 """Medium temperature for balanced creativity and consistency."""
 
-HIGH_TEMPERATURE = 0.7
+HIGH_TEMPERATURE: Final = 0.7
 """Higher temperature for diverse, creative responses (generation, evolution,
 review).
 """
 
 # Review strategy threshold
-COMPARATIVE_BATCH_THRESHOLD = 5
+COMPARATIVE_BATCH_THRESHOLD: Final = 5
 """Maximum hypotheses for comparative batch review. Above this, use parallel
 individual reviews.
 """
 
 # Concurrency limits
-MAX_CONCURRENT_LLM_CALLS = 5
+MAX_CONCURRENT_LLM_CALLS: Final = 5
 """Maximum concurrent LLM API calls to avoid rate limits."""
 
 # Workflow defaults
-DEFAULT_MAX_ITERATIONS = 1
+DEFAULT_MAX_ITERATIONS: Final = 1
 """Default number of refinement iterations."""
 
 # Debate generation parameters
-DEBATE_MIN_TURNS = 3
+DEBATE_MIN_TURNS: Final = 3
 """Minimum number of debate turns before generating final hypotheses."""
 
-DEBATE_MAX_TURNS = 5
+DEBATE_MAX_TURNS: Final = 5
 """Default number of debate turns (can be up to 10)."""
 
-DEFAULT_INITIAL_HYPOTHESES_COUNT = 5
+DEFAULT_INITIAL_HYPOTHESES_COUNT: Final = 5
 """Default number of initial hypotheses to generate."""
 
-DEFAULT_EVOLUTION_MAX_COUNT = 3
+DEFAULT_EVOLUTION_MAX_COUNT: Final = 3
 """Default number of top hypotheses to evolve and keep."""
 
 # Similarity thresholds
-DUPLICATE_SIMILARITY_THRESHOLD = 0.95
+DUPLICATE_SIMILARITY_THRESHOLD: Final = 0.95
 """Similarity threshold above which hypotheses are considered duplicates (0-1).
 """
 
-PROXIMITY_SIMILARITY_THRESHOLD = 0.85
+PROXIMITY_SIMILARITY_THRESHOLD: Final = 0.85
 """Similarity threshold for proximity-based deduplication (0-1)."""
 
 # Progress tracking
-PROGRESS_SUPERVISOR_START = 5
-PROGRESS_SUPERVISOR_COMPLETE = 10
-PROGRESS_GENERATE_START = 15
-PROGRESS_GENERATE_COMPLETE = 20
-PROGRESS_REFLECTION_START = 21
-PROGRESS_REFLECTION_COMPLETE = 24
-PROGRESS_REVIEW_START = 25
-PROGRESS_REVIEW_COMPLETE = 40
-PROGRESS_META_REVIEW_START = 45
-PROGRESS_META_REVIEW_COMPLETE = 50
-PROGRESS_EVOLVE_START = 55
-PROGRESS_EVOLVE_COMPLETE = 60
-PROGRESS_PROXIMITY_START = 75
-PROGRESS_PROXIMITY_COMPLETE = 85
+PROGRESS_SUPERVISOR_START: Final = 5
+PROGRESS_SUPERVISOR_COMPLETE: Final = 10
+PROGRESS_GENERATE_START: Final = 15
+PROGRESS_GENERATE_COMPLETE: Final = 20
+PROGRESS_REFLECTION_START: Final = 21
+PROGRESS_REFLECTION_COMPLETE: Final = 24
+PROGRESS_REVIEW_START: Final = 25
+PROGRESS_REVIEW_COMPLETE: Final = 40
+PROGRESS_META_REVIEW_START: Final = 45
+PROGRESS_META_REVIEW_COMPLETE: Final = 50
+PROGRESS_EVOLVE_START: Final = 55
+PROGRESS_EVOLVE_COMPLETE: Final = 60
+PROGRESS_PROXIMITY_START: Final = 75
+PROGRESS_PROXIMITY_COMPLETE: Final = 85
 
 # Cache defaults
-DEFAULT_CACHE_DIR = ".coscientist_cache"
+DEFAULT_CACHE_DIR: Final = ".coscientist_cache"
 """Default directory for LLM response caching."""
 
-DEFAULT_CACHE_ENABLED = True
+DEFAULT_CACHE_ENABLED: Final = True
 """Whether caching is enabled by default (controls both LLM and node-level
 caching).
 """
 
-LITERATURE_REVIEW_PAPERS_COUNT = 10
+LITERATURE_REVIEW_PAPERS_COUNT: Final = 10
 """number of papers to collect from MCP servers/tools (configurable via env var)
 """
 
-LITERATURE_REVIEW_PAPERS_COUNT_DEV = 4
+LITERATURE_REVIEW_PAPERS_COUNT_DEV: Final = 4
 """number of papers in dev mode for faster iteration"""
 
-LITERATURE_REVIEW_RECENCY_YEARS = 7
+LITERATURE_REVIEW_RECENCY_YEARS: Final = 7
 """filter papers to last N years for better relevance (0 = no filter)"""
 
 # generate node literature tool usage parameters
@@ -168,10 +169,10 @@ def get_validate_max_iterations(hypotheses_count: int) -> int:
     return min(hypotheses_count * 10, 50)
 
 
-GENERATE_LIT_TOOL_MAX_PAPERS = 3
+GENERATE_LIT_TOOL_MAX_PAPERS: Final = 3
 """max papers to examine in draft/validate phase.."""
 
-VALIDATION_SYNTHESIS_BATCH_SIZE = 3
+VALIDATION_SYNTHESIS_BATCH_SIZE: Final = 3
 """Hypotheses per validation synthesis call.
 
 Smaller = less output per call, more reliable for models with tight output
