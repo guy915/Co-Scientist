@@ -272,7 +272,7 @@ def get_cache() -> LLMCache:
         # Check environment variable for cache configuration
         cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
                                       str(DEFAULT_CACHE_ENABLED).lower())
-        cache_enabled = cache_enabled_str.lower() == "true"
+        cache_enabled = cache_enabled_str.lower() in ("true", "1", "yes")
         cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
 
         _global_cache = LLMCache(cache_dir=cache_dir, enabled=cache_enabled)
