@@ -22,6 +22,12 @@ import type {CitationRow, Hypothesis, Review} from '@/api/runs';
 
 type SortKey = 'elo' | 'title' | 'generation';
 
+/**
+ * Renders the sortable, filterable list of generated hypotheses.
+ *
+ * @param props The hypotheses, their citations and reviews, and a focus
+ *   handler invoked when a row is opened in detail.
+ */
 export function IdeasTab({
   hypotheses,
   citations,

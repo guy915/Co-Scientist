@@ -17,6 +17,9 @@
 import {PublicLinkButton} from './PublicLinkButton';
 import {Seo} from './Seo';
 
+/**
+ * Renders the 404 page shown for unmatched routes.
+ */
 export function NotFoundPage() {
   return (
     <>

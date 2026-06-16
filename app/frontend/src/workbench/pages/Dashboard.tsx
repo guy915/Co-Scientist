@@ -82,6 +82,9 @@ const FILTER_LABELS: Record<Filter, string> = {
   cancelled: 'Cancelled',
 };
 
+/**
+ * Renders the run dashboard with summary stats and the searchable run list.
+ */
 export function Dashboard() {
   const navigate = useNavigate();
   const [runs, setRuns] = useState<Run[] | null>(null);

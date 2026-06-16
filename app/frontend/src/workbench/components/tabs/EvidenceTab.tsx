@@ -50,6 +50,11 @@ const ALL_STATES: CitState[] = [
   'unavailable',
 ];
 
+/**
+ * Renders retrieved evidence with citation-state filters and summaries.
+ *
+ * @param props The evidence records and their citation rows.
+ */
 export function EvidenceTab({
   evidence,
   citations,

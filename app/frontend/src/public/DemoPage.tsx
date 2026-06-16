@@ -22,6 +22,9 @@ import {NotFoundPage} from './NotFoundPage';
 import {PublicLinkButton} from './PublicLinkButton';
 import {Seo} from './Seo';
 
+/**
+ * Renders a public, SEO-tagged page for a seeded research demo.
+ */
 export function DemoPage() {
   const {slug} = useParams<{slug: string}>();
   const demo = getPublicDemo(slug);

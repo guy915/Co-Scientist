@@ -21,6 +21,11 @@ import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {LogConsole} from './components/LogConsole';
 import {ThemeToggle} from './components/ThemeToggle';
 
+/**
+ * Renders the app shell with header navigation, main content, and footer.
+ *
+ * @param props The page content to render inside the layout.
+ */
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();

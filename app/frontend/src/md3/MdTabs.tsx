@@ -31,6 +31,11 @@ interface MdSecondaryTabsProps {
   onChange: (index: number) => void;
 }
 
+/**
+ * Renders Material web secondary tabs with a scrollable mobile fallback.
+ *
+ * @param props The tab definitions, active index, and change handler.
+ */
 export function MdSecondaryTabs({
   tabs,
   activeIndex,

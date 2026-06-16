@@ -28,6 +28,9 @@ const SHORTCUTS: {keys: string; description: string}[] = [
   {keys: 'Esc', description: 'Close any open dialog'},
 ];
 
+/**
+ * Renders a help button and dialog listing the keyboard shortcuts.
+ */
 export function ShortcutsHint() {
   const [open, setOpen] = useState(false);
 

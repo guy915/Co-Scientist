@@ -58,6 +58,9 @@ const landingJsonLd = [
   },
 ];
 
+/**
+ * Renders the public marketing landing page with hero, workflow, and demo.
+ */
 export function LandingPage() {
   return (
     <>

@@ -28,6 +28,9 @@ const SUGGESTED = [
   'Investigate how cold-stress reshapes glucose homeostasis via brown adipose signalling.',
 ];
 
+/**
+ * Renders the form for configuring and starting a new research run.
+ */
 export function NewRun() {
   const navigate = useNavigate();
   const [goal, setGoal] = useState('');

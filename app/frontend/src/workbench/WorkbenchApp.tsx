@@ -32,6 +32,9 @@ function ShortcutsBridge() {
   return null;
 }
 
+/**
+ * Root workbench component wiring routing, theming, and the error boundary.
+ */
 export function WorkbenchApp() {
   return (
     <ErrorBoundary>

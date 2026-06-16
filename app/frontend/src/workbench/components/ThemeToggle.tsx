@@ -18,6 +18,9 @@ import '@material/web/iconbutton/icon-button.js';
 import '@material/web/icon/icon.js';
 import {useTheme} from '../ThemeContext';
 
+/**
+ * Renders an icon button that toggles between light and dark theme.
+ */
 export function ThemeToggle() {
   const {mode, toggle} = useTheme();
   const isDark = mode === 'dark';

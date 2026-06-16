@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+/** Static metadata describing a public demonstration page. */
 export interface PublicDemo {
   slug: string;
   title: string;
@@ -30,6 +31,7 @@ export interface PublicDemo {
   socialImage: string;
 }
 
+/** The curated list of public demonstrations shown in the marketing UI. */
 export const publicDemos: PublicDemo[] = [
   {
     slug: 'ferroptosis-pancreatic-cancer',
@@ -132,8 +134,15 @@ export const publicDemos: PublicDemo[] = [
   },
 ];
 
+/** The demo highlighted as the primary featured example. */
 export const featuredDemo = publicDemos[0];
 
+/**
+ * Looks up a public demo by its slug.
+ *
+ * @param slug The demo slug, or undefined.
+ * @returns The matching demo, or undefined if none matches.
+ */
 export function getPublicDemo(
   slug: string | undefined,
 ): PublicDemo | undefined {

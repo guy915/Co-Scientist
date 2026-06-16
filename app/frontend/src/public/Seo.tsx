@@ -44,6 +44,11 @@ function upsertMeta(
   element.content = content;
 }
 
+/**
+ * Syncs document title, meta tags, canonical link, and JSON-LD for a page.
+ *
+ * @param props The page metadata, robots directive, and optional JSON-LD.
+ */
 export function Seo({
   title,
   description,
