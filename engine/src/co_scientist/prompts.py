@@ -903,6 +903,8 @@ def get_hypothesis_validation_synthesis_prompt(
         research_goal: The research goal
         hypotheses_with_analyses: List of draft hypotheses with novelty analyses
         articles: Optional list of Article objects for citation metadata
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
+        reference_list: Optional citation reference list of `[C*]` keys
 
     Returns:
         Formatted prompt string
@@ -1010,6 +1012,7 @@ def get_validation_synthesis_prompt_with_tools(
         articles_with_reasoning: Literature review synthesis
         max_iterations: Max tool iterations for the agent
         tool_registry: Optional ToolRegistry for dynamic tool instructions
+        reference_list: Optional citation reference list of `[C*]` keys
         already_validated_texts: Hypothesis texts already validated
             (retry path only). Injected as a diversity constraint so the
             model avoids duplicate territory.
@@ -1124,6 +1127,8 @@ def get_debate_generation_prompt(
         articles_with_reasoning: Optional literature review synthesis for
             context
         articles: Optional list of Article objects for citation metadata
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
+        reference_list: Optional citation reference list of `[C*]` keys
 
     Returns:
         Tuple of (formatted prompt string, JSON schema dict or None)
@@ -1497,6 +1502,7 @@ def get_draft_prompt_with_tools(
         instructions: Custom instructions
         max_iterations: Max tool iterations for the agent
         tool_registry: Optional ToolRegistry for dynamic tool instructions
+        reference_list: Optional citation reference list of `[C*]` keys
     """
     # get tool IDs for draft generation workflow
     tool_ids = []

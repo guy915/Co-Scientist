@@ -133,6 +133,9 @@ async def evolve_single_hypothesis(
         supervisor_guidance: Optional supervisor guidance for evolution phase
         articles_with_reasoning: Optional literature review synthesis
             for context
+        run_id: Optional run ID for saving prompts
+        hypothesis_index: Optional index for naming saved prompts
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
 
     Returns:
         Updated hypothesis with evolved text

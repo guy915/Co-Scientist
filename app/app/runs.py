@@ -135,6 +135,15 @@ def _client_id(request: Request) -> str:
 
 @router.post("")
 async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
+    """Create a new run for the requesting client and return it.
+
+    Args:
+        req: Request body with the research goal, profile, and run config.
+        request: Incoming HTTP request, used to read the client identifier.
+
+    Returns:
+        The created run serialized as a dict.
+    """
     provider = engine_adapter.select_provider()
     config = {
         "initial_hypotheses_count": req.initial_hypotheses_count,
@@ -187,6 +196,20 @@ async def get_run(run_id: str) -> dict[str, Any]:
 @router.post("/{run_id}/start")
 async def start_run(run_id: str, req: StartRunRequest,
                     background: BackgroundTasks) -> dict[str, Any]:
+    """Queue a run and launch its workflow as a background task.
+
+    Args:
+        run_id: Path identifier of the run to start.
+        req: Request body with optional provider override settings.
+        background: FastAPI background task registry for the workflow runner.
+
+    Returns:
+        A dict with the run 'id' and its new 'status'.
+
+    Raises:
+        HTTPException: If the run is missing, already in progress, already
+            completed, or already active.
+    """
     run = _run_or_404(run_id)
     if run.status in (RunStatus.RUNNING, RunStatus.SYNTHESIZING):
         raise HTTPException(status_code=409, detail="run already in progress")
@@ -262,6 +285,16 @@ async def stream_events(
         request: Request,
         after: int = Query(0, ge=0),
 ) -> StreamingResponse:
+    """Stream a run's events as Server-Sent Events.
+
+    Args:
+        run_id: Path identifier of the run to stream.
+        request: Incoming HTTP request, used to detect client disconnects.
+        after: Only stream events with a sequence number greater than this.
+
+    Returns:
+        A StreamingResponse that replays history then tails live events.
+    """
     run = _run_or_404(run_id)
 
     async def event_gen() -> AsyncGenerator[str, None]:

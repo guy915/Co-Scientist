@@ -98,7 +98,12 @@ app.add_middleware(
 
 @app.get("/")
 async def root() -> JSONResponse:
-    """Returns API status and available tool list."""
+    """Returns API status and available tool list.
+
+    Returns:
+        A JSON response describing the running service, its version, the
+        registered MCP tools, and configured integrations.
+    """
     return JSONResponse({
         "status": "running",
         "service": "coscientist-lit-review",

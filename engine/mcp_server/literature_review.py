@@ -231,6 +231,10 @@ class PubmedSource(DocumentSource):
             pmc_id: PMC article identifier.
             slug: Identifier for organizing results.
             run_id: Unique run identifier for per-run symlink creation.
+
+        Returns:
+            The fulltext HTML contents of the paper, or None if the download
+            fails.
         """
         try:  # pylint: disable=broad-exception-caught
             # check shared pool first

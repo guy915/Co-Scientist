@@ -380,6 +380,19 @@ def create_run(
     client_id: str = "",
     db_path: str | None = None,
 ) -> RunRow:
+    """Insert a new run row in the DRAFT state and return it.
+
+    Args:
+        research_goal: The natural-language research goal for the run.
+        profile: The run profile, e.g. 'standard' or 'advanced'.
+        provider: The execution provider, e.g. 'mock' or 'engine'.
+        config: Run configuration values serialized to JSON.
+        client_id: Owning client identifier used for run isolation.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The newly created run as a RunRow.
+    """
     run_id = str(uuid.uuid4())
     now = _now()
     with connect(db_path) as conn:
@@ -430,6 +443,14 @@ def update_run_status(
     error: str | None = None,
     db_path: str | None = None,
 ) -> None:
+    """Update a run's status, timestamps, and optional error message.
+
+    Args:
+        run_id: Identifier of the run to update.
+        status: The new lifecycle status to persist.
+        error: Optional error message to store when the run failed.
+        db_path: Optional override for the SQLite database path.
+    """
     now = _now()
     completed_at = now if status in TERMINAL_STATUSES else None
     with connect(db_path) as conn:
@@ -456,6 +477,17 @@ def append_event(
     payload: dict[str, Any],
     db_path: str | None = None,
 ) -> int:
+    """Append an event to a run's append-only event log.
+
+    Args:
+        run_id: Identifier of the run the event belongs to.
+        type_: Event type, e.g. an agent name, 'status', or 'log'.
+        payload: Event payload serialized to JSON.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The monotonically increasing sequence number assigned to the event.
+    """
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?",
@@ -473,6 +505,16 @@ def list_events(
     after_seq: int = 0,
     db_path: str | None = None,
 ) -> list[dict[str, Any]]:
+    """Return a run's events ordered by sequence number.
+
+    Args:
+        run_id: Identifier of the run whose events to list.
+        after_seq: Only return events with a sequence number greater than this.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        A list of event dicts with seq, type, payload, and created_at keys.
+    """
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT seq, type, payload_json, created_at FROM run_events "
@@ -508,6 +550,23 @@ def add_hypothesis(
     created_by_agent: str = "generation",
     db_path: str | None = None,
 ) -> str:
+    """Insert a hypothesis row and its initial mutable state row.
+
+    Args:
+        run_id: Identifier of the run the hypothesis belongs to.
+        title: Short title of the hypothesis.
+        statement: Full hypothesis statement.
+        parent_id: Identifier of the parent hypothesis, set when evolving.
+        generation: Generation number, 0 for originally generated hypotheses.
+        mechanism: Proposed mechanism underlying the hypothesis.
+        expected_effect: Expected effect or outcome of the hypothesis.
+        experimental_context: Context describing how to test the hypothesis.
+        created_by_agent: Agent that created the row, e.g. 'generation'.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The identifier of the newly inserted hypothesis.
+    """
     hyp_id = str(uuid.uuid4())
     now = _now()
     with connect(db_path) as conn:
@@ -550,6 +609,24 @@ def update_hypothesis_state(
     cluster_id: str | None = None,
     db_path: str | None = None,
 ) -> None:
+    """Update selected mutable-state fields for a hypothesis.
+
+    Only the fields whose arguments are provided are updated; the rest are
+    left untouched.
+
+    Args:
+        hypothesis_id: Identifier of the hypothesis to update.
+        elo_rating: New absolute Elo rating to set.
+        win_delta: Amount to add to the win count.
+        loss_delta: Amount to add to the loss count.
+        novelty: New novelty score to set.
+        plausibility: New plausibility score to set.
+        testability: New testability score to set.
+        safety_status: New safety status to set.
+        status: New lifecycle status for the hypothesis.
+        cluster_id: New proximity cluster identifier to set.
+        db_path: Optional override for the SQLite database path.
+    """
     sets: list[str] = []
     params: list[Any] = []
     if elo_rating is not None:
@@ -633,6 +710,22 @@ def add_evidence(
     available: bool = True,
     db_path: str | None = None,
 ) -> str:
+    """Insert an evidence row for a run and return its identifier.
+
+    Args:
+        run_id: Identifier of the run the evidence belongs to.
+        title: Title of the evidence item.
+        source: Evidence source, e.g. 'pubmed', 'arxiv', or 'mock'.
+        url: Optional URL pointing to the evidence.
+        authors: Optional iterable of author names.
+        year: Optional publication year.
+        abstract: Optional abstract text for the evidence.
+        available: Whether the evidence full text is available.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The identifier of the newly inserted evidence row.
+    """
     ev_id = str(uuid.uuid4())
     with connect(db_path) as conn:
         conn.execute(
@@ -656,6 +749,15 @@ def add_evidence(
 
 def list_evidence(run_id: str,
                   db_path: str | None = None) -> list[dict[str, Any]]:
+    """Return a run's evidence rows ordered by creation time.
+
+    Args:
+        run_id: Identifier of the run whose evidence to list.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        A list of evidence dicts with decoded authors and available fields.
+    """
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT * FROM evidence WHERE run_id=? ORDER BY created_at ASC",
@@ -712,6 +814,20 @@ def add_review(
     overall: float | None = None,
     db_path: str | None = None,
 ) -> None:
+    """Insert a reviewer's assessment of a hypothesis.
+
+    Args:
+        run_id: Identifier of the run the review belongs to.
+        hypothesis_id: Identifier of the reviewed hypothesis.
+        reviewer_agent: Agent that produced the review, e.g. 'reflection'.
+        summary: Short summary of the review.
+        critique: Full critique text.
+        novelty: Optional novelty score assigned by the reviewer.
+        plausibility: Optional plausibility score assigned by the reviewer.
+        testability: Optional testability score assigned by the reviewer.
+        overall: Optional overall score assigned by the reviewer.
+        db_path: Optional override for the SQLite database path.
+    """
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO reviews (run_id, hypothesis_id, reviewer_agent, summary, critique, "  # pylint: disable=line-too-long
@@ -757,6 +873,20 @@ def add_match(
     rationale: str,
     db_path: str | None = None,
 ) -> None:
+    """Record the outcome of a pairwise tournament match.
+
+    Args:
+        run_id: Identifier of the run the match belongs to.
+        iteration: Tournament iteration in which the match occurred.
+        winner_id: Identifier of the winning hypothesis.
+        loser_id: Identifier of the losing hypothesis.
+        winner_before: Winner's Elo rating before the match.
+        winner_after: Winner's Elo rating after the match.
+        loser_before: Loser's Elo rating before the match.
+        loser_after: Loser's Elo rating after the match.
+        rationale: Explanation of why the winner prevailed.
+        db_path: Optional override for the SQLite database path.
+    """
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO matches (run_id, iteration, winner_id, loser_id, winner_elo_before, "  # pylint: disable=line-too-long
@@ -832,6 +962,17 @@ def save_report(
     markdown: str,
     db_path: str | None = None,
 ) -> dict[str, str]:
+    """Persist a report as a JSON row plus a rendered Markdown file.
+
+    Args:
+        run_id: Identifier of the run the report belongs to.
+        payload: Structured report payload serialized to JSON.
+        markdown: Rendered Markdown report written to disk.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        A dict with the new report 'id' and the 'markdown_path' on disk.
+    """
     report_id = str(uuid.uuid4())
     md_path = _reports_dir() / f"{run_id}.md"
     md_path.write_text(markdown, encoding="utf-8")
@@ -883,6 +1024,18 @@ def append_message(
     kind: str,
     db_path: str | None = None,
 ) -> MessageRow:
+    """Append a message to a run and return the stored row.
+
+    Args:
+        run_id: Identifier of the run the message belongs to.
+        sender: Identifier of the message sender.
+        content: Message body text.
+        kind: Message kind, e.g. 'steering'.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The newly inserted message as a MessageRow.
+    """
     now = _now()
     with connect(db_path) as conn:
         cur = conn.execute(

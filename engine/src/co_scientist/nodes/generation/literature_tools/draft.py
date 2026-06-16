@@ -57,6 +57,8 @@ async def draft_hypotheses(
         count: Number of hypotheses to draft
         mcp_client: MCP client for tool access
         tool_registry: Optional ToolRegistry for config-driven tool selection
+        reference_index: Optional citation reference index supplying the
+            `[C*]` reference list
 
     Returns:
         List of draft dicts with text, gap_reasoning, literature_sources
