@@ -58,7 +58,7 @@ async def analyze_single_hypothesis(
     logger.debug("\n→ analyzing hypothesis %s/%s", hypothesis_index,
                  total_count)
 
-    # pre-fetch INDRA evidence for this hypothesis (non-critical, skip on
+    # Pre-fetch INDRA evidence for this hypothesis (non-critical, skip on
     # failure)
     indra_data = await _fetch_indra_for_hypothesis(
         hypothesis.text,
@@ -66,7 +66,7 @@ async def analyze_single_hypothesis(
         hypothesis_index,
     )
 
-    # get reflection prompt (uses formatted text for LLM context)
+    # Get reflection prompt (uses formatted text for LLM context)
     prompt, schema = get_reflection_prompt(
         articles_with_reasoning=articles_with_reasoning,
         hypothesis_text=hypothesis.text,
@@ -74,7 +74,7 @@ async def analyze_single_hypothesis(
         indra_evidence=indra_data.get("prompt_text", ""),
     )
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     if run_id:
         from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
         save_prompt_to_disk(
@@ -89,7 +89,7 @@ async def analyze_single_hypothesis(
         )
 
     try:
-        # call llm
+        # Call llm
         response = await call_llm_json(
             prompt=prompt,
             model_name=model_name,
@@ -135,14 +135,14 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     logger.debug("\n=== reflection node ===")
     logger.info("Analyzing hypotheses against literature observations")
 
-    # get articles with reasoning from state
+    # Get articles with reasoning from state
     articles_with_reasoning = state.get("articles_with_reasoning")
     if not articles_with_reasoning:
         logger.warning(
             "No articles_with_reasoning in state, skipping reflection")
         return {}
 
-    # get hypotheses from state
+    # Get hypotheses from state
     hypotheses = state.get("hypotheses", [])
     if not hypotheses:
         logger.warning("No hypotheses in state, skipping reflection")
@@ -150,7 +150,7 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
 
     logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
 
-    # emit progress
+    # Emit progress
     progress_callback = state.get("progress_callback")
     if progress_callback is not None:
         await progress_callback(
@@ -163,7 +163,7 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
             },
         )
 
-    # analyze all hypotheses in parallel
+    # Analyze all hypotheses in parallel
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
 
     tool_registry = state.get("tool_registry")
@@ -179,17 +179,17 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
         ) for i, hyp in enumerate(hypotheses)
     ]
 
-    # gather all results
+    # Gather all results
     analysis_results = await asyncio.gather(*analysis_tasks)
 
-    # apply results to hypotheses
+    # Apply results to hypotheses
     for hypothesis, result in zip(hypotheses, analysis_results):
         if result:
             classification = result.get("classification", "neutral")
             reasoning = result.get("reasoning", "")
             hypothesis.reflection_notes = (
                 f"{reasoning}\n\nClassification: {classification}")
-            # store knowledge graph evidence in enrichments (yaml-driven,
+            # Store knowledge graph evidence in enrichments (yaml-driven,
             # only present for biomedical configs)
             enrichment_items = result.get("indra_enrichment_items", [])
             if enrichment_items:
@@ -198,7 +198,7 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
             hypothesis.reflection_notes = (
                 "Analysis failed\n\nClassification: neutral")
 
-    # emit progress
+    # Emit progress
     progress_callback = state.get("progress_callback")
     if progress_callback is not None:
         await progress_callback(

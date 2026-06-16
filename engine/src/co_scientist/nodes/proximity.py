@@ -84,7 +84,7 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     prompt, schema = get_proximity_prompt(
         hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(

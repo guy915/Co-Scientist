@@ -63,16 +63,16 @@ class FilteredStderr:
             text: Chunk of text written to stderr; suppressed if it matches a
                 known SSL cleanup error pattern.
         """
-        # accumulate text
+        # Accumulate text
         self.buffer += text
 
-        # check if we should skip this block
+        # Check if we should skip this block
         for pattern in self.skip_patterns:
             if pattern in self.buffer:
                 self.skip_block = True
                 break
 
-        # if we hit a newline, decide whether to output
+        # If we hit a newline, decide whether to output
         if "\n" in text:
             if not self.skip_block:
                 self.original_stderr.write(self.buffer)
@@ -97,7 +97,7 @@ def get_generation_method_badge(method: str,
     - debate-only
     """
     if method == "debate":
-        # check if this is debate-with-literature or debate-only
+        # Check if this is debate-with-literature or debate-only
         if hypothesis:
             lit_ground = hypothesis.get("literature_grounding", "")
             is_degraded = (
@@ -107,7 +107,7 @@ def get_generation_method_badge(method: str,
                 return "[magenta][DEBATE ONLY][/magenta]"
             else:
                 return "[magenta][DEBATE WITH LITERATURE][/magenta]"
-        # fallback if no hypothesis provided
+        # Fallback if no hypothesis provided
         return "[magenta][DEBATE][/magenta]"
     elif method == "literature_tools":
         return "[green][LITERATURE-MCP-TOOLS][/green]"
@@ -149,13 +149,13 @@ class ConsoleReporter:
         self.console = console or Console()
         self.filter_stderr = filter_stderr
 
-        # track what we've displayed to avoid duplicates
+        # Track what we've displayed to avoid duplicates
         self._displayed_research_plan = False
         self._displayed_literature_review = False
         self._displayed_meta_review = False
         self._displayed_hypotheses: dict[str, dict[str, Any]] = {}
 
-        # original stderr for restoration
+        # Original stderr for restoration
         self._original_stderr: TextIO | None = None
 
     async def run(
@@ -172,7 +172,7 @@ class ConsoleReporter:
         Returns:
             Final state dictionary with results
         """
-        # setup stderr filtering if enabled
+        # Setup stderr filtering if enabled
         if self.filter_stderr:
             self._original_stderr = sys.stderr
             sys.stderr = cast(TextIO, FilteredStderr(self._original_stderr))
@@ -181,7 +181,7 @@ class ConsoleReporter:
             start_time = time.time()
             last_state: dict[str, Any] | None = None
 
-            # show header
+            # Show header
             self.console.rule(
                 "[bold blue]Co-Scientist - Hypothesis Generation[/bold blue]")
             self.console.print()
@@ -195,22 +195,22 @@ class ConsoleReporter:
                     ))
                 self.console.print()
 
-            # process streaming events
+            # Process streaming events
             async for node_name, state in event_stream:
                 last_state = state
                 await self._handle_event(node_name, state)
 
-            # show final summary
+            # Show final summary
             execution_time = time.time() - start_time
             self._show_final_summary(last_state, execution_time)
 
-            # give time for connections to close gracefully
+            # Give time for connections to close gracefully
             await asyncio.sleep(0.5)
 
             return last_state
 
         finally:
-            # restore original stderr
+            # Restore original stderr
             if self.filter_stderr and self._original_stderr:
                 sys.stderr = self._original_stderr
 
@@ -266,7 +266,7 @@ class ConsoleReporter:
             self.console.print()
             self.console.rule("[bold cyan]Literature Review[/bold cyan]")
 
-            # check if literature review failed
+            # Check if literature review failed
             if lit_review == LITERATURE_REVIEW_FAILED:
                 self.console.print(
                     Panel(
@@ -278,7 +278,7 @@ class ConsoleReporter:
                         expand=False,
                     ))
             else:
-                # display successful literature review
+                # Display successful literature review
                 self.console.print(
                     Panel(
                         lit_review,
@@ -298,7 +298,7 @@ class ConsoleReporter:
 
             self._displayed_hypotheses[hyp_key] = hyp
 
-            # get generation method badge
+            # Get generation method badge
             method_badge = get_generation_method_badge(
                 hyp.get("generation_method"), hypothesis=hyp)
             title = (f"[bold cyan]Initial Hypothesis {i}[/bold cyan]"
@@ -419,7 +419,7 @@ class ConsoleReporter:
                     ))
             self.console.file.flush()
 
-        # then show final Elo rankings after matchups
+        # Then show final Elo rankings after matchups
         self.console.print()
         self.console.rule(
             "[bold magenta]Tournament Results (Elo Ratings)[/bold magenta]")
@@ -530,14 +530,14 @@ class ConsoleReporter:
                 title = (f"[bold cyan]Final Hypothesis {i}[/bold cyan]"
                          f" {method_badge}")
 
-                # build stats line with tournament info
+                # Build stats line with tournament info
                 stats_parts = [
                     f"[bold]Score:[/bold] {hyp.get('score', 0):.2f}",
                     f"[bold]Elo:[/bold] {hyp.get('elo_rating', 1200)}",
                     f"[bold]Reviews:[/bold] {len(hyp.get('reviews', []))}",
                 ]
 
-                # add tournament stats if available
+                # Add tournament stats if available
                 win_count = hyp.get("win_count", 0)
                 loss_count = hyp.get("loss_count", 0)
                 total_matches = hyp.get("total_matches", 0)
@@ -622,7 +622,7 @@ class SSLCleanupFilter(logging.Filter):
         """Return False to suppress the log record, True to allow it."""
         if record.name == "asyncio":
             message = record.getMessage()
-            # suppress SSL transport errors during cleanup
+            # Suppress SSL transport errors during cleanup
             if any(pattern in message for pattern in [
                     "Fatal error on SSL transport",
                     "Bad file descriptor",
@@ -651,20 +651,20 @@ def run_console(coro: Coroutine[Any, Any, Any]) -> None:
         if __name__ == "__main__":
             run_console(main())
     """
-    # suppress RuntimeWarnings from LiteLLM's async cleanup during shutdown
+    # Suppress RuntimeWarnings from LiteLLM's async cleanup during shutdown
     warnings.filterwarnings("ignore", category=RuntimeWarning, module="litellm")
 
-    # suppress asyncio SSL cleanup errors at the logging level
+    # Suppress asyncio SSL cleanup errors at the logging level
     asyncio_logger = logging.getLogger("asyncio")
     ssl_filter = SSLCleanupFilter()
     asyncio_logger.addFilter(ssl_filter)
 
-    # use manual event loop management for graceful shutdown
+    # Use manual event loop management for graceful shutdown
     # this prevents SSL transport errors when Ctrl+C is pressed
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
 
-    # filter SSL cleanup errors from stderr during shutdown
+    # Filter SSL cleanup errors from stderr during shutdown
     original_stderr = sys.stderr
     sys.stderr = cast(TextIO, FilteredStderr(original_stderr))
 
@@ -672,14 +672,14 @@ def run_console(coro: Coroutine[Any, Any, Any]) -> None:
         loop.run_until_complete(coro)
     except KeyboardInterrupt:
         print("\n\nInterrupted by user. Exiting...")
-        # cancel all pending tasks
+        # Cancel all pending tasks
         pending = asyncio.all_tasks(loop)
         for task in pending:
             task.cancel()
-        # give tasks a moment to clean up
+        # Give tasks a moment to clean up
         loop.run_until_complete(asyncio.gather(*pending,
                                                return_exceptions=True))
     finally:
         loop.close()
-        # restore original stderr
+        # Restore original stderr
         sys.stderr = original_stderr

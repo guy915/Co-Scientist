@@ -100,7 +100,7 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
         "literature_review") if tool_registry else None
     is_multi_source = bool(workflow and workflow.is_multi_source())
 
-    # defaults for backwards compatibility
+    # Defaults for backwards compatibility
     search_tool_name = "pubmed_search_with_fulltext"
     source_name = "pubmed"
     search_tool_config = None
@@ -118,7 +118,7 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
             logger.info("Single-source mode: %s (source: %s)", search_tool_name,
                         source_name)
 
-    # dev mode detection
+    # Dev mode detection
     is_dev_mode = os.getenv("COSCIENTIST_DEV_MODE",
                             "false").lower() in ("true", "1", "yes")
     papers_to_read_count = (LITERATURE_REVIEW_PAPERS_COUNT_DEV
@@ -209,7 +209,7 @@ async def _phase1_generate_queries(
 
     queries = []
 
-    # try MCP-based generation first if configured
+    # Try MCP-based generation first if configured
     if (config.tool_registry and config.workflow and
             config.workflow.query_generation_tool):
         tool_cfg = config.tool_registry.get_tool(
@@ -225,16 +225,16 @@ async def _phase1_generate_queries(
                 query_format,
             )
 
-    # fallback to LLM-based generation
+    # Fallback to LLM-based generation
     if not queries:
         queries = await _generate_queries_via_llm(state, config)
 
-    # final fallback to research goal
+    # Final fallback to research goal
     if not queries:
         logger.warning("No queries generated, using research goal")
         queries = [state["research_goal"]]
 
-    # limit to 3 queries max
+    # Limit to 3 queries max
     queries = queries[:3]
 
     logger.info("Generated %s search queries", len(queries))
@@ -362,7 +362,7 @@ async def _phase2_collect_papers_multi_source(
     logger.info("Phase 2: collecting papers from %s sources",
                 len(enabled_sources))
 
-    # search all sources in parallel
+    # Search all sources in parallel
     tasks = [
         _search_single_source(
             source,
@@ -375,7 +375,7 @@ async def _phase2_collect_papers_multi_source(
     ]
     source_results = await asyncio.gather(*tasks)
 
-    # merge results
+    # Merge results
     all_paper_metadata, paper_source_map = merge_search_results(
         source_results,
         deduplicate=config.workflow.deduplicate_across_sources,
@@ -406,7 +406,7 @@ async def _phase2_collect_papers_single_source(
     logger.info("Distributing %s papers: %s per query (+ %s extra)",
                 config.papers_to_read_count, papers_per_query, remainder)
 
-    # search all queries in parallel
+    # Search all queries in parallel
     tasks = [
         _search_single_query(
             query,
@@ -421,7 +421,7 @@ async def _phase2_collect_papers_single_source(
     ]
     search_results = await asyncio.gather(*tasks)
 
-    # merge results (no source tracking needed for single-source)
+    # Merge results (no source tracking needed for single-source)
     all_paper_metadata = {}
     for _, result_data in search_results:
         all_paper_metadata.update(result_data)
@@ -486,14 +486,14 @@ async def _phase2_4_discover_pdf_links(
     logger.info("Phase 2.4: discovering PDF links for %s papers",
                 len(papers_needing_discovery))
 
-    # discover in parallel
+    # Discover in parallel
     tasks = [
         _discover_pdf_link(pid, meta, tool_name, url_field, mcp_client)
         for pid, meta, tool_name, url_field in papers_needing_discovery
     ]
     results = await asyncio.gather(*tasks)
 
-    # update metadata
+    # Update metadata
     discovered_count = 0
     for paper_id, pdf_url in results:
         if pdf_url and paper_id in all_paper_metadata:
@@ -524,11 +524,11 @@ async def _fetch_paper_content(
         return (paper_id, None)
 
     try:
-        # resolve content_params with runtime context
+        # Resolve content_params with runtime context
         resolved_params = resolve_content_params(content_cfg.content_params,
                                                  runtime_context)
 
-        # build tool call args: url is always required, add any resolved params
+        # Build tool call args: url is always required, add any resolved params
         tool_args = {"url": content_url, **resolved_params}
 
         logger.debug("Fetching content for %s via %s: %s", paper_id,
@@ -581,14 +581,14 @@ async def _phase2_5_fetch_content(
     logger.info("Phase 2.5: fetching content for %s papers",
                 len(papers_needing_content))
 
-    # build runtime context for param resolution
+    # Build runtime context for param resolution
     runtime_context = {
         "research_goal": state.get("research_goal", ""),
         "focus_areas": [
         ],  # could be extracted from hypothesis categories later
     }
 
-    # fetch in parallel
+    # Fetch in parallel
     tasks = [
         _fetch_paper_content(pid, meta, content_cfg, mcp_client,
                              runtime_context)
@@ -596,7 +596,7 @@ async def _phase2_5_fetch_content(
     ]
     results = await asyncio.gather(*tasks)
 
-    # update metadata
+    # Update metadata
     fetched_count = 0
     for paper_id, content in results:
         if content and paper_id in all_paper_metadata:
@@ -611,9 +611,9 @@ async def _phase2_5_fetch_content(
 # Phase 2.6: Context enrichment (knowledge-graph / external tools)
 # =============================================================================
 
-# max chars injected into synthesis prompt from all enrichment tools combined
+# Max chars injected into synthesis prompt from all enrichment tools combined
 _CONTEXT_ENRICHMENT_MAX_CHARS = 1500
-# max results requested per entity per tool call
+# Max results requested per entity per tool call
 _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY = 4
 
 
@@ -717,7 +717,7 @@ async def _call_enrichment_tool_for_entities(
         if raw is None:
             return "", []
         text, items = _parse_enrichment_result(raw)
-        # tag each item with entity and tool_id for citation building
+        # Tag each item with entity and tool_id for citation building
         for item in items:
             item.setdefault("tool_id", tool_id)
             item.setdefault("entity", entity)
@@ -776,7 +776,7 @@ async def _phase2_6_fetch_context_enrichment(
     for tool_id in workflow.context_enrichment_tools:
         tc = tool_registry.get_tool(tool_id)
         if tc and tc.enabled and mcp_client.has_tool(tc.mcp_tool_name):
-            # stash the yaml tool_id for downstream citation building
+            # Stash the yaml tool_id for downstream citation building
             tc._yaml_tool_id = tool_id  # pylint: disable=protected-access
             tool_configs.append(tc)
         else:
@@ -803,7 +803,7 @@ async def _phase2_6_fetch_context_enrichment(
         text, items = result
         if text:
             sections.append(f"**{tc.display_name}**\n{text}")
-        # tag items with the yaml tool_id
+        # Tag items with the yaml tool_id
         yaml_tool_id = getattr(tc, "_yaml_tool_id", tc.mcp_tool_name)
         for item in items:
             item["tool_id"] = yaml_tool_id
@@ -925,12 +925,12 @@ async def _phase3_analyze_papers(
     ]
     results = await asyncio.gather(*tasks)
 
-    # filter out failed analyses
+    # Filter out failed analyses
     analyses = [r for r in results if r is not None]
     logger.info("Completed %s/%s paper analyses", len(analyses),
                 len(papers_with_content))
 
-    # debug logging
+    # Debug logging
     if analyses:
         first = analyses[0]
         logger.debug("Sample analysis structure - keys: %s",
@@ -1011,12 +1011,12 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     """
     logger.info("Starting literature review node")
 
-    # setup configuration
+    # Setup configuration
     config = _get_search_config(state)
     logger.info("Literature review config: dev_mode=%s, papers=%s",
                 config.is_dev_mode, config.papers_to_read_count)
 
-    # check cache
+    # Check cache
     node_cache = get_node_cache()
     cache_params = {"research_goal": state["research_goal"]}
     force_cache = bool(state.get("dev_test_lit_tools_isolation", False))
@@ -1036,7 +1036,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
                             cached=True)
         return cached
 
-    # check source availability
+    # Check source availability
     source_available = await check_literature_source_available(
         tool_registry=config.tool_registry)
     if not source_available:
@@ -1049,13 +1049,13 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     await emit_progress(state, "literature_review_start",
                         "Conducting literature review...", 0.1)
 
-    # initialize MCP client
+    # Initialize MCP client
     mcp_client = await get_mcp_client(tool_registry=config.tool_registry)
 
-    # phase 1: generate queries
+    # Phase 1: generate queries
     queries = await _phase1_generate_queries(state, config, mcp_client)
 
-    # phase 2: collect papers
+    # Phase 2: collect papers
     slug = "research_" + hashlib.md5(
         state["research_goal"].encode()).hexdigest()[:8]
 
@@ -1068,11 +1068,11 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
             await _phase2_collect_papers_single_source(queries, slug, state,
                                                        config, mcp_client))
 
-    # phase 2.4: discover PDF links
+    # Phase 2.4: discover PDF links
     await _phase2_4_discover_pdf_links(all_paper_metadata, paper_source_map,
                                        config, mcp_client)
 
-    # phase 2.5 + 2.6: fetch content and context enrichment in parallel
+    # Phase 2.5 + 2.6: fetch content and context enrichment in parallel
     content_task = _phase2_5_fetch_content(all_paper_metadata, paper_source_map,
                                            config, mcp_client, state)
     enrichment_task = _phase2_6_fetch_context_enrichment(
@@ -1080,7 +1080,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     _, enrichment_result = await asyncio.gather(content_task, enrichment_task)
     background_context, context_enrichment_sources = enrichment_result
 
-    # check fulltext availability
+    # Check fulltext availability
     with_fulltext, without_fulltext = count_papers_with_fulltext(
         all_paper_metadata)
     logger.info("Collected %s papers (%s with fulltext)",
@@ -1090,7 +1090,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
         logger.warning("%s papers do not have fulltexts available",
                        without_fulltext)
 
-    # handle edge cases
+    # Handle edge cases
     if len(all_paper_metadata) == 0:
         logger.warning("No papers collected")
         await emit_progress(state, "literature_review_complete",
@@ -1119,7 +1119,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
             articles=articles,
         )
 
-    # log sample papers for debugging
+    # Log sample papers for debugging
     for paper_id, meta in list(all_paper_metadata.items())[:3]:
         has_ft = bool(
             meta.get("pmc_full_text_id") or meta.get("fulltext") or
@@ -1127,17 +1127,17 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
         logger.debug("Paper %s: title='%s...' has_fulltext=%s", paper_id,
                      meta.get('title', '')[:60], has_ft)
 
-    # phase 3: analyze papers
+    # Phase 3: analyze papers
     paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
 
-    # phase 4: synthesize
+    # Phase 4: synthesize
     if paper_analyses:
         synthesis = await _phase4_synthesize(paper_analyses, state,
                                              background_context)
     else:
         synthesis = LITERATURE_REVIEW_FAILED
 
-    # phase 5: create articles
+    # Phase 5: create articles
     logger.info("Phase 5: creating article objects")
     articles = build_articles_from_metadata(all_paper_metadata,
                                             paper_source_map,
@@ -1145,7 +1145,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
                                             config.tool_registry)
     logger.info("Created %s article objects", len(articles))
 
-    # append knowledge graph evidence with [C*] keys aligned to the reference
+    # Append knowledge graph evidence with [C*] keys aligned to the reference
     # index. keys start after the analyzed papers so they match what
     # build_reference_index will assign at generation time — giving the
     # generation LLM explicit handles to cite.
@@ -1160,7 +1160,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
                 "Appended %s KG source(s) with [C%s...] keys to synthesis",
                 len(context_enrichment_sources), used_paper_count + 1)
 
-    # emit completion
+    # Emit completion
     await emit_progress(
         state,
         "literature_review_complete",
@@ -1174,7 +1174,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
         "Literature review complete: %s articles from %s queries,"
         " %s char synthesis", len(articles), len(queries), len(synthesis))
 
-    # build and cache result
+    # Build and cache result
     result = make_success_result(synthesis, queries, articles)
     if context_enrichment_sources:
         result["context_enrichment_sources"] = context_enrichment_sources

@@ -24,7 +24,7 @@ from mcp_server.tools.indra_cogex.client import (
 
 logger = logging.getLogger(__name__)
 
-# maps query_type -> (endpoint, param_name, result_key)
+# Maps query_type -> (endpoint, param_name, result_key)
 _DRUG_ENDPOINTS = {
     "targets": ("/api/get_targets_for_drug", "drug", "targets"),
     "drugs_for_target": ("/api/get_drugs_for_target", "target", "drugs"),

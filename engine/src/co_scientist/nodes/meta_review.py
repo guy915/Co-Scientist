@@ -116,7 +116,7 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         tool_registry=state.get("tool_registry"),
     )
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(

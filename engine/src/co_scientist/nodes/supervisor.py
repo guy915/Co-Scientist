@@ -48,21 +48,21 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Supervisor analyzing research goal: %s...",
                 research_goal[:100])
 
-    # extract optional user inputs from state
+    # Extract optional user inputs from state
     preferences = state.get("preferences")
     attributes = state.get("attributes")
     constraints = state.get("constraints")
     user_hypotheses = state.get("starting_hypotheses")
     user_literature = state.get("literature")
 
-    # extract user configuration for workflow
+    # Extract user configuration for workflow
     initial_hypotheses_count = state.get("initial_hypotheses_count")
     max_iterations = state.get("max_iterations")
     evolution_max_count = state.get("evolution_max_count")
     mcp_available = bool(state.get("mcp_available", False))
     pubmed_available = bool(state.get("pubmed_available", False))
 
-    # emit progress
+    # Emit progress
     progress_callback = state.get("progress_callback")
     if progress_callback is not None:
         await progress_callback(
@@ -73,7 +73,7 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
             },
         )
 
-    # call llm to create research plan with all context
+    # Call llm to create research plan with all context
     prompt, schema = get_supervisor_prompt(
         research_goal=research_goal,
         preferences=preferences,
@@ -89,7 +89,7 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         tool_registry=state.get("tool_registry"),
     )
 
-    # save prompt to disk for debugging
+    # Save prompt to disk for debugging
     from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
 
     save_prompt_to_disk(

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
-# helper functions for saving prompts to disk
+# Helper functions for saving prompts to disk
 
 
 def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
@@ -46,12 +46,12 @@ def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
 
     example:
         path = get_prompt_save_path("abc123", "review_batch")
-        # returns Path(".coscientist_prompts/abc123/review_batch.txt")
+        # Returns Path(".coscientist_prompts/abc123/review_batch.txt")
     """
     prompts_dir = Path(".coscientist_prompts") / run_id
     prompts_dir.mkdir(parents=True, exist_ok=True)
 
-    # ensure .txt extension
+    # Ensure .txt extension
     if not prompt_name.endswith(".txt"):
         prompt_name = f"{prompt_name}.txt"
 
@@ -80,7 +80,7 @@ def save_prompt_to_disk(run_id: str,
         with open(path, "w", encoding="utf-8") as f:
             f.write(content)
 
-            # append metadata if provided
+            # Append metadata if provided
             if metadata:
                 f.write("\n\n=== METADATA (by save_prompt_to_disk) ===\n")
                 for key, value in metadata.items():
@@ -170,7 +170,7 @@ def substitute_variables(template: str, variables: dict[str, Any]) -> str:
     return re.sub(r"\{\{([^}]+)\}\}", replacer, template)
 
 
-# domain variable injection from YAML config
+# Domain variable injection from YAML config
 
 
 def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
@@ -228,13 +228,13 @@ def get_generation_prompt(
     If articles_with_reasoning is provided, uses the literature review prompt.
     Otherwise, uses the debate generation prompt.
     """
-    # determine which prompt to use based on whether literature review is
+    # Determine which prompt to use based on whether literature review is
     # available
     use_literature_prompt = bool(articles_with_reasoning)
     prompt_name = ("generation_debate_and_literature"
                    if use_literature_prompt else "generation_after_debate")
 
-    # prepare common variables for both prompts
+    # Prepare common variables for both prompts
     variables = {
         "goal":
             research_goal,
@@ -255,16 +255,16 @@ def get_generation_prompt(
             or f"Generate {hypotheses_count} diverse and novel hypotheses.",
     }
 
-    # add literature-specific variable if using literature prompt
+    # Add literature-specific variable if using literature prompt
     if use_literature_prompt:
         variables["articles_with_reasoning"] = articles_with_reasoning or ""
 
-    # format supervisor guidance if available and has content
+    # Format supervisor guidance if available and has content
     if supervisor_guidance and isinstance(supervisor_guidance, dict):
         guidance_sections = []
         has_content = False
 
-        # add key research areas
+        # Add key research areas
         goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
         key_areas = goal_analysis.get("key_areas", [])
         if key_areas:
@@ -279,7 +279,7 @@ def get_generation_prompt(
             for area in key_areas:
                 guidance_sections.append(f"- {area}\n")
 
-        # add generation phase guidance
+        # Add generation phase guidance
         workflow_plan = supervisor_guidance.get("workflow_plan", {})
         generation_phase = workflow_plan.get("generation_phase", {})
         if generation_phase:
@@ -337,7 +337,7 @@ def get_review_prompt(
     # Add meta-review context if available (for re-reviewing evolved hypotheses)
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("review", variables)
@@ -363,7 +363,7 @@ def get_review_batch_prompt(
     # Add meta-review context if available (for re-reviewing evolved hypotheses)
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("review_batch", variables)
@@ -414,7 +414,7 @@ def get_ranking_prompt(
     variables["hypothesis_b_reflection_notes"] = (
         reflection_notes_b or "No reflection notes available.")
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("ranking", variables)
@@ -435,7 +435,7 @@ def get_meta_review_prompt(
         "supervisor_guidance"] = _format_supervisor_guidance_for_meta_review(
             supervisor_guidance)
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("meta_review", variables)
@@ -505,7 +505,7 @@ def get_supervisor_prompt(
         "literature_review_description": lit_review_description,
     }
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("supervisor", variables)
@@ -718,7 +718,7 @@ def get_reflection_prompt(
         "indra_evidence": indra_evidence,
     }
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("reflection_observations", variables)
@@ -775,13 +775,13 @@ def get_literature_review_query_generation_prompt(
     Returns:
         Formatted prompt string
     """
-    # select template based on source type
+    # Select template based on source type
     if source_type == "knowledge_graph":
         template_name = "literature_review_query_generation_indra"
     elif source_type == "pubmed":
         template_name = "literature_review_query_generation_pubmed"
     else:
-        # generic fallback for other academic sources
+        # Generic fallback for other academic sources
         template_name = "literature_review_query_generation_generic"
 
     return load_prompt(
@@ -827,7 +827,7 @@ def get_literature_review_synthesis_prompt(
     background_context: str = "",
 ) -> str:
     """Get the prompt for synthesizing paper analyses."""
-    # format paper analyses as structured text
+    # Format paper analyses as structured text
     analyses_text = []
     for i, analysis_data in enumerate(paper_analyses, 1):
         metadata = analysis_data.get("metadata", {})
@@ -909,7 +909,7 @@ def get_hypothesis_validation_synthesis_prompt(
     Returns:
         Formatted prompt string
     """
-    # format hypotheses with their novelty analyses
+    # Format hypotheses with their novelty analyses
     hypotheses_text = []
     for i, hyp_data in enumerate(hypotheses_with_analyses, 1):
         draft = hyp_data.get("draft", {})
@@ -962,7 +962,7 @@ def get_hypothesis_validation_synthesis_prompt(
             _build_citation_reference_section(reference_list),
     }
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt("hypothesis_validation_synthesis", variables)
@@ -1017,15 +1017,15 @@ def get_validation_synthesis_prompt_with_tools(
             (retry path only). Injected as a diversity constraint so the
             model avoids duplicate territory.
     """
-    # get tool IDs for validation workflow
+    # Get tool IDs for validation workflow
     tool_ids = []
     if tool_registry:
         tool_ids = tool_registry.get_tools_for_workflow("validation")
 
-    # build dynamic tool instructions
+    # Build dynamic tool instructions
     tool_instructions = build_tool_instructions(tool_ids, tool_registry)
 
-    # format hypotheses with their novelty analyses (same as non-tool version)
+    # Format hypotheses with their novelty analyses (same as non-tool version)
     hypotheses_text = []
     for i, hyp_data in enumerate(hypotheses_with_analyses, 1):
         draft = hyp_data.get("draft", {})
@@ -1089,7 +1089,7 @@ def get_validation_synthesis_prompt_with_tools(
             _build_already_validated_context(already_validated_texts),
     }
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("hypothesis_validation_synthesis_with_tools",
@@ -1149,11 +1149,11 @@ def get_debate_generation_prompt(
                        (attributes or "testable and falsifiable")),
     }
 
-    # add literature review if provided
+    # Add literature review if provided
     if articles_with_reasoning:
         variables["articles_with_reasoning"] = articles_with_reasoning
 
-    # add article metadata for citations
+    # Add article metadata for citations
     variables["articles_metadata"] = format_articles_metadata(articles or [])
     variables["citation_reference_section"] = _build_citation_reference_section(
         reference_list or "")
@@ -1189,18 +1189,18 @@ def get_debate_generation_prompt(
     else:
         variables["supervisor_guidance"] = ""
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
-    # determine which prompt to use based on literature availability
+    # Determine which prompt to use based on literature availability
     prompt_name = ("generation_debate_and_literature"
                    if articles_with_reasoning else "generation_after_debate")
 
-    # if final turn, append instruction to output JSON and use schema
+    # If final turn, append instruction to output JSON and use schema
     if is_final_turn:
         prompt, schema = load_prompt_with_schema(prompt_name, variables)
 
-        # append JSON output instructions for final turn
+        # Append JSON output instructions for final turn
         final_instructions = """
 
 ## FINAL TURN - OUTPUT FORMAT
@@ -1255,12 +1255,12 @@ IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative Uni
         prompt = prompt + final_instructions
         return prompt, schema
     else:
-        # non-final turns: no schema, just conversational
+        # Non-final turns: no schema, just conversational
         prompt = load_prompt(prompt_name, variables)
         return prompt, None
 
 
-# formatting helpers for generate node
+# Formatting helpers for generate node
 
 
 def format_preferences(preferences: str | None) -> str:
@@ -1311,17 +1311,17 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
     if not articles_with_reasoning:
         return "No pre-curated literature review available."
 
-    # simple strategy: take first ~500 chars (usually covers main findings)
+    # Simple strategy: take first ~500 chars (usually covers main findings)
     # plus extract any "gap" or "limitation" mentions
     text = articles_with_reasoning.strip()
 
-    # find main content sections (skip headers)
+    # Find main content sections (skip headers)
     lines = [
         line for line in text.split("\n")
         if line.strip() and not line.startswith("#")
     ]
 
-    # take first 2-3 substantive lines for themes
+    # Take first 2-3 substantive lines for themes
     theme_lines = []
     for line in lines[:10]:  # look in first 10 lines
         if len(line) > 50:  # substantive line
@@ -1329,7 +1329,7 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
             if len(theme_lines) >= 2:
                 break
 
-    # look for gap/limitation mentions
+    # Look for gap/limitation mentions
     gap_lines = []
     for line in lines:
         line_lower = line.lower()
@@ -1342,16 +1342,16 @@ def condense_literature_summary(articles_with_reasoning: str | None) -> str:
 
     parts = []
     if theme_lines:
-        # take first 300 chars of themes
+        # Take first 300 chars of themes
         themes_text = " ".join(theme_lines)[:300]
         parts.append(f"**Key Themes:** {themes_text}...")
 
     if gap_lines:
-        # take first 250 chars of gaps
+        # Take first 250 chars of gaps
         gaps_text = " ".join(gap_lines)[:250]
         parts.append(f"**Identified Gaps:** {gaps_text}...")
 
-    # fallback: just take first 400 chars
+    # Fallback: just take first 400 chars
     if not parts:
         return (text[:400] + "...\n\n(See papers below for details."
                 " Use tools to read papers directly.)")
@@ -1426,13 +1426,13 @@ def build_tool_instructions(
     Returns:
         Formatted markdown section describing available tools
     """
-    # if no registry provided, try to get the global one
+    # If no registry provided, try to get the global one
     if tool_registry is None:
         try:
             from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
 
             tool_registry = get_tool_registry()
-            # if no tool_ids provided, get them from draft workflow
+            # If no tool_ids provided, get them from draft workflow
             if not tool_ids:
                 tool_ids = tool_registry.get_tools_for_workflow(
                     "draft_generation")
@@ -1440,7 +1440,7 @@ def build_tool_instructions(
             pass
 
     if not tool_registry or not tool_ids:
-        # minimal fallback when no config available
+        # Minimal fallback when no config available
         return ("No tool configuration available."
                 " Literature tools may not be accessible.")
 
@@ -1451,13 +1451,13 @@ def build_tool_instructions(
         if not tool_config or not tool_config.enabled:
             continue
 
-        # add tool entry
+        # Add tool entry
         sections.append(
             f"- `{tool_config.mcp_tool_name}`: {tool_config.description}")
 
-        # add prompt snippet if available
+        # Add prompt snippet if available
         if tool_config.prompt_snippet:
-            # indent the snippet
+            # Indent the snippet
             snippet_lines = tool_config.prompt_snippet.strip().split("\n")
             for line in snippet_lines:
                 sections.append(f"  {line}")
@@ -1504,12 +1504,12 @@ def get_draft_prompt_with_tools(
         tool_registry: Optional ToolRegistry for dynamic tool instructions
         reference_list: Optional citation reference list of `[C*]` keys
     """
-    # get tool IDs for draft generation workflow
+    # Get tool IDs for draft generation workflow
     tool_ids = []
     if tool_registry:
         tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
 
-    # build dynamic tool instructions
+    # Build dynamic tool instructions
     tool_instructions = build_tool_instructions(tool_ids, tool_registry)
 
     variables = {
@@ -1543,7 +1543,7 @@ def get_draft_prompt_with_tools(
             tool_instructions,
     }
 
-    # inject domain-specific prompt customizations
+    # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("generation_draft_with_tools", variables)

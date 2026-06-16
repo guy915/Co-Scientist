@@ -37,10 +37,10 @@ from co_scientist.config.schema import (
 
 logger = logging.getLogger(__name__)
 
-# default config file location (relative to this module)
+# Default config file location (relative to this module)
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "tools.yaml"
 
-# user config locations (in order of precedence)
+# User config locations (in order of precedence)
 USER_CONFIG_PATHS = [
     Path.home() / ".coscientist" / "tools.yaml",
     Path.home() / ".config" / "coscientist" / "tools.yaml",
@@ -61,7 +61,7 @@ def substitute_env_vars(value: Any) -> Any:
         Value with environment variables substituted
     """
     if isinstance(value, str):
-        # pattern: ${VAR} or ${VAR:-default}
+        # Pattern: ${VAR} or ${VAR:-default}
         pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
 
         def replacer(match: "re.Match[str]") -> str:
@@ -72,7 +72,7 @@ def substitute_env_vars(value: Any) -> Any:
                 return env_value
             if default is not None:
                 return default
-            # return empty string if no env var and no default
+            # Return empty string if no env var and no default
             logger.warning(
                 "environment variable %s not set and no default provided",
                 var_name)
@@ -121,19 +121,19 @@ class ToolRegistry:
         self._disabled_tools = set(disabled_tools or [])
         self._skip_user_config = skip_user_config
 
-        # load config on init
+        # Load config on init
         self._load_config()
 
     def _load_config(self) -> None:
         """Load and merge configuration files."""
-        # start with default config
+        # Start with default config
         default_data = self._load_yaml_file(DEFAULT_CONFIG_PATH)
         if default_data is None:
             logger.warning("default config not found at %s, using empty config",
                            DEFAULT_CONFIG_PATH)
             default_data = {}
 
-        # load user config if exists
+        # Load user config if exists
         user_data = None
         if not self._skip_user_config:
             for user_path in USER_CONFIG_PATHS:
@@ -142,7 +142,7 @@ class ToolRegistry:
                     logger.info("loaded user config from %s", user_path)
                     break
 
-        # load custom config if specified
+        # Load custom config if specified
         custom_data = None
         if self._custom_config_path:
             custom_data = self._load_yaml_file(Path(self._custom_config_path))
@@ -153,19 +153,19 @@ class ToolRegistry:
                 logger.warning("custom config not found at %s",
                                self._custom_config_path)
 
-        # merge configs
+        # Merge configs
         merged_data = self._merge_configs(default_data, user_data, custom_data)
 
-        # substitute environment variables
+        # Substitute environment variables
         merged_data = substitute_env_vars(merged_data)
 
-        # parse enabled values that might be env var strings
+        # Parse enabled values that might be env var strings
         self._parse_enabled_values(merged_data)
 
-        # create config object
+        # Create config object
         self._config = ToolsConfig.from_dict(merged_data)
 
-        # apply disabled tools
+        # Apply disabled tools
         self._apply_disabled_tools()
 
         logger.info("Tool registry initialized: %s servers, %s enabled tools",
@@ -185,12 +185,12 @@ class ToolRegistry:
     def _parse_enabled_values(self, data: dict[str, Any]) -> None:
         """Parse 'enabled' fields that might be string booleans from env vars.
         """
-        # parse server enabled values
+        # Parse server enabled values
         for server_data in data.get("servers", {}).values():
             if isinstance(server_data.get("enabled"), str):
                 server_data["enabled"] = parse_bool_env(server_data["enabled"])
 
-        # parse tool enabled values
+        # Parse tool enabled values
         for category_tools in data.get("tools", {}).values():
             for tool_data in category_tools.values():
                 if isinstance(tool_data.get("enabled"), str):
@@ -208,7 +208,7 @@ class ToolRegistry:
         """
         result = dict(default)
 
-        # determine merge strategy (from user or custom config)
+        # Determine merge strategy (from user or custom config)
         strategy = "override"
         if custom and "settings" in custom:
             strategy = custom.get("settings", {}).get("merge_strategy",
@@ -217,11 +217,11 @@ class ToolRegistry:
             strategy = user.get("settings", {}).get("merge_strategy",
                                                     "override")
 
-        # apply user config
+        # Apply user config
         if user:
             result = self._merge_dict(result, user, strategy)
 
-        # apply custom config (highest priority)
+        # Apply custom config (highest priority)
         if custom:
             result = self._merge_dict(result, custom, strategy)
 
@@ -245,14 +245,14 @@ class ToolRegistry:
             if key not in result:
                 result[key] = value
             elif isinstance(value, dict) and isinstance(result[key], dict):
-                # recursively merge dicts
+                # Recursively merge dicts
                 result[key] = self._merge_dict(result[key], value, strategy)
             elif strategy == "override":
                 result[key] = value
             elif strategy == "extend":
                 if isinstance(value, list) and isinstance(result[key], list):
                     result[key] = result[key] + value
-                # for non-lists, extend doesn't replace existing values
+                # For non-lists, extend doesn't replace existing values
 
         return result
 
@@ -309,7 +309,7 @@ class ToolRegistry:
             logger.warning("workflow '%s' not found in config", workflow_name)
             return []
 
-        # get all referenced tools, filtering to only enabled ones
+        # Get all referenced tools, filtering to only enabled ones
         tool_ids = workflow.get_all_tools()
         enabled_ids = []
         for tool_id in tool_ids:
@@ -395,7 +395,7 @@ class ToolRegistry:
         return result
 
 
-# global registry instance
+# Global registry instance
 _global_registry: ToolRegistry | None = None
 
 

@@ -334,7 +334,7 @@ async def run_mock_workflow(
     elo_state: dict[str, int] = {hid: INITIAL_ELO for hid in hyp_ids}
 
     def _judge(a: str, b: str) -> tuple[str, str, str]:
-        # deterministic: pick by hash so tests are stable
+        # Deterministic: pick by hash so tests are stable
         if hashlib.sha256(
             (run_id + a + b).encode()).hexdigest() < hashlib.sha256(
                 (run_id + b + a).encode()).hexdigest():
@@ -411,7 +411,7 @@ async def run_mock_workflow(
             yield await emit("status", {"status": "cancelled"})
             return
 
-        # only run evolve/meta inside iterations, not after the final ranking pass
+        # Only run evolve/meta inside iterations, not after the final ranking pass
         if itr <= cfg["max_iterations"]:
             # ---- 8. Evolve top-k ----
             top_k = sorted(elo_state.items(),
@@ -480,7 +480,7 @@ async def run_mock_workflow(
         "unavailable": 0
     }
     for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
-        # link first 2 evidence items to each hypothesis as supporting citations
+        # Link first 2 evidence items to each hypothesis as supporting citations
         for ev in evidence_payload[:2]:
             claim = f"Mechanism mentioned in {ev['title'][:30]} supports hypothesis"  # pylint: disable=line-too-long
             state = classify_citation(

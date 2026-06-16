@@ -72,9 +72,9 @@ class MCPToolClient:
         self._openai_tools: list[dict[str, Any]] | None = None
         self._tool_to_server: dict[str, str] = {}  # maps tool_name -> server_id
 
-        # determine server configuration
+        # Determine server configuration
         if tool_registry is not None:
-            # use registry-provided server configs
+            # Use registry-provided server configs
             self._server_configs = (
                 tool_registry.get_server_configs_for_langchain())
             logger.debug("using %s servers from tool registry",
@@ -84,7 +84,7 @@ class MCPToolClient:
             logger.debug("using %s provided server configs",
                          len(self._server_configs))
         else:
-            # legacy single-server mode
+            # Legacy single-server mode
             if server_url is None:
                 server_url = os.environ.get("MCP_SERVER_URL",
                                             "http://localhost:8888/mcp")
@@ -96,7 +96,7 @@ class MCPToolClient:
             }
             logger.debug("using single server: %s", server_url)
 
-        # store for backwards compatibility
+        # Store for backwards compatibility
         self.server_url = list(self._server_configs.values())[0].get(
             "url") if self._server_configs else None
 
@@ -117,13 +117,13 @@ class MCPToolClient:
             cast(dict[str, Connection], self._server_configs))
         tools = await self._client.get_tools()
 
-        # create dict for easy lookup and track which server provides each tool
+        # Create dict for easy lookup and track which server provides each tool
         self._tools_dict = {}
         self._tool_to_server = {}
 
         for tool in tools:
             self._tools_dict[tool.name] = tool
-            # infer server from tool metadata if available
+            # Infer server from tool metadata if available
             # MultiServerMCPClient prefixes tools with server name in some
             # versions For now, we'll track based on the tool registry if
             # available
@@ -133,7 +133,7 @@ class MCPToolClient:
                 if tool_config:
                     self._tool_to_server[tool.name] = tool_config.server
 
-        # convert to OpenAI format for LiteLLM
+        # Convert to OpenAI format for LiteLLM
         self._openai_tools = [convert_to_openai_tool(tool) for tool in tools]
 
         logger.info("MCP client initialized with %s tools: %s",
@@ -169,7 +169,7 @@ class MCPToolClient:
 
         result = await self._tools_dict[tool_name].ainvoke(kwargs)
 
-        # wrap to support earlier/recent langchain versions
+        # Wrap to support earlier/recent langchain versions
         if isinstance(result, list) and len(result) > 0:
             if isinstance(result[0], dict) and "text" in result[0]:
                 result = result[0]["text"]
@@ -199,7 +199,7 @@ class MCPToolClient:
         logger.debug("executing mcp tool: %s with args: %s", tool_name,
                      tool_args)
 
-        # execute using the original MCP tool
+        # Execute using the original MCP tool
         result = await self._tools_dict[tool_name].ainvoke(tool_args)
 
         logger.debug("mcp tool result for %s: %s%s", tool_name,
@@ -234,7 +234,7 @@ class MCPToolClient:
         if whitelist is None:
             return self._tools_dict, self._openai_tools
 
-        # filter tools by whitelist
+        # Filter tools by whitelist
         filtered_tools_dict = {
             k: v for k, v in self._tools_dict.items() if k in whitelist
         }
@@ -274,7 +274,7 @@ class MCPToolClient:
         return list(self._tools_dict.keys())
 
 
-# global client instance
+# Global client instance
 _global_client: MCPToolClient | None = None
 
 
@@ -300,7 +300,7 @@ async def check_literature_source_available(
     Returns:
         True if literature source is available via MCP server, False otherwise
     """
-    # determine the availability check tool name from registry
+    # Determine the availability check tool name from registry
     check_tool_name: str | None = None
     skip_availability_check = False
 
@@ -308,7 +308,7 @@ async def check_literature_source_available(
         workflow = tool_registry.get_workflow("literature_review")
         if workflow:
             if workflow.availability_check:
-                # explicit check tool configured
+                # Explicit check tool configured
                 tool_config = tool_registry.get_tool(
                     workflow.availability_check)
                 if tool_config:
@@ -319,7 +319,7 @@ async def check_literature_source_available(
                 logger.debug("availability check disabled in config"
                              " (availability_check: null)")
 
-    # default for backwards compat when no registry
+    # Default for backwards compat when no registry
     if (check_tool_name is None and not skip_availability_check and
             tool_registry is None):
         check_tool_name = "check_pubmed_available"
@@ -329,19 +329,19 @@ async def check_literature_source_available(
                                     "http://localhost:8888/mcp")
 
     try:
-        # first check if MCP server is up
+        # First check if MCP server is up
         if not await check_mcp_available(server_url, tool_registry):
             logger.debug(
                 "mcp server unavailable, literature source unavailable")
             return False
 
-        # if no availability check configured, assume available since MCP is up
+        # If no availability check configured, assume available since MCP is up
         if skip_availability_check:
             logger.info("MCP server available, skipping source-specific"
                         " availability check")
             return True
 
-        # if no check tool configured but we have a registry, assume available
+        # If no check tool configured but we have a registry, assume available
         if check_tool_name is None:
             logger.info("no availability check tool configured,"
                         " assuming source available")
@@ -350,12 +350,12 @@ async def check_literature_source_available(
         logger.debug("checking literature source availability (tool: %s)",
                      check_tool_name)
 
-        # create client
+        # Create client
         mcp_client = MCPToolClient(server_url=server_url,
                                    tool_registry=tool_registry)
         await mcp_client.initialize()
 
-        # get available tools
+        # Get available tools
         all_tools_dict, _ = mcp_client.get_tools()
         logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
 
@@ -367,10 +367,10 @@ async def check_literature_source_available(
 
         logger.debug("%s tool found, executing", check_tool_name)
 
-        # call tool directly
+        # Call tool directly
         result = await mcp_client.call_tool(check_tool_name)
 
-        # result should be a boolean or "true"/"false" string
+        # Result should be a boolean or "true"/"false" string
         if isinstance(result, bool):
             return result
         elif isinstance(result, str):
@@ -387,7 +387,7 @@ async def check_literature_source_available(
         return False
 
 
-# backwards compatibility alias
+# Backwards compatibility alias
 async def check_pubmed_available_via_mcp(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
@@ -424,7 +424,7 @@ async def check_mcp_available(
                                     tool_registry=tool_registry)
         await test_client.initialize()
 
-        # check if we got any tools
+        # Check if we got any tools
         if test_client._tools_dict and len(test_client._tools_dict) > 0:  # pylint: disable=protected-access
             logger.info(
                 "MCP server available with %s tools",
@@ -464,7 +464,7 @@ async def get_mcp_client(
         _global_client = MCPToolClient(server_url=server_url,
                                        tool_registry=tool_registry)
 
-    # always ensure it's initialized (safe to call multiple times)
+    # Always ensure it's initialized (safe to call multiple times)
     await _global_client.initialize()
 
     return _global_client

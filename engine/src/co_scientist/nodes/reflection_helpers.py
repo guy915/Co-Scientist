@@ -30,16 +30,16 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# matches hyphenated bio names first (IL-6, YKL-40, IL-1B), then standalone
+# Matches hyphenated bio names first (IL-6, YKL-40, IL-1B), then standalone
 # (KRAS, TREM2) hyphenated suffix is 1-2 digits + optional letter — avoids
 # pathway notation like RAGE-JAK2
 _HYPHENATED_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,5}-[0-9]{1,2}[A-Z]?)\b")
 _STANDALONE_RE = re.compile(r"\b([A-Z][A-Z0-9]{2,5})\b")
 
-# common false positives: english words, non-gene abbreviations, protein
+# Common false positives: english words, non-gene abbreviations, protein
 # families
 _STOP = frozenset({
-    # english
+    # English
     "THE",
     "AND",
     "FOR",
@@ -110,7 +110,7 @@ _STOP = frozenset({
     "GTP",
     "USA",
     "NIH",
-    # biomedical non-gene abbreviations
+    # Biomedical non-gene abbreviations
     "CSF",
     "CNS",
     "BBB",
@@ -128,13 +128,13 @@ _STOP = frozenset({
     "MESH",
     "HGNC",
     "CHEBI",
-    # protein families/classes (too broad for INDRA single-agent queries)
+    # Protein families/classes (too broad for INDRA single-agent queries)
     "CYP450",
     "CSPG",
     "CSPGS",
 })
 
-# known informal → canonical mappings for common biomedical abbreviations
+# Known informal → canonical mappings for common biomedical abbreviations
 _ALIAS_MAP: dict[str, str] = {
     "RAGE": "AGER",
     "MK2": "MAPKAPK2",
@@ -154,7 +154,7 @@ def _normalize_entity(raw: str) -> str:
     Strips hyphens from bio names (IL-6 → IL6, YKL-40 → YKL40),
     applies known alias mappings (RAGE → AGER).
     """
-    # strip hyphen for names like IL-6, IL-15, YKL-40
+    # Strip hyphen for names like IL-6, IL-15, YKL-40
     normalized = raw.replace("-", "")
     upper = normalized.upper()
     return _ALIAS_MAP.get(upper, normalized)
@@ -172,7 +172,7 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
 
-    # pass 1: hyphenated names first (higher signal)
+    # Pass 1: hyphenated names first (higher signal)
     # also mark the prefix as seen so "YKL" doesn't re-match after "YKL-40"
     for raw in hyphenated:
         prefix = raw.split("-")[0].upper()
@@ -184,11 +184,11 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
         seen.add(upper)
         result.append(normalized)
 
-    # pass 2: standalone uppercase words
+    # Pass 2: standalone uppercase words
     for raw in standalone:
         if len(result) >= max_entities:
             break
-        # skip mutation notations like G12C, V600E, L858R (single letter +
+        # Skip mutation notations like G12C, V600E, L858R (single letter +
         # digit)
         if len(raw) >= 2 and raw[0].isupper() and raw[1].isdigit():
             continue

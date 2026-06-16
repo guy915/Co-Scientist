@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 class DocumentSource(ABC):
     """Abstract base class for literature document sources."""
 
-    # folder name for papers
+    # Folder name for papers
     data_dir: str
-    # set when added to LiteratureReviewAgent or manually
+    # Set when added to LiteratureReviewAgent or manually
     qualified_path: Path | None
 
     @abstractmethod
@@ -197,7 +197,7 @@ class PubmedSource(DocumentSource):
             "sort": "pub_date"
         }
 
-        # add recency filter if specified
+        # Add recency filter if specified
         if recency_years > 0:
             from datetime import datetime  # pylint: disable=import-outside-toplevel
             current_year = datetime.now().year
@@ -237,19 +237,19 @@ class PubmedSource(DocumentSource):
             fails.
         """
         try:  # pylint: disable=broad-exception-caught
-            # check shared pool first
+            # Check shared pool first
             base_dir = self._assert_qualified_path() / slug
             shared_dir = base_dir / "shared"
             shared_dir.mkdir(parents=True, exist_ok=True)
             fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
 
-            # check if already downloaded to shared pool
+            # Check if already downloaded to shared pool
             if fulltext_file.exists():
                 logger.info("Fulltext %s found in shared pool, reusing", pmc_id)
                 with open(fulltext_file, encoding='utf-8') as f:
                     contents = f.read()
 
-                # create symlink to run directory if needed
+                # Create symlink to run directory if needed
                 if run_id:
                     run_dir = base_dir / "runs" / run_id
                     run_dir.mkdir(parents=True, exist_ok=True)
@@ -262,7 +262,7 @@ class PubmedSource(DocumentSource):
 
                 return contents
 
-            # download fulltext
+            # Download fulltext
             text = []
             cursor = 0
             while True:
@@ -279,13 +279,13 @@ class PubmedSource(DocumentSource):
                     break
             contents = "".join(text)
 
-            # save to shared pool
+            # Save to shared pool
             with open(fulltext_file, 'w', encoding='utf-8') as f:
                 f.write(contents)
             logger.info("Downloaded and saved fulltext %s to shared pool",
                         pmc_id)
 
-            # create symlink to run directory if run_id provided
+            # Create symlink to run directory if run_id provided
             if run_id:
                 run_dir = base_dir / "runs" / run_id
                 run_dir.mkdir(parents=True, exist_ok=True)
@@ -339,7 +339,7 @@ class PubmedSource(DocumentSource):
         """
         import asyncio  # pylint: disable=import-outside-toplevel
 
-        # request 3x papers to account for ~33% fulltext availability
+        # Request 3x papers to account for ~33% fulltext availability
         # we'll filter down to max_papers with fulltext
         search_buffer = max_papers * 3
         logger.info("Requesting %s papers from PubMed to find %s with fulltext",
@@ -348,12 +348,12 @@ class PubmedSource(DocumentSource):
                                            retmax=search_buffer,
                                            recency_years=recency_years)
 
-        # create shared pool and run-specific directories
+        # Create shared pool and run-specific directories
         base_dir = self._assert_qualified_path() / slug
         shared_dir = base_dir / "shared"
         shared_dir.mkdir(parents=True, exist_ok=True)
 
-        # create run directory if run_id provided (enables per-run tracking)
+        # Create run directory if run_id provided (enables per-run tracking)
         run_dir = None
         if run_id:
             run_dir = base_dir / "runs" / run_id
@@ -365,10 +365,10 @@ class PubmedSource(DocumentSource):
                 "No run_id provided - papers will only go to shared pool "
                 "without run tracking")
 
-        # track papers belonging to this run for manifest
+        # Track papers belonging to this run for manifest
         current_run_papers = []
 
-        # semaphore to limit concurrent entrez API calls (respect rate limits)
+        # Semaphore to limit concurrent entrez API calls (respect rate limits)
         # allow 3 concurrent (conservative, can increase to 10 with API key)
         semaphore = asyncio.Semaphore(3)
 
@@ -382,7 +382,7 @@ class PubmedSource(DocumentSource):
             Returns:
                 Tuple of (paper_id, metadata_dict) or (paper_id, None) on error.
             """
-            # check shared pool first (smart cache across runs)
+            # Check shared pool first (smart cache across runs)
             metadata_file = shared_dir / f"{paper_id}.metadata.json"
 
             if metadata_file.exists():
@@ -391,7 +391,7 @@ class PubmedSource(DocumentSource):
                 with open(metadata_file, encoding='utf-8') as f:
                     metadata = json.load(f)
 
-                # create symlink to run directory if run_id provided
+                # Create symlink to run directory if run_id provided
                 if run_dir:
                     run_metadata_symlink = (run_dir /
                                             f"{paper_id}.metadata.json")
@@ -470,13 +470,13 @@ class PubmedSource(DocumentSource):
                         "pmc_full_text_id": pmc_full_text
                     }
 
-                    # save metadata to shared pool
+                    # Save metadata to shared pool
                     with open(metadata_file, "w", encoding="utf-8") as f:
                         json.dump(paper_details, f)
                     logger.debug("Saved metadata for %s to shared pool",
                                  paper_id)
 
-                    # create symlink to run directory if run_id provided
+                    # Create symlink to run directory if run_id provided
                     if run_dir:
                         run_metadata_symlink = (run_dir /
                                                 f"{paper_id}.metadata.json")
@@ -492,14 +492,14 @@ class PubmedSource(DocumentSource):
                     logger.debug(traceback.format_exc())
                     return (paper_id, None)
 
-        # fetch all paper metadata in parallel
+        # Fetch all paper metadata in parallel
         logger.debug(
             "fetching metadata for %s papers in parallel (max 3 concurrent)",
             len(paper_ids))
         metadata_results = await asyncio.gather(
             *[fetch_paper_metadata(pid) for pid in paper_ids])
 
-        # collect successful results
+        # Collect successful results
         all_details = {
             paper_id: metadata
             for paper_id, metadata in metadata_results
@@ -508,13 +508,13 @@ class PubmedSource(DocumentSource):
         logger.debug("successfully fetched metadata for %s/%s papers",
                      len(all_details), len(paper_ids))
 
-        # filter to papers with PMC IDs and take first max_papers
+        # Filter to papers with PMC IDs and take first max_papers
         # (most recent, thanks to sort)
         papers_with_pmc = [
             paper_id for paper_id in all_details
             if all_details[paper_id].get('pmc_full_text_id') is not None
         ]
-        # take first max_papers with fulltext
+        # Take first max_papers with fulltext
         papers_to_use = papers_with_pmc[:max_papers]
 
         logger.info("fulltext availability: %s/%s papers have PMC fulltexts",
@@ -522,7 +522,7 @@ class PubmedSource(DocumentSource):
         logger.info("selecting %s/%s papers with fulltext (target: %s)",
                     len(papers_to_use), len(papers_with_pmc), max_papers)
 
-        # check if we're short of target
+        # Check if we're short of target
         fulltext_shortfall = max_papers - len(papers_to_use)
         if fulltext_shortfall > 0:
             logger.warning(
@@ -533,7 +533,7 @@ class PubmedSource(DocumentSource):
             logger.error(
                 "No papers have PMC fulltexts - (no documents to analyze)")
 
-        # download fulltexts in parallel (synchronous calls wrapped in executor)
+        # Download fulltexts in parallel (synchronous calls wrapped in executor)
         async def download_fulltext(paper_id: str) -> None:
             """Downloads fulltext for a single paper to shared pool.
 
@@ -553,12 +553,12 @@ class PubmedSource(DocumentSource):
             await asyncio.gather(
                 *[download_fulltext(pid) for pid in papers_to_use])
 
-        # if short of target, supplement from shared pool
+        # If short of target, supplement from shared pool
         if fulltext_shortfall > 0 and run_dir:
             logger.info("attempting to supplement %s papers from shared pool",
                         fulltext_shortfall)
 
-            # scan shared pool for papers not in current run
+            # Scan shared pool for papers not in current run
             current_paper_ids_set = set(papers_to_use)
             supplement_candidates = []
 
@@ -568,9 +568,9 @@ class PubmedSource(DocumentSource):
                     try:
                         with open(metadata_file, encoding='utf-8') as f:
                             metadata = json.load(f)
-                        # only consider papers with PMC fulltext
+                        # Only consider papers with PMC fulltext
                         if metadata.get('pmc_full_text_id'):
-                            # check if fulltext exists in shared pool
+                            # Check if fulltext exists in shared pool
                             pmc_id = metadata['pmc_full_text_id']
                             fulltext_file = (shared_dir /
                                              f"{pmc_id}.fulltext.html")
@@ -581,7 +581,7 @@ class PubmedSource(DocumentSource):
                         logger.debug("Failed to read shared pool paper %s: %s",
                                      paper_id, e)
 
-            # sort candidates by date (most recent first)
+            # Sort candidates by date (most recent first)
             def get_year(paper_tuple: tuple[str, dict[str, Any]]) -> int:
                 """Extracts publication year from paper metadata tuple.
 
@@ -601,30 +601,30 @@ class PubmedSource(DocumentSource):
 
             supplement_candidates.sort(key=get_year, reverse=True)
 
-            # take up to shortfall papers
+            # Take up to shortfall papers
             papers_to_supplement = supplement_candidates[:fulltext_shortfall]
 
             if papers_to_supplement:
                 logger.info("Found %s papers in shared pool to supplement",
                             len(papers_to_supplement))
 
-                # create symlinks for supplemented papers
+                # Create symlinks for supplemented papers
                 for paper_id, metadata in papers_to_supplement:
-                    # symlink metadata
+                    # Symlink metadata
                     run_metadata_symlink = (run_dir /
                                             f"{paper_id}.metadata.json")
                     if not run_metadata_symlink.exists():
                         run_metadata_symlink.symlink_to(
                             f"../../shared/{paper_id}.metadata.json")
 
-                    # symlink fulltext
+                    # Symlink fulltext
                     pmc_id = metadata['pmc_full_text_id']
                     run_fulltext_symlink = run_dir / f"{pmc_id}.fulltext.html"
                     if not run_fulltext_symlink.exists():
                         run_fulltext_symlink.symlink_to(
                             f"../../shared/{pmc_id}.fulltext.html")
 
-                    # add to results
+                    # Add to results
                     papers_to_use.append(paper_id)
                     all_details[paper_id] = metadata
                     current_run_papers.append(paper_id)
@@ -640,7 +640,7 @@ class PubmedSource(DocumentSource):
                 )
                 # pylint: enable=line-too-long
 
-        # save manifest for this run if run_id provided
+        # Save manifest for this run if run_id provided
         if run_id and run_dir:
             manifest = {
                 "run_id": run_id,
@@ -659,7 +659,7 @@ class PubmedSource(DocumentSource):
             logger.info("Saved manifest for run %s: %s papers", run_id,
                         len(papers_to_use))
 
-        # return ONLY papers with fulltext (ready for analysis)
+        # Return ONLY papers with fulltext (ready for analysis)
         final_details = {
             paper_id: all_details[paper_id] for paper_id in papers_to_use
         }
