@@ -241,13 +241,11 @@ def test_review_batch_prompt_interpolates_goal_and_list() -> None:
 
 
 def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
-    """The meta-review prompt embeds the goal and the aggregated reviews.
+    """The meta-review prompt embeds the goal, reviews, and any instructions.
 
-    BUG (locked, not fixed): ``meta_review.md`` references ``{{instructions}}``
-    but ``get_meta_review_prompt``'s ``instructions`` parameter is marked
-    ``unused-argument`` and never added to the substitution variables, so the
-    template leaks a literal ``{{MISSING:instructions}}`` sentinel into the
-    prompt even when the caller passes ``instructions``.
+    Regression guard: ``get_meta_review_prompt`` now substitutes the
+    ``instructions`` template variable, so a caller-supplied value lands in the
+    prompt and no ``{{MISSING:instructions}}`` sentinel leaks through.
     """
     prompt, schema = get_meta_review_prompt(
         research_goal="characterise synaptic pruning",
@@ -256,8 +254,8 @@ def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
     )
     assert "characterise synaptic pruning" in prompt
     assert "Review A: strong" in prompt
-    assert "focus on safety" not in prompt
-    assert "{{MISSING:instructions}}" in prompt
+    assert "focus on safety" in prompt
+    assert "{{MISSING:instructions}}" not in prompt
     assert isinstance(schema, dict)
 
 
