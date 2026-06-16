@@ -81,6 +81,10 @@ def attempt_json_repair(
         # Check if the string ends mid-value (unterminated string)
         stripped = s.rstrip()
 
+        # Nothing to close for empty/whitespace input.
+        if not stripped:
+            return s
+
         # Pattern 1: Ends with opening quote after colon/comma (e.g., ':"text)
         if re.search(r'[:,]\s*"[^"]*$', stripped):
             s = s + '"'
