@@ -1,3 +1,9 @@
+/**
+ * Build-time prerenderer for SEO. For each public route, injects the
+ * route's title, description, Open Graph tags, and JSON-LD into the
+ * built index.html and writes a static HTML file per route into dist/
+ * so crawlers see fully-populated metadata.
+ */
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
