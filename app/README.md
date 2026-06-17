@@ -7,7 +7,7 @@ A web workbench for running and monitoring the multi-agent hypothesis-generation
 ```
 app/
 ├── app/            FastAPI backend (Python)
-│   ├── main.py     API entrypoint (~800 lines), legacy /generate + /parse endpoints
+│   ├── main.py     App setup, diagnostics, and legacy /generate endpoints
 │   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
 │   ├── store.py    SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter.py  Bridges to engine or mock workflow
@@ -21,9 +21,9 @@ app/
         ├── workbench/
         │   ├── pages/      dashboard, new_run, run_detail
         │   └── components/ run_status_pill, idea_modal, log_console, elo_trajectory_chart
-        │       └── tabs/   Overview, Ideas, Evidence, Tournament, Report
+        │       └── tabs/   Overview, Ideas, Evidence, Tournament, Report, Chat
         ├── api/runs.ts     HTTP + SSE client
-        └── hooks/use_run_stream.ts  Live SSE hook
+        └── hooks/          Live run stream + message hooks
 ```
 
 The backend stores every run and its event log in a local SQLite database (`coscientist.db`). Streams survive client reconnects and full server restarts because they replay from the persisted event log.
@@ -34,7 +34,8 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 
 - Python 3.10+
 - Node.js / [Bun](https://bun.sh) (frontend)
-- A LLM provider API key — `GEMINI_API_KEY` by default (Gemini 2.5 Flash)
+- Optional LLM provider API key. With no key set, the app runs deterministic
+  mock mode.
 
 ### Local development (no Docker)
 
@@ -49,7 +50,7 @@ pip install -e ../engine
 make install
 
 # Copy and edit the env file
-cp .env.example .env   # set GEMINI_API_KEY at minimum
+cp .env.example .env   # leave keys empty for mock mode
 
 # Start the API server (hot-reload)
 make dev               # listens on :8008
@@ -66,7 +67,7 @@ cd app
 curl -fsSL https://pixi.sh/install.sh | bash
 
 pixi install
-cp .env.example .env   # set GEMINI_API_KEY at minimum
+cp .env.example .env   # leave keys empty for mock mode
 pixi run dev           # listens on :8008
 ```
 
@@ -87,7 +88,7 @@ Open `http://localhost:5173` in your browser.
 ```bash
 cd app
 
-cp .env.example .env   # set GEMINI_API_KEY
+cp .env.example .env   # leave keys empty for mock mode
 
 docker compose up --build
 ```
@@ -100,7 +101,10 @@ This starts three containers:
 | `ui` | 5173 | Vite dev server |
 | `mcp` | 8888 | Reference MCP server (PubMed + INDRA) |
 
-The `api` container mounts the engine from `../engine` (or clones it from GitHub if that path is absent). Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere.
+The `api` container mounts the engine from `../engine`. Override
+`COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere; set
+`COSCIENTIST_ENGINE_REPO` only when you want the entrypoint to clone a checkout
+instead of using a local mount.
 
 ## Configuration
 
@@ -108,8 +112,10 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 
 | Variable | Default | Description |
 |---|---|---|
-| `GEMINI_API_KEY` | — | **Required.** Google Gemini API key (or set the relevant provider key instead) |
+| `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` / `DEEPSEEK_API_KEY` | — | Optional provider keys. If none are set, the app uses mock mode. |
 | `MODEL_NAME` | `gemini/gemini-2.5-flash` | LiteLLM model ID |
+| `SUPERVISOR_MODEL_NAME` | — | Optional stronger model for supervisor and meta-review |
+| `CHAT_MODEL_NAME` | — | Optional model for Chat tab Q&A; defaults to `MODEL_NAME` |
 | `MAX_ITERATIONS` | `3` | Workflow iterations (can be overridden per run in the UI) |
 | `INITIAL_HYPOTHESES_COUNT` | `5` | Hypotheses generated per iteration |
 | `EVOLUTION_MAX_COUNT` | `3` | Hypotheses selected for evolution |
@@ -131,12 +137,13 @@ The frontend reads a single variable:
 
 1. **Dashboard** — lists all past runs with status, model, and hypothesis counts.
 2. **New run** — enter a research goal (free text), choose a run profile, and optionally tune iteration counts. Three example goals are shown as inspiration.
-3. **Run detail** — five tabs update live via SSE as the workflow progresses:
+3. **Run detail** — six tabs update live via SSE as the workflow progresses:
    - **Overview** — live log, agent activity timeline, and key metrics.
    - **Ideas** — ranked hypothesis list with Elo scores and lineage.
    - **Evidence** — retrieved literature and citations.
    - **Tournament** — Elo pairwise matchup history and trajectory chart.
    - **Report** — synthesized Markdown report, downloadable.
+   - **Chat** — scientist-in-the-loop steering and Q&A for the run.
 
 Runs can be cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
 
@@ -150,10 +157,12 @@ The backend exposes two groups of endpoints.
 |---|---|---|
 | `POST` | `/api/runs` | Create a draft run |
 | `GET` | `/api/runs` | List runs (most recent first) |
+| `GET` | `/api/runs/demo` | Get the seeded public demo run |
 | `GET` | `/api/runs/{id}` | Get run + summary counts |
 | `POST` | `/api/runs/{id}/start` | Start the workflow in the background |
 | `POST` | `/api/runs/{id}/cancel` | Cancel a running workflow |
 | `GET` | `/api/runs/{id}/events` | SSE stream (live + replay via `?after=`) |
+| `GET` | `/api/runs/{id}/events/log` | Persisted event log as JSON |
 | `GET` | `/api/runs/{id}/hypotheses` | Hypotheses with Elo scores and lineage |
 | `GET` | `/api/runs/{id}/evidence` | Retrieved literature |
 | `GET` | `/api/runs/{id}/matches` | Tournament matchup history |
@@ -162,6 +171,9 @@ The backend exposes two groups of endpoints.
 | `GET` | `/api/runs/{id}/citations` | Citations with classification states |
 | `GET` | `/api/runs/{id}/report` | Structured report (JSON) |
 | `GET` | `/api/runs/{id}/report.md` | Rendered Markdown report |
+| `GET` | `/api/runs/{id}/messages` | List steering, milestone, and Q&A messages |
+| `POST` | `/api/runs/{id}/messages` | Queue a steering message |
+| `POST` | `/api/runs/{id}/messages/ask` | Ask a streamed Q&A question |
 
 ### Utility endpoints
 
@@ -170,8 +182,10 @@ The backend exposes two groups of endpoints.
 | `GET` | `/health` | Health check |
 | `GET` | `/config` | Server-default config values |
 | `GET` | `/status` | MCP/PubMed availability, provider, API key presence |
-| `POST` | `/parse` | LLM-powered research goal parser |
 | `POST` | `/generate` | Synchronous blocking generation (legacy) |
+| `POST` | `/generate/start` | Start legacy streaming generation |
+| `GET` | `/generate/stream/{task_id}` | Legacy streaming generation SSE |
+| `POST` | `/cancel_hypothesis_generation` | Cancel a legacy streaming task |
 
 Interactive docs are available when the server is running:
 - Swagger UI: http://localhost:8008/docs
@@ -213,7 +227,10 @@ bun run fix      # gts fix (format + autofix)
 
 ## Mock mode
 
-If the engine is not installed or no LLM API key is set, the server falls back to a deterministic mock workflow that returns pre-built fake hypotheses. The UI displays a "Mock mode" banner. This is useful for frontend development and CI.
+If the engine is not installed or no LLM API key is set, the server falls back
+to a deterministic mock workflow that returns pre-built hypotheses and evidence.
+The `/status` endpoint reports `mock_mode: true`. This is useful for frontend
+development and CI.
 
 ## Literature review (MCP)
 

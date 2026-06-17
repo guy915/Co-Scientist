@@ -22,7 +22,7 @@ services:
     volumes:
       - ./cache:/app/cache
       - ./app:/app/app
-      # mount local engine checkout; entrypoint clones from GitHub if absent
+      # mount local engine checkout; entrypoint can clone if COSCIENTIST_ENGINE_REPO is set
       - ${COSCIENTIST_ENGINE_PATH:-../engine}:/workspace/co-scientist-engine
     depends_on:
       mcp:
