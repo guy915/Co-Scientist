@@ -9,13 +9,6 @@ We would love to accept your patches and contributions to this project.
 This project follows
 [Google's Open Source Community Guidelines](https://opensource.google/conduct/).
 
-### License
-
-By contributing, you agree that your contributions will be licensed under the
-Apache License, Version 2.0, the same license that covers the project. New
-source files must start with the Apache 2.0 header used throughout the
-repository (copyright "The Co-Scientist Authors").
-
 ## Contribution process
 
 ### Code reviews
