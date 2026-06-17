@@ -152,17 +152,4 @@ This project is based on
 by Google DeepMind. See [`references/`](references/) for the original
 research papers and product analysis.
 
-## Citing this work
-
-If you use this software in your research, please cite:
-
-```bibtex
-@software{barel2026coscientist,
-  author = {Barel, Guy},
-  title = {AI Co-Scientist: A multi-agent hypothesis-generation workbench},
-  year = {2026},
-  url = {https://github.com/guy915/Co-Scientist}
-}
-```
-
 This is not an official Google product.
