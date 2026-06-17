@@ -5,11 +5,6 @@
   the AI Co-Scientist system published by Google DeepMind.
 </p>
 
-<p align="center">
-  <img src="https://img.shields.io/badge/tests-59_passing-brightgreen" alt="Tests"/>
-
-</p>
-
 <table align="center">
 <tr>
 <td align="center"><strong>Pipeline architecture</strong></td>
@@ -26,7 +21,7 @@
 AI Co-Scientist generates, reviews, ranks, and evolves research hypotheses
 with a LangGraph multi-agent pipeline and streams every step into a web
 workbench. The implementation preserves the core invariants of the published
-system: 11 agent-equivalent pipeline steps, Elo-1200 starting scores,
+system: a supervised multi-agent workflow, Elo-1200 starting scores,
 append-only evolution lineage, four-state citation classification, and dual
 safety gates. See [`docs/fidelity.md`](docs/fidelity.md) for the full
 invariant list with paper sources.
@@ -94,6 +89,29 @@ open http://localhost:5173
 
 Run `make help` for all targets. See [`.env.example`](.env.example) for
 configuration.
+
+## Repository map
+
+| Path | Purpose |
+| --- | --- |
+| `app/` | FastAPI API, SQLite run store, mock workflow, and React workbench |
+| `app/frontend/` | Vite + React + TypeScript UI |
+| `engine/` | LangGraph hypothesis-generation engine and reference MCP server |
+| `docs/` | Live architecture, fidelity notes, screenshots, and diagrams |
+| `references/` | Source research, product captures, and comparison material |
+
+## Development checks
+
+```bash
+make test          # viewer backend pytest suite
+make test-engine   # engine pytest suite
+make test-all      # backend pytest suites for engine + app
+make build         # frontend typecheck + production build
+
+cd app/frontend
+bun run test       # frontend unit tests
+bun run lint       # gts lint
+```
 
 ## Usage
 

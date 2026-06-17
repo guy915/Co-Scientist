@@ -1,35 +1,37 @@
 # Architecture
 
-This document describes the runtime shape of the clone after the integration
-pass.
+This document describes the current runtime shape of the Co-Scientist
+workspace.
 
 ## Layers
 
 ```
 +--------------------- frontend (src/workbench) ---------------------+
 | BrowserRouter                                                      |
-|   /                  -> Dashboard       (lists runs)               |
+|   /                  -> LandingPage     (public overview)          |
+|   /demos/:slug       -> DemoPage        (public demo run)          |
+|   /runs              -> Dashboard       (lists runs)               |
 |   /runs/new          -> NewRunForm      (research goal + profile)  |
-|   /runs/:id          -> RunDetail       (5 tabs)                   |
+|   /runs/:id          -> RunDetail       (6 tabs)                   |
 |   /runs/:id/:tab     -> active tab persisted in the URL            |
 |                                                                    |
-| MockBanner (reads /status)                                         |
 | RunStatusPill                                                      |
 | IdeaModal                                                          |
 | useRunStream  (EventSource on /api/runs/:id/events)                |
+| useMessages   (steering + Q&A messages for Chat tab)               |
 | src/api/runs.ts  (typed client for every backend endpoint)         |
 +------------------------------+-------------------------------------+
                                |
                           HTTP + SSE
                                |
 +------------------------------v-------------------------------------+
-| FastAPI (app/app)                                  |
+| FastAPI (app/app)                                                  |
 |                                                                    |
 |   main.py        — composes router, CORS, lifespan                 |
-|   config.py      — pydantic-settings (legacy)                      |
-|   runs.py        — /api/runs/* — lifecycle + read endpoints + SSE  |
+|   config.py      — pydantic-settings                               |
+|   runs.py        — /api/runs/* lifecycle, read, messages, and SSE   |
 |   engine_adapter.py — provider selection + bridge to mock/engine   |
-|   mock_workflow.py — deterministic offline pipeline (11 steps)     |
+|   mock_workflow.py — deterministic offline pipeline                 |
 |   store.py       — SQLite store (runs/events/hypotheses/evidence/  |
 |                    citations/matches/reviews/reports/safety)       |
 |   elo.py         — pure Elo helpers (initial=1200, configurable K) |
@@ -97,6 +99,7 @@ Tables (SQLite, WAL):
 | `matches` | append-only | full pairwise tournament audit log |
 | `safety_decisions` | append-only | intake + final |
 | `reports` | append-only | structured JSON + path to `reports/<run>.md` |
+| `messages` | append-only | steering, milestone, and Q&A chat messages |
 
 `hypothesis_state` is the critical decoupling: it holds the values that *must*
 change as the run progresses (Elo, win counts) without violating the rule that
@@ -107,8 +110,7 @@ an original hypothesis row is the historical record of what was generated.
 `engine_adapter.select_provider()` returns `"engine"` iff:
 
 1. `COSCIENTIST_FORCE_MOCK` is unset, AND
-2. at least one of `GEMINI_API_KEY` / `OPENAI_API_KEY` / `ANTHROPIC_API_KEY` is
-   set, AND
+2. at least one supported provider key is set, AND
 3. `co_scientist` is importable.
 
 Otherwise it returns `"mock"`. The chosen value is persisted on the run row so a
@@ -123,6 +125,8 @@ The workbench holds no durable state in the browser. On mount it:
    getCitations / getReport` in parallel.
 3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every
    event since the run started, then tails live.
+4. The Chat tab polls `/api/runs/{id}/messages` while a run is active and uses
+   the streaming `/messages/ask` endpoint for Q&A responses.
 
 This means a hard refresh, a backend restart, or a new browser session all
 produce the same view.
@@ -135,8 +139,8 @@ produce the same view.
 -   FastAPI single-file app is preserved; the new router is mounted alongside
     the existing `/generate` endpoints.
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
-    New code lives under `src/workbench/`; legacy single-page shell remains on
-    disk but is no longer mounted.
+    The workbench lives under `src/workbench/`, with public landing and demo
+    pages under `src/public/`.
 -   The mock workflow exists so the system has **observable behaviour without
     any external dependency**. This unlocks CI, deterministic tests, and a
     usable demo without provider keys.

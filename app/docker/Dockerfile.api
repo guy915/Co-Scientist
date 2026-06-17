@@ -7,11 +7,18 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# copy and install viewer deps first (layer cache before source copy)
-# note: co-scientist-engine is intentionally absent from [project.dependencies]
-# and is handled at container startup by entrypoint.sh
+# Copy and install viewer deps first (layer cache before source copy).
+# The engine is installed at container startup by entrypoint.sh from the
+# mounted checkout, so skip the local engine package dependency at build time.
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e .
+RUN pip install --no-cache-dir -e . --no-deps \
+    && pip install --no-cache-dir \
+        "fastapi>=0.104.0" \
+        "uvicorn[standard]>=0.24.0" \
+        "python-dotenv>=1.0.0" \
+        "pydantic>=2.0.0" \
+        "pydantic-settings>=2.0.0" \
+        "httpx>=0.25.0"
 
 # copy application source
 COPY app/ ./app/

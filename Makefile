@@ -1,4 +1,4 @@
-.PHONY: help setup dev dev-api dev-ui dev-all dev-mcp test lint typecheck build clean stop reset-db
+.PHONY: help setup dev dev-api dev-ui dev-all dev-mcp test test-app test-engine test-all lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/engine
@@ -14,13 +14,16 @@ UI_URL  := http://localhost:5173
 DOCS_URL := http://localhost:8008/docs
 
 help:
-	@echo "AI Co-Scientist Clone — root commands"
+	@echo "AI Co-Scientist — root commands"
 	@echo "  make setup        Create .venv, install engine (editable) + app (editable), install frontend"
 	@echo "  make dev          Run API + UI side-by-side with prefixed logs"
 	@echo "  make dev-api      Run FastAPI dev server   ($(API_URL))"
 	@echo "  make dev-ui       Run Vite dev server      ($(UI_URL))"
 	@echo "  make dev-mcp      Run reference MCP server (optional, needs Python 3.12)"
-	@echo "  make test         Run backend pytest suite (engine + app)"
+	@echo "  make test         Run viewer backend pytest suite"
+	@echo "  make test-app     Run viewer backend pytest suite"
+	@echo "  make test-engine  Run engine pytest suite"
+	@echo "  make test-all     Run backend pytest suites (engine + app)"
 	@echo "  make lint         Lint backend (pylint)"
 	@echo "  make typecheck    Typecheck backend (mypy)"
 	@echo "  make build        Build frontend (tsc + vite build)"
@@ -59,7 +62,7 @@ $(VENV)/bin/activate:
 # ---------------------------------------------------------------------------
 dev:
 	@echo ""
-	@echo "AI Co-Scientist Clone — dev URLs"
+	@echo "AI Co-Scientist — dev URLs"
 	@echo "  API   : $(API_URL)"
 	@echo "  Docs  : $(DOCS_URL)"
 	@echo "  UI    : $(UI_URL)"
@@ -89,7 +92,17 @@ dev-mcp:
 # Test / lint / typecheck / build
 # ---------------------------------------------------------------------------
 test:
+	@$(MAKE) test-app
+
+test-app:
 	@cd "$(APP)" && COSCIENTIST_TEST_MODE=1 "$(PY)" -m pytest -q
+
+test-engine:
+	@cd "$(ENGINE)" && "$(PY)" -m pytest -q
+
+test-all:
+	@$(MAKE) test-engine
+	@$(MAKE) test-app
 
 lint:
 	@cd "$(APP)" && "$(PY)" -m pylint --rcfile=../pylintrc app tests || true

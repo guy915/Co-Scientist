@@ -14,6 +14,11 @@ REF=${COSCIENTIST_ENGINE_REF:-main}
 if [ -f "$WORKSPACE/pyproject.toml" ]; then
     echo "Found engine checkout at $WORKSPACE, installing..."
 else
+    if [ -z "$REPO" ]; then
+        echo "No engine checkout found at $WORKSPACE and COSCIENTIST_ENGINE_REPO is not set." >&2
+        echo "Mount ../engine or set COSCIENTIST_ENGINE_REPO to a cloneable repository." >&2
+        exit 1
+    fi
     echo "No checkout found at $WORKSPACE, cloning $REPO@$REF..."
     git clone --depth 1 --branch "$REF" "$REPO" "$WORKSPACE"
 fi
