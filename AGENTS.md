@@ -151,7 +151,6 @@ Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set
 - The `engine/` and `app/` directories are vendored as plain directories (not submodules). `co-scientist-engine` is not published to PyPI; it's installed editable from the local checkout (`pip install -e ../engine`, which `make setup` and the Dockerfiles do).
 - Both the app (`app/`) and the engine (`engine/`) have committed pytest suites under `tests/`. `mypy .` is strict-clean for each (the engine excludes the separate `mcp_server` package and the `dev/` scripts; run `mypy .` from `mcp_server/` for that package).
 - When invoked from this workspace, `.remember/remember.md` is the session-handoff file — read/update it per the `remember` skill instructions.
-- All source files carry the Apache 2.0 header (copyright "The Co-Scientist Authors"); new files must too. The repo license is Apache-2.0.
 
 ## Required environment
 
