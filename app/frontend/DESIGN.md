@@ -232,7 +232,7 @@ components:
     height: 56px
     padding: 16px
 
-  # Global sticky header (Layout.tsx)
+  # Global sticky header (layout.tsx)
   header:
     backgroundColor: "color-mix(in srgb, {colors.surface-container} 70%, transparent)"
     height: 52px

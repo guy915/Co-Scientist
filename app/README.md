@@ -19,11 +19,11 @@ app/
 └── frontend/       React 19 + Vite 7 + TypeScript + Tailwind v4
     └── src/
         ├── workbench/
-        │   ├── pages/      Dashboard, NewRun, RunDetail
-        │   └── components/ RunStatusPill, IdeaModal, LogConsole, EloTrajectoryChart
+        │   ├── pages/      dashboard, new_run, run_detail
+        │   └── components/ run_status_pill, idea_modal, log_console, elo_trajectory_chart
         │       └── tabs/   Overview, Ideas, Evidence, Tournament, Report
         ├── api/runs.ts     HTTP + SSE client
-        └── hooks/useRunStream.ts  Live SSE hook
+        └── hooks/use_run_stream.ts  Live SSE hook
 ```
 
 The backend stores every run and its event log in a local SQLite database (`coscientist.db`). Streams survive client reconnects and full server restarts because they replay from the persisted event log.
@@ -230,4 +230,3 @@ uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 Set `ENTREZ_EMAIL` (and optionally `ENTREZ_API_KEY`) for full PubMed access.
 
 ---
-

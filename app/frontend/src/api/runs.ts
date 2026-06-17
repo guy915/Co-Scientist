@@ -1,6 +1,6 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
-import {getClientId} from '@/lib/clientId';
+import {getClientId} from '@/lib/client_id';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 

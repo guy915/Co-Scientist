@@ -28,7 +28,7 @@ with a LangGraph multi-agent pipeline and streams every step into a web
 workbench. The implementation preserves the core invariants of the published
 system: 11 agent-equivalent pipeline steps, Elo-1200 starting scores,
 append-only evolution lineage, four-state citation classification, and dual
-safety gates. See [`docs/FIDELITY.md`](docs/FIDELITY.md) for the full
+safety gates. See [`docs/fidelity.md`](docs/fidelity.md) for the full
 invariant list with paper sources.
 
 The system is deliberately not a chat wrapper over papers, an autonomous
@@ -143,7 +143,7 @@ tuning, MCP, cache).
 </p>
 
 Full diagrams and module map in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+[`docs/architecture.md`](docs/architecture.md).
 
 ## Acknowledgements
 

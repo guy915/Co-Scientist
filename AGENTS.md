@@ -9,14 +9,18 @@ This is a research/reference workspace organized around replicating Google DeepM
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
 - `references/` — folder containing research, product screenshots, and design specs
-  - `co-scientist/` — long-form architecture/spec markdown for the planned system
+  - `google-co-scientist/` — long-form architecture/spec markdown analyzing the original system
     - `media/` — UX captures and product references for Google Co-Scientist
     - `research/` — papers describing the original Co-Scientist
-  - `notebooklm/`, `gemini/` — UX captures and product references
-- `docs/` — live project docs (`ARCHITECTURE.md`, `FIDELITY.md`, `screenshots/`); `docs/archive/` holds historical planning docs (`PLAN.md`, `TASKS.md`, `IMPLEMENTATION_REPORT.md`)
-- `.remember/` — session handoff notes (`.remember/remember.md` is the live handoff file)
+  - `notebooklm/`, `gemini/`, `gemini-enterprise/` — UX captures and product references
+  - `antigravity-science-skills/`, `claude-code/`, `idea-generator/` — additional reference projects
+- `docs/` — live project docs (`architecture.md`, `fidelity.md`, `screenshots/`, SVG diagrams); `docs/archive/` holds historical planning docs (`plan.md`, `tasks.md`, `implementation_report.md`); `docs/superpowers/` holds design specs and plans
+- `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
+- `Makefile` — root-level build orchestration (`setup`, `dev`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `lint`, `typecheck`, `build`, `clean`, `reset-db`)
+- `CLAUDE.md` — byte-for-byte copy of this file (keep in sync)
+- `README.md` — project overview, features, installation, and usage
 
-There is no top-level build system. Each project is independently installable and runnable.
+There is a root `Makefile` for cross-project orchestration. Each project is also independently installable and runnable.
 
 ## engine (Python library)
 
@@ -41,9 +45,9 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Node | File |
 |---|---|
 | Supervisor (planning) | `nodes/supervisor.py` |
-| Literature Review (MCP-gated) | `nodes/literature_review.py` |
-| Generate | `nodes/generate.py`, `nodes/generation/` |
-| Reflection | `nodes/reflection.py` |
+| Literature Review (MCP-gated) | `nodes/literature_review.py`, `nodes/literature_review_helpers.py` |
+| Generate | `nodes/generate.py`, `nodes/generation/` (incl. `coordinator.py`, `debate.py`, `citations.py`, `papers.py`, `literature_tools/`) |
+| Reflection | `nodes/reflection.py`, `nodes/reflection_helpers.py` |
 | Review | `nodes/review.py` |
 | Ranking | `nodes/ranking.py` |
 | Tournament (Elo pairwise, inside ranking flow) | `nodes/ranking.py` |
@@ -53,9 +57,13 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 
 Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/` (also bundled via `package-data`). YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/etc.).
 
+Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas.py` (JSON schemas for structured LLM output), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `console.py` (Rich-based terminal reporter), `tools/` (tool registry subpackage for YAML-based tool configuration).
+
 LLM calls go through LiteLLM (`llm.py`); literature-review tools are pulled from an external MCP server via `mcp_client.py` using `langchain-mcp-adapters`. The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode.
 
 Caching (`cache.py`) is on by default and controlled by `COSCIENTIST_CACHE_ENABLED` / `COSCIENTIST_CACHE_DIR` env vars.
+
+Engine-specific docs live in `engine/docs/` (architecture, configuration, development, domain customization, generation modes, literature review tools, logging, MCP integration).
 
 **Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Uses FastMCP + Biopython for PubMed + INDRA CoGex.
 
@@ -72,7 +80,7 @@ Web UI and HTTP/SSE API that wraps the `co-scientist-engine` for live hypothesis
 
 ### Backend (`app/`)
 
-Single-file FastAPI app (`app/main.py`, ~800 lines) with settings in `app/config.py` (pydantic-settings, loads `.env`).
+FastAPI app with settings in `app/config.py` (pydantic-settings, loads `.env`). Package name: `co-scientist-viewer`.
 
 **Commands** (run from `app/`):
 ```bash
@@ -84,13 +92,40 @@ make format / lint / typecheck   # yapf / pylint / mypy
 
 Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
 
-**Key endpoints** (`app/main.py`):
+**Source modules** (`app/app/`):
+
+| Module | Purpose |
+|---|---|
+| `main.py` | App setup, lifespan, legacy `/generate` endpoints |
+| `config.py` | Pydantic settings (model names, API keys, DB path, Elo tuning, safety mode) |
+| `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group) |
+| `store.py` | SQLite persistence layer (WAL mode, append-only event log) |
+| `engine_adapter.py` | Engine/mock provider selection with lazy imports and mock fallback |
+| `mock_workflow.py` | Deterministic mock workflow (full 14-stage agent-equivalent sequence) |
+| `elo.py` | Elo rating utilities |
+| `citations.py` | Citation classification (verified, partial, unsupported, unavailable) |
+| `safety.py` | Safety decision storage + intake/final-output screening |
+| `seed.py` | Startup demo run seeder |
+
+**Key endpoints**:
+
+Legacy (in `main.py`):
 - `GET /health`, `/config`, `/status` — diagnostics; `/status` reports MCP/PubMed availability.
 - `POST /generate` — synchronous, blocking generation (uses server-default config).
-- `POST /generate/start` → returns `task_id`; `GET /generate/stream/{task_id}` — SSE stream of node events. The UI uses this pair; in-flight runs are tracked in the module-global `_active_tasks` dict guarded by `_active_tasks_lock`.
+- `POST /generate/start` → returns `task_id`; `GET /generate/stream/{task_id}` — SSE stream of node events.
 - `POST /cancel_hypothesis_generation` — sets the cancellation event for a `task_id`.
 
-A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body on the streaming endpoint — server-side `.env` values are only defaults and only apply to the non-streaming `/generate`.
+Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by the frontend**:
+- `POST /api/runs` — create a draft run; `GET /api/runs` — list runs.
+- `GET /api/runs/{id}` — get run details; `POST /api/runs/{id}/start` — start workflow.
+- `POST /api/runs/{id}/cancel` — cancel; `GET /api/runs/{id}/events` — SSE stream (live + replay).
+- `GET /api/runs/{id}/hypotheses` — hypotheses with Elo + lineage.
+- `GET /api/runs/{id}/evidence`, `/reviews`, `/matches`, `/citations`, `/safety` — run data.
+- `GET /api/runs/{id}/report` (JSON) and `/report.md` (Markdown) — structured reports.
+- `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list.
+- `POST /api/runs/{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name` config).
+
+A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. The `engine_adapter.py` module selects between the real engine and `mock_workflow.py` based on configuration and availability.
 
 ### Frontend (`frontend/`)
 
@@ -114,11 +149,17 @@ bun run test         # vitest run (jsdom + React Testing Library)
 
 Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test-setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
 
-Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/WorkbenchApp.tsx`, with pages under `src/workbench/pages/` (Dashboard, NewRun, RunDetail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/useRunStream.ts`. Theme state is in `src/workbench/ThemeContext.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/ErrorBoundary.tsx`, `src/lib/utils.ts`.
+Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (dashboard, new run, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/error_boundary.tsx`, `src/lib/utils.ts`.
+
+**Routing** (`workbench_app.tsx`): `/` (public landing page), `/demos/:slug` (public demo), `/runs` (dashboard), `/runs/new`, `/runs/:id`, `/runs/:id/:tab`, `*` (404). Public-facing pages live in `src/public/` (`landing_page.tsx`, `demo_page.tsx`, `not_found_page.tsx`, `seo.tsx`).
+
+**Tabs** (`src/workbench/components/tabs/`): `overview_tab.tsx`, `ideas_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `report_tab.tsx`, `chat_tab.tsx` (scientist-in-the-loop Q&A with auto-steering, manual steering, and Q&A modes).
+
+**MD3 wrappers** (`src/md3/`): `md_dialog.tsx`, `md_tabs.tsx` — thin wrappers around `@material/web` components.
 
 ### Docker workflow
 
-`docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling engine checkout mounted at `/workspace/co-scientist-engine`; if absent, the entrypoint clones from `COSCIENTIST_ENGINE_REPO` at ref `COSCIENTIST_ENGINE_REF`. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere. The container hardcodes `TOOLS_CONFIG` to `indra_cancer.yaml` — change it there, not in `.env`, when iterating on tools.
+`app/docker-compose.yml` runs three services: `api` (FastAPI), `ui` (Vite), `mcp` (reference MCP server). The api container expects a sibling engine checkout mounted at `/workspace/co-scientist-engine`; if absent, the entrypoint clones from `COSCIENTIST_ENGINE_REPO` at ref `COSCIENTIST_ENGINE_REF`. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere. The container hardcodes `TOOLS_CONFIG` to `indra_cancer.yaml` — change it there, not in `.env`, when iterating on tools.
 
 ## Production hosting
 
@@ -154,7 +195,7 @@ Vercel reads `VITE_API_BASE_URL=https://api-production-97eb.up.railway.app` (set
 
 ## Required environment
 
-Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` (e.g. `deepseek/deepseek-chat`) before running. Production uses DeepSeek. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`) and `TOOLS_CONFIG` (path or http URL to a YAML tools config). Full list of viewer env vars in `app/.env.example`.
+Both projects use **LiteLLM** for model dispatch. Set the relevant provider key (`DEEPSEEK_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, …) and `MODEL_NAME` (e.g. `deepseek/deepseek-chat`) before running. The app defaults to `gemini/gemini-2.5-flash` locally; production uses DeepSeek. The viewer also reads `MCP_SERVER_URL` (default `http://localhost:8888/mcp`), `TOOLS_CONFIG` (path or http URL to a YAML tools config), `SUPERVISOR_MODEL_NAME` (separate strategic model for supervisor/meta-review), and `CHAT_MODEL_NAME` (model for Chat tab Q&A). Full list of viewer env vars in `app/.env.example`.
 
 ## Git hygiene
 
