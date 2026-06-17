@@ -12,7 +12,7 @@ from typing import Any
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -23,6 +23,7 @@ load_dotenv()
 
 from app import engine_adapter  # pylint: disable=wrong-import-position
 from app.config import settings  # pylint: disable=wrong-import-position
+from app.geo import detect_locale  # pylint: disable=wrong-import-position
 from app.runs import router as runs_router  # pylint: disable=wrong-import-position
 from app.seed import seed_demo_runs  # pylint: disable=wrong-import-position
 
@@ -446,6 +447,19 @@ async def get_config() -> ConfigResponse:
         initial_hypotheses_count=settings.initial_hypotheses_count,
         evolution_max_count=settings.evolution_max_count,
     )
+
+
+@app.get("/api/geo", tags=["config"])
+async def get_geo(request: Request) -> dict[str, Any]:
+    """Suggest a locale for the caller based on their request origin.
+
+    Returns the detected country (when known) and a suggested locale code
+    (e.g. "he" for visitors from Israel), or nulls when no localized default
+    applies. The frontend treats this as a best-effort hint and falls back to
+    the browser language.
+    """
+    client_host = request.client.host if request.client else None
+    return await detect_locale(dict(request.headers), client_host)
 
 
 @app.get("/status", response_model=SystemStatusResponse, tags=["system"])

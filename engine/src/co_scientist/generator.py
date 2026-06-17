@@ -29,6 +29,7 @@ from co_scientist.nodes.meta_review import meta_review_node
 from co_scientist.nodes.evolve import evolve_node
 from co_scientist.nodes.proximity import proximity_node
 from co_scientist.nodes.supervisor import supervisor_node
+from co_scientist.prompts import set_output_language
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -65,6 +66,7 @@ class HypothesisGenerator:
         cache_dir: str | None = None,
         tools_config: str | None = None,
         disable_tools: list[str] | None = None,
+        output_language: str | None = None,
     ):
         """Initialize the hypothesis generator.
 
@@ -80,12 +82,15 @@ class HypothesisGenerator:
                 (None = use defaults)
             disable_tools: List of tool IDs to disable
                 (None = use all enabled tools)
+            output_language: Natural language for model-generated text, e.g.
+                "Hebrew" (None or "English" leaves prompts in English).
         """
         self.model_name = model_name
         self.supervisor_model_name = supervisor_model_name or model_name
         self.max_iterations = max_iterations
         self.initial_hypotheses_count = initial_hypotheses_count
         self.evolution_max_count = evolution_max_count
+        self.output_language = output_language
 
         # Configure cache if specified
         if enable_cache is not None:
@@ -261,6 +266,12 @@ class HypothesisGenerator:
         opts = opts or {}
         user_inputs = opts.get("user_inputs") or {}
 
+        # Resolve output language (per-call opts override the instance default)
+        # and arm the ContextVar so every prompt loaded during this run gets
+        # the language directive.
+        output_language = opts.get("output_language", self.output_language)
+        set_output_language(output_language)
+
         # Determine if literature review node should be included
         # Check if explicitly set in opts first to avoid unnecessary MCP checks
         enable_literature_review_node_opt = opts.get(
@@ -359,6 +370,7 @@ class HypothesisGenerator:
             "max_iterations": self.max_iterations,
             "initial_hypotheses_count": self.initial_hypotheses_count,
             "evolution_max_count": self.evolution_max_count,
+            "output_language": output_language,
             "hypotheses": [],
             "current_iteration": 0,
             "supervisor_guidance": {},

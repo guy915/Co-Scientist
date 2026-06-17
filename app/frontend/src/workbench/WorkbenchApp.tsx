@@ -1,5 +1,6 @@
 import {Route, Routes} from 'react-router-dom';
 import {ErrorBoundary} from '@/components/ErrorBoundary';
+import {LocaleProvider, useT} from '@/i18n';
 import {DemoPage} from '@/public/DemoPage';
 import {LandingPage} from '@/public/LandingPage';
 import {NoIndex} from '@/public/NoIndex';
@@ -16,58 +17,67 @@ function ShortcutsBridge() {
   return null;
 }
 
+function AppRoutes() {
+  const t = useT();
+  return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/demos/:slug" element={<DemoPage />} />
+      <Route
+        path="/runs"
+        element={
+          <>
+            <NoIndex title={t('runDetail.title.runs')} />
+            <Dashboard />
+          </>
+        }
+      />
+      <Route
+        path="/runs/new"
+        element={
+          <>
+            <NoIndex title={t('runDetail.title.new')} />
+            <NewRun />
+          </>
+        }
+      />
+      <Route
+        path="/runs/:id"
+        element={
+          <>
+            <NoIndex title={t('runDetail.title.run')} />
+            <RunDetail />
+          </>
+        }
+      />
+      <Route
+        path="/runs/:id/:tab"
+        element={
+          <>
+            <NoIndex title={t('runDetail.title.run')} />
+            <RunDetail />
+          </>
+        }
+      />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
+}
+
 /**
- * Root workbench component wiring routing, theming, and the error boundary.
+ * Root workbench component wiring routing, theming, locale, and error handling.
  */
 export function WorkbenchApp() {
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <Layout>
-          <ShortcutsBridge />
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/demos/:slug" element={<DemoPage />} />
-            <Route
-              path="/runs"
-              element={
-                <>
-                  <NoIndex title="Research runs" />
-                  <Dashboard />
-                </>
-              }
-            />
-            <Route
-              path="/runs/new"
-              element={
-                <>
-                  <NoIndex title="New research run" />
-                  <NewRun />
-                </>
-              }
-            />
-            <Route
-              path="/runs/:id"
-              element={
-                <>
-                  <NoIndex title="Research run" />
-                  <RunDetail />
-                </>
-              }
-            />
-            <Route
-              path="/runs/:id/:tab"
-              element={
-                <>
-                  <NoIndex title="Research run" />
-                  <RunDetail />
-                </>
-              }
-            />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Layout>
-      </ThemeProvider>
+      <LocaleProvider>
+        <ThemeProvider>
+          <Layout>
+            <ShortcutsBridge />
+            <AppRoutes />
+          </Layout>
+        </ThemeProvider>
+      </LocaleProvider>
     </ErrorBoundary>
   );
 }

@@ -1,31 +1,27 @@
 import {useMemo, useState} from 'react';
+import {useT} from '@/i18n';
 import type {CitationRow, Evidence} from '@/api/runs';
 
 type CitState = 'verified' | 'partial' | 'unsupported' | 'unavailable';
 
-const STATE_STYLES: Record<CitState, {fg: string; bg: string; label: string}> =
-  {
-    verified: {
-      fg: 'var(--color-th-on-success-container)',
-      bg: 'var(--color-th-success-container)',
-      label: 'Verified',
-    },
-    partial: {
-      fg: 'var(--color-th-on-warning-container)',
-      bg: 'var(--color-th-warning-container)',
-      label: 'Partial',
-    },
-    unsupported: {
-      fg: 'var(--color-th-destructive-on-container)',
-      bg: 'var(--color-th-destructive-container)',
-      label: 'Unsupported',
-    },
-    unavailable: {
-      fg: 'var(--color-th-muted-fg)',
-      bg: 'var(--color-th-muted)',
-      label: 'Unavailable',
-    },
-  };
+const STATE_STYLES: Record<CitState, {fg: string; bg: string}> = {
+  verified: {
+    fg: 'var(--color-th-on-success-container)',
+    bg: 'var(--color-th-success-container)',
+  },
+  partial: {
+    fg: 'var(--color-th-on-warning-container)',
+    bg: 'var(--color-th-warning-container)',
+  },
+  unsupported: {
+    fg: 'var(--color-th-destructive-on-container)',
+    bg: 'var(--color-th-destructive-container)',
+  },
+  unavailable: {
+    fg: 'var(--color-th-muted-fg)',
+    bg: 'var(--color-th-muted)',
+  },
+};
 
 const ALL_STATES: CitState[] = [
   'verified',
@@ -46,6 +42,7 @@ export function EvidenceTab({
   evidence: Evidence[];
   citations: CitationRow[];
 }) {
+  const t = useT();
   const [activeStates, setActiveStates] = useState<Set<CitState>>(
     new Set(ALL_STATES),
   );
@@ -99,11 +96,8 @@ export function EvidenceTab({
           color: 'var(--md-sys-color-on-surface-variant)',
         }}
       >
-        <p>No evidence retrieved for this run.</p>
-        <p className="text-xs opacity-75">
-          Literature review requires an MCP server (PubMed / INDRA). Without one
-          the engine generates hypotheses from the model's training data only.
-        </p>
+        <p>{t('evidence.empty.title')}</p>
+        <p className="text-xs opacity-75">{t('evidence.empty.note')}</p>
       </div>
     );
   }
@@ -128,7 +122,9 @@ export function EvidenceTab({
                 opacity: isActive ? 1 : 0.4,
               }}
             >
-              <div className="text-xs opacity-90 capitalize">{s.label}</div>
+              <div className="text-xs opacity-90 capitalize">
+                {t(`evidence.state.${state}`)}
+              </div>
               <div className="text-2xl font-semibold">{count}</div>
             </button>
           );
@@ -155,7 +151,9 @@ export function EvidenceTab({
                     style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                   >
                     {(e.authors ?? []).slice(0, 3).join(', ')}
-                    {e.authors && e.authors.length > 3 ? ' et al.' : ''}
+                    {e.authors && e.authors.length > 3
+                      ? t('evidence.etAl')
+                      : ''}
                     {e.year ? ` · ${e.year}` : ''} · {e.source}
                   </div>
                 </div>
@@ -168,7 +166,7 @@ export function EvidenceTab({
                         color: 'var(--color-th-muted-fg)',
                       }}
                     >
-                      Unavailable
+                      {t('evidence.state.unavailable')}
                     </span>
                   )}
                   {e.url && (
@@ -178,7 +176,7 @@ export function EvidenceTab({
                       rel="noopener noreferrer"
                       className="text-xs wb-link"
                     >
-                      Open
+                      {t('evidence.action.open')}
                     </a>
                   )}
                 </div>
@@ -202,7 +200,7 @@ export function EvidenceTab({
                         style={{backgroundColor: s.bg, color: s.fg}}
                         title={c.claim}
                       >
-                        {s.label}
+                        {t(`evidence.state.${c.state}`)}
                       </span>
                     );
                   })}

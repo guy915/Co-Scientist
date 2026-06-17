@@ -1,6 +1,7 @@
 import {type KeyboardEvent, useEffect, useRef, useState} from 'react';
 import type {Run} from '@/api/runs';
 import {useMessages} from '@/hooks/useMessages';
+import {useT} from '@/i18n';
 
 interface Props {
   run: Run | null;
@@ -44,6 +45,7 @@ function UserBubble({
   kind: string;
   applied: boolean;
 }) {
+  const t = useT();
   const isSteering = kind === 'steering';
   return (
     <div className="flex justify-end">
@@ -70,7 +72,9 @@ function UserBubble({
                   : 'var(--md-sys-color-on-surface-variant)',
               }}
             >
-              {applied ? 'Steering · applied' : 'Steering · pending'}
+              {applied
+                ? t('chat.steering.applied')
+                : t('chat.steering.pending')}
             </span>
           </div>
         )}
@@ -80,6 +84,7 @@ function UserBubble({
 }
 
 function AnswerBubble({content}: {content: string}) {
+  const t = useT();
   return (
     <div className="pl-4">
       <div
@@ -89,7 +94,7 @@ function AnswerBubble({content}: {content: string}) {
           color: 'var(--md-sys-color-on-surface-variant)',
         }}
       >
-        {content || <span className="opacity-40">Thinking…</span>}
+        {content || <span className="opacity-40">{t('chat.thinking')}</span>}
       </div>
     </div>
   );
@@ -101,6 +106,7 @@ function AnswerBubble({content}: {content: string}) {
  * @param props The run whose messages and live state are shown.
  */
 export function ChatTab({run}: Props) {
+  const t = useT();
   const isActive = run?.status === 'running' || run?.status === 'queued';
   const {messages, isAnswering, error, sendSteering, sendQuestion} =
     useMessages(run?.id ?? null, isActive);
@@ -155,9 +161,7 @@ export function ChatTab({run}: Props) {
             className="text-sm py-6 text-center"
             style={{color: 'var(--md-sys-color-on-surface-variant)'}}
           >
-            {isActive
-              ? 'Milestone updates will appear here. Send a message to steer the run or ask a question.'
-              : 'No messages for this run.'}
+            {isActive ? t('chat.empty.active') : t('chat.empty.inactive')}
           </p>
         )}
         {messages.map(msg => {
@@ -210,8 +214,8 @@ export function ChatTab({run}: Props) {
             style={{color: 'var(--md-sys-color-on-surface)'}}
             placeholder={
               effectiveMode === 'qa'
-                ? 'Ask a question… (Ctrl+Enter to send)'
-                : 'Steer the run… (Ctrl+Enter to send)'
+                ? t('chat.placeholder.qa')
+                : t('chat.placeholder.steering')
             }
             rows={2}
             value={input}
@@ -239,7 +243,11 @@ export function ChatTab({run}: Props) {
                     border: '1px solid var(--md-sys-color-outline-variant)',
                   }}
                 >
-                  {m === 'auto' ? `auto · ${effectiveMode}` : m}
+                  {m === 'auto'
+                    ? t('chat.mode.autoEffective', {
+                        mode: t(`chat.mode.${effectiveMode}`),
+                      })
+                    : t(`chat.mode.${m}`)}
                 </button>
               ))}
             </div>
@@ -253,7 +261,7 @@ export function ChatTab({run}: Props) {
                 color: 'var(--md-sys-color-on-primary)',
               }}
             >
-              {isAnswering ? 'Answering…' : 'Send'}
+              {isAnswering ? t('chat.answering') : t('action.send')}
             </button>
           </div>
         </div>

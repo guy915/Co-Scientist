@@ -8,7 +8,7 @@ from typing import Annotated, Any
 from collections.abc import Awaitable, Callable
 
 from langgraph.graph import add_messages
-from typing_extensions import TypedDict
+from typing_extensions import NotRequired, TypedDict
 
 from co_scientist.models import Article, ExecutionMetrics, Hypothesis
 
@@ -143,6 +143,11 @@ class WorkflowState(TypedDict):
 
     evolution_max_count: int
     """Number of top hypotheses to evolve each iteration."""
+
+    output_language: NotRequired[str | None]
+    """Natural language for model-generated text (e.g. "Hebrew"); None/English
+    leaves prompts in English.
+    """
 
     # Workflow State
     hypotheses: Annotated[list[Hypothesis], deduplicate_hypotheses]

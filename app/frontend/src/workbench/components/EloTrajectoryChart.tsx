@@ -1,5 +1,6 @@
 import {useMemo} from 'react';
 import type {Hypothesis, MatchRow} from '@/api/runs';
+import {useT} from '@/i18n';
 
 const PALETTE = [
   'var(--color-th-phase0)',
@@ -32,6 +33,7 @@ export function EloTrajectoryChart({
   topK?: number;
   initialElo?: number;
 }) {
+  const t = useT();
   const series = useMemo<Series[]>(() => {
     if (!matches.length) return [];
     const ordered = [...matches].sort((a, b) => a.id - b.id);
@@ -109,10 +111,13 @@ export function EloTrajectoryChart({
     >
       <header className="flex items-baseline justify-between mb-3">
         <h2 className="text-sm font-semibold uppercase tracking-wide">
-          Elo trajectories
+          {t('tournament.chart.title')}
         </h2>
         <span className="text-xs" style={{color: 'var(--color-th-muted-fg)'}}>
-          top {series.length} · {maxLen - 1} matches
+          {t('tournament.chart.summary', {
+            count: series.length,
+            matches: maxLen - 1,
+          })}
         </span>
       </header>
       <div className="overflow-x-auto">
@@ -120,7 +125,7 @@ export function EloTrajectoryChart({
           viewBox={`0 0 ${width} ${height}`}
           className="w-full h-[220px]"
           role="img"
-          aria-label="Elo trajectory chart"
+          aria-label={t('tournament.chart.ariaLabel')}
         >
           {/* Y axis grid + labels */}
           {yTicks.map(tick => (
@@ -185,7 +190,7 @@ export function EloTrajectoryChart({
             fontSize={10}
             fill="var(--color-th-muted-fg)"
           >
-            match index →
+            {t('tournament.chart.xAxis')}
           </text>
         </svg>
       </div>

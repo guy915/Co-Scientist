@@ -3,8 +3,10 @@ import '@material/web/chips/chip-set.js';
 import '@material/web/chips/filter-chip.js';
 import {useMemo, useState} from 'react';
 import type {CitationRow, Hypothesis, Review} from '@/api/runs';
+import {useT} from '@/i18n';
 
 type SortKey = 'elo' | 'title' | 'generation';
+type FilterKey = 'all' | 'initial' | 'evolved';
 
 /**
  * Renders the sortable, filterable list of generated hypotheses.
@@ -23,8 +25,20 @@ export function IdeasTab({
   reviews: Review[];
   onFocus: (id: string) => void;
 }) {
-  const [filter, setFilter] = useState<'all' | 'initial' | 'evolved'>('all');
+  const t = useT();
+  const [filter, setFilter] = useState<FilterKey>('all');
   const [sortKey, setSortKey] = useState<SortKey>('elo');
+
+  const filterLabel: Record<FilterKey, string> = {
+    all: t('status.all'),
+    initial: t('ideas.filter.initial'),
+    evolved: t('ideas.filter.evolved'),
+  };
+  const sortLabel: Record<SortKey, string> = {
+    elo: t('label.elo'),
+    title: t('ideas.sort.title'),
+    generation: t('ideas.sort.generation'),
+  };
 
   const sorted = useMemo(() => {
     const arr = [...hypotheses];
@@ -47,9 +61,7 @@ export function IdeasTab({
   );
 
   if (!hypotheses.length) {
-    return (
-      <Empty msg="Hypotheses appear here once the generation node runs." />
-    );
+    return <Empty msg={t('ideas.empty')} />;
   }
 
   return (
@@ -60,16 +72,16 @@ export function IdeasTab({
             className="shrink-0"
             style={{color: 'var(--md-sys-color-on-surface-variant)'}}
           >
-            Filter
+            {t('action.filter')}
           </span>
           <md-chip-set>
-            {(['all', 'initial', 'evolved'] as const).map(f => (
+            {(['all', 'initial', 'evolved'] as FilterKey[]).map(f => (
               <md-filter-chip
                 key={f}
                 selected={filter === f || undefined}
                 onclick={(() => setFilter(f)) as EventListener}
               >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {filterLabel[f]}
               </md-filter-chip>
             ))}
           </md-chip-set>
@@ -79,7 +91,7 @@ export function IdeasTab({
             className="shrink-0"
             style={{color: 'var(--md-sys-color-on-surface-variant)'}}
           >
-            Sort
+            {t('action.sort')}
           </span>
           <md-chip-set>
             {(['elo', 'title', 'generation'] as SortKey[]).map(k => (
@@ -88,7 +100,7 @@ export function IdeasTab({
                 selected={sortKey === k || undefined}
                 onclick={(() => setSortKey(k)) as EventListener}
               >
-                {k === 'elo' ? 'Elo' : k.charAt(0).toUpperCase() + k.slice(1)}
+                {sortLabel[k]}
               </md-filter-chip>
             ))}
           </md-chip-set>
@@ -123,6 +135,7 @@ function IdeaRow({
   reviews: Review[];
   onClick: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const verified = citations.filter(c => c.state === 'verified').length;
   const totalCit = citations.length;
@@ -165,7 +178,7 @@ function IdeaRow({
                 color: 'var(--md-sys-color-on-secondary-container)',
               }}
             >
-              Elo {h.elo_rating}
+              {t('ideas.badge.elo', {rating: h.elo_rating})}
             </span>
             {h.parent_id && (
               <span
@@ -175,13 +188,16 @@ function IdeaRow({
                     'color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent)',
                 }}
               >
-                Gen {h.generation}
+                {t('ideas.badge.gen', {generation: h.generation})}
               </span>
             )}
             {winRate !== null && (
               <span
                 className="text-xs px-1.5 py-0.5 rounded font-mono"
-                title={`${h.win_count}W / ${h.loss_count}L`}
+                title={t('ideas.badge.winLoss', {
+                  wins: h.win_count,
+                  losses: h.loss_count,
+                })}
                 style={{
                   backgroundColor:
                     'color-mix(in srgb, var(--md-sys-color-primary) 14%, transparent)',
@@ -195,7 +211,10 @@ function IdeaRow({
                 className="text-xs"
                 style={{color: 'var(--md-sys-color-on-surface-variant)'}}
               >
-                {verified}/{totalCit} Verified
+                {t('ideas.badge.verified', {
+                  verified,
+                  total: totalCit,
+                })}
               </span>
             )}
           </div>
@@ -217,12 +236,13 @@ function IdeaRow({
           <p>{h.statement}</p>
           {h.mechanism && (
             <p>
-              <strong>Mechanism:</strong> {h.mechanism}
+              <strong>{t('ideas.field.mechanism')}</strong> {h.mechanism}
             </p>
           )}
           {h.expected_effect && (
             <p>
-              <strong>Expected effect:</strong> {h.expected_effect}
+              <strong>{t('ideas.field.expectedEffect')}</strong>{' '}
+              {h.expected_effect}
             </p>
           )}
           <div
@@ -231,7 +251,12 @@ function IdeaRow({
           >
             {reviews.length > 0 && (
               <span>
-                {reviews.length} review{reviews.length === 1 ? '' : 's'}
+                {t(
+                  reviews.length === 1
+                    ? 'ideas.reviews.count'
+                    : 'ideas.reviews.count_plural',
+                  {count: reviews.length},
+                )}
               </span>
             )}
             <button
@@ -245,7 +270,7 @@ function IdeaRow({
               <md-icon style={{fontSize: '12px'}} aria-hidden="true">
                 open_in_new
               </md-icon>{' '}
-              Open detail
+              {t('ideas.action.openDetail')}
             </button>
           </div>
         </div>

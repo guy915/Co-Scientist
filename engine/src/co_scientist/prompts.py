@@ -4,6 +4,7 @@ All prompts are stored as markdown files in the prompts/ directory.
 """
 # pylint: disable=inconsistent-quotes
 
+import contextvars
 import logging
 import re
 from pathlib import Path
@@ -14,6 +15,51 @@ from co_scientist.schemas import get_schema_for_prompt
 logger = logging.getLogger(__name__)
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
+
+# Output language directive. Set per run via set_output_language(); read inside
+# load_prompt() so every prompt picks up the instruction without each call site
+# having to thread the value through. A ContextVar keeps concurrent runs (the
+# app reuses a single generator instance) isolated from one another.
+_output_language: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "co_scientist_output_language", default=None)
+
+# Languages that need no directive (the prompts are authored in English).
+_NATIVE_LANGUAGES = frozenset({"", "en", "english"})
+
+
+def set_output_language(language: str | None) -> None:
+    """Set the natural-language the model should write its responses in.
+
+    Affects every prompt loaded afterwards in the current execution context.
+    Pass a human-readable name such as "Hebrew" (or None / "English" to leave
+    the prompts unchanged).
+
+    Args:
+        language: Target output language, or None for the default (English).
+    """
+    _output_language.set(language)
+
+
+def _language_directive() -> str:
+    """Return the language instruction to prepend to a prompt, or "".
+
+    The directive keeps JSON structure and field names in English so response
+    schemas still validate, while pushing all human-readable text into the
+    requested language.
+    """
+    language = (_output_language.get() or "").strip()
+    if language.lower() in _NATIVE_LANGUAGES:
+        return ""
+    return (
+        f"**OUTPUT LANGUAGE: {language}.** Write every piece of natural-"
+        f"language text in your response — titles, statements, explanations, "
+        f"summaries, critiques, rationales, and any narrative field — in "
+        f"{language}. Keep all JSON keys, field names, structural tokens, "
+        f"boolean values, and any required enumerated string values exactly as "
+        f"specified in English so the response still validates. Standard "
+        f"scientific terminology, gene and protein names, and citation "
+        f"identifiers may remain in their conventional form.\n\n")
+
 
 # Helper functions for saving prompts to disk
 
@@ -103,6 +149,9 @@ def load_prompt(prompt_name: str,
 
     # Read the prompt template
     prompt_template = prompt_path.read_text()
+
+    # Prepend the output-language directive (no-op when English/unset).
+    prompt_template = _language_directive() + prompt_template
 
     # Substitute variables if provided
     if variables:
