@@ -7,10 +7,6 @@ name = "co-scientist-viewer"
 version = "0.1.0"
 description = "Web application for running and monitoring the AI Co-Scientist multi-agent research system. Provides real-time tracking of hypothesis generation, review, ranking, evolution, and iterations."
 requires-python = ">=3.10"
-license = {text = "Apache-2.0"}
-classifiers = [
-    "License :: OSI Approved :: Apache Software License",
-]
 
 dependencies = [
     "fastapi>=0.104.0",
