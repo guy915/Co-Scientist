@@ -1,6 +1,7 @@
 import {useEffect, useState} from 'react';
 import {Link, useParams} from 'react-router-dom';
 import {listDemoRuns} from '@/api/runs';
+import {useT} from '@/i18n';
 import {getPublicDemo} from './demoManifest';
 import {NotFoundPage} from './NotFoundPage';
 import {PublicLinkButton} from './PublicLinkButton';
@@ -10,6 +11,7 @@ import {Seo} from './Seo';
  * Renders a public, SEO-tagged page for a seeded research demo.
  */
 export function DemoPage() {
+  const t = useT();
   const {slug} = useParams<{slug: string}>();
   const demo = getPublicDemo(slug);
   const [runId, setRunId] = useState<string | null>(null);
@@ -66,30 +68,29 @@ export function DemoPage() {
           <span className="material-symbols-outlined" aria-hidden="true">
             arrow_back
           </span>
-          Co-Scientist home
+          {t('landing.demo.backLink')}
         </Link>
 
         <header className="demo-header">
           <div>
-            <p className="section-label">Completed research demo</p>
+            <p className="section-label">{t('landing.demo.label')}</p>
             <h1>{demo.title}</h1>
             <p>{demo.summary}</p>
           </div>
-          <span className="status-dot">Completed</span>
+          <span className="status-dot">{t('landing.demo.completed')}</span>
         </header>
 
         <section className="demo-goal" aria-labelledby="research-goal-title">
-          <h2 id="research-goal-title">Research goal</h2>
+          <h2 id="research-goal-title">{t('landing.demo.researchGoal')}</h2>
           <p>{demo.researchGoal}</p>
         </section>
 
         <section className="demo-results" aria-labelledby="hypotheses-title">
           <div className="section-heading">
-            <h2 id="hypotheses-title">Featured hypotheses</h2>
-            <p>
-              Illustrative candidates surfaced and ranked by the seeded
-              demonstration.
-            </p>
+            <h2 id="hypotheses-title">
+              {t('landing.demo.featuredHypotheses')}
+            </h2>
+            <p>{t('landing.demo.featuredSubtitle')}</p>
           </div>
           <ol>
             {demo.hypotheses.map((hypothesis, index) => (
@@ -106,30 +107,29 @@ export function DemoPage() {
 
         <section className="demo-evidence" aria-labelledby="evidence-title">
           <div>
-            <p className="section-label">Evidence and limitations</p>
-            <h2 id="evidence-title">A transparent product demonstration.</h2>
+            <p className="section-label">{t('landing.demo.evidenceLabel')}</p>
+            <h2 id="evidence-title">{t('landing.demo.evidenceTitle')}</h2>
           </div>
           <p>{demo.evidenceSummary}</p>
         </section>
 
         <section className="demo-actions">
           <div>
-            <h2>Inspect the full workbench view</h2>
-            <p>
-              Open the generated ideas, evidence, tournament, and synthesis
-              report.
-            </p>
+            <h2>{t('landing.demo.inspectTitle')}</h2>
+            <p>{t('landing.demo.inspectSubtitle')}</p>
           </div>
           <div className="landing-actions">
             {runId ? (
               <PublicLinkButton to={`/runs/${runId}`}>
-                Open this demo
+                {t('landing.demo.openThisDemo')}
               </PublicLinkButton>
             ) : (
-              <PublicLinkButton to="/runs">Open the workbench</PublicLinkButton>
+              <PublicLinkButton to="/runs">
+                {t('landing.demo.openWorkbench')}
+              </PublicLinkButton>
             )}
             <PublicLinkButton to="/runs/new" variant="outline">
-              Start a new run
+              {t('landing.demo.startNewRun')}
             </PublicLinkButton>
           </div>
         </section>

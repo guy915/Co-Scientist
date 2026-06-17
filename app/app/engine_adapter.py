@@ -22,6 +22,7 @@ from typing import Any
 
 from app import store
 from app.citations import CitationState
+from app.i18n import language_name, milestone_labels, report_labels
 from app.mock_workflow import resolved_config, run_mock_workflow
 from app.store import RunStatus
 
@@ -80,26 +81,40 @@ def system_status() -> dict[str, Any]:
     }
 
 
-def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
-    """Return a human-readable milestone string for key node events, or None."""
+def _format_milestone(node_type: str,
+                      payload: dict[str, Any],
+                      labels: dict[str, str] | None = None) -> str | None:
+    """Return a human-readable milestone string for key node events, or None.
+
+    Args:
+        node_type: The engine node/event type that produced the milestone.
+        payload: Event payload carrying counts and the iteration number.
+        labels: Localized milestone templates from milestone_labels(); defaults
+            to English when omitted.
+
+    Returns:
+        The formatted milestone string, or None for events without a milestone.
+    """
+    lbl = labels or milestone_labels(None)
     if node_type in ("supervisor", "supervisor.plan"):
-        return "Research plan ready — supervisor complete"
+        return lbl["supervisor"]
     if node_type == "generate":
         count = payload.get("count") or payload.get("hypothesis_count", 0)
         itr = payload.get("iteration", 0)
-        label = f"iteration {itr}" if itr else "initial"
-        return f"{count} hypotheses generated ({label})"
+        label = (lbl["label_iteration"].format(
+            itr=itr) if itr else lbl["label_initial"])
+        return lbl["generate"].format(count=count, label=label)
     if node_type == "ranking":
         count = payload.get("hypothesis_count") or payload.get(
             "matches_count", 0)
         itr = payload.get("iteration", 0)
-        return f"Tournament complete (iteration {itr}, {count} matches)"
+        return lbl["ranking"].format(itr=itr, count=count)
     if node_type == "meta_review":
-        return "Meta-review complete"
+        return lbl["meta_review"]
     if node_type == "evolve":
         count = payload.get("count") or payload.get("hypothesis_count", 0)
         itr = payload.get("iteration", 0)
-        return f"{count} hypotheses evolved (iteration {itr})"
+        return lbl["evolve"].format(count=count, itr=itr)
     return None
 
 
@@ -117,6 +132,7 @@ async def run_workflow(
     """Drive the chosen workflow and yield events as the store records them."""
     provider = force_provider or select_provider()
     cfg = resolved_config(profile, config)
+    milestones = milestone_labels(config.get("language"))
 
     logger.info("starting workflow run=%s provider=%s profile=%s", run_id,
                 provider, profile)
@@ -137,7 +153,7 @@ async def run_workflow(
                 sleep_seconds=sleep_seconds,
         ):
             milestone = _format_milestone(event.get("type", ""),
-                                          event.get("payload", {}))
+                                          event.get("payload", {}), milestones)
             if milestone:
                 store.append_message(run_id,
                                      "system",
@@ -264,6 +280,7 @@ async def run_workflow(
         max_iterations=int(cfg.get("max_iterations", 1)),
         initial_hypotheses_count=int(cfg.get("initial_hypotheses_count", 5)),
         evolution_max_count=int(cfg.get("evolution_max_count", 2)),
+        output_language=language_name(config.get("language")),
     )
 
     start = time.time()
@@ -302,7 +319,7 @@ async def run_workflow(
                 "matches_count": len(state.get("tournament_matchups") or []),
                 "articles_count": len(state.get("articles") or []),
             }
-            milestone = _format_milestone(node_name, payload)
+            milestone = _format_milestone(node_name, payload, milestones)
             if milestone:
                 store.append_message(run_id,
                                      "system",
@@ -463,36 +480,38 @@ async def run_workflow(
             "leaderboard": leaderboard,
             "meta_review": final_state.get("meta_review") or {},
         }
+        lbl = report_labels(config.get("language"))
         md_lines = [
-            f"# Co-Scientist Run — {research_goal}",
-            f"\n**Profile:** {profile} | **Provider:** engine | **Hypotheses:** {len(hyps)}",  # pylint: disable=line-too-long
-            "\n## Top hypotheses by Elo\n",
+            f"# {lbl['run_title']} — {research_goal}",
+            f"\n**{lbl['profile']}:** {profile} | **{lbl['provider']}:** engine"
+            f" | **{lbl['hypotheses']}:** {len(hyps)}",
+            f"\n## {lbl['top_hypotheses']}\n",
         ]
         for entry in leaderboard:
             md_lines.append(
                 f"{entry['rank']}. **{entry['title']}** — Elo {entry['elo']}")
         meta = final_state.get("meta_review") or {}
         if meta and isinstance(meta, dict):
-            md_lines.append("\n## Meta-review insights\n")
+            md_lines.append(f"\n## {lbl['meta_review']}\n")
 
             if meta.get("summary"):
                 md_lines.append(f"{meta['summary']}\n")
 
             for section_key, heading in (
-                ("common_strengths", "### Common strengths"),
-                ("common_weaknesses", "### Common weaknesses"),
-                ("emerging_themes", "### Emerging themes"),
-                ("areas_for_improvement", "### Areas for improvement"),
+                ("common_strengths", lbl["common_strengths"]),
+                ("common_weaknesses", lbl["common_weaknesses"]),
+                ("emerging_themes", lbl["emerging_themes"]),
+                ("areas_for_improvement", lbl["areas_for_improvement"]),
             ):
                 items = meta.get(section_key) or []
                 if items:
-                    md_lines.append(f"\n{heading}\n")
+                    md_lines.append(f"\n### {heading}\n")
                     for item in items:
                         md_lines.append(f"- {item}")
 
             recs = meta.get("strategic_recommendations") or []
             if recs:
-                md_lines.append("\n### Strategic recommendations\n")
+                md_lines.append(f"\n### {lbl['strategic_recommendations']}\n")
                 for rec in recs:
                     if isinstance(rec, dict):
                         area = rec.get("focus_area", "")

@@ -1,23 +1,8 @@
 import {Link} from 'react-router-dom';
+import {useT} from '@/i18n';
 import {featuredDemo} from './demoManifest';
 import {PublicLinkButton} from './PublicLinkButton';
 import {Seo} from './Seo';
-
-const workflow = [
-  ['01', 'Scope', 'Clarify the research goal and plan the investigation.'],
-  ['02', 'Evidence', 'Retrieve literature and inspect supporting context.'],
-  ['03', 'Generate', 'Produce distinct, testable candidate hypotheses.'],
-  [
-    '04',
-    'Debate',
-    'Review, compare, and rank ideas through pairwise critique.',
-  ],
-  [
-    '05',
-    'Synthesize',
-    'Assemble the strongest reasoning into a research report.',
-  ],
-] as const;
 
 const landingJsonLd = [
   {
@@ -46,11 +31,39 @@ const landingJsonLd = [
  * Renders the public marketing landing page with hero, workflow, and demo.
  */
 export function LandingPage() {
+  const t = useT();
+  const workflow = [
+    [
+      '01',
+      t('landing.workflow.scope.title'),
+      t('landing.workflow.scope.description'),
+    ],
+    [
+      '02',
+      t('landing.workflow.evidence.title'),
+      t('landing.workflow.evidence.description'),
+    ],
+    [
+      '03',
+      t('landing.workflow.generate.title'),
+      t('landing.workflow.generate.description'),
+    ],
+    [
+      '04',
+      t('landing.workflow.debate.title'),
+      t('landing.workflow.debate.description'),
+    ],
+    [
+      '05',
+      t('landing.workflow.synthesize.title'),
+      t('landing.workflow.synthesize.description'),
+    ],
+  ] as const;
   return (
     <>
       <Seo
         title="Co-Scientist"
-        description="An AI-powered assistant for scientific discovery. Generates hypotheses, debates approaches, and proposes solutions – grounded in literature."
+        description={t('landing.seo.description')}
         path="/"
         jsonLd={landingJsonLd}
       />
@@ -58,19 +71,17 @@ export function LandingPage() {
       <div className="landing-page">
         <section className="landing-hero" aria-labelledby="landing-title">
           <div className="landing-hero__copy">
-            <h1 id="landing-title">
-              Turn research questions into testable hypotheses.
-            </h1>
-            <p>
-              Accelerating scientific discovery with AI-driven collaboration.
-            </p>
+            <h1 id="landing-title">{t('app.tagline')}</h1>
+            <p>{t('landing.hero.subhead')}</p>
             <div className="landing-actions">
-              <PublicLinkButton to="/runs">Open the workbench</PublicLinkButton>
+              <PublicLinkButton to="/runs">
+                {t('landing.hero.openWorkbench')}
+              </PublicLinkButton>
               <PublicLinkButton
                 to={`/demos/${featuredDemo.slug}`}
                 variant="outline"
               >
-                Explore a demo
+                {t('landing.hero.exploreDemo')}
               </PublicLinkButton>
             </div>
           </div>
@@ -80,11 +91,8 @@ export function LandingPage() {
 
         <section className="landing-section" aria-labelledby="workflow-title">
           <div className="section-heading">
-            <h2 id="workflow-title">From question to research direction</h2>
-            <p>
-              A structured multi-agent workflow keeps the reasoning inspectable
-              at every stage.
-            </p>
+            <h2 id="workflow-title">{t('landing.workflow.title')}</h2>
+            <p>{t('landing.workflow.subtitle')}</p>
           </div>
           <ol className="workflow-strip">
             {workflow.map(([number, title, description]) => (
@@ -104,11 +112,11 @@ export function LandingPage() {
           aria-labelledby="featured-demo-title"
         >
           <div className="featured-demo__intro">
-            <p className="section-label">Completed research demo</p>
+            <p className="section-label">{t('landing.featured.label')}</p>
             <h2 id="featured-demo-title">{featuredDemo.title}</h2>
             <p>{featuredDemo.summary}</p>
             <Link className="inline-link" to={`/demos/${featuredDemo.slug}`}>
-              Read the completed demo
+              {t('landing.featured.readDemo')}
               <span className="material-symbols-outlined" aria-hidden="true">
                 arrow_forward
               </span>
@@ -116,8 +124,10 @@ export function LandingPage() {
           </div>
           <div className="featured-demo__result">
             <div className="result-meta">
-              <span>Leading hypothesis</span>
-              <span className="status-dot">Completed</span>
+              <span>{t('landing.featured.leadingHypothesis')}</span>
+              <span className="status-dot">
+                {t('landing.featured.completed')}
+              </span>
             </div>
             <h3>{featuredDemo.hypotheses[0].title}</h3>
             <p>{featuredDemo.hypotheses[0].statement}</p>
@@ -130,27 +140,19 @@ export function LandingPage() {
           aria-labelledby="research-title"
         >
           <div>
-            <p className="section-label">Built from published research</p>
-            <h2 id="research-title">
-              An open implementation of a multi-agent research workflow.
-            </h2>
+            <p className="section-label">{t('landing.research.label')}</p>
+            <h2 id="research-title">{t('landing.research.title')}</h2>
           </div>
           <div>
-            <p>
-              Co-Scientist is an independent open-source implementation inspired
-              by published Google DeepMind research on AI co-scientist systems.
-            </p>
-            <p>
-              This project is not affiliated with, endorsed by, or an official
-              product of Google or Google DeepMind.
-            </p>
+            <p>{t('landing.research.body1')}</p>
+            <p>{t('landing.research.body2')}</p>
             <a
               className="inline-link"
               href="https://research.google/blog/accelerating-scientific-breakthroughs-with-an-ai-co-scientist/"
               target="_blank"
               rel="noreferrer"
             >
-              Read the published research
+              {t('landing.research.readResearch')}
               <span className="material-symbols-outlined" aria-hidden="true">
                 open_in_new
               </span>
@@ -160,12 +162,12 @@ export function LandingPage() {
 
         <section className="landing-cta" aria-labelledby="cta-title">
           <div>
-            <h2 id="cta-title">Start with a research question.</h2>
-            <p>Generate, challenge, and refine hypotheses in the workbench.</p>
+            <h2 id="cta-title">{t('landing.cta.title')}</h2>
+            <p>{t('landing.cta.subtitle')}</p>
           </div>
           <div className="landing-actions">
             <PublicLinkButton to="/runs/new">
-              Start a research run
+              {t('landing.cta.startRun')}
             </PublicLinkButton>
             <a
               className="public-button public-button--outline"
@@ -173,7 +175,7 @@ export function LandingPage() {
               target="_blank"
               rel="noreferrer"
             >
-              View on GitHub
+              {t('landing.cta.viewGithub')}
             </a>
           </div>
         </section>
@@ -183,22 +185,23 @@ export function LandingPage() {
 }
 
 function WorkbenchPreview() {
+  const t = useT();
   return (
     <section
       className="workbench-preview"
-      aria-label="Example Co-Scientist workbench result"
+      aria-label={t('landing.hero.previewAria')}
     >
       <div className="preview-header">
         <div>
-          <span>Research goal</span>
-          <p>How could ferroptosis modulation improve chemotherapy response?</p>
+          <span>{t('landing.preview.researchGoal')}</span>
+          <p>{t('landing.preview.goalText')}</p>
         </div>
-        <span className="status-dot">Completed</span>
+        <span className="status-dot">{t('landing.preview.completed')}</span>
       </div>
       <div
         className="preview-progress"
         role="progressbar"
-        aria-label="Research workflow progress"
+        aria-label={t('landing.preview.progressAria')}
         aria-valuemin={0}
         aria-valuemax={5}
         aria-valuenow={5}
@@ -210,39 +213,39 @@ function WorkbenchPreview() {
         <span />
       </div>
       <div className="preview-section-title">
-        <span>Ranked hypotheses</span>
-        <span>Score</span>
+        <span>{t('landing.preview.rankedHypotheses')}</span>
+        <span>{t('landing.preview.score')}</span>
       </div>
       <ol className="preview-rankings">
         <li>
           <span className="preview-rank">1</span>
           <div>
-            <strong>Coordinate redox and lipid-peroxidation control</strong>
-            <span>High testability · 4 evidence links</span>
+            <strong>{t('landing.preview.rank1.title')}</strong>
+            <span>{t('landing.preview.rank1.meta')}</span>
           </div>
           <b>1248</b>
         </li>
         <li>
           <span className="preview-rank">2</span>
           <div>
-            <strong>Target a rate-limiting metabolic dependency</strong>
-            <span>High novelty · 3 evidence links</span>
+            <strong>{t('landing.preview.rank2.title')}</strong>
+            <span>{t('landing.preview.rank2.meta')}</span>
           </div>
           <b>1196</b>
         </li>
         <li className="preview-mobile-hidden">
           <span className="preview-rank">3</span>
           <div>
-            <strong>Sequence sensitization before chemotherapy</strong>
-            <span>Moderate evidence · 3 evidence links</span>
+            <strong>{t('landing.preview.rank3.title')}</strong>
+            <span>{t('landing.preview.rank3.meta')}</span>
           </div>
           <b>1164</b>
         </li>
       </ol>
       <div className="preview-footer">
-        <span>10 hypotheses</span>
-        <span>12 debates</span>
-        <span>4 evidence records</span>
+        <span>{t('landing.preview.footer.hypotheses')}</span>
+        <span>{t('landing.preview.footer.debates')}</span>
+        <span>{t('landing.preview.footer.evidence')}</span>
       </div>
     </section>
   );

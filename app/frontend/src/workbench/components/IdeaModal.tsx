@@ -2,6 +2,7 @@ import '@material/web/button/text-button.js';
 import {useMemo} from 'react';
 import type {CitationRow, Evidence, Hypothesis, Review} from '@/api/runs';
 import {MdDialog} from '@/md3/MdDialog';
+import {useT} from '@/i18n';
 
 /**
  * Renders a dialog with a hypothesis's full detail, lineage, and citations.
@@ -24,6 +25,7 @@ export function IdeaModal({
   evidence: Evidence[];
   onClose: () => void;
 }) {
+  const t = useT();
   const evidenceById = useMemo(
     () => Object.fromEntries(evidence.map(e => [e.id, e])),
     [evidence],
@@ -50,14 +52,20 @@ export function IdeaModal({
               className="px-1.5 py-0.5 rounded font-mono"
               style={{backgroundColor: 'var(--md-sys-color-surface-variant)'}}
             >
-              Elo {hypothesis.elo_rating}
+              {t('ideas.badge.elo', {rating: hypothesis.elo_rating})}
             </span>
             <span>
-              gen {hypothesis.generation} · {hypothesis.created_by_agent}
+              {t('ideas.modal.meta', {
+                generation: hypothesis.generation,
+                agent: hypothesis.created_by_agent,
+              })}
             </span>
             {hypothesis.win_count + hypothesis.loss_count > 0 && (
               <span>
-                {hypothesis.win_count}W · {hypothesis.loss_count}L
+                {t('ideas.modal.winLoss', {
+                  wins: hypothesis.win_count,
+                  losses: hypothesis.loss_count,
+                })}
               </span>
             )}
           </div>
@@ -65,47 +73,53 @@ export function IdeaModal({
       }
       actions={
         <md-text-button onclick={onClose as EventListener}>
-          Close
+          {t('action.close')}
         </md-text-button>
       }
     >
       <div className="space-y-4 text-sm max-w-2xl">
         <section>
-          <h3 className="font-medium mb-1">Statement</h3>
+          <h3 className="font-medium mb-1">{t('ideas.section.statement')}</h3>
           <p>{hypothesis.statement}</p>
         </section>
 
         {hypothesis.mechanism && (
           <section>
-            <h3 className="font-medium mb-1">Mechanism</h3>
+            <h3 className="font-medium mb-1">{t('ideas.section.mechanism')}</h3>
             <p>{hypothesis.mechanism}</p>
           </section>
         )}
 
         {hypothesis.expected_effect && (
           <section>
-            <h3 className="font-medium mb-1">Expected effect</h3>
+            <h3 className="font-medium mb-1">
+              {t('ideas.section.expectedEffect')}
+            </h3>
             <p>{hypothesis.expected_effect}</p>
           </section>
         )}
 
         {hypothesis.experimental_context && (
           <section>
-            <h3 className="font-medium mb-1">Experimental design</h3>
+            <h3 className="font-medium mb-1">
+              {t('ideas.section.experimentalDesign')}
+            </h3>
             <p>{hypothesis.experimental_context}</p>
           </section>
         )}
 
         {(parent || children.length > 0) && (
           <section>
-            <h3 className="font-medium mb-1">Lineage</h3>
+            <h3 className="font-medium mb-1">{t('ideas.section.lineage')}</h3>
             <ul
               className="text-xs space-y-1"
               style={{color: 'var(--md-sys-color-on-surface-variant)'}}
             >
-              {parent && <li>↑ Parent: {parent.title}</li>}
+              {parent && (
+                <li>{t('ideas.lineage.parent', {title: parent.title})}</li>
+              )}
               {children.map(c => (
-                <li key={c.id}>↓ Child: {c.title}</li>
+                <li key={c.id}>{t('ideas.lineage.child', {title: c.title})}</li>
               ))}
             </ul>
           </section>
@@ -113,7 +127,7 @@ export function IdeaModal({
 
         {reviews.length > 0 && (
           <section>
-            <h3 className="font-medium mb-1">Reviews &amp; critique</h3>
+            <h3 className="font-medium mb-1">{t('ideas.section.reviews')}</h3>
             <ul className="space-y-2">
               {reviews.map(r => (
                 <li
@@ -142,7 +156,7 @@ export function IdeaModal({
 
         {citations.length > 0 && (
           <section>
-            <h3 className="font-medium mb-1">Citations</h3>
+            <h3 className="font-medium mb-1">{t('ideas.section.citations')}</h3>
             <ul className="space-y-1.5">
               {citations.map(c => {
                 const ev = evidenceById[c.evidence_id];

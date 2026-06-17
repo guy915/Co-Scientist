@@ -89,6 +89,40 @@ body {
   margin: 0;
 }
 
+/* ---------------------------------------------------------------------------
+ * Right-to-left support (Hebrew). The document `dir`/`lang` are set on <html>
+ * by the LocaleProvider; these rules cover the few cases that physical Tailwind
+ * utilities and the bundled Latin font don't flip on their own.
+ * ------------------------------------------------------------------------- */
+
+/* Google Sans has no Hebrew glyphs — fall back to a Hebrew-capable stack so
+ * Hebrew text renders consistently rather than relying on per-browser defaults.
+ */
+:root:lang(he),
+[dir="rtl"] {
+  --md-ref-typeface-brand: "Heebo", "Assistant", "Arial Hebrew", system-ui,
+    sans-serif;
+  --md-ref-typeface-plain: "Heebo", "Assistant", "Arial Hebrew", system-ui,
+    sans-serif;
+  font-family: "Heebo", "Assistant", "Arial Hebrew", system-ui, sans-serif;
+}
+
+/* Keep inherently left-to-right tokens (IDs, Elo scores, model names, code,
+ * latin-only inline data) readable inside an RTL layout. Apply `.force-ltr` to
+ * such spans. */
+.force-ltr {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* In RTL, an `.force-ltr` block that sits on its own line should hug the
+ * inline-start edge. */
+[dir="rtl"] .force-ltr-block {
+  direction: ltr;
+  text-align: right;
+  unicode-bidi: isolate;
+}
+
 /* Default border color */
 * {
   border-color: var(--color-th-border);

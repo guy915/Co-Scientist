@@ -6,6 +6,8 @@ import type {
   SafetyDecision,
 } from '@/api/runs';
 import type {StreamEvent} from '@/hooks/useRunStream';
+import {useT} from '@/i18n';
+import type {TFunction} from '@/i18n';
 
 const AGENT_LABELS: Record<string, string> = {
   'supervisor.plan': 'Supervisor',
@@ -25,8 +27,9 @@ const AGENT_LABELS: Record<string, string> = {
   lifecycle: 'Lifecycle',
 };
 
-function fmtAgent(t: string) {
-  return AGENT_LABELS[t] ?? t.replace(/[._]/g, ' ');
+function fmtAgent(t: TFunction, type: string) {
+  if (type in AGENT_LABELS) return t(`overview.agent.${type}`);
+  return type.replace(/[._]/g, ' ');
 }
 
 /**
@@ -50,6 +53,7 @@ export function OverviewTab({
   safety: SafetyDecision[];
   events: StreamEvent[];
 }) {
+  const t = useT();
   const blocked = safety.find(s => s.decision === 'block');
   const dualUse = safety.find(s => s.decision === 'redact');
   const initialCount = hypotheses.filter(h => !h.parent_id).length;
@@ -60,32 +64,40 @@ export function OverviewTab({
     <div className="grid lg:grid-cols-3 gap-4">
       <aside className="grid grid-cols-2 gap-2 lg:hidden">
         <Stat
-          label="Hypotheses"
+          label={t('label.hypotheses')}
           value={hypotheses.length}
-          sub={`${initialCount} initial · ${evolvedCount} evolved`}
+          sub={t('overview.stat.hypothesesSub', {
+            initial: initialCount,
+            evolved: evolvedCount,
+          })}
         />
         <Stat
-          label="Top Elo"
+          label={t('overview.stat.topElo')}
           value={topElo}
-          sub={`from ${matches.length} matches`}
+          sub={t('overview.stat.topEloSub', {matches: matches.length})}
         />
-        <Stat label="Evidence sources" value={evidence.length} />
         <Stat
-          label="Pipeline events"
+          label={t('overview.stat.evidenceSources')}
+          value={evidence.length}
+        />
+        <Stat
+          label={t('overview.stat.pipelineEvents')}
           value={events.length}
           sub={
             run
-              ? `${run.summary?.events ?? events.length} persisted`
+              ? t('overview.stat.eventsSub', {
+                  events: run.summary?.events ?? events.length,
+                })
               : undefined
           }
         />
       </aside>
 
       <div className="space-y-4 lg:col-span-2">
-        <Section title="Pipeline timeline">
+        <Section title={t('overview.section.timeline')}>
           {events.length === 0 ? (
             <p className="text-sm" style={{color: 'var(--color-th-muted-fg)'}}>
-              Waiting for events…
+              {t('overview.timeline.waiting')}
             </p>
           ) : (
             <ol className="space-y-2 text-sm">
@@ -102,13 +114,13 @@ export function OverviewTab({
                     {e.seq}
                   </span>
                   <span className="min-w-0 font-medium sm:w-44 sm:shrink-0">
-                    {fmtAgent(e.type)}
+                    {fmtAgent(t, e.type)}
                   </span>
                   <span
                     style={{color: 'var(--color-th-muted-fg)'}}
                     className="min-w-0 text-xs leading-relaxed sm:flex-1 sm:truncate sm:text-sm"
                   >
-                    {summarizeEventPayload(e)}
+                    {summarizeEventPayload(t, e)}
                   </span>
                 </li>
               ))}
@@ -117,7 +129,7 @@ export function OverviewTab({
         </Section>
 
         {(blocked || dualUse) && (
-          <Section title="Safety decisions">
+          <Section title={t('overview.section.safety')}>
             <ul className="space-y-2 text-sm">
               {safety.map(s => (
                 <li
@@ -151,22 +163,30 @@ export function OverviewTab({
 
       <aside className="hidden lg:block lg:space-y-3">
         <Stat
-          label="Hypotheses"
+          label={t('label.hypotheses')}
           value={hypotheses.length}
-          sub={`${initialCount} initial · ${evolvedCount} evolved`}
+          sub={t('overview.stat.hypothesesSub', {
+            initial: initialCount,
+            evolved: evolvedCount,
+          })}
         />
         <Stat
-          label="Top Elo"
+          label={t('overview.stat.topElo')}
           value={topElo}
-          sub={`from ${matches.length} matches`}
+          sub={t('overview.stat.topEloSub', {matches: matches.length})}
         />
-        <Stat label="Evidence sources" value={evidence.length} />
         <Stat
-          label="Pipeline events"
+          label={t('overview.stat.evidenceSources')}
+          value={evidence.length}
+        />
+        <Stat
+          label={t('overview.stat.pipelineEvents')}
           value={events.length}
           sub={
             run
-              ? `${run.summary?.events ?? events.length} persisted`
+              ? t('overview.stat.eventsSub', {
+                  events: run.summary?.events ?? events.length,
+                })
               : undefined
           }
         />
@@ -175,25 +195,42 @@ export function OverviewTab({
   );
 }
 
-function summarizeEventPayload(e: StreamEvent): string {
+function summarizeEventPayload(t: TFunction, e: StreamEvent): string {
   const p = e.payload as Record<string, unknown>;
   if (e.type === 'generate')
-    return `${(p.hypotheses as unknown[] | undefined)?.length ?? 0} initial hypotheses`;
+    return t('overview.event.generate', {
+      n: (p.hypotheses as unknown[] | undefined)?.length ?? 0,
+    });
   if (e.type === 'evolve')
-    return `${(p.children as unknown[] | undefined)?.length ?? 0} evolved children`;
+    return t('overview.event.evolve', {
+      n: (p.children as unknown[] | undefined)?.length ?? 0,
+    });
   if (e.type === 'ranking')
-    return `iter ${p.iteration as number} · ${(p.matches as unknown[] | undefined)?.length ?? 0} matches`;
+    return t('overview.event.ranking', {
+      iteration: p.iteration as number,
+      n: (p.matches as unknown[] | undefined)?.length ?? 0,
+    });
   if (e.type === 'literature_review')
-    return `${(p.evidence as unknown[] | undefined)?.length ?? 0} sources`;
+    return t('overview.event.literature_review', {
+      n: (p.evidence as unknown[] | undefined)?.length ?? 0,
+    });
   if (e.type === 'citation_audit')
-    return `${p.verified as number} verified · ${p.partial as number} partial · ${p.unsupported as number} unsupported · ${p.unavailable as number} unavailable`;
+    return t('overview.event.citation_audit', {
+      verified: p.verified as number,
+      partial: p.partial as number,
+      unsupported: p.unsupported as number,
+      unavailable: p.unavailable as number,
+    });
   if (e.type === 'safety.intake' || e.type === 'safety.final')
     return String(p.decision ?? '');
   if (e.type === 'status') return String(p.status ?? '');
-  if (e.type === 'report') return 'report saved';
-  if (e.type === 'meta_review') return `iter ${p.iteration as number} critique`;
+  if (e.type === 'report') return t('overview.event.report');
+  if (e.type === 'meta_review')
+    return t('overview.event.meta_review', {iteration: p.iteration as number});
   if (e.type === 'supervisor.plan')
-    return `plan with ${((p.agents as unknown[] | undefined) ?? []).length} agents`;
+    return t('overview.event.supervisor.plan', {
+      n: ((p.agents as unknown[] | undefined) ?? []).length,
+    });
   if (e.type === 'lifecycle') return String(p.event ?? '');
   return '';
 }

@@ -5,6 +5,7 @@ import {useCallback, useEffect, useRef, useState} from 'react';
 import {useLocation} from 'react-router-dom';
 import {getRunEventsLog, type RunEvent} from '@/api/runs';
 import {useIsMobile} from '@/hooks/useMediaQuery';
+import {useT} from '@/i18n';
 
 function extractRunId(pathname: string): string | null {
   const m = pathname.match(/\/runs\/([^/]+)/);
@@ -47,6 +48,7 @@ function logText(events: RunEvent[]): string {
  * Renders a toggleable panel showing the active run's diagnostic event log.
  */
 export function LogConsole() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [events, setEvents] = useState<RunEvent[]>([]);
   const [loading, setLoading] = useState(false);
@@ -99,7 +101,7 @@ export function LogConsole() {
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(
-      events.length ? logText(events) : '(no events)',
+      events.length ? logText(events) : t('misc.logs.noEvents'),
     );
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -115,9 +117,9 @@ export function LogConsole() {
         <md-filled-tonal-button
           onclick={(() => setOpen(v => !v)) as EventListener}
           aria-expanded={open}
-          aria-label="Toggle log console"
+          aria-label={t('misc.logs.toggleAria')}
         >
-          Logs
+          {t('misc.logs.toggle')}
           {events.length > 0 && (
             <span
               className="inline-flex items-center justify-center rounded-full text-xs font-bold w-5 h-5 ml-1.5"
@@ -172,14 +174,16 @@ export function LogConsole() {
               className="flex items-center justify-between px-4 py-3 border-b shrink-0"
               style={{borderColor: 'var(--md-sys-color-outline-variant)'}}
             >
-              <span className="font-semibold text-base">Diagnostic Logs</span>
+              <span className="font-semibold text-base">
+                {t('misc.logs.title')}
+              </span>
               <div className="flex items-center gap-2">
                 {loading && (
                   <span
                     className="text-xs"
                     style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                   >
-                    loading…
+                    {t('misc.logs.loading')}
                   </span>
                 )}
                 <md-outlined-button
@@ -189,7 +193,7 @@ export function LogConsole() {
                   <md-icon slot="icon" aria-hidden="true">
                     {copied ? 'check' : 'content_copy'}
                   </md-icon>
-                  {copied ? 'Copied!' : 'Copy'}
+                  {copied ? t('misc.logs.copied') : t('misc.logs.copy')}
                 </md-outlined-button>
               </div>
             </div>
@@ -207,7 +211,7 @@ export function LogConsole() {
                     fontFamily: 'sans-serif',
                   }}
                 >
-                  Open a run to see its diagnostic events.
+                  {t('misc.logs.openRun')}
                 </p>
               )}
               {runId && !loading && events.length === 0 && (
@@ -218,7 +222,7 @@ export function LogConsole() {
                     fontFamily: 'sans-serif',
                   }}
                 >
-                  No events recorded for this run yet.
+                  {t('misc.logs.empty')}
                 </p>
               )}
               {events.map((ev, i) => (

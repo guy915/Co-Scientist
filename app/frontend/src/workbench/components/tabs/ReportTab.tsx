@@ -5,6 +5,7 @@ import {useEffect, useState} from 'react';
 import ReactMarkdown from 'react-markdown';
 import type {Report, SafetyDecision} from '@/api/runs';
 import {reportMarkdownUrl} from '@/api/runs';
+import {useT} from '@/i18n';
 
 /**
  * Renders the synthesized report markdown with export and print actions.
@@ -20,6 +21,7 @@ export function ReportTab({
   report: Report | null;
   safety: SafetyDecision[];
 }) {
+  const t = useT();
   const [markdown, setMarkdown] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -54,7 +56,7 @@ export function ReportTab({
           color: 'var(--md-sys-color-on-surface-variant)',
         }}
       >
-        The report appears once the workflow finishes.
+        {t('report.empty')}
       </div>
     );
   }
@@ -96,7 +98,7 @@ export function ReportTab({
           <md-icon slot="icon" aria-hidden="true">
             download
           </md-icon>
-          Download Markdown
+          {t('report.downloadMarkdown')}
         </md-filled-button>
         <md-outlined-button
           onclick={
@@ -111,7 +113,7 @@ export function ReportTab({
           <md-icon slot="icon" aria-hidden="true">
             description
           </md-icon>
-          Download JSON
+          {t('report.downloadJson')}
         </md-outlined-button>
         <md-outlined-button
           onclick={(() => void copyMarkdown()) as EventListener}
@@ -120,13 +122,13 @@ export function ReportTab({
           <md-icon slot="icon" aria-hidden="true">
             {copied ? 'check' : 'content_copy'}
           </md-icon>
-          {copied ? 'Copied' : 'Copy Markdown'}
+          {copied ? t('action.copied') : t('report.copyMarkdown')}
         </md-outlined-button>
         <md-outlined-button onclick={(() => window.print()) as EventListener}>
           <md-icon slot="icon" aria-hidden="true">
             print
           </md-icon>
-          Print
+          {t('action.print')}
         </md-outlined-button>
         {finalSafety && finalSafety.decision !== 'allow' && (
           <div
@@ -141,7 +143,7 @@ export function ReportTab({
               <md-icon style={{fontSize: '14px'}} aria-hidden="true">
                 warning
               </md-icon>
-              Final-output safety: {finalSafety.decision}
+              {t('report.finalSafety', {decision: finalSafety.decision})}
             </div>
             <div style={{color: 'var(--md-sys-color-on-surface-variant)'}}>
               {finalSafety.reason}

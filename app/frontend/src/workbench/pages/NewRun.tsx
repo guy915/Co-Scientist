@@ -5,17 +5,20 @@ import '@material/web/button/text-button.js';
 import {type FormEvent, useState} from 'react';
 import {useNavigate} from 'react-router-dom';
 import {createRun, type RunProfile, startRun} from '@/api/runs';
+import {useLocale, useT} from '@/i18n';
 
-const SUGGESTED = [
-  'Identify novel mechanisms of selective autophagy in aging neural tissue.',
-  'Propose drug repurposing candidates for triple-negative breast cancer that act through mitochondrial biogenesis.',
-  'Investigate how cold-stress reshapes glucose homeostasis via brown adipose signalling.',
-];
+const SUGGESTED_KEYS = [
+  'newRun.suggested.1',
+  'newRun.suggested.2',
+  'newRun.suggested.3',
+] as const;
 
 /**
  * Renders the form for configuring and starting a new research run.
  */
 export function NewRun() {
+  const t = useT();
+  const {locale} = useLocale();
   const navigate = useNavigate();
   const [goal, setGoal] = useState('');
   const [profile, setProfile] = useState<RunProfile>('standard');
@@ -30,7 +33,7 @@ export function NewRun() {
     e.preventDefault();
     setError(null);
     if (!goal.trim()) {
-      setError('Provide a research goal.');
+      setError(t('newRun.goal.required'));
       return;
     }
     setSubmitting(true);
@@ -38,6 +41,7 @@ export function NewRun() {
       const run = await createRun({
         research_goal: goal.trim(),
         profile,
+        language: locale,
         initial_hypotheses_count:
           typeof initialCount === 'number' ? initialCount : undefined,
         max_iterations: typeof maxIters === 'number' ? maxIters : undefined,
@@ -56,15 +60,13 @@ export function NewRun() {
     <div className="max-w-3xl mx-auto space-y-6">
       <header>
         <h1 className="md-typescale-headline-medium text-2xl font-semibold tracking-tight">
-          New research run
+          {t('newRun.title')}
         </h1>
         <p
           className="text-sm"
           style={{color: 'var(--md-sys-color-on-surface-variant)'}}
         >
-          Frame a research goal. The supervisor will scope it, retrieve
-          evidence, generate candidate hypotheses, debate them in an Elo
-          tournament, and synthesize a report.
+          {t('newRun.subtitle')}
         </p>
       </header>
 
@@ -79,43 +81,48 @@ export function NewRun() {
         <div className="space-y-1.5">
           <md-outlined-text-field
             type="textarea"
-            label="Research goal"
+            label={t('newRun.goal.label')}
             rows={4}
             value={goal}
             oninput={
               ((e: Event) =>
                 setGoal((e.target as HTMLInputElement).value)) as EventListener
             }
-            placeholder="Investigate the mechanism of glucose homeostasis under cold stress…"
+            placeholder={t('newRun.goal.placeholder')}
             style={{width: '100%'} as React.CSSProperties}
           />
           <div
             className="text-xs flex flex-col gap-1.5 mt-2 px-1"
             style={{color: 'var(--md-sys-color-on-surface-variant)'}}
           >
-            <span className="font-medium">Try a suggested research goal:</span>
+            <span className="font-medium">{t('newRun.suggested.heading')}</span>
             <div className="flex flex-col gap-2 items-start mt-0.5">
-              {SUGGESTED.map(s => (
-                <button
-                  key={s}
-                  type="button"
-                  onClick={() => setGoal(s)}
-                  className="text-left cursor-pointer hover:underline text-xs flex items-start gap-1.5"
-                  style={{
-                    color: 'var(--md-sys-color-primary)',
-                    lineHeight: '1.4',
-                  }}
-                >
-                  <span className="opacity-70 font-mono">•</span>
-                  <span>{s}</span>
-                </button>
-              ))}
+              {SUGGESTED_KEYS.map(key => {
+                const s = t(key);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setGoal(s)}
+                    className="text-left cursor-pointer hover:underline text-xs flex items-start gap-1.5"
+                    style={{
+                      color: 'var(--md-sys-color-primary)',
+                      lineHeight: '1.4',
+                    }}
+                  >
+                    <span className="opacity-70 font-mono">•</span>
+                    <span>{s}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
 
         <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">Profile</legend>
+          <legend className="text-sm font-medium">
+            {t('newRun.profile.legend')}
+          </legend>
           <div className="grid grid-cols-2 gap-3">
             <label
               className="flex items-start gap-2 rounded border p-3 cursor-pointer"
@@ -134,12 +141,12 @@ export function NewRun() {
                 onChange={() => setProfile('standard')}
               />
               <span>
-                <div className="font-medium">Standard</div>
+                <div className="font-medium">{t('label.standard')}</div>
                 <div
                   className="text-xs"
                   style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                 >
-                  Fast scoping. 5 hypotheses, evolve all, 1 iteration, ~10 min.
+                  {t('newRun.profile.standard.desc')}
                 </div>
               </span>
             </label>
@@ -160,12 +167,12 @@ export function NewRun() {
                 onChange={() => setProfile('advanced')}
               />
               <span>
-                <div className="font-medium">Advanced</div>
+                <div className="font-medium">{t('label.advanced')}</div>
                 <div
                   className="text-xs"
                   style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                 >
-                  Deeper run. 8 hypotheses, evolve all, 2 iterations, ~25 min.
+                  {t('newRun.profile.advanced.desc')}
                 </div>
               </span>
             </label>
@@ -179,21 +186,21 @@ export function NewRun() {
           onToggle={e => setAdvanced((e.target as HTMLDetailsElement).open)}
         >
           <summary className="px-3 py-2 cursor-pointer text-sm font-medium">
-            Configuration overrides
+            {t('newRun.overrides.summary')}
           </summary>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 pt-0">
             <NumberField
-              label="Initial hypotheses"
+              label={t('newRun.overrides.initial')}
               value={initialCount}
               onChange={setInitialCount}
             />
             <NumberField
-              label="Max iterations"
+              label={t('newRun.overrides.maxIters')}
               value={maxIters}
               onChange={setMaxIters}
             />
             <NumberField
-              label="Evolution top-k"
+              label={t('newRun.overrides.evolution')}
               value={evolutionCount}
               onChange={setEvolutionCount}
             />
@@ -215,7 +222,7 @@ export function NewRun() {
 
         <div className="flex justify-end">
           <md-filled-button type="submit" disabled={submitting || undefined}>
-            {submitting ? 'Starting…' : 'Start run'}
+            {submitting ? t('action.starting') : t('action.startRun')}
           </md-filled-button>
         </div>
       </form>

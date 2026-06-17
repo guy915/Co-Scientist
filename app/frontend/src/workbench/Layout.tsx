@@ -2,6 +2,8 @@ import '@material/web/icon/icon.js';
 import '@material/web/button/outlined-button.js';
 import type {ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
+import {useT} from '@/i18n';
+import {LanguageSwitcher} from './components/LanguageSwitcher';
 import {LogConsole} from './components/LogConsole';
 import {ThemeToggle} from './components/ThemeToggle';
 
@@ -13,6 +15,7 @@ import {ThemeToggle} from './components/ThemeToggle';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
+  const t = useT();
   const isPublicRoute = !location.pathname.startsWith('/runs');
   return (
     <div
@@ -49,25 +52,28 @@ export function Layout({children}: {children: ReactNode}) {
                 strokeWidth="0.4"
               />
             </svg>
-            <span className="text-base tracking-tight">Co-Scientist</span>
+            <span className="text-base tracking-tight">{t('app.name')}</span>
           </Link>
           <nav className="flex items-center gap-2 sm:gap-3 text-sm">
             {isPublicRoute && (
-              <div className="hidden md:flex items-center gap-6 mr-2">
+              <div className="hidden md:flex items-center gap-6 mx-2">
                 <a className="public-nav-link" href="/#workflow-title">
-                  How it works
+                  {t('nav.howItWorks')}
                 </a>
                 <Link
                   className="public-nav-link"
                   to="/demos/ferroptosis-pancreatic-cancer"
                 >
-                  Demo
+                  {t('nav.demo')}
                 </Link>
                 <a className="public-nav-link" href="/#research">
-                  Research
+                  {t('nav.research')}
                 </a>
               </div>
             )}
+            <span className="inline-flex">
+              <LanguageSwitcher />
+            </span>
             <span className="inline-flex">
               <ThemeToggle />
             </span>
@@ -91,7 +97,7 @@ export function Layout({children}: {children: ReactNode}) {
                     } as React.CSSProperties)
               }
             >
-              {isPublicRoute ? 'Workbench' : 'Dashboard'}
+              {isPublicRoute ? t('nav.workbench') : t('nav.dashboard')}
             </md-outlined-button>
             {!isPublicRoute && (
               <span className="hidden sm:inline-flex">
@@ -126,7 +132,7 @@ export function Layout({children}: {children: ReactNode}) {
           className="underline"
           style={{color: 'inherit'}}
         >
-          Co-Scientist
+          {t('app.name')}
         </a>
       </footer>
     </div>

@@ -3,20 +3,21 @@ import '@material/web/icon/icon.js';
 import '@material/web/button/text-button.js';
 import {useEffect, useState} from 'react';
 import {MdDialog} from '@/md3/MdDialog';
-
-const SHORTCUTS: {keys: string; description: string}[] = [
-  {keys: '?', description: 'Open this shortcut help'},
-  {keys: 'g d', description: 'Go to dashboard'},
-  {keys: 'g n', description: 'Start a new run'},
-  {keys: '← / →', description: 'Move between tabs (on a run page)'},
-  {keys: 'Esc', description: 'Close any open dialog'},
-];
+import {useT} from '@/i18n';
 
 /**
  * Renders a help button and dialog listing the keyboard shortcuts.
  */
 export function ShortcutsHint() {
+  const t = useT();
   const [open, setOpen] = useState(false);
+  const shortcuts: {keys: string; description: string}[] = [
+    {keys: '?', description: t('misc.shortcuts.help')},
+    {keys: 'g d', description: t('misc.shortcuts.goDashboard')},
+    {keys: 'g n', description: t('misc.shortcuts.newRun')},
+    {keys: '← / →', description: t('misc.shortcuts.tabs')},
+    {keys: 'Esc', description: t('misc.shortcuts.closeDialog')},
+  ];
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -44,23 +45,23 @@ export function ShortcutsHint() {
     <>
       <md-icon-button
         onclick={(() => setOpen(true)) as EventListener}
-        aria-label="Keyboard shortcuts"
-        title="Keyboard shortcuts (press ?)"
+        aria-label={t('misc.shortcuts.buttonAria')}
+        title={t('misc.shortcuts.buttonTitle')}
       >
         <md-icon aria-hidden="true">keyboard</md-icon>
       </md-icon-button>
       <MdDialog
         open={open}
         onClose={() => setOpen(false)}
-        headline="Keyboard shortcuts"
+        headline={t('misc.shortcuts.headline')}
         actions={
           <md-text-button onclick={(() => setOpen(false)) as EventListener}>
-            Close
+            {t('misc.shortcuts.close')}
           </md-text-button>
         }
       >
         <ul className="space-y-2 text-sm min-w-64">
-          {SHORTCUTS.map(s => (
+          {shortcuts.map(s => (
             <li
               key={s.keys}
               className="flex items-center justify-between gap-4"

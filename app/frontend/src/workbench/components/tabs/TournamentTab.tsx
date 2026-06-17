@@ -1,6 +1,7 @@
 import '@material/web/icon/icon.js';
 import {useMemo} from 'react';
 import type {Hypothesis, MatchRow} from '@/api/runs';
+import {useT} from '@/i18n';
 import {EloTrajectoryChart} from '../EloTrajectoryChart';
 
 /**
@@ -15,6 +16,7 @@ export function TournamentTab({
   matches: MatchRow[];
   hypotheses: Hypothesis[];
 }) {
+  const t = useT();
   const byId = useMemo(
     () => Object.fromEntries(hypotheses.map(h => [h.id, h])),
     [hypotheses],
@@ -35,7 +37,7 @@ export function TournamentTab({
           color: 'var(--md-sys-color-on-surface-variant)',
         }}
       >
-        Tournament matchups appear here after the ranking node runs.
+        {t('tournament.empty')}
       </div>
     );
   }
@@ -47,7 +49,7 @@ export function TournamentTab({
       <div className="grid lg:grid-cols-3 gap-4">
         <section className="lg:col-span-1 space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide">
-            Leaderboard
+            {t('tournament.leaderboard')}
           </h2>
           <ol
             className="rounded border divide-y wb-fade-in"
@@ -91,7 +93,10 @@ export function TournamentTab({
                             'color-mix(in srgb, var(--md-sys-color-tertiary) 18%, transparent)',
                           color: 'var(--md-sys-color-on-surface)',
                         }}
-                        title={`${h.win_count} wins / ${h.loss_count} losses`}
+                        title={t('tournament.winLossTitle', {
+                          wins: h.win_count,
+                          losses: h.loss_count,
+                        })}
                       >
                         {winRate}%
                       </span>
@@ -114,7 +119,7 @@ export function TournamentTab({
 
         <section className="lg:col-span-2 space-y-2">
           <h2 className="text-sm font-semibold uppercase tracking-wide">
-            Matchups{' '}
+            {t('tournament.matchups')}{' '}
             <span style={{color: 'var(--md-sys-color-on-surface-variant)'}}>
               ({matches.length})
             </span>
@@ -145,7 +150,7 @@ export function TournamentTab({
                           color: 'var(--md-sys-color-on-secondary-container)',
                         }}
                       >
-                        Iter {m.iteration}
+                        {t('tournament.iter', {n: m.iteration})}
                       </span>
                       <span
                         className="text-[10px] uppercase tracking-wide"
@@ -153,7 +158,7 @@ export function TournamentTab({
                           color: 'var(--md-sys-color-on-surface-variant)',
                         }}
                       >
-                        Match result
+                        {t('tournament.matchResult')}
                       </span>
                     </div>
                     <div
@@ -168,11 +173,13 @@ export function TournamentTab({
                           className="text-[10px] font-semibold uppercase tracking-wide"
                           style={{color: 'var(--md-sys-color-primary)'}}
                         >
-                          Winner
+                          {t('tournament.winner')}
                         </span>
                         <span
                           className="font-mono text-xs"
-                          title={`+${wDelta} Elo`}
+                          title={t('tournament.winnerEloDelta', {
+                            delta: wDelta,
+                          })}
                           style={{color: 'var(--md-sys-color-primary)'}}
                         >
                           {m.winner_elo_before} → {m.winner_elo_after}
@@ -194,11 +201,11 @@ export function TournamentTab({
                           className="text-[10px] font-semibold uppercase tracking-wide"
                           style={{color: 'var(--md-sys-color-error)'}}
                         >
-                          Runner-up
+                          {t('tournament.runnerUp')}
                         </span>
                         <span
                           className="font-mono text-xs"
-                          title={`${lDelta} Elo`}
+                          title={t('tournament.loserEloDelta', {delta: lDelta})}
                           style={{color: 'var(--md-sys-color-error)'}}
                         >
                           {m.loser_elo_before} → {m.loser_elo_after}
@@ -223,14 +230,14 @@ export function TournamentTab({
                         color: 'var(--md-sys-color-on-secondary-container)',
                       }}
                     >
-                      Iter {m.iteration}
+                      {t('tournament.iter', {n: m.iteration})}
                     </span>
                     <span className="flex-1 truncate font-medium">
                       {w?.title ?? m.winner_id}
                     </span>
                     <span
                       className="font-mono text-xs"
-                      title={`+${wDelta} Elo`}
+                      title={t('tournament.winnerEloDelta', {delta: wDelta})}
                       style={{color: 'var(--md-sys-color-primary)'}}
                     >
                       {m.winner_elo_before}{' '}
@@ -254,7 +261,7 @@ export function TournamentTab({
                     </span>
                     <span
                       className="font-mono text-xs"
-                      title={`${lDelta} Elo`}
+                      title={t('tournament.loserEloDelta', {delta: lDelta})}
                       style={{color: 'var(--md-sys-color-error)'}}
                     >
                       {m.loser_elo_before}{' '}

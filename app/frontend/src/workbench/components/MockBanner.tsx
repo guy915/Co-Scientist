@@ -1,11 +1,13 @@
 import '@material/web/icon/icon.js';
 import {useEffect, useState} from 'react';
 import {getSystemStatus, type SystemStatus} from '@/api/runs';
+import {useT} from '@/i18n';
 
 /**
  * Renders a footer banner indicating live-engine or offline mock mode.
  */
 export function MockBanner() {
+  const t = useT();
   const [status, setStatus] = useState<SystemStatus | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -32,8 +34,10 @@ export function MockBanner() {
           borderColor: 'var(--md-sys-color-outline-variant)',
         }}
       >
-        Live engine mode &middot; provider: <strong>{status.provider}</strong>{' '}
-        &middot; model: <strong>{status.model_name}</strong>
+        {t('runDetail.banner.liveMode')} &middot;{' '}
+        {t('runDetail.banner.provider')} <strong>{status.provider}</strong>{' '}
+        &middot; {t('runDetail.banner.model')}{' '}
+        <strong className="force-ltr">{status.model_name}</strong>
       </div>
     );
   }
@@ -52,11 +56,14 @@ export function MockBanner() {
         warning
       </md-icon>
       <span>
-        <strong>Mock Mode</strong> — no LLM provider key detected. The workflow
-        runs deterministic offline data so the full UI surface is exercisable.
-        Set <code>GEMINI_API_KEY</code> / <code>OPENAI_API_KEY</code> /{' '}
-        <code>ANTHROPIC_API_KEY</code> in <code>.env</code> to use the real
-        engine.
+        <strong>{t('runDetail.banner.mockTitle')}</strong>
+        {t('runDetail.banner.mockBody')}
+        <code className="force-ltr">GEMINI_API_KEY</code> /{' '}
+        <code className="force-ltr">OPENAI_API_KEY</code> /{' '}
+        <code className="force-ltr">ANTHROPIC_API_KEY</code>
+        {t('runDetail.banner.mockBodyEnd')}
+        <code className="force-ltr">.env</code>
+        {t('runDetail.banner.mockBodyTail')}
       </span>
     </div>
   );

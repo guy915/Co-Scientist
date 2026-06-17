@@ -2,6 +2,36 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Set document direction/language before first paint to avoid an RTL
+      // flash for Hebrew users. Mirrors the synchronous detection in the
+      // LocaleProvider (stored choice, then browser language); the geo-IP hint
+      // is applied later by React. Keep the supported-locale list in sync with
+      // src/i18n/types.ts.
+      (function () {
+        try {
+          var LOCALES = ['en', 'he'];
+          var RTL = ['he'];
+          var stored = localStorage.getItem('coscientist-locale');
+          var locale = LOCALES.indexOf(stored) !== -1 ? stored : null;
+          if (!locale) {
+            var langs = navigator.languages || [navigator.language || 'en'];
+            for (var i = 0; i < langs.length; i++) {
+              var base = String(langs[i]).toLowerCase().split('-')[0];
+              if (LOCALES.indexOf(base) !== -1) {
+                locale = base;
+                break;
+              }
+            }
+          }
+          locale = locale || 'en';
+          document.documentElement.lang = locale;
+          document.documentElement.dir = RTL.indexOf(locale) !== -1 ? 'rtl' : 'ltr';
+        } catch (e) {
+          /* ignore */
+        }
+      })();
+    </script>
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" sizes="any" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

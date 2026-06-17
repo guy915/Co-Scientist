@@ -24,6 +24,7 @@ import {
   type SafetyDecision,
 } from '@/api/runs';
 import {type StreamEvent, useRunStream} from '@/hooks/useRunStream';
+import {useT} from '@/i18n';
 import {MdSecondaryTabs} from '@/md3/MdTabs';
 import {IdeaModal} from '../components/IdeaModal';
 import {RunStatusPill} from '../components/RunStatusPill';
@@ -53,10 +54,20 @@ const TAB_ICON_NAMES: Record<TabName, string> = {
   chat: 'chat',
 };
 
+const TAB_LABEL_KEYS: Record<TabName, string> = {
+  overview: 'runDetail.tab.overview',
+  ideas: 'runDetail.tab.ideas',
+  evidence: 'runDetail.tab.evidence',
+  tournament: 'runDetail.tab.tournament',
+  report: 'runDetail.tab.report',
+  chat: 'runDetail.tab.chat',
+};
+
 /**
  * Renders a single run's tabbed detail view with live streaming updates.
  */
 export function RunDetail() {
+  const t = useT();
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const navigate = useNavigate();
   const activeTab = (
@@ -130,17 +141,22 @@ export function RunDetail() {
   useEffect(() => {
     if (!terminal || !run) return;
     if (run.status === 'completed') {
-      setToast({type: 'info', message: 'Run completed.'});
-      const t = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(t);
+      setToast({type: 'info', message: t('runDetail.toast.completed')});
+      const timer = setTimeout(() => setToast(null), 3000);
+      return () => clearTimeout(timer);
     }
     if (run.status === 'failed' || run.status === 'blocked') {
       setToast({
         type: 'error',
-        message: `Run ${run.status}${run.error ? `: ${run.error}` : ''}`,
+        message: run.error
+          ? t('runDetail.toast.failedWithError', {
+              status: run.status,
+              error: run.error,
+            })
+          : t('runDetail.toast.failed', {status: run.status}),
       });
     }
-  }, [terminal, run]);
+  }, [terminal, run, t]);
 
   const onCancel = useCallback(async () => {
     if (!id) return;
@@ -159,8 +175,8 @@ export function RunDetail() {
 
   const onTabChange = useCallback(
     (index: number) => {
-      const t = TABS[index];
-      if (t) void navigate(`/runs/${id}/${t === 'overview' ? '' : t}`);
+      const name = TABS[index];
+      if (name) void navigate(`/runs/${id}/${name === 'overview' ? '' : name}`);
     },
     [id, navigate],
   );
@@ -169,9 +185,9 @@ export function RunDetail() {
 
   const isLiveActive = isOpen && !terminal;
 
-  const tabList = TABS.map(t => ({
-    label: t.charAt(0).toUpperCase() + t.slice(1),
-    icon: TAB_ICON_NAMES[t],
+  const tabList = TABS.map(name => ({
+    label: t(TAB_LABEL_KEYS[name]),
+    icon: TAB_ICON_NAMES[name],
   }));
 
   const activeTabIndex = TABS.indexOf(activeTab);
@@ -187,12 +203,12 @@ export function RunDetail() {
           <md-icon aria-hidden="true" style={{fontSize: '14px'}}>
             arrow_back
           </md-icon>{' '}
-          All runs
+          {t('runDetail.header.allRuns')}
         </Link>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0 flex-1 space-y-2">
             <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:md-typescale-headline-medium">
-              {run?.research_goal ?? 'Loading…'}
+              {run?.research_goal ?? t('label.loading')}
             </h1>
             <div
               className="flex items-center gap-x-2 gap-y-1 text-sm flex-wrap"
@@ -207,7 +223,7 @@ export function RunDetail() {
                     color: 'var(--md-sys-color-on-secondary-container)',
                   }}
                 >
-                  Example
+                  {t('label.example')}
                 </span>
               )}
               {run && (
@@ -215,13 +231,14 @@ export function RunDetail() {
                   <span className="sm:inline" aria-hidden="true">
                     ·
                   </span>
-                  Profile <strong className="capitalize">{run.profile}</strong>
+                  {t('label.profile')}{' '}
+                  <strong className="capitalize">{run.profile}</strong>
                 </span>
               )}
               {run && (
                 <span className="inline-flex items-center gap-1">
                   <span aria-hidden="true">·</span>
-                  Provider{' '}
+                  {t('label.provider')}{' '}
                   <strong className="capitalize">{run.provider}</strong>
                 </span>
               )}
@@ -230,7 +247,8 @@ export function RunDetail() {
                   className="inline-flex items-center gap-1"
                   aria-live="polite"
                 >
-                  · <span className="wb-live-dot" aria-hidden="true" /> live
+                  · <span className="wb-live-dot" aria-hidden="true" />{' '}
+                  {t('runDetail.header.live')}
                 </span>
               )}
             </div>
@@ -242,7 +260,7 @@ export function RunDetail() {
               <md-icon slot="icon" aria-hidden="true">
                 refresh
               </md-icon>
-              Refresh
+              {t('runDetail.action.refresh')}
             </md-outlined-button>
             {run?.status === 'running' || run?.status === 'queued' ? (
               <md-outlined-button
@@ -259,7 +277,7 @@ export function RunDetail() {
                 <md-icon slot="icon" aria-hidden="true">
                   stop
                 </md-icon>
-                Cancel
+                {t('action.cancel')}
               </md-outlined-button>
             ) : null}
             {report && (
@@ -276,7 +294,7 @@ export function RunDetail() {
                 <md-icon slot="icon" aria-hidden="true">
                   download
                 </md-icon>
-                Export Report
+                {t('runDetail.action.exportReport')}
               </md-outlined-button>
             )}
           </div>

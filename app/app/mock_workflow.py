@@ -63,14 +63,40 @@ PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+# Config keys whose values are numeric and get coerced to int. Other keys
+# (e.g. "language", "notes") are carried through as-is.
+_NUMERIC_CONFIG_KEYS = frozenset({
+    "initial_hypotheses_count",
+    "max_iterations",
+    "evolution_max_count",
+    "k_factor",
+})
 
-def resolved_config(profile: str,
-                    overrides: dict[str, int] | None = None) -> dict[str, int]:
-    base = dict(PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS["standard"]))
+
+def resolved_config(
+    profile: str,
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Merge profile defaults with run overrides into an effective config.
+
+    Numeric override values are coerced to int; non-numeric keys (e.g.
+    "language", "notes") are carried through untouched. ``None`` values are
+    ignored so they fall back to the profile default.
+
+    Args:
+        profile: Run profile name selecting the default preset.
+        overrides: Per-run config values that take precedence over defaults.
+
+    Returns:
+        The effective configuration dict.
+    """
+    base: dict[str, Any] = dict(
+        PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS["standard"]))
     if overrides:
         for k, v in overrides.items():
-            if v is not None:
-                base[k] = int(v)
+            if v is None:
+                continue
+            base[k] = int(v) if k in _NUMERIC_CONFIG_KEYS else v
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     return base
 

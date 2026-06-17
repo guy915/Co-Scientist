@@ -36,6 +36,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import engine_adapter, store
+from app.i18n import language_name
 from app.store import RunRow, RunStatus, TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -75,6 +76,7 @@ class CreateRunRequest(BaseModel):
     evolution_max_count: int | None = None
     k_factor: int | None = None
     notes: str | None = None
+    language: str | None = Field(None, pattern="^[a-z]{2}(-[A-Z]{2})?$")
 
 
 class StartRunRequest(BaseModel):
@@ -138,6 +140,7 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         "evolution_max_count": req.evolution_max_count,
         "k_factor": req.k_factor,
         "notes": req.notes,
+        "language": req.language,
     }
     run = store.create_run(
         research_goal=req.research_goal,
@@ -496,6 +499,12 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         f"Recent tournament matches:\n{match_lines or '(none yet)'}\n\n"
         f"Conversation history:\n{conv_lines or '(none)'}\n\n"
         f"Answer concisely and accurately. Do not repeat the question.")
+
+    lang = language_name(run.config.get("language"))
+    if lang:
+        system_prompt += (
+            f"\n\nIMPORTANT: Write your entire answer in {lang}, regardless of "
+            f"the language of the question or the data above.")
 
     model = os.getenv("CHAT_MODEL_NAME") or os.getenv("MODEL_NAME",
                                                       "deepseek/deepseek-chat")

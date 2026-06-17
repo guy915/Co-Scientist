@@ -17,17 +17,21 @@ import {
   type SystemStatus,
 } from '@/api/runs';
 import {RunStatusPill} from '../components/RunStatusPill';
+import {useT} from '@/i18n';
+import type {TFunction} from '@/i18n';
 
 function fmtDate(ts: number) {
   return new Date(ts * 1000).toLocaleString();
 }
 
-function fmtRelative(ts: number) {
+function fmtRelative(ts: number, t: TFunction) {
   const diff = Date.now() / 1000 - ts;
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  if (diff < 60) return t('dashboard.time.justNow');
+  if (diff < 3600)
+    return t('dashboard.time.minutesAgo', {count: Math.floor(diff / 60)});
+  if (diff < 86400)
+    return t('dashboard.time.hoursAgo', {count: Math.floor(diff / 3600)});
+  return t('dashboard.time.daysAgo', {count: Math.floor(diff / 86400)});
 }
 
 function formatModelName(rawName: string): string {
@@ -54,23 +58,27 @@ function formatModelName(rawName: string): string {
 
 type Filter = 'all' | RunStatus;
 
-const FILTER_LABELS: Record<Filter, string> = {
-  all: 'All',
-  draft: 'Draft',
-  queued: 'Queued',
-  running: 'Running',
-  synthesizing: 'Synthesizing',
-  completed: 'Completed',
-  failed: 'Failed',
-  blocked: 'Blocked',
-  cancelled: 'Cancelled',
-};
+function filterLabel(f: Filter, t: TFunction): string {
+  const map: Record<Filter, string> = {
+    all: t('status.all'),
+    draft: t('status.draft'),
+    queued: t('status.queued'),
+    running: t('status.running'),
+    synthesizing: t('status.synthesizing'),
+    completed: t('status.completed'),
+    failed: t('status.failed'),
+    blocked: t('status.blocked'),
+    cancelled: t('status.cancelled'),
+  };
+  return map[f] ?? f;
+}
 
 /**
  * Renders the run dashboard with summary stats and the searchable run list.
  */
 export function Dashboard() {
   const navigate = useNavigate();
+  const t = useT();
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [summaries, setSummaries] = useState<Record<string, RunSummary>>({});
   const [demoRuns, setDemoRuns] = useState<Run[]>([]);
@@ -168,14 +176,13 @@ export function Dashboard() {
       <header className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="md-typescale-headline-medium text-2xl font-semibold tracking-tight">
-            Research runs
+            {t('dashboard.title')}
           </h1>
           <p
             className="text-sm"
             style={{color: 'var(--md-sys-color-on-surface-variant)'}}
           >
-            Hypothesis-generation workspace. Each run is durable, replayable,
-            and reopenable.
+            {t('dashboard.subtitle')}
           </p>
         </div>
         <md-filled-button
@@ -184,40 +191,44 @@ export function Dashboard() {
           <md-icon slot="icon" aria-hidden="true">
             add
           </md-icon>
-          New run
+          {t('action.newRun')}
         </md-filled-button>
       </header>
 
       {totals && (
         <section className="grid grid-cols-2 sm:grid-cols-4 gap-2 wb-fade-in">
           <StatCard
-            label="Total runs"
+            label={t('dashboard.stat.totalRuns')}
             value={totals.total}
-            sub={`${totals.completed} completed`}
+            sub={t('dashboard.stat.completedCount', {count: totals.completed})}
           />
           <StatCard
-            label="Active"
+            label={t('status.active')}
             value={totals.running}
-            sub={totals.running ? 'In progress' : 'No runs in progress'}
+            sub={
+              totals.running
+                ? t('dashboard.stat.inProgress')
+                : t('dashboard.stat.noRunsInProgress')
+            }
           />
           <StatCard
-            label="Hypotheses generated"
+            label={t('dashboard.stat.hypothesesGenerated')}
             value={totals.hypotheses}
-            sub={`${totals.matches} matches`}
+            sub={t('dashboard.stat.matchesCount', {count: totals.matches})}
           />
           <StatCard
-            label="Current mode"
+            label={t('dashboard.stat.currentMode')}
             value={
               systemStatus
                 ? systemStatus.provider === 'mock'
-                  ? 'Mock'
-                  : 'Engine'
+                  ? t('dashboard.stat.modeMock')
+                  : t('dashboard.stat.modeEngine')
                 : '…'
             }
             sub={
               systemStatus
                 ? systemStatus.mock_mode
-                  ? 'No LLM key set'
+                  ? t('dashboard.stat.noLlmKey')
                   : formatModelName(systemStatus.model_name)
                 : undefined
             }
@@ -228,7 +239,7 @@ export function Dashboard() {
       <div className="flex flex-wrap items-center gap-2">
         <md-outlined-text-field
           type="search"
-          label="Search by research goal"
+          label={t('dashboard.search.label')}
           value={query}
           oninput={
             ((e: Event) =>
@@ -245,7 +256,7 @@ export function Dashboard() {
               selected={filter === f || undefined}
               onclick={(() => setFilter(f)) as EventListener}
             >
-              {FILTER_LABELS[f] ?? f}
+              {filterLabel(f, t)}
             </md-filter-chip>
           ))}
         </md-chip-set>
@@ -283,17 +294,17 @@ export function Dashboard() {
           >
             science
           </md-icon>
-          <p className="font-medium">No runs yet</p>
+          <p className="font-medium">{t('dashboard.empty.noRunsYet')}</p>
           <p
             className="text-sm mb-4"
             style={{color: 'var(--md-sys-color-on-surface-variant)'}}
           >
-            Start with a research goal to generate, debate, and rank hypotheses.
+            {t('dashboard.empty.noRunsHint')}
           </p>
           <md-filled-button
             onclick={(() => navigate('/runs/new')) as EventListener}
           >
-            Create your first run
+            {t('dashboard.empty.createFirst')}
           </md-filled-button>
         </div>
       )}
@@ -306,7 +317,7 @@ export function Dashboard() {
             color: 'var(--md-sys-color-on-surface-variant)',
           }}
         >
-          No runs match your filter.
+          {t('dashboard.empty.noMatch')}
         </div>
       )}
 
@@ -318,11 +329,13 @@ export function Dashboard() {
                 key={r.id}
                 run={r}
                 summary={r.is_demo ? demoSummaries[r.id] : summaries[r.id]}
-                secondaryLabel={r.is_demo ? 'Matches' : 'Created'}
+                secondaryLabel={
+                  r.is_demo ? t('dashboard.label.matches') : t('label.created')
+                }
                 secondaryValue={
                   r.is_demo
                     ? (demoSummaries[r.id]?.matches ?? '—')
-                    : fmtRelative(r.created_at)
+                    : fmtRelative(r.created_at, t)
                 }
                 secondaryTitle={r.is_demo ? undefined : fmtDate(r.created_at)}
                 isDemo={r.is_demo}
@@ -343,19 +356,26 @@ export function Dashboard() {
                 }}
               >
                 <tr className="text-left">
-                  <th className="px-4 py-2 font-semibold">Research goal</th>
-                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">
-                    Profile
-                  </th>
-                  <th className="px-4 py-2 font-semibold w-32">Status</th>
-                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">
-                    Provider
+                  <th className="px-4 py-2 font-semibold">
+                    {t('dashboard.table.researchGoal')}
                   </th>
                   <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">
-                    Ideas
+                    {t('label.profile')}
                   </th>
-                  <th className="px-4 py-2 font-semibold w-32" title="Created">
-                    Created
+                  <th className="px-4 py-2 font-semibold w-32">
+                    {t('label.status')}
+                  </th>
+                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">
+                    {t('label.provider')}
+                  </th>
+                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">
+                    {t('label.ideas')}
+                  </th>
+                  <th
+                    className="px-4 py-2 font-semibold w-32"
+                    title={t('label.created')}
+                  >
+                    {t('label.created')}
                   </th>
                 </tr>
               </thead>
@@ -382,7 +402,7 @@ export function Dashboard() {
                             color: 'var(--md-sys-color-on-secondary-container)',
                           }}
                         >
-                          Example
+                          {t('label.example')}
                         </span>
                       )}
                     </td>
@@ -407,7 +427,9 @@ export function Dashboard() {
                       style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                       title={r.is_demo ? undefined : fmtDate(r.created_at)}
                     >
-                      {r.is_demo ? 'Example' : fmtRelative(r.created_at)}
+                      {r.is_demo
+                        ? t('label.example')
+                        : fmtRelative(r.created_at, t)}
                     </td>
                   </tr>
                 ))}
@@ -435,6 +457,7 @@ function RunCard({
   secondaryTitle?: string;
   isDemo?: boolean;
 }) {
+  const t = useT();
   return (
     <Link
       to={`/runs/${run.id}`}
@@ -455,7 +478,7 @@ function RunCard({
                 color: 'var(--md-sys-color-on-secondary-container)',
               }}
             >
-              Example
+              {t('label.example')}
             </span>
           )}
         </div>
@@ -477,13 +500,13 @@ function RunCard({
         }}
       >
         <div>
-          <dt className="uppercase tracking-wide">Profile</dt>
+          <dt className="uppercase tracking-wide">{t('label.profile')}</dt>
           <dd className="mt-1 font-medium capitalize text-[color:var(--md-sys-color-on-surface)]">
             {run.profile}
           </dd>
         </div>
         <div>
-          <dt className="uppercase tracking-wide">Ideas</dt>
+          <dt className="uppercase tracking-wide">{t('label.ideas')}</dt>
           <dd className="mt-1 font-medium text-[color:var(--md-sys-color-on-surface)]">
             {summary?.hypotheses ?? '—'}
           </dd>
