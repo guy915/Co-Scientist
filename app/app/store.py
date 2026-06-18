@@ -119,6 +119,14 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     # Remove runs that predate client isolation (no client_id assigned).
     conn.execute("DELETE FROM runs WHERE client_id = ''")
 
+    report_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(reports)").fetchall()
+    }
+    if "markdown_text" not in report_cols:
+        conn.execute("ALTER TABLE reports ADD COLUMN markdown_text TEXT")
+        logger.info("migration: added markdown_text column to reports")
+
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -264,6 +272,7 @@ CREATE TABLE IF NOT EXISTS reports (
     run_id TEXT NOT NULL,
     payload_json TEXT NOT NULL,      -- structured report (Overview, Ideas, Tournament, Citations, Safety)
     markdown_path TEXT,
+    markdown_text TEXT,              -- full markdown stored in DB for durability across restarts
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
@@ -951,6 +960,10 @@ def save_report(
 ) -> dict[str, str]:
     """Persist a report as a JSON row plus a rendered Markdown file.
 
+    The markdown is stored in both the database (markdown_text column, for
+    durability across container restarts) and on disk (markdown_path, kept
+    for backwards-compatibility and local dev convenience).
+
     Args:
         run_id: Identifier of the run the report belongs to.
         payload: Structured report payload serialized to JSON.
@@ -962,12 +975,17 @@ def save_report(
     """
     report_id = str(uuid.uuid4())
     md_path = _reports_dir() / f"{run_id}.md"
-    md_path.write_text(markdown, encoding="utf-8")
+    try:
+        md_path.write_text(markdown, encoding="utf-8")
+    except OSError:
+        logger.warning("Could not write report markdown to disk at %s", md_path)
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO reports (id, run_id, payload_json, markdown_path, created_at) "  # pylint: disable=line-too-long
-            "VALUES (?,?,?,?,?)",
-            (report_id, run_id, json.dumps(payload), str(md_path), _now()),
+            "INSERT INTO reports "
+            "(id, run_id, payload_json, markdown_path, markdown_text, created_at) "  # pylint: disable=line-too-long
+            "VALUES (?,?,?,?,?,?)",
+            (report_id, run_id, json.dumps(payload), str(md_path), markdown,
+             _now()),
         )
     return {"id": report_id, "markdown_path": str(md_path)}
 
@@ -980,20 +998,42 @@ def get_latest_report(run_id: str,
             (run_id,)).fetchone()
         if not row:
             return None
+        keys = row.keys()
         return {
             "id": row["id"],
             "run_id": row["run_id"],
             "payload": json.loads(row["payload_json"]),
             "markdown_path": row["markdown_path"],
+            "markdown_text": row["markdown_text"] if "markdown_text" in keys else None,  # pylint: disable=line-too-long
             "created_at": row["created_at"],
         }
 
 
 def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
+    """Return the markdown text for the latest report of a run.
+
+    Prefers the markdown_text column stored in the database (durable across
+    container restarts). Falls back to reading the on-disk file for rows that
+    predate the markdown_text column.
+
+    Args:
+        run_id: Identifier of the run.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The markdown string, or None if no report exists.
+    """
     latest = get_latest_report(run_id, db_path=db_path)
     if not latest:
         return None
-    path = Path(latest["markdown_path"])
+    # Prefer the DB-stored text (resilient to filesystem loss).
+    if latest.get("markdown_text"):
+        return latest["markdown_text"]
+    # Fallback: read from disk for rows written before the markdown_text column.
+    md_path = latest.get("markdown_path")
+    if not md_path:
+        return None
+    path = Path(md_path)
     if not path.exists():
         return None
     return path.read_text(encoding="utf-8")

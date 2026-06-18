@@ -36,26 +36,40 @@ _DEMO_GOALS: list[tuple[str, str]] = [
 
 
 async def seed_demo_runs(db_path: str | None = None) -> None:
-    """Seed demo runs if they are not already present."""
-    existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
-    if len(existing) >= len(_DEMO_GOALS):
-        logger.info("demo runs already seeded (%d found), skipping",
-                    len(existing))
-        return
+    """Seed demo runs if they are not already present.
 
-    existing_goals = {r.research_goal for r in existing}
+    Also re-seeds any existing demo run whose report is missing or
+    unreadable (e.g. after a container restart that cleared the on-disk
+    .md files before the markdown_text column was added).
+    """
+    existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
+    existing_by_goal = {r.research_goal: r for r in existing}
+
     for goal, profile in _DEMO_GOALS:
-        if goal in existing_goals:
-            continue
-        try:
-            run = store.create_run(
-                research_goal=goal,
-                profile=profile,
-                provider="mock",
-                config={},
-                client_id=DEMO_CLIENT_ID,
-                db_path=db_path,
+        run = existing_by_goal.get(goal)
+        if run is not None:
+            # Check whether the report is readable; skip if it is.
+            md = store.read_report_markdown(run.id, db_path=db_path)
+            if md is not None:
+                logger.info(
+                    "demo run %s already has a report, skipping",
+                    run.id[:8],
+                )
+                continue
+            logger.info(
+                "demo run %s exists but has no readable report; re-seeding",
+                run.id[:8],
             )
+        try:
+            if run is None:
+                run = store.create_run(
+                    research_goal=goal,
+                    profile=profile,
+                    provider="mock",
+                    config={},
+                    client_id=DEMO_CLIENT_ID,
+                    db_path=db_path,
+                )
             async for _ in run_mock_workflow(
                     run_id=run.id,
                     research_goal=goal,
