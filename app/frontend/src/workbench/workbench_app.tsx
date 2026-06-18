@@ -6,6 +6,7 @@ import {NoIndex} from '@/public/no_index';
 import {NotFoundPage} from '@/public/not_found_page';
 import {useGlobalShortcuts} from './hooks/use_global_shortcuts';
 import {Layout} from './layout';
+import {LogProvider} from './log_context';
 import {ChatWorkspace} from './pages/chat_workspace';
 import {Dashboard} from './pages/dashboard';
 import {RunDetail} from './pages/run_detail';
@@ -23,9 +24,10 @@ export function WorkbenchApp() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <Layout>
-          <ShortcutsBridge />
-          <Routes>
+        <LogProvider>
+          <Layout>
+            <ShortcutsBridge />
+            <Routes>
             <Route
               path="/"
               element={
@@ -75,7 +77,8 @@ export function WorkbenchApp() {
             />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
-        </Layout>
+          </Layout>
+        </LogProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );
