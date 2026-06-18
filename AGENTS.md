@@ -206,3 +206,11 @@ Never mention yourself or any other AI tool in commits, pull requests, or pushes
 - No references to AI tools (Claude, Devin, ChatGPT, Copilot, etc.) anywhere in git history.
 
 Commit messages should read as if written directly by the human developer.
+
+Commit messages must follow the format `<type>(<scope>): <subject>`. Common types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`. Example:
+
+```
+feat(runs): add markdown_text column to reports table
+fix(report-tab): handle missing markdown gracefully
+docs(engine): rename docs to UPPER_SNAKE_CASE
+```
