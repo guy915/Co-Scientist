@@ -62,6 +62,7 @@ const SUGGESTIONS = [
   'Identify novel mechanisms of selective autophagy in aging neural tissue.',
   'Propose drug repurposing candidates for triple-negative breast cancer through mitochondrial biogenesis.',
   'Investigate how cold stress reshapes glucose homeostasis via brown adipose signalling.',
+  'Discover synthetic lethality partners for KRAS-mutant pancreatic ductal adenocarcinoma.',
 ];
 
 const TERMINAL_STATUSES: RunStatus[] = [
