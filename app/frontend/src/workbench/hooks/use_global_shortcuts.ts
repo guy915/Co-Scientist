@@ -4,7 +4,7 @@ import {useLocation, useNavigate} from 'react-router-dom';
 /**
  * Global keyboard shortcuts:
  *   g d  -> /runs
- *   g n  -> /runs/new
+ *   g n  -> /
  *   ←/→  -> cycle tabs on /runs/:id
  * Inputs and textareas are ignored so typing doesn't trigger the bindings.
  */
@@ -48,7 +48,7 @@ export function useGlobalShortcuts() {
       }
       if (wasG && e.key === 'n') {
         e.preventDefault();
-        void navigate('/runs/new');
+        void navigate('/');
         return;
       }
 

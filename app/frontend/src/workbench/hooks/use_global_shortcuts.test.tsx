@@ -41,11 +41,11 @@ describe('useGlobalShortcuts', () => {
     expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs');
   });
 
-  it('navigates to /runs/new on the "g n" sequence', () => {
+  it('navigates to / on the "g n" sequence', () => {
     renderHook(() => useGlobalShortcuts(), {wrapper: wrapperAt('/runs')});
     keyDown('g');
     keyDown('n');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/new');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/');
   });
 
   it('does not navigate for a bare key without the leading "g"', () => {

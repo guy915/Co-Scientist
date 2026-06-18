@@ -13,7 +13,28 @@ import {ThemeToggle} from './components/theme_toggle';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isPublicRoute = !location.pathname.startsWith('/runs');
+  const isChatWorkspace =
+    location.pathname === '/' || location.pathname === '/runs/new';
+  const isPublicRoute =
+    !location.pathname.startsWith('/runs') && !isChatWorkspace;
+
+  if (isChatWorkspace) {
+    return (
+      <div
+        className="min-h-screen wb-fade-in"
+        style={{
+          backgroundColor: 'var(--color-th-bg)',
+          color: 'var(--color-th-fg)',
+        }}
+      >
+        <div className="fixed top-3 right-3 z-30">
+          <LogConsole />
+        </div>
+        {children}
+      </div>
+    );
+  }
+
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -32,7 +53,7 @@ export function Layout({children}: {children: ReactNode}) {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
           <Link
-            to="/"
+            to={isPublicRoute ? '/about' : '/'}
             className="flex items-center gap-2 font-semibold shrink-0"
           >
             <svg
@@ -54,7 +75,7 @@ export function Layout({children}: {children: ReactNode}) {
           <nav className="flex items-center gap-2 sm:gap-3 text-sm">
             {isPublicRoute && (
               <div className="hidden md:flex items-center gap-6 mr-2">
-                <a className="public-nav-link" href="/#workflow-title">
+                <a className="public-nav-link" href="/about#workflow-title">
                   How it works
                 </a>
                 <Link
@@ -63,7 +84,7 @@ export function Layout({children}: {children: ReactNode}) {
                 >
                   Demo
                 </Link>
-                <a className="public-nav-link" href="/#research">
+                <a className="public-nav-link" href="/about#research">
                   Research
                 </a>
               </div>
@@ -72,7 +93,9 @@ export function Layout({children}: {children: ReactNode}) {
               <ThemeToggle />
             </span>
             <md-outlined-button
-              onclick={(() => navigate('/runs')) as EventListener}
+              onclick={
+                (() => navigate(isPublicRoute ? '/' : '/runs')) as EventListener
+              }
               style={
                 location.pathname.startsWith('/runs')
                   ? ({

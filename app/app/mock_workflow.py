@@ -70,7 +70,10 @@ def resolved_config(profile: str,
     if overrides:
         for k, v in overrides.items():
             if v is not None:
-                base[k] = int(v)
+                try:
+                    base[k] = int(v)
+                except (ValueError, TypeError):
+                    pass
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     return base
 

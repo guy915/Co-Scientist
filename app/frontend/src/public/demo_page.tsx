@@ -126,9 +126,9 @@ export function DemoPage() {
                 Open this demo
               </PublicLinkButton>
             ) : (
-              <PublicLinkButton to="/runs">Open the workbench</PublicLinkButton>
+              <PublicLinkButton to="/">Open the workbench</PublicLinkButton>
             )}
-            <PublicLinkButton to="/runs/new" variant="outline">
+            <PublicLinkButton to="/" variant="outline">
               Start a new run
             </PublicLinkButton>
           </div>

@@ -51,7 +51,7 @@ export function LandingPage() {
       <Seo
         title="Co-Scientist"
         description="An AI-powered assistant for scientific discovery. Generates hypotheses, debates approaches, and proposes solutions – grounded in literature."
-        path="/"
+        path="/about"
         jsonLd={landingJsonLd}
       />
 
@@ -65,7 +65,7 @@ export function LandingPage() {
               Accelerating scientific discovery with AI-driven collaboration.
             </p>
             <div className="landing-actions">
-              <PublicLinkButton to="/runs">Open the workbench</PublicLinkButton>
+              <PublicLinkButton to="/">Open the workbench</PublicLinkButton>
               <PublicLinkButton
                 to={`/demos/${featuredDemo.slug}`}
                 variant="outline"
@@ -164,9 +164,7 @@ export function LandingPage() {
             <p>Generate, challenge, and refine hypotheses in the workbench.</p>
           </div>
           <div className="landing-actions">
-            <PublicLinkButton to="/runs/new">
-              Start a research run
-            </PublicLinkButton>
+            <PublicLinkButton to="/">Start a research run</PublicLinkButton>
             <a
               className="public-button public-button--outline"
               href="https://github.com/guy915/Co-Scientist"
