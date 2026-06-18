@@ -35,12 +35,12 @@ import {ReportTab} from '../components/tabs/report_tab';
 import {TournamentTab} from '../components/tabs/tournament_tab';
 
 const TABS = [
+  'chat',
   'overview',
   'ideas',
   'evidence',
   'tournament',
   'report',
-  'chat',
 ] as const;
 type TabName = (typeof TABS)[number];
 
@@ -60,7 +60,7 @@ export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const navigate = useNavigate();
   const activeTab = (
-    tab && (TABS as readonly string[]).includes(tab) ? tab : 'overview'
+    tab && (TABS as readonly string[]).includes(tab) ? tab : 'chat'
   ) as TabName;
 
   const [run, setRun] = useState<RunWithSummary | null>(null);
@@ -160,7 +160,7 @@ export function RunDetail() {
   const onTabChange = useCallback(
     (index: number) => {
       const t = TABS[index];
-      if (t) void navigate(`/runs/${id}/${t === 'overview' ? '' : t}`);
+      if (t) void navigate(`/runs/${id}/${t === 'chat' ? '' : t}`);
     },
     [id, navigate],
   );

@@ -43,6 +43,11 @@ export function useMessages(
   }, [runId]);
 
   useEffect(() => {
+    if (!runId) {
+      setMessages([]);
+      setError(null);
+      return;
+    }
     void fetchMessages();
     if (isRunActive) {
       pollRef.current = setInterval(() => void fetchMessages(), 3000);

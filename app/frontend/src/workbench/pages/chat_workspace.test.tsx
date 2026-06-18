@@ -13,6 +13,8 @@ const apiMock = vi.hoisted(() => ({
   getReviews: vi.fn(),
   getRun: vi.fn(),
   getSystemStatus: vi.fn(),
+  askQuestionUrl: vi.fn(),
+  listMessages: vi.fn(),
   listRuns: vi.fn(),
   sendMessage: vi.fn(),
   startRun: vi.fn(),
@@ -74,6 +76,10 @@ const hypothesis = {
 };
 
 beforeEach(() => {
+  vi.unstubAllGlobals();
+  apiMock.askQuestionUrl.mockImplementation(
+    (runId: string) => `/api/runs/${runId}/messages/ask`,
+  );
   apiMock.createRun.mockResolvedValue(minimalRun({status: 'draft'}));
   apiMock.getCitations.mockResolvedValue([
     {
@@ -148,8 +154,21 @@ beforeEach(() => {
     engine_importable: true,
     model_name: 'mock',
   });
+  apiMock.listMessages.mockResolvedValue([]);
   apiMock.listRuns.mockResolvedValue([]);
-  apiMock.sendMessage.mockResolvedValue({id: 1});
+  apiMock.sendMessage.mockImplementation(
+    (runId: string, content: string, kind = 'steering') =>
+      Promise.resolve({
+        id: 1,
+        run_id: runId,
+        sender: 'user',
+        content,
+        kind,
+        created_at: Date.now() / 1000,
+        applied: false,
+        status: 'queued',
+      }),
+  );
   apiMock.startRun.mockResolvedValue({id: 'run-1', status: 'queued'});
   streamMock.useRunStream.mockReturnValue({
     events: [],
@@ -170,7 +189,9 @@ describe('ChatWorkspace', () => {
     expect(screen.getByText('History')).toBeInTheDocument();
     expect(screen.getByText('Knowledge Base')).toBeInTheDocument();
     expect(screen.getByText('Settings')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Describe a research goal...')).toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Describe a research goal...'),
+    ).toBeInTheDocument();
   });
 
   it('infers a run spec in chat and starts the durable run on confirmation', async () => {
@@ -184,7 +205,9 @@ describe('ChatWorkspace', () => {
 
     expect(await screen.findByText('Inferred run setup')).toBeInTheDocument();
     expect(screen.getByText('Start this run?')).toBeInTheDocument();
-    expect(screen.getByText('Standard hypothesis sprint')).toBeInTheDocument();
+    expect(
+      screen.getByText('Advanced hypothesis tournament'),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Start'));
 
@@ -192,7 +215,7 @@ describe('ChatWorkspace', () => {
       expect(apiMock.createRun).toHaveBeenCalledWith(
         expect.objectContaining({
           research_goal: 'Investigate glucose homeostasis under cold stress.',
-          profile: 'standard',
+          profile: 'advanced',
         }),
       );
       expect(apiMock.startRun).toHaveBeenCalledWith('run-1');
@@ -202,6 +225,149 @@ describe('ChatWorkspace', () => {
       await screen.findByText('Mitochondrial feedback hypothesis'),
     ).toBeInTheDocument();
     expect(screen.getAllByText('Report ready').length).toBeGreaterThan(0);
+  });
+
+  it('routes active-run questions to streamed Q&A instead of steering', async () => {
+    apiMock.getRun.mockResolvedValue(minimalRun({status: 'running'}));
+    streamMock.useRunStream.mockReturnValue({
+      events: [],
+      lastSeq: 0,
+      isOpen: true,
+      error: null,
+      terminal: false,
+    });
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        const enc = new TextEncoder();
+        controller.enqueue(
+          enc.encode('data: {"type":"chunk","content":"Reviewing evidence"}\n'),
+        );
+        controller.close();
+      },
+    });
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response(body, {status: 200}));
+    vi.stubGlobal('fetch', fetchMock);
+
+    renderWorkspace();
+
+    const input = screen.getByPlaceholderText('Describe a research goal...');
+    fireEvent.change(input, {target: {value: 'Investigate glucose control.'}});
+    fireEvent.submit(input.closest('form')!);
+    fireEvent.click(await screen.findByText('Start'));
+
+    const composer = await screen.findByPlaceholderText(
+      'Ask a question or steer the active run...',
+    );
+    fireEvent.change(composer, {target: {value: 'What is it doing?'}});
+    fireEvent.submit(composer.closest('form')!);
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/runs/run-1/messages/ask',
+        expect.objectContaining({method: 'POST'}),
+      );
+    });
+    expect(apiMock.sendMessage).not.toHaveBeenCalledWith(
+      'run-1',
+      'What is it doing?',
+      'steering',
+    );
+  });
+
+  it('starts a fresh welcome chat from the top-left home control', async () => {
+    renderWorkspace();
+
+    const input = screen.getByPlaceholderText('Describe a research goal...');
+    fireEvent.change(input, {target: {value: 'Investigate glucose control.'}});
+    fireEvent.submit(input.closest('form')!);
+    fireEvent.click(await screen.findByText('Start'));
+
+    expect(await screen.findByLabelText('Run progress')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('New chat'));
+
+    expect(
+      screen.getByRole('heading', {name: 'What should we investigate?'}),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText('Run progress')).not.toBeInTheDocument();
+    expect(
+      screen.getByPlaceholderText('Describe a research goal...'),
+    ).toBeInTheDocument();
+  });
+
+  it('routes active-run instructions to steering', async () => {
+    apiMock.getRun.mockResolvedValue(minimalRun({status: 'running'}));
+    streamMock.useRunStream.mockReturnValue({
+      events: [],
+      lastSeq: 0,
+      isOpen: true,
+      error: null,
+      terminal: false,
+    });
+
+    renderWorkspace();
+
+    const input = screen.getByPlaceholderText('Describe a research goal...');
+    fireEvent.change(input, {target: {value: 'Investigate glucose control.'}});
+    fireEvent.submit(input.closest('form')!);
+    fireEvent.click(await screen.findByText('Start'));
+
+    const composer = await screen.findByPlaceholderText(
+      'Ask a question or steer the active run...',
+    );
+    fireEvent.change(composer, {
+      target: {value: 'Focus the next pass on mitochondrial mechanisms.'},
+    });
+    fireEvent.submit(composer.closest('form')!);
+
+    await waitFor(() => {
+      expect(apiMock.sendMessage).toHaveBeenCalledWith(
+        'run-1',
+        'Focus the next pass on mitochondrial mechanisms.',
+        'steering',
+      );
+    });
+    const progress = screen.getByLabelText('Run progress');
+    const steeringMessage = screen.getByText(
+      'Focus the next pass on mitochondrial mechanisms.',
+    );
+    expect(
+      progress.compareDocumentPosition(steeringMessage) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    const reportReady = screen.getByText(
+      'The polished report is available as a separate structured page.',
+    );
+    expect(
+      reportReady.compareDocumentPosition(steeringMessage) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('keeps post-report local messages below the report summary', async () => {
+    renderWorkspace();
+
+    const input = screen.getByPlaceholderText('Describe a research goal...');
+    fireEvent.change(input, {target: {value: 'Investigate glucose control.'}});
+    fireEvent.submit(input.closest('form')!);
+    fireEvent.click(await screen.findByText('Start'));
+
+    const composer = await screen.findByPlaceholderText(
+      'Ask what this run is doing...',
+    );
+    fireEvent.change(composer, {target: {value: 'Thanks for the summary.'}});
+    fireEvent.submit(composer.closest('form')!);
+
+    const reportReady = await screen.findByText(
+      'The polished report is available as a separate structured page.',
+    );
+    const laterMessage = await screen.findByText('Thanks for the summary.');
+    expect(
+      reportReady.compareDocumentPosition(laterMessage) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('opens a persistent explanation panel from why-this-ranked', async () => {
@@ -216,6 +382,8 @@ describe('ChatWorkspace', () => {
 
     expect(await screen.findByText('Why this ranked')).toBeInTheDocument();
     expect(screen.getByText('Rank signal')).toBeInTheDocument();
-    expect(screen.getByText('Stronger mechanistic specificity.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Stronger mechanistic specificity.'),
+    ).toBeInTheDocument();
   });
 });
