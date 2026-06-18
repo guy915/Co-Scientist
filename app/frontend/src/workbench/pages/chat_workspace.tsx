@@ -7,6 +7,7 @@ import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 
 import {
+  Fragment,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -16,7 +17,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {Link} from 'react-router-dom';
+import {Link, useNavigate} from 'react-router-dom';
 import {
   type CitationRow,
   createRun,
@@ -32,22 +33,19 @@ import {
   type Hypothesis,
   listRuns,
   type MatchRow,
+  type Message,
   type Report,
   type Review,
   type Run,
   type RunStatus,
   type RunWithSummary,
-  sendMessage as sendRunMessage,
   startRun,
   type SystemStatus,
 } from '@/api/runs';
+import {useMessages} from '@/hooks/use_messages';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {ThemeToggle} from '../components/theme_toggle';
-import {
-  inferRunSpec,
-  type InferredRunSpec,
-  reviseRunSpec,
-} from '../run_spec';
+import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
 import {RunStatusPill} from '../components/run_status_pill';
 
 type PanelKind = 'history' | 'knowledge' | 'settings' | 'why' | null;
@@ -56,6 +54,14 @@ interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  created_at: number;
+}
+
+interface TimelineItem {
+  id: string;
+  at: number;
+  order: number;
+  node: ReactNode;
 }
 
 const SUGGESTIONS = [
@@ -71,6 +77,8 @@ const TERMINAL_STATUSES: RunStatus[] = [
   'blocked',
   'cancelled',
 ];
+
+type ActiveMessageMode = 'qa' | 'steering';
 
 const PROGRESS_STAGES = [
   {
@@ -100,12 +108,36 @@ function isTerminal(status: RunStatus | undefined): boolean {
   return Boolean(status && TERMINAL_STATUSES.includes(status));
 }
 
+function inferActiveMessageMode(text: string): ActiveMessageMode {
+  const trimmed = text.trim();
+  if (
+    trimmed.endsWith('?') ||
+    /^(why|what|how|when|who|which|explain|tell me|can you|could you)\b/i.test(
+      trimmed,
+    )
+  ) {
+    return 'qa';
+  }
+  return 'steering';
+}
+
+function latestTime(values: Array<number | null | undefined>, fallback = 0) {
+  const times = values.filter(
+    (value): value is number => typeof value === 'number',
+  );
+  return times.length ? Math.max(...times) : fallback;
+}
+
 /**
  * Renders the chat-first Co-Scientist workspace.
  */
 export function ChatWorkspace() {
+  const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [draftSpec, setDraftSpec] = useState<InferredRunSpec | null>(null);
+  const [draftSpecCreatedAt, setDraftSpecCreatedAt] = useState<number | null>(
+    null,
+  );
   const [isEditingSpec, setIsEditingSpec] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -127,6 +159,20 @@ export function ChatWorkspace() {
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {events, isOpen, terminal} = useRunStream(activeRunId, 0);
+  const isActiveRun =
+    Boolean(activeRunId) &&
+    !isTerminal(run?.status) &&
+    (isOpen ||
+      run?.status === 'queued' ||
+      run?.status === 'running' ||
+      run?.status === 'synthesizing');
+  const {
+    messages: runMessages,
+    isAnswering,
+    error: messageError,
+    sendSteering,
+    sendQuestion,
+  } = useMessages(activeRunId, isActiveRun);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -138,8 +184,15 @@ export function ChatWorkspace() {
   }, []);
 
   const refreshRun = useCallback(async (runId: string) => {
-    const [nextRun, nextHypotheses, nextEvidence, nextMatches, nextReviews,
-      nextCitations, nextReport] = await Promise.all([
+    const [
+      nextRun,
+      nextHypotheses,
+      nextEvidence,
+      nextMatches,
+      nextReviews,
+      nextCitations,
+      nextReport,
+    ] = await Promise.all([
       getRun(runId),
       getHypotheses(runId),
       getEvidence(runId),
@@ -193,10 +246,19 @@ export function ChatWorkspace() {
       return;
     }
     scroller.scrollTop = scroller.scrollHeight;
-  }, [messages.length, draftSpec, activeRunId, hypotheses.length, report]);
+  }, [
+    messages.length,
+    runMessages,
+    draftSpec,
+    draftSpecCreatedAt,
+    activeRunId,
+    hypotheses.length,
+    report,
+  ]);
 
   const topHypotheses = useMemo(
-    () => [...hypotheses].sort((a, b) => b.elo_rating - a.elo_rating).slice(0, 5),
+    () =>
+      [...hypotheses].sort((a, b) => b.elo_rating - a.elo_rating).slice(0, 5),
     [hypotheses],
   );
 
@@ -208,17 +270,23 @@ export function ChatWorkspace() {
   const hasConversation =
     messages.length > 0 || Boolean(draftSpec) || Boolean(activeRunId);
 
-  const isActiveRun =
-    Boolean(activeRunId) &&
-    !isTerminal(run?.status) &&
-    (isOpen || run?.status === 'queued' || run?.status === 'running');
-
-  function appendAssistant(content: string) {
-    setMessages(prev => [...prev, {id: id('assistant'), role: 'assistant', content}]);
+  function appendAssistant(
+    content: string,
+    createdAt = Date.now() / 1000,
+  ): number {
+    setMessages(prev => [
+      ...prev,
+      {id: id('assistant'), role: 'assistant', content, created_at: createdAt},
+    ]);
+    return createdAt;
   }
 
-  function appendUser(content: string) {
-    setMessages(prev => [...prev, {id: id('user'), role: 'user', content}]);
+  function appendUser(content: string, createdAt = Date.now() / 1000): number {
+    setMessages(prev => [
+      ...prev,
+      {id: id('user'), role: 'user', content, created_at: createdAt},
+    ]);
+    return createdAt;
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -227,33 +295,49 @@ export function ChatWorkspace() {
     if (!text) return;
     setInput('');
     setError(null);
-    appendUser(text);
 
     if (draftSpec) {
+      const sentAt = appendUser(text);
       const next = reviseRunSpec(draftSpec, text);
       setDraftSpec(next);
+      setDraftSpecCreatedAt(sentAt + 0.001);
       setIsEditingSpec(false);
-      appendAssistant('I updated the run setup. Start it when the spec looks right.');
+      appendAssistant(
+        'I updated the run setup. Start it when the spec looks right.',
+        sentAt + 0.002,
+      );
       return;
     }
 
     if (!activeRunId) {
+      const sentAt = appendUser(text);
       setDraftSpec(inferRunSpec(text));
+      setDraftSpecCreatedAt(sentAt + 0.001);
       return;
     }
 
-    if (isActiveRun && activeRunId) {
-      appendAssistant('I will apply that as steering for the active run.');
+    if (inferActiveMessageMode(text) === 'qa') {
       try {
-        await sendRunMessage(activeRunId, text, 'steering');
+        await sendQuestion(text);
       } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
       }
       return;
     }
 
+    if (isActiveRun) {
+      try {
+        await sendSteering(text);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      }
+      return;
+    }
+
+    const sentAt = appendUser(text);
     appendAssistant(
       'This run is no longer active. Use the report or the ranked hypothesis cards below to continue reviewing the result.',
+      sentAt + 0.001,
     );
   }
 
@@ -274,8 +358,12 @@ export function ChatWorkspace() {
       setRun(created);
       setActiveRunId(created.id);
       setDraftSpec(null);
+      setDraftSpecCreatedAt(null);
       setIsEditingSpec(false);
-      appendAssistant('Starting the run. I will keep the progress compact here.');
+      appendAssistant(
+        'Starting the run. I will keep the progress compact here.',
+        created.created_at + 0.001,
+      );
       await startRun(created.id);
       await refreshRun(created.id);
       await loadHistory();
@@ -288,6 +376,7 @@ export function ChatWorkspace() {
 
   function openRun(runId: string) {
     setDraftSpec(null);
+    setDraftSpecCreatedAt(null);
     setIsEditingSpec(false);
     setActiveRunId(runId);
     setPanelKind(null);
@@ -297,6 +386,27 @@ export function ChatWorkspace() {
   function openWhyPanel(hypothesisId: string) {
     setFocusedHypothesisId(hypothesisId);
     setPanelKind('why');
+  }
+
+  function startNewChat() {
+    setInput('');
+    setDraftSpec(null);
+    setDraftSpecCreatedAt(null);
+    setIsEditingSpec(false);
+    setIsStarting(false);
+    setMessages([]);
+    setActiveRunId(null);
+    setRun(null);
+    setHypotheses([]);
+    setEvidence([]);
+    setMatches([]);
+    setReviews([]);
+    setCitations([]);
+    setReport(null);
+    setPanelKind(null);
+    setFocusedHypothesisId(null);
+    setError(null);
+    void navigate('/');
   }
 
   const panel = renderPanel({
@@ -313,6 +423,118 @@ export function ChatWorkspace() {
     onClose: () => setPanelKind(null),
   });
 
+  const timelineItems: TimelineItem[] = [];
+  for (const [index, message] of messages.entries()) {
+    timelineItems.push({
+      id: `local-message-${message.id}`,
+      at: message.created_at,
+      order: index,
+      node: <ChatBubble message={message} />,
+    });
+  }
+  if (draftSpec && draftSpecCreatedAt !== null) {
+    timelineItems.push({
+      id: 'draft-spec',
+      at: draftSpecCreatedAt,
+      order: 50,
+      node: (
+        <RunSpecCard
+          spec={draftSpec}
+          isEditing={isEditingSpec}
+          isStarting={isStarting}
+          onEdit={() => {
+            setIsEditingSpec(true);
+            setInput('Make this run ');
+          }}
+          onStart={() => void handleStartRun()}
+        />
+      ),
+    });
+  }
+  if (activeRunId) {
+    timelineItems.push({
+      id: 'run-progress',
+      at: latestTime([run?.created_at, events[0]?.created_at]),
+      order: 0,
+      node: (
+        <>
+          <RunStatusCard
+            run={run}
+            events={events}
+            isOpen={isOpen}
+            terminal={terminal}
+          />
+          <ProgressCards
+            events={events}
+            runStatus={run?.status}
+            hypothesesCount={hypotheses.length}
+            evidenceCount={evidence.length}
+            matchCount={matches.length}
+            hasReport={Boolean(report)}
+          />
+        </>
+      ),
+    });
+  }
+  if (activeRunId) {
+    for (const [index, message] of runMessages.entries()) {
+      timelineItems.push({
+        id: `run-message-${message.id}`,
+        at: message.created_at,
+        order: 10 + index,
+        node: <RunMessageBubble message={message} />,
+      });
+    }
+  }
+  if (topHypotheses.length > 0) {
+    const hypothesisIds = new Set(topHypotheses.map(h => h.id));
+    timelineItems.push({
+      id: 'top-hypotheses',
+      at: latestTime([
+        ...topHypotheses.map(h => h.created_at),
+        ...matches
+          .filter(
+            match =>
+              hypothesisIds.has(match.winner_id) ||
+              hypothesisIds.has(match.loser_id),
+          )
+          .map(match => match.created_at),
+      ]),
+      order: 20,
+      node: (
+        <section className="space-y-2" aria-label="Top hypotheses">
+          <AssistantLine>
+            Here are the current leading hypotheses. Open “why this ranked” when
+            you need the evidence trail.
+          </AssistantLine>
+          <ol className="space-y-2">
+            {topHypotheses.map((hypothesis, index) => (
+              <HypothesisChatCard
+                key={hypothesis.id}
+                hypothesis={hypothesis}
+                rank={index + 1}
+                evidenceCount={
+                  citations.filter(c => c.hypothesis_id === hypothesis.id)
+                    .length
+                }
+                onWhy={() => openWhyPanel(hypothesis.id)}
+              />
+            ))}
+          </ol>
+        </section>
+      ),
+    });
+  }
+  if (report && activeRunId) {
+    timelineItems.push({
+      id: 'report-ready',
+      at: report.created_at,
+      order: 30,
+      node: <ReportReadyCard runId={activeRunId} />,
+    });
+  }
+  timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
+
   return (
     <div
       className={
@@ -328,6 +550,7 @@ export function ChatWorkspace() {
       <WorkspaceSidebar
         activePanel={panelKind}
         onOpenPanel={setPanelKind}
+        onStartNewChat={startNewChat}
       />
 
       <main className="min-w-0 min-h-0 flex flex-col">
@@ -357,72 +580,11 @@ export function ChatWorkspace() {
               className="flex-1 overflow-y-auto px-4 py-6 sm:px-8"
             >
               <div className="mx-auto max-w-3xl space-y-4 pb-4">
-                {messages.map(message => (
-                  <ChatBubble key={message.id} message={message} />
+                {timelineItems.map(item => (
+                  <Fragment key={item.id}>{item.node}</Fragment>
                 ))}
 
-                {draftSpec && (
-                  <RunSpecCard
-                    spec={draftSpec}
-                    isEditing={isEditingSpec}
-                    isStarting={isStarting}
-                    onEdit={() => {
-                      setIsEditingSpec(true);
-                      setInput('Make this run ');
-                    }}
-                    onStart={() => void handleStartRun()}
-                  />
-                )}
-
-                {activeRunId && (
-                  <RunStatusCard
-                    run={run}
-                    events={events}
-                    isOpen={isOpen}
-                    terminal={terminal}
-                  />
-                )}
-
-                {activeRunId && (
-                  <ProgressCards
-                    events={events}
-                    runStatus={run?.status}
-                    hypothesesCount={hypotheses.length}
-                    evidenceCount={evidence.length}
-                    matchCount={matches.length}
-                    hasReport={Boolean(report)}
-                  />
-                )}
-
-                {topHypotheses.length > 0 && (
-                  <section className="space-y-2" aria-label="Top hypotheses">
-                    <AssistantLine>
-                      Here are the current leading hypotheses. Open “why this
-                      ranked” when you need the evidence trail.
-                    </AssistantLine>
-                    <ol className="space-y-2">
-                      {topHypotheses.map((hypothesis, index) => (
-                        <HypothesisChatCard
-                          key={hypothesis.id}
-                          hypothesis={hypothesis}
-                          rank={index + 1}
-                          evidenceCount={
-                            citations.filter(
-                              c => c.hypothesis_id === hypothesis.id,
-                            ).length
-                          }
-                          onWhy={() => openWhyPanel(hypothesis.id)}
-                        />
-                      ))}
-                    </ol>
-                  </section>
-                )}
-
-                {report && activeRunId && (
-                  <ReportReadyCard runId={activeRunId} />
-                )}
-
-                {error && (
+                {(error || messageError) && (
                   <div
                     role="alert"
                     className="rounded-md border p-3 text-sm"
@@ -431,7 +593,7 @@ export function ChatWorkspace() {
                       color: 'var(--md-sys-color-error)',
                     }}
                   >
-                    {error}
+                    {error ?? messageError}
                   </div>
                 )}
               </div>
@@ -449,7 +611,11 @@ export function ChatWorkspace() {
                   input={input}
                   setInput={setInput}
                   isEditingSpec={isEditingSpec}
-                  disabled={isStarting}
+                  activeRunId={activeRunId}
+                  activeMessageMode={inferActiveMessageMode(input)}
+                  canSteerActiveRun={isActiveRun}
+                  isAnswering={isAnswering}
+                  disabled={isStarting || isAnswering}
                   onSubmit={handleSubmit}
                   onSuggestion={suggestion => setInput(suggestion)}
                 />
@@ -467,11 +633,17 @@ export function ChatWorkspace() {
 function WorkspaceSidebar({
   activePanel,
   onOpenPanel,
+  onStartNewChat,
 }: {
   activePanel: PanelKind;
   onOpenPanel: (panel: PanelKind) => void;
+  onStartNewChat: () => void;
 }) {
-  const items: Array<{kind: Exclude<PanelKind, null | 'why'>; icon: string; label: string}> = [
+  const items: Array<{
+    kind: Exclude<PanelKind, null | 'why'>;
+    icon: string;
+    label: string;
+  }> = [
     {kind: 'history', icon: 'history', label: 'History'},
     {kind: 'knowledge', icon: 'library_books', label: 'Knowledge Base'},
     {kind: 'settings', icon: 'settings', label: 'Settings'},
@@ -485,17 +657,19 @@ function WorkspaceSidebar({
         backgroundColor: 'var(--md-sys-color-surface-container-low)',
       }}
     >
-      <Link
-        to="/"
+      <button
+        type="button"
+        onClick={onStartNewChat}
         className="hidden sm:flex h-11 w-11 items-center justify-center rounded-full"
         style={{
           backgroundColor: 'var(--md-sys-color-primary-container)',
           color: 'var(--md-sys-color-on-primary-container)',
         }}
-        aria-label="Co-Scientist workspace"
+        aria-label="New chat"
+        title="New chat"
       >
         <md-icon aria-hidden="true">science</md-icon>
-      </Link>
+      </button>
       <nav className="flex sm:flex-col items-center gap-1 w-full sm:mt-6">
         {items.map(item => {
           const selected = activePanel === item.kind;
@@ -539,6 +713,10 @@ function Composer({
   input,
   setInput,
   isEditingSpec,
+  activeRunId = null,
+  activeMessageMode = 'steering',
+  canSteerActiveRun = false,
+  isAnswering = false,
   disabled,
   large = false,
   onSubmit,
@@ -547,6 +725,10 @@ function Composer({
   input: string;
   setInput: (value: string) => void;
   isEditingSpec: boolean;
+  activeRunId?: string | null;
+  activeMessageMode?: ActiveMessageMode;
+  canSteerActiveRun?: boolean;
+  isAnswering?: boolean;
   disabled: boolean;
   large?: boolean;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
@@ -558,6 +740,22 @@ function Composer({
       e.currentTarget.form?.requestSubmit();
     }
   }
+
+  const hasRunContext = Boolean(activeRunId);
+  const placeholder = isEditingSpec
+    ? 'Describe the change to the run setup...'
+    : hasRunContext
+      ? activeMessageMode === 'qa' || !canSteerActiveRun
+        ? 'Ask what this run is doing...'
+        : 'Ask a question or steer the active run...'
+      : 'Describe a research goal...';
+  const submitLabel = hasRunContext
+    ? isAnswering
+      ? 'Answering...'
+      : activeMessageMode === 'qa' || !canSteerActiveRun
+        ? 'Ask'
+        : 'Send'
+    : 'Send';
 
   return (
     <form
@@ -575,11 +773,7 @@ function Composer({
         disabled={disabled}
         onChange={e => setInput(e.target.value)}
         onKeyDown={onKeyDown}
-        placeholder={
-          isEditingSpec
-            ? 'Describe the change to the run setup...'
-            : 'Describe a research goal...'
-        }
+        placeholder={placeholder}
         style={{
           color: 'var(--md-sys-color-on-surface)',
           minHeight: large ? '9rem' : '5.5rem',
@@ -613,7 +807,7 @@ function Composer({
           <md-icon slot="icon" aria-hidden="true">
             arrow_upward
           </md-icon>
-          Send
+          {submitLabel}
         </md-filled-button>
       </div>
     </form>
@@ -639,6 +833,72 @@ function ChatBubble({message}: {message: ChatEntry}) {
         }}
       >
         {message.content}
+      </div>
+    </div>
+  );
+}
+
+function RunMessageBubble({message}: {message: Message}) {
+  if (message.kind === 'milestone') {
+    return (
+      <div
+        className="flex items-start gap-2 py-1 text-xs"
+        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
+      >
+        <span
+          className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
+          style={{backgroundColor: 'var(--md-sys-color-tertiary)'}}
+          aria-hidden="true"
+        />
+        <span className="min-w-0 flex-1">{message.content}</span>
+      </div>
+    );
+  }
+
+  const isUser = message.sender === 'user';
+  const isEmptyAnswer = !isUser && message.kind === 'qa' && !message.content;
+  return (
+    <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
+      <div className="max-w-[88%] space-y-1">
+        <div
+          className="rounded-xl px-3 py-2 text-sm leading-relaxed"
+          style={{
+            backgroundColor: isUser
+              ? 'var(--md-sys-color-primary-container)'
+              : 'var(--md-sys-color-surface-container-low)',
+            color: isUser
+              ? 'var(--md-sys-color-on-primary-container)'
+              : 'var(--md-sys-color-on-surface)',
+            border: isUser
+              ? '1px solid transparent'
+              : '1px solid var(--md-sys-color-outline-variant)',
+          }}
+        >
+          {isEmptyAnswer ? (
+            <span style={{color: 'var(--md-sys-color-on-surface-variant)'}}>
+              Thinking...
+            </span>
+          ) : (
+            message.content
+          )}
+        </div>
+        {isUser && message.kind === 'steering' && (
+          <div className="text-right">
+            <span
+              className="rounded-full px-2 py-0.5 text-xs"
+              style={{
+                backgroundColor: message.applied
+                  ? 'var(--md-sys-color-secondary-container)'
+                  : 'var(--md-sys-color-surface-container)',
+                color: message.applied
+                  ? 'var(--md-sys-color-on-secondary-container)'
+                  : 'var(--md-sys-color-on-surface-variant)',
+              }}
+            >
+              {message.applied ? 'Steering applied' : 'Steering queued'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -760,7 +1020,7 @@ function RunStatusCard({
         </div>
         {run && (
           <Link
-            to={`/runs/${run.id}`}
+            to={`/runs/${run.id}/overview`}
             className="inline-flex items-center gap-1 text-sm underline underline-offset-2"
             style={{color: 'var(--md-sys-color-primary)'}}
           >
@@ -809,7 +1069,9 @@ function ProgressCards({
   return (
     <section className="grid gap-2 sm:grid-cols-5" aria-label="Run progress">
       {PROGRESS_STAGES.map((stage, index) => {
-        const done = stage.eventTypes.some(type => completedEventTypes.has(type));
+        const done = stage.eventTypes.some(type =>
+          completedEventTypes.has(type),
+        );
         const active =
           !done &&
           !isTerminal(runStatus) &&
@@ -1305,13 +1567,7 @@ function Metric({label, value}: {label: string; value: number}) {
   );
 }
 
-function PanelBlock({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}) {
+function PanelBlock({title, children}: {title: string; children: ReactNode}) {
   return (
     <section
       className="rounded-md border p-3"

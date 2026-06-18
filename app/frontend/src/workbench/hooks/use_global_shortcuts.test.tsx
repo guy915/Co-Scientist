@@ -55,7 +55,15 @@ describe('useGlobalShortcuts', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('cycles to the next tab on ArrowRight while on a run page', () => {
+  it('cycles from the default chat tab on ArrowRight while on a run page', () => {
+    renderHook(() => useGlobalShortcuts(), {
+      wrapper: wrapperAt('/runs/abc'),
+    });
+    keyDown('ArrowRight');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/overview');
+  });
+
+  it('cycles from overview to ideas on ArrowRight', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc/overview'),
     });
@@ -63,9 +71,9 @@ describe('useGlobalShortcuts', () => {
     expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/ideas');
   });
 
-  it('cycles back to overview (empty tab segment) on ArrowLeft', () => {
+  it('cycles back to chat (empty tab segment) on ArrowLeft', () => {
     renderHook(() => useGlobalShortcuts(), {
-      wrapper: wrapperAt('/runs/abc/ideas'),
+      wrapper: wrapperAt('/runs/abc/overview'),
     });
     keyDown('ArrowLeft');
     expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/');
