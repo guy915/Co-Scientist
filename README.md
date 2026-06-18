@@ -10,8 +10,8 @@
 <td align="center"><strong>Workbench</strong></td>
 </tr>
 <tr>
-<td><img src="docs/pipeline.svg" alt="Multi-agent hypothesis pipeline" width="440"/></td>
-<td><img src="docs/screenshots/chat.png" alt="Co-Scientist workbench" width="440"/></td>
+<td><img src="docs/assets/pipeline.svg" alt="Multi-agent hypothesis pipeline" width="440"/></td>
+<td><img src="docs/assets/chat.png" alt="Co-Scientist workbench" width="440"/></td>
 </tr>
 </table>
 
@@ -156,7 +156,7 @@ tuning, MCP, cache).
 ## Architecture
 
 <p align="center">
-  <img src="docs/architecture.svg" alt="System architecture" width="600"/>
+  <img src="docs/assets/architecture.svg" alt="System architecture" width="600"/>
 </p>
 
 Full diagrams and module map in
