@@ -2,14 +2,8 @@ import '@material/web/icon/icon.js';
 import '@material/web/button/outlined-button.js';
 import '@material/web/button/filled-tonal-button.js';
 import {useCallback, useEffect, useRef, useState} from 'react';
-import {useLocation} from 'react-router-dom';
-import {getRunEventsLog, type RunEvent} from '@/api/runs';
 import {useIsMobile} from '@/hooks/use_media_query';
-
-function extractRunId(pathname: string): string | null {
-  const m = pathname.match(/\/runs\/([^/]+)/);
-  return m && m[1] !== 'new' ? m[1] : null;
-}
+import {useLogs, type LogEntry} from '../log_context';
 
 function fmtTime(ts: number) {
   return new Date(ts * 1000).toLocaleTimeString([], {
@@ -34,51 +28,33 @@ function eventLabelColor(type: string): string {
   return '#953800';
 }
 
-function logText(events: RunEvent[]): string {
-  return events
+function logText(entries: LogEntry[]): string {
+  return entries
     .map((ev, i) => {
       const payload = JSON.stringify(ev.payload, null, 2);
-      return `#${i + 1} [${fmtTime(ev.created_at)}] ${eventLabel(ev.type)}:\n${payload}`;
+      const label = eventLabel(ev.type);
+      return `#${i + 1} [${fmtTime(ev.created_at)}] [${ev.run_label}] ${label}:\n${payload}`;
     })
     .join('\n\n');
 }
 
 /**
- * Renders a toggleable panel showing the active run's diagnostic event log.
+ * Renders a toggleable panel showing the app-wide diagnostic event log across
+ * all runs known to the current session.
  */
 export function LogConsole() {
   const [open, setOpen] = useState(false);
-  const [events, setEvents] = useState<RunEvent[]>([]);
-  const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLDivElement>(null);
-  const location = useLocation();
-  const runId = extractRunId(location.pathname);
   const isMobile = useIsMobile();
 
-  const load = useCallback(async () => {
-    if (!runId) {
-      setEvents([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      setEvents(await getRunEventsLog(runId));
-    } catch {
-      /* ignore */
-    } finally {
-      setLoading(false);
-    }
-  }, [runId]);
+  const {entries, loading, refresh} = useLogs();
 
-  // Reload whenever the run changes or the panel opens
+  // Reload when the panel opens
   useEffect(() => {
-    void load();
-  }, [load]);
-  useEffect(() => {
-    if (open) void load();
-  }, [open, load]);
+    if (open) void refresh();
+  }, [open, refresh]);
 
   // Close on outside click
   useEffect(() => {
@@ -97,13 +73,13 @@ export function LogConsole() {
     return () => document.removeEventListener('mousedown', onDown);
   }, [open]);
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(
-      events.length ? logText(events) : '(no events)',
+      entries.length ? logText(entries) : '(no events)',
     );
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  };
+  }, [entries]);
 
   return (
     <div className="relative">
@@ -113,17 +89,17 @@ export function LogConsole() {
         style={{display: 'inline-flex'}}
       >
         <md-filled-tonal-button
-          onclick={(() => setOpen(v => !v)) as EventListener}
+          onclick={(() => setOpen((v) => !v)) as EventListener}
           aria-expanded={open}
           aria-label="Toggle log console"
         >
           Logs
-          {events.length > 0 && (
+          {entries.length > 0 && (
             <span
               className="inline-flex items-center justify-center rounded-full text-xs font-bold w-5 h-5 ml-1.5"
               style={{backgroundColor: 'rgba(255,255,255,0.25)'}}
             >
-              {events.length}
+              {entries.length}
             </span>
           )}
           <md-icon slot="icon" aria-hidden="true">
@@ -158,8 +134,8 @@ export function LogConsole() {
                     position: 'absolute',
                     top: 'calc(100% + 12px)',
                     right: '0',
-                    width: 'min(560px, calc(100vw - 2rem))',
-                    maxHeight: '480px',
+                    width: 'min(600px, calc(100vw - 2rem))',
+                    maxHeight: '520px',
                   }),
               border: '1px solid var(--md-sys-color-outline-variant)',
               backgroundColor: 'var(--color-th-card)',
@@ -172,7 +148,18 @@ export function LogConsole() {
               className="flex items-center justify-between px-4 py-3 border-b shrink-0"
               style={{borderColor: 'var(--md-sys-color-outline-variant)'}}
             >
-              <span className="font-semibold text-base">Diagnostic Logs</span>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-base">Diagnostic Logs</span>
+                <span
+                  className="text-xs px-2 py-0.5 rounded-full"
+                  style={{
+                    backgroundColor: 'var(--md-sys-color-secondary-container)',
+                    color: 'var(--md-sys-color-on-secondary-container)',
+                  }}
+                >
+                  All runs
+                </span>
+              </div>
               <div className="flex items-center gap-2">
                 {loading && (
                   <span
@@ -183,8 +170,17 @@ export function LogConsole() {
                   </span>
                 )}
                 <md-outlined-button
+                  onclick={(() => void refresh()) as EventListener}
+                  aria-label="Refresh logs"
+                >
+                  <md-icon slot="icon" aria-hidden="true">
+                    refresh
+                  </md-icon>
+                  Refresh
+                </md-outlined-button>
+                <md-outlined-button
                   onclick={(() => void handleCopy()) as EventListener}
-                  disabled={!events.length || undefined}
+                  disabled={!entries.length || undefined}
                 >
                   <md-icon slot="icon" aria-hidden="true">
                     {copied ? 'check' : 'content_copy'}
@@ -199,7 +195,7 @@ export function LogConsole() {
               className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-sm"
               style={{fontFamily: 'ui-monospace, monospace'}}
             >
-              {!runId && (
+              {!loading && entries.length === 0 && (
                 <p
                   className="text-sm"
                   style={{
@@ -207,23 +203,13 @@ export function LogConsole() {
                     fontFamily: 'sans-serif',
                   }}
                 >
-                  Open a run to see its diagnostic events.
+                  No events recorded yet. Start a run to see diagnostic events
+                  here.
                 </p>
               )}
-              {runId && !loading && events.length === 0 && (
-                <p
-                  className="text-sm"
-                  style={{
-                    color: 'var(--md-sys-color-on-surface-variant)',
-                    fontFamily: 'sans-serif',
-                  }}
-                >
-                  No events recorded for this run yet.
-                </p>
-              )}
-              {events.map((ev, i) => (
-                <div key={ev.seq}>
-                  <div className="flex items-baseline gap-2 mb-1">
+              {entries.map((ev: LogEntry, i: number) => (
+                <div key={`${ev.run_id}-${ev.seq}`}>
+                  <div className="flex items-baseline gap-2 mb-1 flex-wrap">
                     <span
                       className="text-xs font-bold"
                       style={{
@@ -238,6 +224,22 @@ export function LogConsole() {
                       style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                     >
                       [{fmtTime(ev.created_at)}]
+                    </span>
+                    <span
+                      className="text-xs px-1.5 py-0.5 rounded"
+                      style={{
+                        backgroundColor:
+                          'var(--md-sys-color-surface-container-high)',
+                        color: 'var(--md-sys-color-on-surface-variant)',
+                        maxWidth: '180px',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        display: 'inline-block',
+                      }}
+                      title={ev.run_label}
+                    >
+                      {ev.run_label}
                     </span>
                     <span
                       className="text-xs font-bold"
