@@ -179,7 +179,7 @@ export function Dashboard() {
           </p>
         </div>
         <md-filled-button
-          onclick={(() => navigate('/runs/new')) as EventListener}
+          onclick={(() => navigate('/')) as EventListener}
         >
           <md-icon slot="icon" aria-hidden="true">
             add
@@ -291,7 +291,7 @@ export function Dashboard() {
             Start with a research goal to generate, debate, and rank hypotheses.
           </p>
           <md-filled-button
-            onclick={(() => navigate('/runs/new')) as EventListener}
+            onclick={(() => navigate('/')) as EventListener}
           >
             Create your first run
           </md-filled-button>

@@ -6,8 +6,8 @@ import {NoIndex} from '@/public/no_index';
 import {NotFoundPage} from '@/public/not_found_page';
 import {useGlobalShortcuts} from './hooks/use_global_shortcuts';
 import {Layout} from './layout';
+import {ChatWorkspace} from './pages/chat_workspace';
 import {Dashboard} from './pages/dashboard';
-import {NewRun} from './pages/new_run';
 import {RunDetail} from './pages/run_detail';
 import {ThemeProvider} from './theme_context';
 
@@ -26,7 +26,16 @@ export function WorkbenchApp() {
         <Layout>
           <ShortcutsBridge />
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            <Route
+              path="/"
+              element={
+                <>
+                  <NoIndex title="Co-Scientist workspace" />
+                  <ChatWorkspace />
+                </>
+              }
+            />
+            <Route path="/about" element={<LandingPage />} />
             <Route path="/demos/:slug" element={<DemoPage />} />
             <Route
               path="/runs"
@@ -42,7 +51,7 @@ export function WorkbenchApp() {
               element={
                 <>
                   <NoIndex title="New research run" />
-                  <NewRun />
+                  <ChatWorkspace />
                 </>
               }
             />

@@ -185,6 +185,7 @@ export async function createRun(input: {
   max_iterations?: number;
   evolution_max_count?: number;
   k_factor?: number;
+  notes?: string;
 }): Promise<Run> {
   const res = await fetch(`${API_BASE_URL}/api/runs`, {
     method: 'POST',

@@ -1,14 +1,13 @@
-<h1 align="center">AI Co-Scientist</h1>
+<h1 align="center">Co-Scientist</h1>
 
 <p align="center">
-  A locally runnable, multi-agent hypothesis-generation workbench, based on
-  the AI Co-Scientist system published by Google DeepMind.
+  A multi-agent hypothesis-generation system for scientific discovery.
 </p>
 
 <table align="center">
 <tr>
 <td align="center"><strong>Pipeline architecture</strong></td>
-<td align="center"><strong>Workbench UI</strong></td>
+<td align="center"><strong>Workbench</strong></td>
 </tr>
 <tr>
 <td><img src="docs/pipeline.svg" alt="Multi-agent hypothesis pipeline" width="440"/></td>
@@ -18,12 +17,12 @@
 
 ## Overview
 
-AI Co-Scientist generates, reviews, ranks, and evolves research hypotheses
+Co-Scientist generates, reviews, ranks, and evolves research hypotheses
 with a LangGraph multi-agent pipeline and streams every step into a web
 workbench. The implementation preserves the core invariants of the published
 system: a supervised multi-agent workflow, Elo-1200 starting scores,
 append-only evolution lineage, four-state citation classification, and dual
-safety gates. See [`docs/fidelity.md`](docs/fidelity.md) for the full
+safety gates. See [`fidelity.md`](docs/fidelity.md) for the full
 invariant list with paper sources.
 
 The system is deliberately not a chat wrapper over papers, an autonomous
@@ -161,13 +160,14 @@ tuning, MCP, cache).
 </p>
 
 Full diagrams and module map in
-[`docs/architecture.md`](docs/architecture.md).
+[`architecture.md`](docs/architecture.md).
 
 ## Acknowledgements
 
-This project is based on
-[AI Co-Scientist](https://research.google/blog/accelerating-scientific-discovery-with-ai-co-scientist/)
-by Google DeepMind. See [`references/`](references/) for the original
-research papers and product analysis.
-
-This is not an official Google product.
+- [Towards an AI Co-Scientist](https://arxiv.org/abs/2502.18864)
+- [Accelerating scientific discovery with Co-Scientist](https://doi.org/10.1038/s41586-026-10644-y)
+- [Science Skills for Antigravity](https://github.com/google-deepmind/science-skills)
+- [Jataware Open Co-Scientist](https://github.com/jataware/open-coscientist)
+- [Sakana AI Scientist](https://github.com/SakanaAI/AI-Scientist)
+- [Claude Code (leaked source)](https://github.com/codeaashu/claude-code)
+- [Pi Agent](https://github.com/Dicklesworthstone/pi_agent_rust)

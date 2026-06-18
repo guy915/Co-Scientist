@@ -137,7 +137,6 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         "max_iterations": req.max_iterations,
         "evolution_max_count": req.evolution_max_count,
         "k_factor": req.k_factor,
-        "notes": req.notes,
     }
     run = store.create_run(
         research_goal=req.research_goal,

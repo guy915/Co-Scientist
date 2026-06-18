@@ -19,7 +19,7 @@ export function NotFoundPage() {
         <p>The page you requested does not exist.</p>
         <div className="landing-actions">
           <PublicLinkButton to="/">Return home</PublicLinkButton>
-          <PublicLinkButton to="/runs" variant="outline">
+          <PublicLinkButton to="/" variant="outline">
             Open the workbench
           </PublicLinkButton>
         </div>

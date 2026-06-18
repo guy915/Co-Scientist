@@ -31,6 +31,6 @@ describe('NotFoundPage', () => {
     );
     expect(
       screen.getByRole('link', {name: 'Open the workbench'}),
-    ).toHaveAttribute('href', '/runs');
+    ).toHaveAttribute('href', '/');
   });
 });
