@@ -75,19 +75,6 @@
   font-family: "Google Sans", system-ui, sans-serif;
 }
 
-/*
- * Remap MD3 primary tokens to the muted secondary palette so the app
- * uses a soft sage-green accent instead of the vibrant generated teal.
- * applyMd3Theme() sets concrete values on :root at runtime; these
- * variable-variable bindings redirect primary → secondary after that.
- */
-/*
- * Remap MD3 primary tokens to the muted secondary palette so the app
- * uses a soft sage-green accent instead of the vibrant generated teal.
- * The concrete remapping is done in theme.ts after applyTheme() runs,
- * since inline style assignments would otherwise win over CSS rules.
- */
-
 html {
   background-color: var(--color-th-bg);
   color: var(--color-th-fg);
