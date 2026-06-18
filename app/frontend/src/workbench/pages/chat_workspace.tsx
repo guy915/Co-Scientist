@@ -504,7 +504,7 @@ function WorkspaceSidebar({
               key={item.kind}
               type="button"
               onClick={() => onOpenPanel(selected ? null : item.kind)}
-              className="h-12 sm:h-14 min-w-0 flex-1 sm:w-full sm:flex-none rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors"
+              className="cursor-pointer h-12 sm:h-14 min-w-0 flex-1 sm:w-full sm:flex-none rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors"
               style={{
                 backgroundColor: selected
                   ? 'var(--md-sys-color-secondary-container)'
@@ -594,7 +594,7 @@ function Composer({
                   key={suggestion}
                   type="button"
                   onClick={() => onSuggestion(suggestion)}
-                  className="rounded-full border px-2.5 py-1 text-xs"
+                  className="cursor-pointer rounded-full border px-2.5 py-1 text-xs"
                   style={{
                     borderColor: 'var(--md-sys-color-outline-variant)',
                     color: 'var(--md-sys-color-on-surface-variant)',
@@ -1108,7 +1108,7 @@ function HistoryPanel({
           <button
             type="button"
             onClick={() => openRun(run.id)}
-            className="w-full rounded-md border p-2 text-left text-sm"
+            className="cursor-pointer w-full rounded-md border p-2 text-left text-sm"
             style={{
               borderColor:
                 activeRunId === run.id
