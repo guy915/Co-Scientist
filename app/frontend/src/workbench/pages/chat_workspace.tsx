@@ -35,7 +35,6 @@ import {
   type Report,
   type Review,
   type Run,
-  type RunProfile,
   type RunStatus,
   type RunWithSummary,
   sendMessage as sendRunMessage,
@@ -105,7 +104,6 @@ function isTerminal(status: RunStatus | undefined): boolean {
  */
 export function ChatWorkspace() {
   const [input, setInput] = useState('');
-  const [profile, setProfile] = useState<RunProfile>('standard');
   const [draftSpec, setDraftSpec] = useState<InferredRunSpec | null>(null);
   const [isEditingSpec, setIsEditingSpec] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
@@ -233,14 +231,13 @@ export function ChatWorkspace() {
     if (draftSpec) {
       const next = reviseRunSpec(draftSpec, text);
       setDraftSpec(next);
-      setProfile(next.profile);
       setIsEditingSpec(false);
       appendAssistant('I updated the run setup. Start it when the spec looks right.');
       return;
     }
 
     if (!activeRunId) {
-      setDraftSpec(inferRunSpec(text, profile));
+      setDraftSpec(inferRunSpec(text));
       return;
     }
 
@@ -344,8 +341,6 @@ export function ChatWorkspace() {
               <Composer
                 input={input}
                 setInput={setInput}
-                profile={profile}
-                setProfile={setProfile}
                 isEditingSpec={false}
                 disabled={false}
                 large
@@ -452,8 +447,6 @@ export function ChatWorkspace() {
                 <Composer
                   input={input}
                   setInput={setInput}
-                  profile={profile}
-                  setProfile={setProfile}
                   isEditingSpec={isEditingSpec}
                   disabled={isStarting}
                   onSubmit={handleSubmit}
@@ -544,8 +537,6 @@ function WorkspaceSidebar({
 function Composer({
   input,
   setInput,
-  profile,
-  setProfile,
   isEditingSpec,
   disabled,
   large = false,
@@ -554,8 +545,6 @@ function Composer({
 }: {
   input: string;
   setInput: (value: string) => void;
-  profile: RunProfile;
-  setProfile: (profile: RunProfile) => void;
   isEditingSpec: boolean;
   disabled: boolean;
   large?: boolean;
@@ -597,17 +586,6 @@ function Composer({
       />
       <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-2">
-          <md-chip-set aria-label="Run mode">
-            {(['standard', 'advanced'] as RunProfile[]).map(mode => (
-              <md-filter-chip
-                key={mode}
-                selected={profile === mode || undefined}
-                onclick={(() => setProfile(mode)) as EventListener}
-              >
-                {mode === 'standard' ? 'Standard' : 'Advanced'}
-              </md-filter-chip>
-            ))}
-          </md-chip-set>
           {large && (
             <div className="hidden md:flex flex-wrap gap-1.5">
               {SUGGESTIONS.map(suggestion => (

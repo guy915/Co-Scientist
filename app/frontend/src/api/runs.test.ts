@@ -61,7 +61,7 @@ describe('createRun', () => {
     const run = {id: 'r1', research_goal: 'g'};
     fetchMock().mockResolvedValue(jsonResponse(run));
 
-    const result = await createRun({research_goal: 'g', profile: 'standard'});
+    const result = await createRun({research_goal: 'g', profile: 'advanced'});
 
     const [url, opts] = firstCall();
     expect(url).toBe('/api/runs');
@@ -71,7 +71,7 @@ describe('createRun', () => {
     expect(headers['X-Client-ID']).toBeTruthy();
     expect(JSON.parse(opts?.body as string)).toEqual({
       research_goal: 'g',
-      profile: 'standard',
+      profile: 'advanced',
     });
     expect(result).toEqual(run);
   });
@@ -79,7 +79,7 @@ describe('createRun', () => {
   it('throws "<status> <text>" on a non-OK response', async () => {
     fetchMock().mockResolvedValue(errorResponse(500, 'kaboom'));
     await expect(
-      createRun({research_goal: 'g', profile: 'standard'}),
+      createRun({research_goal: 'g', profile: 'advanced'}),
     ).rejects.toThrow('500 kaboom');
   });
 });

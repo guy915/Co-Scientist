@@ -20,7 +20,7 @@ export type RunStatus =
   | 'cancelled';
 
 /** Generation profile that selects the engine's effort/quality preset. */
-export type RunProfile = 'standard' | 'advanced';
+export type RunProfile = 'advanced';
 
 /** A hypothesis-generation run with its goal, config, and current status. */
 export interface Run {

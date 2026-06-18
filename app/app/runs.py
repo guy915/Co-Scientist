@@ -69,7 +69,7 @@ def _db_path() -> str | None:
 
 class CreateRunRequest(BaseModel):
     research_goal: str = Field(..., min_length=1)
-    profile: str = Field("standard", pattern="^(standard|advanced)$")
+    profile: str = Field("advanced", pattern="^(standard|advanced)$")
     initial_hypotheses_count: int | None = None
     max_iterations: int | None = None
     evolution_max_count: int | None = None
