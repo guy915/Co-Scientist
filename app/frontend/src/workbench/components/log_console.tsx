@@ -50,6 +50,14 @@ export function LogConsole() {
   const isMobile = useIsMobile();
 
   const {entries, loading, refresh} = useLogs();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom whenever new entries arrive or panel opens
+  useEffect(() => {
+    if (!open) return;
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [open, entries]);
 
   // Reload when the panel opens
   useEffect(() => {
@@ -192,6 +200,7 @@ export function LogConsole() {
 
             {/* Log body */}
             <div
+              ref={scrollRef}
               className="flex-1 overflow-y-auto px-4 py-3 space-y-4 text-sm"
               style={{fontFamily: 'ui-monospace, monospace'}}
             >
