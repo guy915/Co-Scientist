@@ -9,12 +9,6 @@ export interface InferredRunSpec {
   output: string;
 }
 
-const STANDARD_CONSTRAINTS = [
-  'Prioritize mechanistic novelty, plausibility, and direct testability.',
-  'Retrieve literature evidence when available and label unsupported claims.',
-  'Keep the initial pass compact so results arrive quickly.',
-];
-
 const ADVANCED_CONSTRAINTS = [
   'Prioritize mechanistic novelty, plausibility, and direct testability.',
   'Retrieve broader literature evidence and preserve competing mechanisms.',
@@ -22,27 +16,18 @@ const ADVANCED_CONSTRAINTS = [
 ];
 
 /**
- * Infers the MVP run setup from a research goal and simple effort profile.
+ * Infers the run setup from a research goal using the advanced profile.
  *
  * @param rawGoal User-authored research goal.
- * @param profile Standard or Advanced effort profile.
  * @returns A compact run setup suitable for confirmation in chat.
  */
-export function inferRunSpec(
-  rawGoal: string,
-  profile: RunProfile,
-): InferredRunSpec {
+export function inferRunSpec(rawGoal: string): InferredRunSpec {
   const goal = normalizeWhitespace(rawGoal);
-  const constraints =
-    profile === 'advanced' ? ADVANCED_CONSTRAINTS : STANDARD_CONSTRAINTS;
   return {
     goal,
-    profile,
-    mode:
-      profile === 'advanced'
-        ? 'Advanced hypothesis tournament'
-        : 'Standard hypothesis sprint',
-    constraints: [...constraints, ...domainConstraints(goal)],
+    profile: 'advanced',
+    mode: 'Advanced hypothesis tournament',
+    constraints: [...ADVANCED_CONSTRAINTS, ...domainConstraints(goal)],
     output:
       'Ranked hypotheses with Elo, mechanisms, evidence links, ranking rationale, and a polished report.',
   };
@@ -60,15 +45,9 @@ export function reviseRunSpec(
   instruction: string,
 ): InferredRunSpec {
   const note = normalizeWhitespace(instruction);
-  const lower = note.toLowerCase();
-  const profile: RunProfile = lower.includes('advanced')
-    ? 'advanced'
-    : lower.includes('standard')
-      ? 'standard'
-      : current.profile;
-  const baseline = inferRunSpec(current.goal, profile);
+  const baseline = inferRunSpec(current.goal);
   const goalMatch = note.match(
-    /(?:change|update|set)\s+(?:the\s+)?goal\s+(?:to|as)\s+["“]?(.+?)["”]?$/i,
+    /(?:change|update|set)\s+(?:the\s+)?goal\s+(?:to|as)\s+[""]?(.+?)[""]?$/i,
   );
   const goal = goalMatch?.[1] ? normalizeWhitespace(goalMatch[1]) : current.goal;
   return {
