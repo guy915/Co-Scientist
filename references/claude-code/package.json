@@ -29,7 +29,7 @@
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/api-logs": "^0.57.0",
-    "@opentelemetry/core": "^1.30.0",
+    "@opentelemetry/core": "^2.8.0",
     "@opentelemetry/sdk-logs": "^0.57.0",
     "@opentelemetry/sdk-metrics": "^1.30.0",
     "@opentelemetry/sdk-trace-base": "^1.30.0",
@@ -45,7 +45,7 @@
     "chokidar": "^4.0.0",
     "cli-boxes": "^3.0.0",
     "code-excerpt": "^4.0.0",
-    "diff": "^7.0.0",
+    "diff": "^9.0.0",
     "execa": "^9.5.0",
     "figures": "^6.1.0",
     "fuse.js": "^7.0.0",
@@ -84,7 +84,7 @@
     "@types/semver": "^7.5.8",
     "@types/stack-utils": "^2.0.3",
     "@types/ws": "^8.5.0",
-    "esbuild": "^0.25.0",
+    "esbuild": "^0.28.1",
     "typescript": "^5.7.0"
   },
   "engines": {
