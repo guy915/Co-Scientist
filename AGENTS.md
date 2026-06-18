@@ -214,3 +214,11 @@ feat(runs): add markdown_text column to reports table
 fix(report-tab): handle missing markdown gracefully
 docs(engine): rename docs to UPPER_SNAKE_CASE
 ```
+
+Branch names must follow the format `<type>/<description>` using the same type vocabulary. Example:
+
+```
+feat/report-markdown-persistence
+fix/report-tab-empty-state
+docs/restructure-engine-docs
+```
