@@ -489,8 +489,8 @@ function WorkspaceSidebar({
         to="/"
         className="hidden sm:flex h-11 w-11 items-center justify-center rounded-full"
         style={{
-          backgroundColor: 'var(--md-sys-color-secondary-container)',
-          color: 'var(--md-sys-color-on-secondary-container)',
+          backgroundColor: 'var(--md-sys-color-primary-container)',
+          color: 'var(--md-sys-color-on-primary-container)',
         }}
         aria-label="Co-Scientist workspace"
       >
@@ -628,10 +628,10 @@ function ChatBubble({message}: {message: ChatEntry}) {
         className="max-w-[88%] rounded-xl px-3 py-2 text-sm leading-relaxed"
         style={{
           backgroundColor: isUser
-            ? 'var(--md-sys-color-secondary-container)'
+            ? 'var(--md-sys-color-primary-container)'
             : 'var(--md-sys-color-surface-container-low)',
           color: isUser
-            ? 'var(--md-sys-color-on-secondary-container)'
+            ? 'var(--md-sys-color-on-primary-container)'
             : 'var(--md-sys-color-on-surface)',
           border: isUser
             ? '1px solid transparent'
