@@ -14,7 +14,7 @@ This is a research/reference workspace organized around replicating Google DeepM
     - `research/` — papers describing the original Co-Scientist
   - `notebooklm/`, `gemini/`, `gemini-enterprise/` — UX captures and product references
   - `antigravity-science-skills/`, `claude-code/`, `idea-generator/` — additional reference projects
-- `docs/` — live project docs (`architecture.md`, `fidelity.md`, `screenshots/`, SVG diagrams); `docs/archive/` holds historical planning docs (`plan.md`, `tasks.md`, `implementation_report.md`); `docs/superpowers/` holds design specs and plans
+- `docs/` — live project docs (`Architecture.md`, `Fidelity.md`, `assets/` (screenshots + SVG diagrams))
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
 - `Makefile` — root-level build orchestration (`setup`, `dev`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `lint`, `typecheck`, `build`, `clean`, `reset-db`)
 - `CLAUDE.md` — byte-for-byte copy of this file (keep in sync)
