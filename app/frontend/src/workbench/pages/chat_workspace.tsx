@@ -128,6 +128,13 @@ function latestTime(values: Array<number | null | undefined>, fallback = 0) {
   return times.length ? Math.max(...times) : fallback;
 }
 
+function earliestTime(values: Array<number | null | undefined>, fallback = 0) {
+  const times = values.filter(
+    (value): value is number => typeof value === 'number',
+  );
+  return times.length ? Math.min(...times) : fallback;
+}
+
 /**
  * Renders the chat-first Co-Scientist workspace.
  */
@@ -454,7 +461,10 @@ export function ChatWorkspace() {
   if (activeRunId) {
     timelineItems.push({
       id: 'run-progress',
-      at: latestTime([run?.created_at, events[0]?.created_at]),
+      at:
+        typeof run?.created_at === 'number'
+          ? run.created_at + 0.002
+          : earliestTime(events.map(event => event.created_at)),
       order: 0,
       node: (
         <>

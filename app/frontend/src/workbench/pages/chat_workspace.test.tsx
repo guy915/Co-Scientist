@@ -330,7 +330,7 @@ describe('ChatWorkspace', () => {
       );
     });
     const progress = screen.getByLabelText('Run progress');
-    const steeringMessage = screen.getByText(
+    const steeringMessage = await screen.findByText(
       'Focus the next pass on mitochondrial mechanisms.',
     );
     expect(
@@ -342,6 +342,50 @@ describe('ChatWorkspace', () => {
     );
     expect(
       reportReady.compareDocumentPosition(steeringMessage) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('keeps live progress before later active-run messages', async () => {
+    const runCreatedAt = Date.now() / 1000 - 60;
+    apiMock.createRun.mockResolvedValue(
+      minimalRun({created_at: runCreatedAt, status: 'running'}),
+    );
+    apiMock.getRun.mockResolvedValue(
+      minimalRun({created_at: runCreatedAt, status: 'running'}),
+    );
+    streamMock.useRunStream.mockReturnValue({
+      events: [
+        {
+          seq: 12,
+          type: 'ranking',
+          payload: {label: 'Engine Ranking'},
+          created_at: Date.now() / 1000 + 60,
+        },
+      ],
+      lastSeq: 12,
+      isOpen: true,
+      error: null,
+      terminal: false,
+    });
+
+    renderWorkspace();
+
+    const input = screen.getByPlaceholderText('Describe a research goal...');
+    fireEvent.change(input, {target: {value: 'Investigate glucose control.'}});
+    fireEvent.submit(input.closest('form')!);
+    fireEvent.click(await screen.findByText('Start'));
+
+    const composer = await screen.findByPlaceholderText(
+      'Ask a question or steer the active run...',
+    );
+    fireEvent.change(composer, {target: {value: 'Focus on mitophagy.'}});
+    fireEvent.submit(composer.closest('form')!);
+
+    const progress = await screen.findByLabelText('Run progress');
+    const steeringMessage = await screen.findByText('Focus on mitophagy.');
+    expect(
+      progress.compareDocumentPosition(steeringMessage) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
