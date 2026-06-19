@@ -104,6 +104,15 @@ describe('listRuns', () => {
     fetchMock().mockResolvedValue(errorResponse(403, 'denied'));
     await expect(listRuns()).rejects.toThrow('403 denied');
   });
+
+  it('includes a limit query parameter when requested', async () => {
+    fetchMock().mockResolvedValue(jsonResponse({runs: []}));
+
+    await listRuns(1000);
+
+    const [url] = firstCall();
+    expect(url).toBe('/api/runs?limit=1000');
+  });
 });
 
 describe('getRun', () => {

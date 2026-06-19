@@ -14,6 +14,10 @@ function fmtTime(ts: number) {
   });
 }
 
+function fmtDateTime(ts: number) {
+  return new Date(ts * 1000).toLocaleString();
+}
+
 function eventLabel(type: string): string {
   if (type === 'status') return 'STATUS';
   if (type === 'report') return 'REPORT';
@@ -21,21 +25,192 @@ function eventLabel(type: string): string {
   return type.toUpperCase();
 }
 
-function eventLabelColor(type: string): string {
-  if (type === 'status') return '#0969da';
-  if (type === 'report') return '#1a7f37';
-  if (type.startsWith('engine.')) return '#8250df';
-  return '#953800';
+type LogSeverity = 'ERROR' | 'SUCCESS' | 'INFO';
+
+interface DiagnosticStats {
+  total: number;
+  errors: number;
+  success: number;
+  info: number;
+  runs: number;
 }
 
-function logText(entries: LogEntry[]): string {
-  return entries
-    .map((ev, i) => {
-      const payload = JSON.stringify(ev.payload, null, 2);
-      const label = eventLabel(ev.type);
-      return `#${i + 1} [${fmtTime(ev.created_at)}] [${ev.run_label}] ${label}:\n${payload}`;
-    })
-    .join('\n\n');
+interface DiagnosticExportContext {
+  currentUrl?: string;
+  userAgent?: string;
+  exportedAt?: Date;
+}
+
+function payloadString(
+  payload: Record<string, unknown>,
+  key: string,
+): string | null {
+  const value = payload[key];
+  return typeof value === 'string' ? value.toLowerCase() : null;
+}
+
+function logSeverity(ev: LogEntry): LogSeverity {
+  const type = ev.type.toLowerCase();
+  const status = payloadString(ev.payload, 'status');
+  const decision = payloadString(ev.payload, 'decision');
+
+  if (
+    type.includes('error') ||
+    typeof ev.payload.error === 'string' ||
+    status === 'failed' ||
+    status === 'blocked' ||
+    decision === 'block' ||
+    decision === 'redact'
+  ) {
+    return 'ERROR';
+  }
+
+  if (
+    type.includes('success') ||
+    ev.type === 'report' ||
+    status === 'completed'
+  ) {
+    return 'SUCCESS';
+  }
+
+  return 'INFO';
+}
+
+function severityColor(severity: LogSeverity): string {
+  if (severity === 'ERROR') return 'var(--md-sys-color-error)';
+  if (severity === 'SUCCESS') return 'var(--color-th-success)';
+  return 'var(--md-sys-color-on-surface-variant)';
+}
+
+function eventLabelColor(type: string, severity: LogSeverity): string {
+  if (severity !== 'INFO') return severityColor(severity);
+  if (type === 'status') return 'var(--color-info)';
+  if (type.startsWith('engine.')) return 'var(--md-sys-color-tertiary)';
+  return 'var(--md-sys-color-primary)';
+}
+
+function diagnosticStats(entries: LogEntry[]): DiagnosticStats {
+  const stats: DiagnosticStats = {
+    total: entries.length,
+    errors: 0,
+    success: 0,
+    info: 0,
+    runs: new Set(entries.map(ev => ev.run_id)).size,
+  };
+
+  for (const ev of entries) {
+    const severity = logSeverity(ev);
+    if (severity === 'ERROR') stats.errors += 1;
+    if (severity === 'SUCCESS') stats.success += 1;
+    if (severity === 'INFO') stats.info += 1;
+  }
+
+  return stats;
+}
+
+export function formatDiagnosticLog(
+  entries: LogEntry[],
+  context: DiagnosticExportContext = {},
+): string {
+  const stats = diagnosticStats(entries);
+  const exportedAt = context.exportedAt ?? new Date();
+  const firstEvent = entries[0]?.created_at;
+  const currentUrl = context.currentUrl ?? 'Unavailable';
+  const userAgent = context.userAgent ?? 'Unavailable';
+
+  const sections = [
+    '=== ABOUT THESE DIAGNOSTIC LOGS ===',
+    'This is the Co-Scientist workbench diagnostic log export. It captures persisted run events, lifecycle changes, engine stages, reports, safety decisions, and failures visible to this browser. These logs provide a timeline of what happened across your research runs, making it easier to troubleshoot issues and understand application behavior. If you encounter problems, share this full export when asking for help - it includes context that is useful for maintainers and coding agents.',
+    '',
+    '=== WHAT THIS TOOL TRACKS ===',
+    'Run Lifecycle:',
+    '- Run creation, queueing, startup, cancellation, completion, and failure states',
+    '- Provider mode and profile changes stored in lifecycle events',
+    '',
+    'Engine Activity:',
+    '- Supervisor, generation, reflection, ranking, evolution, review, and report events',
+    '- Mock workflow and live engine events when available',
+    '',
+    'Research Outputs:',
+    '- Hypothesis, evidence, citation-audit, tournament, and report milestones',
+    '- Safety intake and final-output decisions',
+    '',
+    'Error Tracking:',
+    '- Failed or blocked run statuses',
+    '- Events that include error payloads or blocking safety decisions',
+    '',
+    '=== SESSION DETAILS ===',
+    `Date: ${exportedAt.toLocaleString()}`,
+    `First Loaded Event: ${firstEvent ? fmtDateTime(firstEvent) : 'No events loaded'}`,
+    `Current URL: ${currentUrl}`,
+    `Browser: ${userAgent}`,
+    `Runs Covered: ${stats.runs}`,
+    '',
+    '=== STATISTICS ===',
+    `Total Logs: ${stats.total}`,
+    `Errors: ${stats.errors}`,
+    `Success: ${stats.success}`,
+    `Info: ${stats.info}`,
+    '',
+    '=== LEGEND ===',
+    'ERROR   - Failures, blocked states, error payloads, or blocking safety decisions',
+    'SUCCESS - Completed statuses, generated reports, or explicit success events',
+    'INFO    - General run, engine, research, and lifecycle events',
+    '',
+    'Log Format: #EXPORT_ID [timestamp] TYPE: [run label] EVENT (run_id=..., seq=...)',
+    '- EXPORT_ID: Sequential number within this export',
+    '- seq: Persisted sequence number for that event within its run',
+    '- Data: Additional event payload context in JSON format',
+    '',
+    '=== LOGS ===',
+    entries.length
+      ? entries
+          .map((ev, i) => {
+            const payload = JSON.stringify(ev.payload, null, 2);
+            const label = eventLabel(ev.type);
+            const severity = logSeverity(ev);
+            return `#${i + 1} [${fmtTime(ev.created_at)}] ${severity}: [${ev.run_label}] ${label} (run_id=${ev.run_id}, seq=${ev.seq})\n${payload}`;
+          })
+          .join('\n\n')
+      : '(no events)',
+  ];
+
+  return sections.join('\n');
+}
+
+function StatChip({
+  label,
+  value,
+  tone = 'info',
+}: {
+  label: string;
+  value: number;
+  tone?: 'info' | 'success' | 'error';
+}) {
+  const colors = {
+    info: {
+      backgroundColor: 'var(--md-sys-color-secondary-container)',
+      color: 'var(--md-sys-color-on-secondary-container)',
+    },
+    success: {
+      backgroundColor: 'var(--color-th-success-container)',
+      color: 'var(--color-th-on-success-container)',
+    },
+    error: {
+      backgroundColor: 'var(--md-sys-color-error-container)',
+      color: 'var(--md-sys-color-on-error-container)',
+    },
+  }[tone];
+
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold"
+      style={colors}
+    >
+      <span>{label}</span>
+      <span>{value}</span>
+    </span>
+  );
 }
 
 /**
@@ -51,6 +226,7 @@ export function LogConsole() {
 
   const {entries, loading, refresh} = useLogs();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const stats = diagnosticStats(entries);
 
   // Auto-scroll to bottom whenever new entries arrive or panel opens
   useEffect(() => {
@@ -83,7 +259,14 @@ export function LogConsole() {
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(
-      entries.length ? logText(entries) : '(no events)',
+      formatDiagnosticLog(entries, {
+        currentUrl:
+          typeof window === 'undefined' ? undefined : window.location.href,
+        userAgent:
+          typeof window === 'undefined'
+            ? undefined
+            : window.navigator.userAgent,
+      }),
     );
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -97,7 +280,7 @@ export function LogConsole() {
         style={{display: 'inline-flex'}}
       >
         <md-filled-tonal-button
-          onclick={(() => setOpen((v) => !v)) as EventListener}
+          onclick={(() => setOpen(v => !v)) as EventListener}
           aria-expanded={open}
           aria-label="Toggle log console"
         >
@@ -151,7 +334,6 @@ export function LogConsole() {
               flexDirection: 'column',
             }}
           >
-            {/* Panel header */}
             <div
               className="flex items-center justify-between px-4 py-3 border-b shrink-0"
               style={{borderColor: 'var(--md-sys-color-outline-variant)'}}
@@ -188,13 +370,41 @@ export function LogConsole() {
                 </md-outlined-button>
                 <md-outlined-button
                   onclick={(() => void handleCopy()) as EventListener}
-                  disabled={!entries.length || undefined}
+                  aria-label="Copy all diagnostic logs"
                 >
                   <md-icon slot="icon" aria-hidden="true">
                     {copied ? 'check' : 'content_copy'}
                   </md-icon>
-                  {copied ? 'Copied!' : 'Copy'}
+                  {copied ? 'Copied!' : 'Copy all'}
                 </md-outlined-button>
+              </div>
+            </div>
+
+            <div
+              className="px-4 py-3 border-b"
+              style={{
+                borderColor: 'var(--md-sys-color-outline-variant)',
+                backgroundColor: 'var(--md-sys-color-surface-container-low)',
+              }}
+            >
+              <p
+                className="text-xs leading-5 mb-3"
+                style={{color: 'var(--md-sys-color-on-surface-variant)'}}
+              >
+                Export includes all loaded run events, agent-stage updates,
+                reports, safety decisions, and failure context. Share the copied
+                text when troubleshooting so the full timeline is available.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <StatChip label="Total" value={stats.total} />
+                <StatChip label="Errors" value={stats.errors} tone="error" />
+                <StatChip
+                  label="Success"
+                  value={stats.success}
+                  tone="success"
+                />
+                <StatChip label="Info" value={stats.info} />
+                <StatChip label="Runs" value={stats.runs} />
               </div>
             </div>
 
@@ -222,7 +432,7 @@ export function LogConsole() {
                     <span
                       className="text-xs font-bold"
                       style={{
-                        color: 'var(--md-sys-color-on-surface-variant)',
+                        color: severityColor(logSeverity(ev)),
                         minWidth: '2rem',
                       }}
                     >
@@ -252,7 +462,9 @@ export function LogConsole() {
                     </span>
                     <span
                       className="text-xs font-bold"
-                      style={{color: eventLabelColor(ev.type)}}
+                      style={{
+                        color: eventLabelColor(ev.type, logSeverity(ev)),
+                      }}
                     >
                       {eventLabel(ev.type)}:
                     </span>

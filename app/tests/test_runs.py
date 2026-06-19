@@ -44,6 +44,26 @@ def test_create_run_returns_draft_status() -> None:
     assert data["profile"] == "advanced"
 
 
+def test_list_runs_honors_limit_query(isolated_db: str) -> None:
+    client = _client()
+    headers = {"X-Client-ID": "limit-test"}
+    for i in range(3):
+        res = client.post(
+            "/api/runs",
+            headers=headers,
+            json={
+                "research_goal": f"Limit test {i}",
+                "profile": "advanced"
+            },
+        )
+        assert res.status_code == 200
+
+    listed = client.get("/api/runs?limit=2", headers=headers)
+
+    assert listed.status_code == 200
+    assert len(listed.json()["runs"]) == 2
+
+
 def test_stale_standard_profile_and_tiny_overrides_run_as_advanced(
         isolated_db: str) -> None:
     from app.runs import CreateRunRequest, create_run  # pylint: disable=import-outside-toplevel
