@@ -36,6 +36,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import engine_adapter, store
+from app.mock_workflow import normalize_profile, resolved_config
 from app.store import RunRow, RunStatus, TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -132,19 +133,21 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         The created run serialized as a dict.
     """
     provider = engine_adapter.select_provider()
+    profile = normalize_profile(req.profile)
     config = {
         "initial_hypotheses_count": req.initial_hypotheses_count,
         "max_iterations": req.max_iterations,
         "evolution_max_count": req.evolution_max_count,
         "k_factor": req.k_factor,
     }
+    config = resolved_config(profile, {
+        k: v for k, v in config.items() if v is not None
+    })
     run = store.create_run(
         research_goal=req.research_goal,
-        profile=req.profile,
+        profile=profile,
         provider=provider,
-        config={
-            k: v for k, v in config.items() if v is not None
-        },
+        config=config,
         client_id=_client_id(request),
         db_path=_db_path(),
     )
@@ -153,7 +156,7 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         "lifecycle",
         {
             "event": "created",
-            "profile": req.profile,
+            "profile": profile,
             "provider": provider
         },
         db_path=_db_path(),
@@ -218,7 +221,7 @@ async def start_run(run_id: str, req: StartRunRequest,
             async for _ in engine_adapter.run_workflow(
                     run_id=run_id,
                     research_goal=run.research_goal,
-                    profile=run.profile,
+                    profile=normalize_profile(run.profile),
                     config=run.config,
                     db_path=_db_path(),
                     cancelled=handle.cancelled,

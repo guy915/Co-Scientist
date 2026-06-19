@@ -22,7 +22,11 @@ from typing import Any
 
 from app import store
 from app.citations import CitationState
-from app.mock_workflow import resolved_config, run_mock_workflow
+from app.mock_workflow import (
+    normalize_profile,
+    resolved_config,
+    run_mock_workflow,
+)
 from app.store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
@@ -116,6 +120,7 @@ async def run_workflow(
 ) -> AsyncIterator[dict[str, Any]]:
     """Drive the chosen workflow and yield events as the store records them."""
     provider = force_provider or select_provider()
+    profile = normalize_profile(profile)
     cfg = resolved_config(profile, config)
 
     logger.info("starting workflow run=%s provider=%s profile=%s", run_id,
