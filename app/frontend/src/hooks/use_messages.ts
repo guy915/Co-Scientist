@@ -31,12 +31,24 @@ export function useMessages(
   const [isAnswering, setIsAnswering] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const localSteeringRef = useRef<Map<number, Message>>(new Map());
 
   const fetchMessages = useCallback(async () => {
     if (!runId) return;
     try {
       const msgs = await listMessages(runId);
-      setMessages(msgs);
+      const fetchedIds = new Set(msgs.map(message => message.id));
+      for (const id of fetchedIds) {
+        localSteeringRef.current.delete(id);
+      }
+      const localMessages = [...localSteeringRef.current.values()].filter(
+        message => message.run_id === runId && !fetchedIds.has(message.id),
+      );
+      setMessages(
+        [...msgs, ...localMessages].sort(
+          (a, b) => a.created_at - b.created_at || a.id - b.id,
+        ),
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -70,11 +82,15 @@ export function useMessages(
         applied: false,
         status: 'queued',
       };
+      localSteeringRef.current.set(optimistic.id, optimistic);
       setMessages(prev => [...prev, optimistic]);
       try {
         const msg = await sendMessage(runId, content, 'steering');
+        localSteeringRef.current.delete(optimistic.id);
+        localSteeringRef.current.set(msg.id, msg);
         setMessages(prev => prev.map(m => (m.id === optimistic.id ? msg : m)));
       } catch (e) {
+        localSteeringRef.current.delete(optimistic.id);
         setMessages(prev => prev.filter(m => m.id !== optimistic.id));
         setError(e instanceof Error ? e.message : String(e));
       }

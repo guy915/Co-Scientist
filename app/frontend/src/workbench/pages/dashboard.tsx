@@ -178,9 +178,7 @@ export function Dashboard() {
             and reopenable.
           </p>
         </div>
-        <md-filled-button
-          onclick={(() => navigate('/')) as EventListener}
-        >
+        <md-filled-button onclick={(() => navigate('/')) as EventListener}>
           <md-icon slot="icon" aria-hidden="true">
             add
           </md-icon>
@@ -290,9 +288,7 @@ export function Dashboard() {
           >
             Start with a research goal to generate, debate, and rank hypotheses.
           </p>
-          <md-filled-button
-            onclick={(() => navigate('/')) as EventListener}
-          >
+          <md-filled-button onclick={(() => navigate('/')) as EventListener}>
             Create your first run
           </md-filled-button>
         </div>

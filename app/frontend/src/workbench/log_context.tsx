@@ -66,7 +66,7 @@ export function LogProvider({children}: {children: ReactNode}) {
         labelsRef.current.set(runId, label);
         eventsByRun.current.set(
           runId,
-          evs.map((ev) => ({...ev, run_id: runId, run_label: label})),
+          evs.map(ev => ({...ev, run_id: runId, run_label: label})),
         );
         rebuild();
       } catch {
@@ -81,8 +81,11 @@ export function LogProvider({children}: {children: ReactNode}) {
     try {
       const runs = await listRuns(1000);
       await Promise.all(
-        runs.map((r) =>
-          loadRun(r.id, r.research_goal.slice(0, 40) || `Run ${r.id.slice(0, 8)}`),
+        runs.map(r =>
+          loadRun(
+            r.id,
+            r.research_goal.slice(0, 40) || `Run ${r.id.slice(0, 8)}`,
+          ),
         ),
       );
     } catch {

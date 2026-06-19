@@ -114,8 +114,10 @@ bun run lint       # gts lint
 
 ## Usage
 
-Click **New run**, type a research goal, pick Standard or Advanced, and hit
-**Start**. The pipeline streams live across six tabs:
+Open the workspace, describe a research goal in chat, review the inferred run
+setup, and hit **Start**. The chat timeline keeps progress, steering messages,
+leading hypotheses, and report status in chronological order. The structured
+dashboard remains available for deeper inspection:
 
 | Tab | Shows |
 | --- | --- |
