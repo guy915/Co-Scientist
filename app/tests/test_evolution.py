@@ -96,4 +96,4 @@ def test_evolution_event_emitted(isolated_db: str) -> None:
     iterations = {m["iteration"] for m in matches}
     assert len(
         iterations
-    ) >= 2, "standard run should have >=2 ranking iterations (pre/post evolve)"  # pylint: disable=line-too-long
+    ) >= 2, "run should have >=2 ranking iterations (pre/post evolve)"

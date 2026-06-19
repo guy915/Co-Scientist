@@ -42,14 +42,9 @@ from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
 
+CANONICAL_PROFILE = "advanced"
+
 PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
-    "standard": {
-        "initial_hypotheses_count": 5,
-        "max_iterations": 1,
-        "evolution_max_count": 5,
-        "tournament_pairs": 6,
-        "evidence_count": 4,
-    },
     "advanced": {
         "initial_hypotheses_count": 8,
         "max_iterations": 2,
@@ -64,16 +59,30 @@ PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
 # ---------------------------------------------------------------------------
 
 
+def normalize_profile(_profile: str | None = None) -> str:
+    """Return the only supported run profile.
+
+    Older clients and persisted drafts may still send or store ``standard``.
+    Treat them as advanced so execution cannot take the shallow legacy path.
+    """
+    return CANONICAL_PROFILE
+
+
 def resolved_config(profile: str,
                     overrides: dict[str, int] | None = None) -> dict[str, int]:
-    base = dict(PROFILE_DEFAULTS.get(profile, PROFILE_DEFAULTS["standard"]))
+    base = dict(PROFILE_DEFAULTS[normalize_profile(profile)])
     if overrides:
         for k, v in overrides.items():
             if v is not None:
                 try:
-                    base[k] = int(v)
+                    value = int(v)
                 except (ValueError, TypeError):
                     pass
+                else:
+                    if k in base and k != "k_factor":
+                        base[k] = max(base[k], value)
+                    else:
+                        base[k] = value
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     return base
 
@@ -169,6 +178,7 @@ async def run_mock_workflow(
     sleep_seconds: float = 0.05,
 ) -> AsyncIterator[dict[str, Any]]:
     """Execute the deterministic mock workflow and yield events as they happen."""  # pylint: disable=line-too-long
+    profile = normalize_profile(profile)
     cfg = resolved_config(profile, config)
     rng = _seeded_rng("mock", run_id, research_goal, profile)
 

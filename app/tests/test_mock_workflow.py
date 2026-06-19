@@ -90,27 +90,23 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     _ = (run_a, run_b)
 
 
-def test_advanced_emits_more_events_than_standard(isolated_db: str) -> None:
-    run_std = store.create_run("Profile depth test", "standard", "mock", {})
-    events_std = _drain(
-        engine_adapter.run_workflow(run_std.id,
-                                    run_std.research_goal,
+def test_legacy_standard_profile_uses_advanced_depth(isolated_db: str) -> None:
+    run = store.create_run("Profile depth test", "standard", "mock", {})
+    events = _drain(
+        engine_adapter.run_workflow(run.id,
+                                    run.research_goal,
                                     "standard",
-                                    run_std.config,
+                                    {
+                                        "initial_hypotheses_count": 1,
+                                        "max_iterations": 0,
+                                        "evolution_max_count": 1,
+                                    },
                                     sleep_seconds=0))
 
-    run_adv = store.create_run("Profile depth test", "advanced", "mock", {})
-    events_adv = _drain(
-        engine_adapter.run_workflow(run_adv.id,
-                                    run_adv.research_goal,
-                                    "advanced",
-                                    run_adv.config,
-                                    sleep_seconds=0))
-
-    assert len(events_adv) > len(events_std)
-    matches_std = store.list_matches(run_std.id)
-    matches_adv = store.list_matches(run_adv.id)
-    assert len(matches_adv) > len(matches_std)
+    assert len(events) >= 14
+    assert len(store.list_hypotheses(run.id)) >= 8
+    assert len(store.list_evidence(run.id)) >= 8
+    assert len(store.list_matches(run.id)) >= 12
 
 
 def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:

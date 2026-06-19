@@ -136,7 +136,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     research_goal TEXT NOT NULL,
-    profile TEXT NOT NULL,           -- 'standard' | 'advanced'
+    profile TEXT NOT NULL,           -- 'advanced'; legacy 'standard' is coerced before execution
     status TEXT NOT NULL,            -- draft|queued|running|synthesizing|completed|failed|blocked|cancelled
     provider TEXT NOT NULL,          -- 'mock' | 'engine'
     config_json TEXT NOT NULL,       -- JSON: initial_count, iterations, evolution_count, k_factor, ...

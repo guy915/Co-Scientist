@@ -2,6 +2,7 @@
 # pylint: disable=unused-argument
 from __future__ import annotations
 
+import asyncio
 import time
 
 from collections.abc import Callable
@@ -40,7 +41,30 @@ def test_create_run_returns_draft_status() -> None:
     data = res.json()
     assert data["status"] == "draft"
     assert data["provider"] == "mock"
-    assert data["profile"] == "standard"
+    assert data["profile"] == "advanced"
+
+
+def test_stale_standard_profile_and_tiny_overrides_run_as_advanced(
+        isolated_db: str) -> None:
+    from app.runs import CreateRunRequest, create_run  # pylint: disable=import-outside-toplevel
+
+    class _Request:
+        headers: dict[str, str] = {}
+
+    req = CreateRunRequest(
+        research_goal="Map senescence escape mechanisms",
+        profile="standard",
+        initial_hypotheses_count=1,
+        max_iterations=0,
+        evolution_max_count=1,
+    )
+
+    run = asyncio.run(create_run(req, _Request()))  # type: ignore[arg-type]
+
+    assert run["profile"] == "advanced"
+    assert run["config"]["initial_hypotheses_count"] >= 8
+    assert run["config"]["max_iterations"] >= 2
+    assert run["config"]["evolution_max_count"] >= 8
 
 
 def test_standard_mock_run_completes_and_persists(isolated_db: str) -> None:
@@ -154,6 +178,5 @@ def test_advanced_run_produces_more_artifacts(isolated_db: str) -> None:
 
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
     matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
-    # Advanced > standard in initial pool, tournament pairs, evolution iterations.  # pylint: disable=line-too-long
     assert len(hyps) >= 8
     assert len(matches) >= 12
