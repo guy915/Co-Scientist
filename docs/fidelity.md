@@ -22,7 +22,7 @@ which are explicitly out of scope.
 | Meta-review feedback persisted and fed back into later iterations | `store.reviews` row per iteration; included in iterative ranking | published |
 | Citation verification is a gate, not decoration | `store.citations.state` ∈ {verified, partial, unsupported, unavailable}; UI shows them prominently | published |
 | Safety screening before **and** after generation | `safety.screen_intake` + `safety.screen_final`; both persisted | published |
-| Standard vs Advanced produce observably different compute depth | `mock_workflow.PROFILE_DEFAULTS`; verified by `test_advanced_run_produces_more_artifacts` | published |
+| Runs use the deeper advanced hypothesis-generation profile | `mock_workflow.normalize_profile`; legacy `standard` requests are coerced before execution | implementation policy preserving the published advanced workflow shape |
 | UI exposes agents, queue, progress, evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench Overview / Ideas / Evidence / Tournament / Report / Chat tabs | published UX |
 
 ## Implementation-defined values
@@ -34,11 +34,10 @@ structural level. All are configurable via env or the run-config request body.
 | Value | Default | Source of decision |
 | --- | --- | --- |
 | `ELO_K_FACTOR` | **24** | Mirrors engine ranking node default. K is intentionally moderate so a single match can move a candidate ~12 points; high enough to surface a leader in 6–12 matches, low enough that one bad call doesn't destroy the leaderboard. |
-| Standard pool size | 5 initial hypotheses | Matches engine `DEFAULT_INITIAL_HYPOTHESES_COUNT` + Co-Scientist demo videos showing a small initial pool. |
-| Advanced pool size | 8 initial hypotheses | Strictly larger so the test `test_advanced_run_produces_more_artifacts` can assert depth difference. |
-| Standard iterations | 1 evolve cycle | Reflects the "fast scoping" framing of Standard runs. |
-| Advanced iterations | 2 evolve cycles | Matches the "extended tournament" framing. |
-| Tournament pair count (Std/Adv) | 6 / 12 | Calibrated so an Elo leader emerges with statistical separation, scaled with pool size. |
+| Canonical profile | advanced | Current product flow always runs the deeper profile. Older clients and persisted drafts may still send `standard`, but execution normalizes them to `advanced`. |
+| Advanced pool size | 8 initial hypotheses | Matches the current chat-first workflow's deeper default candidate pool. |
+| Advanced iterations | 2 evolve cycles | Keeps the "extended tournament" framing as the only active run depth. |
+| Tournament pair count | 12 | Calibrated so an Elo leader emerges with statistical separation for the canonical advanced pool. |
 | Safety hard-block patterns | Narrow CBRN/weaponization keyword combinations | Hand-picked to bias toward avoiding false positives on legitimate research (CRISPR papers, pathogen biology, etc.). Reviewable in `app/safety.py`. |
 | Citation classifier | Jaccard token overlap with two thresholds (0.35 / 0.10) | Lightweight, deterministic, and good enough to surface all four classes for the demo. The real engine would call an LLM verifier here. |
 

@@ -28,55 +28,55 @@ export function WorkbenchApp() {
           <Layout>
             <ShortcutsBridge />
             <Routes>
-            <Route
-              path="/"
-              element={
-                <>
-                  <NoIndex title="Co-Scientist workspace" />
-                  <ChatWorkspace />
-                </>
-              }
-            />
-            <Route path="/about" element={<LandingPage />} />
-            <Route path="/demos/:slug" element={<DemoPage />} />
-            <Route
-              path="/runs"
-              element={
-                <>
-                  <NoIndex title="Research runs" />
-                  <Dashboard />
-                </>
-              }
-            />
-            <Route
-              path="/runs/new"
-              element={
-                <>
-                  <NoIndex title="New research run" />
-                  <ChatWorkspace />
-                </>
-              }
-            />
-            <Route
-              path="/runs/:id"
-              element={
-                <>
-                  <NoIndex title="Research run" />
-                  <RunDetail />
-                </>
-              }
-            />
-            <Route
-              path="/runs/:id/:tab"
-              element={
-                <>
-                  <NoIndex title="Research run" />
-                  <RunDetail />
-                </>
-              }
-            />
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
+              <Route
+                path="/"
+                element={
+                  <>
+                    <NoIndex title="Co-Scientist workspace" />
+                    <ChatWorkspace />
+                  </>
+                }
+              />
+              <Route path="/about" element={<LandingPage />} />
+              <Route path="/demos/:slug" element={<DemoPage />} />
+              <Route
+                path="/runs"
+                element={
+                  <>
+                    <NoIndex title="Research runs" />
+                    <Dashboard />
+                  </>
+                }
+              />
+              <Route
+                path="/runs/new"
+                element={
+                  <>
+                    <NoIndex title="New research run" />
+                    <ChatWorkspace />
+                  </>
+                }
+              />
+              <Route
+                path="/runs/:id"
+                element={
+                  <>
+                    <NoIndex title="Research run" />
+                    <RunDetail />
+                  </>
+                }
+              />
+              <Route
+                path="/runs/:id/:tab"
+                element={
+                  <>
+                    <NoIndex title="Research run" />
+                    <RunDetail />
+                  </>
+                }
+              />
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
           </Layout>
         </LogProvider>
       </ThemeProvider>

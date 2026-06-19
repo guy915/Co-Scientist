@@ -49,14 +49,13 @@ export function reviseRunSpec(
   const goalMatch = note.match(
     /(?:change|update|set)\s+(?:the\s+)?goal\s+(?:to|as)\s+[""]?(.+?)[""]?$/i,
   );
-  const goal = goalMatch?.[1] ? normalizeWhitespace(goalMatch[1]) : current.goal;
+  const goal = goalMatch?.[1]
+    ? normalizeWhitespace(goalMatch[1])
+    : current.goal;
   return {
     ...baseline,
     goal,
-    constraints: [
-      ...baseline.constraints,
-      `Apply steering note: ${note}`,
-    ],
+    constraints: [...baseline.constraints, `Apply steering note: ${note}`],
   };
 }
 
