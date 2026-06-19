@@ -79,7 +79,7 @@ export function LogProvider({children}: {children: ReactNode}) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const runs = await listRuns();
+      const runs = await listRuns(1000);
       await Promise.all(
         runs.map((r) =>
           loadRun(r.id, r.research_goal.slice(0, 40) || `Run ${r.id.slice(0, 8)}`),

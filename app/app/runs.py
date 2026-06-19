@@ -165,8 +165,13 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
 
 
 @router.get("")
-async def list_runs(request: Request) -> dict[str, Any]:
-    runs = store.list_runs(client_id=_client_id(request), db_path=_db_path())
+async def list_runs(
+        request: Request,
+        limit: int = Query(100, ge=1, le=1000),
+) -> dict[str, Any]:
+    runs = store.list_runs(client_id=_client_id(request),
+                           limit=limit,
+                           db_path=_db_path())
     return {"runs": [r.to_dict() for r in runs]}
 
 

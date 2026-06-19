@@ -198,10 +198,12 @@ export async function createRun(input: {
 /**
  * Lists the runs owned by the current client.
  *
+ * @param limit Maximum runs to return.
  * @returns All runs visible to the caller.
  */
-export async function listRuns(): Promise<Run[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs`, {
+export async function listRuns(limit?: number): Promise<Run[]> {
+  const query = limit === undefined ? '' : `?limit=${limit}`;
+  const res = await fetch(`${API_BASE_URL}/api/runs${query}`, {
     headers: clientHeaders(),
   });
   const data = await jsonOrThrow<{runs: Run[]}>(res);
