@@ -19,8 +19,8 @@ def _drain(coro_gen: AsyncIterator[Any]) -> list[Any]:
 
 
 def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
-    """Same goal + profile + run_id → identical artefacts (deterministic seed)."""  # pylint: disable=line-too-long
-    # Manually seed the same run_id twice — the workflow uses (run_id, goal, profile) as seed.  # pylint: disable=line-too-long
+    """Same goal + run mode + run_id → identical artefacts."""
+    # The workflow uses (run_id, goal, run mode) as seed material.
     run_a = store.create_run("Identical goal", "standard", "mock", {})
     events_a = _drain(
         engine_adapter.run_workflow(run_a.id,
@@ -34,9 +34,9 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
     # validate determinism by replaying via the inner generator with a hand-supplied id.)  # pylint: disable=line-too-long
 
     # The run already completed, so a replay would re-emit events into the same run row;  # pylint: disable=line-too-long
-    # instead, assert the same goal + profile produce the same number of generated  # pylint: disable=line-too-long
+    # instead, assert the same goal + run mode produces the same number of generated  # pylint: disable=line-too-long
     # initial hypotheses across two distinct runs (run_id is part of seed, but the  # pylint: disable=line-too-long
-    # *count* and *structure* are deterministic from the profile config).
+    # *count* and *structure* are deterministic from the run config).
     run_b = store.create_run("Identical goal", "standard", "mock", {})
     events_b = _drain(
         engine_adapter.run_workflow(run_b.id,
@@ -90,13 +90,12 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     _ = (run_a, run_b)
 
 
-def test_legacy_standard_profile_uses_advanced_depth(isolated_db: str) -> None:
-    run = store.create_run("Profile depth test", "standard", "mock", {})
+def test_legacy_standard_profile_uses_default_depth(isolated_db: str) -> None:
+    run = store.create_run("Default depth test", "standard", "mock", {})
     events = _drain(
         engine_adapter.run_workflow(run.id,
                                     run.research_goal,
-                                    "standard",
-                                    {
+                                    "standard", {
                                         "initial_hypotheses_count": 1,
                                         "max_iterations": 0,
                                         "evolution_max_count": 1,
@@ -104,6 +103,9 @@ def test_legacy_standard_profile_uses_advanced_depth(isolated_db: str) -> None:
                                     sleep_seconds=0))
 
     assert len(events) >= 14
+    plan = next(e for e in events if e["type"] == "supervisor.plan")
+    assert plan["payload"]["run_mode"] == "default"
+    assert plan["payload"]["profile"] == "default"
     assert len(store.list_hypotheses(run.id)) >= 8
     assert len(store.list_evidence(run.id)) >= 8
     assert len(store.list_matches(run.id)) >= 12

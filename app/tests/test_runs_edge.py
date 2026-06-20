@@ -37,6 +37,17 @@ def test_create_run_rejects_invalid_profile() -> None:
     assert res.status_code == 422
 
 
+def test_create_run_accepts_default_run_mode() -> None:
+    c = _client()
+    res = c.post("/api/runs",
+                 json={
+                     "research_goal": "x",
+                     "run_mode": "default"
+                 })
+    assert res.status_code == 200
+    assert res.json()["run_mode"] == "default"
+
+
 def test_get_run_returns_404_for_unknown_id() -> None:
     c = _client()
     res = c.get("/api/runs/not-a-real-id")

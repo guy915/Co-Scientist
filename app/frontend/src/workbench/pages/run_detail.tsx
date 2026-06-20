@@ -32,25 +32,45 @@ import {EvidenceTab} from '../components/tabs/evidence_tab';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {OverviewTab} from '../components/tabs/overview_tab';
 import {ReportTab} from '../components/tabs/report_tab';
+import {RunSpecificationsTab} from '../components/tabs/run_specifications_tab';
 import {TournamentTab} from '../components/tabs/tournament_tab';
 
 const TABS = [
-  'chat',
-  'overview',
   'ideas',
-  'evidence',
+  'knowledge',
+  'summary',
+  'specifications',
+  'progress',
   'tournament',
-  'report',
+  'chat',
 ] as const;
 type TabName = (typeof TABS)[number];
 
 const TAB_ICON_NAMES: Record<TabName, string> = {
-  overview: 'monitoring',
   ideas: 'format_list_numbered',
-  evidence: 'menu_book',
+  knowledge: 'menu_book',
+  summary: 'description',
+  specifications: 'rule',
+  progress: 'monitoring',
   tournament: 'compare_arrows',
-  report: 'description',
   chat: 'chat',
+};
+
+const TAB_LABELS: Record<TabName, string> = {
+  ideas: 'Ideas',
+  knowledge: 'Knowledge Base',
+  summary: 'Summary',
+  specifications: 'Run Specifications',
+  progress: 'Progress',
+  tournament: 'Tournament',
+  chat: 'Chat',
+};
+
+const TAB_ALIASES: Record<string, TabName> = {
+  overview: 'progress',
+  evidence: 'knowledge',
+  report: 'summary',
+  specs: 'specifications',
 };
 
 /**
@@ -59,9 +79,7 @@ const TAB_ICON_NAMES: Record<TabName, string> = {
 export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const navigate = useNavigate();
-  const activeTab = (
-    tab && (TABS as readonly string[]).includes(tab) ? tab : 'chat'
-  ) as TabName;
+  const activeTab = normalizeTab(tab);
 
   const [run, setRun] = useState<RunWithSummary | null>(null);
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
@@ -160,7 +178,7 @@ export function RunDetail() {
   const onTabChange = useCallback(
     (index: number) => {
       const t = TABS[index];
-      if (t) void navigate(`/runs/${id}/${t === 'chat' ? '' : t}`);
+      if (t) void navigate(`/runs/${id}/${t}`);
     },
     [id, navigate],
   );
@@ -170,7 +188,7 @@ export function RunDetail() {
   const isLiveActive = isOpen && !terminal;
 
   const tabList = TABS.map(t => ({
-    label: t.charAt(0).toUpperCase() + t.slice(1),
+    label: TAB_LABELS[t],
     icon: TAB_ICON_NAMES[t],
   }));
 
@@ -212,14 +230,6 @@ export function RunDetail() {
               )}
               {run && (
                 <span className="inline-flex items-center gap-1">
-                  <span className="sm:inline" aria-hidden="true">
-                    ·
-                  </span>
-                  Profile <strong className="capitalize">{run.profile}</strong>
-                </span>
-              )}
-              {run && (
-                <span className="inline-flex items-center gap-1">
                   <span aria-hidden="true">·</span>
                   Provider{' '}
                   <strong className="capitalize">{run.provider}</strong>
@@ -252,6 +262,14 @@ export function RunDetail() {
                     '--md-outlined-button-outline-color':
                       'var(--md-sys-color-error)',
                     '--md-outlined-button-label-text-color':
+                      'var(--md-sys-color-error)',
+                    '--md-outlined-button-icon-color':
+                      'var(--md-sys-color-error)',
+                    '--md-outlined-button-hover-icon-color':
+                      'var(--md-sys-color-error)',
+                    '--md-outlined-button-focus-icon-color':
+                      'var(--md-sys-color-error)',
+                    '--md-outlined-button-pressed-icon-color':
                       'var(--md-sys-color-error)',
                   } as React.CSSProperties
                 }
@@ -306,7 +324,7 @@ export function RunDetail() {
         <RunDetailSkeleton />
       ) : (
         <div className="wb-fade-in" key={activeTab}>
-          {activeTab === 'overview' && (
+          {activeTab === 'progress' && (
             <OverviewTab
               run={run}
               hypotheses={hypotheses}
@@ -324,14 +342,24 @@ export function RunDetail() {
               onFocus={setFocusedHypId}
             />
           )}
-          {activeTab === 'evidence' && (
+          {activeTab === 'knowledge' && (
             <EvidenceTab evidence={evidence} citations={citations} />
           )}
           {activeTab === 'tournament' && (
             <TournamentTab matches={matches} hypotheses={hypotheses} />
           )}
-          {activeTab === 'report' && (
+          {activeTab === 'summary' && (
             <ReportTab runId={id} report={report} safety={safety} />
+          )}
+          {activeTab === 'specifications' && (
+            <RunSpecificationsTab
+              run={run}
+              hypotheses={hypotheses}
+              evidence={evidence}
+              matches={matches}
+              safety={safety}
+              report={report}
+            />
           )}
           {activeTab === 'chat' && <ChatTab run={run} />}
         </div>
@@ -370,6 +398,12 @@ export function RunDetail() {
       )}
     </div>
   );
+}
+
+function normalizeTab(tab: string | undefined): TabName {
+  if (!tab) return 'ideas';
+  if ((TABS as readonly string[]).includes(tab)) return tab as TabName;
+  return TAB_ALIASES[tab] ?? 'ideas';
 }
 
 function RunDetailSkeleton() {

@@ -11,8 +11,8 @@ workspace.
 |   /                  -> LandingPage     (public overview)          |
 |   /demos/:slug       -> DemoPage        (public demo run)          |
 |   /runs              -> Dashboard       (lists runs)               |
-|   /runs/new          -> NewRunForm      (research goal + profile)  |
-|   /runs/:id          -> RunDetail       (6 tabs)                   |
+|   /runs/new          -> NewRunForm      (research goal setup)      |
+|   /runs/:id          -> RunDetail       (reference + support tabs) |
 |   /runs/:id/:tab     -> active tab persisted in the URL            |
 |                                                                    |
 | RunStatusPill                                                      |
@@ -78,7 +78,7 @@ event-log table. The mock workflow guarantees the full sequence:
 17. status            (completed)
 ```
 
-The frontend's Overview tab renders this verbatim. The SSE endpoint at
+The frontend's Progress tab renders this verbatim. The SSE endpoint at
 `GET /api/runs/{id}/events?after=<seq>` always replays history starting at the
 requested sequence, then tails live. This is what makes "reopen after restart"
 work: the client never depends on in-memory event state.

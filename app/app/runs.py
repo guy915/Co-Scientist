@@ -36,7 +36,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import engine_adapter, store
-from app.mock_workflow import normalize_profile, resolved_config
+from app.run_modes import RUN_MODE_PATTERN, normalize_run_mode, resolved_run_config
 from app.store import RunRow, RunStatus, TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,8 @@ def _db_path() -> str | None:
 
 class CreateRunRequest(BaseModel):
     research_goal: str = Field(..., min_length=1)
-    profile: str = Field("advanced", pattern="^(standard|advanced)$")
+    run_mode: str | None = Field(None, pattern=RUN_MODE_PATTERN)
+    profile: str | None = Field(None, pattern=RUN_MODE_PATTERN)
     initial_hypotheses_count: int | None = None
     max_iterations: int | None = None
     evolution_max_count: int | None = None
@@ -126,26 +127,27 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
     """Create a new run for the requesting client and return it.
 
     Args:
-        req: Request body with the research goal, profile, and run config.
+        req: Request body with the research goal, run mode, and run config.
         request: Incoming HTTP request, used to read the client identifier.
 
     Returns:
         The created run serialized as a dict.
     """
     provider = engine_adapter.select_provider()
-    profile = normalize_profile(req.profile)
-    config = {
-        "initial_hypotheses_count": req.initial_hypotheses_count,
-        "max_iterations": req.max_iterations,
-        "evolution_max_count": req.evolution_max_count,
-        "k_factor": req.k_factor,
-    }
-    config = resolved_config(profile, {
-        k: v for k, v in config.items() if v is not None
-    })
+    run_mode = normalize_run_mode(req.run_mode or req.profile)
+    overrides: dict[str, int] = {}
+    if req.initial_hypotheses_count is not None:
+        overrides["initial_hypotheses_count"] = req.initial_hypotheses_count
+    if req.max_iterations is not None:
+        overrides["max_iterations"] = req.max_iterations
+    if req.evolution_max_count is not None:
+        overrides["evolution_max_count"] = req.evolution_max_count
+    if req.k_factor is not None:
+        overrides["k_factor"] = req.k_factor
+    config = resolved_run_config(run_mode, overrides)
     run = store.create_run(
         research_goal=req.research_goal,
-        profile=profile,
+        profile=run_mode,
         provider=provider,
         config=config,
         client_id=_client_id(request),
@@ -156,7 +158,8 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         "lifecycle",
         {
             "event": "created",
-            "profile": profile,
+            "run_mode": run_mode,
+            "profile": run_mode,
             "provider": provider
         },
         db_path=_db_path(),
@@ -226,7 +229,7 @@ async def start_run(run_id: str, req: StartRunRequest,
             async for _ in engine_adapter.run_workflow(
                     run_id=run_id,
                     research_goal=run.research_goal,
-                    profile=normalize_profile(run.profile),
+                    profile=normalize_run_mode(run.profile),
                     config=run.config,
                     db_path=_db_path(),
                     cancelled=handle.cancelled,

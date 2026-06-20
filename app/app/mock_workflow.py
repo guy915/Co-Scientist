@@ -20,7 +20,7 @@ Stages emitted (in order):
 13. report               — assembled report
 14. status: completed
 
-The output is fully deterministic given (research_goal, profile, config). This
+The output is fully deterministic given (research_goal, run mode, config). This
 matters: tests assert against the workflow's behaviour, not flaky LLM output.
 """
 # pylint: disable=inconsistent-quotes
@@ -36,23 +36,12 @@ from typing import Any
 
 from app import store
 from app.citations import CitationRecord, classify_citation
-from app.elo import DEFAULT_K_FACTOR, INITIAL_ELO, update_pair
+from app.elo import INITIAL_ELO, update_pair
+from app.run_modes import normalize_run_mode, resolved_run_config
 from app.safety import screen_final, screen_intake
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
-
-CANONICAL_PROFILE = "advanced"
-
-PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
-    "advanced": {
-        "initial_hypotheses_count": 8,
-        "max_iterations": 2,
-        "evolution_max_count": 8,
-        "tournament_pairs": 12,
-        "evidence_count": 8,
-    },
-}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -60,31 +49,14 @@ PROFILE_DEFAULTS: dict[str, dict[str, int]] = {
 
 
 def normalize_profile(_profile: str | None = None) -> str:
-    """Return the only supported run profile.
-
-    Older clients and persisted drafts may still send or store ``standard``.
-    Treat them as advanced so execution cannot take the shallow legacy path.
-    """
-    return CANONICAL_PROFILE
+    """Compatibility wrapper for former profile labels."""
+    return normalize_run_mode(_profile)
 
 
 def resolved_config(profile: str,
                     overrides: dict[str, int] | None = None) -> dict[str, int]:
-    base = dict(PROFILE_DEFAULTS[normalize_profile(profile)])
-    if overrides:
-        for k, v in overrides.items():
-            if v is not None:
-                try:
-                    value = int(v)
-                except (ValueError, TypeError):
-                    pass
-                else:
-                    if k in base and k != "k_factor":
-                        base[k] = max(base[k], value)
-                    else:
-                        base[k] = value
-    base.setdefault("k_factor", DEFAULT_K_FACTOR)
-    return base
+    """Compatibility wrapper for resolving canonical run config."""
+    return resolved_run_config(profile, overrides)
 
 
 def _seeded_rng(*parts: str) -> random.Random:
@@ -178,9 +150,9 @@ async def run_mock_workflow(
     sleep_seconds: float = 0.05,
 ) -> AsyncIterator[dict[str, Any]]:
     """Execute the deterministic mock workflow and yield events as they happen."""  # pylint: disable=line-too-long
-    profile = normalize_profile(profile)
-    cfg = resolved_config(profile, config)
-    rng = _seeded_rng("mock", run_id, research_goal, profile)
+    run_mode = normalize_run_mode(profile)
+    cfg = resolved_run_config(run_mode, config)
+    rng = _seeded_rng("mock", run_id, research_goal, run_mode)
 
     def _check_cancel() -> bool:
         return bool(cancelled and cancelled.is_set())
@@ -229,12 +201,14 @@ async def run_mock_workflow(
             "safety",
             "report",
         ],
+        "run_mode":
+            run_mode,
         "profile":
-            profile,
+            run_mode,
         "config":
             cfg,
         "narrative": (
-            f"Plan a {profile} run for the research goal. Allocate compute across literature, "  # pylint: disable=line-too-long
+            "Plan the canonical hypothesis-generation run for the research goal. Allocate compute across literature, "  # pylint: disable=line-too-long
             f"generation ({cfg['initial_hypotheses_count']} candidates), {cfg['max_iterations']} "  # pylint: disable=line-too-long
             "iterations of reflect/rank/evolve, then synthesize a report."),
     }
@@ -513,7 +487,7 @@ async def run_mock_workflow(
     md_lines: list[str] = []
     md_lines.append(f"# Research Report — {research_goal}")
     md_lines.append("")
-    md_lines.append(f"_Profile: **{profile}** · Provider: **mock**_")
+    md_lines.append("_Provider: **mock**_")
     md_lines.append("")
     md_lines.append("## Summary")
     md_lines.append(
@@ -567,7 +541,8 @@ async def run_mock_workflow(
 
     payload = {
         "research_goal": research_goal,
-        "profile": profile,
+        "run_mode": run_mode,
+        "profile": run_mode,
         "provider": "mock",
         "leaderboard": [{
             "id": h["id"],

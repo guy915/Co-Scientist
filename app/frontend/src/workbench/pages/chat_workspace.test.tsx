@@ -205,9 +205,7 @@ describe('ChatWorkspace', () => {
 
     expect(await screen.findByText('Inferred run setup')).toBeInTheDocument();
     expect(screen.getByText('Start this run?')).toBeInTheDocument();
-    expect(
-      screen.getByText('Advanced hypothesis tournament'),
-    ).toBeInTheDocument();
+    expect(screen.getByText('Hypothesis tournament')).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Start'));
 
@@ -215,7 +213,6 @@ describe('ChatWorkspace', () => {
       expect(apiMock.createRun).toHaveBeenCalledWith(
         expect.objectContaining({
           research_goal: 'Investigate glucose homeostasis under cold stress.',
-          profile: 'advanced',
         }),
       );
       expect(apiMock.startRun).toHaveBeenCalledWith('run-1');

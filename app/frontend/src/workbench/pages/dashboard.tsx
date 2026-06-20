@@ -340,9 +340,6 @@ export function Dashboard() {
               >
                 <tr className="text-left">
                   <th className="px-4 py-2 font-semibold">Research goal</th>
-                  <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">
-                    Profile
-                  </th>
                   <th className="px-4 py-2 font-semibold w-32">Status</th>
                   <th className="px-4 py-2 font-semibold w-24 hidden sm:table-cell">
                     Provider
@@ -381,9 +378,6 @@ export function Dashboard() {
                           Example
                         </span>
                       )}
-                    </td>
-                    <td className="px-4 py-2 capitalize hidden sm:table-cell">
-                      {r.profile}
                     </td>
                     <td className="px-4 py-2">
                       <RunStatusPill status={r.status} />
@@ -466,18 +460,12 @@ function RunCard({
         {run.research_goal}
       </h2>
       <dl
-        className="mt-4 grid grid-cols-3 gap-3 border-t pt-3 text-xs"
+        className="mt-4 grid grid-cols-2 gap-3 border-t pt-3 text-xs"
         style={{
           borderColor: 'var(--md-sys-color-outline-variant)',
           color: 'var(--md-sys-color-on-surface-variant)',
         }}
       >
-        <div>
-          <dt className="uppercase tracking-wide">Profile</dt>
-          <dd className="mt-1 font-medium capitalize text-[color:var(--md-sys-color-on-surface)]">
-            {run.profile}
-          </dd>
-        </div>
         <div>
           <dt className="uppercase tracking-wide">Ideas</dt>
           <dd className="mt-1 font-medium text-[color:var(--md-sys-color-on-surface)]">

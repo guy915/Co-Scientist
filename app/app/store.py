@@ -120,8 +120,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM runs WHERE client_id = ''")
 
     report_cols = {
-        row[1]
-        for row in conn.execute("PRAGMA table_info(reports)").fetchall()
+        row[1] for row in conn.execute("PRAGMA table_info(reports)").fetchall()
     }
     if "markdown_text" not in report_cols:
         conn.execute("ALTER TABLE reports ADD COLUMN markdown_text TEXT")
@@ -136,7 +135,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     research_goal TEXT NOT NULL,
-    profile TEXT NOT NULL,           -- 'advanced'; legacy 'standard' is coerced before execution
+    profile TEXT NOT NULL,           -- canonical run mode; column name kept for legacy clients
     status TEXT NOT NULL,            -- draft|queued|running|synthesizing|completed|failed|blocked|cancelled
     provider TEXT NOT NULL,          -- 'mock' | 'engine'
     config_json TEXT NOT NULL,       -- JSON: initial_count, iterations, evolution_count, k_factor, ...
@@ -316,6 +315,7 @@ class RunRow:
         return {
             "id": self.id,
             "research_goal": self.research_goal,
+            "run_mode": self.profile,
             "profile": self.profile,
             "status": self.status,
             "provider": self.provider,
@@ -380,7 +380,8 @@ def create_run(
 
     Args:
         research_goal: The natural-language research goal for the run.
-        profile: The run profile, e.g. 'standard' or 'advanced'.
+        profile: Canonical run mode. The column name is retained for
+            compatibility with older clients.
         provider: The execution provider, e.g. 'mock' or 'engine'.
         config: Run configuration values serialized to JSON.
         client_id: Owning client identifier used for run isolation.
@@ -398,7 +399,7 @@ def create_run(
             (run_id, research_goal, profile, RunStatus.DRAFT.value, provider,
              json.dumps(config), client_id, now, now),
         )
-    logger.info("created run %s profile=%s provider=%s client_id=%s", run_id,
+    logger.info("created run %s run_mode=%s provider=%s client_id=%s", run_id,
                 profile, provider, client_id)
     return RunRow(
         id=run_id,
@@ -1000,12 +1001,18 @@ def get_latest_report(run_id: str,
             return None
         keys = row.keys()
         return {
-            "id": row["id"],
-            "run_id": row["run_id"],
-            "payload": json.loads(row["payload_json"]),
-            "markdown_path": row["markdown_path"],
-            "markdown_text": row["markdown_text"] if "markdown_text" in keys else None,  # pylint: disable=line-too-long
-            "created_at": row["created_at"],
+            "id":
+                row["id"],
+            "run_id":
+                row["run_id"],
+            "payload":
+                json.loads(row["payload_json"]),
+            "markdown_path":
+                row["markdown_path"],
+            "markdown_text":
+                row["markdown_text"] if "markdown_text" in keys else None,  # pylint: disable=line-too-long
+            "created_at":
+                row["created_at"],
         }
 
 
@@ -1027,8 +1034,9 @@ def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     if not latest:
         return None
     # Prefer the DB-stored text (resilient to filesystem loss).
-    if latest.get("markdown_text"):
-        return latest["markdown_text"]
+    markdown_text = latest.get("markdown_text")
+    if isinstance(markdown_text, str) and markdown_text:
+        return markdown_text
     # Fallback: read from disk for rows written before the markdown_text column.
     md_path = latest.get("markdown_path")
     if not md_path:

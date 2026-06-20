@@ -21,7 +21,7 @@ app/
         ├── workbench/
         │   ├── pages/      dashboard, new_run, run_detail
         │   └── components/ run_status_pill, idea_modal, log_console, elo_trajectory_chart
-        │       └── tabs/   Overview, Ideas, Evidence, Tournament, Report, Chat
+        │       └── tabs/   Ideas, Knowledge Base, Summary, Run Specifications, Progress, Tournament, Chat
         ├── api/runs.ts     HTTP + SSE client
         └── hooks/          Live run stream + message hooks
 ```
@@ -136,13 +136,14 @@ The frontend reads a single variable:
 ## Using the workbench
 
 1. **Dashboard** — lists all past runs with status, model, and hypothesis counts.
-2. **New run** — enter a research goal (free text), choose a run profile, and optionally tune iteration counts. Three example goals are shown as inspiration.
-3. **Run detail** — six tabs update live via SSE as the workflow progresses:
-   - **Overview** — live log, agent activity timeline, and key metrics.
+2. **New run** — describe a research goal in chat, review the inferred setup, and start the canonical workflow. Three example goals are shown as inspiration.
+3. **Run detail** — reference report tabs plus supporting live views update via SSE:
    - **Ideas** — ranked hypothesis list with Elo scores and lineage.
-   - **Evidence** — retrieved literature and citations.
+   - **Knowledge Base** — retrieved literature and citations.
+   - **Summary** — synthesized Markdown report, downloadable.
+   - **Run Specifications** — provider, configuration, artifacts, and safety gates.
+   - **Progress** — live log, agent activity timeline, and key metrics.
    - **Tournament** — Elo pairwise matchup history and trajectory chart.
-   - **Report** — synthesized Markdown report, downloadable.
    - **Chat** — scientist-in-the-loop steering and Q&A for the run.
 
 Runs can be cancelled mid-flight. The backend stores the full event log so completed runs can be re-explored after the fact.
@@ -182,10 +183,10 @@ The backend exposes two groups of endpoints.
 | `GET` | `/health` | Health check |
 | `GET` | `/config` | Server-default config values |
 | `GET` | `/status` | MCP/PubMed availability, provider, API key presence |
-| `POST` | `/generate` | Synchronous blocking generation (legacy) |
-| `POST` | `/generate/start` | Start legacy streaming generation |
-| `GET` | `/generate/stream/{task_id}` | Legacy streaming generation SSE |
-| `POST` | `/cancel_hypothesis_generation` | Cancel a legacy streaming task |
+| `POST` | `/generate` | Deprecated synchronous blocking generation |
+| `POST` | `/generate/start` | Deprecated streaming generation start |
+| `GET` | `/generate/stream/{task_id}` | Deprecated streaming generation SSE |
+| `POST` | `/cancel_hypothesis_generation` | Deprecated legacy task cancellation |
 
 Interactive docs are available when the server is running:
 - Swagger UI: http://localhost:8008/docs

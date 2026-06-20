@@ -11,6 +11,7 @@ import logging
 
 from app import store
 from app.mock_workflow import run_mock_workflow
+from app.run_modes import CANONICAL_RUN_MODE
 
 logger = logging.getLogger(__name__)
 
@@ -20,17 +21,17 @@ _DEMO_GOALS: list[tuple[str, str]] = [
     (
         "What mechanisms drive antibiotic resistance in Staphylococcus aureus biofilms, "  # pylint: disable=line-too-long
         "and which metabolic pathways could be targeted to restore susceptibility?",  # pylint: disable=line-too-long
-        "standard",
+        CANONICAL_RUN_MODE,
     ),
     (
         "How does synaptic pruning in the prefrontal cortex contribute to cognitive "  # pylint: disable=line-too-long
         "flexibility during adolescent development?",
-        "standard",
+        CANONICAL_RUN_MODE,
     ),
     (
         "What are the key molecular regulators of ferroptosis in pancreatic cancer cells, "  # pylint: disable=line-too-long
         "and how might their modulation enhance chemotherapy sensitivity?",
-        "standard",
+        CANONICAL_RUN_MODE,
     ),
 ]
 
@@ -45,7 +46,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
     existing_by_goal = {r.research_goal: r for r in existing}
 
-    for goal, profile in _DEMO_GOALS:
+    for goal, run_mode in _DEMO_GOALS:
         run = existing_by_goal.get(goal)
         if run is not None:
             # Check whether the report is readable; skip if it is.
@@ -64,7 +65,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
             if run is None:
                 run = store.create_run(
                     research_goal=goal,
-                    profile=profile,
+                    profile=run_mode,
                     provider="mock",
                     config={},
                     client_id=DEMO_CLIENT_ID,
@@ -73,7 +74,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
             async for _ in run_mock_workflow(
                     run_id=run.id,
                     research_goal=goal,
-                    profile=profile,
+                    profile=run_mode,
                     config={},
                     db_path=db_path,
                     sleep_seconds=0.0,

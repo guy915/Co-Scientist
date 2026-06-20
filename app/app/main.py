@@ -480,7 +480,10 @@ async def get_system_status() -> dict[str, Any]:
     }
 
 
-@app.post("/generate", response_model=GenerateResponse, tags=["hypotheses"])
+@app.post("/generate",
+          response_model=GenerateResponse,
+          tags=["hypotheses"],
+          deprecated=True)
 async def generate_hypotheses(request: GenerateRequest) -> GenerateResponse:
     """Generates hypotheses for a research goal.
 
@@ -680,7 +683,7 @@ async def stream_generator(
         yield f"data: {json.dumps(error_data)}\n\n"
 
 
-@app.post("/generate/start", tags=["hypotheses"])
+@app.post("/generate/start", tags=["hypotheses"], deprecated=True)
 async def start_generation(request: GenerateRequest) -> dict[str, str]:
     """Starts hypothesis generation and returns a task ID.
 
@@ -792,7 +795,7 @@ async def start_generation(request: GenerateRequest) -> dict[str, str]:
             detail=f"Failed to start generation: {str(e)}") from e
 
 
-@app.get("/generate/stream/{task_id}", tags=["hypotheses"])
+@app.get("/generate/stream/{task_id}", tags=["hypotheses"], deprecated=True)
 async def stream_generation(task_id: str) -> StreamingResponse:
     """Subscribes to the SSE stream for a started generation task.
 
@@ -839,7 +842,7 @@ class CancelRequest(BaseModel):
     task_id: str = Field(..., description="The task ID to cancel")
 
 
-@app.post("/cancel_hypothesis_generation", tags=["hypotheses"])
+@app.post("/cancel_hypothesis_generation", tags=["hypotheses"], deprecated=True)
 async def cancel_generation(request: CancelRequest) -> dict[str, str]:
     """Cancels an ongoing hypothesis generation task.
 
