@@ -228,6 +228,23 @@ def get_review_prompt(
     return load_prompt_with_schema("review", variables)
 
 
+def get_deep_verification_prompt(
+    research_goal: str,
+    hypothesis_text: str,
+    tool_registry: Any | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the deep-verification (probing questions) prompt and schema."""
+    variables = {
+        "research_goal": research_goal,
+        "hypothesis_text": hypothesis_text,
+    }
+
+    # Inject domain-specific prompt customizations.
+    variables.update(_get_domain_variables(tool_registry))
+
+    return load_prompt_with_schema("deep_verification", variables)
+
+
 def get_review_batch_prompt(
     research_goal: str,
     hypotheses_list: str,
@@ -263,6 +280,9 @@ def get_ranking_prompt(
     review_b: dict[str, Any] | None = None,
     reflection_notes_a: str | None = None,
     reflection_notes_b: str | None = None,
+    deep_verification_a: dict[str, Any] | None = None,
+    deep_verification_b: dict[str, Any] | None = None,
+    meta_review: dict[str, Any] | None = None,
     tool_registry: Any | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the ranking (and tournament) comparison prompt and schema."""
@@ -284,6 +304,20 @@ def get_ranking_prompt(
         reflection_notes_a or "No reflection notes available.")
     variables["hypothesis_b_reflection_notes"] = (
         reflection_notes_b or "No reflection notes available.")
+
+    # Add deep-verification probes if available (blank before the first
+    # deep_verification pass has run on the leaders).
+    dv_a = deep_verification_a or {}
+    dv_b = deep_verification_b or {}
+    variables["hypothesis_a_deep_verification"] = (
+        _format_deep_verification_context(dv_a.get("probes"),
+                                          dv_a.get("verdict"), "A"))
+    variables["hypothesis_b_deep_verification"] = (
+        _format_deep_verification_context(dv_b.get("probes"),
+                                          dv_b.get("verdict"), "B"))
+
+    # Add meta-review context if available (blank on iteration 1).
+    variables["meta_review_context"] = _format_meta_review_context(meta_review)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -314,6 +348,25 @@ def get_meta_review_prompt(
     variables.update(_get_domain_variables(tool_registry))
 
     return load_prompt_with_schema("meta_review", variables)
+
+
+def get_research_overview_prompt(
+    research_goal: str,
+    hypotheses_summary: str,
+    meta_review: dict[str, Any] | None = None,
+    tool_registry: Any | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the research-overview + NIH Specific Aims prompt and schema."""
+    variables = {
+        "research_goal": research_goal,
+        "hypotheses_summary": hypotheses_summary,
+        "meta_review_context": _format_meta_review_context(meta_review),
+    }
+
+    # Inject domain-specific prompt customizations.
+    variables.update(_get_domain_variables(tool_registry))
+
+    return load_prompt_with_schema("research_overview", variables)
 
 
 def get_proximity_prompt(
@@ -501,6 +554,43 @@ def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
     return "".join(sections) if sections else ""
 
 
+def _format_deep_verification_context(probes: list[dict[str, Any]] | None,
+                                      verdict: str | None, label: str) -> str:
+    """Format deep-verification probes for one hypothesis in ranking prompts.
+
+    Returns an empty string when no probes are available so the ranking prompt
+    is unchanged on the first tournament (before any deep verification has run).
+
+    Args:
+        probes: Probing-question entries from the deep-verification node, or
+            None.
+        verdict: The deep-verification verdict ("holds", "weakened", or
+            "undermined"), or None.
+        label: The hypothesis label ("A" or "B") for the section header.
+
+    Returns:
+        A formatted block with a leading separator, or an empty string.
+    """
+    if not probes:
+        return ""
+
+    verdict_text = verdict or "unknown"
+    sections = [
+        f"\n\n**Hypothesis {label} Deep Verification"
+        f" (verdict: {verdict_text}):**\n"
+    ]
+    for probe in probes:
+        question = probe.get("question", "")
+        answer = probe.get("answer", "")
+        fundamental = (" (fundamental assumption)"
+                       if probe.get("assumption_is_fundamental") else "")
+        sections.append(f"- Q{fundamental}: {question}\n")
+        if answer:
+            sections.append(f"  A: {answer}\n")
+
+    return "".join(sections)
+
+
 def _format_review_context(review_a: dict[str, Any] | None,
                            review_b: dict[str, Any] | None) -> str:
     """Format review scores for ranking prompts."""
@@ -583,6 +673,7 @@ def _format_supervisor_guidance_for_meta_review(
 def get_reflection_prompt(
     articles_with_reasoning: str,
     hypothesis_text: str,
+    meta_review: dict[str, Any] | None = None,
     tool_registry: Any | None = None,
     indra_evidence: str = "",
 ) -> tuple[str, dict[str, Any] | None]:
@@ -592,6 +683,9 @@ def get_reflection_prompt(
         "hypothesis": hypothesis_text,
         "indra_evidence": indra_evidence,
     }
+
+    # Add meta-review context if available (blank on iteration 1).
+    variables["meta_review_context"] = _format_meta_review_context(meta_review)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -983,6 +1077,7 @@ def get_debate_generation_prompt(
     articles: list[Any] | None = None,
     tool_registry: Any | None = None,
     reference_list: str = "",
+    meta_review: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the debate-based hypothesis generation prompt.
 
@@ -1004,6 +1099,7 @@ def get_debate_generation_prompt(
         articles: Optional list of Article objects for citation metadata
         tool_registry: Optional ToolRegistry for dynamic tool instructions
         reference_list: Optional citation reference list of `[C*]` keys
+        meta_review: Optional cross-iteration meta-review feedback
 
     Returns:
         Tuple of (formatted prompt string, JSON schema dict or None)
@@ -1063,6 +1159,9 @@ def get_debate_generation_prompt(
             guidance_sections) if has_content else ""
     else:
         variables["supervisor_guidance"] = ""
+
+    # Add meta-review context if available (blank on iteration 1).
+    variables["meta_review_context"] = _format_meta_review_context(meta_review)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -1358,6 +1457,7 @@ def get_draft_prompt_with_tools(
     max_iterations: int = 8,
     tool_registry: Any | None = None,
     reference_list: str = "",
+    meta_review: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get prompt for Phase 1: drafting hypotheses with tools.
 
@@ -1378,6 +1478,7 @@ def get_draft_prompt_with_tools(
         max_iterations: Max tool iterations for the agent
         tool_registry: Optional ToolRegistry for dynamic tool instructions
         reference_list: Optional citation reference list of `[C*]` keys
+        meta_review: Optional cross-iteration meta-review feedback
     """
     # Get tool IDs for draft generation workflow
     tool_ids = []
@@ -1417,6 +1518,9 @@ def get_draft_prompt_with_tools(
         "tool_instructions":
             tool_instructions,
     }
+
+    # Add meta-review context if available (blank on iteration 1).
+    variables["meta_review_context"] = _format_meta_review_context(meta_review)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))

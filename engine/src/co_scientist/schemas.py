@@ -845,6 +845,136 @@ REFLECTION_SCHEMA: dict[str, Any] = {
     },
 }
 
+# Deep-verification schema
+DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
+    "name": "deep_verification",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "probes": {
+                "type": "array",
+                "items": {
+                    "type":
+                        "object",
+                    "additionalProperties":
+                        False,
+                    "properties": {
+                        "question": {
+                            "type": "string"
+                        },
+                        "answer": {
+                            "type": "string"
+                        },
+                        "reasoning": {
+                            "type": "string"
+                        },
+                        "assumption_is_fundamental": {
+                            "type": "boolean"
+                        },
+                    },
+                    "required": [
+                        "question",
+                        "answer",
+                        "reasoning",
+                        "assumption_is_fundamental",
+                    ],
+                },
+            },
+            "verdict": {
+                "type": "string",
+                "enum": ["holds", "weakened", "undermined"],
+            },
+            "overall_assessment": {
+                "type": "string"
+            },
+        },
+        "required": ["probes", "verdict", "overall_assessment"],
+    },
+}
+
+# Research-overview schema
+RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
+    "name": "research_overview",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "overview": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "summary": {
+                        "type": "string"
+                    },
+                    "research_directions": {
+                        "type": "array",
+                        "items": {
+                            "type":
+                                "object",
+                            "additionalProperties":
+                                False,
+                            "properties": {
+                                "title": {
+                                    "type": "string"
+                                },
+                                "importance": {
+                                    "type": "string"
+                                },
+                                "suggested_experiments": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    },
+                                },
+                            },
+                            "required": [
+                                "title",
+                                "importance",
+                                "suggested_experiments",
+                            ],
+                        },
+                    },
+                },
+                "required": ["summary", "research_directions"],
+            },
+            "nih_specific_aims": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "introduction": {
+                        "type": "string"
+                    },
+                    "aims": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "aim": {
+                                    "type": "string"
+                                },
+                                "rationale": {
+                                    "type": "string"
+                                },
+                                "approach": {
+                                    "type": "string"
+                                },
+                            },
+                            "required": ["aim", "rationale", "approach"],
+                        },
+                    },
+                    "impact": {
+                        "type": "string"
+                    },
+                },
+                "required": ["introduction", "aims", "impact"],
+            },
+        },
+        "required": ["overview", "nih_specific_aims"],
+    },
+}
+
 # Supervisor schema
 SUPERVISOR_SCHEMA: dict[str, Any] = {
     "name": "supervisor_guidance",
@@ -1283,6 +1413,10 @@ def get_schema_for_prompt(prompt_name: str) -> dict[str, Any] | None:
             PROXIMITY_SCHEMA,
         "reflection_observations":
             REFLECTION_SCHEMA,
+        "deep_verification":
+            DEEP_VERIFICATION_SCHEMA,
+        "research_overview":
+            RESEARCH_OVERVIEW_SCHEMA,
         "supervisor":
             SUPERVISOR_SCHEMA,
         "literature_query_generation":

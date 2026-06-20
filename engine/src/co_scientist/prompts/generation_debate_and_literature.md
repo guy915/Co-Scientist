@@ -13,7 +13,7 @@ Consider current scientific literature and knowledge in the domain.
 {{goal}}
 
 {{supervisor_guidance}}
-
+{{meta_review_context}}
 ## User-Provided Starting Hypotheses (if any; else this section will be empty)
 
 {{user_hypotheses}}

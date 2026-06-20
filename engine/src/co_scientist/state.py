@@ -157,6 +157,9 @@ class WorkflowState(TypedDict):
     meta_review: dict[str, Any]
     """Meta-review insights for guiding evolution."""
 
+    research_overview: dict[str, Any] | None
+    """Terminal research overview plus NIH Specific Aims synthesis."""
+
     removed_duplicates: list[dict[str, Any]]
     """Tracking removed duplicate hypotheses."""
 

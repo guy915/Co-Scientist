@@ -31,9 +31,11 @@ _LIT_NODES = {
     "reflection",
     "review",
     "ranking",
+    "deep_verification",
     "meta_review",
     "evolve",
     "proximity",
+    "research_overview",
 }
 
 # Node set for the simplified flow (no literature_review / reflection).
@@ -164,6 +166,26 @@ def test_build_graph_without_literature_review_omits_nodes() -> None:
     assert set(graph.nodes.keys()) == _SIMPLE_NODES
     assert "literature_review" not in graph.nodes
     assert "reflection" not in graph.nodes
+
+
+def test_deep_verification_follows_ranking() -> None:
+    """Ranking routes unconditionally into the deep_verification node."""
+    gen = HypothesisGenerator()
+    graph = gen._build_graph(enable_literature_review_node=False)
+    drawable = graph.get_graph()
+    ranking_targets = {
+        e.target for e in drawable.edges if e.source == "ranking"
+    }
+    assert ranking_targets == {"deep_verification"}
+
+
+def test_research_overview_is_the_only_terminal_node() -> None:
+    """Every terminal path flows through research_overview before END."""
+    gen = HypothesisGenerator()
+    graph = gen._build_graph(enable_literature_review_node=False)
+    drawable = graph.get_graph()
+    end_sources = {e.source for e in drawable.edges if e.target == "__end__"}
+    assert end_sources == {"research_overview"}
 
 
 # --- _prepare_generation: state building -------------------------------------
@@ -366,3 +388,18 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
     )
     assert state["enable_tool_calling_generation"] is False
     assert state["mcp_available"] is False
+
+
+def test_graph_includes_deep_verification_node() -> None:
+    """The graph registers a deep_verification node after ranking."""
+    gen = HypothesisGenerator(model_name="test/model")
+    graph = gen._build_graph(enable_literature_review_node=False)  # pylint: disable=protected-access
+    assert "deep_verification" in graph.nodes
+
+
+def test_graph_includes_research_overview_node_and_terminates_through_it(
+) -> None:
+    """The graph registers a terminal research_overview node."""
+    gen = HypothesisGenerator(model_name="test/model")
+    graph = gen._build_graph(enable_literature_review_node=False)  # pylint: disable=protected-access
+    assert "research_overview" in graph.nodes

@@ -25,9 +25,11 @@ from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.nodes.reflection import reflection_node
 from co_scientist.nodes.review import review_node
 from co_scientist.nodes.ranking import ranking_node
+from co_scientist.nodes.deep_verification import deep_verification_node
 from co_scientist.nodes.meta_review import meta_review_node
 from co_scientist.nodes.evolve import evolve_node
 from co_scientist.nodes.proximity import proximity_node
+from co_scientist.nodes.research_overview import research_overview_node
 from co_scientist.nodes.supervisor import supervisor_node
 from co_scientist.state import WorkflowState
 
@@ -152,9 +154,11 @@ class HypothesisGenerator:
         workflow.add_node("generate", generate_node)
         workflow.add_node("review", review_node)
         workflow.add_node("ranking", ranking_node)
+        workflow.add_node("deep_verification", deep_verification_node)
         workflow.add_node("meta_review", meta_review_node)
         workflow.add_node("evolve", evolve_node)
         workflow.add_node("proximity", proximity_node)
+        workflow.add_node("research_overview", research_overview_node)
 
         # Conditionally add literature review and reflection nodes
         if enable_literature_review_node:
@@ -208,11 +212,15 @@ class HypothesisGenerator:
                 logger.info("Going through proximity check")
                 return "proximity"
 
-        workflow.add_conditional_edges("ranking", after_ranking, {
-            "iterate": "meta_review",
-            "proximity": "proximity",
-            "end": END
-        })
+        # Deep-verification runs on the top-ranked hypotheses after ranking,
+        # then the same post-ranking routing decision is made one node later.
+        workflow.add_edge("ranking", "deep_verification")
+        workflow.add_conditional_edges(
+            "deep_verification", after_ranking, {
+                "iterate": "meta_review",
+                "proximity": "proximity",
+                "end": "research_overview"
+            })
 
         # After proximity, check if we should continue iterating
         def after_proximity(state: WorkflowState) -> str:
@@ -231,8 +239,12 @@ class HypothesisGenerator:
 
         workflow.add_conditional_edges("proximity", after_proximity, {
             "iterate": "meta_review",
-            "end": END
+            "end": "research_overview"
         })
+
+        # Terminal synthesis: every completion path flows through the
+        # research-overview node before ending.
+        workflow.add_edge("research_overview", END)
 
         return workflow.compile()
 
@@ -363,6 +375,7 @@ class HypothesisGenerator:
             "current_iteration": 0,
             "supervisor_guidance": {},
             "meta_review": {},
+            "research_overview": None,
             "removed_duplicates": [],
             "tournament_matchups": [],
             "evolution_details": [],
@@ -526,6 +539,8 @@ class HypothesisGenerator:
                 "hypotheses": [h.to_dict() for h in final_state["hypotheses"]],
                 "meta_review":
                     final_state.get("meta_review", {}),
+                "research_overview":
+                    final_state.get("research_overview", {}),
                 "research_plan":
                     final_state.get("supervisor_guidance", {}),
                 "tournament_matchups":
@@ -605,6 +620,7 @@ class HypothesisGenerator:
             cumulative_state: dict[str, Any] = {
                 "hypotheses": [],
                 "meta_review": {},
+                "research_overview": {},
                 "research_plan": {},
                 "tournament_matchups": [],
                 "evolution_details": [],
@@ -634,6 +650,10 @@ class HypothesisGenerator:
                         cumulative_state["meta_review"] = node_state[
                             "meta_review"]
                         logger.debug("updated meta_review")
+                    if "research_overview" in node_state:
+                        cumulative_state["research_overview"] = node_state[
+                            "research_overview"]
+                        logger.debug("updated research_overview")
                     if "supervisor_guidance" in node_state:
                         cumulative_state["research_plan"] = node_state[
                             "supervisor_guidance"]
@@ -706,6 +726,8 @@ class HypothesisGenerator:
                         ],
                         "meta_review":
                             cumulative_state["meta_review"],
+                        "research_overview":
+                            cumulative_state["research_overview"],
                         "research_plan":
                             cumulative_state["research_plan"],
                         "tournament_matchups":

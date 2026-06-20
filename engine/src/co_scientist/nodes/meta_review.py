@@ -74,6 +74,8 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
                 hyp.elo_rating,
             "win_loss_record":
                 f"{hyp.win_count}W-{hyp.loss_count}L",
+            "deep_verification_verdict":
+                hyp.deep_verification_verdict,
         }
         all_reviews.append(review_data)
 

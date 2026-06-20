@@ -76,6 +76,14 @@ DEFAULT_INITIAL_HYPOTHESES_COUNT: Final = 5
 DEFAULT_EVOLUTION_MAX_COUNT: Final = 3
 """Default number of top hypotheses to evolve and keep."""
 
+# Deep-verification review (probing questions on the most promising hypotheses).
+DEEP_VERIFICATION_TOP_K: Final = 3
+"""Number of top-Elo hypotheses to subject to deep verification."""
+
+# Research overview synthesizes the strongest hypotheses into a roadmap.
+RESEARCH_OVERVIEW_TOP_K: Final = 10
+"""Number of top-Elo hypotheses to synthesize into the research overview."""
+
 # Similarity thresholds
 DUPLICATE_SIMILARITY_THRESHOLD: Final = 0.95
 """Similarity threshold above which hypotheses are considered duplicates (0-1).
@@ -97,8 +105,12 @@ PROGRESS_META_REVIEW_START: Final = 45
 PROGRESS_META_REVIEW_COMPLETE: Final = 50
 PROGRESS_EVOLVE_START: Final = 55
 PROGRESS_EVOLVE_COMPLETE: Final = 60
+PROGRESS_DEEP_VERIFICATION_START: Final = 81
+PROGRESS_DEEP_VERIFICATION_COMPLETE: Final = 84
 PROGRESS_PROXIMITY_START: Final = 75
 PROGRESS_PROXIMITY_COMPLETE: Final = 85
+PROGRESS_RESEARCH_OVERVIEW_START: Final = 95
+PROGRESS_RESEARCH_OVERVIEW_COMPLETE: Final = 99
 
 # Cache defaults
 DEFAULT_CACHE_DIR: Final = ".coscientist_cache"

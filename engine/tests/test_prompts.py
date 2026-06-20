@@ -23,6 +23,7 @@ from typing import Any
 from co_scientist.prompts import _get_domain_variables
 from co_scientist.prompts import format_articles_metadata
 from co_scientist.prompts import get_debate_generation_prompt
+from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.prompts import get_draft_prompt_with_tools
 from co_scientist.prompts import (get_literature_review_paper_analysis_prompt)
 from co_scientist.prompts import (
@@ -31,6 +32,7 @@ from co_scientist.prompts import get_meta_review_prompt
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.prompts import get_ranking_prompt
 from co_scientist.prompts import get_reflection_prompt
+from co_scientist.prompts import get_research_overview_prompt
 from co_scientist.prompts import get_review_batch_prompt
 from co_scientist.prompts import get_review_prompt
 from co_scientist.prompts import get_supervisor_prompt
@@ -448,3 +450,24 @@ def test_paper_analysis_prompt_interpolates_metadata() -> None:
     # which is a template-escaping quirk independent of the builder's inputs.)
     for var in ("research_goal", "title", "authors", "year", "fulltext"):
         assert f"{{{{MISSING:{var}}}}}" not in prompt
+
+
+def test_get_deep_verification_prompt_substitutes_and_returns_schema() -> None:
+    """The deep-verification prompt embeds the goal and hypothesis text."""
+    prompt, schema = get_deep_verification_prompt(
+        research_goal="Repurpose a drug for AML",
+        hypothesis_text="Reparixin inhibits CXCR1/2 in AML")
+    assert "Reparixin inhibits CXCR1/2 in AML" in prompt
+    assert "Repurpose a drug for AML" in prompt
+    assert schema is not None
+    assert "{hypothesis_text}" not in prompt  # placeholder fully substituted
+
+
+def test_get_research_overview_prompt_substitutes_and_returns_schema() -> None:
+    """The research-overview prompt embeds the goal and hypotheses summary."""
+    prompt, schema = get_research_overview_prompt(
+        research_goal="Find liver-fibrosis targets",
+        hypotheses_summary="1. HDAC inhibition (Elo 1700)\n2. BRD4 (Elo 1650)")
+    assert "Find liver-fibrosis targets" in prompt
+    assert "HDAC inhibition" in prompt
+    assert schema is not None

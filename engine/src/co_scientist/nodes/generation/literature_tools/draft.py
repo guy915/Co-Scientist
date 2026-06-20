@@ -55,6 +55,7 @@ async def draft_hypotheses(
 
     # Get state variables
     supervisor_guidance = state.get("supervisor_guidance", {})
+    meta_review = state.get("meta_review")
     articles_with_reasoning = state.get("articles_with_reasoning")
     preferences = state.get("preferences")
     attributes = state.get("attributes")
@@ -129,6 +130,7 @@ async def draft_hypotheses(
         max_iterations=max_iterations,
         tool_registry=tool_registry,
         reference_list=ref_text,
+        meta_review=meta_review,
     )
 
     # Save prompt to disk
