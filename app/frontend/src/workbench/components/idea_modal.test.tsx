@@ -144,6 +144,54 @@ describe('IdeaModal', () => {
     ).toBeInTheDocument();
   });
 
+  it('renders deep-verification probes in a dedicated section', () => {
+    const focus = makeHypothesis({id: 'h1', title: 'Verified idea'});
+    const reviews: Review[] = [
+      {
+        id: 1,
+        hypothesis_id: 'h1',
+        reviewer_agent: 'reflection',
+        summary: 'Plausible.',
+        critique: 'Regular review critique.',
+        novelty: null,
+        plausibility: null,
+        testability: null,
+        overall: null,
+      },
+      {
+        id: 2,
+        hypothesis_id: 'h1',
+        reviewer_agent: 'deep_verification',
+        summary: 'Deep verification verdict: weakened',
+        critique: 'Probe 1 (fundamental): Is X sufficient alone?',
+        novelty: null,
+        plausibility: null,
+        testability: null,
+        overall: null,
+      },
+    ];
+
+    render(
+      <IdeaModal
+        hypothesis={focus}
+        allHypotheses={[focus]}
+        reviews={reviews}
+        citations={[]}
+        evidence={[]}
+        onClose={() => {}}
+      />,
+    );
+
+    // Dedicated section with the verdict parsed out of the summary into a badge.
+    expect(screen.getByText('Deep verification')).toBeInTheDocument();
+    expect(screen.getByText('weakened')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Probe 1 \(fundamental\): Is X sufficient alone\?/),
+    ).toBeInTheDocument();
+    // The regular review still renders in its own section.
+    expect(screen.getByText('Regular review critique.')).toBeInTheDocument();
+  });
+
   it('calls onClose when the Close button is activated', () => {
     const onClose = vi.fn();
     render(
