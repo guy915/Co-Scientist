@@ -15,10 +15,12 @@ Stages emitted (in order):
 8. evolve                — mutate top-k → child hypotheses (parent_id set)
 9. ranking (post-evolve) — second round of Elo updates
 10. meta_review          — synthesis critique
-11. citation_audit       — classify each citation
-12. safety.final         — final-output gate
-13. report               — assembled report
-14. status: completed
+11. deep_verification    — probing Q&A + verdict on top-k by Elo (reviews)
+12. citation_audit       — classify each citation
+13. research_overview    — research overview + NIH Specific Aims (report)
+14. safety.final         — final-output gate
+15. report               — assembled report
+16. status: completed
 
 The output is fully deterministic given (research_goal, run mode, config). This
 matters: tests assert against the workflow's behaviour, not flaky LLM output.
@@ -48,9 +50,9 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
-def normalize_profile(_profile: str | None = None) -> str:
+def normalize_profile(profile: str | None = None) -> str:
     """Compatibility wrapper for former profile labels."""
-    return normalize_run_mode(_profile)
+    return normalize_run_mode(profile)
 
 
 def resolved_config(profile: str,
@@ -132,6 +134,144 @@ def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
 
 def _cluster_id(idx: int) -> str:
     return f"cluster-{idx % 3}"
+
+
+# Number of top-ranked hypotheses subjected to deep verification. Hardcoded
+# because the mock is offline and must not import the engine constant.
+DEEP_VERIFICATION_TOP_K = 3
+
+
+def _deep_verification_seed(rng: random.Random, title: str) -> dict[str, Any]:
+    """Generate deterministic probing Q&A plus a verdict for a hypothesis.
+
+    Mirrors the canonical deep-verification review: each probe decomposes a
+    fundamental assumption and attacks it, judging whether a failing
+    assumption is fundamental.
+
+    Args:
+        rng: Seeded random generator shared by the workflow.
+        title: Title of the hypothesis being probed; woven into the prompts.
+
+    Returns:
+        A dict with ``probes`` (a list of question/answer/reasoning/
+        ``assumption_is_fundamental`` entries) and a ``verdict`` string.
+    """
+    probe_templates = [
+        (
+            "Does the proposed mechanism hold if the upstream regulator is "
+            "redundant?",
+            "Only partially; a parallel pathway can compensate when the "
+            "primary route is blocked.",
+            "Compensatory signalling weakens the causal claim but does not "
+            "fully refute it.",
+            True,
+        ),
+        (
+            "Is the predicted intermediate state uniquely attributable to the "
+            "proposed pathway?",
+            "Not exclusively; the same readout can arise from an off-target "
+            "effect.",
+            "Lack of specificity introduces a confound that must be "
+            "controlled for.",
+            False,
+        ),
+        (
+            "Would the expected dose-response survive in an orthogonal model "
+            "system?",
+            "Likely, though the effect size may shrink outside the original "
+            "assay conditions.",
+            "Reproducibility across systems is plausible but unproven.",
+            True,
+        ),
+        (
+            "Does the hypothesis depend on an assumption contradicted by "
+            "prior work?",
+            "One supporting citation is weaker than assumed under closer "
+            "reading.",
+            "A shaky premise lowers confidence without undermining the whole "
+            "hypothesis.",
+            False,
+        ),
+    ]
+    probe_count = rng.randint(2, 3)
+    chosen = rng.sample(probe_templates, probe_count)
+    probes = [{
+        "question": f"Regarding '{title[:60]}': {question}",
+        "answer": answer,
+        "reasoning": reasoning,
+        "assumption_is_fundamental": fundamental,
+    } for question, answer, reasoning, fundamental in chosen]
+    any_fundamental = any(p["assumption_is_fundamental"] for p in probes)
+    verdict = rng.choice(["weakened", "undermined"
+                         ]) if any_fundamental else "holds"
+    return {"probes": probes, "verdict": verdict}
+
+
+def _research_overview_seed(rng: random.Random, goal: str,
+                            top_titles: list[str]) -> dict[str, Any]:
+    """Build a deterministic research overview + NIH Specific Aims payload.
+
+    The shape matches the engine's ``research_overview`` exactly so the shared
+    markdown renderer keys off the same field names.
+
+    Args:
+        rng: Seeded random generator shared by the workflow.
+        goal: The natural-language research goal.
+        top_titles: Titles of the top-ranked hypotheses, in Elo order.
+
+    Returns:
+        A dict shaped as ``{"overview": {...}, "nih_specific_aims": {...}}``.
+    """
+    lead = top_titles[0] if top_titles else "the leading hypothesis"
+    summary = (
+        f"Synthesizing the top hypotheses for '{goal[:120]}', a coherent "
+        f"research program emerges around {lead.lower()}. The directions "
+        "below convert the highest-ranked mechanisms into a testable roadmap.")
+    direction_angles = [
+        ("Establish the causal mechanism",
+         "Confirms the core assumption shared by the top hypotheses."),
+        ("Probe pathway redundancy",
+         "Determines whether compensatory routes blunt the expected effect."),
+        ("Validate in an orthogonal model",
+         "Guards against assay-specific artefacts before scale-up."),
+    ]
+    rng.shuffle(direction_angles)
+    research_directions = []
+    for idx, (title, importance) in enumerate(direction_angles[:3]):
+        research_directions.append({
+            "title":
+                title,
+            "importance":
+                importance,
+            "suggested_experiments": [
+                "Run a controlled perturbation series with three replicates "
+                "per condition.",
+                "Quantify the readout against baseline for direction "
+                f"{idx + 1}.",
+            ],
+        })
+    aims = [{
+        "aim": f"Aim {i + 1}: {direction['title']}.",
+        "rationale": direction["importance"],
+        "approach": direction["suggested_experiments"][0],
+    } for i, direction in enumerate(research_directions)]
+    nih_specific_aims = {
+        "introduction":
+            (f"The proposed research targets '{goal[:120]}'. We organize the "
+             "top-ranked hypotheses into complementary specific aims."),
+        "aims":
+            aims,
+        "impact":
+            ("Successful completion would convert the leading mechanistic "
+             "hypothesis into an actionable, falsifiable research program."),
+    }
+    return {
+        "overview": {
+            "summary": summary,
+            "research_directions": research_directions,
+        },
+        "nih_specific_aims": nih_specific_aims,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -307,11 +447,19 @@ async def run_mock_workflow(
     # ---- 7. First ranking round ----
     elo_state: dict[str, int] = {hid: INITIAL_ELO for hid in hyp_ids}
 
+    # Map each hypothesis id to its seed-deterministic title so the tournament
+    # outcome (and thus the leaderboard, deep-verification selection, and the
+    # research overview) is reproducible for a fixed (run_id, goal). Keying the
+    # judge on the row UUIDs would scramble ordering across runs.
+    title_by_id: dict[str, str] = {p["id"]: p["title"] for p in hyp_payloads}
+
     def _judge(a: str, b: str) -> tuple[str, str, str]:
-        # Deterministic: pick by hash so tests are stable
+        # Deterministic: pick by hashing seeded titles so tests are stable.
+        a_title = title_by_id.get(a, a)
+        b_title = title_by_id.get(b, b)
         if hashlib.sha256(
-            (run_id + a + b).encode()).hexdigest() < hashlib.sha256(
-                (run_id + b + a).encode()).hexdigest():
+            (run_id + a_title + b_title).encode()).hexdigest() < hashlib.sha256(
+                (run_id + b_title + a_title).encode()).hexdigest():
             return a, b, "Mock judge: 'a' has stronger mechanistic specificity."
         return b, a, "Mock judge: 'b' presents a more decisive experimental test."  # pylint: disable=line-too-long
 
@@ -446,7 +594,42 @@ async def run_mock_workflow(
                 },
             )
 
-    # ---- 10. Citation audit ----
+    # Shared formatters from the real-engine drain, imported lazily to avoid a
+    # circular import (engine_adapter imports this module at top level).
+    from app.engine_adapter import (  # pylint: disable=import-outside-toplevel
+        _format_deep_verification_critique, _render_research_overview_markdown)
+
+    # ---- 10. Deep verification (top-k by Elo) ----
+    leaderboard_ids = [
+        hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])
+    ]
+    dv_entries: list[dict[str, Any]] = []
+    for hid in leaderboard_ids[:DEEP_VERIFICATION_TOP_K]:
+        hyp = store.get_hypothesis(hid, db_path=db_path)
+        if not hyp:
+            continue
+        dv = _deep_verification_seed(rng, hyp["title"])
+        summary, critique = _format_deep_verification_critique(
+            dv["probes"], dv["verdict"])
+        store.add_review(
+            run_id,
+            hid,
+            "deep_verification",
+            summary=summary,
+            critique=critique,
+            db_path=db_path,
+        )
+        dv_entries.append({
+            "hypothesis_id": hid,
+            "verdict": dv["verdict"],
+            "probes": dv["probes"],
+        })
+    yield await emit("deep_verification", {
+        "verified": len(dv_entries),
+        "probes": dv_entries,
+    })
+
+    # ---- 11. Citation audit ----
     cit_summary = {
         "verified": 0,
         "partial": 0,
@@ -474,15 +657,18 @@ async def run_mock_workflow(
                                db_path=db_path)
     yield await emit("citation_audit", cit_summary)
 
-    # ---- 11. Final safety + report ----
-    leaderboard_ids = [
-        hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])
-    ]
+    # ---- 12. Final safety + report ----
     top_hypotheses_raw = [
         store.get_hypothesis(hid, db_path=db_path)
         for hid in leaderboard_ids[:5]
     ]
     top_hypotheses = [h for h in top_hypotheses_raw if h]
+
+    # ---- 13. Research overview + NIH Specific Aims ----
+    research_overview = _research_overview_seed(
+        rng, research_goal, [h["title"] for h in top_hypotheses])
+    yield await emit("research_overview",
+                     {"research_overview": research_overview})
 
     md_lines: list[str] = []
     md_lines.append(f"# Research Report — {research_goal}")
@@ -515,6 +701,7 @@ async def run_mock_workflow(
     md_lines.append("- Elo: initial 1200, K = " + str(cfg["k_factor"]) +
                     ", standard formula.")
     md_lines.append("")
+    md_lines.extend(_render_research_overview_markdown(research_overview))
     markdown = "\n".join(md_lines)
 
     final_safety = screen_final(markdown)
@@ -552,6 +739,7 @@ async def run_mock_workflow(
         "citation_summary": cit_summary,
         "evidence_count": len(evidence_payload),
         "matches_count": len(pairs) * (cfg["max_iterations"] + 1),
+        "research_overview": research_overview,
     }
     saved = store.save_report(run_id, payload, markdown, db_path=db_path)
     yield await emit("report", {**payload, "report_id": saved["id"]})
