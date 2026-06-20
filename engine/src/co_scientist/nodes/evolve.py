@@ -337,6 +337,11 @@ DO:
     hypothesis.literature_grounding = literature_grounding
     hypothesis.experiment = experiment
     hypothesis.evolution_history.append(original_text)
+    # The text changed materially, so any prior deep-verification probes now
+    # describe stale text. Clear them so the next deep_verification pass
+    # re-verifies the evolved hypothesis.
+    hypothesis.deep_verification_probes = []
+    hypothesis.deep_verification_verdict = None
 
     logger.debug("evolved hypothesis (max similarity: %.2f)", max_similarity)
 

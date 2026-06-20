@@ -46,8 +46,7 @@ def _debate_diversity_instruction(debate_id: int | None,
     """Return a debate-specific angle for parallel hypothesis diversity."""
     if debate_id is None or total_debates <= 1:
         return None
-    angle = _DEBATE_DIVERSITY_ANGLES[debate_id %
-                                     len(_DEBATE_DIVERSITY_ANGLES)]
+    angle = _DEBATE_DIVERSITY_ANGLES[debate_id % len(_DEBATE_DIVERSITY_ANGLES)]
     return (
         f"Parallel debate {debate_id + 1} of {total_debates}: focus this "
         f"debate on {angle}. Produce a final hypothesis that is meaningfully "
@@ -109,6 +108,7 @@ async def _run_single_debate(
     debate_label = f"debate {debate_id}" if debate_id is not None else "debate"
 
     supervisor_guidance = state.get("supervisor_guidance")
+    meta_review = state.get("meta_review")
     diversity_instruction = _debate_diversity_instruction(
         debate_id, total_debates)
     preferences = _append_diversity_instruction(state.get("preferences"),
@@ -132,6 +132,7 @@ async def _run_single_debate(
             articles=state.get("articles"),
             tool_registry=state.get("tool_registry"),
             reference_list=ref_idx.text,
+            meta_review=meta_review,
         )
 
         if is_final:

@@ -135,6 +135,8 @@ def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
         "similarity_cluster_id",
         "evolution_history",
         "reflection_notes",
+        "deep_verification_probes",
+        "deep_verification_verdict",
         "generation_method",
         "debate_id",
         "win_count",
@@ -315,3 +317,28 @@ def _make_review() -> HypothesisReview:
         constructive_feedback="ship it",
         overall_score=5.0,
     )
+
+
+# --- Hypothesis: deep-verification fields -----------------------------------
+
+
+def test_hypothesis_deep_verification_fields_default_empty() -> None:
+    """A fresh hypothesis has no deep-verification probes or verdict."""
+    h = Hypothesis(text="X inhibits Y")
+    assert h.deep_verification_probes == []
+    assert h.deep_verification_verdict is None
+
+
+def test_hypothesis_to_dict_includes_deep_verification() -> None:
+    """``to_dict`` serializes the deep-verification probes and verdict."""
+    h = Hypothesis(text="X inhibits Y")
+    h.deep_verification_probes = [{
+        "question": "q",
+        "answer": "a",
+        "reasoning": "r",
+        "assumption_is_fundamental": True,
+    }]
+    h.deep_verification_verdict = "weakened"
+    d = h.to_dict()
+    assert d["deep_verification_probes"][0]["question"] == "q"
+    assert d["deep_verification_verdict"] == "weakened"

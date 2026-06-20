@@ -33,7 +33,7 @@ All articles from literature review, with reasoning:
 {{articles_with_reasoning}}
 
 {{indra_evidence}}
-
+{{meta_review_context}}
 Hypothesis:
 {{hypothesis}}
 

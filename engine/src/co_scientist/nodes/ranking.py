@@ -57,6 +57,7 @@ async def judge_matchup(
     run_id: str | None = None,
     matchup_index: int | None = None,
     tool_registry: Any | None = None,
+    meta_review: dict[str, Any] | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Has an LLM judge which hypothesis is superior.
 
@@ -69,6 +70,7 @@ async def judge_matchup(
         run_id: Optional run ID for saving prompts
         matchup_index: Optional index for naming saved prompts
         tool_registry: Optional ToolRegistry for dynamic tool instructions
+        meta_review: Optional cross-iteration meta-review feedback
 
     Returns:
         Tuple of (winner, full_response) where winner is "a" or "b"
@@ -92,6 +94,21 @@ async def judge_matchup(
     # Extract reflection notes if available
     reflection_notes_a = hypothesis_a.reflection_notes
     reflection_notes_b = hypothesis_b.reflection_notes
+
+    # Extract deep-verification probes if available (populated after the first
+    # tournament, once the deep_verification node has run on the leaders).
+    deep_verification_a = None
+    if hypothesis_a.deep_verification_probes:
+        deep_verification_a = {
+            "probes": hypothesis_a.deep_verification_probes,
+            "verdict": hypothesis_a.deep_verification_verdict,
+        }
+    deep_verification_b = None
+    if hypothesis_b.deep_verification_probes:
+        deep_verification_b = {
+            "probes": hypothesis_b.deep_verification_probes,
+            "verdict": hypothesis_b.deep_verification_verdict,
+        }
 
     logger.debug("\n→ Ranking Tournament Matchup")
 
@@ -130,6 +147,9 @@ async def judge_matchup(
         review_b=review_b,
         reflection_notes_a=reflection_notes_a,
         reflection_notes_b=reflection_notes_b,
+        deep_verification_a=deep_verification_a,
+        deep_verification_b=deep_verification_b,
+        meta_review=meta_review,
         tool_registry=tool_registry,
     )
 
@@ -251,6 +271,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     # Get supervisor guidance and tool registry from state
     supervisor_guidance = state.get("supervisor_guidance")
     tool_registry = state.get("tool_registry")
+    meta_review = state.get("meta_review")
 
     # Set deterministic random seed based on research goal and iteration
     # this ensures same inputs produce same tournament pairings for cache
@@ -276,6 +297,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
             run_id=state.get("run_id"),
             matchup_index=i,
             tool_registry=tool_registry,
+            meta_review=meta_review,
         ) for i, (a, b) in enumerate(pairings)
     ])
 

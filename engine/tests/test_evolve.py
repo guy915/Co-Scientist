@@ -20,8 +20,8 @@ from co_scientist.nodes.evolve import evolve_node
 from tests._state import make_hypothesis, make_state
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch,
-              response: dict[str, Any]) -> None:
+def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
+                                                              Any]) -> None:
     """Patch evolve's call_llm_json to return one fixed response.
 
     Args:
@@ -35,9 +35,8 @@ def _stub_llm(monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setattr(evolve, "call_llm_json", fake)
 
 
-def _stub_llm_from_prompt(
-        monkeypatch: pytest.MonkeyPatch,
-        builder: Callable[[str], dict[str, Any]]) -> None:
+def _stub_llm_from_prompt(monkeypatch: pytest.MonkeyPatch,
+                          builder: Callable[[str], dict[str, Any]]) -> None:
     """Patch call_llm_json to derive each response from the prompt.
 
     The prompt embeds ``original_hypothesis``; ``builder`` maps the prompt text
@@ -90,6 +89,69 @@ async def test_evolution_produces_evolved_hypotheses(
     assert details[0]["evolved"] == (
         "rapamycin suppresses mtor signaling downstream")
     assert details[0]["rationale"] == "pivoted to a kinase mechanism"
+
+
+async def test_evolution_clears_deep_verification_when_text_changes(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Evolving a hypothesis clears its now-stale deep-verification probes.
+
+    The probes and verdict describe the pre-evolution text; once the text is
+    rewritten they are stale, so they are cleared and the next
+    deep_verification pass re-verifies the evolved hypothesis.
+    """
+    original = make_hypothesis(
+        text="quercetin inhibits aldolase activity",
+        deep_verification_probes=[{
+            "question": "stale q",
+            "answer": "stale a",
+            "reasoning": "stale r",
+            "assumption_is_fundamental": True,
+        }],
+        deep_verification_verdict="holds",
+    )
+    state = make_state(hypotheses=[original], evolution_max_count=1)
+    _stub_llm(
+        monkeypatch, {
+            "hypothesis": "rapamycin suppresses mtor signaling downstream",
+            "explanation": "fresh layman walkthrough",
+            "experiment": "knock down the kinase and measure growth",
+            "refinement_summary": "pivoted to a kinase mechanism",
+        })
+
+    result = await evolve_node(state)
+
+    evolved = result["hypotheses"][0]
+    assert evolved.text == "rapamycin suppresses mtor signaling downstream"
+    assert evolved.deep_verification_probes == []
+    assert evolved.deep_verification_verdict is None
+
+
+async def test_evolution_keeps_deep_verification_when_text_unchanged(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """An unchanged hypothesis keeps its still-valid deep-verification probes.
+
+    When the LLM returns no change, evolve_single_hypothesis returns the
+    original hypothesis untouched, so its probes remain valid and preserved.
+    """
+    probes = [{
+        "question": "q",
+        "answer": "a",
+        "reasoning": "r",
+        "assumption_is_fundamental": False,
+    }]
+    original = make_hypothesis(
+        text="osmotic gradient drives water flux",
+        deep_verification_probes=probes,
+        deep_verification_verdict="holds",
+    )
+    state = make_state(hypotheses=[original], evolution_max_count=1)
+    _stub_llm(monkeypatch, {})  # empty -> unchanged -> original kept
+
+    result = await evolve_node(state)
+
+    kept = result["hypotheses"][0]
+    assert kept.deep_verification_probes == probes
+    assert kept.deep_verification_verdict == "holds"
 
 
 async def test_respects_evolution_max_count(

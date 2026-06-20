@@ -76,6 +76,8 @@ class Hypothesis:
     similarity_degree: str | None = None  # 'high', 'medium', or 'low'
     evolution_history: list[str] = field(default_factory=list)
     reflection_notes: str | None = None
+    deep_verification_probes: list[dict[str, Any]] = field(default_factory=list)
+    deep_verification_verdict: str | None = None
     # 'debate' or 'literature_tools'
     generation_method: GenerationMethod | None = None
     debate_id: None | (
@@ -122,6 +124,8 @@ class Hypothesis:
             "similarity_cluster_id": self.similarity_cluster_id,
             "evolution_history": self.evolution_history,
             "reflection_notes": self.reflection_notes,
+            "deep_verification_probes": self.deep_verification_probes,
+            "deep_verification_verdict": self.deep_verification_verdict,
             "generation_method": generation_method,
             "debate_id": self.debate_id,
             "win_count": self.win_count,

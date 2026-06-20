@@ -27,6 +27,7 @@ async def analyze_single_hypothesis(
     total_count: int,
     run_id: str | None = None,
     tool_registry: Any | None = None,
+    meta_review: dict[str, Any] | None = None,
 ) -> dict[str, Any] | None:
     """Analyze a single hypothesis against literature observations.
 
@@ -38,6 +39,7 @@ async def analyze_single_hypothesis(
         total_count: total hypotheses count for logging
         run_id: optional run ID for saving prompts
         tool_registry: optional ToolRegistry for dynamic tool instructions
+        meta_review: optional cross-iteration meta-review feedback
 
     Returns:
         dict with classification and reasoning, or None if failed
@@ -57,6 +59,7 @@ async def analyze_single_hypothesis(
     prompt, schema = get_reflection_prompt(
         articles_with_reasoning=articles_with_reasoning,
         hypothesis_text=hypothesis.text,
+        meta_review=meta_review,
         tool_registry=tool_registry,
         indra_evidence=indra_data.get("prompt_text", ""),
     )
@@ -154,6 +157,7 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
 
     tool_registry = state.get("tool_registry")
+    meta_review = state.get("meta_review")
     analysis_tasks = [
         analyze_single_hypothesis(
             hypothesis=hyp,
@@ -163,6 +167,7 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
             total_count=len(hypotheses),
             run_id=state.get("run_id"),
             tool_registry=tool_registry,
+            meta_review=meta_review,
         ) for i, hyp in enumerate(hypotheses)
     ]
 

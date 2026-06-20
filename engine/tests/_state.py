@@ -64,6 +64,7 @@ def make_state(**overrides: Any) -> WorkflowState:
         "current_iteration": 0,
         "supervisor_guidance": {},
         "meta_review": {},
+        "research_overview": None,
         "removed_duplicates": [],
         "tournament_matchups": [],
         "evolution_details": [],

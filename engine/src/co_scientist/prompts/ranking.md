@@ -52,11 +52,11 @@ Provide a detailed justification for your decision, explaining the specific stre
 The following reflection notes analyze how each hypothesis relates to observations from the literature review:
 
 **Hypothesis A Reflection:**
-{{hypothesis_a_reflection_notes}}
+{{hypothesis_a_reflection_notes}}{{hypothesis_a_deep_verification}}
 
 **Hypothesis B Reflection:**
-{{hypothesis_b_reflection_notes}}
-
+{{hypothesis_b_reflection_notes}}{{hypothesis_b_deep_verification}}
+{{meta_review_context}}
 ## Output Format
 
 Provide your judgment in JSON format. The winner must be "a" or "b" (just the letter).
