@@ -62,6 +62,48 @@ async def test_debate_produces_one_hypothesis_per_debate(
         "tumor suppressor X gates the pathway")
 
 
+async def test_parallel_debates_receive_distinct_focus_prompts(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Parallel debates are seeded with distinct angles to avoid collapse."""
+    final_prompts: list[str] = []
+
+    async def fake_call_llm(**_: Any) -> str:
+        return "a debate turn argument"
+
+    async def fake_call_llm_json(**kwargs: Any) -> dict[str, Any]:
+        prompt = str(kwargs["prompt"])
+        final_prompts.append(prompt)
+        debate_number = len(final_prompts)
+        return {
+            "hypotheses": [{
+                "hypothesis":
+                    f"hypothesis from debate {debate_number}",
+                "explanation":
+                    "because the mechanism fits",
+                "literature_grounding":
+                    None,
+                "experiment":
+                    "run the assay",
+            }]
+        }
+
+    monkeypatch.setattr(debate, "call_llm", fake_call_llm)
+    monkeypatch.setattr(debate, "call_llm_json", fake_call_llm_json)
+
+    hyps, _ = await generate_with_debate(make_state(), count=3)
+
+    assert [h.text for h in hyps] == [
+        "hypothesis from debate 1",
+        "hypothesis from debate 2",
+        "hypothesis from debate 3",
+    ]
+    assert len(final_prompts) == 3
+    assert "Parallel debate 1 of 3" in final_prompts[0]
+    assert "Parallel debate 2 of 3" in final_prompts[1]
+    assert "Parallel debate 3 of 3" in final_prompts[2]
+    assert len(set(final_prompts)) == 3
+
+
 async def test_empty_final_response_raises_generation_error(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A final turn that returns no hypotheses surfaces a GenerationError."""

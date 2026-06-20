@@ -27,7 +27,8 @@ invariant list with paper sources.
 
 The system is deliberately not a chat wrapper over papers, an autonomous
 wet-lab executor, a medical or regulatory decision system, or a multi-tenant
-SaaS. It is a local-first research tool.
+SaaS. It is a local-first implementation workspace for replicating the
+published AI Co-Scientist hypothesis-generation workflow.
 
 ## Features
 
@@ -121,11 +122,12 @@ dashboard remains available for deeper inspection:
 
 | Tab | Shows |
 | --- | --- |
-| **Overview** | Live pipeline timeline with progress bar and event counters |
 | **Ideas** | Ranked hypotheses by Elo. Click any row for the detail modal: statement, mechanism, experimental design, lineage |
-| **Evidence** | Retrieved sources with abstracts, links, and 4-state citation classification |
+| **Knowledge Base** | Retrieved sources with abstracts, links, and 4-state citation classification |
+| **Summary** | Server-generated Markdown report with download buttons (MD / JSON) and safety verdict |
+| **Run Specifications** | Provider, configuration, artifact counts, and recorded safety gates |
+| **Progress** | Live pipeline timeline with progress bar and event counters |
 | **Tournament** | Leaderboard + per-iteration matchup log with Elo deltas and judge rationale |
-| **Report** | Server-generated Markdown report with download buttons (MD / JSON) and safety verdict |
 | **Chat** | Scientist-in-the-loop steering: auto, manual, and QA conversation modes |
 
 ### Mock mode vs real engine

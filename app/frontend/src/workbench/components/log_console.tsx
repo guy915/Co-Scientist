@@ -125,7 +125,7 @@ export function formatDiagnosticLog(
     '=== WHAT THIS TOOL TRACKS ===',
     'Run Lifecycle:',
     '- Run creation, queueing, startup, cancellation, completion, and failure states',
-    '- Provider mode and profile changes stored in lifecycle events',
+    '- Provider and run-mode changes stored in lifecycle events',
     '',
     'Engine Activity:',
     '- Supervisor, generation, reflection, ranking, evolution, review, and report events',

@@ -19,14 +19,18 @@ export type RunStatus =
   | 'blocked'
   | 'cancelled';
 
-/** Generation profile that selects the engine's effort/quality preset. */
-export type RunProfile = 'advanced';
+/** Canonical run mode for the single clone workflow. */
+export type RunMode = 'default';
+
+/** Former generation profile labels still accepted by the backend. */
+export type LegacyRunProfile = RunMode | 'standard' | 'advanced';
 
 /** A hypothesis-generation run with its goal, config, and current status. */
 export interface Run {
   id: string;
   research_goal: string;
-  profile: RunProfile;
+  run_mode?: RunMode;
+  profile: LegacyRunProfile;
   status: RunStatus;
   provider: 'mock' | 'engine';
   config: Record<string, number | string>;
@@ -135,7 +139,8 @@ export interface CitationRow {
 /** Structured contents of a run's final synthesis report. */
 export interface ReportPayload {
   research_goal: string;
-  profile: RunProfile;
+  run_mode?: RunMode;
+  profile?: LegacyRunProfile;
   provider: string;
   leaderboard: {id: string; title: string; elo: number}[];
   citation_summary?: Record<string, number>;
@@ -175,12 +180,13 @@ async function jsonOrThrow<T>(res: Response): Promise<T> {
 /**
  * Creates a new run from a research goal and optional config overrides.
  *
- * @param input Research goal, profile, and optional engine parameters.
+ * @param input Research goal and optional engine parameters.
  * @returns The newly created run.
  */
 export async function createRun(input: {
   research_goal: string;
-  profile: RunProfile;
+  run_mode?: RunMode;
+  profile?: LegacyRunProfile;
   initial_hypotheses_count?: number;
   max_iterations?: number;
   evolution_max_count?: number;

@@ -22,8 +22,8 @@ which are explicitly out of scope.
 | Meta-review feedback persisted and fed back into later iterations | `store.reviews` row per iteration; included in iterative ranking | published |
 | Citation verification is a gate, not decoration | `store.citations.state` ∈ {verified, partial, unsupported, unavailable}; UI shows them prominently | published |
 | Safety screening before **and** after generation | `safety.screen_intake` + `safety.screen_final`; both persisted | published |
-| Runs use the deeper advanced hypothesis-generation profile | `mock_workflow.normalize_profile`; legacy `standard` requests are coerced before execution | implementation policy preserving the published advanced workflow shape |
-| UI exposes agents, queue, progress, evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench Overview / Ideas / Evidence / Tournament / Report / Chat tabs | published UX |
+| Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_mode`; legacy `standard`/`advanced` inputs resolve to `default` | implementation policy after removing the obsolete profile split |
+| UI exposes agents, queue, progress, evidence, tournament, reports, run specs, and scientist-in-the-loop interaction | Workbench Ideas / Knowledge Base / Summary / Run Specifications plus supporting Progress / Tournament / Chat views | published UX |
 
 ## Implementation-defined values
 
@@ -34,10 +34,10 @@ structural level. All are configurable via env or the run-config request body.
 | Value | Default | Source of decision |
 | --- | --- | --- |
 | `ELO_K_FACTOR` | **24** | Mirrors engine ranking node default. K is intentionally moderate so a single match can move a candidate ~12 points; high enough to surface a leader in 6–12 matches, low enough that one bad call doesn't destroy the leaderboard. |
-| Canonical profile | advanced | Current product flow always runs the deeper profile. Older clients and persisted drafts may still send `standard`, but execution normalizes them to `advanced`. |
-| Advanced pool size | 8 initial hypotheses | Matches the current chat-first workflow's deeper default candidate pool. |
-| Advanced iterations | 2 evolve cycles | Keeps the "extended tournament" framing as the only active run depth. |
-| Tournament pair count | 12 | Calibrated so an Elo leader emerges with statistical separation for the canonical advanced pool. |
+| Canonical run mode | default | Current product flow has one run path. Older clients and persisted drafts may still send `standard` or `advanced`, but execution normalizes them to `default`. |
+| Default pool size | 8 initial hypotheses | Matches the current chat-first workflow's candidate pool. |
+| Default iterations | 2 evolve cycles | Keeps tournament and evolution as part of every run. |
+| Tournament pair count | 12 | Calibrated so an Elo leader emerges with statistical separation for the canonical default pool. |
 | Safety hard-block patterns | Narrow CBRN/weaponization keyword combinations | Hand-picked to bias toward avoiding false positives on legitimate research (CRISPR papers, pathogen biology, etc.). Reviewable in `app/safety.py`. |
 | Citation classifier | Jaccard token overlap with two thresholds (0.35 / 0.10) | Lightweight, deterministic, and good enough to surface all four classes for the demo. The real engine would call an LLM verifier here. |
 
@@ -66,7 +66,7 @@ When no LLM key is set, the `/status` endpoint reports `mock_mode: true`. The
 persisted `runs.provider` column records which provider produced each run so
 historical runs from one mode are clearly distinguishable from the other.
 
-The mock workflow is **deterministic**: same goal + same profile + same
+The mock workflow is **deterministic**: same goal + same run mode + same
 `run_id` produces byte-identical hypotheses, citations, and matchups. This is
 intentional — it lets the implementation behave like a published academic
 artefact rather than a demo that drifts run-to-run.

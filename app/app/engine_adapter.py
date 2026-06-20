@@ -22,11 +22,8 @@ from typing import Any
 
 from app import store
 from app.citations import CitationState
-from app.mock_workflow import (
-    normalize_profile,
-    resolved_config,
-    run_mock_workflow,
-)
+from app.mock_workflow import run_mock_workflow
+from app.run_modes import normalize_run_mode, resolved_run_config
 from app.store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
@@ -120,11 +117,11 @@ async def run_workflow(
 ) -> AsyncIterator[dict[str, Any]]:
     """Drive the chosen workflow and yield events as the store records them."""
     provider = force_provider or select_provider()
-    profile = normalize_profile(profile)
-    cfg = resolved_config(profile, config)
+    run_mode = normalize_run_mode(profile)
+    cfg = resolved_run_config(run_mode, config)
 
-    logger.info("starting workflow run=%s provider=%s profile=%s", run_id,
-                provider, profile)
+    logger.info("starting workflow run=%s provider=%s run_mode=%s", run_id,
+                provider, run_mode)
 
     if provider == "mock":
         pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
@@ -135,7 +132,7 @@ async def run_workflow(
         async for event in run_mock_workflow(
                 run_id=run_id,
                 research_goal=research_goal,
-                profile=profile,
+                profile=run_mode,
                 config=cfg,
                 db_path=db_path,
                 cancelled=cancelled,
@@ -160,7 +157,7 @@ async def run_workflow(
         async for event in run_mock_workflow(
                 run_id=run_id,
                 research_goal=research_goal,
-                profile=profile,
+                profile=run_mode,
                 config=cfg,
                 db_path=db_path,
                 cancelled=cancelled,
@@ -459,7 +456,8 @@ async def run_workflow(
         } for idx, h in enumerate(sorted_hyps[:10])]
         report_payload = {
             "research_goal": research_goal,
-            "profile": profile,
+            "run_mode": run_mode,
+            "profile": run_mode,
             "provider": "engine",
             "execution_time": time.time() - start,
             "hypothesis_count": len(hyps),
@@ -470,7 +468,7 @@ async def run_workflow(
         }
         md_lines = [
             f"# Co-Scientist Run — {research_goal}",
-            f"\n**Profile:** {profile} | **Provider:** engine | **Hypotheses:** {len(hyps)}",  # pylint: disable=line-too-long
+            f"\n**Provider:** engine | **Hypotheses:** {len(hyps)}",
             "\n## Top hypotheses by Elo\n",
         ]
         for entry in leaderboard:

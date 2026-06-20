@@ -355,7 +355,6 @@ export function ChatWorkspace() {
     try {
       const created = await createRun({
         research_goal: draftSpec.goal,
-        profile: draftSpec.profile,
         notes: [
           `Mode: ${draftSpec.mode}`,
           `Constraints: ${draftSpec.constraints.join(' | ')}`,

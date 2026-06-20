@@ -1,22 +1,19 @@
-import type {RunProfile} from '@/api/runs';
-
 /** Chat-inferred setup shown before a run is created. */
 export interface InferredRunSpec {
   goal: string;
-  profile: RunProfile;
   mode: string;
   constraints: string[];
   output: string;
 }
 
-const ADVANCED_CONSTRAINTS = [
+const DEFAULT_CONSTRAINTS = [
   'Prioritize mechanistic novelty, plausibility, and direct testability.',
   'Retrieve broader literature evidence and preserve competing mechanisms.',
-  'Use a deeper tournament/evolution pass before final synthesis.',
+  'Use tournament ranking and evolution before final synthesis.',
 ];
 
 /**
- * Infers the run setup from a research goal using the advanced profile.
+ * Infers the run setup from a research goal using the canonical run path.
  *
  * @param rawGoal User-authored research goal.
  * @returns A compact run setup suitable for confirmation in chat.
@@ -25,9 +22,8 @@ export function inferRunSpec(rawGoal: string): InferredRunSpec {
   const goal = normalizeWhitespace(rawGoal);
   return {
     goal,
-    profile: 'advanced',
-    mode: 'Advanced hypothesis tournament',
-    constraints: [...ADVANCED_CONSTRAINTS, ...domainConstraints(goal)],
+    mode: 'Hypothesis tournament',
+    constraints: [...DEFAULT_CONSTRAINTS, ...domainConstraints(goal)],
     output:
       'Ranked hypotheses with Elo, mechanisms, evidence links, ranking rationale, and a polished report.',
   };

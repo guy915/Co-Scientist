@@ -34,14 +34,14 @@ def test_create_run_returns_draft_status() -> None:
         "/api/runs",
         json={
             "research_goal": "Explore mitochondrial dynamics in neurons",
-            "profile": "standard"
         },
     )
     assert res.status_code == 200
     data = res.json()
     assert data["status"] == "draft"
     assert data["provider"] == "mock"
-    assert data["profile"] == "advanced"
+    assert data["run_mode"] == "default"
+    assert data["profile"] == "default"
 
 
 def test_list_runs_honors_limit_query(isolated_db: str) -> None:
@@ -53,7 +53,7 @@ def test_list_runs_honors_limit_query(isolated_db: str) -> None:
             headers=headers,
             json={
                 "research_goal": f"Limit test {i}",
-                "profile": "advanced"
+                "run_mode": "default"
             },
         )
         assert res.status_code == 200
@@ -64,7 +64,7 @@ def test_list_runs_honors_limit_query(isolated_db: str) -> None:
     assert len(listed.json()["runs"]) == 2
 
 
-def test_stale_standard_profile_and_tiny_overrides_run_as_advanced(
+def test_legacy_profile_and_tiny_overrides_run_as_default(
         isolated_db: str) -> None:
     from app.runs import CreateRunRequest, create_run  # pylint: disable=import-outside-toplevel
 
@@ -81,13 +81,14 @@ def test_stale_standard_profile_and_tiny_overrides_run_as_advanced(
 
     run = asyncio.run(create_run(req, _Request()))  # type: ignore[arg-type]
 
-    assert run["profile"] == "advanced"
+    assert run["run_mode"] == "default"
+    assert run["profile"] == "default"
     assert run["config"]["initial_hypotheses_count"] >= 8
     assert run["config"]["max_iterations"] >= 2
     assert run["config"]["evolution_max_count"] >= 8
 
 
-def test_standard_mock_run_completes_and_persists(isolated_db: str) -> None:
+def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     client = _client()
     res = client.post(
         "/api/runs",
@@ -105,7 +106,8 @@ def test_standard_mock_run_completes_and_persists(isolated_db: str) -> None:
 
     def is_completed() -> bool:
         r = client.get(f"/api/runs/{run_id}")
-        return r.status_code == 200 and r.json()["status"] == "completed"
+        status = str(r.json().get("status"))
+        return r.status_code == 200 and status == "completed"
 
     assert _wait_for(is_completed,
                      timeout=20.0), "run did not reach 'completed'"
@@ -146,7 +148,8 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
 
     def is_completed() -> bool:
         r = client.get(f"/api/runs/{run_id}")
-        return r.status_code == 200 and r.json()["status"] == "completed"
+        status = str(r.json().get("status"))
+        return r.status_code == 200 and status == "completed"
 
     assert _wait_for(is_completed, timeout=20.0)
 
@@ -176,7 +179,8 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     assert "Research Report" in md.text
 
 
-def test_advanced_run_produces_more_artifacts(isolated_db: str) -> None:
+def test_legacy_advanced_run_uses_default_artifact_depth(
+        isolated_db: str) -> None:
     client = _client()
     res = client.post(
         "/api/runs",
@@ -192,10 +196,14 @@ def test_advanced_run_produces_more_artifacts(isolated_db: str) -> None:
 
     def done() -> bool:
         r = client.get(f"/api/runs/{run_id}")
-        return r.status_code == 200 and r.json()["status"] == "completed"
+        status = str(r.json().get("status"))
+        return r.status_code == 200 and status == "completed"
 
     assert _wait_for(done, timeout=30.0)
 
+    run = client.get(f"/api/runs/{run_id}").json()
+    assert run["run_mode"] == "default"
+    assert run["profile"] == "default"
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
     matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
     assert len(hyps) >= 8

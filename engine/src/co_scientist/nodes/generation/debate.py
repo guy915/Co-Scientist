@@ -29,6 +29,42 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+_DEBATE_DIVERSITY_ANGLES = [
+    "a direct causal molecular or mechanistic intervention",
+    "an upstream regulatory or control-system mechanism",
+    "a downstream measurable phenotype or functional assay",
+    "a cross-pathway interaction that could explain an unexpected effect",
+    "a temporal or state-dependent mechanism that changes across conditions",
+    "a translational experiment or intervention with practical constraints",
+    "a falsification-focused hypothesis with a discriminating negative control",
+    "a high-novelty mechanism that challenges the dominant explanation",
+]
+
+
+def _debate_diversity_instruction(debate_id: int | None,
+                                  total_debates: int) -> str | None:
+    """Return a debate-specific angle for parallel hypothesis diversity."""
+    if debate_id is None or total_debates <= 1:
+        return None
+    angle = _DEBATE_DIVERSITY_ANGLES[debate_id %
+                                     len(_DEBATE_DIVERSITY_ANGLES)]
+    return (
+        f"Parallel debate {debate_id + 1} of {total_debates}: focus this "
+        f"debate on {angle}. Produce a final hypothesis that is meaningfully "
+        "different from what other parallel debates would generate; do not "
+        "collapse to the most generic or obvious mechanism unless it uniquely "
+        "fits this assigned angle.")
+
+
+def _append_diversity_instruction(preferences: str | None,
+                                  instruction: str | None) -> str | None:
+    """Append the parallel-debate diversity instruction to preferences."""
+    if not instruction:
+        return preferences
+    if preferences:
+        return f"{preferences}\n\n{instruction}"
+    return instruction
+
 
 def _match_papers_to_grounding(
     articles: list[Article],
@@ -50,6 +86,7 @@ def _match_papers_to_grounding(
 async def _run_single_debate(
     state: WorkflowState,
     debate_id: int | None = None,
+    total_debates: int = 1,
     num_turns: int = DEBATE_MAX_TURNS,
     articles_with_reasoning: str | None = None,
     reference_index: ReferenceIndex | None = None,
@@ -59,6 +96,7 @@ async def _run_single_debate(
     Args:
         state: current workflow state
         debate_id: id for this debate (used for tracking and identification)
+        total_debates: total number of parallel debates in this batch
         num_turns: number of debate turns to run (default from constants)
         articles_with_reasoning: optional literature review context for debate
         reference_index: citation key → source mapping for structured citations
@@ -71,7 +109,10 @@ async def _run_single_debate(
     debate_label = f"debate {debate_id}" if debate_id is not None else "debate"
 
     supervisor_guidance = state.get("supervisor_guidance")
-    preferences = state.get("preferences")
+    diversity_instruction = _debate_diversity_instruction(
+        debate_id, total_debates)
+    preferences = _append_diversity_instruction(state.get("preferences"),
+                                                diversity_instruction)
     attributes = state.get("attributes")
 
     transcript = ""
@@ -186,6 +227,7 @@ async def generate_with_debate(
         _run_single_debate(
             state,
             debate_id=i,
+            total_debates=count,
             articles_with_reasoning=articles_with_reasoning,
             reference_index=reference_index,
         ) for i in range(count)
