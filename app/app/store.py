@@ -109,6 +109,7 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
+    """Apply idempotent in-place schema migrations to an open connection."""
     cols = {
         row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()
     }

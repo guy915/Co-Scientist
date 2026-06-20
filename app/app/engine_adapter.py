@@ -104,6 +104,347 @@ def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _format_deep_verification_critique(probes: list[dict[str, Any]],
+                                       verdict: str | None) -> tuple[str, str]:
+    """Render deep-verification probes into a (summary, critique) pair.
+
+    Args:
+        probes: Probing-question entries, each carrying ``question``,
+            ``answer``, ``reasoning``, and ``assumption_is_fundamental``.
+        verdict: Overall verdict, one of ``holds``/``weakened``/``undermined``,
+            or None when the engine did not return one.
+
+    Returns:
+        A tuple of (summary, critique). Both are non-empty strings suitable
+        for the NOT NULL reviews columns.
+    """
+    verdict_text = verdict or "unspecified"
+    summary = f"Deep verification verdict: {verdict_text}"
+    lines: list[str] = [summary, ""]
+    for idx, probe in enumerate(probes, start=1):
+        question = str(probe.get("question", "")).strip()
+        answer = str(probe.get("answer", "")).strip()
+        reasoning = str(probe.get("reasoning", "")).strip()
+        fundamental = bool(probe.get("assumption_is_fundamental"))
+        flag = "fundamental" if fundamental else "non-fundamental"
+        lines.append(f"Probe {idx} ({flag} assumption):")
+        if question:
+            lines.append(f"  Question: {question}")
+        if answer:
+            lines.append(f"  Answer: {answer}")
+        if reasoning:
+            lines.append(f"  Reasoning: {reasoning}")
+        lines.append("")
+    critique = "\n".join(lines).strip()
+    return summary, critique
+
+
+def _render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
+    """Render the research overview + NIH Specific Aims as markdown lines.
+
+    Args:
+        overview: The engine ``research_overview`` payload, shaped as
+            ``{"overview": {...}, "nih_specific_aims": {...}}``. May be empty
+            or carry empty sub-dicts for runs without hypotheses.
+
+    Returns:
+        A list of markdown lines. Empty when no renderable content exists, so
+        callers never emit bare section headers.
+    """
+    lines: list[str] = []
+    if not isinstance(overview, dict):
+        return lines
+
+    ov = overview.get("overview") or {}
+    if isinstance(ov, dict):
+        summary = ov.get("summary")
+        directions = ov.get("research_directions") or []
+        if summary or directions:
+            lines.append("\n## Research Overview\n")
+            if summary:
+                lines.append(f"{summary}\n")
+            for direction in directions:
+                if not isinstance(direction, dict):
+                    continue
+                title = direction.get("title", "")
+                importance = direction.get("importance", "")
+                experiments = direction.get("suggested_experiments") or []
+                lines.append(f"### {title}\n")
+                if importance:
+                    lines.append(f"{importance}\n")
+                if experiments:
+                    lines.append("Suggested experiments:\n")
+                    for experiment in experiments:
+                        lines.append(f"- {experiment}")
+                    lines.append("")
+
+    aims_section = overview.get("nih_specific_aims") or {}
+    if isinstance(aims_section, dict):
+        introduction = aims_section.get("introduction")
+        aims = aims_section.get("aims") or []
+        impact = aims_section.get("impact")
+        if introduction or aims or impact:
+            lines.append("\n## NIH Specific Aims\n")
+            if introduction:
+                lines.append(f"{introduction}\n")
+            for aim in aims:
+                if not isinstance(aim, dict):
+                    continue
+                aim_text = aim.get("aim", "")
+                rationale = aim.get("rationale", "")
+                approach = aim.get("approach", "")
+                lines.append(f"### {aim_text}\n")
+                if rationale:
+                    lines.append(f"**Rationale:** {rationale}\n")
+                if approach:
+                    lines.append(f"**Approach:** {approach}\n")
+            if impact:
+                lines.append("### Impact\n")
+                lines.append(f"{impact}\n")
+    return lines
+
+
+def _persist_final_state(
+    *,
+    run_id: str,
+    research_goal: str,
+    run_mode: str,
+    final_state: dict[str, Any],
+    execution_time: float,
+    db_path: str | None = None,
+) -> dict[str, Any]:
+    """Drain an engine final state into the store and persist the report.
+
+    Writes evidence, hypotheses (with reviews, deep-verification reviews, and
+    citations), tournament matches, and the report (payload + markdown). The
+    research overview rides the report payload and markdown; deep-verification
+    probes ride the reviews table as ``reviewer_agent="deep_verification"``
+    rows.
+
+    Args:
+        run_id: Identifier of the run being drained.
+        research_goal: The natural-language research goal.
+        run_mode: Canonical run mode persisted on the report.
+        final_state: Accumulated engine final state.
+        execution_time: Wall-clock seconds the run took.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The report payload that was persisted.
+    """
+    hyps: list[dict[str, Any]] = final_state.get("hypotheses") or []
+    articles: list[dict[str, Any]] = final_state.get("articles") or []
+    matchups: list[dict[str,
+                        Any]] = final_state.get("tournament_matchups") or []
+
+    # 1. Evidence: persist retrieved articles.
+    ev_id_by_title: dict[str, str] = {}
+    for art in articles:
+        ev_id = store.add_evidence(
+            run_id,
+            art.get("title", "Untitled"),
+            source=art.get("source", "engine"),
+            url=art.get("url") or "",
+            authors=art.get("authors") or [],
+            year=art.get("year"),
+            abstract=art.get("abstract") or "",
+            available=True,
+            db_path=db_path,
+        )
+        ev_id_by_title[art.get("title", "")] = ev_id
+
+    # 2. Hypotheses: persist in generation order; mark evolved ones.
+    hyp_id_by_text: dict[str, str] = {}
+    for h in hyps:
+        is_evolved = bool(h.get("evolution_history"))
+        generation = 1 if is_evolved else 0
+        agent = "evolution" if is_evolved else "generation"
+        # Derive a short title from the first sentence / 120 chars.
+        text = h.get("text", "")
+        title = text.split(".")[0][:120] or text[:120]
+        hyp_id = store.add_hypothesis(
+            run_id=run_id,
+            title=title,
+            statement=text,
+            mechanism=h.get("literature_grounding") or "",
+            expected_effect=h.get("explanation") or "",
+            experimental_context=h.get("experiment") or "",
+            generation=generation,
+            created_by_agent=agent,
+            db_path=db_path,
+        )
+        hyp_id_by_text[text[:200]] = hyp_id  # exact 200-char truncation
+        hyp_id_by_text[text[:200] +
+                       "..."] = hyp_id  # engine appends "..." when truncated
+        hyp_id_by_text[text] = hyp_id
+
+        # Update mutable state: Elo, wins, losses, scores.
+        store.update_hypothesis_state(
+            hyp_id,
+            elo_rating=int(h.get("elo_rating", 1200)),
+            win_delta=int(h.get("win_count", 0)),
+            loss_delta=int(h.get("loss_count", 0)),
+            novelty=float(h.get("score", 0) or 0) or None,
+            db_path=db_path,
+        )
+
+        # Persist per-hypothesis reviews.
+        for rv in h.get("reviews") or []:
+            store.add_review(
+                run_id=run_id,
+                hypothesis_id=hyp_id,
+                reviewer_agent="review",
+                summary=rv.get("review_summary", ""),
+                critique=rv.get("constructive_feedback", ""),
+                novelty=float(rv.get("scores", {}).get("novelty", 0) or 0) or
+                None,
+                plausibility=float(
+                    rv.get("scores", {}).get("scientific_soundness", 0) or 0) or
+                None,
+                testability=float(
+                    rv.get("scores", {}).get("testability", 0) or 0) or None,
+                overall=float(rv.get("overall_score", 0) or 0) or None,
+                db_path=db_path,
+            )
+
+        # Persist deep-verification probes as a dedicated review row.
+        probes = h.get("deep_verification_probes") or []
+        if probes:
+            summary, critique = _format_deep_verification_critique(
+                probes, h.get("deep_verification_verdict"))
+            store.add_review(
+                run_id=run_id,
+                hypothesis_id=hyp_id,
+                reviewer_agent="deep_verification",
+                summary=summary,
+                critique=critique,
+                db_path=db_path,
+            )
+
+        # Persist citations from the hypothesis citation_map.
+        for cite_key, cite_info in (h.get("citation_map") or {}).items():
+            cite_title = cite_info.get("title", cite_key)
+            cite_ev_id = ev_id_by_title.get(cite_title)
+            if cite_ev_id is None:
+                # Add evidence on the fly for this citation source.
+                cite_ev_id = store.add_evidence(
+                    run_id,
+                    cite_title,
+                    source=cite_info.get("type", "engine"),
+                    url=cite_info.get("url") or "",
+                    authors=cite_info.get("authors") or [],
+                    year=cite_info.get("year"),
+                    abstract="",
+                    available=True,
+                    db_path=db_path,
+                )
+                ev_id_by_title[cite_title] = cite_ev_id
+            claim = f"[{cite_key}] cited in hypothesis"
+            store.add_citation(run_id,
+                               hyp_id,
+                               cite_ev_id,
+                               claim,
+                               CitationState.VERIFIED,
+                               db_path=db_path)
+
+    # 3. Tournament matches: match by hypothesis text prefix (engine truncates at 200).  # pylint: disable=line-too-long
+    for m in matchups:
+        h_a_text = m.get("hypothesis_a", "")
+        h_b_text = m.get("hypothesis_b", "")
+        winner_label = m.get("winner", "a")
+
+        winner_text = h_a_text if winner_label == "a" else h_b_text
+        loser_text = h_b_text if winner_label == "a" else h_a_text
+
+        winner_id = hyp_id_by_text.get(winner_text)
+        loser_id = hyp_id_by_text.get(loser_text)
+        if not winner_id or not loser_id:
+            continue  # can't match — skip rather than persist bad data
+
+        store.add_match(
+            run_id=run_id,
+            iteration=0,
+            winner_id=winner_id,
+            loser_id=loser_id,
+            winner_before=int(m.get("winner_elo_before", 1200)),
+            winner_after=int(m.get("winner_elo_after", 1200)),
+            loser_before=int(m.get("loser_elo_before", 1200)),
+            loser_after=int(m.get("loser_elo_after", 1200)),
+            rationale=m.get("reasoning", ""),
+            db_path=db_path,
+        )
+
+    # 4. Build and persist the report.
+    sorted_hyps = sorted(hyps, key=lambda h: -int(h.get("elo_rating", 1200)))
+    leaderboard = [{
+        "rank": idx + 1,
+        "title": h.get("text", "")[:120],
+        "elo": h.get("elo_rating", 1200),
+        "wins": h.get("win_count", 0),
+        "losses": h.get("loss_count", 0),
+    } for idx, h in enumerate(sorted_hyps[:10])]
+    research_overview = final_state.get("research_overview") or {}
+    report_payload = {
+        "research_goal": research_goal,
+        "run_mode": run_mode,
+        "profile": run_mode,
+        "provider": "engine",
+        "execution_time": execution_time,
+        "hypothesis_count": len(hyps),
+        "evidence_count": len(articles),
+        "match_count": len(matchups),
+        "leaderboard": leaderboard,
+        "meta_review": final_state.get("meta_review") or {},
+        "research_overview": research_overview,
+    }
+    md_lines = [
+        f"# Co-Scientist Run — {research_goal}",
+        f"\n**Provider:** engine | **Hypotheses:** {len(hyps)}",
+        "\n## Top hypotheses by Elo\n",
+    ]
+    for entry in leaderboard:
+        md_lines.append(
+            f"{entry['rank']}. **{entry['title']}** — Elo {entry['elo']}")
+    meta = final_state.get("meta_review") or {}
+    if meta and isinstance(meta, dict):
+        md_lines.append("\n## Meta-review insights\n")
+
+        if meta.get("summary"):
+            md_lines.append(f"{meta['summary']}\n")
+
+        for section_key, heading in (
+            ("common_strengths", "### Common strengths"),
+            ("common_weaknesses", "### Common weaknesses"),
+            ("emerging_themes", "### Emerging themes"),
+            ("areas_for_improvement", "### Areas for improvement"),
+        ):
+            items = meta.get(section_key) or []
+            if items:
+                md_lines.append(f"\n{heading}\n")
+                for item in items:
+                    md_lines.append(f"- {item}")
+
+        recs = meta.get("strategic_recommendations") or []
+        if recs:
+            md_lines.append("\n### Strategic recommendations\n")
+            for rec in recs:
+                if isinstance(rec, dict):
+                    area = rec.get("focus_area", "")
+                    recommendation = rec.get("recommendation", "")
+                    justification = rec.get("justification", "")
+                    md_lines.append(f"**{area}**: {recommendation}")
+                    if justification:
+                        md_lines.append(f"  *{justification}*")
+                else:
+                    md_lines.append(f"- {rec}")
+
+    md_lines.extend(_render_research_overview_markdown(research_overview))
+    markdown = "\n".join(md_lines)
+
+    store.save_report(run_id, report_payload, markdown, db_path=db_path)
+    return report_payload
+
+
 async def run_workflow(
     run_id: str,
     research_goal: str,
@@ -276,6 +617,7 @@ async def run_workflow(
         "tournament_matchups": [],
         "meta_review": {},
         "evolution_details": [],
+        "research_overview": {},
     }
     try:
         async for node_name, state in generator.generate_hypotheses(  # pylint: disable=line-too-long
@@ -293,7 +635,8 @@ async def run_workflow(
 
             # Update final_state from each yielded cumulative snapshot.
             for key in ("hypotheses", "articles", "tournament_matchups",
-                        "meta_review", "evolution_details"):
+                        "meta_review", "evolution_details",
+                        "research_overview"):
                 if state.get(key) is not None:
                     final_state[key] = state[key]
 
@@ -314,201 +657,14 @@ async def run_workflow(
             yield await _emit(f"engine.{node_name}", payload)
 
         # ---- Drain final state into the store ----
-        hyps: list[dict[str, Any]] = final_state["hypotheses"] or []
-        articles: list[dict[str, Any]] = final_state["articles"] or []
-        matchups: list[dict[str,
-                            Any]] = final_state["tournament_matchups"] or []
-
-        # 1. Evidence: persist retrieved articles.
-        ev_id_by_title: dict[str, str] = {}
-        for art in articles:
-            ev_id = store.add_evidence(
-                run_id,
-                art.get("title", "Untitled"),
-                source=art.get("source", "engine"),
-                url=art.get("url") or "",
-                authors=art.get("authors") or [],
-                year=art.get("year"),
-                abstract=art.get("abstract") or "",
-                available=True,
-                db_path=db_path,
-            )
-            ev_id_by_title[art.get("title", "")] = ev_id
-
-        # 2. Hypotheses: persist in generation order; mark evolved ones.
-        hyp_id_by_text: dict[str, str] = {}
-        for h in hyps:
-            is_evolved = bool(h.get("evolution_history"))
-            generation = 1 if is_evolved else 0
-            agent = "evolution" if is_evolved else "generation"
-            # Derive a short title from the first sentence / 120 chars.
-            text = h.get("text", "")
-            title = text.split(".")[0][:120] or text[:120]
-            hyp_id = store.add_hypothesis(
-                run_id=run_id,
-                title=title,
-                statement=text,
-                mechanism=h.get("literature_grounding") or "",
-                expected_effect=h.get("explanation") or "",
-                experimental_context=h.get("experiment") or "",
-                generation=generation,
-                created_by_agent=agent,
-                db_path=db_path,
-            )
-            hyp_id_by_text[text[:200]] = hyp_id  # exact 200-char truncation
-            hyp_id_by_text[
-                text[:200] +
-                "..."] = hyp_id  # engine appends "..." when truncated
-            hyp_id_by_text[text] = hyp_id
-
-            # Update mutable state: Elo, wins, losses, scores.
-            store.update_hypothesis_state(
-                hyp_id,
-                elo_rating=int(h.get("elo_rating", 1200)),
-                win_delta=int(h.get("win_count", 0)),
-                loss_delta=int(h.get("loss_count", 0)),
-                novelty=float(h.get("score", 0) or 0) or None,
-                db_path=db_path,
-            )
-
-            # Persist per-hypothesis reviews.
-            for rv in h.get("reviews") or []:
-                store.add_review(
-                    run_id=run_id,
-                    hypothesis_id=hyp_id,
-                    reviewer_agent="review",
-                    summary=rv.get("review_summary", ""),
-                    critique=rv.get("constructive_feedback", ""),
-                    novelty=float(rv.get("scores", {}).get("novelty", 0) or
-                                  0) or None,
-                    plausibility=float(
-                        rv.get("scores", {}).get("scientific_soundness", 0) or
-                        0) or None,
-                    testability=float(
-                        rv.get("scores", {}).get("testability", 0) or 0) or
-                    None,
-                    overall=float(rv.get("overall_score", 0) or 0) or None,
-                    db_path=db_path,
-                )
-
-            # Persist citations from the hypothesis citation_map.
-            for cite_key, cite_info in (h.get("citation_map") or {}).items():
-                cite_title = cite_info.get("title", cite_key)
-                cite_ev_id = ev_id_by_title.get(cite_title)
-                if cite_ev_id is None:
-                    # Add evidence on the fly for this citation source.
-                    cite_ev_id = store.add_evidence(
-                        run_id,
-                        cite_title,
-                        source=cite_info.get("type", "engine"),
-                        url=cite_info.get("url") or "",
-                        authors=cite_info.get("authors") or [],
-                        year=cite_info.get("year"),
-                        abstract="",
-                        available=True,
-                        db_path=db_path,
-                    )
-                    ev_id_by_title[cite_title] = cite_ev_id
-                claim = f"[{cite_key}] cited in hypothesis"
-                store.add_citation(run_id,
-                                   hyp_id,
-                                   cite_ev_id,
-                                   claim,
-                                   CitationState.VERIFIED,
-                                   db_path=db_path)
-
-        # 3. Tournament matches: match by hypothesis text prefix (engine truncates at 200).  # pylint: disable=line-too-long
-        for m in matchups:
-            h_a_text = m.get("hypothesis_a", "")
-            h_b_text = m.get("hypothesis_b", "")
-            winner_label = m.get("winner", "a")
-
-            winner_text = h_a_text if winner_label == "a" else h_b_text
-            loser_text = h_b_text if winner_label == "a" else h_a_text
-
-            winner_id = hyp_id_by_text.get(winner_text)
-            loser_id = hyp_id_by_text.get(loser_text)
-            if not winner_id or not loser_id:
-                continue  # can't match — skip rather than persist bad data
-
-            store.add_match(
-                run_id=run_id,
-                iteration=0,
-                winner_id=winner_id,
-                loser_id=loser_id,
-                winner_before=int(m.get("winner_elo_before", 1200)),
-                winner_after=int(m.get("winner_elo_after", 1200)),
-                loser_before=int(m.get("loser_elo_before", 1200)),
-                loser_after=int(m.get("loser_elo_after", 1200)),
-                rationale=m.get("reasoning", ""),
-                db_path=db_path,
-            )
-
-        # 4. Build and persist the report.
-        sorted_hyps = sorted(hyps,
-                             key=lambda h: -int(h.get("elo_rating", 1200)))
-        leaderboard = [{
-            "rank": idx + 1,
-            "title": h.get("text", "")[:120],
-            "elo": h.get("elo_rating", 1200),
-            "wins": h.get("win_count", 0),
-            "losses": h.get("loss_count", 0),
-        } for idx, h in enumerate(sorted_hyps[:10])]
-        report_payload = {
-            "research_goal": research_goal,
-            "run_mode": run_mode,
-            "profile": run_mode,
-            "provider": "engine",
-            "execution_time": time.time() - start,
-            "hypothesis_count": len(hyps),
-            "evidence_count": len(articles),
-            "match_count": len(matchups),
-            "leaderboard": leaderboard,
-            "meta_review": final_state.get("meta_review") or {},
-        }
-        md_lines = [
-            f"# Co-Scientist Run — {research_goal}",
-            f"\n**Provider:** engine | **Hypotheses:** {len(hyps)}",
-            "\n## Top hypotheses by Elo\n",
-        ]
-        for entry in leaderboard:
-            md_lines.append(
-                f"{entry['rank']}. **{entry['title']}** — Elo {entry['elo']}")
-        meta = final_state.get("meta_review") or {}
-        if meta and isinstance(meta, dict):
-            md_lines.append("\n## Meta-review insights\n")
-
-            if meta.get("summary"):
-                md_lines.append(f"{meta['summary']}\n")
-
-            for section_key, heading in (
-                ("common_strengths", "### Common strengths"),
-                ("common_weaknesses", "### Common weaknesses"),
-                ("emerging_themes", "### Emerging themes"),
-                ("areas_for_improvement", "### Areas for improvement"),
-            ):
-                items = meta.get(section_key) or []
-                if items:
-                    md_lines.append(f"\n{heading}\n")
-                    for item in items:
-                        md_lines.append(f"- {item}")
-
-            recs = meta.get("strategic_recommendations") or []
-            if recs:
-                md_lines.append("\n### Strategic recommendations\n")
-                for rec in recs:
-                    if isinstance(rec, dict):
-                        area = rec.get("focus_area", "")
-                        recommendation = rec.get("recommendation", "")
-                        justification = rec.get("justification", "")
-                        md_lines.append(f"**{area}**: {recommendation}")
-                        if justification:
-                            md_lines.append(f"  *{justification}*")
-                    else:
-                        md_lines.append(f"- {rec}")
-        markdown = "\n".join(md_lines)
-
-        store.save_report(run_id, report_payload, markdown, db_path=db_path)
+        report_payload = _persist_final_state(
+            run_id=run_id,
+            research_goal=research_goal,
+            run_mode=run_mode,
+            final_state=final_state,
+            execution_time=time.time() - start,
+            db_path=db_path,
+        )
         yield await _emit("report", report_payload)
         store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
         yield await _emit("status", {"status": "completed"})

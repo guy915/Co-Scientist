@@ -131,10 +131,124 @@ def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:
         "ranking",
         "evolve",
         "meta_review",
+        "deep_verification",
         "citation_audit",
+        "research_overview",
         "safety.final",
         "report",
     ]
     indices = [types.index(t) for t in expected_order if t in types]
     assert indices == sorted(indices)
     assert all(t in types for t in expected_order)
+
+
+def test_mock_deep_verification_writes_reviews(isolated_db: str) -> None:
+    """Deep verification attaches reviewer_agent='deep_verification' rows."""
+    run = store.create_run("Deep verify goal", "standard", "mock", {})
+    events = _drain(
+        engine_adapter.run_workflow(run.id,
+                                    run.research_goal,
+                                    "standard",
+                                    run.config,
+                                    sleep_seconds=0))
+
+    # The event is emitted.
+    dv_events = [e for e in events if e["type"] == "deep_verification"]
+    assert len(dv_events) == 1
+    dv_payload = dv_events[0]["payload"]
+    assert dv_payload["verified"] >= 1
+    assert len(dv_payload["probes"]) == dv_payload["verified"]
+    for entry in dv_payload["probes"]:
+        assert entry["verdict"] in ("holds", "weakened", "undermined")
+        assert entry["probes"]  # non-empty probing Q&A
+        for probe in entry["probes"]:
+            assert probe["question"]
+            assert probe["answer"]
+            assert probe["reasoning"]
+            assert isinstance(probe["assumption_is_fundamental"], bool)
+
+    # The reviews table carries deep_verification rows for the top-k.
+    reviews = store.list_reviews(run.id, db_path=isolated_db)
+    deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
+    assert len(deep) == dv_payload["verified"]
+    for row in deep:
+        assert row["summary"].lower().startswith("deep verification verdict:")
+        assert "Probe 1" in row["critique"]
+        # Deep verification does not assign numeric scores.
+        assert row["novelty"] is None
+        assert row["overall"] is None
+
+
+def test_mock_research_overview_rides_report(isolated_db: str) -> None:
+    """Research overview lands in the report payload and markdown."""
+    run = store.create_run("Overview goal", "standard", "mock", {})
+    events = _drain(
+        engine_adapter.run_workflow(run.id,
+                                    run.research_goal,
+                                    "standard",
+                                    run.config,
+                                    sleep_seconds=0))
+
+    ro_events = [e for e in events if e["type"] == "research_overview"]
+    assert len(ro_events) == 1
+    overview = ro_events[0]["payload"]["research_overview"]
+    assert overview["overview"]["summary"]
+    assert overview["overview"]["research_directions"]
+    assert overview["nih_specific_aims"]["aims"]
+
+    report = store.get_latest_report(run.id, db_path=isolated_db)
+    assert report is not None
+    payload_overview = report["payload"].get("research_overview")
+    assert payload_overview == overview
+
+    markdown = report["markdown_text"]
+    assert "## Research Overview" in markdown
+    assert "## NIH Specific Aims" in markdown
+
+
+def test_mock_deep_verification_and_overview_are_deterministic(
+        isolated_db: str) -> None:
+    """Seeded probe + overview content is byte-identical for a fixed seed.
+
+    Hypothesis IDs are fresh UUIDs per run, so we compare only the seeded
+    text content (the research_overview event payload and the probe dicts),
+    never DB row IDs.
+    """
+    from app.mock_workflow import (  # pylint: disable=import-outside-toplevel
+        resolved_config, run_mock_workflow)
+
+    cfg = resolved_config("standard", {})
+    fixed_goal = "Pinned goal for deep-verification determinism"
+    fixed_id = "fixed-dv-seed-a"
+
+    # Initialize the DB via a real run so the schema-init connection (the only
+    # one that enables the FK pragma) is not the one writing rows for the
+    # hand-pinned run ids below. Mirrors the existing replay-determinism test.
+    store.create_run(fixed_goal, "standard", "mock", {})
+
+    async def _drain_async(rid: str) -> list[Any]:
+        return [
+            e async for e in run_mock_workflow(
+                rid, fixed_goal, "standard", cfg, sleep_seconds=0)
+        ]
+
+    def _seeded_content(events: list[Any]) -> dict[str, Any]:
+        dv = next(e for e in events if e["type"] == "deep_verification")
+        ro = next(e for e in events if e["type"] == "research_overview")
+        # Strip the per-row hypothesis_id; keep only seeded text content.
+        probes = [{
+            "verdict": entry["verdict"],
+            "probes": entry["probes"]
+        } for entry in dv["payload"]["probes"]]
+        return {
+            "probes": probes,
+            "research_overview": ro["payload"]["research_overview"],
+        }
+
+    a_events = asyncio.run(_drain_async(fixed_id))
+    b_events = asyncio.run(_drain_async(fixed_id))
+    assert _seeded_content(a_events) == _seeded_content(b_events)
+
+    # A different run_id seeds different content.
+    c_events = asyncio.run(_drain_async("fixed-dv-seed-c"))
+    assert _seeded_content(c_events) != _seeded_content(a_events)
