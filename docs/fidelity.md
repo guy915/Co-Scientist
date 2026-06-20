@@ -19,7 +19,9 @@ which are explicitly out of scope.
 | Initial Elo is **1200** | `app/elo.py` `INITIAL_ELO`; mirrors engine `INITIAL_ELO_RATING` | published |
 | Standard Elo formula | `app/elo.py` `update_pair` mirrors `engine.nodes.ranking.calculate_elo_update` | textbook Elo |
 | Evolution generates **new** offspring hypotheses with lineage | `store.add_hypothesis(parent_id=…)`; verified by `tests/test_evolution.py` | published — explicit invariant in product docs |
-| Meta-review feedback persisted and fed back into later iterations | `store.reviews` row per iteration; included in iterative ranking | published |
+| Meta-review feedback synthesized and appended to every agent's prompt in later iterations | `nodes/meta_review.py`; `_format_meta_review_context` threaded into the generation, reflection, ranking, review, and evolve prompts (no-op when empty); `store.reviews` row per iteration | "Towards an AI co-scientist" §3.3 — feedback without back-propagation |
+| Deep-verification review (probing questions challenging a hypothesis's fundamental assumptions) | `nodes/deep_verification.py` runs on the top-k by Elo after ranking; verdict feeds the ranking prompt; surfaced as `reviewer_agent="deep_verification"` reviews | "Towards an AI co-scientist" §3.3 + Fig A.15 |
+| Research overview + NIH Specific Aims synthesized from the top hypotheses | `nodes/research_overview.py` terminal node; surfaced in the report payload + markdown (`## Research Overview` / `## NIH Specific Aims`) | "Towards an AI co-scientist" §3.3 — research overview |
 | Citation verification is a gate, not decoration | `store.citations.state` ∈ {verified, partial, unsupported, unavailable}; UI shows them prominently | published |
 | Safety screening before **and** after generation | `safety.screen_intake` + `safety.screen_final`; both persisted | published |
 | Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_mode`; legacy `standard`/`advanced` inputs resolve to `default` | implementation policy after removing the obsolete profile split |

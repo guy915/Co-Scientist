@@ -72,10 +72,12 @@ event-log table. The mock workflow guarantees the full sequence:
 11. evolve            (evolution_max_count children with parent_id)
 12. meta_review       (per-iteration critique)
 13. ranking           (iter 2, …)
-14. citation_audit    ({verified, partial, unsupported, unavailable})
-15. safety.final
-16. report            (structured payload + markdown)
-17. status            (completed)
+14. deep_verification (probing questions on the top-k by Elo)
+15. citation_audit    ({verified, partial, unsupported, unavailable})
+16. research_overview (roadmap + NIH Specific Aims)
+17. safety.final
+18. report            (structured payload + markdown)
+19. status            (completed)
 ```
 
 The frontend's Progress tab renders this verbatim. The SSE endpoint at

@@ -146,6 +146,24 @@ export interface ReportPayload {
   citation_summary?: Record<string, number>;
   evidence_count?: number;
   matches_count?: number;
+  research_overview?: ResearchOverview;
+}
+
+/** Synthesized roadmap and NIH Specific Aims for a run's top hypotheses. */
+export interface ResearchOverview {
+  overview?: {
+    summary?: string;
+    research_directions?: {
+      title: string;
+      importance: string;
+      suggested_experiments: string[];
+    }[];
+  };
+  nih_specific_aims?: {
+    introduction?: string;
+    aims?: {aim: string; rationale: string; approach: string}[];
+    impact?: string;
+  };
 }
 
 /** A persisted run report with its structured payload and markdown path. */

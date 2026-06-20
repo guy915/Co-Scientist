@@ -3,6 +3,21 @@ import {useMemo} from 'react';
 import type {CitationRow, Evidence, Hypothesis, Review} from '@/api/runs';
 import {MdDialog} from '@/md3/md_dialog';
 
+const VERDICT_COLORS: Record<string, {bg: string; fg: string}> = {
+  holds: {
+    bg: 'var(--md-sys-color-primary-container)',
+    fg: 'var(--md-sys-color-on-primary-container)',
+  },
+  weakened: {
+    bg: 'var(--md-sys-color-tertiary-container)',
+    fg: 'var(--md-sys-color-on-tertiary-container)',
+  },
+  undermined: {
+    bg: 'var(--md-sys-color-error-container)',
+    fg: 'var(--md-sys-color-on-error-container)',
+  },
+};
+
 /**
  * Renders a dialog with a hypothesis's full detail, lineage, and citations.
  *
@@ -32,6 +47,12 @@ export function IdeaModal({
     ? (allHypotheses.find(h => h.id === hypothesis.parent_id) ?? null)
     : null;
   const children = allHypotheses.filter(h => h.parent_id === hypothesis.id);
+  const deepVerifications = reviews.filter(
+    r => r.reviewer_agent === 'deep_verification',
+  );
+  const otherReviews = reviews.filter(
+    r => r.reviewer_agent !== 'deep_verification',
+  );
 
   return (
     <MdDialog
@@ -111,11 +132,11 @@ export function IdeaModal({
           </section>
         )}
 
-        {reviews.length > 0 && (
+        {otherReviews.length > 0 && (
           <section>
             <h3 className="font-medium mb-1">Reviews &amp; critique</h3>
             <ul className="space-y-2">
-              {reviews.map(r => (
+              {otherReviews.map(r => (
                 <li
                   key={r.id}
                   className="rounded border p-2"
@@ -136,6 +157,42 @@ export function IdeaModal({
                   </p>
                 </li>
               ))}
+            </ul>
+          </section>
+        )}
+
+        {deepVerifications.length > 0 && (
+          <section>
+            <h3 className="font-medium mb-1">Deep verification</h3>
+            <ul className="space-y-2">
+              {deepVerifications.map(r => {
+                const verdict =
+                  r.summary.replace(/^.*verdict:\s*/i, '').trim() || 'unknown';
+                const c = VERDICT_COLORS[verdict] ?? {
+                  bg: 'var(--md-sys-color-surface-variant)',
+                  fg: 'var(--md-sys-color-on-surface-variant)',
+                };
+                return (
+                  <li
+                    key={r.id}
+                    className="rounded border p-2"
+                    style={{borderColor: 'var(--md-sys-color-outline-variant)'}}
+                  >
+                    <span
+                      className="px-1.5 py-0.5 rounded text-[10px] uppercase font-medium"
+                      style={{backgroundColor: c.bg, color: c.fg}}
+                    >
+                      {verdict}
+                    </span>
+                    <p
+                      className="text-xs mt-1 whitespace-pre-wrap"
+                      style={{color: 'var(--md-sys-color-on-surface-variant)'}}
+                    >
+                      {r.critique}
+                    </p>
+                  </li>
+                );
+              })}
             </ul>
           </section>
         )}
