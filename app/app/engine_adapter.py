@@ -592,6 +592,10 @@ async def run_workflow(
         seq = store.append_event(run_id, type_, payload, db_path=db_path)
         return {"seq": seq, "type": type_, "payload": payload}
 
+    # Persist the running state, not just emit it. The mock path sets this; the
+    # engine path previously only emitted the event, leaving the run row stuck
+    # at "queued" for the entire run (misleading status pill in the UI).
+    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     yield await _emit("status", {"status": "running"})
 
     pending_steering = store.get_pending_steering(run_id, db_path=db_path)
