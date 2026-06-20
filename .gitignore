@@ -59,6 +59,7 @@ ai-coscientist-app/frontend/.vite/
 .claude/
 .remember/
 
-# Live Footage (Recordings)
-references/google-co-scientist/media/live-footage/
+# Live Footage (Recordings) — large binaries kept out of git, used locally only.
+# Glob covers both the old flat path and the new core/ bucket path.
+references/**/media/live-footage/
 
