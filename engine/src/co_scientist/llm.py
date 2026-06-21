@@ -6,6 +6,7 @@ and JSON parsing.
 # pylint: disable=inconsistent-quotes
 
 import asyncio
+import copy
 import json
 import logging
 import re
@@ -116,10 +117,26 @@ def attempt_json_repair(
 
         return result
 
+    def fix_invalid_escapes(s: str) -> str:
+        r"""Escape lone backslashes that are not valid JSON escapes.
+
+        LLMs frequently emit LaTeX or math notation inside string values
+        (e.g. ``GFP-Ub\(^{G76V}\)``). ``\(`` is not a valid JSON escape and
+        breaks parsing. Double any backslash not followed by a valid JSON
+        escape character (``" \ / b f n r t u``) so the literal backslash
+        survives and the value parses.
+        """
+        return re.sub(r'\\(?!["\\/bfnrtu])', r"\\\\", s)
+
     # Minor repairs (safe, don't indicate truncation)
     minor_repairs: list[Callable[[str], Any]] = [
         # Remove trailing commas before closing braces/brackets
         lambda s: json.loads(re.sub(r",(\s*[}\]])", r"\1", s)),
+        # Escape invalid backslash sequences (LaTeX/math notation from LLMs)
+        lambda s: json.loads(fix_invalid_escapes(s)),
+        # Both: invalid escapes and trailing commas
+        lambda s: json.loads(
+            fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s))),
     ]
 
     # Major repairs (indicate truncation/incomplete, only on final retry)
@@ -202,6 +219,32 @@ def validate_json_schema(result: dict[str, Any],
         raise
 
 
+# Post-generation "enhancement" nodes degrade gracefully when their LLM output
+# cannot be parsed or validated after all retries: the run keeps the hypotheses
+# it has and skips the enhancement rather than aborting. Foundational nodes
+# (hypothesis generation, supervisor planning) are intentionally absent -- with
+# no hypotheses there is no run, so they fail loud. Each fallback is shaped so
+# the consuming node's ``.get(field, default)`` logic yields a sensible empty or
+# neutral result (e.g. evolution returns ``{}`` -> the node keeps the original
+# hypothesis; batch review returns no rows -> "Review unavailable" stubs).
+_ENHANCEMENT_NODE_FALLBACKS: dict[str, dict[str, Any]] = {
+    "proximity_analysis": {
+        "similarity_clusters": [],
+        "diversity_assessment": "Analysis failed - skipping deduplication",
+        "redundancy_assessment": "Analysis failed - skipping deduplication",
+    },
+    "hypothesis_evolution": {},
+    "hypothesis_review": {},
+    "hypothesis_batch_review": {
+        "reviews": []
+    },
+    "reflection_observations": {},
+    "meta_review": {},
+    "deep_verification": {},
+    "research_overview": {},
+}
+
+
 def get_fallback_response(
         json_schema: dict[str, Any] | None) -> dict[str, Any] | None:
     """Get fallback placeholder data for non-critical nodes that failed.
@@ -211,24 +254,26 @@ def get_fallback_response(
             identify node)
 
     Returns:
-        Placeholder data matching schema structure, or None if node is critical
+        Placeholder data for a post-generation enhancement node so the run can
+        continue, or None for foundational nodes where failing loud is correct.
     """
     if json_schema is None:
         return None
 
     schema_name = json_schema.get("name")
+    if not isinstance(schema_name, str):
+        return None
+    fallback = _ENHANCEMENT_NODE_FALLBACKS.get(schema_name)
+    if fallback is not None:
+        logger.warning(
+            "Node '%s' failed JSON parsing after all retries; returning a "
+            "fallback so the run degrades gracefully instead of aborting.",
+            schema_name)
+        # Deep-copy so a caller mutating nested lists/dicts cannot corrupt the
+        # shared template.
+        return copy.deepcopy(fallback)
 
-    # Non-critical nodes that can fail gracefully
-    if schema_name == "proximity_analysis":
-        logger.warning("Proximity analysis failed after all retries. "
-                       "Returning fallback data to continue workflow.")
-        return {
-            "similarity_clusters": [],
-            "diversity_assessment": "Analysis failed - skipping deduplication",
-            "redundancy_assessment": "Analysis failed - skipping deduplication",
-        }
-
-    # Critical nodes - no fallback
+    # Foundational/critical nodes - no fallback, propagate the error.
     return None
 
 
