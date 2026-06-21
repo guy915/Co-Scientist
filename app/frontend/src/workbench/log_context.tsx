@@ -50,6 +50,10 @@ export function LogProvider({children}: {children: ReactNode}) {
   const eventsByRun = useRef<Map<string, LogEntry[]>>(new Map());
   // Map of run_id → short label
   const labelsRef = useRef<Map<string, string>>(new Map());
+  // Event keys (`run_id:seq`) the user has cleared. Filtered out of every
+  // rebuild so the 30s poll / refresh cannot resurrect them; genuinely new
+  // events get new keys and still appear.
+  const dismissed = useRef<Set<string>>(new Set());
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -58,8 +62,11 @@ export function LogProvider({children}: {children: ReactNode}) {
     for (const evs of eventsByRun.current.values()) {
       all.push(...evs);
     }
-    all.sort((a, b) => a.created_at - b.created_at);
-    setEntries(all);
+    const visible = all.filter(
+      ev => !dismissed.current.has(`${ev.run_id}:${ev.seq}`),
+    );
+    visible.sort((a, b) => a.created_at - b.created_at);
+    setEntries(visible);
   }, []);
 
   const loadRun = useCallback(
@@ -110,11 +117,15 @@ export function LogProvider({children}: {children: ReactNode}) {
     return () => clearInterval(id);
   }, [refresh]);
 
-  // Clear the in-memory console view. Backend run history is not deleted; a
-  // subsequent refresh or the 30s poll will repopulate from persisted events.
+  // Clear the console view. Marks every currently-known event as dismissed so a
+  // later refresh or the 30s poll cannot bring it back; new events still show.
+  // Backend run history is not deleted.
   const clear = useCallback(() => {
-    eventsByRun.current.clear();
-    labelsRef.current.clear();
+    for (const evs of eventsByRun.current.values()) {
+      for (const ev of evs) {
+        dismissed.current.add(`${ev.run_id}:${ev.seq}`);
+      }
+    }
     setEntries([]);
   }, []);
 
