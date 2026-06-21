@@ -117,7 +117,7 @@ function SourcesFooter({sources}: {sources: SourceRef[]}) {
         className="text-xs font-medium opacity-70"
         style={{color: 'var(--md-sys-color-on-surface-variant)'}}
       >
-        Sources
+        Sources ({sources.length})
       </div>
       {sources.map(s => {
         const style = citationStateStyle(s.state);
