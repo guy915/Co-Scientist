@@ -11,9 +11,16 @@ RUN pip install --no-cache-dir -e ./mcp_server
 
 ENV PYTHONUNBUFFERED=1
 
-EXPOSE ${PORT:-8888}
+EXPOSE 8888
 
+# Listen on a fixed internal port (matches the api's MCP_SERVER_URL) and bind
+# IPv6 (::) so Railway's IPv6 private network (mcp.railway.internal) can reach
+# it. Railway injects its own PORT (e.g. 8080) for public ingress, but this
+# service is private-only, so we ignore it and pin 8888 on both ends.
+# Probe the IPv6 loopback explicitly: `--host ::` is IPv6-only on some kernels
+# (not always dual-stack), so a `localhost`/127.0.0.1 healthcheck can miss the
+# socket. [::1] matches the bind regardless of dual-stack behavior.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD python -c "import os, httpx; httpx.get(f\"http://localhost:{os.environ.get('PORT', '8888')}\", timeout=5.0)" || exit 1
+    CMD python -c "import httpx; httpx.get('http://[::1]:8888', timeout=5.0)" || exit 1
 
-CMD ["sh", "-c", "uvicorn mcp_server.server:app --host 0.0.0.0 --port ${PORT:-8888}"]
+CMD ["sh", "-c", "uvicorn mcp_server.server:app --host :: --port 8888"]
