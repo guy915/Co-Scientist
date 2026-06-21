@@ -466,6 +466,87 @@ async def list_messages(run_id: str) -> dict[str, Any]:
     return {"messages": [m.to_dict() for m in msgs]}
 
 
+_CITATION_STATE_RANK = {
+    "verified": 3,
+    "partial": 2,
+    "unsupported": 1,
+    "unavailable": 0,
+}
+
+
+def _build_evidence_manifest(
+    evidence: list[dict[str, Any]],
+    citations: list[dict[str, Any]],
+    cap: int = 12,
+) -> list[dict[str, Any]]:
+    """Build a numbered, deterministic source list for grounded Q&A.
+
+    Cited evidence comes first (in citation order, keeping the strongest state
+    when an item is cited by several claims), then any remaining evidence, all
+    capped to keep the prompt bounded. Each entry carries the fields the model
+    needs to cite and the UI needs to render a reference chip.
+
+    Args:
+        evidence: Evidence rows for the run.
+        citations: Citation rows for the run.
+        cap: Maximum number of sources to include.
+
+    Returns:
+        A list of ``{n, evidence_id, title, url, source, year, state}`` dicts.
+    """
+    by_id: dict[str, dict[str, Any]] = {
+        str(e["id"]): e for e in evidence if e.get("id") is not None
+    }
+    cited_state: dict[str, str] = {}
+    cited_order: list[str] = []
+    for citation in citations:
+        raw_eid = citation.get("evidence_id")
+        if raw_eid is None:
+            continue
+        eid = str(raw_eid)
+        if eid not in by_id:
+            continue
+        state = str(citation.get("state") or "")
+        if eid not in cited_state:
+            cited_order.append(eid)
+            cited_state[eid] = state
+        elif _CITATION_STATE_RANK.get(state, -1) > _CITATION_STATE_RANK.get(
+                cited_state[eid], -1):
+            cited_state[eid] = state
+    ordered_ids = cited_order + [eid for eid in by_id if eid not in cited_state]
+    manifest: list[dict[str, Any]] = []
+    for n, eid in enumerate(ordered_ids[:cap], start=1):
+        row = by_id[eid]
+        entry_state = cited_state.get(eid)
+        if entry_state is None:
+            entry_state = ("available"
+                           if row.get("available", True) else "unavailable")
+        manifest.append({
+            "n": n,
+            "evidence_id": eid,
+            "title": row.get("title") or "Untitled source",
+            "url": row.get("url"),
+            "source": row.get("source"),
+            "year": row.get("year"),
+            "state": entry_state,
+        })
+    return manifest
+
+
+def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:
+    """Render the manifest as numbered lines for the system prompt."""
+    lines = []
+    for entry in manifest:
+        meta = ", ".join(
+            str(part)
+            for part in (entry.get("source"), entry.get("year"))
+            if part)
+        suffix = f" ({meta})" if meta else ""
+        lines.append(f"[{entry['n']}] {entry['title']}{suffix}"
+                     f" — {entry['state']}")
+    return "\n".join(lines)
+
+
 @router.post("/{run_id}/messages/ask")
 async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     """Answer a question about the run using a fast LLM, streaming the response."""  # pylint: disable=line-too-long
@@ -481,6 +562,10 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     reviews = store.list_reviews(run_id, db_path=_db_path())
     matches = store.list_matches(run_id, db_path=_db_path())
     history = store.list_messages(run_id, db_path=_db_path())[:-1]
+    evidence = store.list_evidence(run_id, db_path=_db_path())
+    citations = store.list_citations(run_id, db_path=_db_path())
+    manifest = _build_evidence_manifest(evidence, citations)
+    evidence_lines = _format_manifest_for_prompt(manifest)
 
     top_hyps = sorted(hypotheses,
                       key=lambda h: -int(h.get("elo_rating") or 1200))[:5]
@@ -504,8 +589,12 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         f"Top hypotheses by Elo:\n{hyp_lines or '(none yet)'}\n\n"
         f"Recent reviews:\n{review_lines or '(none yet)'}\n\n"
         f"Recent tournament matches:\n{match_lines or '(none yet)'}\n\n"
+        f"Evidence (cite supporting sources inline as [n] using ONLY this "
+        f"numbered list; never invent a citation):\n"
+        f"{evidence_lines or '(no evidence retrieved)'}\n\n"
         f"Conversation history:\n{conv_lines or '(none)'}\n\n"
-        f"Answer concisely and accurately. Do not repeat the question.")
+        f"Answer concisely and accurately. Do not repeat the question. When a "
+        f"statement is supported by a listed source, cite it inline as [n].")
 
     model = os.getenv("CHAT_MODEL_NAME") or os.getenv("MODEL_NAME",
                                                       "deepseek/deepseek-chat")
@@ -513,6 +602,11 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     async def _stream() -> AsyncGenerator[str, None]:
         try:
             import litellm  # pylint: disable=import-outside-toplevel
+
+            # Send the cited-source manifest first so the UI can resolve [n]
+            # references as the answer streams in.
+            if manifest:
+                yield f"data: {json.dumps({'type': 'sources', 'sources': manifest})}\n\n"  # pylint: disable=line-too-long
 
             full: list[str] = []
             response = await litellm.acompletion(
@@ -537,11 +631,13 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
                     yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"  # pylint: disable=line-too-long
 
             answer = "".join(full)
-            store.append_message(run_id,
-                                 "system",
-                                 answer,
-                                 "qa",
-                                 db_path=_db_path())
+            store.append_message(
+                run_id,
+                "system",
+                answer,
+                "qa",
+                db_path=_db_path(),
+                meta={"sources": manifest} if manifest else None)
             yield f"data: {json.dumps({'type': 'done', 'question_id': question_msg.id})}\n\n"  # pylint: disable=line-too-long
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("Q&A stream error for run %s: %s", run_id, exc)

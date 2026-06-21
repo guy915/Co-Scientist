@@ -204,6 +204,37 @@ def _render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _live_leaderboard(hyps: list[dict[str, Any]],
+                      cap: int = 10) -> list[dict[str, Any]]:
+    """Compact current standings carried on every engine event.
+
+    The store is only populated when the run completes, so the UI cannot fetch
+    forming hypotheses mid-run. Emitting this snapshot on each node event lets
+    the run view show a live leaderboard (titles + Elo) as the run progresses.
+
+    Args:
+        hyps: Current hypothesis dicts from the streamed state snapshot.
+        cap: Maximum number of standings to include.
+
+    Returns:
+        A list of ``{rank, id, title, elo, wins, losses}`` dicts, Elo-sorted.
+    """
+    ordered = sorted(hyps,
+                     key=lambda h: -int(h.get("elo_rating", 1200) or 1200))
+    out: list[dict[str, Any]] = []
+    for rank, h in enumerate(ordered[:cap], start=1):
+        title = str(h.get("title") or h.get("text") or "Untitled")
+        out.append({
+            "rank": rank,
+            "id": str(h.get("id") or h.get("hypothesis_id") or title),
+            "title": title[:140],
+            "elo": int(h.get("elo_rating", 1200) or 1200),
+            "wins": int(h.get("win_count", 0) or 0),
+            "losses": int(h.get("loss_count", 0) or 0),
+        })
+    return out
+
+
 def _persist_final_state(
     *,
     run_id: str,
@@ -650,6 +681,7 @@ async def run_workflow(
                 "hypothesis_count": len(state.get("hypotheses") or []),
                 "matches_count": len(state.get("tournament_matchups") or []),
                 "articles_count": len(state.get("articles") or []),
+                "leaderboard": _live_leaderboard(state.get("hypotheses") or []),
             }
             milestone = _format_milestone(node_name, payload)
             if milestone:

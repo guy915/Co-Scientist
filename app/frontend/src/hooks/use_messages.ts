@@ -3,6 +3,7 @@ import {
   askQuestionUrl,
   listMessages,
   type Message,
+  type SourceRef,
   sendMessage,
 } from '@/api/runs';
 
@@ -150,6 +151,7 @@ export function useMessages(
               const event = JSON.parse(line.slice(6)) as {
                 type: string;
                 content?: string;
+                sources?: SourceRef[];
               };
               if (event.type === 'chunk' && event.content) {
                 const chunk = event.content;
@@ -158,6 +160,13 @@ export function useMessages(
                     m.id === answerMsg.id
                       ? {...m, content: m.content + chunk}
                       : m,
+                  ),
+                );
+              } else if (event.type === 'sources' && event.sources) {
+                const sources = event.sources;
+                setMessages(prev =>
+                  prev.map(m =>
+                    m.id === answerMsg.id ? {...m, meta: {sources}} : m,
                   ),
                 );
               }
