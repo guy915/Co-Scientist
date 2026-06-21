@@ -178,6 +178,9 @@ async def draft_hypotheses(
             max_tokens=draft_max_tokens,
             temperature=HIGH_TEMPERATURE,
             max_iterations=max_iterations,
+            # Stochastic, diversity-critical generation: keep drafts fresh per
+            # run rather than serving a frozen cached draft.
+            use_cache=False,
         )
     except Exception as e:
         logger.error("Draft phase failed: %s", e)
