@@ -176,6 +176,21 @@ export interface Report {
 }
 
 /** A chat message exchanged with a run (steering, Q&A, or milestone). */
+/** A cited source attached to a grounded Q&A answer (the `[n]` references). */
+export interface SourceRef {
+  n: number;
+  evidence_id: string;
+  title: string;
+  url?: string | null;
+  source?: string | null;
+  year?: number | null;
+  state: string;
+}
+
+export interface MessageMeta {
+  sources?: SourceRef[];
+}
+
 export interface Message {
   id: number;
   run_id: string;
@@ -185,6 +200,7 @@ export interface Message {
   created_at: number;
   applied: boolean;
   status?: string;
+  meta?: MessageMeta | null;
 }
 
 async function jsonOrThrow<T>(res: Response): Promise<T> {

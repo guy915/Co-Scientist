@@ -136,6 +136,33 @@ def _cluster_id(idx: int) -> str:
     return f"cluster-{idx % 3}"
 
 
+def _mock_leaderboard(
+    elo: dict[str, int],
+    wins: dict[str, int],
+    losses: dict[str, int],
+    titles: dict[str, str],
+    cap: int = 10,
+) -> list[dict[str, Any]]:
+    """Build the live leaderboard snapshot in the same shape as the engine.
+
+    Mirrors ``engine_adapter._live_leaderboard`` so the frontend live-standings
+    view reads one consistent payload shape across mock and engine runs.
+    """
+    ordered = sorted(elo.items(), key=lambda kv: -kv[1])
+    out: list[dict[str, Any]] = []
+    for rank, (hid, rating) in enumerate(ordered[:cap], start=1):
+        title = titles.get(hid, hid)
+        out.append({
+            "rank": rank,
+            "id": hid,
+            "title": title[:140],
+            "elo": rating,
+            "wins": wins.get(hid, 0),
+            "losses": losses.get(hid, 0),
+        })
+    return out
+
+
 # Number of top-ranked hypotheses subjected to deep verification. Hardcoded
 # because the mock is offline and must not import the engine constant.
 DEEP_VERIFICATION_TOP_K = 3
@@ -446,6 +473,8 @@ async def run_mock_workflow(
 
     # ---- 7. First ranking round ----
     elo_state: dict[str, int] = {hid: INITIAL_ELO for hid in hyp_ids}
+    win_count: dict[str, int] = {hid: 0 for hid in hyp_ids}
+    loss_count: dict[str, int] = {hid: 0 for hid in hyp_ids}
 
     # Map each hypothesis id to its seed-deterministic title so the tournament
     # outcome (and thus the leaderboard, deep-verification selection, and the
@@ -485,6 +514,8 @@ async def run_mock_workflow(
             wa, la = update_pair(wb, lb, k_factor=cfg["k_factor"])
             elo_state[winner] = wa
             elo_state[loser] = la
+            win_count[winner] = win_count.get(winner, 0) + 1
+            loss_count[loser] = loss_count.get(loser, 0) + 1
             store.update_hypothesis_state(winner,
                                           elo_rating=wa,
                                           win_delta=1,
@@ -522,7 +553,8 @@ async def run_mock_workflow(
                 "matches":
                     round_matches,
                 "leaderboard":
-                    sorted(elo_state.items(), key=lambda kv: -kv[1])[:5]
+                    _mock_leaderboard(elo_state, win_count, loss_count,
+                                      title_by_id),
             },
         )
 

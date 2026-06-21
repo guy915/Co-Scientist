@@ -1,38 +1,14 @@
 import {useMemo, useState} from 'react';
 import type {CitationRow, Evidence} from '@/api/runs';
+import {
+  CITATION_STATES,
+  type CitationState,
+  citationStateStyle,
+} from '@/workbench/lib/citation_styles';
 
-type CitState = 'verified' | 'partial' | 'unsupported' | 'unavailable';
+type CitState = CitationState;
 
-const STATE_STYLES: Record<CitState, {fg: string; bg: string; label: string}> =
-  {
-    verified: {
-      fg: 'var(--color-th-on-success-container)',
-      bg: 'var(--color-th-success-container)',
-      label: 'Verified',
-    },
-    partial: {
-      fg: 'var(--color-th-on-warning-container)',
-      bg: 'var(--color-th-warning-container)',
-      label: 'Partial',
-    },
-    unsupported: {
-      fg: 'var(--color-th-destructive-on-container)',
-      bg: 'var(--color-th-destructive-container)',
-      label: 'Unsupported',
-    },
-    unavailable: {
-      fg: 'var(--color-th-muted-fg)',
-      bg: 'var(--color-th-muted)',
-      label: 'Unavailable',
-    },
-  };
-
-const ALL_STATES: CitState[] = [
-  'verified',
-  'partial',
-  'unsupported',
-  'unavailable',
-];
+const ALL_STATES: CitState[] = [...CITATION_STATES];
 
 /**
  * Renders retrieved evidence with citation-state filters and summaries.
@@ -112,7 +88,7 @@ export function EvidenceTab({
     <div className="space-y-4 wb-fade-in">
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {ALL_STATES.map(state => {
-          const s = STATE_STYLES[state];
+          const s = citationStateStyle(state);
           const isActive = activeStates.has(state);
           const count = stateTotals[state];
           return (
@@ -194,7 +170,7 @@ export function EvidenceTab({
               {cits.length > 0 && (
                 <div className="flex flex-wrap gap-1 mt-2">
                   {cits.map(c => {
-                    const s = STATE_STYLES[c.state];
+                    const s = citationStateStyle(c.state);
                     return (
                       <span
                         key={c.id}

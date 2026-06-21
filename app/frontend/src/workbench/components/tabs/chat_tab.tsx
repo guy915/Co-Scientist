@@ -1,6 +1,13 @@
-import {type KeyboardEvent, useEffect, useRef, useState} from 'react';
-import type {Run} from '@/api/runs';
+import {
+  type KeyboardEvent,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import type {Run, SourceRef} from '@/api/runs';
 import {useMessages} from '@/hooks/use_messages';
+import {citationStateStyle} from '@/workbench/lib/citation_styles';
 
 interface Props {
   run: Run | null;
@@ -79,7 +86,79 @@ function UserBubble({
   );
 }
 
-function AnswerBubble({content}: {content: string}) {
+/** Render answer text, turning `[n]` tokens that match a source into chips. */
+function renderWithCitations(content: string, sources: SourceRef[]): ReactNode {
+  if (sources.length === 0) return content;
+  const byNumber = new Map(sources.map(s => [s.n, s]));
+  return content.split(/(\[\d+\])/g).map((part, i) => {
+    const match = /^\[(\d+)\]$/.exec(part);
+    const ref = match ? byNumber.get(Number(match[1])) : undefined;
+    if (!ref) return part;
+    return (
+      <sup
+        key={i}
+        className="mx-0.5 rounded px-1 text-[10px] font-medium"
+        style={{
+          backgroundColor: 'var(--md-sys-color-secondary-container)',
+          color: 'var(--md-sys-color-on-secondary-container)',
+        }}
+        title={ref.title}
+      >
+        {part}
+      </sup>
+    );
+  });
+}
+
+function SourcesFooter({sources}: {sources: SourceRef[]}) {
+  return (
+    <div className="mt-2 space-y-1">
+      <div
+        className="text-xs font-medium opacity-70"
+        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
+      >
+        Sources
+      </div>
+      {sources.map(s => {
+        const style = citationStateStyle(s.state);
+        return (
+          <div key={s.n} className="flex items-center gap-2 text-xs">
+            <span className="shrink-0 opacity-60">[{s.n}]</span>
+            <span className="flex-1 truncate" title={s.title}>
+              {s.title}
+            </span>
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5"
+              style={{backgroundColor: style.bg, color: style.fg}}
+            >
+              {style.label}
+            </span>
+            {s.url && (
+              <a
+                className="shrink-0 underline"
+                href={s.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{color: 'var(--md-sys-color-primary)'}}
+              >
+                Open
+              </a>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function AnswerBubble({
+  content,
+  sources,
+}: {
+  content: string;
+  sources?: SourceRef[];
+}) {
+  const refs = sources ?? [];
   return (
     <div className="pl-4">
       <div
@@ -89,7 +168,12 @@ function AnswerBubble({content}: {content: string}) {
           color: 'var(--md-sys-color-on-surface-variant)',
         }}
       >
-        {content || <span className="opacity-40">Thinking…</span>}
+        {content ? (
+          renderWithCitations(content, refs)
+        ) : (
+          <span className="opacity-40">Thinking…</span>
+        )}
+        {refs.length > 0 && <SourcesFooter sources={refs} />}
       </div>
     </div>
   );
@@ -181,7 +265,13 @@ export function ChatTab({run}: Props) {
             );
           }
           if (msg.kind === 'qa') {
-            return <AnswerBubble key={msg.id} content={msg.content} />;
+            return (
+              <AnswerBubble
+                key={msg.id}
+                content={msg.content}
+                sources={msg.meta?.sources}
+              />
+            );
           }
           return null;
         })}

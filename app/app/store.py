@@ -127,6 +127,14 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE reports ADD COLUMN markdown_text TEXT")
         logger.info("migration: added markdown_text column to reports")
 
+    message_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(messages)").fetchall()
+    }
+    if "meta_json" not in message_cols:
+        conn.execute("ALTER TABLE messages ADD COLUMN meta_json TEXT")
+        logger.info("migration: added meta_json column to messages")
+
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -286,6 +294,7 @@ CREATE TABLE IF NOT EXISTS messages (
     kind       TEXT NOT NULL,
     created_at REAL NOT NULL,
     applied    INTEGER NOT NULL DEFAULT 0,
+    meta_json  TEXT,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, id);
@@ -340,6 +349,7 @@ class MessageRow:
     kind: str
     created_at: float
     applied: bool
+    meta: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -350,6 +360,7 @@ class MessageRow:
             "kind": self.kind,
             "created_at": self.created_at,
             "applied": self.applied,
+            "meta": self.meta,
         }
 
 
@@ -1059,6 +1070,7 @@ def append_message(
     content: str,
     kind: str,
     db_path: str | None = None,
+    meta: dict[str, Any] | None = None,
 ) -> MessageRow:
     """Append a message to a run and return the stored row.
 
@@ -1068,15 +1080,18 @@ def append_message(
         content: Message body text.
         kind: Message kind, e.g. 'steering'.
         db_path: Optional override for the SQLite database path.
+        meta: Optional structured metadata persisted as JSON (e.g. the cited
+            sources for a Q&A answer) so it survives reloads and restarts.
 
     Returns:
         The newly inserted message as a MessageRow.
     """
     now = _now()
+    meta_json = json.dumps(meta) if meta is not None else None
     with connect(db_path) as conn:
         cur = conn.execute(
-            "INSERT INTO messages (run_id, sender, content, kind, created_at, applied) VALUES (?,?,?,?,?,0)",  # pylint: disable=line-too-long
-            (run_id, sender, content, kind, now),
+            "INSERT INTO messages (run_id, sender, content, kind, created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",  # pylint: disable=line-too-long
+            (run_id, sender, content, kind, now, meta_json),
         )
         msg_id = cur.lastrowid or 0
     return MessageRow(id=msg_id,
@@ -1085,13 +1100,29 @@ def append_message(
                       content=content,
                       kind=kind,
                       created_at=now,
-                      applied=False)
+                      applied=False,
+                      meta=meta)
+
+
+def _parse_message_meta(row: sqlite3.Row) -> dict[str, Any] | None:
+    """Decode the optional meta_json column into a dict, tolerating absence."""
+    keys = row.keys()
+    if "meta_json" not in keys:
+        return None
+    raw = row["meta_json"]
+    if not raw:
+        return None
+    try:
+        parsed = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
 def list_messages(run_id: str, db_path: str | None = None) -> list[MessageRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "  # pylint: disable=line-too-long
+            "SELECT id, run_id, sender, content, kind, created_at, applied, meta_json FROM messages "  # pylint: disable=line-too-long
             "WHERE run_id=? ORDER BY id ASC",
             (run_id,),
         ).fetchall()
@@ -1104,6 +1135,7 @@ def list_messages(run_id: str, db_path: str | None = None) -> list[MessageRow]:
                 kind=r["kind"],
                 created_at=r["created_at"],
                 applied=bool(r["applied"]),
+                meta=_parse_message_meta(r),
             ) for r in rows
         ]
 

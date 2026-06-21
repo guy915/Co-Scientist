@@ -6,6 +6,7 @@ import type {
   SafetyDecision,
 } from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
+import {selectLiveLeaderboard} from '@/workbench/lib/live_state';
 
 const AGENT_LABELS: Record<string, string> = {
   'supervisor.plan': 'Supervisor',
@@ -57,6 +58,10 @@ export function OverviewTab({
   const initialCount = hypotheses.filter(h => !h.parent_id).length;
   const evolvedCount = hypotheses.filter(h => h.parent_id).length;
   const topElo = hypotheses[0]?.elo_rating ?? 1200;
+  const liveLeaderboard = selectLiveLeaderboard(events);
+  const isActive = run
+    ? ['running', 'queued', 'synthesizing'].includes(run.status)
+    : false;
 
   return (
     <div className="grid lg:grid-cols-3 gap-4">
@@ -84,6 +89,35 @@ export function OverviewTab({
       </aside>
 
       <div className="space-y-4 lg:col-span-2">
+        {isActive && liveLeaderboard.length > 0 && (
+          <Section title="Live standings">
+            <ol className="space-y-1 text-sm">
+              {liveLeaderboard.map(s => (
+                <li key={s.id} className="flex items-center gap-2">
+                  <span
+                    className="w-6 shrink-0 text-right font-mono text-xs"
+                    style={{color: 'var(--color-th-muted-fg)'}}
+                  >
+                    #{s.rank}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate" title={s.title}>
+                    {s.title}
+                  </span>
+                  <span className="shrink-0 font-mono text-xs">
+                    Elo {s.elo}
+                  </span>
+                  <span
+                    className="shrink-0 text-xs"
+                    style={{color: 'var(--color-th-muted-fg)'}}
+                  >
+                    {s.wins}W/{s.losses}L
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </Section>
+        )}
+
         <Section title="Pipeline timeline">
           {events.length === 0 ? (
             <p className="text-sm" style={{color: 'var(--color-th-muted-fg)'}}>
