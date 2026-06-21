@@ -8,6 +8,7 @@ import '@material/web/iconbutton/icon-button.js';
 
 import {
   Fragment,
+  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -69,6 +70,29 @@ const SUGGESTIONS = [
   'Propose drug repurposing candidates for triple-negative breast cancer through mitochondrial biogenesis.',
   'Investigate how cold stress reshapes glucose homeostasis via brown adipose signalling.',
   'Discover synthetic lethality partners for KRAS-mutant pancreatic ductal adenocarcinoma.',
+];
+
+/** The three phases of a session, shown on the home screen. */
+const SESSION_STEPS: ReadonlyArray<{
+  n: number;
+  title: string;
+  body: string;
+}> = [
+  {
+    n: 1,
+    title: 'Getting started',
+    body: 'First, describe what you want to investigate and confirm your session details.',
+  },
+  {
+    n: 2,
+    title: 'Hypothesis generation',
+    body: 'A team of agents generates hypotheses for your research goal using their available evidence.',
+  },
+  {
+    n: 3,
+    title: 'Evaluation and ranking',
+    body: 'Agents review the hypotheses against your criteria and rank them, tournament-style.',
+  },
 ];
 
 const TERMINAL_STATUSES: RunStatus[] = [
@@ -565,12 +589,51 @@ export function ChatWorkspace() {
       <main className="min-w-0 min-h-0 flex flex-col">
         {!hasConversation ? (
           <section className="flex flex-1 items-center justify-center px-4 py-8 sm:px-8">
-            <div className="w-full max-w-3xl space-y-5">
-              <div className="text-center space-y-2">
-                <h1 className="text-[2rem] sm:text-[2.75rem] font-medium leading-tight tracking-normal">
-                  What should we investigate?
+            <div className="w-full max-w-3xl space-y-6">
+              <div className="space-y-3">
+                <div
+                  className="flex items-center gap-2"
+                  style={{color: 'var(--md-sys-color-primary)'}}
+                >
+                  <md-icon
+                    aria-hidden="true"
+                    style={{'--md-icon-size': '20px'} as CSSProperties}
+                  >
+                    science
+                  </md-icon>
+                  <span className="text-xs font-semibold uppercase tracking-[0.07em]">
+                    Hypothesis generation
+                  </span>
+                </div>
+                <h1 className="text-[2rem] sm:text-[2.75rem] font-medium leading-[1.05] tracking-[-0.02em]">
+                  Create a multi-agent research session
                 </h1>
               </div>
+
+              <ol className="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+                {SESSION_STEPS.map(step => (
+                  <li key={step.n} className="space-y-2">
+                    <span
+                      className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold"
+                      style={{
+                        backgroundColor:
+                          'var(--md-sys-color-secondary-container)',
+                        color: 'var(--md-sys-color-on-secondary-container)',
+                      }}
+                    >
+                      {step.n}
+                    </span>
+                    <div className="text-sm font-semibold">{step.title}</div>
+                    <p
+                      className="text-sm leading-relaxed"
+                      style={{color: 'var(--md-sys-color-on-surface-variant)'}}
+                    >
+                      {step.body}
+                    </p>
+                  </li>
+                ))}
+              </ol>
+
               <Composer
                 input={input}
                 setInput={setInput}
