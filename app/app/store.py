@@ -117,8 +117,12 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute(
             "ALTER TABLE runs ADD COLUMN client_id TEXT NOT NULL DEFAULT ''")
         logger.info("migration: added client_id column to runs")
-    # Remove runs that predate client isolation (no client_id assigned).
-    conn.execute("DELETE FROM runs WHERE client_id = ''")
+        # One-time purge of runs that predate client isolation. This MUST run
+        # only when the column is first added -- running it on every startup
+        # would silently delete every header-less (empty client_id) run on each
+        # restart, e.g. runs created via the API without an X-Client-ID header.
+        conn.execute("DELETE FROM runs WHERE client_id = ''")
+        logger.info("migration: purged pre-client-isolation runs")
 
     report_cols = {
         row[1] for row in conn.execute("PRAGMA table_info(reports)").fetchall()
@@ -473,6 +477,73 @@ def update_run_status(
                 "UPDATE runs SET status=?, error=?, updated_at=? WHERE id=?",
                 (status.value, error, now, run_id),
             )
+
+
+def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
+    """Fail runs left non-terminal by a previous process (crash/restart).
+
+    On startup no workflow tasks are running, so any run still marked queued,
+    running, or synthesizing was interrupted and would otherwise be stuck
+    forever -- and un-startable, since ``start_run`` rejects in-progress runs.
+    Transition each to ``failed`` with a clear reason and append a status event
+    so the event stream and UI reflect the interruption.
+
+    Args:
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The ids of the runs that were reconciled.
+    """
+    interrupted = (
+        RunStatus.QUEUED.value,
+        RunStatus.RUNNING.value,
+        RunStatus.SYNTHESIZING.value,
+    )
+    now = _now()
+    reason = "Run interrupted by a server restart."
+    reconciled: list[str] = []
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            "SELECT id FROM runs WHERE status IN (?,?,?)",
+            interrupted,
+        ).fetchall()
+        for row in rows:
+            rid = row["id"]
+            conn.execute(
+                "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
+                (RunStatus.FAILED.value, reason, now, now, rid),
+            )
+            seq_row = conn.execute(
+                "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?",  # pylint: disable=line-too-long
+                (rid,),
+            ).fetchone()
+            seq = (seq_row["s"] if seq_row else 0) + 1
+            conn.execute(
+                "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) VALUES (?,?,?,?,?)",  # pylint: disable=line-too-long
+                (rid, seq, "status",
+                 json.dumps({
+                     "status": "failed",
+                     "error": reason
+                 }), now),
+            )
+            reconciled.append(rid)
+    return reconciled
+
+
+def checkpoint_wal(db_path: str | None = None) -> None:
+    """Merge the write-ahead log into the main database file.
+
+    Called on graceful shutdown so a clean stop leaves committed data in the
+    main DB file rather than only in the ``-wal`` sidecar.
+
+    Args:
+        db_path: Optional override for the SQLite database path.
+    """
+    try:
+        with connect(db_path) as conn:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except sqlite3.Error as exc:
+        logger.warning("WAL checkpoint failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
