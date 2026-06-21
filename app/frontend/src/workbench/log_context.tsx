@@ -23,12 +23,15 @@ interface LogContextValue {
   loading: boolean;
   /** Manually refresh all known runs. */
   refresh: () => Promise<void>;
+  /** Clear the current console view (backend run history is not deleted). */
+  clear: () => void;
 }
 
 const LogContext = createContext<LogContextValue>({
   entries: [],
   loading: false,
   refresh: async () => {},
+  clear: () => {},
 });
 
 /** Consumes the global log context. */
@@ -107,8 +110,16 @@ export function LogProvider({children}: {children: ReactNode}) {
     return () => clearInterval(id);
   }, [refresh]);
 
+  // Clear the in-memory console view. Backend run history is not deleted; a
+  // subsequent refresh or the 30s poll will repopulate from persisted events.
+  const clear = useCallback(() => {
+    eventsByRun.current.clear();
+    labelsRef.current.clear();
+    setEntries([]);
+  }, []);
+
   return (
-    <LogContext.Provider value={{entries, loading, refresh}}>
+    <LogContext.Provider value={{entries, loading, refresh, clear}}>
       {children}
     </LogContext.Provider>
   );

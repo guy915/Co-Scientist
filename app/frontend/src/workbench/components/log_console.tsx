@@ -224,7 +224,7 @@ export function LogConsole() {
   const buttonRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
 
-  const {entries, loading, refresh} = useLogs();
+  const {entries, loading, refresh, clear} = useLogs();
   const scrollRef = useRef<HTMLDivElement>(null);
   const stats = diagnosticStats(entries);
 
@@ -376,6 +376,16 @@ export function LogConsole() {
                     {copied ? 'check' : 'content_copy'}
                   </md-icon>
                   {copied ? 'Copied!' : 'Copy all'}
+                </md-outlined-button>
+                <md-outlined-button
+                  onclick={(() => clear()) as EventListener}
+                  disabled={entries.length === 0 || undefined}
+                  aria-label="Clear the log console view"
+                >
+                  <md-icon slot="icon" aria-hidden="true">
+                    delete_sweep
+                  </md-icon>
+                  Clear
                 </md-outlined-button>
               </div>
             </div>
