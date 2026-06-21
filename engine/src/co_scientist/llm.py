@@ -18,7 +18,7 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 import litellm
 
-from co_scientist.cache import get_cache
+from co_scientist.cache import LLMCache, NullCache, get_cache
 
 logger = logging.getLogger(__name__)
 
@@ -284,6 +284,7 @@ async def call_llm(
     temperature: float = 0.7,
     force_json: bool = False,
     json_schema: dict[str, Any] | None = None,
+    use_cache: bool = True,
 ) -> str:
     """Call an LLM via litellm and return the response.
 
@@ -295,6 +296,7 @@ async def call_llm(
         temperature: Sampling temperature
         force_json: If True, try to force JSON mode (model support varies)
         json_schema: Optional JSON schema to constrain the response format
+        use_cache: When False, bypass the LLM cache so the call is always fresh.
 
     Returns:
         String response from the LLM
@@ -311,8 +313,8 @@ async def call_llm(
             "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
             original_temp)
 
-    # Check cache first
-    cache = get_cache()
+    # Check cache first (NullCache when caching is bypassed for this call).
+    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
     cached_response = cache.get(prompt,
                                 model_name,
                                 temperature,
@@ -401,6 +403,7 @@ async def call_llm_json(
     temperature: float = 0.7,
     json_schema: dict[str, Any] | None = None,
     max_attempts: int = 5,
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """Call LLM and parse response as JSON with validation and retry logic.
 
@@ -411,6 +414,8 @@ async def call_llm_json(
         temperature: Sampling temperature
         json_schema: Optional JSON schema to constrain the response format
         max_attempts: Maximum number of retry attempts (default 5)
+        use_cache: When False, bypass the LLM cache so the call is always fresh
+            (used for stochastic, diversity-critical generation).
 
     Returns:
         Parsed JSON response as a dictionary
@@ -422,8 +427,8 @@ async def call_llm_json(
             (for critical nodes)
         Exception: If the LLM call fails or returns empty response
     """
-    # Check cache first
-    cache = get_cache()
+    # Check cache first (NullCache when caching is bypassed for this call).
+    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
     cached_response = cache.get(prompt,
                                 model_name,
                                 temperature,
@@ -694,6 +699,7 @@ async def call_llm_with_tools(
     max_tokens: int = 8000,
     temperature: float = 0.7,
     max_iterations: int = 10,
+    use_cache: bool = True,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Call an LLM with tool access and handle tool execution loop.
 
@@ -709,6 +715,8 @@ async def call_llm_with_tools(
         max_tokens: Maximum tokens per LLM call
         temperature: Sampling temperature
         max_iterations: Maximum number of LLM calls (prevents infinite loops)
+        use_cache: When False, bypass the LLM cache so the call is always fresh
+            (used for stochastic, diversity-critical generation).
 
     Returns:
         Tuple of (final_response_text, complete_message_history)
@@ -725,8 +733,8 @@ async def call_llm_with_tools(
             "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
             original_temp)
 
-    # Check cache first
-    cache = get_cache()
+    # Check cache first (NullCache when caching is bypassed for this call).
+    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
     cached_response = cache.get(prompt,
                                 model_name,
                                 temperature,

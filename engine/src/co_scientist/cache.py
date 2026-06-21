@@ -247,6 +247,24 @@ class LLMCache:
         }
 
 
+class NullCache:
+    """A no-op cache: never returns a hit and never stores.
+
+    Used to force a fresh LLM call regardless of the global cache state. This
+    matters for stochastic, diversity-critical calls (hypothesis generation):
+    caching them would freeze the sampled output, so a warm cache returns the
+    same hypothesis on every call -- which the deduplicate reducer then
+    collapses to one. Bypassing the cache keeps generation diverse regardless
+    of cache state, while caching stays on for deterministic nodes.
+    """
+
+    def get(self, *_args: Any, **_kwargs: Any) -> dict[str, Any] | None:
+        return None
+
+    def set(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
+
+
 # Global cache instance (can be configured via environment variable)
 _global_cache: LLMCache | None = None
 

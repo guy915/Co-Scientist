@@ -156,6 +156,10 @@ async def _run_single_debate(
                 max_tokens=scaled_max_tokens,
                 temperature=HIGH_TEMPERATURE,
                 json_schema=schema,
+                # Generation is stochastic and diversity-critical: never cache
+                # it, so parallel debates and re-runs stay diverse regardless of
+                # cache state.
+                use_cache=False,
             )
 
             hypotheses_data = response.get("hypotheses", [])
@@ -193,6 +197,7 @@ async def _run_single_debate(
                 model_name=state["model_name"],
                 max_tokens=EXTENDED_MAX_TOKENS,
                 temperature=HIGH_TEMPERATURE,
+                use_cache=False,  # keep debate turns fresh too
             )
 
             transcript += f"\n\nTurn {turn}:\n{response_text}"
