@@ -637,6 +637,15 @@ async def run_workflow(
         store.mark_steering_applied([m.id for m in pending_steering],
                                     db_path=db_path)
 
+    # Literature grounding is always-on for real runs and is never exposed as a
+    # user-facing option. Force the engine to include the literature_review node
+    # so every run uses PubMed/INDRA evidence whenever the MCP server is
+    # reachable. The engine still degrades gracefully to LLM-only if MCP is
+    # unavailable, so a down MCP never breaks a run. Set FORCE_LITERATURE_REVIEW=0
+    # only for tests/dev that must run without it.
+    if os.getenv("FORCE_LITERATURE_REVIEW", "1") != "0":
+        initial_opts["enable_literature_review_node"] = True
+
     generator = HypothesisGenerator(
         model_name=os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash"),
         max_iterations=int(cfg.get("max_iterations", 1)),
