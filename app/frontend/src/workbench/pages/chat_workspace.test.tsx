@@ -184,7 +184,9 @@ describe('ChatWorkspace', () => {
     renderWorkspace();
 
     expect(
-      screen.getByRole('heading', {name: 'What should we investigate?'}),
+      screen.getByRole('heading', {
+        name: 'Drive novel scientific discovery with Co-Scientist.',
+      }),
     ).toBeInTheDocument();
     expect(screen.getByText('History')).toBeInTheDocument();
     expect(screen.getByText('Knowledge Base')).toBeInTheDocument();
@@ -286,7 +288,9 @@ describe('ChatWorkspace', () => {
     fireEvent.click(screen.getByLabelText('New chat'));
 
     expect(
-      screen.getByRole('heading', {name: 'What should we investigate?'}),
+      screen.getByRole('heading', {
+        name: 'Drive novel scientific discovery with Co-Scientist.',
+      }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText('Run progress')).not.toBeInTheDocument();
     expect(
