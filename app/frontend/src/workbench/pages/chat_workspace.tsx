@@ -73,7 +73,8 @@ const SUGGESTIONS = [
   'Discover synthetic lethality partners for KRAS-mutant pancreatic ductal adenocarcinoma.',
 ];
 
-/** The three phases of a session, shown on the home screen. */
+/** The three phases of a session, shown on the home screen. Wording mirrors
+ * the Co-Scientist product. */
 const SESSION_STEPS: ReadonlyArray<{
   n: number;
   title: string;
@@ -81,18 +82,18 @@ const SESSION_STEPS: ReadonlyArray<{
 }> = [
   {
     n: 1,
-    title: 'Getting started',
-    body: 'First, describe what you want to investigate and confirm your session details.',
+    title: 'Pick a research goal',
+    body: 'Tell Co-Scientist what you plan to research, point it to relevant data, and set your evaluation criteria.',
   },
   {
     n: 2,
-    title: 'Hypothesis generation',
-    body: 'A team of agents generates hypotheses for your research goal using their available evidence.',
+    title: 'Generate hypotheses',
+    body: 'A team of agents will generate ideas on your topic using their available data.',
   },
   {
     n: 3,
-    title: 'Evaluation and ranking',
-    body: 'Agents review the hypotheses against your criteria and rank them, tournament-style.',
+    title: 'Evaluate and rank',
+    body: 'The agents will evaluate the ideas against your criteria and rank them, tournament-style.',
   },
 ];
 
@@ -603,11 +604,11 @@ export function ChatWorkspace() {
                     science
                   </md-icon>
                   <span className="text-xs font-semibold uppercase tracking-[0.07em]">
-                    Hypothesis generation
+                    Co-Scientist
                   </span>
                 </div>
                 <h1 className="text-[2rem] sm:text-[2.75rem] font-medium leading-[1.05] tracking-[-0.02em]">
-                  Create a multi-agent research session
+                  Drive novel scientific discovery with Co-Scientist.
                 </h1>
               </div>
 
