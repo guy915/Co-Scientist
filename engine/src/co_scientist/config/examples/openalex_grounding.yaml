@@ -1,0 +1,120 @@
+# OpenAlex grounding configuration
+#
+# Adds OpenAlex (https://openalex.org) as a second literature source alongside
+# PubMed, so the co-scientist grounds hypotheses in broad, cross-disciplinary
+# scholarship -- not just biomedicine -- with no API key required.
+#
+# Point the engine at this file via TOOLS_CONFIG (path or URL). It requires the
+# reference MCP server to expose the `search_openalex` tool (see
+# engine/mcp_server/tools/lit_review/openalex_search.py).
+
+version: "1.0"
+
+servers:
+  default_pubmed:
+    url: "${MCP_SERVER_URL:-http://localhost:8888/mcp}"
+    transport: "streamable_http"
+    enabled: true
+
+tools:
+  search_tools:
+    pubmed_fulltext:
+      server: "default_pubmed"
+      mcp_tool_name: "pubmed_search_with_fulltext"
+      display_name: "PubMed Fulltext Search"
+      description: "Search PubMed and download fulltexts from PMC"
+      category: "search_with_content"
+      source_type: "academic"
+      enabled: true
+      response_format:
+        type: "json"
+        results_path: "."
+        is_dict: true
+        field_mapping:
+          title: "title"
+          url: "@url_from_key"
+          authors: "authors"
+          year: "date_revised|split:/|index:0|int"
+          abstract: "abstract"
+          content: "fulltext"
+          source_id: "@key"
+          source: "'pubmed'"
+          pmc_id: "pmc_full_text_id"
+      parameter_mapping:
+        query: "query"
+        slug: "slug"
+        max_papers: "max_papers"
+        recency_years: "recency_years"
+        run_id: "run_id"
+
+    openalex_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_openalex"
+      display_name: "OpenAlex Search"
+      description: "Search OpenAlex (all-field scholarly works, no API key) and return metadata"
+      category: "search"
+      source_type: "academic"
+      enabled: true
+      response_format:
+        type: "json"
+        results_path: "."
+        is_dict: true
+        field_mapping:
+          title: "title"
+          url: "url"
+          authors: "authors"
+          year: "year"
+          abstract: "abstract"
+          source_id: "@key"
+          source: "'openalex'"
+      parameter_mapping:
+        query: "query"
+        max_papers: "max_papers"
+        recency_years: "recency_years"
+        run_id: "run_id"
+      prompt_snippet: |
+        Use `search_openalex` to search OpenAlex for broad, cross-disciplinary
+        scholarly works (no API key). Good for non-biomedical or interdisciplinary
+        grounding. Example: search_openalex(query="ambient nitrogen fixation catalysis", max_papers=5)
+      parameters:
+        query:
+          type: "string"
+          required: true
+          description: "Free-text OpenAlex search query"
+        max_papers:
+          type: "integer"
+          default: 10
+          description: "Maximum number of works to return (capped at 25)"
+        recency_years:
+          type: "integer"
+          default: 0
+          description: "Filter to works from last N years (0 = no filter)"
+
+  utility_tools:
+    check_pubmed:
+      server: "default_pubmed"
+      mcp_tool_name: "check_pubmed_available"
+      display_name: "Check PubMed Availability"
+      description: "Check if the MCP literature server is reachable"
+      category: "utility"
+      enabled: true
+      response_format:
+        type: "boolean_string"
+
+workflows:
+  # Multi-source literature review: PubMed (biomedical fulltext) + OpenAlex
+  # (broad metadata). Each query fans out across both sources.
+  literature_review:
+    search_sources:
+      - tool: "pubmed_fulltext"
+        papers_per_query: 3
+        enabled: true
+      - tool: "openalex_search"
+        papers_per_query: 3
+        enabled: true
+    availability_check: "check_pubmed"
+
+settings:
+  auto_discover: true
+  merge_strategy: "override"
+  allow_disable_builtins: true
