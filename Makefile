@@ -16,7 +16,7 @@ DOCS_URL := http://localhost:8008/docs
 help:
 	@echo "AI Co-Scientist — root commands"
 	@echo "  make setup        Create .venv, install engine (editable) + app (editable), install frontend"
-	@echo "  make dev          Run API + UI side-by-side with prefixed logs"
+	@echo "  make dev          Run MCP + API + UI side-by-side with prefixed logs"
 	@echo "  make dev-api      Run FastAPI dev server   ($(API_URL))"
 	@echo "  make dev-ui       Run Vite dev server      ($(UI_URL))"
 	@echo "  make dev-mcp      Run reference MCP server (optional, needs Python 3.12)"
@@ -71,6 +71,7 @@ dev:
 
 dev-all:
 	@bash -c "trap 'kill 0' INT TERM EXIT; \
+		($(MAKE) dev-mcp 2>&1 | sed 's/^/[mcp] /') & \
 		($(MAKE) dev-api 2>&1 | sed 's/^/[api] /') & \
 		($(MAKE) dev-ui 2>&1 | sed 's/^/[ui]  /') & \
 		(until curl -s http://localhost:5173 >/dev/null 2>&1; do sleep 0.5; done; open http://localhost:5173) & \
@@ -85,8 +86,13 @@ dev-ui:
 	@cd "$(FRONTEND)" && (command -v bun >/dev/null 2>&1 && bun run dev) || npm run dev
 
 dev-mcp:
-	@echo ">> Reference MCP server requires Python 3.12; running with system python3.12 if available."
-	@cd "$(ENGINE)/mcp_server" && (command -v python3.12 >/dev/null 2>&1 && python3.12 -m pip install -e . && python3.12 -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888) || (echo "python3.12 not found; MCP server skipped" && exit 0)
+	@command -v python3.12 >/dev/null 2>&1 || { echo ">> python3.12 not found; MCP server skipped (literature tools fall back to LLM-only)"; exit 0; }
+	@echo ">> Installing reference MCP server (Python 3.12; first run / when deps change)"
+	@python3.12 -m pip install -q -e "$(ENGINE)/mcp_server" || { echo ">> MCP deps install failed (offline?); skipping MCP server"; exit 0; }
+	@echo ">> Starting reference MCP server on http://localhost:8888"
+	@# Run from $(ENGINE) so the mcp_server package resolves as a directory package
+	@# (the editable install's import map is empty; cwd=engine puts it on sys.path).
+	@cd "$(ENGINE)" && python3.12 -m uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888
 
 # ---------------------------------------------------------------------------
 # Test / lint / typecheck / build
