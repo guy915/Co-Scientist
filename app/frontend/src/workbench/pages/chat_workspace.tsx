@@ -45,6 +45,7 @@ import {
 } from '@/api/runs';
 import {useMessages} from '@/hooks/use_messages';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
+import {conciseTitle} from '@/lib/text';
 import {ThemeToggle} from '../components/theme_toggle';
 import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
 import {RunStatusPill} from '../components/run_status_pill';
@@ -1463,8 +1464,11 @@ function HistoryPanel({
                 {new Date(run.updated_at * 1000).toLocaleDateString()}
               </span>
             </div>
-            <div className="line-clamp-2 font-medium leading-snug">
-              {run.research_goal}
+            <div
+              className="truncate font-medium leading-snug"
+              title={run.research_goal}
+            >
+              {conciseTitle(run.research_goal)}
             </div>
           </button>
         </li>
