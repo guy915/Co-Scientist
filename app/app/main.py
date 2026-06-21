@@ -21,7 +21,7 @@ from rich.console import Console
 # Load .env file before importing settings
 load_dotenv()
 
-from app import engine_adapter  # pylint: disable=wrong-import-position
+from app import engine_adapter, store  # pylint: disable=wrong-import-position
 from app.config import settings  # pylint: disable=wrong-import-position
 from app.runs import router as runs_router  # pylint: disable=wrong-import-position
 from app.seed import seed_demo_runs  # pylint: disable=wrong-import-position
@@ -121,12 +121,23 @@ async def lifespan(
             "Engine generator not initialised; mock workflow will be used.")
         _generator = None
 
+    # Reconcile runs left non-terminal by a previous process: a fresh process
+    # has no workflow tasks running, so anything still queued/running was
+    # interrupted by a crash or restart and would otherwise be stuck forever.
+    interrupted = store.reconcile_interrupted_runs(
+        db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
+    if interrupted:
+        logger.info("Reconciled %s interrupted run(s) to failed: %s",
+                    len(interrupted), ", ".join(r[:8] for r in interrupted))
+
     await seed_demo_runs(db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
 
     yield
 
     # Shutdown
     logger.info("Shutting down Co-Scientist server...")
+    # Merge the WAL into the main DB so a clean stop leaves no -wal sidecar.
+    store.checkpoint_wal(db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
 
 
 app = FastAPI(
