@@ -294,3 +294,85 @@ def test_fallback_for_critical_node_returns_none() -> None:
 def test_fallback_schema_without_name_returns_none() -> None:
     """A schema with no ``name`` field has no fallback."""
     assert get_fallback_response({}) is None
+
+
+# --- attempt_json_repair: invalid backslash escapes (LaTeX/math) -----------
+
+
+def test_invalid_latex_escape_is_minor_repaired() -> None:
+    r"""LaTeX-style ``\(...\)`` in a string value is repaired (minor).
+
+    This is the real-world failure that aborted a run: DeepSeek emitted
+    ``GFP-Ub\(^{G76V}\)`` inside a JSON string, and ``\(`` is not a valid JSON
+    escape. The repair doubles the lone backslashes so the literal text
+    survives, and it succeeds WITHOUT major repairs.
+    """
+    raw = r'{"experiment": "use GFP-Ub\(^{G76V}\) reporter"}'
+    parsed, was_major = attempt_json_repair(raw)
+    assert parsed == {"experiment": r"use GFP-Ub\(^{G76V}\) reporter"}
+    assert was_major is False
+
+
+def test_invalid_escape_with_trailing_comma_repaired() -> None:
+    """Combined invalid escape + trailing comma is still a minor repair."""
+    raw = r'{"a": "x\(y", "b": 1,}'
+    parsed, was_major = attempt_json_repair(raw)
+    assert parsed == {"a": r"x\(y", "b": 1}
+    assert was_major is False
+
+
+def test_valid_escapes_are_left_intact() -> None:
+    """Legitimate JSON escapes are not double-escaped by the repair."""
+    # Valid as-is, so it parses without any repair.
+    assert attempt_json_repair(r'{"a": "line\n\t\"q\"\\done"}') == (
+        {
+            "a": 'line\n\t"q"\\done'
+        },
+        False,
+    )
+
+
+# --- get_fallback_response: enhancement nodes degrade, foundational fail ---
+
+
+def test_enhancement_nodes_get_a_fallback() -> None:
+    """Every post-generation enhancement node degrades instead of aborting."""
+    for name in (
+            "proximity_analysis",
+            "hypothesis_evolution",
+            "hypothesis_review",
+            "hypothesis_batch_review",
+            "reflection_observations",
+            "meta_review",
+            "deep_verification",
+            "research_overview",
+    ):
+        assert get_fallback_response({"name": name}) is not None, name
+
+
+def test_foundational_nodes_have_no_fallback() -> None:
+    """Foundational nodes fail loud (no fallback) -- no hypotheses, no run."""
+    for name in ("hypothesis_generation", "hypothesis_draft",
+                 "supervisor_guidance", "ranking_judgment"):
+        assert get_fallback_response({"name": name}) is None, name
+
+
+def test_evolution_fallback_is_empty_dict_keeps_original() -> None:
+    """Evolution's empty fallback routes the node to its keep-original path."""
+    assert get_fallback_response({"name": "hypothesis_evolution"}) == {}
+
+
+def test_batch_review_fallback_has_empty_reviews() -> None:
+    """Batch review degrades to no rows; the node fills 'Review unavailable'."""
+    assert get_fallback_response({"name": "hypothesis_batch_review"}) == {
+        "reviews": []
+    }
+
+
+def test_fallback_returns_independent_copy() -> None:
+    """Mutating a returned fallback must not corrupt the shared template."""
+    first = get_fallback_response({"name": "hypothesis_batch_review"})
+    assert first is not None
+    first["reviews"].append("dirty")
+    second = get_fallback_response({"name": "hypothesis_batch_review"})
+    assert second == {"reviews": []}
