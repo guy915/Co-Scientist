@@ -185,7 +185,7 @@ describe('ChatWorkspace', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Drive novel scientific discovery with Co-Scientist.',
+        name: 'Turn research questions into ranked, testable hypotheses.',
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('History')).toBeInTheDocument();
@@ -289,7 +289,7 @@ describe('ChatWorkspace', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Drive novel scientific discovery with Co-Scientist.',
+        name: 'Turn research questions into ranked, testable hypotheses.',
       }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText('Run progress')).not.toBeInTheDocument();
