@@ -9,15 +9,13 @@ This is a research/reference workspace organized around replicating Google DeepM
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
 - `references/` — folder containing research, product screenshots, and design specs
-  - `google-co-scientist/` — long-form architecture/spec markdown analyzing the original system
-    - `media/` — UX captures and product references for Google Co-Scientist
-    - `research/` — papers describing the original Co-Scientist
-  - `notebooklm/`, `gemini/`, `gemini-enterprise/` — UX captures and product references
-  - `antigravity-science-skills/`, `claude-code/`, `idea-generator/` — additional reference projects
-- `docs/` — live project docs (`Architecture.md`, `Fidelity.md`, `assets/` (screenshots + SVG diagrams))
+  - `core/google-co-scientist/` — long-form architecture/spec markdown analyzing the original system (incl. `media/` UX captures and `research/` papers)
+  - `peripheral/` — secondary reference projects (`antigravity-science-skills/`, `notebooklm/`, `coding-agent-harness/`, `ai-chatbot-interface/`)
+  - `ui-ux/` — UX captures and product references (`gemini/`, `gemini-enterprise/`, `idea-generator/`)
+- `docs/` — live project docs (`architecture.md`, `fidelity.md`, `decisions/`, `assets/` (screenshots + SVG diagrams))
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
-- `Makefile` — root-level build orchestration (`setup`, `dev`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `lint`, `typecheck`, `build`, `clean`, `reset-db`)
-- `CLAUDE.md` — byte-for-byte copy of this file (keep in sync)
+- `Makefile` — root-level build orchestration (`setup`, `dev`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-all`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
+- `CLAUDE.md` — symlink to this file
 - `README.md` — project overview, features, installation, and usage
 
 There is a root `Makefile` for cross-project orchestration. Each project is also independently installable and runnable.
@@ -52,6 +50,8 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Ranking | `nodes/ranking.py` |
 | Tournament (Elo pairwise, inside ranking flow) | `nodes/ranking.py` |
 | Meta-Review | `nodes/meta_review.py` |
+| Deep Verification (probing questions) | `nodes/deep_verification.py` |
+| Research Overview (synthesis/roadmap) | `nodes/research_overview.py` |
 | Evolve | `nodes/evolve.py` |
 | Proximity (dedup) | `nodes/proximity.py` |
 
@@ -105,6 +105,7 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 | `elo.py` | Elo rating utilities |
 | `citations.py` | Citation classification (verified, partial, unsupported, unavailable) |
 | `safety.py` | Safety decision storage + intake/final-output screening |
+| `run_modes.py` | Run-mode backward-compat helpers (legacy standard/advanced → unified mode) |
 | `seed.py` | Startup demo run seeder |
 
 **Key endpoints**:
@@ -149,13 +150,15 @@ bun run test         # vitest run (jsdom + React Testing Library)
 
 Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test-setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
 
-Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (dashboard, new run, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/error_boundary.tsx`, `src/lib/utils.ts`.
+Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (chat workspace, dashboard, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/error_boundary.tsx`, `src/lib/utils.ts`.
 
-**Routing** (`workbench_app.tsx`): `/` (public landing page), `/demos/:slug` (public demo), `/runs` (dashboard), `/runs/new`, `/runs/:id`, `/runs/:id/:tab`, `*` (404). Public-facing pages live in `src/public/` (`landing_page.tsx`, `demo_page.tsx`, `not_found_page.tsx`, `seo.tsx`).
+**Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/about` (public landing page), `/demos/:slug` (public demo), `/runs` (dashboard), `/runs/new` (chat workspace for new run), `/runs/:id`, `/runs/:id/:tab`, `*` (404). Public-facing pages live in `src/public/` (`landing_page.tsx`, `demo_page.tsx`, `demo_manifest.ts`, `not_found_page.tsx`, `no_index.tsx`, `public_link_button.tsx`, `seo.tsx`).
 
-**Tabs** (`src/workbench/components/tabs/`): `overview_tab.tsx`, `ideas_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `report_tab.tsx`, `chat_tab.tsx` (scientist-in-the-loop Q&A with auto-steering, manual steering, and Q&A modes).
+**Tabs** (`src/workbench/components/tabs/`): `overview_tab.tsx`, `ideas_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `report_tab.tsx`, `run_specifications_tab.tsx`, `chat_tab.tsx` (scientist-in-the-loop Q&A with auto-steering, manual steering, and Q&A modes).
 
 **MD3 wrappers** (`src/md3/`): `md_dialog.tsx`, `md_tabs.tsx` — thin wrappers around `@material/web` components.
+
+**Workbench hooks** (`src/workbench/hooks/`): `use_global_shortcuts.ts` (keyboard shortcut handler).
 
 ### Docker workflow
 
@@ -167,7 +170,7 @@ The app is deployed as three services:
 
 | Layer | Platform | URL |
 |---|---|---|
-| Frontend (Vite/React) | Vercel — project `co-scientist-ui` | https://co-scientist-ui.vercel.app |
+| Frontend (Vite/React) | Vercel — project `co-scientist-ui` | Public: https://ai-co-scientist.com/; Vercel deployment: https://co-scientist-ui.vercel.app |
 | API (FastAPI) | Railway — service `api` | https://api-production-97eb.up.railway.app |
 | MCP server | Railway — service `mcp` | internal only (`mcp.railway.internal:8888`) |
 
