@@ -1,9 +1,12 @@
 import '@material/web/icon/icon.js';
-import '@material/web/button/outlined-button.js';
-import type {ReactNode} from 'react';
+import '@material/web/iconbutton/icon-button.js';
+import {useEffect, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
-import {LogConsole} from './components/log_console';
-import {ThemeToggle} from './components/theme_toggle';
+import {listDemoRuns, listRuns, type Run} from '@/api/runs';
+import {conciseTitle} from '@/lib/text';
+import {useTheme} from './theme_context';
+
+type ShellPanel = 'settings';
 
 /**
  * Renders the app shell with header navigation, main content, and footer.
@@ -13,145 +16,237 @@ import {ThemeToggle} from './components/theme_toggle';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isChatWorkspace =
-    location.pathname === '/' || location.pathname === '/runs/new';
-  const isPublicRoute =
-    !location.pathname.startsWith('/runs') && !isChatWorkspace;
+  const {mode, setMode} = useTheme();
+  const [overrideTitle, setOverrideTitle] = useState('');
+  const [history, setHistory] = useState<Run[]>([]);
+  const [navOpen, setNavOpen] = useState(true);
+  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  const isRunRoute = location.pathname.startsWith('/runs/');
+  const headerTitle = overrideTitle || '';
+  const shellClass = [
+    'google-app-shell',
+    isRunRoute ? 'report-shell' : 'home-shell',
+    navOpen ? 'nav-open' : 'nav-collapsed',
+    'min-h-screen',
+  ].join(' ');
 
-  if (isChatWorkspace) {
-    return (
-      <div
-        className="min-h-screen wb-fade-in"
-        style={{
-          backgroundColor: 'var(--color-th-bg)',
-          color: 'var(--color-th-fg)',
-        }}
-      >
-        <div className="fixed top-3 right-3 z-30">
-          <LogConsole />
-        </div>
-        {children}
-      </div>
-    );
+  function startNewChat() {
+    window.dispatchEvent(new Event('cosci-new-chat'));
+    void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
 
+  function focusComposer() {
+    window.dispatchEvent(new Event('cosci-focus-composer'));
+    void navigate('/', {state: {cosciAction: 'focus-composer'}});
+  }
+
+  function toggleNav() {
+    setNavOpen(open => !open);
+    setActivePanel(null);
+  }
+
+  function togglePanel(panel: ShellPanel) {
+    setActivePanel(current => (current === panel ? null : panel));
+  }
+
+  useEffect(() => {
+    setOverrideTitle('');
+    setActivePanel(null);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    function onHeaderTitle(event: Event) {
+      const custom = event as CustomEvent<string>;
+      setOverrideTitle(custom.detail || '');
+    }
+    window.addEventListener('cosci-header-title', onHeaderTitle);
+    return () => {
+      window.removeEventListener('cosci-header-title', onHeaderTitle);
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadHistory() {
+      const [ownedRuns, demoRuns] = await Promise.all([
+        listRuns().catch(() => [] as Run[]),
+        listDemoRuns().catch(() => [] as Run[]),
+      ]);
+      if (ignore) return;
+      const byId = new Map<string, Run>();
+      for (const item of [...ownedRuns, ...demoRuns]) byId.set(item.id, item);
+      setHistory(
+        [...byId.values()].sort((a, b) => b.updated_at - a.updated_at),
+      );
+    }
+    void loadHistory();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{
-        backgroundColor: 'var(--color-th-bg)',
-        color: 'var(--color-th-fg)',
-      }}
-    >
-      <header
-        className="border-b sticky top-0 z-30 backdrop-blur-xl"
-        style={{
-          backgroundColor:
-            'color-mix(in srgb, var(--md-sys-color-surface-container) 70%, transparent)',
-          borderColor: 'var(--color-th-border)',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
-          <Link
-            to={isPublicRoute ? '/about' : '/'}
-            className="flex items-center gap-2 font-semibold shrink-0"
+    <div className={shellClass}>
+      <aside className="ucs-nav-panel" aria-label="Primary navigation">
+        <div className="ucs-nav-top">
+          <button
+            type="button"
+            className="ucs-rail-button"
+            aria-label="Menu"
+            aria-expanded={navOpen}
+            aria-controls="primary-navigation"
+            onClick={toggleNav}
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 14 13"
-              className="w-5 h-5 shrink-0"
-              aria-hidden="true"
-              style={{color: 'var(--md-sys-color-primary)'}}
+            <md-icon aria-hidden="true">menu</md-icon>
+          </button>
+          <nav id="primary-navigation" className="ucs-nav-items">
+            <button
+              type="button"
+              className="ucs-nav-item selected"
+              title="New chat"
+              aria-label="New chat"
+              onClick={startNewChat}
             >
-              <path
-                d="M1.70627 12.6C1.23127 12.6 0.825025 12.4375 0.487525 12.1125C0.162524 11.7875 2.44677e-05 11.3938 2.44677e-05 10.9313C2.44677e-05 10.7563 0.0187744 10.6 0.0562744 10.4625C0.0937746 10.325 0.150025 10.2 0.225025 10.0875L4.36877 4.10625C4.48127 3.93125 4.56877 3.75 4.63127 3.5625C4.69377 3.3625 4.72503 3.1625 4.72503 2.9625V0.900002H4.27502C4.15002 0.900002 4.04377 0.856252 3.95627 0.768753C3.86877 0.681253 3.82502 0.575002 3.82502 0.450002C3.82502 0.325002 3.86877 0.218752 3.95627 0.131253C4.04377 0.0437527 4.15002 2.6226e-06 4.27502 2.6226e-06H8.77503C8.90003 2.6226e-06 9.00627 0.0437527 9.09377 0.131253C9.18128 0.218752 9.22503 0.325002 9.22503 0.450002C9.22503 0.575002 9.18128 0.681253 9.09377 0.768753C9.00627 0.856252 8.90003 0.900002 8.77503 0.900002H8.32502V2.9625C8.32502 3.1625 8.35627 3.3625 8.41877 3.5625C8.48127 3.75 8.56878 3.93125 8.68127 4.10625L12.825 10.0875C12.9 10.2 12.9563 10.325 12.9938 10.4625C13.0313 10.5875 13.05 10.7375 13.05 10.9125C13.05 11.3875 12.8875 11.7875 12.5625 12.1125C12.2375 12.4375 11.8375 12.6 11.3625 12.6H1.70627ZM5.62502 0.900002V2.9625C5.62502 3.25 5.58127 3.53125 5.49377 3.80625C5.41877 4.08125 5.30627 4.33125 5.15627 4.55625L2.71877 8.0625C2.66877 8.1375 2.63127 8.21875 2.60627 8.30625C2.58127 8.38125 2.56877 8.4625 2.56877 8.55C2.56877 8.8125 2.67502 9.0375 2.88752 9.225C3.10002 9.4 3.36252 9.4875 3.67502 9.4875C4.02503 9.4875 4.36877 9.4125 4.70627 9.2625C5.05627 9.1 5.57502 8.7875 6.26252 8.325C6.95002 7.875 7.51877 7.55 7.96877 7.35C8.41878 7.1375 8.86253 7 9.30002 6.9375C9.35002 6.925 9.38127 6.9 9.39377 6.8625C9.41877 6.8125 9.41877 6.76875 9.39377 6.73125L7.93128 4.6125C7.75628 4.375 7.62503 4.11875 7.53753 3.84375C7.46252 3.55625 7.42502 3.2625 7.42502 2.9625V0.900002H5.62502Z"
-                fill="currentColor"
-                stroke="currentColor"
-                strokeWidth="0.4"
-              />
-            </svg>
-            <span className="text-base tracking-tight">Co-Scientist</span>
-          </Link>
-          <nav className="flex items-center gap-2 sm:gap-3 text-sm">
-            {isPublicRoute && (
-              <div className="hidden md:flex items-center gap-6 mr-2">
-                <a className="public-nav-link" href="/about#workflow-title">
-                  How it works
-                </a>
-                <Link
-                  className="public-nav-link"
-                  to="/demos/ferroptosis-pancreatic-cancer"
-                >
-                  Demo
-                </Link>
-                <a className="public-nav-link" href="/about#research">
-                  Research
-                </a>
-              </div>
-            )}
-            <span className="inline-flex">
-              <ThemeToggle />
-            </span>
-            <md-outlined-button
-              onclick={
-                (() => navigate(isPublicRoute ? '/' : '/runs')) as EventListener
-              }
-              style={
-                location.pathname.startsWith('/runs')
-                  ? ({
-                      '--md-outlined-button-outline-width': '1px',
-                      '--md-outlined-button-outline-color':
-                        'var(--md-sys-color-primary)',
-                      '--md-outlined-button-label-text-color':
-                        'var(--md-sys-color-primary)',
-                    } as React.CSSProperties)
-                  : ({
-                      '--md-outlined-button-outline-width': '1px',
-                      '--md-outlined-button-outline-color':
-                        'var(--color-th-border)',
-                      '--md-outlined-button-label-text-color':
-                        'var(--color-th-muted-fg)',
-                    } as React.CSSProperties)
-              }
+              <md-icon aria-hidden="true">edit_square</md-icon>
+              <span className="nav-label">New chat</span>
+            </button>
+            <button
+              type="button"
+              className="ucs-nav-item"
+              aria-label="Search"
+              onClick={focusComposer}
             >
-              {isPublicRoute ? 'Workbench' : 'Dashboard'}
-            </md-outlined-button>
-            {!isPublicRoute && (
-              <span className="hidden sm:inline-flex">
-                <LogConsole />
-              </span>
-            )}
+              <md-icon aria-hidden="true">search</md-icon>
+              <span className="nav-label">Search</span>
+            </button>
           </nav>
+          <div className="gemini-side-content">
+            <p className="gemini-side-heading">Chats</p>
+            <div className="gemini-chat-list">
+              {history.slice(0, 4).map(run => (
+                <Link key={run.id} to={`/runs/${run.id}/details`}>
+                  {conciseTitle(run.research_goal)}
+                </Link>
+              ))}
+            </div>
+          </div>
         </div>
-      </header>
-      <main
-        className={
-          isPublicRoute
-            ? 'flex-1 w-full wb-fade-in'
-            : 'flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4 sm:py-6 wb-fade-in'
-        }
-      >
-        {children}
-      </main>
-      <footer
-        className="text-sm py-4 border-t text-center"
-        style={{
-          borderColor: 'var(--color-th-border)',
-          color: 'var(--color-th-muted-fg)',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-        }}
-      >
-        &copy; 2026{' '}
-        <a
-          href="https://github.com/guy915/Co-Scientist"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-          style={{color: 'inherit'}}
-        >
-          Co-Scientist
-        </a>
-      </footer>
+        <div className="ucs-nav-bottom">
+          <button
+            type="button"
+            className="ucs-rail-button"
+            aria-label="Settings and help"
+            aria-expanded={activePanel === 'settings'}
+            onClick={() => togglePanel('settings')}
+          >
+            <md-icon aria-hidden="true">settings</md-icon>
+            <span className="nav-label">Settings &amp; help</span>
+          </button>
+          {activePanel === 'settings' && (
+            <ShellPopover className="ucs-popover--rail">
+              <div className="ucs-settings-theme-block">
+                <div className="ucs-settings-menu-row ucs-settings-menu-heading">
+                  <md-icon aria-hidden="true">palette</md-icon>
+                  <span>Appearance</span>
+                </div>
+                <div
+                  className="ucs-theme-segment ucs-theme-segment--inline"
+                  role="group"
+                  aria-label="Theme"
+                >
+                  <ThemeModeButton
+                    mode="system"
+                    active={mode === 'system'}
+                    icon="computer"
+                    label="System"
+                    onModeChange={setMode}
+                  />
+                  <ThemeModeButton
+                    mode="light"
+                    active={mode === 'light'}
+                    icon="light_mode"
+                    label="Light"
+                    onModeChange={setMode}
+                  />
+                  <ThemeModeButton
+                    mode="dark"
+                    active={mode === 'dark'}
+                    icon="dark_mode"
+                    label="Dark"
+                    onModeChange={setMode}
+                  />
+                </div>
+              </div>
+              <button
+                type="button"
+                className="ucs-settings-menu-row ucs-settings-help-row"
+              >
+                <md-icon aria-hidden="true">help</md-icon>
+                <span>Get help</span>
+              </button>
+            </ShellPopover>
+          )}
+        </div>
+      </aside>
+      <section className="ucs-workspace">
+        <header className="ucs-header-action-bar">
+          <Link to="/" className="ucs-product-lockup">
+            <span>Gemini Enterprise</span>
+            <span className="ucs-plus-chip">Plus</span>
+          </Link>
+          <div className="ucs-header-title">{headerTitle}</div>
+          <div className="ucs-header-actions">
+            <button
+              type="button"
+              className="ucs-avatar"
+              aria-label="User profile"
+            >
+              G
+            </button>
+          </div>
+        </header>
+        <main className="ucs-page wb-fade-in">{children}</main>
+      </section>
+    </div>
+  );
+}
+
+function ThemeModeButton({
+  mode,
+  active,
+  icon,
+  label,
+  onModeChange,
+}: {
+  mode: 'system' | 'light' | 'dark';
+  active: boolean;
+  icon: string;
+  label: string;
+  onModeChange: (mode: 'system' | 'light' | 'dark') => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={active ? 'selected' : ''}
+      aria-pressed={active}
+      onClick={() => onModeChange(mode)}
+    >
+      <md-icon aria-hidden="true">{icon}</md-icon>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function ShellPopover({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}) {
+  return (
+    <div className={`ucs-popover ${className}`} role="status">
+      {children}
     </div>
   );
 }

@@ -108,8 +108,10 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
     # Dev mode detection
     is_dev_mode = os.getenv("COSCIENTIST_DEV_MODE",
                             "false").lower() in ("true", "1", "yes")
-    papers_to_read_count = (LITERATURE_REVIEW_PAPERS_COUNT_DEV
-                            if is_dev_mode else LITERATURE_REVIEW_PAPERS_COUNT)
+    run_papers_count = state.get("literature_review_papers_count")
+    papers_to_read_count = (LITERATURE_REVIEW_PAPERS_COUNT_DEV if is_dev_mode
+                            else int(run_papers_count or
+                                     LITERATURE_REVIEW_PAPERS_COUNT))
 
     return SearchConfig(
         tool_registry=tool_registry,

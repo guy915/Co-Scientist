@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react';
-import {eventsStreamUrl} from '@/api/runs';
+import {canUseOfflineRun, eventsStreamUrl, getRunEventsLog} from '@/api/runs';
 
 /** A single event streamed from a run's SSE timeline. */
 export interface StreamEvent {
@@ -39,6 +39,20 @@ export function useRunStream(
     setLastSeq(after);
     setTerminal(false);
     setError(null);
+
+    if (canUseOfflineRun(runId)) {
+      void getRunEventsLog(runId)
+        .then(items => {
+          setEvents(items);
+          setLastSeq(items.reduce((max, event) => Math.max(max, event.seq), 0));
+          setTerminal(true);
+        })
+        .catch(err => {
+          setError(err instanceof Error ? err.message : String(err));
+          setTerminal(true);
+        });
+      return;
+    }
 
     const es = new EventSource(eventsStreamUrl(runId, after));
     sourceRef.current = es;

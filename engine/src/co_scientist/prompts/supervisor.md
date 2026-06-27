@@ -70,6 +70,11 @@ Provide guidance that agents can use at each phase:
 **User Constraints (if provided):**
 {{constraints}}
 
+**Success Criteria (if provided):**
+{{criteria}}
+
+{{run_guidance}}
+
 **User-Provided Starting Hypotheses (if provided, must consider them):**
 {{user_hypotheses}}
 

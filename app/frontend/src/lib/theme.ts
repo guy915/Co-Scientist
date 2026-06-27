@@ -4,7 +4,7 @@ import {
   themeFromSourceColor,
 } from '@material/material-color-utilities';
 
-const SEED = '#1A6B6B';
+const SEED = '#7C4DFF';
 
 /**
  * Generates the Material Design 3 theme from the seed color and applies its

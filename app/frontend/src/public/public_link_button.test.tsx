@@ -7,12 +7,12 @@ describe('PublicLinkButton', () => {
   it('renders a link to the destination with its children', () => {
     render(
       <MemoryRouter>
-        <PublicLinkButton to="/runs">Open workbench</PublicLinkButton>
+        <PublicLinkButton to="/">Open workbench</PublicLinkButton>
       </MemoryRouter>,
     );
     const link = screen.getByRole('link', {name: 'Open workbench'});
     expect(link).toBeInTheDocument();
-    expect(link).toHaveAttribute('href', '/runs');
+    expect(link).toHaveAttribute('href', '/');
   });
 
   it('applies the filled variant class by default', () => {

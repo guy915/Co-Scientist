@@ -350,6 +350,15 @@ def test_get_search_config_defaults_single_source() -> None:
     assert config.papers_to_read_count > 0
 
 
+def test_get_search_config_honors_run_paper_count(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Per-run literature count overrides the default outside dev mode."""
+    monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
+    config = lr._get_search_config(  # pylint: disable=protected-access
+        make_state(literature_review_papers_count=12))
+    assert config.papers_to_read_count == 12
+
+
 def test_format_kg_section_empty_returns_empty_string() -> None:
     """No enrichment sources produces no knowledge-graph section."""
     assert lr._format_kg_section_with_keys([], 0) == ""  # pylint: disable=protected-access
@@ -382,8 +391,12 @@ def test_parse_enrichment_indra_statements_formatted() -> None:
     """INDRA statements format as 'subj -> obj [type] (belief: ..)' lines."""
     raw = {
         "statements": [{
-            "subj": {"name": "KRAS"},
-            "obj": {"name": "MAPK1"},
+            "subj": {
+                "name": "KRAS"
+            },
+            "obj": {
+                "name": "MAPK1"
+            },
             "type": "Activation",
             "belief": 0.97,
         }]

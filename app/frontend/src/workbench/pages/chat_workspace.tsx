@@ -14,43 +14,26 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
-import {Link, useNavigate} from 'react-router-dom';
+import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {
-  type CitationRow,
   createRun,
-  type Evidence,
-  getCitations,
-  getEvidence,
-  getHypotheses,
-  getMatches,
-  getReport,
-  getReviews,
-  getRun,
-  getSystemStatus,
-  type Hypothesis,
+  listDemoRuns,
   listRuns,
-  type MatchRow,
-  type Message,
-  type Report,
-  type Review,
   type Run,
-  type RunStatus,
-  type RunWithSummary,
   startRun,
-  type SystemStatus,
 } from '@/api/runs';
-import {useMessages} from '@/hooks/use_messages';
-import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {conciseTitle} from '@/lib/text';
-import {ThemeToggle} from '../components/theme_toggle';
-import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
-import {RunStatusPill} from '../components/run_status_pill';
-
-type PanelKind = 'history' | 'knowledge' | 'settings' | 'why' | null;
+import {
+  FOCUS_OPTIONS,
+  inferRunSpec,
+  type InferredRunSpec,
+  reviseRunSpec,
+  TIER_OPTIONS,
+} from '../run_spec';
+import {GoogleLabsIcon} from '../components/google_labs_icon';
 
 interface ChatEntry {
   id: string;
@@ -67,10 +50,15 @@ interface TimelineItem {
 }
 
 const SUGGESTIONS = [
-  'Identify novel mechanisms of selective autophagy in aging neural tissue.',
-  'Propose drug repurposing candidates for triple-negative breast cancer through mitochondrial biogenesis.',
-  'Investigate how cold stress reshapes glucose homeostasis via brown adipose signalling.',
-  'Discover synthetic lethality partners for KRAS-mutant pancreatic ductal adenocarcinoma.',
+  'Find new therapeutic targets for M.tuberculosis by combining...',
+  'Generate novel hypotheses for the link between...',
+  'Propose new mechanisms to explain why some patients...',
+];
+
+const PROMPT_SUGGESTIONS = [
+  'Find new therapeutic targets for M.tuberculosis by combining...',
+  'Generate novel hypotheses for the link between...',
+  'Propose new mechanisms to explain why some patients...',
 ];
 
 /** The three phases of a session, shown on the home screen. */
@@ -81,56 +69,28 @@ const SESSION_STEPS: ReadonlyArray<{
 }> = [
   {
     n: 1,
-    title: 'Set the goal',
-    body: 'Describe what you want to investigate, add any relevant data, and choose the criteria that matter to you.',
+    title: 'Create a Research goal',
+    body: 'Tell Co-Scientist what you plan to research, point it to relevant data, and set your evaluation criteria.',
   },
   {
     n: 2,
-    title: 'Agents generate',
-    body: 'A team of specialised agents proposes diverse, evidence-grounded hypotheses for your question.',
+    title: 'Generate hypotheses',
+    body: 'A team of agents will generate ideas on your topic using their available data',
   },
   {
     n: 3,
-    title: 'Tournament ranking',
-    body: 'Each hypothesis is reviewed against your criteria and ranked head-to-head in an Elo tournament.',
+    title: 'Evaluate and rank',
+    body: 'The agents will evaluate the ideas against your criteria and rank them, tournament-style',
   },
-];
-
-const TERMINAL_STATUSES: RunStatus[] = [
-  'completed',
-  'failed',
-  'blocked',
-  'cancelled',
 ];
 
 type ActiveMessageMode = 'qa' | 'steering';
-
-const PROGRESS_STAGES = [
-  {
-    key: 'supervisor',
-    label: 'Supervisor',
-    eventTypes: ['supervisor.plan', 'safety.intake'],
-  },
-  {
-    key: 'literature',
-    label: 'Literature review',
-    eventTypes: ['literature_review'],
-  },
-  {key: 'generate', label: 'Generate', eventTypes: ['generate']},
-  {key: 'ranking', label: 'Tournament', eventTypes: ['ranking']},
-  {
-    key: 'synthesis',
-    label: 'Synthesis',
-    eventTypes: ['meta_review', 'citation_audit', 'report'],
-  },
-] as const;
+type ChatWorkspaceLocationState = {
+  cosciAction?: 'new-chat' | 'focus-composer';
+};
 
 function id(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function isTerminal(status: RunStatus | undefined): boolean {
-  return Boolean(status && TERMINAL_STATUSES.includes(status));
 }
 
 function inferActiveMessageMode(text: string): ActiveMessageMode {
@@ -146,24 +106,47 @@ function inferActiveMessageMode(text: string): ActiveMessageMode {
   return 'steering';
 }
 
-function latestTime(values: Array<number | null | undefined>, fallback = 0) {
-  const times = values.filter(
-    (value): value is number => typeof value === 'number',
-  );
-  return times.length ? Math.max(...times) : fallback;
+function formatHomeRunDate(timestamp: number): string {
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(new Date(timestamp * 1000));
 }
 
-function earliestTime(values: Array<number | null | undefined>, fallback = 0) {
-  const times = values.filter(
-    (value): value is number => typeof value === 'number',
-  );
-  return times.length ? Math.min(...times) : fallback;
+function formatHomeRunDuration(run: Run): string {
+  if (run.completed_at && run.completed_at > run.created_at) {
+    const minutes = Math.max(
+      1,
+      Math.round((run.completed_at - run.created_at) / 60),
+    );
+    return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  }
+  if (['running', 'queued', 'synthesizing'].includes(run.status)) {
+    return 'In progress';
+  }
+  return run.status.charAt(0).toUpperCase() + run.status.slice(1);
+}
+
+function formatHomeRunTimeChip(run: Run): string {
+  if (run.completed_at && run.completed_at > run.created_at) {
+    return `Total time: ${formatHomeRunDuration(run)}`;
+  }
+  if (['running', 'queued', 'synthesizing'].includes(run.status)) {
+    return `Time elapsed: ${formatHomeRunDuration(run)}`;
+  }
+  return `Status: ${formatHomeRunStatus(run)}`;
+}
+
+function formatHomeRunStatus(run: Run): string {
+  return run.status.charAt(0).toUpperCase() + run.status.slice(1);
 }
 
 /**
- * Renders the chat-first Co-Scientist workspace.
+ * Renders the chat-first AI Co-Scientist workspace.
  */
 export function ChatWorkspace() {
+  const location = useLocation();
   const navigate = useNavigate();
   const [input, setInput] = useState('');
   const [draftSpec, setDraftSpec] = useState<InferredRunSpec | null>(null);
@@ -173,103 +156,76 @@ export function ChatWorkspace() {
   const [isEditingSpec, setIsEditingSpec] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
-  const [activeRunId, setActiveRunId] = useState<string | null>(null);
-  const [run, setRun] = useState<RunWithSummary | Run | null>(null);
   const [history, setHistory] = useState<Run[]>([]);
-  const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
-  const [evidence, setEvidence] = useState<Evidence[]>([]);
-  const [matches, setMatches] = useState<MatchRow[]>([]);
-  const [reviews, setReviews] = useState<Review[]>([]);
-  const [citations, setCitations] = useState<CitationRow[]>([]);
-  const [report, setReport] = useState<Report | null>(null);
-  const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
-  const [panelKind, setPanelKind] = useState<PanelKind>(null);
-  const [focusedHypothesisId, setFocusedHypothesisId] = useState<string | null>(
-    null,
-  );
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const {events, isOpen, terminal} = useRunStream(activeRunId, 0);
-  const isActiveRun =
-    Boolean(activeRunId) &&
-    !isTerminal(run?.status) &&
-    (isOpen ||
-      run?.status === 'queued' ||
-      run?.status === 'running' ||
-      run?.status === 'synthesizing');
-  const {
-    messages: runMessages,
-    isAnswering,
-    error: messageError,
-    sendSteering,
-    sendQuestion,
-  } = useMessages(activeRunId, isActiveRun);
-
   const loadHistory = useCallback(async () => {
-    try {
-      const runs = await listRuns();
-      setHistory(runs);
-    } catch {
-      // History is helpful but should not block the chat workspace.
+    const [ownedRuns, demoRuns] = await Promise.all([
+      listRuns().catch(() => [] as Run[]),
+      listDemoRuns().catch(() => [] as Run[]),
+    ]);
+    const byId = new Map<string, Run>();
+    for (const item of [...ownedRuns, ...demoRuns]) {
+      byId.set(item.id, item);
     }
+    setHistory([...byId.values()].sort((a, b) => b.updated_at - a.updated_at));
   }, []);
 
-  const refreshRun = useCallback(async (runId: string) => {
-    const [
-      nextRun,
-      nextHypotheses,
-      nextEvidence,
-      nextMatches,
-      nextReviews,
-      nextCitations,
-      nextReport,
-    ] = await Promise.all([
-      getRun(runId),
-      getHypotheses(runId),
-      getEvidence(runId),
-      getMatches(runId),
-      getReviews(runId),
-      getCitations(runId),
-      getReport(runId),
-    ]);
-    setRun(nextRun);
-    setHypotheses(nextHypotheses);
-    setEvidence(nextEvidence);
-    setMatches(nextMatches);
-    setReviews(nextReviews);
-    setCitations(nextCitations);
-    setReport(nextReport);
+  const resetWorkspace = useCallback(() => {
+    setInput('');
+    setDraftSpec(null);
+    setDraftSpecCreatedAt(null);
+    setIsEditingSpec(false);
+    setIsStarting(false);
+    setMessages([]);
+    setError(null);
+    void loadHistory();
+  }, [loadHistory]);
+
+  const focusComposer = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      const composer = document.querySelector<HTMLTextAreaElement>(
+        '.reference-composer textarea',
+      );
+      composer?.focus();
+    });
   }, []);
 
   useEffect(() => {
     void loadHistory();
-    void getSystemStatus()
-      .then(setSystemStatus)
-      .catch(() => {});
   }, [loadHistory]);
 
   useEffect(() => {
-    if (!activeRunId) return;
-    void refreshRun(activeRunId).catch(e =>
-      setError(e instanceof Error ? e.message : String(e)),
-    );
-  }, [activeRunId, refreshRun]);
+    window.addEventListener('cosci-new-chat', resetWorkspace);
+    window.addEventListener('cosci-focus-composer', focusComposer);
+    return () => {
+      window.removeEventListener('cosci-new-chat', resetWorkspace);
+      window.removeEventListener('cosci-focus-composer', focusComposer);
+    };
+  }, [focusComposer, resetWorkspace]);
 
   useEffect(() => {
-    if (!activeRunId || !events.length) return;
-    void refreshRun(activeRunId).catch(() => {});
-  }, [activeRunId, events.length, refreshRun]);
-
-  useEffect(() => {
-    if (!activeRunId || !terminal) return;
-    void refreshRun(activeRunId).catch(() => {});
-    void loadHistory();
-  }, [activeRunId, loadHistory, refreshRun, terminal]);
+    const state = location.state as ChatWorkspaceLocationState | null;
+    if (!state?.cosciAction) return;
+    if (state.cosciAction === 'new-chat') resetWorkspace();
+    if (state.cosciAction === 'focus-composer') focusComposer();
+    void navigate(location.pathname, {replace: true, state: null});
+  }, [
+    focusComposer,
+    location.pathname,
+    location.state,
+    navigate,
+    resetWorkspace,
+  ]);
 
   useEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
+    if (draftSpec) {
+      scroller.scrollTop = 0;
+      return;
+    }
     if (typeof scroller.scrollTo === 'function') {
       scroller.scrollTo({
         top: scroller.scrollHeight,
@@ -278,29 +234,19 @@ export function ChatWorkspace() {
       return;
     }
     scroller.scrollTop = scroller.scrollHeight;
-  }, [
-    messages.length,
-    runMessages,
-    draftSpec,
-    draftSpecCreatedAt,
-    activeRunId,
-    hypotheses.length,
-    report,
-  ]);
+  }, [messages.length, draftSpec, draftSpecCreatedAt]);
 
-  const topHypotheses = useMemo(
-    () =>
-      [...hypotheses].sort((a, b) => b.elo_rating - a.elo_rating).slice(0, 5),
-    [hypotheses],
-  );
+  const hasConversation = messages.length > 0 || Boolean(draftSpec);
 
-  const focusedHypothesis = useMemo(
-    () => hypotheses.find(h => h.id === focusedHypothesisId) ?? null,
-    [focusedHypothesisId, hypotheses],
-  );
-
-  const hasConversation =
-    messages.length > 0 || Boolean(draftSpec) || Boolean(activeRunId);
+  useEffect(() => {
+    const title = draftSpec ? conciseTitle(draftSpec.goal) : '';
+    window.dispatchEvent(
+      new CustomEvent('cosci-header-title', {detail: title}),
+    );
+    return () => {
+      window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: ''}));
+    };
+  }, [draftSpec]);
 
   function appendAssistant(
     content: string,
@@ -341,36 +287,9 @@ export function ChatWorkspace() {
       return;
     }
 
-    if (!activeRunId) {
-      const sentAt = appendUser(text);
-      setDraftSpec(inferRunSpec(text));
-      setDraftSpecCreatedAt(sentAt + 0.001);
-      return;
-    }
-
-    if (inferActiveMessageMode(text) === 'qa') {
-      try {
-        await sendQuestion(text);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-      return;
-    }
-
-    if (isActiveRun) {
-      try {
-        await sendSteering(text);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : String(err));
-      }
-      return;
-    }
-
     const sentAt = appendUser(text);
-    appendAssistant(
-      'This run is no longer active. Use the report or the ranked hypothesis cards below to continue reviewing the result.',
-      sentAt + 0.001,
-    );
+    setDraftSpec(inferRunSpec(text));
+    setDraftSpecCreatedAt(sentAt + 0.001);
   }
 
   async function handleStartRun() {
@@ -380,79 +299,31 @@ export function ChatWorkspace() {
     try {
       const created = await createRun({
         research_goal: draftSpec.goal,
+        requirements: draftSpec.requirements,
+        attributes: draftSpec.attributes,
+        criteria: draftSpec.criteria,
+        focus: draftSpec.focus,
+        tier: draftSpec.tier,
         notes: [
-          `Mode: ${draftSpec.mode}`,
-          `Constraints: ${draftSpec.constraints.join(' | ')}`,
-          `Output: ${draftSpec.output}`,
+          `Requirements: ${draftSpec.requirements.join(' | ')}`,
+          `Attributes: ${draftSpec.attributes.join(' | ')}`,
+          `Criteria: ${draftSpec.criteria.join(' | ')}`,
+          `Focus: ${draftSpec.focus}`,
+          `Tier: ${draftSpec.tier}`,
         ].join('\n'),
       });
-      setRun(created);
-      setActiveRunId(created.id);
       setDraftSpec(null);
       setDraftSpecCreatedAt(null);
       setIsEditingSpec(false);
-      appendAssistant(
-        'Starting the run. I will keep the progress compact here.',
-        created.created_at + 0.001,
-      );
       await startRun(created.id);
-      await refreshRun(created.id);
       await loadHistory();
+      void navigate(`/runs/${created.id}/details`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsStarting(false);
     }
   }
-
-  function openRun(runId: string) {
-    setDraftSpec(null);
-    setDraftSpecCreatedAt(null);
-    setIsEditingSpec(false);
-    setActiveRunId(runId);
-    setPanelKind(null);
-    appendAssistant('Opened that run in the chat workspace.');
-  }
-
-  function openWhyPanel(hypothesisId: string) {
-    setFocusedHypothesisId(hypothesisId);
-    setPanelKind('why');
-  }
-
-  function startNewChat() {
-    setInput('');
-    setDraftSpec(null);
-    setDraftSpecCreatedAt(null);
-    setIsEditingSpec(false);
-    setIsStarting(false);
-    setMessages([]);
-    setActiveRunId(null);
-    setRun(null);
-    setHypotheses([]);
-    setEvidence([]);
-    setMatches([]);
-    setReviews([]);
-    setCitations([]);
-    setReport(null);
-    setPanelKind(null);
-    setFocusedHypothesisId(null);
-    setError(null);
-    void navigate('/');
-  }
-
-  const panel = renderPanel({
-    panelKind,
-    history,
-    activeRunId,
-    openRun,
-    evidence,
-    systemStatus,
-    focusedHypothesis,
-    reviews,
-    citations,
-    matches,
-    onClose: () => setPanelKind(null),
-  });
 
   const timelineItems: TimelineItem[] = [];
   for (const [index, message] of messages.entries()) {
@@ -477,163 +348,76 @@ export function ChatWorkspace() {
             setIsEditingSpec(true);
             setInput('Make this run ');
           }}
+          onFocusChange={focus =>
+            setDraftSpec(current => (current ? {...current, focus} : current))
+          }
+          onTierChange={tier =>
+            setDraftSpec(current => (current ? {...current, tier} : current))
+          }
           onStart={() => void handleStartRun()}
         />
       ),
     });
   }
-  if (activeRunId) {
-    timelineItems.push({
-      id: 'run-progress',
-      at:
-        typeof run?.created_at === 'number'
-          ? run.created_at + 0.002
-          : earliestTime(events.map(event => event.created_at)),
-      order: 0,
-      node: (
-        <>
-          <RunStatusCard
-            run={run}
-            events={events}
-            isOpen={isOpen}
-            terminal={terminal}
-          />
-          <ProgressCards
-            events={events}
-            runStatus={run?.status}
-            hypothesesCount={hypotheses.length}
-            evidenceCount={evidence.length}
-            matchCount={matches.length}
-            hasReport={Boolean(report)}
-          />
-        </>
-      ),
-    });
-  }
-  if (activeRunId) {
-    for (const [index, message] of runMessages.entries()) {
-      timelineItems.push({
-        id: `run-message-${message.id}`,
-        at: message.created_at,
-        order: 10 + index,
-        node: <RunMessageBubble message={message} />,
-      });
-    }
-  }
-  if (topHypotheses.length > 0) {
-    const hypothesisIds = new Set(topHypotheses.map(h => h.id));
-    timelineItems.push({
-      id: 'top-hypotheses',
-      at: latestTime([
-        ...topHypotheses.map(h => h.created_at),
-        ...matches
-          .filter(
-            match =>
-              hypothesisIds.has(match.winner_id) ||
-              hypothesisIds.has(match.loser_id),
-          )
-          .map(match => match.created_at),
-      ]),
-      order: 20,
-      node: (
-        <section className="space-y-2" aria-label="Top hypotheses">
-          <AssistantLine>
-            Here are the current leading hypotheses. Open “why this ranked” when
-            you need the evidence trail.
-          </AssistantLine>
-          <ol className="space-y-2">
-            {topHypotheses.map((hypothesis, index) => (
-              <HypothesisChatCard
-                key={hypothesis.id}
-                hypothesis={hypothesis}
-                rank={index + 1}
-                evidenceCount={
-                  citations.filter(c => c.hypothesis_id === hypothesis.id)
-                    .length
-                }
-                onWhy={() => openWhyPanel(hypothesis.id)}
-              />
-            ))}
-          </ol>
-        </section>
-      ),
-    });
-  }
-  if (report && activeRunId) {
-    timelineItems.push({
-      id: 'report-ready',
-      at: report.created_at,
-      order: 30,
-      node: <ReportReadyCard runId={activeRunId} />,
-    });
-  }
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
+  const homeRecentRuns = history.slice(0, 3);
+  const hasHomePrompt = Boolean(input.trim());
 
   return (
-    <div
-      className={
-        panel
-          ? 'min-h-screen grid grid-rows-[64px_1fr_auto] sm:grid-rows-1 sm:grid-cols-[76px_minmax(0,1fr)] xl:grid-cols-[76px_minmax(0,1fr)_360px]'
-          : 'min-h-screen grid grid-rows-[64px_1fr] sm:grid-rows-1 sm:grid-cols-[76px_minmax(0,1fr)]'
-      }
-      style={{
-        backgroundColor: 'var(--md-sys-color-surface)',
-        color: 'var(--md-sys-color-on-surface)',
-      }}
-    >
-      <WorkspaceSidebar
-        activePanel={panelKind}
-        onOpenPanel={setPanelKind}
-        onStartNewChat={startNewChat}
-      />
-
-      <main className="min-w-0 min-h-0 flex flex-col">
+    <div className="cosci-workspace">
+      <main className="cosci-workspace-main">
         {!hasConversation ? (
-          <section className="flex flex-1 items-center justify-center px-4 py-8 sm:px-8">
-            <div className="w-full max-w-3xl space-y-6">
-              <div className="space-y-3">
-                <div
-                  className="flex items-center gap-2"
-                  style={{color: 'var(--md-sys-color-primary)'}}
-                >
-                  <md-icon
-                    aria-hidden="true"
-                    style={{'--md-icon-size': '20px'} as CSSProperties}
-                  >
-                    science
-                  </md-icon>
-                  <span className="text-xs font-semibold uppercase tracking-[0.07em]">
-                    Research session
-                  </span>
-                </div>
-                <h1 className="text-[2rem] sm:text-[2.75rem] font-medium leading-[1.05] tracking-[-0.02em]">
-                  Turn research questions into ranked, testable hypotheses.
-                </h1>
+          <section className="reference-home-stage">
+            <div
+              className={
+                hasHomePrompt
+                  ? 'reference-home-main prompt-open'
+                  : 'reference-home-main'
+              }
+            >
+              <div className="google-product-chip reference-chip">
+                <GoogleLabsIcon aria-hidden="true" />
+                <span>AI Co-Scientist</span>
               </div>
+              <h1>Drive novel scientific discovery with Co-Scientist.</h1>
 
-              <ol className="grid gap-x-6 gap-y-5 sm:grid-cols-3">
+              <ol className="reference-step-timeline">
                 {SESSION_STEPS.map(step => (
-                  <li key={step.n} className="space-y-2">
-                    <span
-                      className="flex h-7 w-7 items-center justify-center rounded-full text-sm font-semibold"
-                      style={{
-                        backgroundColor:
-                          'var(--md-sys-color-secondary-container)',
-                        color: 'var(--md-sys-color-on-secondary-container)',
-                      }}
-                    >
-                      {step.n}
-                    </span>
-                    <div className="text-sm font-semibold">{step.title}</div>
-                    <p
-                      className="text-sm leading-relaxed"
-                      style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-                    >
-                      {step.body}
-                    </p>
+                  <li key={step.n}>
+                    <span>{step.n}</span>
+                    <div>
+                      <h2>{step.title}</h2>
+                      <p>{step.body}</p>
+                    </div>
                   </li>
                 ))}
               </ol>
+
+              {hasHomePrompt && (
+                <p className="reference-prompt-echo">{input.trim()}</p>
+              )}
+
+              <div
+                className={
+                  hasHomePrompt
+                    ? 'reference-suggestion-row prompt-open'
+                    : 'reference-suggestion-row'
+                }
+              >
+                {(hasHomePrompt
+                  ? PROMPT_SUGGESTIONS
+                  : SUGGESTIONS.slice(0, 3)
+                ).map((suggestion, index) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    className={input.trim() && index === 0 ? 'selected' : ''}
+                    onClick={() => setInput(suggestion)}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
 
               <Composer
                 input={input}
@@ -641,23 +425,68 @@ export function ChatWorkspace() {
                 isEditingSpec={false}
                 disabled={false}
                 large
+                reference
                 onSubmit={handleSubmit}
                 onSuggestion={suggestion => setInput(suggestion)}
               />
             </div>
+
+            <aside className="reference-recents" aria-label="Recent runs">
+              <div className="google-recents-heading">
+                <md-icon
+                  aria-hidden="true"
+                  style={{'--md-icon-size': '20px'} as CSSProperties}
+                >
+                  history
+                </md-icon>
+                <h2>Recents</h2>
+              </div>
+              <ol>
+                {homeRecentRuns.length ? (
+                  homeRecentRuns.map(run => (
+                    <li key={run.id}>
+                      <Link
+                        to={`/runs/${run.id}/details`}
+                        className="reference-recent-card"
+                        title={run.research_goal}
+                      >
+                        <span className="reference-recent-meta">
+                          <span>{formatHomeRunDate(run.updated_at)}</span>
+                          <span>{formatHomeRunTimeChip(run)}</span>
+                        </span>
+                        <strong>{conciseTitle(run.research_goal)}</strong>
+                        <span>{run.research_goal}</span>
+                        <span className="reference-recent-chips">
+                          <span>
+                            <md-icon aria-hidden="true">check_circle</md-icon>
+                            {formatHomeRunStatus(run)}
+                          </span>
+                        </span>
+                      </Link>
+                    </li>
+                  ))
+                ) : (
+                  <li>
+                    <div className="reference-recents-empty">
+                      <span className="reference-assistant-dot">
+                        <GoogleLabsIcon aria-hidden="true" />
+                      </span>
+                      <strong>You have not started any sessions yet.</strong>
+                    </div>
+                  </li>
+                )}
+              </ol>
+            </aside>
           </section>
         ) : (
           <>
-            <section
-              ref={scrollRef}
-              className="flex-1 overflow-y-auto px-4 py-6 sm:px-8"
-            >
-              <div className="mx-auto max-w-3xl space-y-4 pb-4">
+            <section ref={scrollRef} className="google-chat-timeline">
+              <div className="reference-chat-column">
                 {timelineItems.map(item => (
                   <Fragment key={item.id}>{item.node}</Fragment>
                 ))}
 
-                {(error || messageError) && (
+                {error && (
                   <div
                     role="alert"
                     className="rounded-md border p-3 text-sm"
@@ -666,29 +495,21 @@ export function ChatWorkspace() {
                       color: 'var(--md-sys-color-error)',
                     }}
                   >
-                    {error ?? messageError}
+                    {error}
                   </div>
                 )}
               </div>
             </section>
-            <div
-              className="border-t px-4 py-3 sm:px-8"
-              style={{
-                borderColor: 'var(--md-sys-color-outline-variant)',
-                backgroundColor:
-                  'color-mix(in srgb, var(--md-sys-color-surface-container-low) 76%, transparent)',
-              }}
-            >
-              <div className="mx-auto max-w-3xl">
+            <div className="google-chat-composer">
+              <div className="reference-chat-column">
                 <Composer
                   input={input}
                   setInput={setInput}
                   isEditingSpec={isEditingSpec}
-                  activeRunId={activeRunId}
                   activeMessageMode={inferActiveMessageMode(input)}
-                  canSteerActiveRun={isActiveRun}
-                  isAnswering={isAnswering}
-                  disabled={isStarting || isAnswering}
+                  setupDraftMode={Boolean(draftSpec)}
+                  disabled={isStarting}
+                  reference
                   onSubmit={handleSubmit}
                   onSuggestion={suggestion => setInput(suggestion)}
                 />
@@ -697,88 +518,7 @@ export function ChatWorkspace() {
           </>
         )}
       </main>
-
-      {panel}
     </div>
-  );
-}
-
-function WorkspaceSidebar({
-  activePanel,
-  onOpenPanel,
-  onStartNewChat,
-}: {
-  activePanel: PanelKind;
-  onOpenPanel: (panel: PanelKind) => void;
-  onStartNewChat: () => void;
-}) {
-  const items: Array<{
-    kind: Exclude<PanelKind, null | 'why'>;
-    icon: string;
-    label: string;
-  }> = [
-    {kind: 'history', icon: 'history', label: 'History'},
-    {kind: 'knowledge', icon: 'library_books', label: 'Knowledge Base'},
-    {kind: 'settings', icon: 'settings', label: 'Settings'},
-  ];
-
-  return (
-    <aside
-      className="border-b sm:border-b-0 sm:border-r flex sm:flex-col items-center justify-between gap-1 px-3 py-2 sm:px-2 sm:py-4"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface-container-low)',
-      }}
-    >
-      <button
-        type="button"
-        onClick={onStartNewChat}
-        className="hidden sm:flex h-11 w-11 items-center justify-center rounded-full"
-        style={{
-          backgroundColor: 'var(--md-sys-color-primary-container)',
-          color: 'var(--md-sys-color-on-primary-container)',
-        }}
-        aria-label="New chat"
-        title="New chat"
-      >
-        <md-icon aria-hidden="true">science</md-icon>
-      </button>
-      <nav className="flex sm:flex-col items-center gap-1 w-full sm:mt-6">
-        {items.map(item => {
-          const selected = activePanel === item.kind;
-          return (
-            <button
-              key={item.kind}
-              type="button"
-              onClick={() => onOpenPanel(selected ? null : item.kind)}
-              className="cursor-pointer h-12 sm:h-14 min-w-0 flex-1 sm:w-full sm:flex-none rounded-xl flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors"
-              style={{
-                backgroundColor: selected
-                  ? 'var(--md-sys-color-secondary-container)'
-                  : 'transparent',
-                color: selected
-                  ? 'var(--md-sys-color-on-secondary-container)'
-                  : 'var(--md-sys-color-on-surface-variant)',
-              }}
-            >
-              <md-icon style={{fontSize: '20px'}} aria-hidden="true">
-                {item.icon}
-              </md-icon>
-              <span className="truncate px-1">{item.label}</span>
-            </button>
-          );
-        })}
-      </nav>
-      <Link
-        to="/runs"
-        className="hidden sm:flex h-10 w-10 items-center justify-center rounded-full"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-        aria-label="Structured run dashboard"
-        title="Structured run dashboard"
-      >
-        <md-icon aria-hidden="true">table_chart</md-icon>
-      </Link>
-    </aside>
   );
 }
 
@@ -790,8 +530,10 @@ function Composer({
   activeMessageMode = 'steering',
   canSteerActiveRun = false,
   isAnswering = false,
+  setupDraftMode = false,
   disabled,
   large = false,
+  reference = false,
   onSubmit,
   onSuggestion,
 }: {
@@ -802,8 +544,10 @@ function Composer({
   activeMessageMode?: ActiveMessageMode;
   canSteerActiveRun?: boolean;
   isAnswering?: boolean;
+  setupDraftMode?: boolean;
   disabled: boolean;
   large?: boolean;
+  reference?: boolean;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   onSuggestion: (value: string) => void;
 }) {
@@ -817,11 +561,13 @@ function Composer({
   const hasRunContext = Boolean(activeRunId);
   const placeholder = isEditingSpec
     ? 'Describe the change to the run setup...'
-    : hasRunContext
-      ? activeMessageMode === 'qa' || !canSteerActiveRun
-        ? 'Ask what this run is doing...'
-        : 'Ask a question or steer the active run...'
-      : 'Describe a research goal...';
+    : setupDraftMode
+      ? ''
+      : hasRunContext
+        ? activeMessageMode === 'qa' || !canSteerActiveRun
+          ? 'Ask what this run is doing...'
+          : 'Ask a question or steer the active run...'
+        : '';
   const submitLabel = hasRunContext
     ? isAnswering
       ? 'Answering...'
@@ -829,6 +575,42 @@ function Composer({
         ? 'Ask'
         : 'Send'
     : 'Send';
+
+  if (reference) {
+    return (
+      <form onSubmit={onSubmit} className="reference-composer">
+        <label>
+          <span>
+            <md-icon aria-hidden="true">shield</md-icon>
+            {hasRunContext
+              ? isEditingSpec
+                ? 'Type to edit session details'
+                : 'Ask AI Co-Scientist'
+              : setupDraftMode
+                ? 'Type to edit session details'
+                : 'Ask AI Co-Scientist'}
+          </span>
+          <textarea
+            rows={large ? 4 : 3}
+            value={input}
+            disabled={disabled}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder={placeholder}
+          />
+        </label>
+        <div className="reference-composer-actions">
+          <button
+            type="submit"
+            aria-label={submitLabel}
+            disabled={!input.trim() || disabled}
+          >
+            <md-icon aria-hidden="true">send</md-icon>
+          </button>
+        </div>
+      </form>
+    );
+  }
 
   return (
     <form
@@ -890,101 +672,16 @@ function Composer({
 function ChatBubble({message}: {message: ChatEntry}) {
   const isUser = message.role === 'user';
   return (
-    <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
-      <div
-        className="max-w-[88%] rounded-xl px-3 py-2 text-sm leading-relaxed"
-        style={{
-          backgroundColor: isUser
-            ? 'var(--md-sys-color-primary-container)'
-            : 'var(--md-sys-color-surface-container-low)',
-          color: isUser
-            ? 'var(--md-sys-color-on-primary-container)'
-            : 'var(--md-sys-color-on-surface)',
-          border: isUser
-            ? '1px solid transparent'
-            : '1px solid var(--md-sys-color-outline-variant)',
-        }}
-      >
-        {message.content}
-      </div>
-    </div>
-  );
-}
-
-function RunMessageBubble({message}: {message: Message}) {
-  if (message.kind === 'milestone') {
-    return (
-      <div
-        className="flex items-start gap-2 py-1 text-xs"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-      >
-        <span
-          className="mt-1.5 h-2 w-2 shrink-0 rounded-full"
-          style={{backgroundColor: 'var(--md-sys-color-tertiary)'}}
-          aria-hidden="true"
-        />
-        <span className="min-w-0 flex-1">{message.content}</span>
-      </div>
-    );
-  }
-
-  const isUser = message.sender === 'user';
-  const isEmptyAnswer = !isUser && message.kind === 'qa' && !message.content;
-  return (
-    <div className={isUser ? 'flex justify-end' : 'flex justify-start'}>
-      <div className="max-w-[88%] space-y-1">
-        <div
-          className="rounded-xl px-3 py-2 text-sm leading-relaxed"
-          style={{
-            backgroundColor: isUser
-              ? 'var(--md-sys-color-primary-container)'
-              : 'var(--md-sys-color-surface-container-low)',
-            color: isUser
-              ? 'var(--md-sys-color-on-primary-container)'
-              : 'var(--md-sys-color-on-surface)',
-            border: isUser
-              ? '1px solid transparent'
-              : '1px solid var(--md-sys-color-outline-variant)',
-          }}
-        >
-          {isEmptyAnswer ? (
-            <span style={{color: 'var(--md-sys-color-on-surface-variant)'}}>
-              Thinking...
-            </span>
-          ) : (
-            message.content
-          )}
-        </div>
-        {isUser && message.kind === 'steering' && (
-          <div className="text-right">
-            <span
-              className="rounded-full px-2 py-0.5 text-xs"
-              style={{
-                backgroundColor: message.applied
-                  ? 'var(--md-sys-color-secondary-container)'
-                  : 'var(--md-sys-color-surface-container)',
-                color: message.applied
-                  ? 'var(--md-sys-color-on-secondary-container)'
-                  : 'var(--md-sys-color-on-surface-variant)',
-              }}
-            >
-              {message.applied ? 'Steering applied' : 'Steering queued'}
-            </span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function AssistantLine({children}: {children: ReactNode}) {
-  return (
-    <p
-      className="text-sm leading-relaxed"
-      style={{color: 'var(--md-sys-color-on-surface-variant)'}}
+    <div
+      className={isUser ? 'reference-bubble-row user' : 'reference-bubble-row'}
     >
-      {children}
-    </p>
+      <div
+        className={isUser ? 'reference-user-bubble' : 'reference-model-bubble'}
+      >
+        <span>{message.content}</span>
+        {isUser && <md-icon aria-hidden="true">expand_more</md-icon>}
+      </div>
+    </div>
   );
 }
 
@@ -993,679 +690,129 @@ function RunSpecCard({
   isEditing,
   isStarting,
   onEdit,
+  onFocusChange,
+  onTierChange,
   onStart,
 }: {
   spec: InferredRunSpec;
   isEditing: boolean;
   isStarting: boolean;
   onEdit: () => void;
+  onFocusChange: (focus: InferredRunSpec['focus']) => void;
+  onTierChange: (tier: InferredRunSpec['tier']) => void;
   onStart: () => void;
 }) {
+  const tier = TIER_OPTIONS.find(option => option.id === spec.tier);
+  const focus = FOCUS_OPTIONS.find(option => option.id === spec.focus);
+
   return (
     <section
-      className="rounded-xl border p-3 wb-fade-in"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface-container-low)',
-      }}
+      className="reference-setup-message"
+      aria-label="Inferred run setup"
     >
-      <details open>
-        <summary className="cursor-pointer text-sm font-semibold">
-          Inferred run setup
-        </summary>
-        <dl className="mt-3 grid gap-2 text-sm">
+      <div className="reference-assistant-label">
+        <span className="reference-assistant-dot">
+          <GoogleLabsIcon aria-hidden="true" />
+        </span>
+        <span>AI Co-Scientist</span>
+      </div>
+      <p>
+        Okay, I've drafted the requirements to propose a novel, testable
+        hypothesis for this research session. Let me know if you have any
+        suggestions.
+      </p>
+      <p>
+        <strong>
+          Please review or edit the details below as needed. Once ready, click
+          "Start research" to start generating hypotheses.
+        </strong>
+      </p>
+      <div className="reference-setup-document">
+        <h2>{referenceSetupTitle(spec.goal)}</h2>
+        <dl className="google-setup-grid">
           <SpecRow label="Goal">{spec.goal}</SpecRow>
-          <SpecRow label="Mode">{spec.mode}</SpecRow>
-          <SpecRow label="Constraints">{spec.constraints.join(' ')}</SpecRow>
-          <SpecRow label="Output">{spec.output}</SpecRow>
+          <SpecList label="Requirements" values={spec.requirements} />
+          <SpecList label="Attributes" values={spec.attributes} />
+          <SpecList label="Criteria" values={spec.criteria} />
         </dl>
-      </details>
-      <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm font-medium">Start this run?</p>
-        <div className="flex items-center gap-2">
-          <md-outlined-button
-            onclick={onEdit as unknown as EventListener}
-            disabled={isStarting || undefined}
-          >
-            <md-icon slot="icon" aria-hidden="true">
-              edit
-            </md-icon>
-            {isEditing ? 'Editing' : 'Edit'}
-          </md-outlined-button>
-          <md-filled-button
-            onclick={onStart as unknown as EventListener}
-            disabled={isStarting || undefined}
-          >
-            <md-icon slot="icon" aria-hidden="true">
-              play_arrow
-            </md-icon>
-            {isStarting ? 'Starting...' : 'Start'}
-          </md-filled-button>
+        <div className="reference-quiet-controls">
+          <label>
+            Focus
+            <select
+              value={spec.focus}
+              disabled={isStarting}
+              onChange={event =>
+                onFocusChange(
+                  event.currentTarget.value as InferredRunSpec['focus'],
+                )
+              }
+            >
+              {FOCUS_OPTIONS.map(option => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Tier
+            <select
+              value={spec.tier}
+              disabled={isStarting}
+              onChange={event =>
+                onTierChange(
+                  event.currentTarget.value as InferredRunSpec['tier'],
+                )
+              }
+            >
+              {TIER_OPTIONS.map(option => (
+                <option key={option.id} value={option.id}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <span>
+            {focus?.label ?? 'Balanced'} · {tier?.label ?? 'Standard'} depth
+          </span>
+        </div>
+        <div className="reference-setup-actions">
+          <button type="button" onClick={onEdit} disabled={isStarting}>
+            {isEditing ? 'Editing' : 'Edit details'}
+          </button>
+          <button type="button" onClick={onStart} disabled={isStarting}>
+            {isStarting ? 'Starting...' : 'Start research'}
+          </button>
         </div>
       </div>
     </section>
   );
 }
 
+function referenceSetupTitle(goal: string): string {
+  if (/liver fibrosis|MASLD|MASH/i.test(goal)) {
+    return 'Reversing MASLD/MASH Fibrosis Hypothesis';
+  }
+  return conciseTitle(goal);
+}
+
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
-    <div className="grid gap-1 sm:grid-cols-[6.5rem_1fr]">
-      <dt
-        className="text-xs font-semibold uppercase tracking-wide"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-      >
-        {label}
-      </dt>
+    <div className="google-spec-row">
+      <dt style={{color: 'var(--md-sys-color-on-surface-variant)'}}>{label}</dt>
       <dd>{children}</dd>
     </div>
   );
 }
 
-function RunStatusCard({
-  run,
-  events,
-  isOpen,
-  terminal,
-}: {
-  run: RunWithSummary | Run | null;
-  events: StreamEvent[];
-  isOpen: boolean;
-  terminal: boolean;
-}) {
-  const lastEvent = events.at(-1);
+function SpecList({label, values}: {label: string; values: string[]}) {
   return (
-    <section
-      className="rounded-xl border p-3 text-sm wb-fade-in"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface-container-low)',
-      }}
-    >
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          {run && <RunStatusPill status={run.status} />}
-          {isOpen && !terminal && (
-            <span className="inline-flex items-center gap-1">
-              <span className="wb-live-dot" aria-hidden="true" />
-              live
-            </span>
-          )}
-        </div>
-        {run && (
-          <Link
-            to={`/runs/${run.id}/overview`}
-            className="inline-flex items-center gap-1 text-sm underline underline-offset-2"
-            style={{color: 'var(--md-sys-color-primary)'}}
-          >
-            Structured workspace
-            <md-icon style={{fontSize: '14px'}} aria-hidden="true">
-              open_in_new
-            </md-icon>
-          </Link>
-        )}
-      </div>
-      <p className="mt-2 font-medium leading-snug">
-        {run?.research_goal ?? 'Preparing the run...'}
-      </p>
-      {lastEvent && (
-        <p
-          className="mt-1 text-xs"
-          style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-        >
-          Latest: {formatEventName(lastEvent.type)}
-        </p>
-      )}
-    </section>
+    <SpecRow label={label}>
+      <ul className="google-spec-list">
+        {values.map(value => (
+          <li key={value}>{value}</li>
+        ))}
+      </ul>
+    </SpecRow>
   );
-}
-
-function ProgressCards({
-  events,
-  runStatus,
-  hypothesesCount,
-  evidenceCount,
-  matchCount,
-  hasReport,
-}: {
-  events: StreamEvent[];
-  runStatus: RunStatus | undefined;
-  hypothesesCount: number;
-  evidenceCount: number;
-  matchCount: number;
-  hasReport: boolean;
-}) {
-  const completedEventTypes = new Set(events.map(event => event.type));
-  const firstIncomplete = PROGRESS_STAGES.findIndex(
-    stage => !stage.eventTypes.some(type => completedEventTypes.has(type)),
-  );
-
-  return (
-    <section className="grid gap-2 sm:grid-cols-5" aria-label="Run progress">
-      {PROGRESS_STAGES.map((stage, index) => {
-        const done = stage.eventTypes.some(type =>
-          completedEventTypes.has(type),
-        );
-        const active =
-          !done &&
-          !isTerminal(runStatus) &&
-          firstIncomplete >= 0 &&
-          index === firstIncomplete;
-        return (
-          <div
-            key={stage.key}
-            className="rounded-md border p-2"
-            style={{
-              borderColor: done
-                ? 'var(--md-sys-color-primary)'
-                : 'var(--md-sys-color-outline-variant)',
-              backgroundColor: done
-                ? 'color-mix(in srgb, var(--md-sys-color-primary) 10%, transparent)'
-                : 'var(--md-sys-color-surface-container-low)',
-            }}
-          >
-            <div className="flex items-center gap-1.5 text-xs font-semibold">
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{
-                  backgroundColor: done
-                    ? 'var(--md-sys-color-primary)'
-                    : active
-                      ? 'var(--color-th-warning)'
-                      : 'var(--md-sys-color-outline)',
-                }}
-              />
-              {stage.label}
-            </div>
-            <p
-              className="mt-1 text-[11px]"
-              style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-            >
-              {progressMetric(stage.key, {
-                hypothesesCount,
-                evidenceCount,
-                matchCount,
-                hasReport,
-              })}
-            </p>
-          </div>
-        );
-      })}
-    </section>
-  );
-}
-
-function progressMetric(
-  key: (typeof PROGRESS_STAGES)[number]['key'],
-  counts: {
-    hypothesesCount: number;
-    evidenceCount: number;
-    matchCount: number;
-    hasReport: boolean;
-  },
-): string {
-  switch (key) {
-    case 'literature':
-      return `${counts.evidenceCount} evidence`;
-    case 'generate':
-      return `${counts.hypothesesCount} hypotheses`;
-    case 'ranking':
-      return `${counts.matchCount} matches`;
-    case 'synthesis':
-      return counts.hasReport ? 'Report ready' : 'Pending report';
-    default:
-      return 'Scoped';
-  }
-}
-
-function HypothesisChatCard({
-  hypothesis,
-  rank,
-  evidenceCount,
-  onWhy,
-}: {
-  hypothesis: Hypothesis;
-  rank: number;
-  evidenceCount: number;
-  onWhy: () => void;
-}) {
-  return (
-    <li
-      className="rounded-xl border p-3 wb-fade-in"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface-container-low)',
-      }}
-    >
-      <div className="flex items-start gap-3">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-semibold"
-          style={{
-            backgroundColor: 'var(--md-sys-color-secondary-container)',
-            color: 'var(--md-sys-color-on-secondary-container)',
-          }}
-        >
-          {rank}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="min-w-0 flex-1 text-sm font-semibold leading-snug">
-              {hypothesis.title}
-            </h3>
-            <span
-              className="rounded-md px-1.5 py-0.5 font-mono text-xs"
-              style={{
-                backgroundColor: 'var(--md-sys-color-secondary-container)',
-              }}
-            >
-              Elo {hypothesis.elo_rating}
-            </span>
-          </div>
-          <p
-            className="mt-1 line-clamp-2 text-xs leading-relaxed"
-            style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-          >
-            {hypothesis.mechanism ?? hypothesis.statement}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
-            <span>{evidenceCount} evidence links</span>
-            <span>
-              {hypothesis.win_count}W / {hypothesis.loss_count}L
-            </span>
-            <md-text-button onclick={onWhy as unknown as EventListener}>
-              why this ranked
-            </md-text-button>
-          </div>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-function ReportReadyCard({runId}: {runId: string}) {
-  return (
-    <section
-      className="rounded-xl border p-3 wb-fade-in"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor:
-          'color-mix(in srgb, var(--color-th-success) 10%, var(--md-sys-color-surface-container-low))',
-      }}
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm font-semibold">Report ready</p>
-          <p
-            className="text-xs"
-            style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-          >
-            The polished report is available as a separate structured page.
-          </p>
-        </div>
-        <Link
-          to={`/runs/${runId}/report`}
-          className="inline-flex items-center gap-1 text-sm font-semibold underline underline-offset-2"
-          style={{color: 'var(--md-sys-color-primary)'}}
-        >
-          Open report page
-          <md-icon style={{fontSize: '14px'}} aria-hidden="true">
-            open_in_new
-          </md-icon>
-        </Link>
-      </div>
-    </section>
-  );
-}
-
-function renderPanel({
-  panelKind,
-  history,
-  activeRunId,
-  openRun,
-  evidence,
-  systemStatus,
-  focusedHypothesis,
-  reviews,
-  citations,
-  matches,
-  onClose,
-}: {
-  panelKind: PanelKind;
-  history: Run[];
-  activeRunId: string | null;
-  openRun: (runId: string) => void;
-  evidence: Evidence[];
-  systemStatus: SystemStatus | null;
-  focusedHypothesis: Hypothesis | null;
-  reviews: Review[];
-  citations: CitationRow[];
-  matches: MatchRow[];
-  onClose: () => void;
-}) {
-  if (!panelKind) return null;
-  if (panelKind === 'history') {
-    return (
-      <PanelShell title="History" icon="history" onClose={onClose}>
-        <HistoryPanel
-          history={history}
-          activeRunId={activeRunId}
-          openRun={openRun}
-        />
-      </PanelShell>
-    );
-  }
-  if (panelKind === 'knowledge') {
-    return (
-      <PanelShell title="Knowledge Base" icon="library_books" onClose={onClose}>
-        <KnowledgePanel evidence={evidence} />
-      </PanelShell>
-    );
-  }
-  if (panelKind === 'settings') {
-    return (
-      <PanelShell title="Settings" icon="settings" onClose={onClose}>
-        <SettingsPanel systemStatus={systemStatus} />
-      </PanelShell>
-    );
-  }
-  return (
-    <PanelShell title="Why this ranked" icon="query_stats" onClose={onClose}>
-      <WhyRankedPanel
-        hypothesis={focusedHypothesis}
-        reviews={reviews}
-        citations={citations}
-        matches={matches}
-      />
-    </PanelShell>
-  );
-}
-
-function PanelShell({
-  title,
-  icon,
-  children,
-  onClose,
-}: {
-  title: string;
-  icon: string;
-  children: ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <aside
-      className="min-h-[20rem] border-t p-4 sm:col-start-2 xl:col-start-auto xl:border-l xl:border-t-0 xl:overflow-y-auto"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface-container-low)',
-      }}
-    >
-      <div className="mb-4 flex items-center justify-between gap-2">
-        <h2 className="flex items-center gap-2 text-sm font-semibold">
-          <md-icon style={{fontSize: '18px'}} aria-hidden="true">
-            {icon}
-          </md-icon>
-          {title}
-        </h2>
-        <md-icon-button
-          onclick={onClose as unknown as EventListener}
-          aria-label="Close panel"
-        >
-          <md-icon aria-hidden="true">close</md-icon>
-        </md-icon-button>
-      </div>
-      {children}
-    </aside>
-  );
-}
-
-function HistoryPanel({
-  history,
-  activeRunId,
-  openRun,
-}: {
-  history: Run[];
-  activeRunId: string | null;
-  openRun: (runId: string) => void;
-}) {
-  if (!history.length) {
-    return (
-      <p
-        className="text-sm"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-      >
-        No previous runs yet.
-      </p>
-    );
-  }
-  return (
-    <ol className="space-y-2">
-      {history.slice(0, 12).map(run => (
-        <li key={run.id}>
-          <button
-            type="button"
-            onClick={() => openRun(run.id)}
-            className="cursor-pointer w-full rounded-md border p-2 text-left text-sm"
-            style={{
-              borderColor:
-                activeRunId === run.id
-                  ? 'var(--md-sys-color-primary)'
-                  : 'var(--md-sys-color-outline-variant)',
-              backgroundColor:
-                activeRunId === run.id
-                  ? 'var(--md-sys-color-secondary-container)'
-                  : 'var(--md-sys-color-surface)',
-            }}
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <RunStatusPill status={run.status} />
-              <span
-                className="text-xs"
-                style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-              >
-                {new Date(run.updated_at * 1000).toLocaleDateString()}
-              </span>
-            </div>
-            <div
-              className="truncate font-medium leading-snug"
-              title={run.research_goal}
-            >
-              {conciseTitle(run.research_goal)}
-            </div>
-          </button>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function KnowledgePanel({evidence}: {evidence: Evidence[]}) {
-  if (!evidence.length) {
-    return (
-      <p
-        className="text-sm"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-      >
-        Run evidence appears here after literature review.
-      </p>
-    );
-  }
-  return (
-    <ol className="space-y-2">
-      {evidence.slice(0, 10).map(item => (
-        <li
-          key={item.id}
-          className="rounded-md border p-2 text-sm"
-          style={{
-            borderColor: 'var(--md-sys-color-outline-variant)',
-            backgroundColor: 'var(--md-sys-color-surface)',
-          }}
-        >
-          <div className="font-medium leading-snug">{item.title}</div>
-          <div
-            className="mt-1 text-xs"
-            style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-          >
-            {item.source}
-            {item.year ? ` · ${item.year}` : ''}
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-function SettingsPanel({systemStatus}: {systemStatus: SystemStatus | null}) {
-  return (
-    <div className="space-y-4 text-sm">
-      <div
-        className="rounded-md border p-3"
-        style={{
-          borderColor: 'var(--md-sys-color-outline-variant)',
-          backgroundColor: 'var(--md-sys-color-surface)',
-        }}
-      >
-        <div className="mb-2 font-medium">Theme</div>
-        <ThemeToggle />
-      </div>
-      <div
-        className="rounded-md border p-3"
-        style={{
-          borderColor: 'var(--md-sys-color-outline-variant)',
-          backgroundColor: 'var(--md-sys-color-surface)',
-        }}
-      >
-        <div className="font-medium">Runtime</div>
-        <p
-          className="mt-1 text-xs"
-          style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-        >
-          {systemStatus
-            ? `${systemStatus.provider === 'mock' ? 'Mock' : 'Engine'} · ${systemStatus.model_name || 'model unset'}`
-            : 'Checking runtime...'}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function WhyRankedPanel({
-  hypothesis,
-  reviews,
-  citations,
-  matches,
-}: {
-  hypothesis: Hypothesis | null;
-  reviews: Review[];
-  citations: CitationRow[];
-  matches: MatchRow[];
-}) {
-  if (!hypothesis) {
-    return (
-      <p
-        className="text-sm"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-      >
-        Select a hypothesis to inspect its ranking rationale.
-      </p>
-    );
-  }
-  const hypReviews = reviews.filter(r => r.hypothesis_id === hypothesis.id);
-  const hypCitations = citations.filter(c => c.hypothesis_id === hypothesis.id);
-  const hypMatches = matches
-    .filter(
-      match =>
-        match.winner_id === hypothesis.id || match.loser_id === hypothesis.id,
-    )
-    .slice(-3)
-    .reverse();
-
-  return (
-    <div className="space-y-3 text-sm">
-      <div>
-        <div className="text-xs font-semibold uppercase tracking-wide">
-          Rank signal
-        </div>
-        <h3 className="mt-1 font-semibold leading-snug">{hypothesis.title}</h3>
-      </div>
-      <div className="grid grid-cols-3 gap-2">
-        <Metric label="Elo" value={hypothesis.elo_rating} />
-        <Metric label="Wins" value={hypothesis.win_count} />
-        <Metric label="Evidence" value={hypCitations.length} />
-      </div>
-      {hypothesis.mechanism && (
-        <PanelBlock title="Mechanism">{hypothesis.mechanism}</PanelBlock>
-      )}
-      {hypReviews[0] && (
-        <PanelBlock title="Review rationale">
-          {hypReviews[0].summary || hypReviews[0].critique}
-        </PanelBlock>
-      )}
-      {hypMatches.length > 0 && (
-        <PanelBlock title="Recent tournament rationale">
-          <ul className="space-y-2">
-            {hypMatches.map(match => (
-              <li key={match.id}>{match.rationale}</li>
-            ))}
-          </ul>
-        </PanelBlock>
-      )}
-      {hypCitations.length > 0 && (
-        <PanelBlock title="Citation states">
-          <ul className="space-y-1">
-            {hypCitations.slice(0, 5).map(citation => (
-              <li key={citation.id}>
-                {citation.state}: {citation.claim}
-              </li>
-            ))}
-          </ul>
-        </PanelBlock>
-      )}
-    </div>
-  );
-}
-
-function Metric({label, value}: {label: string; value: number}) {
-  return (
-    <div
-      className="rounded-md border p-2"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface)',
-      }}
-    >
-      <div
-        className="text-[10px] font-semibold uppercase tracking-wide"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-      >
-        {label}
-      </div>
-      <div className="mt-1 font-mono text-lg">{value}</div>
-    </div>
-  );
-}
-
-function PanelBlock({title, children}: {title: string; children: ReactNode}) {
-  return (
-    <section
-      className="rounded-md border p-3"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface)',
-      }}
-    >
-      <div
-        className="mb-1 text-xs font-semibold uppercase tracking-wide"
-        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-      >
-        {title}
-      </div>
-      <div className="leading-relaxed">{children}</div>
-    </section>
-  );
-}
-
-function formatEventName(type: string): string {
-  if (type === 'status') return 'Status update';
-  return type
-    .replace(/[._]/g, ' ')
-    .replace(/\b\w/g, char => char.toUpperCase());
 }

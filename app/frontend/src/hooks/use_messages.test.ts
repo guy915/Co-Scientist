@@ -14,10 +14,16 @@ const sendMessage =
       kind?: 'steering' | 'qa',
     ) => Promise<Message>
   >();
+const canUseOfflineRun = vi.fn<(runId: string) => boolean>();
+const answerOfflineQuestion =
+  vi.fn<(runId: string, question: string) => Message>();
 vi.mock('@/api/runs', () => ({
   listMessages: (runId: string) => listMessages(runId),
   sendMessage: (runId: string, content: string, kind?: 'steering' | 'qa') =>
     sendMessage(runId, content, kind),
+  canUseOfflineRun: (runId: string) => canUseOfflineRun(runId),
+  answerOfflineQuestion: (runId: string, question: string) =>
+    answerOfflineQuestion(runId, question),
   askQuestionUrl: (runId: string) => `/api/runs/${runId}/messages/ask`,
 }));
 
@@ -37,6 +43,9 @@ function msg(id: number, content: string, sender: 'user' | 'system'): Message {
 beforeEach(() => {
   listMessages.mockReset();
   sendMessage.mockReset();
+  canUseOfflineRun.mockReset();
+  canUseOfflineRun.mockReturnValue(false);
+  answerOfflineQuestion.mockReset();
 });
 
 afterEach(() => {

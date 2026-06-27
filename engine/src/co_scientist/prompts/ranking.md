@@ -47,6 +47,8 @@ Provide a detailed justification for your decision, explaining the specific stre
 
 {{review_context}}
 
+{{run_guidance}}
+
 ## Reflection Notes
 
 The following reflection notes analyze how each hypothesis relates to observations from the literature review:

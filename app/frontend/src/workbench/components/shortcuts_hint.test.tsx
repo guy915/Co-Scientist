@@ -25,7 +25,9 @@ describe('ShortcutsHint', () => {
     // The dialog content is always present in the light DOM, slotted by
     // md-dialog regardless of its open state.
     expect(screen.getByText('Open this shortcut help')).toBeInTheDocument();
-    expect(screen.getByText('Go to dashboard')).toBeInTheDocument();
-    expect(screen.getByText('Start a new run')).toBeInTheDocument();
+    expect(screen.getByText('Start a new research goal')).toBeInTheDocument();
+    expect(
+      screen.getByText('Move between goal report tabs'),
+    ).toBeInTheDocument();
   });
 });

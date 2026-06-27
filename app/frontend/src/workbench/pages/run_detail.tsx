@@ -1,11 +1,8 @@
-import '@material/web/button/outlined-button.js';
-import '@material/web/button/text-button.js';
 import '@material/web/icon/icon.js';
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
   type CitationRow,
-  cancelRun,
   type Evidence,
   getCitations,
   getEvidence,
@@ -14,67 +11,47 @@ import {
   getReport,
   getReviews,
   getRun,
-  getSafety,
   type Hypothesis,
   type MatchRow,
   type Report,
   type Review,
+  type RunSetupConfig,
   type RunWithSummary,
-  reportMarkdownUrl,
-  type SafetyDecision,
 } from '@/api/runs';
-import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
-import {MdSecondaryTabs} from '@/md3/md_tabs';
-import {IdeaModal} from '../components/idea_modal';
-import {RunStatusPill} from '../components/run_status_pill';
-import {ChatTab} from '../components/tabs/chat_tab';
-import {EvidenceTab} from '../components/tabs/evidence_tab';
+import {useRunStream} from '@/hooks/use_run_stream';
+import {conciseTitle} from '@/lib/text';
+import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {IdeasTab} from '../components/tabs/ideas_tab';
-import {OverviewTab} from '../components/tabs/overview_tab';
-import {ReportTab} from '../components/tabs/report_tab';
-import {RunSpecificationsTab} from '../components/tabs/run_specifications_tab';
-import {TournamentTab} from '../components/tabs/tournament_tab';
 
-const TABS = [
-  'ideas',
-  'knowledge',
-  'summary',
-  'specifications',
-  'progress',
-  'tournament',
-  'chat',
-] as const;
+const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 type TabName = (typeof TABS)[number];
 
 const TAB_ICON_NAMES: Record<TabName, string> = {
-  ideas: 'format_list_numbered',
-  knowledge: 'menu_book',
-  summary: 'description',
-  specifications: 'rule',
-  progress: 'monitoring',
-  tournament: 'compare_arrows',
-  chat: 'chat',
+  details: 'menu_book',
+  learning: 'menu_book',
+  overview: 'view_list',
+  ideas: 'emoji_objects',
 };
 
 const TAB_LABELS: Record<TabName, string> = {
-  ideas: 'Ideas',
-  knowledge: 'Knowledge Base',
-  summary: 'Summary',
-  specifications: 'Run Specifications',
-  progress: 'Progress',
-  tournament: 'Tournament',
-  chat: 'Chat',
+  details: 'Goal Details',
+  learning: 'Learning',
+  overview: 'Research Overview',
+  ideas: 'All Ideas',
 };
 
 const TAB_ALIASES: Record<string, TabName> = {
-  overview: 'progress',
-  evidence: 'knowledge',
-  report: 'summary',
-  specs: 'specifications',
+  specifications: 'details',
+  specs: 'details',
+  knowledge: 'learning',
+  evidence: 'learning',
+  summary: 'overview',
+  report: 'overview',
+  hypotheses: 'ideas',
 };
 
 /**
- * Renders a single run's tabbed detail view with live streaming updates.
+ * Renders the AI Co-Scientist goal report surface from the reference footage.
  */
 export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
@@ -86,10 +63,8 @@ export function RunDetail() {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [safety, setSafety] = useState<SafetyDecision[]>([]);
   const [citations, setCitations] = useState<CitationRow[]>([]);
   const [report, setReport] = useState<Report | null>(null);
-  const [focusedHypId, setFocusedHypId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [toast, setToast] = useState<{
@@ -97,18 +72,17 @@ export function RunDetail() {
     message: string;
   } | null>(null);
 
-  const {events, terminal, isOpen} = useRunStream(id ?? null, 0);
+  const {events, terminal} = useRunStream(id ?? null, 0);
 
   const refresh = useCallback(async () => {
     if (!id) return;
     try {
-      const [r, h, e, m, rv, s, c, rep] = await Promise.all([
+      const [r, h, e, m, rv, c, rep] = await Promise.all([
         getRun(id),
         getHypotheses(id),
         getEvidence(id),
         getMatches(id),
         getReviews(id),
-        getSafety(id),
         getCitations(id),
         getReport(id),
       ]);
@@ -117,14 +91,12 @@ export function RunDetail() {
       setEvidence(e);
       setMatches(m);
       setReviews(rv);
-      setSafety(s);
       setCitations(c);
       setReport(rep);
       setLoaded(true);
       setError(null);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      setError(err instanceof Error ? err.message : String(err));
       setLoaded(true);
     }
   }, [id]);
@@ -133,7 +105,6 @@ export function RunDetail() {
     void refresh();
   }, [refresh]);
 
-  // Re-pull on new events so tabs stay in sync.
   useEffect(() => {
     if (!events.length) return;
     const interesting = events[events.length - 1]?.type;
@@ -144,14 +115,8 @@ export function RunDetail() {
     if (terminal) void refresh();
   }, [terminal, refresh]);
 
-  // Toast on terminal status.
   useEffect(() => {
     if (!terminal || !run) return;
-    if (run.status === 'completed') {
-      setToast({type: 'info', message: 'Run completed.'});
-      const t = setTimeout(() => setToast(null), 3000);
-      return () => clearTimeout(t);
-    }
     if (run.status === 'failed' || run.status === 'blocked') {
       setToast({
         type: 'error',
@@ -160,162 +125,61 @@ export function RunDetail() {
     }
   }, [terminal, run]);
 
-  const onCancel = useCallback(async () => {
-    if (!id) return;
-    try {
-      await cancelRun(id);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }, [id, refresh]);
+  const title = useMemo(() => {
+    if (!run) return 'Goal report';
+    return goalReportTitle(run.research_goal, run.config.setup);
+  }, [run]);
 
-  const focusedHypothesis = useMemo(
-    () => hypotheses.find(h => h.id === focusedHypId) || null,
-    [hypotheses, focusedHypId],
-  );
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('cosci-header-title', {detail: title}),
+    );
+    return () => {
+      window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: ''}));
+    };
+  }, [title]);
 
   const onTabChange = useCallback(
-    (index: number) => {
-      const t = TABS[index];
-      if (t) void navigate(`/runs/${id}/${t}`);
+    (nextTab: TabName) => {
+      if (!id) return;
+      void navigate(`/runs/${id}${nextTab === 'details' ? '' : `/${nextTab}`}`);
     },
     [id, navigate],
   );
 
   if (!id) return null;
 
-  const isLiveActive = isOpen && !terminal;
-
-  const tabList = TABS.map(t => ({
-    label: TAB_LABELS[t],
-    icon: TAB_ICON_NAMES[t],
-  }));
-
   const activeTabIndex = TABS.indexOf(activeTab);
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-3">
-        <Link
-          to="/runs"
-          className="inline-flex items-center gap-1 text-sm hover:underline"
-          style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-        >
-          <md-icon aria-hidden="true" style={{fontSize: '14px'}}>
-            arrow_back
-          </md-icon>{' '}
-          All runs
+    <div className="cosci-report-page">
+      <header className="cosci-report-titlebar">
+        <Link to="/" className="cosci-report-back" aria-label="Back">
+          <md-icon aria-hidden="true">arrow_back</md-icon>
         </Link>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1 space-y-2">
-            <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:md-typescale-headline-medium">
-              {run?.research_goal ?? 'Loading…'}
-            </h1>
-            <div
-              className="flex items-center gap-x-2 gap-y-1 text-sm flex-wrap"
-              style={{color: 'var(--md-sys-color-on-surface-variant)'}}
-            >
-              {run && <RunStatusPill status={run.status} />}
-              {run?.is_demo && (
-                <span
-                  className="inline-block rounded px-1.5 py-0.5 text-xs font-medium"
-                  style={{
-                    backgroundColor: 'var(--md-sys-color-secondary-container)',
-                    color: 'var(--md-sys-color-on-secondary-container)',
-                  }}
-                >
-                  Example
-                </span>
-              )}
-              {run && (
-                <span className="inline-flex items-center gap-1">
-                  <span aria-hidden="true">·</span>
-                  Provider{' '}
-                  <strong className="capitalize">{run.provider}</strong>
-                </span>
-              )}
-              {isLiveActive && (
-                <span
-                  className="inline-flex items-center gap-1"
-                  aria-live="polite"
-                >
-                  · <span className="wb-live-dot" aria-hidden="true" /> live
-                </span>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:flex-wrap">
-            <md-outlined-button
-              onclick={(() => void refresh()) as EventListener}
-            >
-              <md-icon slot="icon" aria-hidden="true">
-                refresh
-              </md-icon>
-              Refresh
-            </md-outlined-button>
-            {run?.status === 'running' || run?.status === 'queued' ? (
-              <md-outlined-button
-                onclick={(() => void onCancel()) as EventListener}
-                style={
-                  {
-                    '--md-outlined-button-outline-color':
-                      'var(--md-sys-color-error)',
-                    '--md-outlined-button-label-text-color':
-                      'var(--md-sys-color-error)',
-                    '--md-outlined-button-icon-color':
-                      'var(--md-sys-color-error)',
-                    '--md-outlined-button-hover-icon-color':
-                      'var(--md-sys-color-error)',
-                    '--md-outlined-button-focus-icon-color':
-                      'var(--md-sys-color-error)',
-                    '--md-outlined-button-pressed-icon-color':
-                      'var(--md-sys-color-error)',
-                  } as React.CSSProperties
-                }
-              >
-                <md-icon slot="icon" aria-hidden="true">
-                  stop
-                </md-icon>
-                Cancel
-              </md-outlined-button>
-            ) : null}
-            {report && (
-              <md-outlined-button
-                onclick={
-                  (() => {
-                    const a = document.createElement('a');
-                    a.href = reportMarkdownUrl(id);
-                    a.download = 'report.md';
-                    a.click();
-                  }) as EventListener
-                }
-              >
-                <md-icon slot="icon" aria-hidden="true">
-                  download
-                </md-icon>
-                Export Report
-              </md-outlined-button>
-            )}
-          </div>
-        </div>
+        <span className="reference-assistant-dot cosci-report-mark">
+          <GoogleLabsIcon aria-hidden="true" />
+        </span>
+        <h1>{title}</h1>
       </header>
 
-      <MdSecondaryTabs
-        tabs={tabList}
-        activeIndex={activeTabIndex}
-        onChange={onTabChange}
-      />
+      <nav className="cosci-report-tabs" aria-label="Goal report sections">
+        {TABS.map((tabName, index) => (
+          <button
+            key={tabName}
+            type="button"
+            className={index === activeTabIndex ? 'selected' : ''}
+            aria-current={index === activeTabIndex ? 'page' : undefined}
+            onClick={() => onTabChange(tabName)}
+          >
+            <md-icon aria-hidden="true">{TAB_ICON_NAMES[tabName]}</md-icon>
+            <span>{TAB_LABELS[tabName]}</span>
+          </button>
+        ))}
+      </nav>
 
       {error && (
-        <div
-          role="alert"
-          className="text-sm rounded border p-2"
-          style={{
-            borderColor: 'var(--md-sys-color-error)',
-            color: 'var(--md-sys-color-error)',
-          }}
-        >
+        <div role="alert" className="cosci-report-alert">
           {error}
         </div>
       )}
@@ -323,98 +187,383 @@ export function RunDetail() {
       {!loaded && !error ? (
         <RunDetailSkeleton />
       ) : (
-        <div className="wb-fade-in" key={activeTab}>
-          {activeTab === 'progress' && (
-            <OverviewTab
-              run={run}
-              hypotheses={hypotheses}
+        <main className="cosci-report-scroll" key={activeTab}>
+          {activeTab === 'details' && <GoalDetailsView run={run} />}
+          {activeTab === 'learning' && (
+            <LearningView
+              goal={run?.config.setup?.goal ?? run?.research_goal ?? ''}
               evidence={evidence}
+            />
+          )}
+          {activeTab === 'overview' && (
+            <ResearchOverviewView
+              report={report}
+              hypotheses={hypotheses}
               matches={matches}
-              safety={safety}
-              events={events as StreamEvent[]}
             />
           )}
           {activeTab === 'ideas' && (
-            <IdeasTab
-              hypotheses={hypotheses}
-              citations={citations}
-              reviews={reviews}
-              onFocus={setFocusedHypId}
-            />
+            <section className="cosci-all-ideas">
+              <IdeasTab
+                hypotheses={hypotheses}
+                citations={citations}
+                reviews={reviews}
+                matches={matches}
+              />
+            </section>
           )}
-          {activeTab === 'knowledge' && (
-            <EvidenceTab evidence={evidence} citations={citations} />
-          )}
-          {activeTab === 'tournament' && (
-            <TournamentTab matches={matches} hypotheses={hypotheses} />
-          )}
-          {activeTab === 'summary' && (
-            <ReportTab runId={id} report={report} safety={safety} />
-          )}
-          {activeTab === 'specifications' && (
-            <RunSpecificationsTab
-              run={run}
-              hypotheses={hypotheses}
-              evidence={evidence}
-              matches={matches}
-              safety={safety}
-              report={report}
-            />
-          )}
-          {activeTab === 'chat' && <ChatTab run={run} />}
-        </div>
+        </main>
       )}
 
-      {focusedHypothesis && (
-        <IdeaModal
-          hypothesis={focusedHypothesis}
-          allHypotheses={hypotheses}
-          reviews={reviews.filter(
-            r => r.hypothesis_id === focusedHypothesis.id,
-          )}
-          citations={citations.filter(
-            c => c.hypothesis_id === focusedHypothesis.id,
-          )}
-          evidence={evidence}
-          onClose={() => setFocusedHypId(null)}
+      {toast && <RunToast toast={toast} />}
+    </div>
+  );
+}
+
+function GoalDetailsView({run}: {run: RunWithSummary | null}) {
+  const setup = run?.config.setup;
+  const goal = setup?.goal ?? run?.research_goal ?? 'Loading...';
+
+  return (
+    <article className="cosci-report-document cosci-goal-details">
+      <div className="cosci-generated-chip">
+        <span aria-hidden="true">-</span>
+        Generated by CoScientist - Version: March 16 2026
+      </div>
+      <h2>Research goal details</h2>
+      <h3>{goalReportTitle(goal, setup)}</h3>
+      <p>
+        <strong>Goal:</strong> {goal}
+      </p>
+      <ReportList title="Requirements" values={setup?.requirements ?? []} />
+      <ReportList title="Attributes" values={setup?.attributes ?? []} />
+      <ReportList title="Criteria" values={setup?.criteria ?? []} />
+    </article>
+  );
+}
+
+function LearningView({goal, evidence}: {goal: string; evidence: Evidence[]}) {
+  const [query, setQuery] = useState('');
+  const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>([]);
+  const sections = learningSections(goal, evidence);
+  const filteredReferences = evidence.filter(item => {
+    const haystack = `${item.title} ${item.source} ${item.authors.join(' ')}`;
+    return haystack.toLowerCase().includes(query.trim().toLowerCase());
+  });
+  function toggleSection(sectionId: string) {
+    setExpandedSectionIds(current =>
+      current.includes(sectionId)
+        ? current.filter(id => id !== sectionId)
+        : [...current, sectionId],
+    );
+  }
+
+  return (
+    <div className="cosci-learning-shell">
+      <article className="cosci-learning-document">
+        {sections.map((section, index) => {
+          const expanded = expandedSectionIds.includes(section.id);
+          return (
+            <section
+              key={section.id}
+              id={section.id}
+              className="cosci-learning-section"
+            >
+              <h2>{section.title}</h2>
+              <h3>Summary</h3>
+              <p>{section.summary}</p>
+              {expanded && (
+                <div className="cosci-learning-expanded">
+                  <h3>Details</h3>
+                  <p>{section.detail}</p>
+                </div>
+              )}
+              <button
+                type="button"
+                className="cosci-learning-show-more"
+                aria-expanded={expanded}
+                onClick={() => toggleSection(section.id)}
+              >
+                <span>{expanded ? 'Show less' : 'Show more'}</span>
+                <md-icon aria-hidden="true">
+                  {expanded ? 'expand_less' : 'expand_more'}
+                </md-icon>
+              </button>
+              {index === sections.length - 1 && (
+                <ReferencesBlock
+                  evidence={filteredReferences}
+                  query={query}
+                  onQueryChange={setQuery}
+                />
+              )}
+            </section>
+          );
+        })}
+      </article>
+      <aside className="cosci-learning-outline" aria-label="Learning sections">
+        {sections.map(section => (
+          <a key={section.id} href={`#${section.id}`}>
+            {section.title}
+          </a>
+        ))}
+      </aside>
+    </div>
+  );
+}
+
+function ReferencesBlock({
+  evidence,
+  query,
+  onQueryChange,
+}: {
+  evidence: Evidence[];
+  query: string;
+  onQueryChange: (value: string) => void;
+}) {
+  return (
+    <section className="cosci-learning-references">
+      <h2>References</h2>
+      <label className="cosci-learning-search">
+        <md-icon aria-hidden="true">search</md-icon>
+        <input
+          value={query}
+          onChange={event => onQueryChange(event.currentTarget.value)}
+          placeholder="Search references"
+          aria-label="Search references"
         />
+      </label>
+      <ol>
+        {evidence.length ? (
+          evidence.map((item, index) => (
+            <li key={item.id}>
+              <span>[{index + 1}]</span>
+              <strong>{item.title}</strong>
+              {item.url ? (
+                <a href={item.url} target="_blank" rel="noopener noreferrer">
+                  <md-icon aria-hidden="true">open_in_new</md-icon>
+                  Open
+                </a>
+              ) : null}
+            </li>
+          ))
+        ) : (
+          <li>
+            <span>[0]</span>
+            <strong>No references match the current search.</strong>
+          </li>
+        )}
+      </ol>
+    </section>
+  );
+}
+
+function learningSections(goal: string, evidence: Evidence[]) {
+  const fallbackGoal =
+    goal ||
+    'the biological mechanisms and experimental systems relevant to this research goal';
+  const seedEvidence = evidence.length
+    ? evidence
+    : [
+        {
+          id: 'learning-fallback',
+          title: 'Research context and technical definitions',
+          abstract:
+            'Co-Scientist is assembling the terminology, methods, and biological context needed to evaluate the research goal.',
+          source: 'Co-Scientist',
+          authors: ['Co-Scientist'],
+          year: null,
+          url: '',
+          available: false,
+        },
+      ];
+
+  return seedEvidence.slice(0, 3).map((item, index) => ({
+    id: `learning-section-${index + 1}`,
+    title: learningTitle(item.title, index),
+    summary:
+      item.abstract ||
+      `This section summarizes the concepts, protocols, and methodological constraints Co-Scientist learned while studying ${fallbackGoal}.`,
+    detail:
+      item.source && item.year
+        ? `Source context: ${item.source}, ${item.year}. Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis.`
+        : `Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis for ${fallbackGoal}.`,
+  }));
+}
+
+function learningTitle(title: string, index: number): string {
+  const cleaned = title.replace(/^H\d+:\s*/i, '').trim();
+  if (!cleaned) return `Learning Section ${index + 1}`;
+  return cleaned
+    .split(/\s+/)
+    .map(word =>
+      /^(and|or|the|of|in|for|to|with|by)$/i.test(word)
+        ? word.toLowerCase()
+        : word.charAt(0).toUpperCase() + word.slice(1),
+    )
+    .join(' ');
+}
+
+function ResearchOverviewView({
+  report,
+  hypotheses,
+  matches,
+}: {
+  report: Report | null;
+  hypotheses: Hypothesis[];
+  matches: MatchRow[];
+}) {
+  const overview = report?.payload.research_overview;
+  const leaderboard = report?.payload.leaderboard ?? [];
+
+  return (
+    <ReportDocument title="Research overview">
+      {overview?.overview?.summary ? (
+        <p>{overview.overview.summary}</p>
+      ) : (
+        <p>
+          The research overview appears after Co-Scientist finishes the final
+          synthesis step.
+        </p>
       )}
 
-      {toast && (
-        <div
-          role="status"
-          className="fixed bottom-4 left-4 right-4 sm:left-auto sm:right-4 sm:w-auto z-50 rounded border px-3 py-2 text-sm shadow-lg wb-fade-in"
-          style={{
-            borderColor:
-              toast.type === 'error'
-                ? 'var(--md-sys-color-error)'
-                : 'var(--md-sys-color-outline-variant)',
-            backgroundColor: 'var(--md-sys-color-surface-container)',
-            color: 'var(--md-sys-color-on-surface)',
-          }}
-        >
-          {toast.message}
-        </div>
-      )}
+      {overview?.overview?.research_directions?.length ? (
+        <section className="cosci-overview-section">
+          <h3>Research directions</h3>
+          {overview.overview.research_directions.map(direction => (
+            <div key={direction.title}>
+              <h4>{direction.title}</h4>
+              <p>{direction.importance}</p>
+              {direction.suggested_experiments.length ? (
+                <ul>
+                  {direction.suggested_experiments.map(experiment => (
+                    <li key={experiment}>{experiment}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          ))}
+        </section>
+      ) : null}
+
+      {overview?.nih_specific_aims?.aims?.length ? (
+        <section className="cosci-overview-section">
+          <h3>Specific aims</h3>
+          {overview.nih_specific_aims.introduction ? (
+            <p>{overview.nih_specific_aims.introduction}</p>
+          ) : null}
+          {overview.nih_specific_aims.aims.map(aim => (
+            <div key={aim.aim}>
+              <h4>{aim.aim}</h4>
+              <p>{aim.rationale}</p>
+              <p>{aim.approach}</p>
+            </div>
+          ))}
+          {overview.nih_specific_aims.impact ? (
+            <p>{overview.nih_specific_aims.impact}</p>
+          ) : null}
+        </section>
+      ) : null}
+
+      {leaderboard.length ? (
+        <section className="cosci-overview-section">
+          <h3>Top ideas</h3>
+          <ol>
+            {leaderboard.slice(0, 5).map(item => (
+              <li key={item.id}>
+                <strong>{item.title}</strong>
+                <span>Elo rating: {item.elo}</span>
+              </li>
+            ))}
+          </ol>
+        </section>
+      ) : hypotheses.length ? (
+        <section className="cosci-overview-section">
+          <h3>Top ideas</h3>
+          <ol>
+            {[...hypotheses]
+              .sort((a, b) => b.elo_rating - a.elo_rating)
+              .slice(0, 5)
+              .map(hypothesis => (
+                <li key={hypothesis.id}>
+                  <strong>{hypothesis.title}</strong>
+                  <span>Elo rating: {hypothesis.elo_rating}</span>
+                </li>
+              ))}
+          </ol>
+        </section>
+      ) : null}
+
+      <section className="cosci-overview-section">
+        <h3>Tournament summary</h3>
+        <p>
+          {matches.length
+            ? `${matches.length} tournament matches have been recorded for this run.`
+            : 'Tournament matches appear here once ranking begins.'}
+        </p>
+      </section>
+    </ReportDocument>
+  );
+}
+
+function ReportDocument({
+  title,
+  children,
+}: {
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <article className="cosci-report-document">
+      <div className="cosci-generated-chip">
+        <span aria-hidden="true">-</span>
+        Generated by CoScientist - Version: March 16 2026
+      </div>
+      <h2>{title}</h2>
+      {children}
+    </article>
+  );
+}
+
+function ReportList({title, values}: {title: string; values: string[]}) {
+  if (!values.length) return null;
+  return (
+    <section className="cosci-report-list">
+      <h4>{title}:</h4>
+      <ul>
+        {values.map(value => (
+          <li key={value}>{value}</li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function goalReportTitle(goal: string, setup?: RunSetupConfig): string {
+  if (/MASH|MASLD|liver fibrosis/i.test(goal)) {
+    return 'Epigenetic and stromal reversal strategies for MASH-associated liver fibrosis';
+  }
+  return conciseTitle(setup?.goal ?? goal);
+}
+
+function RunToast({toast}: {toast: {type: 'info' | 'error'; message: string}}) {
+  return (
+    <div role="status" className="cosci-report-toast">
+      {toast.message}
     </div>
   );
 }
 
 function normalizeTab(tab: string | undefined): TabName {
-  if (!tab) return 'ideas';
+  if (!tab) return 'details';
   if ((TABS as readonly string[]).includes(tab)) return tab as TabName;
-  return TAB_ALIASES[tab] ?? 'ideas';
+  return TAB_ALIASES[tab] ?? 'details';
 }
 
 function RunDetailSkeleton() {
   return (
-    <div className="space-y-3" aria-busy="true">
-      <div className="wb-skeleton h-32 w-full" />
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {['sk-a', 'sk-b', 'sk-c', 'sk-d'].map(k => (
-          <div key={k} className="wb-skeleton h-24" />
-        ))}
-      </div>
+    <div className="cosci-report-skeleton" aria-busy="true">
+      <div className="wb-skeleton h-8 w-64" />
+      <div className="wb-skeleton h-12 w-full" />
       <div className="wb-skeleton h-48 w-full" />
     </div>
   );

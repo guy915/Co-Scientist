@@ -34,13 +34,6 @@ describe('useGlobalShortcuts', () => {
     document.body.replaceChildren();
   });
 
-  it('navigates to /runs on the "g d" sequence', () => {
-    renderHook(() => useGlobalShortcuts(), {wrapper: wrapperAt('/runs')});
-    keyDown('g');
-    keyDown('d');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs');
-  });
-
   it('navigates to / on the "g n" sequence', () => {
     renderHook(() => useGlobalShortcuts(), {wrapper: wrapperAt('/runs')});
     keyDown('g');
@@ -55,12 +48,12 @@ describe('useGlobalShortcuts', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('cycles from the default chat tab on ArrowRight while on a run page', () => {
+  it('cycles from Goal Details to Learning on ArrowRight', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc'),
     });
     keyDown('ArrowRight');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/overview');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/learning');
   });
 
   it('cycles from overview to ideas on ArrowRight', () => {
@@ -71,9 +64,17 @@ describe('useGlobalShortcuts', () => {
     expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/ideas');
   });
 
-  it('cycles back to chat (empty tab segment) on ArrowLeft', () => {
+  it('cycles back to Learning on ArrowLeft', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc/overview'),
+    });
+    keyDown('ArrowLeft');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/learning');
+  });
+
+  it('cycles back to Goal Details on ArrowLeft', () => {
+    renderHook(() => useGlobalShortcuts(), {
+      wrapper: wrapperAt('/runs/abc/learning'),
     });
     keyDown('ArrowLeft');
     expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/');
@@ -81,7 +82,7 @@ describe('useGlobalShortcuts', () => {
 
   it('does not navigate past the last tab on ArrowRight', () => {
     renderHook(() => useGlobalShortcuts(), {
-      wrapper: wrapperAt('/runs/abc/report'),
+      wrapper: wrapperAt('/runs/abc/ideas'),
     });
     keyDown('ArrowRight');
     expect(navigateMock).not.toHaveBeenCalled();

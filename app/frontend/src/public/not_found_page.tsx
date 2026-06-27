@@ -8,7 +8,7 @@ export function NotFoundPage() {
   return (
     <>
       <Seo
-        title="Page not found - Co-Scientist"
+        title="Page not found - AI Co-Scientist"
         description="The page you requested does not exist."
         path={window.location.pathname}
         robots="noindex, nofollow"
@@ -17,11 +17,8 @@ export function NotFoundPage() {
         <p className="section-label">404</p>
         <h1>Page not found</h1>
         <p>The page you requested does not exist.</p>
-        <div className="landing-actions">
+        <div className="not-found-actions">
           <PublicLinkButton to="/">Return home</PublicLinkButton>
-          <PublicLinkButton to="/" variant="outline">
-            Open the workbench
-          </PublicLinkButton>
         </div>
       </section>
     </>

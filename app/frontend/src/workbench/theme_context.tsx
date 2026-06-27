@@ -5,88 +5,82 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useState,
 } from 'react';
 import {applyMd3Theme} from '../lib/theme';
 
-type Mode = 'light' | 'dark';
-
-const STORAGE_KEY = 'coscientist-theme';
+type Mode = 'system' | 'light' | 'dark';
+type ResolvedMode = 'light' | 'dark';
 
 interface ThemeContextValue {
   mode: Mode;
+  resolvedMode: ResolvedMode;
   setMode: (m: Mode) => void;
   toggle: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
-function getSystemMode(): Mode {
-  if (typeof window === 'undefined') return 'light';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light';
-}
-
 /**
- * Provides light/dark theme state and applies the MD3 theme to the document.
+ * Provides the dark reference theme and applies the MD3 theme to the document.
  *
  * @param props The subtree that consumes the theme context.
  */
 export function ThemeProvider({children}: {children: ReactNode}) {
-  // User override stored in localStorage; null = follow system.
-  const [userOverride, setUserOverride] = useState<Mode | null>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored === 'light' || stored === 'dark' ? stored : null;
-    } catch {
-      return null;
-    }
+  const [mode, setModeState] = useState<Mode>(() => {
+    if (typeof window === 'undefined') return 'system';
+    const stored = window.localStorage.getItem('cosci-theme');
+    return stored === 'light' || stored === 'dark' || stored === 'system'
+      ? stored
+      : 'system';
   });
+  const [systemMode, setSystemMode] = useState<ResolvedMode>(() => {
+    if (typeof window === 'undefined') return 'dark';
+    if (!window.matchMedia) return 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches
+      ? 'dark'
+      : 'light';
+  });
+  const resolvedMode = mode === 'system' ? systemMode : mode;
 
-  const [systemMode, setSystemMode] = useState<Mode>(getSystemMode);
-
-  const mode: Mode = userOverride ?? systemMode;
-
-  useLayoutEffect(() => {
-    applyMd3Theme(mode === 'dark');
-    document.documentElement.dataset.theme = mode;
-    document.documentElement.classList.toggle('dark', mode === 'dark');
-  }, [mode]);
-
-  // Track live system changes — only applies when user hasn't overridden.
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!window.matchMedia) return undefined;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
-    const listener = (e: MediaQueryListEvent) =>
-      setSystemMode(e.matches ? 'dark' : 'light');
-    media.addEventListener('change', listener);
-    return () => media.removeEventListener('change', listener);
+    function onChange() {
+      setSystemMode(media.matches ? 'dark' : 'light');
+    }
+    if (media.addEventListener) {
+      media.addEventListener('change', onChange);
+      return () => media.removeEventListener('change', onChange);
+    }
+    media.addListener(onChange);
+    return () => media.removeListener(onChange);
   }, []);
 
+  useLayoutEffect(() => {
+    applyMd3Theme(resolvedMode === 'dark');
+    document.documentElement.dataset.theme = resolvedMode;
+    document.documentElement.dataset.themePreference = mode;
+    document.documentElement.classList.toggle('dark', resolvedMode === 'dark');
+    window.localStorage.setItem('cosci-theme', mode);
+  }, [mode, resolvedMode]);
+
   const setMode = useCallback((m: Mode) => {
-    setUserOverride(m);
-    try {
-      localStorage.setItem(STORAGE_KEY, m);
-    } catch {
-      /* ignore */
-    }
+    setModeState(m);
   }, []);
 
   const toggle = useCallback(() => {
-    const next: Mode = mode === 'dark' ? 'light' : 'dark';
-    setUserOverride(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      /* ignore */
-    }
-  }, [mode]);
+    setModeState(current => (current === 'dark' ? 'light' : 'dark'));
+  }, []);
+
+  const value = useMemo(
+    () => ({mode, resolvedMode, setMode, toggle}),
+    [mode, resolvedMode, setMode, toggle],
+  );
 
   return (
-    <ThemeContext.Provider value={{mode, setMode, toggle}}>
-      {children}
-    </ThemeContext.Provider>
+    <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
   );
 }
 

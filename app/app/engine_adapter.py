@@ -23,7 +23,15 @@ from typing import Any
 from app import store
 from app.citations import CitationState
 from app.mock_workflow import run_mock_workflow
-from app.run_modes import normalize_run_mode, resolved_run_config
+from app.run_modes import (
+    clean_string_list,
+    focus_guidance,
+    normalize_run_focus,
+    normalize_run_mode,
+    normalize_run_tier,
+    resolved_run_config,
+    setup_guidance,
+)
 from app.store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
@@ -629,13 +637,35 @@ async def run_workflow(
     store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     yield await _emit("status", {"status": "running"})
 
-    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
     initial_opts: dict[str, Any] = {}
+    setup = cfg.get("setup")
+    if isinstance(setup, dict):
+        focus = normalize_run_focus(setup.get("focus"))
+        tier = normalize_run_tier(setup.get("tier"))
+        setup_text = setup_guidance(setup)
+        initial_opts["run_focus"] = focus
+        initial_opts["run_tier"] = tier
+        initial_opts["run_focus_guidance"] = focus_guidance(focus)
+        initial_opts["run_setup_guidance"] = setup_text
+        initial_opts["attributes"] = clean_string_list(
+            [str(value) for value in setup.get("attributes") or []])
+        initial_opts["constraints"] = clean_string_list(
+            [str(value) for value in setup.get("requirements") or []])
+        initial_opts["criteria"] = clean_string_list(
+            [str(value) for value in setup.get("criteria") or []])
+
+    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
+    preference_parts: list[str] = []
+    setup_text = str(initial_opts.get("run_setup_guidance") or "")
+    if setup_text:
+        preference_parts.append(setup_text)
     if pending_steering:
         guidance = "\n".join(f"- {m.content}" for m in pending_steering)
-        initial_opts["preferences"] = f"User steering guidance:\n{guidance}"
+        preference_parts.append(f"User steering guidance:\n{guidance}")
         store.mark_steering_applied([m.id for m in pending_steering],
                                     db_path=db_path)
+    if preference_parts:
+        initial_opts["preferences"] = "\n\n".join(preference_parts)
 
     # Literature grounding is always-on for real runs and is never exposed as a
     # user-facing option. Force the engine to include the literature_review node
@@ -651,6 +681,10 @@ async def run_workflow(
         max_iterations=int(cfg.get("max_iterations", 1)),
         initial_hypotheses_count=int(cfg.get("initial_hypotheses_count", 5)),
         evolution_max_count=int(cfg.get("evolution_max_count", 2)),
+        tournament_pairs=int(cfg.get("tournament_pairs", 12)),
+        literature_review_papers_count=int(
+            cfg.get("literature_review_papers_count",
+                    cfg.get("evidence_count", 8))),
     )
 
     start = time.time()

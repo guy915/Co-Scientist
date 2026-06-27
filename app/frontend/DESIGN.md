@@ -1,27 +1,27 @@
 ---
 version: alpha
-name: Co-Scientist
-description: A focused scientific research workbench for AI-assisted hypothesis generation. Built on Material Design 3 semantics with Google Sans typography. The palette is generated at runtime from a single seed color using @material/material-color-utilities.
+name: Gemini Enterprise Idea Generation
+description: A focused multi-agent idea generation workspace. Built on Material Design 3 semantics with Google Sans typography and the Gemini Enterprise product shell.
 colors:
   # Seed — the single source of truth for the MD3 palette.
   # The full palette (primary, secondary, tertiary, surface, …) is computed
   # at runtime by applyMd3Theme() in src/lib/theme.ts.
-  seed: "#1A6B6B"
+  seed: "#7C4DFF"
 
-  # Core MD3 roles (approximate light-mode values from the teal seed).
+  # Core MD3 roles (approximate light-mode values from the purple reference seed).
   # Dark-mode inversions are handled automatically by applyMd3Theme(true).
-  primary: "#00696C"
+  primary: "#7C4DFF"
   on-primary: "#ffffff"
-  primary-container: "#9CF1F3"
-  on-primary-container: "#002021"
-  secondary: "#4A6364"
+  primary-container: "#EADDFF"
+  on-primary-container: "#21005D"
+  secondary: "#625B71"
   on-secondary: "#ffffff"
-  secondary-container: "#CCE8E9"
-  on-secondary-container: "#051F20"
-  tertiary: "#4B607C"
+  secondary-container: "#E8DEF8"
+  on-secondary-container: "#1D192B"
+  tertiary: "#1967D2"
   on-tertiary: "#ffffff"
-  tertiary-container: "#D3E4FF"
-  on-tertiary-container: "#041C35"
+  tertiary-container: "#C2E7FF"
+  on-tertiary-container: "#001D35"
   surface: "#F5FAFA"
   surface-container-low: "#EFF4F4"
   surface-container: "#E9EEEE"
@@ -67,7 +67,7 @@ typography:
     lineHeight: 1.05
     letterSpacing: -0.045em
 
-  # Workbench page titles ("Research runs", "New research run")
+  # Workbench page titles ("Idea sessions", "New idea session")
   headline-md:
     fontFamily: Google Sans
     fontSize: 24px
@@ -255,22 +255,22 @@ components:
     padding: 0 22px
 ---
 
-# Co-Scientist Workbench
+# Gemini Enterprise Idea Generation
 
 ## Overview
 
-Co-Scientist is a workbench for AI-driven scientific hypothesis generation. The UI serves two distinct audiences: scientists who use the workbench to launch and monitor research runs, and visitors who land on the public landing page.
+Idea Generation is a Gemini Enterprise-style workbench for multi-agent idea development. The UI serves users who launch and monitor idea sessions plus visitors who land on support/demo pages.
 
-The visual language is **precise, neutral, and data-forward** — more laboratory instrument than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: teal for primary actions, tonal containers for states, status colors for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
+The visual language is **precise, neutral, and data-forward** — more Google product workspace than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: reference purple/blue for primary actions, tonal containers for states, status colors for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
 
 The design personality is calm competence. Typography is tight and confident. Rounded corners are present but not playful. Animation is brief and functional — fade-ins on load, a live dot pulse on active runs, shimmer on skeleton loaders.
 
 ## Colors
 
-The palette is derived at runtime from a single teal seed (`#1A6B6B`) using the MD3 `themeFromSourceColor` algorithm. This means exact hex values shift slightly between builds but the semantic relationships — primary/on-primary, container/on-container — are always correct and WCAG-compliant.
+The palette is derived at runtime from a single reference purple seed (`#7C4DFF`) using the MD3 `themeFromSourceColor` algorithm. This means exact hex values shift slightly between builds but the semantic relationships — primary/on-primary, container/on-container — are always correct and WCAG-compliant.
 
-- **Primary (#00696C):** Mid-teal used for the single most important action per screen, active states, links, and the app logo mark. Never used decoratively.
-- **Secondary container (CCE8E9):** The de-facto "hover" and "selected" surface. Table rows hover to secondary-container. Active filter chips use secondary-container. Secondary navigation context uses it. Applied with restraint so it stays meaningful.
+- **Primary:** Reference purple used for the single most important action per screen, active states, links, and the app logo mark. Never used decoratively.
+- **Secondary container:** The de-facto "hover" and "selected" surface. Table rows hover to secondary-container. Active filter chips use secondary-container. Secondary navigation context uses it. Applied with restraint so it stays meaningful.
 - **Surface / surface-container-low (EFF4F4):** The card background. All data cards and form containers sit one tone above the base surface. Never pure white; always tinted by the seed.
 - **On-surface-variant (#3F4949):** Used for all secondary/helper text — stat card labels, metadata columns, column headers, placeholder text, and the `section-label` caps-uppercase style.
 - **Outline-variant (#BEC9C9):** The default 1px border for every card, table, section divider, and input. Borders never use a raw color — always this token.
@@ -286,7 +286,7 @@ A single typeface — **Google Sans** — covers every typographic role. No fall
 
 - **Display (64px / weight 500):** Landing page H1 only. Tight letter-spacing (−0.055em), line-height near 1. Used at fluid `clamp()` sizes.
 - **Headline-lg (40px / 500):** Landing section headings and demo page H1.
-- **Headline-md (24px / 600):** Workbench page titles — "Research runs", "New research run". Always `font-semibold tracking-tight`.
+- **Headline-md (24px / 600):** Workbench page titles — "Idea sessions", "New idea session". Always `font-semibold tracking-tight`.
 - **Body-md (16px / 400):** Default readable copy. Page description lines below page titles.
 - **Body-sm (14px / 400):** Table rows, card metadata, helper text on form fields.
 - **Label-lg (14px / 600):** Button labels and primary navigation links.
@@ -366,7 +366,7 @@ Two card patterns:
 
 ### Navigation
 
-The header contains: logo mark (teal SVG flask), app name ("Co-Scientist"), optional public nav links, ThemeToggle icon button, and a context-sensitive `md-outlined-button`. The button reads "Workbench" on public routes and "Dashboard" on workbench routes. On workbench routes, a LogConsole trigger also appears (hidden on mobile).
+The shell header follows the Gemini Enterprise reference: left rail, `Gemini Enterprise` product lockup, optional `Plus` chip, compact action icons, and a context-sensitive centered page title.
 
 ### Tables
 
@@ -375,7 +375,7 @@ Run list table on Dashboard uses `sm:block hidden`. Structure: `thead` with `sec
 ### Progress & Loading
 
 - **Skeleton loaders:** `.wb-skeleton` — shimmer animation over `secondary` → `accent` → `secondary` gradient. Used while API calls resolve.
-- **Live dot:** `.wb-live-dot` — pulsing green circle indicating an active run. Appears inline next to "Running" status.
+- **Live dot:** `.wb-live-dot` — pulsing status circle indicating an active session. Appears inline next to "Running" status.
 - `md-linear-progress` — used inside run detail header to show iteration progress.
 - `md-circular-progress` — used for stream-loading states within tabs.
 

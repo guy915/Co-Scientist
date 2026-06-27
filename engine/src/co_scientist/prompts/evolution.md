@@ -54,6 +54,8 @@ Before finalizing, verify:
 
 {{supervisor_guidance}}
 
+{{run_guidance}}
+
 ### Literature Review and Analytical Rationale
 
 The following represents an analysis of relevant scientific literature:

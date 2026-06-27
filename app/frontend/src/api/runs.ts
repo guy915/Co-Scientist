@@ -1,11 +1,38 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
 import {getClientId} from '@/lib/client_id';
+import {
+  isOfflineRunId,
+  offlineAnswer,
+  offlineCancelRun,
+  offlineCitations,
+  offlineCreateRun,
+  offlineEvents,
+  offlineEvidence,
+  offlineGetRun,
+  offlineHypotheses,
+  offlineListDemoRuns,
+  offlineListMessages,
+  offlineListRuns,
+  offlineMatches,
+  offlineReport,
+  offlineReviews,
+  offlineSafety,
+  offlineSendMessage,
+  offlineStartRun,
+  offlineStatus,
+} from './offline_runs';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 
 function clientHeaders(): Record<string, string> {
   return {'X-Client-ID': getClientId()};
+}
+
+class ApiUnavailableError extends Error {
+  constructor() {
+    super('API unavailable');
+  }
 }
 
 /** Lifecycle state of a run as reported by the backend. */
@@ -25,6 +52,47 @@ export type RunMode = 'default';
 /** Former generation profile labels still accepted by the backend. */
 export type LegacyRunProfile = RunMode | 'standard' | 'advanced';
 
+/** Research style selected in the AI Co-Scientist setup flow. */
+export type RunFocus =
+  | 'prefer_evidence'
+  | 'balance'
+  | 'prefer_novelty'
+  | 'breakthrough';
+
+/** Depth preset selected in the AI Co-Scientist setup flow. */
+export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
+
+/** Durable setup payload persisted inside `Run.config.setup`. */
+export interface RunSetupConfig {
+  goal: string;
+  requirements: string[];
+  attributes: string[];
+  criteria: string[];
+  focus: RunFocus;
+  tier: RunTier;
+}
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue =
+  | JsonPrimitive
+  | JsonValue[]
+  | {[key: string]: JsonValue};
+
+/** Typed run configuration JSON stored by the backend. */
+export interface RunConfig {
+  initial_hypotheses_count?: number;
+  max_iterations?: number;
+  evolution_max_count?: number;
+  tournament_pairs?: number;
+  evidence_count?: number;
+  literature_review_papers_count?: number;
+  k_factor?: number;
+  tier?: RunTier;
+  focus?: RunFocus;
+  setup?: RunSetupConfig;
+  [key: string]: JsonValue | RunSetupConfig | undefined;
+}
+
 /** A hypothesis-generation run with its goal, config, and current status. */
 export interface Run {
   id: string;
@@ -33,7 +101,7 @@ export interface Run {
   profile: LegacyRunProfile;
   status: RunStatus;
   provider: 'mock' | 'engine';
-  config: Record<string, number | string>;
+  config: RunConfig;
   is_demo?: boolean;
   created_at: number;
   updated_at: number;
@@ -206,9 +274,18 @@ export interface Message {
 async function jsonOrThrow<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    if (res.status === 500 && !text.trim()) throw new ApiUnavailableError();
     throw new Error(`${res.status} ${text || res.statusText}`);
   }
   return (await res.json()) as T;
+}
+
+function isApiUnavailable(err: unknown): boolean {
+  return (
+    err instanceof ApiUnavailableError ||
+    (err instanceof TypeError &&
+      /fetch|network|load failed|failed to fetch/i.test(err.message))
+  );
 }
 
 /**
@@ -221,18 +298,28 @@ export async function createRun(input: {
   research_goal: string;
   run_mode?: RunMode;
   profile?: LegacyRunProfile;
+  requirements?: string[];
+  attributes?: string[];
+  criteria?: string[];
+  focus?: RunFocus;
+  tier?: RunTier;
   initial_hypotheses_count?: number;
   max_iterations?: number;
   evolution_max_count?: number;
   k_factor?: number;
   notes?: string;
 }): Promise<Run> {
-  const res = await fetch(`${API_BASE_URL}/api/runs`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', ...clientHeaders()},
-    body: JSON.stringify(input),
-  });
-  return jsonOrThrow<Run>(res);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', ...clientHeaders()},
+      body: JSON.stringify(input),
+    });
+    return await jsonOrThrow<Run>(res);
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineCreateRun(input);
+    throw err;
+  }
 }
 
 /**
@@ -243,11 +330,19 @@ export async function createRun(input: {
  */
 export async function listRuns(limit?: number): Promise<Run[]> {
   const query = limit === undefined ? '' : `?limit=${limit}`;
-  const res = await fetch(`${API_BASE_URL}/api/runs${query}`, {
-    headers: clientHeaders(),
-  });
-  const data = await jsonOrThrow<{runs: Run[]}>(res);
-  return data.runs;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs${query}`, {
+      headers: clientHeaders(),
+    });
+    const data = await jsonOrThrow<{runs: Run[]}>(res);
+    return data.runs;
+  } catch (err) {
+    if (isApiUnavailable(err)) {
+      const runs = offlineListRuns();
+      return limit === undefined ? runs : runs.slice(0, limit);
+    }
+    throw err;
+  }
 }
 
 /**
@@ -256,9 +351,14 @@ export async function listRuns(limit?: number): Promise<Run[]> {
  * @returns The seeded demo runs.
  */
 export async function listDemoRuns(): Promise<Run[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/demo`);
-  const data = await jsonOrThrow<{runs: Run[]}>(res);
-  return data.runs;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/demo`);
+    const data = await jsonOrThrow<{runs: Run[]}>(res);
+    return data.runs;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineListDemoRuns();
+    throw err;
+  }
 }
 
 /**
@@ -268,8 +368,13 @@ export async function listDemoRuns(): Promise<Run[]> {
  * @returns The run and its aggregate counts.
  */
 export async function getRun(id: string): Promise<RunWithSummary> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}`);
-  return jsonOrThrow<RunWithSummary>(res);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}`);
+    return await jsonOrThrow<RunWithSummary>(res);
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineGetRun(id);
+    throw err;
+  }
 }
 
 /**
@@ -283,12 +388,17 @@ export async function startRun(
   id: string,
   body: {force_provider?: 'mock' | 'engine'} = {},
 ): Promise<{id: string; status: string}> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/start`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
-  return jsonOrThrow(res);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/start`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    return await jsonOrThrow(res);
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineStartRun(id);
+    throw err;
+  }
 }
 
 /**
@@ -300,10 +410,15 @@ export async function startRun(
 export async function cancelRun(
   id: string,
 ): Promise<{id: string; status: string}> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/cancel`, {
-    method: 'POST',
-  });
-  return jsonOrThrow(res);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/cancel`, {
+      method: 'POST',
+    });
+    return await jsonOrThrow(res);
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineCancelRun(id);
+    throw err;
+  }
 }
 
 /**
@@ -313,9 +428,14 @@ export async function cancelRun(
  * @returns The run's hypotheses.
  */
 export async function getHypotheses(id: string): Promise<Hypothesis[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/hypotheses`);
-  const data = await jsonOrThrow<{hypotheses: Hypothesis[]}>(res);
-  return data.hypotheses;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/hypotheses`);
+    const data = await jsonOrThrow<{hypotheses: Hypothesis[]}>(res);
+    return data.hypotheses;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineHypotheses(id);
+    throw err;
+  }
 }
 
 /**
@@ -325,9 +445,14 @@ export async function getHypotheses(id: string): Promise<Hypothesis[]> {
  * @returns The run's evidence records.
  */
 export async function getEvidence(id: string): Promise<Evidence[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/evidence`);
-  const data = await jsonOrThrow<{evidence: Evidence[]}>(res);
-  return data.evidence;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/evidence`);
+    const data = await jsonOrThrow<{evidence: Evidence[]}>(res);
+    return data.evidence;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineEvidence(id);
+    throw err;
+  }
 }
 
 /**
@@ -337,9 +462,14 @@ export async function getEvidence(id: string): Promise<Evidence[]> {
  * @returns The run's match rows.
  */
 export async function getMatches(id: string): Promise<MatchRow[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/matches`);
-  const data = await jsonOrThrow<{matches: MatchRow[]}>(res);
-  return data.matches;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/matches`);
+    const data = await jsonOrThrow<{matches: MatchRow[]}>(res);
+    return data.matches;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineMatches(id);
+    throw err;
+  }
 }
 
 /**
@@ -349,9 +479,14 @@ export async function getMatches(id: string): Promise<MatchRow[]> {
  * @returns The run's reviews.
  */
 export async function getReviews(id: string): Promise<Review[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/reviews`);
-  const data = await jsonOrThrow<{reviews: Review[]}>(res);
-  return data.reviews;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/reviews`);
+    const data = await jsonOrThrow<{reviews: Review[]}>(res);
+    return data.reviews;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineReviews(id);
+    throw err;
+  }
 }
 
 /**
@@ -361,9 +496,14 @@ export async function getReviews(id: string): Promise<Review[]> {
  * @returns The run's safety decisions.
  */
 export async function getSafety(id: string): Promise<SafetyDecision[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/safety`);
-  const data = await jsonOrThrow<{safety: SafetyDecision[]}>(res);
-  return data.safety;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/safety`);
+    const data = await jsonOrThrow<{safety: SafetyDecision[]}>(res);
+    return data.safety;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineSafety(id);
+    throw err;
+  }
 }
 
 /**
@@ -373,9 +513,14 @@ export async function getSafety(id: string): Promise<SafetyDecision[]> {
  * @returns The run's citation rows.
  */
 export async function getCitations(id: string): Promise<CitationRow[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/citations`);
-  const data = await jsonOrThrow<{citations: CitationRow[]}>(res);
-  return data.citations;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/citations`);
+    const data = await jsonOrThrow<{citations: CitationRow[]}>(res);
+    return data.citations;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineCitations(id);
+    throw err;
+  }
 }
 
 /**
@@ -385,9 +530,14 @@ export async function getCitations(id: string): Promise<CitationRow[]> {
  * @returns The report, or null when not yet generated.
  */
 export async function getReport(id: string): Promise<Report | null> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
-  if (res.status === 404) return null;
-  return jsonOrThrow<Report>(res);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
+    if (res.status === 404) return null;
+    return await jsonOrThrow<Report>(res);
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineReport(id);
+    throw err;
+  }
 }
 
 /**
@@ -426,8 +576,13 @@ export interface RunEvent {
  * @returns The run's events in sequence order.
  */
 export async function getRunEventsLog(id: string): Promise<RunEvent[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/events/log`);
-  return jsonOrThrow<RunEvent[]>(res);
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${id}/events/log`);
+    return await jsonOrThrow<RunEvent[]>(res);
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineEvents(id);
+    throw err;
+  }
 }
 
 /** Backend diagnostics describing provider and tool availability. */
@@ -449,8 +604,13 @@ export interface SystemStatus {
  * @returns The current system status.
  */
 export async function getSystemStatus(): Promise<SystemStatus> {
-  const res = await fetch(`${API_BASE_URL}/status`);
-  return jsonOrThrow<SystemStatus>(res);
+  try {
+    const res = await fetch(`${API_BASE_URL}/status`);
+    return await jsonOrThrow<SystemStatus>(res);
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineStatus();
+    throw err;
+  }
 }
 
 /**
@@ -460,12 +620,21 @@ export async function getSystemStatus(): Promise<SystemStatus> {
  * @returns The run's messages.
  */
 export async function listMessages(runId: string): Promise<Message[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
-    headers: clientHeaders(),
-  });
-  if (!res.ok) throw new Error(`listMessages ${res.status}`);
-  const data = (await res.json()) as {messages: Message[]};
-  return data.messages;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
+      headers: clientHeaders(),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      if (res.status === 500 && !text.trim()) throw new ApiUnavailableError();
+      throw new Error(`listMessages ${res.status}`);
+    }
+    const data = (await res.json()) as {messages: Message[]};
+    return data.messages;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineListMessages(runId);
+    throw err;
+  }
 }
 
 /**
@@ -481,13 +650,22 @@ export async function sendMessage(
   content: string,
   kind?: 'steering' | 'qa',
 ): Promise<Message> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', ...clientHeaders()},
-    body: JSON.stringify({content, ...(kind ? {kind} : {})}),
-  });
-  if (!res.ok) throw new Error(`sendMessage ${res.status}`);
-  return (await res.json()) as Message;
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', ...clientHeaders()},
+      body: JSON.stringify({content, ...(kind ? {kind} : {})}),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      if (res.status === 500 && !text.trim()) throw new ApiUnavailableError();
+      throw new Error(`sendMessage ${res.status}`);
+    }
+    return (await res.json()) as Message;
+  } catch (err) {
+    if (isApiUnavailable(err)) return offlineSendMessage(runId, content, kind);
+    throw err;
+  }
 }
 
 /**
@@ -498,4 +676,15 @@ export async function sendMessage(
  */
 export function askQuestionUrl(runId: string): string {
   return `${API_BASE_URL}/api/runs/${runId}/messages/ask`;
+}
+
+export function canUseOfflineRun(runId: string): boolean {
+  return isOfflineRunId(runId);
+}
+
+export function answerOfflineQuestion(
+  runId: string,
+  question: string,
+): Message {
+  return offlineAnswer(runId, question);
 }

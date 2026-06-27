@@ -6,9 +6,8 @@ import {MdDialog} from '@/md3/md_dialog';
 
 const SHORTCUTS: {keys: string; description: string}[] = [
   {keys: '?', description: 'Open this shortcut help'},
-  {keys: 'g d', description: 'Go to dashboard'},
-  {keys: 'g n', description: 'Start a new run'},
-  {keys: '← / →', description: 'Move between tabs (on a run page)'},
+  {keys: 'g n', description: 'Start a new research goal'},
+  {keys: '← / →', description: 'Move between goal report tabs'},
   {keys: 'Esc', description: 'Close any open dialog'},
 ];
 

@@ -77,8 +77,8 @@ export function EvidenceTab({
       >
         <p>No evidence retrieved for this run.</p>
         <p className="text-xs opacity-75">
-          Literature review requires an MCP server (PubMed / INDRA). Without one
-          the engine generates hypotheses from the model's training data only.
+          Context review requires a connected data source. Without one the
+          agents generate hypotheses from model context only.
         </p>
       </div>
     );

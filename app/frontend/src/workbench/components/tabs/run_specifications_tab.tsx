@@ -52,6 +52,7 @@ export function RunSpecificationsTab({
   const generated = hypotheses.filter(h => !h.parent_id).length;
   const evolved = hypotheses.filter(h => h.parent_id).length;
   const verifiedCitations = report?.payload.citation_summary?.verified ?? 0;
+  const setup = run.config.setup;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
@@ -64,11 +65,25 @@ export function RunSpecificationsTab({
       >
         <h2 className="mb-3 text-base font-semibold">Run setup</h2>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <Spec label="Provider" value={run.provider} />
           <Spec label="Status" value={run.status} />
+          <Spec
+            label="Focus"
+            value={setup?.focus ?? run.config.focus ?? 'balance'}
+          />
+          <Spec
+            label="Tier"
+            value={setup?.tier ?? run.config.tier ?? 'standard'}
+          />
           <Spec label="Created" value={fmtDate(run.created_at)} />
           <Spec label="Updated" value={fmtDate(run.updated_at)} />
         </dl>
+        {setup && (
+          <div className="mt-4 space-y-3">
+            <SetupList label="Requirements" values={setup.requirements} />
+            <SetupList label="Attributes" values={setup.attributes} />
+            <SetupList label="Criteria" values={setup.criteria} />
+          </div>
+        )}
       </section>
 
       <section
@@ -93,6 +108,16 @@ export function RunSpecificationsTab({
             value={fmtNumber(run.config.evolution_max_count as number)}
           />
           <Spec
+            label="Tournament pairs"
+            value={fmtNumber(run.config.tournament_pairs as number)}
+          />
+          <Spec
+            label="Literature count"
+            value={fmtNumber(
+              run.config.literature_review_papers_count as number,
+            )}
+          />
+          <Spec
             label="K-factor"
             value={fmtNumber(run.config.k_factor as number)}
           />
@@ -108,8 +133,8 @@ export function RunSpecificationsTab({
       >
         <h2 className="mb-3 text-base font-semibold">Artifacts</h2>
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
-          <Spec label="Generated ideas" value={fmtNumber(generated)} />
-          <Spec label="Evolved ideas" value={fmtNumber(evolved)} />
+          <Spec label="Generated hypotheses" value={fmtNumber(generated)} />
+          <Spec label="Evolved hypotheses" value={fmtNumber(evolved)} />
           <Spec label="Knowledge sources" value={fmtNumber(evidence.length)} />
           <Spec label="Tournament matches" value={fmtNumber(matches.length)} />
           <Spec
@@ -173,6 +198,30 @@ function Spec({label, value}: {label: string; value: string}) {
         {label}
       </dt>
       <dd className="mt-1 font-medium capitalize">{value}</dd>
+    </div>
+  );
+}
+
+function SetupList({label, values}: {label: string; values: string[]}) {
+  if (!values.length) return null;
+  return (
+    <div>
+      <div
+        className="mb-1 text-xs uppercase tracking-wide"
+        style={{color: 'var(--md-sys-color-on-surface-variant)'}}
+      >
+        {label}
+      </div>
+      <ul className="space-y-1 text-sm">
+        {values.map(value => (
+          <li key={value} className="flex gap-2">
+            <md-icon style={{fontSize: '16px'}} aria-hidden="true">
+              check_circle
+            </md-icon>
+            <span>{value}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
