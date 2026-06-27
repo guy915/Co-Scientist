@@ -1,5 +1,5 @@
 <!--
-SOURCE: references/core/google-co-scientist/media/live-footage/run-results.mp4
+SOURCE: references/core/google-co-scientist/media/live-footage/mash-fibrosis-research-plan-and-run.mp4
   First half of the 80-second Gemini Enterprise live-footage capture.
   Visible screen: Google Co-Scientist "Research plan" for the chat
   "Epigenetic Reversal of MASH Fibrosis".
