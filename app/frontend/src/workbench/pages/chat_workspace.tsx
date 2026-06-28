@@ -362,8 +362,6 @@ export function ChatWorkspace() {
   const selectedSuggestion = SUGGESTIONS.find(
     suggestion => suggestion.full === input.trim(),
   );
-  const activeSuggestionText =
-    hoveredSuggestion ?? selectedSuggestion?.full ?? '';
 
   return (
     <div className="cosci-workspace">
@@ -385,34 +383,46 @@ export function ChatWorkspace() {
                 ))}
               </ol>
 
-              <p
-                className="reference-prompt-echo"
-                aria-hidden={!activeSuggestionText}
-              >
-                {activeSuggestionText}
-              </p>
-
               <div className="reference-suggestion-row">
-                {SUGGESTIONS.map(suggestion => (
-                  <button
-                    key={suggestion.short}
-                    type="button"
-                    className={
-                      selectedSuggestion?.full === suggestion.full
-                        ? 'selected'
-                        : ''
-                    }
-                    onPointerEnter={() => setHoveredSuggestion(suggestion.full)}
-                    onPointerLeave={() => setHoveredSuggestion(null)}
-                    onFocus={() => setHoveredSuggestion(suggestion.full)}
-                    onBlur={() => setHoveredSuggestion(null)}
-                    onClick={() => setInput(suggestion.full)}
-                  >
-                    <span className="reference-suggestion-text">
-                      {suggestion.short}
-                    </span>
-                  </button>
-                ))}
+                {SUGGESTIONS.map(suggestion => {
+                  const isSelected =
+                    selectedSuggestion?.full === suggestion.full;
+                  const isPreviewed = hoveredSuggestion
+                    ? hoveredSuggestion === suggestion.full
+                    : isSelected;
+                  return (
+                    <div
+                      key={suggestion.short}
+                      className="reference-suggestion-slot"
+                    >
+                      <p
+                        className={
+                          isPreviewed
+                            ? 'reference-suggestion-preview visible'
+                            : 'reference-suggestion-preview'
+                        }
+                        aria-hidden={!isPreviewed}
+                      >
+                        {suggestion.full}
+                      </p>
+                      <button
+                        type="button"
+                        className={isSelected ? 'selected' : ''}
+                        onPointerEnter={() =>
+                          setHoveredSuggestion(suggestion.full)
+                        }
+                        onPointerLeave={() => setHoveredSuggestion(null)}
+                        onFocus={() => setHoveredSuggestion(suggestion.full)}
+                        onBlur={() => setHoveredSuggestion(null)}
+                        onClick={() => setInput(suggestion.full)}
+                      >
+                        <span className="reference-suggestion-text">
+                          {suggestion.short}
+                        </span>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
 
               <Composer

@@ -253,17 +253,20 @@ describe('ChatWorkspace', () => {
       .closest('.reference-composer')
       ?.getBoundingClientRect().top;
 
-    fireEvent.pointerEnter(
-      screen.getByRole('button', {
-        name: 'Find new therapeutic targets for M.tuberculosis by combining...',
-      }),
-    );
+    const suggestion = screen.getByRole('button', {
+      name: 'Find new therapeutic targets for M.tuberculosis by combining...',
+    });
 
-    expect(
-      screen.getByText(
-        'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
-      ),
-    ).toBeInTheDocument();
+    fireEvent.pointerEnter(suggestion);
+
+    const preview = screen.getByText(
+      'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+    );
+    expect(preview).toBeInTheDocument();
+    expect(preview).toHaveClass('visible');
+    expect(preview.closest('.reference-suggestion-slot')).toContainElement(
+      suggestion,
+    );
     expect(
       composer.closest('.reference-composer')?.getBoundingClientRect().top,
     ).toBe(originalComposerTop);
