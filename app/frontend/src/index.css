@@ -2165,14 +2165,14 @@ body {
 
 .idea-split-grid.reference .idea-rank-row {
   display: grid;
-  min-height: 9.85rem;
-  grid-template-columns: 2rem minmax(0, 1fr);
-  gap: 0.7rem;
+  min-height: 8.9rem;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.65rem;
   align-items: start;
   border: 1px solid #dadce0;
   border-radius: 0.5rem;
   background: #fff;
-  padding: 1rem;
+  padding: 0.9rem;
   text-align: left;
 }
 
@@ -2185,21 +2185,21 @@ body {
 .idea-split-grid.reference .idea-rank-number,
 .idea-elo-chip {
   display: inline-grid;
-  min-width: 2rem;
-  height: 2rem;
+  min-width: 1.75rem;
+  height: 1.75rem;
   place-items: center;
   border: 0;
   border-radius: 999px;
   background: #e6f4ff;
   color: #202124;
-  font-size: 0.86rem;
+  font-size: 0.78rem;
   font-weight: 500;
 }
 
 .idea-elo-chip {
   width: fit-content;
-  min-width: 7.1rem;
-  margin-bottom: 0.9rem;
+  min-width: 6.35rem;
+  margin-bottom: 0.75rem;
 }
 
 .idea-split-grid.reference .idea-rank-content {
@@ -2208,7 +2208,7 @@ body {
 
 .idea-split-grid.reference .idea-rank-title {
   margin-top: 0.15rem;
-  font-size: 1rem;
+  font-size: 0.9rem;
   line-height: 1.3;
 }
 
@@ -2216,7 +2216,7 @@ body {
   display: -webkit-box;
   margin-top: 0.45rem;
   overflow: hidden;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -2226,10 +2226,10 @@ body {
   min-width: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  gap: 1.75rem;
+  gap: 1.35rem;
   border-right: 0;
   background: transparent;
-  padding: 1.55rem 2rem 4rem;
+  padding: 1.45rem 1.75rem 3.5rem;
 }
 
 .idea-breadcrumb {
@@ -2265,7 +2265,7 @@ body {
 .idea-detail-section h2 {
   margin: 0;
   color: #202124;
-  font-size: clamp(1.8rem, 3vw, 2.25rem);
+  font-size: clamp(1.5rem, 2.2vw, 1.9rem);
   font-weight: 400;
   line-height: 1.15;
 }
@@ -2273,14 +2273,14 @@ body {
 .idea-detail-section h3 {
   margin: 0;
   color: #202124;
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 600;
   text-transform: none;
 }
 
 .idea-detail-section p {
-  font-size: 1rem;
-  line-height: 1.55;
+  font-size: 0.88rem;
+  line-height: 1.5;
   overflow-wrap: anywhere;
 }
 
@@ -2288,22 +2288,24 @@ body {
   align-self: start;
   display: grid;
   min-width: 0;
-  gap: 1.4rem;
+  gap: 1.1rem;
   margin: 1.25rem 1.25rem 0 0.5rem;
   border-radius: 0.45rem;
   background: #eef3f8;
-  padding: 1.25rem;
+  padding: 1rem;
 }
 
 .idea-sections-rail span {
   color: #3c4043;
-  font-size: 0.85rem;
+  font-size: 0.78rem;
 }
 
 .idea-sections-rail a,
 .idea-open-detail-link {
   color: #1967d2;
+  font-size: 0.9rem;
   font-weight: 600;
+  line-height: 1.35;
   text-decoration: none;
 }
 
