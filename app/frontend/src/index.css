@@ -5394,13 +5394,18 @@ body {
 /* Home composer interaction parity: hover previews should not reflow the page. */
 .home-shell .reference-prompt-echo,
 [data-theme="dark"] .home-shell .reference-prompt-echo {
-  min-height: 1.25rem;
+  display: -webkit-box;
+  height: 2.5rem;
+  min-height: 2.5rem;
   margin-top: 3.65rem;
   margin-bottom: 0.6rem;
+  overflow: hidden;
   font-size: 0.86rem;
   line-height: 1.25rem;
   opacity: 1;
   transform: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   transition:
     color 180ms cubic-bezier(0.2, 0, 0, 1),
     opacity 180ms cubic-bezier(0.2, 0, 0, 1);
@@ -5440,6 +5445,34 @@ body {
   height: 3.2rem;
   min-height: 3.2rem;
   max-height: 3.2rem;
+}
+
+.home-shell .reference-composer label,
+[data-theme="dark"] .home-shell .reference-composer label {
+  position: relative;
+  display: block;
+  min-height: 3.2rem;
+}
+
+.home-shell .reference-composer label > span,
+[data-theme="dark"] .home-shell .reference-composer label > span {
+  position: absolute;
+  top: 0;
+  left: 1.55rem;
+  z-index: 1;
+  height: 1.5rem;
+  pointer-events: none;
+}
+
+.home-shell .reference-composer textarea,
+[data-theme="dark"] .home-shell .reference-composer textarea {
+  position: relative;
+  z-index: 2;
+  height: 3.2rem;
+  min-height: 3.2rem;
+  max-height: 3.2rem;
+  margin: 0;
+  line-height: 1.5rem;
 }
 
 /* Light-mode parity fixes for the Google-style shell and goal report. */
