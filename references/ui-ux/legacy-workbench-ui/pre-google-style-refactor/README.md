@@ -16,6 +16,11 @@ Included source:
 - `app/frontend/src/api/`, `src/hooks/`, `src/lib/`, `src/index.css`, and
   `DESIGN.md` - supporting API types, hooks, utilities, styling, and design
   notes needed to understand the old UI.
+- `preview/old-workbench-mock-api.mjs` - local fixture API used to repopulate
+  the old dashboard, example runs, selected run tabs, report, and progress
+  timeline.
+- `media/` - 1600x800 verification screenshots of the preserved old dashboard,
+  ideas tab, summary tab, and progress tab.
 
 To recover a file, copy it from `source/` back to the matching app path and
 adapt imports against the current frontend as needed.
