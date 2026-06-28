@@ -122,14 +122,26 @@ describe('Layout', () => {
     expect(screen.queryByText('Appearance')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: /Logs 23/i}));
+    expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
+    expect(screen.getByText('All runs')).toBeInTheDocument();
+    expect(screen.getByText('Total 23')).toBeInTheDocument();
     expect(
-      screen.getByText('Supervisor scoped the research goal'),
+      screen.getByText(/Export includes loaded run events/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
+    expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
+    expect(
+      screen.getByText('No diagnostic events loaded.'),
     ).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', {name: 'Refresh'}));
+    expect(screen.getByRole('button', {name: /Logs 23/i})).toBeInTheDocument();
+    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+
     fireEvent.pointerDown(screen.getByText('Workspace content'));
-    expect(
-      screen.queryByText('Supervisor scoped the research goal'),
-    ).toBeNull();
+    expect(screen.queryByText('Diagnostic Logs')).toBeNull();
   });
 
   it('does not show an overflow menu on run routes', () => {

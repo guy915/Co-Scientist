@@ -9,6 +9,68 @@ import {useTheme} from './theme_context';
 
 type ShellPanel = 'settings' | 'logs';
 
+const diagnosticLogEntries = [
+  {
+    id: 1,
+    time: '11:05:03 AM',
+    run: 'Find new therapeutic targets for M',
+    stage: 'LIFECYCLE',
+    payload: {
+      event: 'created',
+      profile: 'standard',
+      provider: 'engine',
+    },
+  },
+  {
+    id: 2,
+    time: '11:05:03 AM',
+    run: 'Find new therapeutic targets for M',
+    stage: 'LIFECYCLE',
+    payload: {
+      event: 'queued',
+    },
+  },
+  {
+    id: 3,
+    time: '11:05:04 AM',
+    run: 'Find new therapeutic targets for M',
+    stage: 'STATUS',
+    payload: {
+      status: 'running',
+    },
+  },
+  {
+    id: 4,
+    time: '11:05:09 AM',
+    run: 'Find new therapeutic targets for M',
+    stage: 'SUPERVISOR',
+    payload: {
+      phase: 'scoped',
+      requirements: 4,
+    },
+  },
+  {
+    id: 5,
+    time: '11:05:22 AM',
+    run: 'Find new therapeutic targets for M',
+    stage: 'LITERATURE',
+    payload: {
+      evidence: 8,
+      papers: 12,
+    },
+  },
+  {
+    id: 6,
+    time: '11:05:40 AM',
+    run: 'Find new therapeutic targets for M',
+    stage: 'TOURNAMENT',
+    payload: {
+      matches: 12,
+      leading_score: 1290,
+    },
+  },
+];
+
 /**
  * Renders the app shell with header navigation, main content, and footer.
  *
@@ -22,10 +84,14 @@ export function Layout({children}: {children: ReactNode}) {
   const [history, setHistory] = useState<Run[]>([]);
   const [navOpen, setNavOpen] = useState(true);
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  const [logsCleared, setLogsCleared] = useState(false);
+  const [logsCopied, setLogsCopied] = useState(false);
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
   const headerTitle = overrideTitle || '';
+  const visibleLogEntries = logsCleared ? [] : diagnosticLogEntries;
+  const logCount = logsCleared ? 0 : 23;
   const shellClass = [
     'google-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
@@ -50,6 +116,38 @@ export function Layout({children}: {children: ReactNode}) {
 
   function togglePanel(panel: ShellPanel) {
     setActivePanel(current => (current === panel ? null : panel));
+  }
+
+  function refreshLogs() {
+    setLogsCleared(false);
+    setLogsCopied(false);
+  }
+
+  function clearLogs() {
+    setLogsCleared(true);
+    setLogsCopied(false);
+  }
+
+  async function copyLogs() {
+    const text = JSON.stringify(visibleLogEntries, null, 2);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        throw new Error('Clipboard API unavailable');
+      }
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.append(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+    setLogsCopied(true);
   }
 
   useEffect(() => {
@@ -222,25 +320,67 @@ export function Layout({children}: {children: ReactNode}) {
             <button
               type="button"
               className="ucs-logs-button"
-              aria-label="Logs 23"
+              aria-label={`Logs ${logCount}`}
               data-tooltip="Logs"
               aria-expanded={activePanel === 'logs'}
               onClick={() => togglePanel('logs')}
             >
               <md-icon aria-hidden="true">expand_more</md-icon>
               <span>Logs</span>
-              <span className="ucs-logs-count">23</span>
+              <span className="ucs-logs-count">{logCount}</span>
             </button>
             {activePanel === 'logs' && (
               <ShellPopover className="ucs-popover--logs">
-                <div className="ucs-logs-menu-heading">
-                  <span>Logs</span>
-                  <span>23</span>
+                <div className="ucs-diagnostic-header">
+                  <div className="ucs-diagnostic-title">
+                    <h2>Diagnostic Logs</h2>
+                    <span>All runs</span>
+                  </div>
+                  <div className="ucs-diagnostic-actions">
+                    <button type="button" onClick={refreshLogs}>
+                      <md-icon aria-hidden="true">refresh</md-icon>
+                      <span>Refresh</span>
+                    </button>
+                    <button type="button" onClick={copyLogs}>
+                      <md-icon aria-hidden="true">content_copy</md-icon>
+                      <span>{logsCopied ? 'Copied' : 'Copy all'}</span>
+                    </button>
+                    <button type="button" onClick={clearLogs}>
+                      <md-icon aria-hidden="true">delete_sweep</md-icon>
+                      <span>Clear</span>
+                    </button>
+                  </div>
                 </div>
-                <div className="ucs-logs-menu-list">
-                  <span>Supervisor scoped the research goal</span>
-                  <span>Literature review gathered evidence</span>
-                  <span>Tournament ranking completed</span>
+                <div className="ucs-diagnostic-intro">
+                  <p>
+                    Export includes loaded run events, agent-stage updates,
+                    reports, safety decisions, and failure context.
+                  </p>
+                  <div className="ucs-diagnostic-chips">
+                    <span>Total {logCount}</span>
+                    <span className="error">Errors 1</span>
+                    <span>Success 2</span>
+                    <span>Info {Math.max(logCount - 3, 0)}</span>
+                    <span>Runs 2</span>
+                  </div>
+                </div>
+                <div className="ucs-diagnostic-list" aria-label="Log events">
+                  {visibleLogEntries.map(entry => (
+                    <article key={entry.id} className="ucs-diagnostic-entry">
+                      <div className="ucs-diagnostic-entry-meta">
+                        <span>#{entry.id}</span>
+                        <span>[{entry.time}]</span>
+                        <span>{entry.run}</span>
+                        <strong>{entry.stage}:</strong>
+                      </div>
+                      <pre>{JSON.stringify(entry.payload, null, 2)}</pre>
+                    </article>
+                  ))}
+                  {visibleLogEntries.length === 0 && (
+                    <p className="ucs-diagnostic-empty">
+                      No diagnostic events loaded.
+                    </p>
+                  )}
                 </div>
               </ShellPopover>
             )}
