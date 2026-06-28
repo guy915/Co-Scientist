@@ -22,11 +22,19 @@ import {
   createRun,
   listDemoRuns,
   listRuns,
+  type RunFocus,
+  type RunTier,
   type Run,
   startRun,
 } from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
-import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
+import {
+  FOCUS_OPTIONS,
+  inferRunSpec,
+  type InferredRunSpec,
+  reviseRunSpec,
+  TIER_OPTIONS,
+} from '../run_spec';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 
 interface ChatEntry {
@@ -329,6 +337,12 @@ export function ChatWorkspace() {
         <RunSpecCard
           spec={draftSpec}
           isStarting={isStarting}
+          onFocusChange={focus =>
+            setDraftSpec(current => (current ? {...current, focus} : current))
+          }
+          onTierChange={tier =>
+            setDraftSpec(current => (current ? {...current, tier} : current))
+          }
           onCancel={() => setDraftSpec(null)}
           onStart={() => void handleStartRun()}
         />
@@ -664,11 +678,15 @@ function ChatBubble({message}: {message: ChatEntry}) {
 function RunSpecCard({
   spec,
   isStarting,
+  onFocusChange,
+  onTierChange,
   onCancel,
   onStart,
 }: {
   spec: InferredRunSpec;
   isStarting: boolean;
+  onFocusChange: (focus: RunFocus) => void;
+  onTierChange: (tier: RunTier) => void;
   onCancel: () => void;
   onStart: () => void;
 }) {
@@ -702,6 +720,20 @@ function RunSpecCard({
           <SpecList label="Attributes" values={spec.attributes} />
           <SpecList label="Criteria" values={spec.criteria} />
         </dl>
+        <RunOptionGroup
+          label="Focus"
+          name="focus"
+          value={spec.focus}
+          options={FOCUS_OPTIONS}
+          onChange={value => onFocusChange(value as RunFocus)}
+        />
+        <RunOptionGroup
+          label="Tier"
+          name="tier"
+          value={spec.tier}
+          options={TIER_OPTIONS}
+          onChange={value => onTierChange(value as RunTier)}
+        />
         <div className="reference-setup-actions">
           <button type="button" onClick={onCancel} disabled={isStarting}>
             Cancel
@@ -740,5 +772,48 @@ function SpecList({label, values}: {label: string; values: string[]}) {
         ))}
       </ul>
     </SpecRow>
+  );
+}
+
+function RunOptionGroup({
+  label,
+  name,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  name: string;
+  value: string;
+  options: ReadonlyArray<{id: string; label: string; description: string}>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className="reference-option-group" aria-label={label}>
+      <legend>{label}</legend>
+      <div>
+        {options.map(option => (
+          <label
+            key={option.id}
+            className={
+              option.id === value
+                ? 'reference-option-card selected'
+                : 'reference-option-card'
+            }
+          >
+            <input
+              type="radio"
+              name={name}
+              value={option.id}
+              checked={option.id === value}
+              onChange={() => onChange(option.id)}
+            />
+            <span aria-hidden="true" />
+            <strong>{option.label}</strong>
+            <small>{option.description}</small>
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }

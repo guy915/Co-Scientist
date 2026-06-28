@@ -1955,6 +1955,84 @@ body {
   padding-left: 1.35rem;
 }
 
+.reference-option-group {
+  display: grid;
+  gap: 0.9rem;
+  min-width: 0;
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.reference-option-group legend {
+  margin: 0;
+  color: #202124;
+  font-size: 1.18rem;
+  font-weight: 700;
+}
+
+.reference-option-group > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.reference-option-card {
+  position: relative;
+  display: grid;
+  min-height: 4.75rem;
+  cursor: pointer;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
+  column-gap: 0.8rem;
+  align-content: start;
+  border: 1px solid transparent;
+  border-radius: 0.65rem;
+  background: #f1f3f4;
+  color: #202124;
+  padding: 0.85rem 0.95rem;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.reference-option-card input {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.reference-option-card > span {
+  width: 1.28rem;
+  height: 1.28rem;
+  border: 2px solid #5f6368;
+  border-radius: 999px;
+  margin-top: 0.08rem;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.reference-option-card.selected > span {
+  border-color: #8ab4f8;
+  box-shadow: inset 0 0 0 0.25rem #25272d;
+  background: #8ab4f8;
+}
+
+.reference-option-card strong {
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.reference-option-card small {
+  grid-column: 2;
+  color: #5f6368;
+  font-size: 0.92rem;
+  line-height: 1.3;
+}
+
 .reference-setup-actions {
   display: flex;
   justify-content: flex-end;
@@ -3256,14 +3334,24 @@ body {
   font-weight: 400;
 }
 
-[data-theme="dark"] .reference-quiet-controls {
-  border-top: 1px solid var(--cosci-border);
+[data-theme="dark"] .reference-option-group legend {
+  color: var(--cosci-text);
 }
 
-[data-theme="dark"] .reference-quiet-controls select {
-  border: 1px solid var(--cosci-border);
-  background: var(--cosci-bg);
+[data-theme="dark"] .reference-option-card {
+  border-color: transparent;
+  background: #1f2224;
   color: var(--cosci-text);
+}
+
+[data-theme="dark"] .reference-option-card small {
+  color: #bdc1c6;
+}
+
+[data-theme="dark"] .reference-option-card.selected > span {
+  border-color: var(--cosci-blue);
+  box-shadow: inset 0 0 0 0.25rem #1f2224;
+  background: var(--cosci-blue);
 }
 
 [data-theme="dark"] .reference-setup-actions button {

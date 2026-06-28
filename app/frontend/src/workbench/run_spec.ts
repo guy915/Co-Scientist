@@ -32,7 +32,8 @@ export const TIER_OPTIONS: RunTierOption[] = [
   {
     id: 'express',
     label: 'Express',
-    description: 'Quick directional pass for narrowing a question.',
+    description:
+      'Suitable for quick research questions and small-scale experiments.',
     initialHypotheses: 4,
     iterations: 1,
     evolvedHypotheses: 4,
@@ -42,7 +43,8 @@ export const TIER_OPTIONS: RunTierOption[] = [
   {
     id: 'standard',
     label: 'Standard',
-    description: 'Balanced run depth for most research sessions.',
+    description:
+      'Suitable for medium-sized research questions and experiments.',
     initialHypotheses: 8,
     iterations: 2,
     evolvedHypotheses: 8,
@@ -52,7 +54,7 @@ export const TIER_OPTIONS: RunTierOption[] = [
   {
     id: 'extended',
     label: 'Extended',
-    description: 'Broader search with more evolution and ranking.',
+    description: 'Suitable for large-scale research questions and experiments.',
     initialHypotheses: 12,
     iterations: 3,
     evolvedHypotheses: 12,
@@ -62,7 +64,8 @@ export const TIER_OPTIONS: RunTierOption[] = [
   {
     id: 'ultra',
     label: 'Ultra',
-    description: 'Maximum breadth for high-value exploration.',
+    description:
+      'Most compute-intensive, using the largest models for cutting-edge insights. May take longer.',
     initialHypotheses: 16,
     iterations: 4,
     evolvedHypotheses: 16,
@@ -75,25 +78,29 @@ export const FOCUS_OPTIONS: RunFocusOption[] = [
   {
     id: 'prefer_evidence',
     label: 'Prefer evidence',
-    description: 'Favors well-supported, feasible hypotheses.',
+    description:
+      'Prioritizes well-established methods and data for high-confidence, incremental advances.',
     icon: 'fact_check',
   },
   {
     id: 'balance',
-    label: 'Balanced',
-    description: 'Weights novelty, support, and testability evenly.',
+    label: 'Balance',
+    description:
+      'A mix of established techniques and novel approaches for a comprehensive strategy.',
     icon: 'balance',
   },
   {
     id: 'prefer_novelty',
     label: 'Prefer novelty',
-    description: 'Rewards distinct mechanisms and new experiments.',
+    description:
+      'Favors unconventional ideas and exploratory methods for creative, higher-risk solutions.',
     icon: 'auto_awesome',
   },
   {
     id: 'breakthrough',
     label: 'Breakthrough',
-    description: 'Explores high-risk, high-impact hypotheses explicitly.',
+    description:
+      'Focuses on high-risk, high-reward strategies with the potential for paradigm shifts.',
     icon: 'rocket_launch',
   },
 ];
