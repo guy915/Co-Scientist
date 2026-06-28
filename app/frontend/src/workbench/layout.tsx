@@ -94,6 +94,7 @@ export function Layout({children}: {children: ReactNode}) {
             type="button"
             className="ucs-rail-button"
             aria-label="Menu"
+            data-tooltip="Menu"
             aria-expanded={navOpen}
             aria-controls="primary-navigation"
             onClick={toggleNav}
@@ -106,6 +107,7 @@ export function Layout({children}: {children: ReactNode}) {
               className="ucs-nav-item selected"
               title="New chat"
               aria-label="New chat"
+              data-tooltip="New chat"
               onClick={startNewChat}
             >
               <md-icon aria-hidden="true">edit_square</md-icon>
@@ -115,6 +117,7 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-nav-item"
               aria-label="Search"
+              data-tooltip="Search"
               onClick={focusComposer}
             >
               <md-icon aria-hidden="true">search</md-icon>
@@ -137,6 +140,7 @@ export function Layout({children}: {children: ReactNode}) {
             type="button"
             className="ucs-rail-button"
             aria-label="Settings and help"
+            data-tooltip="Settings and help"
             aria-expanded={activePanel === 'settings'}
             onClick={() => togglePanel('settings')}
           >
@@ -210,6 +214,7 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-logs-button"
               aria-label="Logs 23"
+              data-tooltip="Logs"
             >
               <md-icon aria-hidden="true">expand_more</md-icon>
               <span>Logs</span>

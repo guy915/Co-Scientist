@@ -195,6 +195,8 @@ describe('ChatWorkspace', () => {
     expect(screen.getByText('Create a Research goal')).toBeInTheDocument();
     expect(screen.getByText('Generate hypotheses')).toBeInTheDocument();
     expect(screen.getByText('Evaluate and rank')).toBeInTheDocument();
+    expect(screen.queryByText('AI Co-Scientist')).toBeNull();
+    expect(screen.getByText('Ask Co-Scientist')).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeInTheDocument();
     expect(
       await screen.findByText(/ferroptosis in pancreatic cancer cells/i),
@@ -204,6 +206,65 @@ describe('ChatWorkspace', () => {
         name: /ferroptosis in pancreatic cancer cells/i,
       }),
     ).toHaveAttribute('href', '/runs/demo-ferroptosis/details');
+  });
+
+  it('shows four recent cards before loading the rest', async () => {
+    apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.listRuns.mockResolvedValue(
+      Array.from({length: 6}, (_, index) =>
+        minimalRun({
+          id: `run-${index + 1}`,
+          research_goal: `Recent research question ${index + 1}`,
+          created_at: index + 1,
+          updated_at: index + 1,
+          completed_at: index + 2,
+        }),
+      ),
+    );
+
+    renderWorkspace();
+
+    expect(
+      await screen.findAllByText('Recent research question 6'),
+    ).not.toHaveLength(0);
+    expect(screen.getAllByText('Recent research question 3')).not.toHaveLength(
+      0,
+    );
+    expect(screen.queryByText('Recent research question 2')).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
+
+    expect(screen.getAllByText('Recent research question 2')).not.toHaveLength(
+      0,
+    );
+    expect(screen.getAllByText('Recent research question 1')).not.toHaveLength(
+      0,
+    );
+    expect(screen.queryByRole('button', {name: 'Load more'})).toBeNull();
+  });
+
+  it('previews a suggestion without moving the composer', async () => {
+    renderWorkspace();
+
+    const composer = await screen.findByRole('textbox');
+    const originalComposerTop = composer
+      .closest('.reference-composer')
+      ?.getBoundingClientRect().top;
+
+    fireEvent.pointerEnter(
+      screen.getByRole('button', {
+        name: 'Find new therapeutic targets for M.tuberculosis by combining...',
+      }),
+    );
+
+    expect(
+      screen.getByText(
+        'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      composer.closest('.reference-composer')?.getBoundingClientRect().top,
+    ).toBe(originalComposerTop);
   });
 
   it('infers a run spec in chat and starts the durable run on confirmation', async () => {

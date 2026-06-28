@@ -165,6 +165,7 @@ export function ChatWorkspace() {
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
   );
+  const [showAllRecents, setShowAllRecents] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadHistory = useCallback(async () => {
@@ -356,7 +357,8 @@ export function ChatWorkspace() {
     });
   }
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
-  const homeRecentRuns = history.slice(0, 3);
+  const homeRecentRuns = showAllRecents ? history : history.slice(0, 4);
+  const hasMoreRecents = history.length > homeRecentRuns.length;
   const selectedSuggestion = SUGGESTIONS.find(
     suggestion => suggestion.full === input.trim(),
   );
@@ -369,10 +371,6 @@ export function ChatWorkspace() {
         {!hasConversation ? (
           <section className="reference-home-stage">
             <div className="reference-home-main">
-              <div className="google-product-chip reference-chip">
-                <GoogleLabsIcon aria-hidden="true" />
-                <span>AI Co-Scientist</span>
-              </div>
               <h1>Drive novel scientific discovery with Co-Scientist.</h1>
 
               <ol className="reference-step-timeline">
@@ -472,6 +470,15 @@ export function ChatWorkspace() {
                   </li>
                 )}
               </ol>
+              {hasMoreRecents && (
+                <button
+                  type="button"
+                  className="reference-load-more"
+                  onClick={() => setShowAllRecents(true)}
+                >
+                  Load more
+                </button>
+              )}
             </aside>
           </section>
         ) : (
@@ -586,10 +593,10 @@ function Composer({
             {hasRunContext
               ? isEditingSpec
                 ? 'Type to edit session details'
-                : 'Ask AI Co-Scientist'
+                : 'Ask Co-Scientist'
               : setupDraftMode
                 ? 'Type to edit session details'
-                : 'Ask AI Co-Scientist'}
+                : 'Ask Co-Scientist'}
           </span>
           <textarea
             rows={large ? 4 : 3}

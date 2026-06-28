@@ -6049,3 +6049,219 @@ body {
     display: none;
   }
 }
+
+/* Home fidelity polish: keep this last so older reference-pass rules do not
+   reintroduce oversized controls or shifted composer spacing. */
+.ucs-product-lockup svg,
+[data-theme="dark"] .ucs-product-lockup svg {
+  color: #66b2aa;
+}
+
+.ucs-logs-button {
+  height: 2.4rem;
+  gap: 0.48rem;
+  border-radius: 999px;
+  background: var(--idea-ref-purple-bg);
+  color: var(--idea-ref-purple-dark);
+  padding: 0 0.72rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.ucs-logs-button:hover {
+  background: #e6d7ff;
+}
+
+.ucs-logs-button md-icon {
+  font-size: 1.05rem;
+}
+
+.ucs-logs-count {
+  min-width: 1.38rem;
+  height: 1.38rem;
+  background: rgb(142 79 232 / 18%);
+  font-size: 0.72rem;
+}
+
+[data-theme="dark"] .ucs-logs-button {
+  background: #3b2c4f;
+  color: var(--cosci-purple);
+}
+
+[data-theme="dark"] .ucs-logs-button:hover {
+  background: #49345f;
+}
+
+[data-theme="dark"] .ucs-logs-count {
+  background: rgb(197 138 249 / 22%);
+}
+
+.ucs-rail-button,
+.ucs-nav-item,
+.ucs-logs-button {
+  position: relative;
+}
+
+.ucs-rail-button[data-tooltip]::after,
+.ucs-nav-item[data-tooltip]::after,
+.ucs-logs-button[data-tooltip]::after {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 0.55rem);
+  z-index: 120;
+  width: max-content;
+  max-width: 14rem;
+  border-radius: 0.45rem;
+  background: #303134;
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1;
+  opacity: 0;
+  padding: 0.48rem 0.58rem;
+  pointer-events: none;
+  transform: translateY(-50%) scale(0.98);
+  transition:
+    opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+    transform 140ms cubic-bezier(0.2, 0, 0, 1);
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.ucs-logs-button[data-tooltip]::after {
+  right: 0;
+  left: auto;
+  transform: translateY(calc(100% + 0.45rem)) scale(0.98);
+}
+
+.ucs-rail-button[data-tooltip]:hover::after,
+.ucs-rail-button[data-tooltip]:focus-visible::after,
+.ucs-nav-item[data-tooltip]:hover::after,
+.ucs-nav-item[data-tooltip]:focus-visible::after,
+.ucs-logs-button[data-tooltip]:hover::after,
+.ucs-logs-button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(-50%) scale(1);
+  visibility: visible;
+}
+
+.ucs-logs-button[data-tooltip]:hover::after,
+.ucs-logs-button[data-tooltip]:focus-visible::after {
+  transform: translateY(calc(100% + 0.45rem)) scale(1);
+}
+
+.home-shell.nav-open .ucs-nav-top,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-top {
+  align-items: stretch;
+}
+
+.home-shell.nav-open .ucs-nav-top > .ucs-rail-button,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-top > .ucs-rail-button {
+  align-self: flex-start;
+}
+
+.home-shell.nav-open .ucs-nav-item,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-item {
+  justify-content: flex-start;
+}
+
+.home-shell.nav-open .ucs-nav-item md-icon,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-item md-icon {
+  flex: 0 0 auto;
+}
+
+.home-shell .reference-home-stage,
+[data-theme="dark"] .home-shell .reference-home-stage {
+  padding-bottom: clamp(1.6rem, 4vh, 2.6rem);
+}
+
+.home-shell .reference-home-main,
+[data-theme="dark"] .home-shell .reference-home-main {
+  align-content: start;
+  padding-top: clamp(2.4rem, 7vh, 3.5rem);
+}
+
+.home-shell .reference-home-main h1,
+[data-theme="dark"] .home-shell .reference-home-main h1 {
+  margin-top: 0;
+}
+
+.home-shell .reference-step-timeline,
+[data-theme="dark"] .home-shell .reference-step-timeline {
+  margin-top: clamp(3.7rem, 8.5vh, 5.2rem);
+}
+
+.home-shell .reference-prompt-echo,
+[data-theme="dark"] .home-shell .reference-prompt-echo {
+  margin-top: clamp(2.8rem, 7vh, 4.5rem);
+  margin-bottom: 0.55rem;
+}
+
+.home-shell .reference-suggestion-row button,
+[data-theme="dark"] .home-shell .reference-suggestion-row button {
+  display: -webkit-box;
+  min-height: 4.45rem;
+  overflow: hidden;
+  align-content: center;
+  padding: 0.82rem 1rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.home-shell .reference-composer,
+[data-theme="dark"] .home-shell .reference-composer {
+  min-height: 5.65rem;
+  margin-top: 1rem;
+  border-radius: 1.45rem;
+  padding: 0.95rem 1.35rem 0.7rem;
+}
+
+.home-shell .reference-composer label,
+[data-theme="dark"] .home-shell .reference-composer label {
+  min-height: 2.5rem;
+}
+
+.home-shell .reference-composer label > span,
+[data-theme="dark"] .home-shell .reference-composer label > span {
+  left: 0;
+  height: 1.4rem;
+}
+
+.home-shell .reference-composer textarea,
+[data-theme="dark"] .home-shell .reference-composer textarea,
+.home-shell .reference-composer.has-input textarea,
+[data-theme="dark"] .home-shell .reference-composer.has-input textarea {
+  height: 2.5rem;
+  min-height: 2.5rem;
+  max-height: 2.5rem;
+  padding-top: 0;
+  line-height: 1.35;
+}
+
+.home-shell .reference-composer-actions {
+  right: 1.15rem;
+  bottom: 0.48rem;
+  left: 1.15rem;
+}
+
+.reference-load-more {
+  justify-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--idea-ref-blue);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-load-more:hover,
+.reference-load-more:focus-visible {
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .reference-load-more {
+  color: var(--cosci-blue);
+}
