@@ -98,10 +98,10 @@ describe('Layout', () => {
     });
   });
 
-  it('opens shell panels from icon buttons', () => {
+  it('opens shell panels from icon buttons and dismisses on outside click', () => {
     renderLayout();
 
-    fireEvent.click(screen.getByRole('button', {name: 'Settings and help'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
     expect(screen.getByText('Appearance')).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Personalization'})).toBeNull();
     expect(screen.queryByText(/Delft/)).toBeNull();
@@ -117,17 +117,23 @@ describe('Layout', () => {
       'aria-pressed',
       'true',
     );
-  });
 
-  it('shows the overflow menu on run routes only', () => {
-    const {unmount} = renderLayout('/runs/demo-ferroptosis/ideas');
+    fireEvent.pointerDown(screen.getByText('Workspace content'));
+    expect(screen.queryByText('Appearance')).toBeNull();
 
+    fireEvent.click(screen.getByRole('button', {name: /Logs 23/i}));
     expect(
-      screen.getByRole('button', {name: 'More options'}),
+      screen.getByText('Supervisor scoped the research goal'),
     ).toBeInTheDocument();
 
-    unmount();
-    renderLayout('/');
+    fireEvent.pointerDown(screen.getByText('Workspace content'));
+    expect(
+      screen.queryByText('Supervisor scoped the research goal'),
+    ).toBeNull();
+  });
+
+  it('does not show an overflow menu on run routes', () => {
+    renderLayout('/runs/demo-ferroptosis/ideas');
 
     expect(screen.queryByRole('button', {name: 'More options'})).toBeNull();
   });

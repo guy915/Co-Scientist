@@ -196,7 +196,9 @@ describe('ChatWorkspace', () => {
     expect(screen.getByText('Generate hypotheses')).toBeInTheDocument();
     expect(screen.getByText('Evaluate and rank')).toBeInTheDocument();
     expect(screen.queryByText('AI Co-Scientist')).toBeNull();
-    expect(screen.getByText('Ask Co-Scientist')).toBeInTheDocument();
+    expect(
+      screen.getByText('Start a new research goal to begin'),
+    ).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeInTheDocument();
     expect(
       await screen.findByText(/ferroptosis in pancreatic cancer cells/i),

@@ -6265,3 +6265,221 @@ body {
 [data-theme="dark"] .reference-load-more {
   color: var(--cosci-blue);
 }
+
+/* Home correction pass: final source of truth for the current Gemini-style
+   shell after feedback on alignment, composer sizing, and popover behavior. */
+.ucs-header-actions {
+  min-width: max-content;
+}
+
+.ucs-logs-button {
+  height: 2.35rem;
+  min-width: max-content;
+  gap: 0.45rem;
+  background: var(--idea-ref-purple-bg);
+  color: var(--idea-ref-purple-dark);
+  padding: 0 0.62rem 0 0.72rem;
+  white-space: nowrap;
+}
+
+.ucs-logs-button:hover,
+.ucs-logs-button[aria-expanded="true"] {
+  background: #e6d7ff;
+}
+
+.ucs-logs-count {
+  width: auto;
+  min-width: 1.35rem;
+  max-width: none;
+  padding: 0 0.42rem;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .ucs-logs-button {
+  background: #3b2c4f;
+  color: #c58af9;
+}
+
+[data-theme="dark"] .ucs-logs-button:hover,
+[data-theme="dark"] .ucs-logs-button[aria-expanded="true"] {
+  background: #49345f;
+}
+
+.ucs-popover--logs {
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: 16rem;
+}
+
+.ucs-logs-menu-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.25rem 0.35rem 0.45rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.ucs-logs-menu-heading span:last-child {
+  display: grid;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgb(142 79 232 / 16%);
+  color: var(--idea-ref-purple-dark);
+  padding: 0 0.38rem;
+  font-size: 0.75rem;
+}
+
+.ucs-logs-menu-list {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.ucs-logs-menu-list span {
+  border-radius: 0.7rem;
+  color: #5f6368;
+  padding: 0.48rem 0.55rem;
+  font-size: 0.82rem;
+  line-height: 1.25;
+}
+
+[data-theme="dark"] .ucs-logs-menu-list span {
+  color: #bdc1c6;
+}
+
+.ucs-settings-control {
+  position: relative;
+  display: grid;
+  width: 100%;
+}
+
+.nav-collapsed .ucs-settings-control {
+  width: auto;
+}
+
+.home-shell.nav-open .ucs-nav-panel,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-panel {
+  padding: 1rem 0.75rem 1rem 0.95rem;
+}
+
+.home-shell.nav-open .ucs-nav-top,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-top {
+  width: 100%;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.home-shell.nav-open .ucs-nav-top > .ucs-rail-button,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-top > .ucs-rail-button {
+  width: 2.5rem;
+  align-self: flex-start;
+  justify-self: flex-start;
+  margin: 0;
+  padding: 0;
+}
+
+.home-shell.nav-open .ucs-nav-items,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-items {
+  gap: 0.38rem;
+  margin-top: 0;
+}
+
+.home-shell.nav-open .ucs-nav-item,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-item,
+.home-shell.nav-open .ucs-nav-bottom .ucs-rail-button,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-bottom .ucs-rail-button {
+  display: grid;
+  height: 2.55rem;
+  min-height: 2.55rem;
+  grid-template-columns: 1.35rem minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  column-gap: 0.78rem;
+  padding: 0 0.75rem;
+}
+
+.home-shell.nav-open .ucs-nav-item md-icon,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-item md-icon,
+.home-shell.nav-open .ucs-nav-bottom .ucs-rail-button md-icon,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-bottom .ucs-rail-button md-icon {
+  justify-self: center;
+}
+
+.home-shell.nav-open .gemini-side-content,
+[data-theme="dark"] .home-shell.nav-open .gemini-side-content {
+  max-height: 18rem;
+  margin-top: 0.85rem;
+}
+
+.home-shell.nav-open .gemini-chat-list,
+[data-theme="dark"] .home-shell.nav-open .gemini-chat-list {
+  gap: 0.35rem;
+}
+
+.home-shell.nav-open .ucs-nav-bottom,
+[data-theme="dark"] .home-shell.nav-open .ucs-nav-bottom {
+  padding-inline: 0;
+}
+
+.home-shell .reference-home-main h1,
+[data-theme="dark"] .home-shell .reference-home-main h1 {
+  margin-right: auto;
+  margin-left: auto;
+  text-align: center;
+}
+
+.home-shell .reference-suggestion-row button,
+[data-theme="dark"] .home-shell .reference-suggestion-row button {
+  display: block;
+  height: 4.4rem;
+  min-height: 4.4rem;
+  max-height: 4.4rem;
+  padding: 0.9rem 1rem;
+}
+
+.reference-suggestion-text {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.home-shell .reference-composer,
+[data-theme="dark"] .home-shell .reference-composer {
+  min-height: 7.9rem;
+  margin-top: 1rem;
+  border-radius: 1.7rem;
+  padding: 1.25rem 1.5rem 0.8rem;
+}
+
+.home-shell .reference-composer label,
+[data-theme="dark"] .home-shell .reference-composer label {
+  min-height: 3.6rem;
+}
+
+.home-shell .reference-composer label > span,
+[data-theme="dark"] .home-shell .reference-composer label > span {
+  left: 0;
+  height: 1.5rem;
+}
+
+.home-shell .reference-composer textarea,
+[data-theme="dark"] .home-shell .reference-composer textarea,
+.home-shell .reference-composer.has-input textarea,
+[data-theme="dark"] .home-shell .reference-composer.has-input textarea {
+  height: 3.6rem;
+  min-height: 3.6rem;
+  max-height: 3.6rem;
+  padding-top: 0;
+  line-height: 1.5rem;
+}
+
+.home-shell .reference-composer-actions {
+  right: 1.25rem;
+  bottom: 0.75rem;
+  left: 1.25rem;
+}

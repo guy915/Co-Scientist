@@ -1,13 +1,13 @@
 import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
-import {useEffect, useState, type ReactNode} from 'react';
+import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {useTheme} from './theme_context';
 
-type ShellPanel = 'settings';
+type ShellPanel = 'settings' | 'logs';
 
 /**
  * Renders the app shell with header navigation, main content, and footer.
@@ -22,6 +22,8 @@ export function Layout({children}: {children: ReactNode}) {
   const [history, setHistory] = useState<Run[]>([]);
   const [navOpen, setNavOpen] = useState(true);
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  const settingsControlRef = useRef<HTMLDivElement>(null);
+  const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
   const headerTitle = overrideTitle || '';
   const shellClass = [
@@ -54,6 +56,20 @@ export function Layout({children}: {children: ReactNode}) {
     setOverrideTitle('');
     setActivePanel(null);
   }, [location.pathname]);
+
+  useEffect(() => {
+    if (!activePanel) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      const settingsContains = settingsControlRef.current?.contains(target);
+      const logsContains = logsControlRef.current?.contains(target);
+      if (!settingsContains && !logsContains) setActivePanel(null);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [activePanel]);
 
   useEffect(() => {
     function onHeaderTitle(event: Event) {
@@ -136,61 +152,63 @@ export function Layout({children}: {children: ReactNode}) {
           </div>
         </div>
         <div className="ucs-nav-bottom">
-          <button
-            type="button"
-            className="ucs-rail-button"
-            aria-label="Settings and help"
-            data-tooltip="Settings and help"
-            aria-expanded={activePanel === 'settings'}
-            onClick={() => togglePanel('settings')}
-          >
-            <md-icon aria-hidden="true">settings</md-icon>
-            <span className="nav-label">Settings &amp; help</span>
-          </button>
-          {activePanel === 'settings' && (
-            <ShellPopover className="ucs-popover--rail">
-              <div className="ucs-settings-theme-block">
-                <div className="ucs-settings-menu-row ucs-settings-menu-heading">
-                  <md-icon aria-hidden="true">palette</md-icon>
-                  <span>Appearance</span>
+          <div ref={settingsControlRef} className="ucs-settings-control">
+            <button
+              type="button"
+              className="ucs-rail-button"
+              aria-label="Settings"
+              data-tooltip="Settings"
+              aria-expanded={activePanel === 'settings'}
+              onClick={() => togglePanel('settings')}
+            >
+              <md-icon aria-hidden="true">settings</md-icon>
+              <span className="nav-label">Settings</span>
+            </button>
+            {activePanel === 'settings' && (
+              <ShellPopover className="ucs-popover--rail">
+                <div className="ucs-settings-theme-block">
+                  <div className="ucs-settings-menu-row ucs-settings-menu-heading">
+                    <md-icon aria-hidden="true">palette</md-icon>
+                    <span>Appearance</span>
+                  </div>
+                  <div
+                    className="ucs-theme-segment ucs-theme-segment--inline"
+                    role="group"
+                    aria-label="Theme"
+                  >
+                    <ThemeModeButton
+                      mode="system"
+                      active={mode === 'system'}
+                      icon="computer"
+                      label="System"
+                      onModeChange={setMode}
+                    />
+                    <ThemeModeButton
+                      mode="light"
+                      active={mode === 'light'}
+                      icon="light_mode"
+                      label="Light"
+                      onModeChange={setMode}
+                    />
+                    <ThemeModeButton
+                      mode="dark"
+                      active={mode === 'dark'}
+                      icon="dark_mode"
+                      label="Dark"
+                      onModeChange={setMode}
+                    />
+                  </div>
                 </div>
-                <div
-                  className="ucs-theme-segment ucs-theme-segment--inline"
-                  role="group"
-                  aria-label="Theme"
+                <button
+                  type="button"
+                  className="ucs-settings-menu-row ucs-settings-help-row"
                 >
-                  <ThemeModeButton
-                    mode="system"
-                    active={mode === 'system'}
-                    icon="computer"
-                    label="System"
-                    onModeChange={setMode}
-                  />
-                  <ThemeModeButton
-                    mode="light"
-                    active={mode === 'light'}
-                    icon="light_mode"
-                    label="Light"
-                    onModeChange={setMode}
-                  />
-                  <ThemeModeButton
-                    mode="dark"
-                    active={mode === 'dark'}
-                    icon="dark_mode"
-                    label="Dark"
-                    onModeChange={setMode}
-                  />
-                </div>
-              </div>
-              <button
-                type="button"
-                className="ucs-settings-menu-row ucs-settings-help-row"
-              >
-                <md-icon aria-hidden="true">help</md-icon>
-                <span>Get help</span>
-              </button>
-            </ShellPopover>
-          )}
+                  <md-icon aria-hidden="true">help</md-icon>
+                  <span>Get help</span>
+                </button>
+              </ShellPopover>
+            )}
+          </div>
         </div>
       </aside>
       <section className="ucs-workspace">
@@ -200,26 +218,32 @@ export function Layout({children}: {children: ReactNode}) {
             <span>Co-Scientist</span>
           </Link>
           <div className="ucs-header-title">{headerTitle}</div>
-          <div className="ucs-header-actions">
-            {isRunRoute && (
-              <button
-                type="button"
-                className="ucs-icon-action"
-                aria-label="More options"
-              >
-                <md-icon aria-hidden="true">more_vert</md-icon>
-              </button>
-            )}
+          <div ref={logsControlRef} className="ucs-header-actions">
             <button
               type="button"
               className="ucs-logs-button"
               aria-label="Logs 23"
               data-tooltip="Logs"
+              aria-expanded={activePanel === 'logs'}
+              onClick={() => togglePanel('logs')}
             >
               <md-icon aria-hidden="true">expand_more</md-icon>
               <span>Logs</span>
               <span className="ucs-logs-count">23</span>
             </button>
+            {activePanel === 'logs' && (
+              <ShellPopover className="ucs-popover--logs">
+                <div className="ucs-logs-menu-heading">
+                  <span>Logs</span>
+                  <span>23</span>
+                </div>
+                <div className="ucs-logs-menu-list">
+                  <span>Supervisor scoped the research goal</span>
+                  <span>Literature review gathered evidence</span>
+                  <span>Tournament ranking completed</span>
+                </div>
+              </ShellPopover>
+            )}
           </div>
         </header>
         <main className="ucs-page wb-fade-in">{children}</main>

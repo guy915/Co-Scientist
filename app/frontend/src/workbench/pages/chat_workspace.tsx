@@ -408,7 +408,9 @@ export function ChatWorkspace() {
                     onBlur={() => setHoveredSuggestion(null)}
                     onClick={() => setInput(suggestion.full)}
                   >
-                    {suggestion.short}
+                    <span className="reference-suggestion-text">
+                      {suggestion.short}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -562,6 +564,13 @@ function Composer({
   }
 
   const hasRunContext = Boolean(activeRunId);
+  const referenceLabel = hasRunContext
+    ? isEditingSpec
+      ? 'Type to edit session details'
+      : 'Ask Co-Scientist'
+    : setupDraftMode
+      ? 'Type to edit session details'
+      : 'Start a new research goal to begin';
   const placeholder = isEditingSpec
     ? 'Describe the change to the run setup...'
     : setupDraftMode
@@ -590,13 +599,7 @@ function Composer({
         <label>
           <span>
             <md-icon aria-hidden="true">shield</md-icon>
-            {hasRunContext
-              ? isEditingSpec
-                ? 'Type to edit session details'
-                : 'Ask Co-Scientist'
-              : setupDraftMode
-                ? 'Type to edit session details'
-                : 'Ask Co-Scientist'}
+            {referenceLabel}
           </span>
           <textarea
             rows={large ? 4 : 3}
