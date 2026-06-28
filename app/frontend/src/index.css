@@ -6758,3 +6758,201 @@ body {
   bottom: 0.75rem;
   left: 1.25rem;
 }
+
+/* Reference Recents cards: final override for the home right rail. */
+@media (min-width: 1181px) {
+  .home-shell .reference-home-stage,
+  [data-theme="dark"] .home-shell .reference-home-stage {
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 24rem);
+    gap: 3.6rem;
+  }
+
+  .home-shell .reference-recents,
+  [data-theme="dark"] .home-shell .reference-recents {
+    width: min(100%, 24rem);
+    gap: 1.55rem;
+    padding-top: 0.35rem;
+  }
+
+  .home-shell .reference-recents .google-recents-heading,
+  [data-theme="dark"] .home-shell .reference-recents .google-recents-heading {
+    gap: 0.55rem;
+  }
+
+  .home-shell .reference-recents .google-recents-heading h2,
+  [data-theme="dark"] .home-shell .reference-recents .google-recents-heading h2 {
+    font-size: 1.22rem;
+    font-weight: 650;
+    line-height: 1.2;
+  }
+
+  .home-shell .reference-recents .google-recents-heading md-icon,
+  [data-theme="dark"] .home-shell .reference-recents .google-recents-heading md-icon {
+    --md-icon-size: 22px;
+  }
+
+  .home-shell .reference-recents > ol,
+  [data-theme="dark"] .home-shell .reference-recents > ol {
+    max-height: calc(100vh - 10.4rem);
+    gap: 2.65rem;
+    padding: 0.4rem 1rem 1.25rem 0;
+    scrollbar-width: auto;
+  }
+
+  .home-shell .reference-recents > ol::-webkit-scrollbar,
+  [data-theme="dark"] .home-shell .reference-recents > ol::-webkit-scrollbar {
+    width: 0.55rem;
+  }
+
+  .home-shell .reference-recents > ol::-webkit-scrollbar-thumb {
+    border: 0;
+    border-radius: 999px;
+    background: #d9e1ea;
+  }
+
+  [data-theme="dark"] .home-shell .reference-recents > ol::-webkit-scrollbar-thumb {
+    background: #54585b;
+  }
+
+  .home-shell .reference-recent-card,
+  [data-theme="dark"] .home-shell .reference-recent-card {
+    min-height: 0;
+    gap: 0.9rem;
+    border-radius: 1rem;
+    padding: 1.25rem 1.4rem 1.35rem;
+  }
+
+  .home-shell .reference-recent-card {
+    border-color: #eef1f4;
+    background: #fff;
+    box-shadow:
+      0 1px 2px rgb(60 64 67 / 12%),
+      0 4px 12px rgb(60 64 67 / 14%);
+  }
+
+  [data-theme="dark"] .home-shell .reference-recent-card {
+    border-color: transparent;
+    background: #1b2020;
+    box-shadow: none;
+  }
+
+  .home-shell .reference-recent-meta,
+  .home-shell .reference-recent-chips,
+  [data-theme="dark"] .home-shell .reference-recent-meta,
+  [data-theme="dark"] .home-shell .reference-recent-chips {
+    gap: 0.45rem;
+  }
+
+  .home-shell .reference-recent-meta span,
+  [data-theme="dark"] .home-shell .reference-recent-meta span {
+    border-radius: 0.4rem;
+    padding: 0.38rem 0.62rem;
+    font-size: 0.78rem;
+    font-weight: 650;
+    line-height: 1.1;
+  }
+
+  .home-shell .reference-recent-meta span {
+    background: #f1f4f7;
+    color: #3c4043;
+  }
+
+  [data-theme="dark"] .home-shell .reference-recent-meta span {
+    background: #303335;
+    color: #f1f3f4;
+  }
+
+  .home-shell .reference-recent-card > strong,
+  [data-theme="dark"] .home-shell .reference-recent-card > strong {
+    font-size: 1.18rem;
+    font-weight: 650;
+    line-height: 1.25;
+    -webkit-line-clamp: 2;
+  }
+
+  .home-shell
+    .reference-recent-card
+    > span:not(.reference-recent-meta):not(.reference-recent-chips),
+  [data-theme="dark"]
+    .home-shell
+    .reference-recent-card
+    > span:not(.reference-recent-meta):not(.reference-recent-chips) {
+    color: #5f6368;
+    font-size: 1rem;
+    line-height: 1.42;
+    -webkit-line-clamp: 4;
+  }
+
+  [data-theme="dark"]
+    .home-shell
+    .reference-recent-card
+    > span:not(.reference-recent-meta):not(.reference-recent-chips) {
+    color: #c4c7c5;
+  }
+
+  .home-shell .reference-recent-chips span,
+  [data-theme="dark"] .home-shell .reference-recent-chips span {
+    min-height: 1.82rem;
+    align-items: center;
+    gap: 0.34rem;
+    border-radius: 0.42rem;
+    background: #d0f3ca;
+    color: #174f2a;
+    padding: 0.34rem 0.58rem;
+    font-size: 0.76rem;
+    font-weight: 650;
+    line-height: 1;
+  }
+
+  [data-theme="dark"] .home-shell .reference-recent-chips span {
+    background: #0b8043;
+    color: #e6f4ea;
+  }
+
+  .home-shell .reference-recent-chips md-icon,
+  [data-theme="dark"] .home-shell .reference-recent-chips md-icon {
+    --md-icon-size: 18px;
+  }
+
+  .home-shell .reference-recent-card .reference-winner-list,
+  [data-theme="dark"] .home-shell .reference-recent-card .reference-winner-list {
+    display: grid;
+    max-height: none;
+    gap: 0.72rem;
+    overflow: visible;
+    margin: 0.15rem 0 0;
+    padding: 0;
+    color: #202124;
+    font-size: 0.9rem;
+    line-height: 1.34;
+    list-style: none;
+    scrollbar-width: auto;
+  }
+
+  [data-theme="dark"]
+    .home-shell
+    .reference-recent-card
+    .reference-winner-list {
+    color: #f1f3f4;
+  }
+
+  .home-shell .reference-recent-card .reference-winner-list li,
+  [data-theme="dark"]
+    .home-shell
+    .reference-recent-card
+    .reference-winner-list
+    li {
+    display: grid;
+    grid-template-columns: 1.4rem minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
+  .home-shell .reference-recent-card .reference-winner-list span:last-child,
+  [data-theme="dark"]
+    .home-shell
+    .reference-recent-card
+    .reference-winner-list
+    span:last-child {
+    min-width: 0;
+  }
+}
