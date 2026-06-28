@@ -266,7 +266,7 @@ describe('ChatWorkspace', () => {
     );
 
     expect(screen.getByRole('textbox')).toHaveValue(
-      'Find new therapeutic targets for M.tuberculosis by combining...',
+      'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
     );
   });
 });

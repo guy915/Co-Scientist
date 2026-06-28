@@ -52,15 +52,18 @@ interface TimelineItem {
 }
 
 const SUGGESTIONS = [
-  'Find new therapeutic targets for M.tuberculosis by combining...',
-  'Generate novel hypotheses for the link between...',
-  'Propose new mechanisms to explain why some patients...',
-];
-
-const PROMPT_SUGGESTIONS = [
-  'Find new therapeutic targets for M.tuberculosis by combining...',
-  'Generate novel hypotheses for the link between...',
-  'Propose new mechanisms to explain why some patients...',
+  {
+    short: 'Find new therapeutic targets for M.tuberculosis by combining...',
+    full: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+  },
+  {
+    short: 'Generate novel hypotheses for the link between...',
+    full: 'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
+  },
+  {
+    short: 'Propose new mechanisms to explain why some patients...',
+    full: 'Propose new mechanisms to explain why some patients fail to respond to checkpoint inhibitor therapy.',
+  },
 ];
 
 /** The three phases of a session, shown on the home screen. */
@@ -159,6 +162,9 @@ export function ChatWorkspace() {
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [history, setHistory] = useState<Run[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
+    null,
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const loadHistory = useCallback(async () => {
@@ -351,20 +357,18 @@ export function ChatWorkspace() {
   }
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
   const homeRecentRuns = history.slice(0, 3);
-  const hasHomePrompt = Boolean(input.trim());
+  const selectedSuggestion = SUGGESTIONS.find(
+    suggestion => suggestion.full === input.trim(),
+  );
+  const activeSuggestionText =
+    hoveredSuggestion ?? selectedSuggestion?.full ?? '';
 
   return (
     <div className="cosci-workspace">
       <main className="cosci-workspace-main">
         {!hasConversation ? (
           <section className="reference-home-stage">
-            <div
-              className={
-                hasHomePrompt
-                  ? 'reference-home-main prompt-open'
-                  : 'reference-home-main'
-              }
-            >
+            <div className="reference-home-main">
               <div className="google-product-chip reference-chip">
                 <GoogleLabsIcon aria-hidden="true" />
                 <span>AI Co-Scientist</span>
@@ -383,28 +387,30 @@ export function ChatWorkspace() {
                 ))}
               </ol>
 
-              {hasHomePrompt && (
-                <p className="reference-prompt-echo">{input.trim()}</p>
-              )}
-
-              <div
-                className={
-                  hasHomePrompt
-                    ? 'reference-suggestion-row prompt-open'
-                    : 'reference-suggestion-row'
-                }
+              <p
+                className="reference-prompt-echo"
+                aria-hidden={!activeSuggestionText}
               >
-                {(hasHomePrompt
-                  ? PROMPT_SUGGESTIONS
-                  : SUGGESTIONS.slice(0, 3)
-                ).map((suggestion, index) => (
+                {activeSuggestionText}
+              </p>
+
+              <div className="reference-suggestion-row">
+                {SUGGESTIONS.map(suggestion => (
                   <button
-                    key={suggestion}
+                    key={suggestion.short}
                     type="button"
-                    className={input.trim() && index === 0 ? 'selected' : ''}
-                    onClick={() => setInput(suggestion)}
+                    className={
+                      selectedSuggestion?.full === suggestion.full
+                        ? 'selected'
+                        : ''
+                    }
+                    onPointerEnter={() => setHoveredSuggestion(suggestion.full)}
+                    onPointerLeave={() => setHoveredSuggestion(null)}
+                    onFocus={() => setHoveredSuggestion(suggestion.full)}
+                    onBlur={() => setHoveredSuggestion(null)}
+                    onClick={() => setInput(suggestion.full)}
                   >
-                    {suggestion}
+                    {suggestion.short}
                   </button>
                 ))}
               </div>
@@ -568,7 +574,12 @@ function Composer({
 
   if (reference) {
     return (
-      <form onSubmit={onSubmit} className="reference-composer">
+      <form
+        onSubmit={onSubmit}
+        className={
+          input.trim() ? 'reference-composer has-input' : 'reference-composer'
+        }
+      >
         <label>
           <span>
             <md-icon aria-hidden="true">shield</md-icon>
@@ -630,16 +641,16 @@ function Composer({
             <div className="hidden md:flex flex-wrap gap-1.5">
               {SUGGESTIONS.map(suggestion => (
                 <button
-                  key={suggestion}
+                  key={suggestion.short}
                   type="button"
-                  onClick={() => onSuggestion(suggestion)}
+                  onClick={() => onSuggestion(suggestion.full)}
                   className="cursor-pointer rounded-full border px-2.5 py-1 text-xs"
                   style={{
                     borderColor: 'var(--md-sys-color-outline-variant)',
                     color: 'var(--md-sys-color-on-surface-variant)',
                   }}
                 >
-                  {suggestion.split(' ').slice(0, 6).join(' ')}
+                  {suggestion.short}
                 </button>
               ))}
             </div>
