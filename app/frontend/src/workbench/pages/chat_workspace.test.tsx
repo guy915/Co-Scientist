@@ -284,6 +284,20 @@ describe('ChatWorkspace', () => {
     expect(
       await screen.findByText(/Please review or edit the details below/),
     ).toBeInTheDocument();
+    expect(screen.queryByText('AI Co-Scientist')).toBeNull();
+    expect(
+      screen.getByRole('heading', {name: 'Research plan'}),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Here's my plan to tackle the topic:"),
+    ).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole('heading', {
+          name: 'Investigate glucose homeostasis under cold stress',
+        })
+        .closest('.reference-setup-document'),
+    ).not.toBeNull();
     expect(screen.getByText('Cancel')).toBeInTheDocument();
     expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
     expect(screen.getByRole('group', {name: 'Tier'})).toBeInTheDocument();

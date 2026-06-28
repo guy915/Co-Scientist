@@ -1964,9 +1964,39 @@ body {
   line-height: 1.5;
 }
 
+.reference-review-copy {
+  font-weight: 400;
+}
+
+.reference-plan-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+}
+
+.reference-plan-heading h2 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.2;
+}
+
+.reference-plan-heading md-icon {
+  color: #5f6368;
+  font-size: 1.55rem;
+}
+
+.reference-plan-subheading {
+  margin-top: -0.35rem !important;
+  color: #3c4043;
+}
+
 .reference-setup-document {
   display: grid;
   gap: 1.15rem;
+  border-radius: 1rem;
   background: var(--idea-ref-card-bg);
   padding: 1.5rem 1.45rem;
 }
@@ -1975,10 +2005,11 @@ body {
   background: #25272d;
 }
 
-.reference-setup-document h2 {
+.reference-setup-document h3 {
   margin: 0;
   font-size: 1.45rem;
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .reference-setup-document .google-setup-grid {
@@ -2052,7 +2083,7 @@ body {
   align-content: start;
   border: 1px solid transparent;
   border-radius: 0.65rem;
-  background: #f1f3f4;
+  background: #eef3f8;
   color: #202124;
   padding: 0.85rem 0.95rem;
   transition:
@@ -2082,6 +2113,16 @@ body {
   border-color: #8ab4f8;
   box-shadow: inset 0 0 0 0.25rem #25272d;
   background: #8ab4f8;
+}
+
+.reference-option-card:hover,
+.reference-option-card:focus-within {
+  background: #e8eef6;
+  border-color: #d4dbe6;
+}
+
+.reference-option-card.selected {
+  background: #e5eefc;
 }
 
 .reference-option-card strong {
@@ -3397,6 +3438,15 @@ body {
   color: var(--cosci-text);
 }
 
+[data-theme="dark"] .reference-plan-heading h2,
+[data-theme="dark"] .reference-plan-subheading {
+  color: var(--cosci-text);
+}
+
+[data-theme="dark"] .reference-plan-heading md-icon {
+  color: #bdc1c6;
+}
+
 [data-theme="dark"] .reference-user-bubble {
   background: #303134;
   color: var(--cosci-text);
@@ -3410,7 +3460,7 @@ body {
   padding: 1.5rem;
 }
 
-[data-theme="dark"] .reference-setup-document h2 {
+[data-theme="dark"] .reference-setup-document h3 {
   color: var(--cosci-text);
   font-size: 1.65rem;
   font-weight: 400;
@@ -3422,8 +3472,18 @@ body {
 
 [data-theme="dark"] .reference-option-card {
   border-color: transparent;
-  background: #1f2224;
+  background: #202427;
   color: var(--cosci-text);
+}
+
+[data-theme="dark"] .reference-option-card:hover,
+[data-theme="dark"] .reference-option-card:focus-within {
+  border-color: #3c4043;
+  background: #252a2d;
+}
+
+[data-theme="dark"] .reference-option-card.selected {
+  background: #1f2224;
 }
 
 [data-theme="dark"] .reference-option-card small {

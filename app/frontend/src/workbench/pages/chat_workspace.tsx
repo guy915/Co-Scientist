@@ -802,25 +802,24 @@ function RunSpecCard({
       className="reference-setup-message"
       aria-label="Inferred run setup"
     >
-      <div className="reference-assistant-label">
-        <span className="reference-assistant-dot">
-          <GoogleLabsIcon aria-hidden="true" />
-        </span>
-        <span>AI Co-Scientist</span>
-      </div>
       <p>
         Okay, I've drafted the requirements to propose a novel, testable
         hypothesis for this research session. Let me know if you have any
         suggestions.
       </p>
-      <p>
-        <strong>
-          Please review or edit the details below as needed. Once ready, click
-          "Start research" to start generating hypotheses.
-        </strong>
+      <p className="reference-review-copy">
+        Please review or edit the details below as needed. Once ready, click
+        "Start research" to start generating hypotheses.
+      </p>
+      <div className="reference-plan-heading">
+        <h2>Research plan</h2>
+        <md-icon aria-hidden="true">edit</md-icon>
+      </div>
+      <p className="reference-plan-subheading">
+        Here's my plan to tackle the topic:
       </p>
       <div className="reference-setup-document">
-        <h2>{referenceSetupTitle(spec.goal)}</h2>
+        <h3>{referenceSetupTitle(spec.goal)}</h3>
         <dl className="google-setup-grid">
           <SpecRow label="Goal">{spec.goal}</SpecRow>
           <SpecList label="Requirements" values={spec.requirements} />
