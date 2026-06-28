@@ -1955,29 +1955,6 @@ body {
   padding-left: 1.35rem;
 }
 
-.reference-quiet-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.8rem;
-  color: #5f6368;
-  font-size: 0.82rem;
-}
-
-.reference-quiet-controls label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-.reference-quiet-controls select {
-  border: 1px solid #c4c7c5;
-  border-radius: 999px;
-  background: white;
-  padding: 0.25rem 0.55rem;
-  color: #202124;
-}
-
 .reference-setup-actions {
   display: flex;
   justify-content: flex-end;

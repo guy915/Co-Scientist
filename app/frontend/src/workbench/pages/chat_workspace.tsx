@@ -26,13 +26,7 @@ import {
   startRun,
 } from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
-import {
-  FOCUS_OPTIONS,
-  inferRunSpec,
-  type InferredRunSpec,
-  reviseRunSpec,
-  TIER_OPTIONS,
-} from '../run_spec';
+import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 
 interface ChatEntry {
@@ -153,7 +147,6 @@ export function ChatWorkspace() {
   const [draftSpecCreatedAt, setDraftSpecCreatedAt] = useState<number | null>(
     null,
   );
-  const [isEditingSpec, setIsEditingSpec] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [history, setHistory] = useState<Run[]>([]);
@@ -176,7 +169,6 @@ export function ChatWorkspace() {
     setInput('');
     setDraftSpec(null);
     setDraftSpecCreatedAt(null);
-    setIsEditingSpec(false);
     setIsStarting(false);
     setMessages([]);
     setError(null);
@@ -222,10 +214,6 @@ export function ChatWorkspace() {
   useEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
-    if (draftSpec) {
-      scroller.scrollTop = 0;
-      return;
-    }
     if (typeof scroller.scrollTo === 'function') {
       scroller.scrollTo({
         top: scroller.scrollHeight,
@@ -279,7 +267,6 @@ export function ChatWorkspace() {
       const next = reviseRunSpec(draftSpec, text);
       setDraftSpec(next);
       setDraftSpecCreatedAt(sentAt + 0.001);
-      setIsEditingSpec(false);
       appendAssistant(
         'I updated the run setup. Start it when the spec looks right.',
         sentAt + 0.002,
@@ -314,7 +301,6 @@ export function ChatWorkspace() {
       });
       setDraftSpec(null);
       setDraftSpecCreatedAt(null);
-      setIsEditingSpec(false);
       await startRun(created.id);
       await loadHistory();
       void navigate(`/runs/${created.id}/details`);
@@ -342,18 +328,8 @@ export function ChatWorkspace() {
       node: (
         <RunSpecCard
           spec={draftSpec}
-          isEditing={isEditingSpec}
           isStarting={isStarting}
-          onEdit={() => {
-            setIsEditingSpec(true);
-            setInput('Make this run ');
-          }}
-          onFocusChange={focus =>
-            setDraftSpec(current => (current ? {...current, focus} : current))
-          }
-          onTierChange={tier =>
-            setDraftSpec(current => (current ? {...current, tier} : current))
-          }
+          onCancel={() => setDraftSpec(null)}
           onStart={() => void handleStartRun()}
         />
       ),
@@ -505,7 +481,7 @@ export function ChatWorkspace() {
                 <Composer
                   input={input}
                   setInput={setInput}
-                  isEditingSpec={isEditingSpec}
+                  isEditingSpec={false}
                   activeMessageMode={inferActiveMessageMode(input)}
                   setupDraftMode={Boolean(draftSpec)}
                   disabled={isStarting}
@@ -687,24 +663,15 @@ function ChatBubble({message}: {message: ChatEntry}) {
 
 function RunSpecCard({
   spec,
-  isEditing,
   isStarting,
-  onEdit,
-  onFocusChange,
-  onTierChange,
+  onCancel,
   onStart,
 }: {
   spec: InferredRunSpec;
-  isEditing: boolean;
   isStarting: boolean;
-  onEdit: () => void;
-  onFocusChange: (focus: InferredRunSpec['focus']) => void;
-  onTierChange: (tier: InferredRunSpec['tier']) => void;
+  onCancel: () => void;
   onStart: () => void;
 }) {
-  const tier = TIER_OPTIONS.find(option => option.id === spec.tier);
-  const focus = FOCUS_OPTIONS.find(option => option.id === spec.focus);
-
   return (
     <section
       className="reference-setup-message"
@@ -735,50 +702,9 @@ function RunSpecCard({
           <SpecList label="Attributes" values={spec.attributes} />
           <SpecList label="Criteria" values={spec.criteria} />
         </dl>
-        <div className="reference-quiet-controls">
-          <label>
-            Focus
-            <select
-              value={spec.focus}
-              disabled={isStarting}
-              onChange={event =>
-                onFocusChange(
-                  event.currentTarget.value as InferredRunSpec['focus'],
-                )
-              }
-            >
-              {FOCUS_OPTIONS.map(option => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Tier
-            <select
-              value={spec.tier}
-              disabled={isStarting}
-              onChange={event =>
-                onTierChange(
-                  event.currentTarget.value as InferredRunSpec['tier'],
-                )
-              }
-            >
-              {TIER_OPTIONS.map(option => (
-                <option key={option.id} value={option.id}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <span>
-            {focus?.label ?? 'Balanced'} · {tier?.label ?? 'Standard'} depth
-          </span>
-        </div>
         <div className="reference-setup-actions">
-          <button type="button" onClick={onEdit} disabled={isStarting}>
-            {isEditing ? 'Editing' : 'Edit details'}
+          <button type="button" onClick={onCancel} disabled={isStarting}>
+            Cancel
           </button>
           <button type="button" onClick={onStart} disabled={isStarting}>
             {isStarting ? 'Starting...' : 'Start research'}

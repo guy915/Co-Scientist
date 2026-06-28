@@ -218,14 +218,9 @@ describe('ChatWorkspace', () => {
     expect(
       await screen.findByText(/Please review or edit the details below/),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText('Focus')).toBeInTheDocument();
-    expect(screen.getByLabelText('Tier')).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText('Focus'), {
-      target: {value: 'prefer_novelty'},
-    });
-    fireEvent.change(screen.getByLabelText('Tier'), {
-      target: {value: 'express'},
-    });
+    expect(screen.getByText('Cancel')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Focus')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Tier')).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByText('Start research'));
 
@@ -238,8 +233,8 @@ describe('ChatWorkspace', () => {
           ]),
           attributes: expect.arrayContaining(['Mechanistically specific']),
           criteria: expect.arrayContaining(['Scientific soundness']),
-          focus: 'prefer_novelty',
-          tier: 'express',
+          focus: 'balance',
+          tier: 'standard',
         }),
       );
       expect(apiMock.startRun).toHaveBeenCalledWith('run-1');
