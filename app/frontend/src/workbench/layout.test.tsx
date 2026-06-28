@@ -118,4 +118,17 @@ describe('Layout', () => {
       'true',
     );
   });
+
+  it('shows the overflow menu on run routes only', () => {
+    const {unmount} = renderLayout('/runs/demo-ferroptosis/ideas');
+
+    expect(
+      screen.getByRole('button', {name: 'More options'}),
+    ).toBeInTheDocument();
+
+    unmount();
+    renderLayout('/');
+
+    expect(screen.queryByRole('button', {name: 'More options'})).toBeNull();
+  });
 });

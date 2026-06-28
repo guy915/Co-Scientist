@@ -154,13 +154,18 @@ export function RunDetail() {
   return (
     <div className="cosci-report-page">
       <header className="cosci-report-titlebar">
-        <Link to="/" className="cosci-report-back" aria-label="Back">
-          <md-icon aria-hidden="true">arrow_back</md-icon>
-        </Link>
-        <span className="reference-assistant-dot cosci-report-mark">
-          <GoogleLabsIcon aria-hidden="true" />
-        </span>
-        <h1>{title}</h1>
+        <div className="cosci-report-title-left">
+          <Link to="/" className="cosci-report-back" aria-label="Back">
+            <md-icon aria-hidden="true">arrow_back</md-icon>
+          </Link>
+          <span className="reference-assistant-dot cosci-report-mark">
+            <GoogleLabsIcon aria-hidden="true" />
+          </span>
+          <h1>{title}</h1>
+        </div>
+        <button type="button" className="cosci-session-details">
+          Session details
+        </button>
       </header>
 
       <nav className="cosci-report-tabs" aria-label="Goal report sections">
