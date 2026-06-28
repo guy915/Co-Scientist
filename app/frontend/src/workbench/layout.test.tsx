@@ -87,7 +87,7 @@ describe('Layout', () => {
     expect(screen.queryByText('Deep Research')).toBeNull();
     expect(screen.queryByText('NotebookLM')).toBeNull();
     expect(screen.queryByLabelText('Switch to Gemini app')).toBeNull();
-    expect(screen.getByLabelText('User profile')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /Logs 23/i})).toBeInTheDocument();
 
     expect(await screen.findByText('Chats')).toBeInTheDocument();
     await waitFor(() => {

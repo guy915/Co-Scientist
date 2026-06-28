@@ -4,6 +4,7 @@ import {useEffect, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
+import {GoogleLabsIcon} from './components/google_labs_icon';
 import {useTheme} from './theme_context';
 
 type ShellPanel = 'settings';
@@ -191,8 +192,8 @@ export function Layout({children}: {children: ReactNode}) {
       <section className="ucs-workspace">
         <header className="ucs-header-action-bar">
           <Link to="/" className="ucs-product-lockup">
-            <span>Gemini Enterprise</span>
-            <span className="ucs-plus-chip">Plus</span>
+            <GoogleLabsIcon aria-hidden="true" />
+            <span>Co-Scientist</span>
           </Link>
           <div className="ucs-header-title">{headerTitle}</div>
           <div className="ucs-header-actions">
@@ -207,10 +208,12 @@ export function Layout({children}: {children: ReactNode}) {
             )}
             <button
               type="button"
-              className="ucs-avatar"
-              aria-label="User profile"
+              className="ucs-logs-button"
+              aria-label="Logs 23"
             >
-              G
+              <md-icon aria-hidden="true">expand_more</md-icon>
+              <span>Logs</span>
+              <span className="ucs-logs-count">23</span>
             </button>
           </div>
         </header>
