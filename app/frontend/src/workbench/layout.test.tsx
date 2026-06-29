@@ -59,6 +59,7 @@ describe('Layout', () => {
 
     const menu = screen.getByRole('button', {name: 'Menu'});
     expect(menu).toHaveAttribute('aria-expanded', 'true');
+    expect(menu).toHaveTextContent('Menu');
     expect(container.querySelector('.google-app-shell')).toHaveClass(
       'nav-open',
     );

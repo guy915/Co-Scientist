@@ -214,6 +214,7 @@ export function Layout({children}: {children: ReactNode}) {
             onClick={toggleNav}
           >
             <md-icon aria-hidden="true">menu</md-icon>
+            <span className="nav-label">Menu</span>
           </button>
           <nav id="primary-navigation" className="ucs-nav-items">
             <button

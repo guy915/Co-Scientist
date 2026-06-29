@@ -7648,7 +7648,7 @@ body {
 [data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-top {
   width: 100%;
   align-items: stretch;
-  gap: 0.75rem;
+  gap: 0.25rem;
 }
 
 :is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button,
@@ -7656,11 +7656,17 @@ body {
   :is(.home-shell, .report-shell).nav-open
   .ucs-nav-top
   > .ucs-rail-button {
-  width: 2.5rem;
-  height: 2.5rem;
-  align-self: flex-start;
-  justify-self: flex-start;
+  width: 100%;
+  height: 2.45rem;
+  min-height: 2.45rem;
+  align-self: stretch;
+  justify-self: stretch;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  justify-content: stretch;
+  justify-items: start;
+  column-gap: 0.72rem;
   padding: 0;
+  text-align: left;
 }
 
 :is(.home-shell, .report-shell).nav-open .ucs-nav-items,
@@ -7763,8 +7769,13 @@ body {
   justify-items: stretch;
 }
 
+:is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button,
 :is(.home-shell, .report-shell).nav-open .ucs-nav-item,
 :is(.home-shell, .report-shell).nav-open .ucs-nav-bottom .ucs-rail-button,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button,
 [data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-item,
 [data-theme="dark"]
   :is(.home-shell, .report-shell).nav-open
@@ -7780,10 +7791,16 @@ body {
   text-align: left;
 }
 
+:is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button md-icon,
 :is(.home-shell, .report-shell).nav-open .ucs-nav-item md-icon,
 :is(.home-shell, .report-shell).nav-open
   .ucs-nav-bottom
   .ucs-rail-button
+  md-icon,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button
   md-icon,
 [data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-item md-icon,
 [data-theme="dark"]
@@ -7794,10 +7811,19 @@ body {
   justify-self: center;
 }
 
+:is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button
+  .nav-label,
 :is(.home-shell, .report-shell).nav-open .ucs-nav-item .nav-label,
 :is(.home-shell, .report-shell).nav-open
   .ucs-nav-bottom
   .ucs-rail-button
+  .nav-label,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button
   .nav-label,
 [data-theme="dark"]
   :is(.home-shell, .report-shell).nav-open
@@ -7819,6 +7845,20 @@ body {
   white-space: nowrap;
 }
 
+:is(.home-shell, .report-shell).nav-collapsed
+  .ucs-nav-top
+  > .ucs-rail-button
+  .nav-label,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-collapsed
+  .ucs-nav-top
+  > .ucs-rail-button
+  .nav-label {
+  display: none;
+  opacity: 0;
+  visibility: hidden;
+}
+
 :is(.home-shell, .report-shell).nav-open .ucs-nav-bottom .ucs-rail-button:hover,
 :is(.home-shell, .report-shell).nav-open
   .ucs-nav-bottom
@@ -7835,6 +7875,24 @@ body {
   :is(.home-shell, .report-shell).nav-open
   .ucs-nav-bottom
   .ucs-rail-button[aria-expanded="true"] {
+  background: #2b3033;
+  color: #e8eaed;
+}
+
+:is(.home-shell, .report-shell) .ucs-nav-top > .ucs-rail-button:hover,
+:is(.home-shell, .report-shell) .ucs-nav-top > .ucs-rail-button:focus-visible {
+  background: #dfeafc;
+  color: #3c4043;
+}
+
+[data-theme="dark"]
+  :is(.home-shell, .report-shell)
+  .ucs-nav-top
+  > .ucs-rail-button:hover,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell)
+  .ucs-nav-top
+  > .ucs-rail-button:focus-visible {
   background: #2b3033;
   color: #e8eaed;
 }
