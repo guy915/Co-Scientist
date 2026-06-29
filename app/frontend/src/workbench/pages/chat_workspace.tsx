@@ -73,16 +73,7 @@ const SUGGESTIONS = [
   },
 ];
 
-const COMPOSER_CONNECTORS = [
-  'Google Search',
-  'PubMed',
-  'ArXiv',
-  'BioRxiv',
-  'Drive',
-  'OneDrive',
-  'Box',
-  'SharePoint',
-];
+const COMPOSER_CONNECTORS = ['PubMed'];
 
 /** The three phases of a session, shown on the home screen. */
 const SESSION_STEPS: ReadonlyArray<{
@@ -540,9 +531,7 @@ export function ChatWorkspace() {
                 {SUGGESTIONS.map(suggestion => {
                   const isSelected =
                     selectedSuggestion?.full === suggestion.full;
-                  const isPreviewed = hoveredSuggestion
-                    ? hoveredSuggestion === suggestion.full
-                    : isSelected;
+                  const isPreviewed = hoveredSuggestion === suggestion.full;
                   return (
                     <div
                       key={suggestion.short}
@@ -567,7 +556,10 @@ export function ChatWorkspace() {
                         onPointerLeave={() => setHoveredSuggestion(null)}
                         onFocus={() => setHoveredSuggestion(suggestion.full)}
                         onBlur={() => setHoveredSuggestion(null)}
-                        onClick={() => setInput(suggestion.full)}
+                        onClick={() => {
+                          setInput(suggestion.full);
+                          setHoveredSuggestion(null);
+                        }}
                       >
                         <span className="reference-suggestion-text">
                           {suggestion.short}
@@ -859,23 +851,22 @@ function Composer({
                 aria-label="Connectors"
               >
                 <div className="reference-connectors-menu-row reference-connectors-menu-row--top">
-                  <span>Enable all connectors</span>
-                  <span className="reference-toggle" aria-hidden="true" />
+                  <span>Connectors</span>
                 </div>
                 {COMPOSER_CONNECTORS.map(name => (
                   <button
                     type="button"
                     role="menuitemcheckbox"
-                    aria-checked={name !== 'Drive'}
+                    aria-checked="true"
                     className="reference-connectors-menu-row"
                     key={name}
                   >
-                    <span
+                    <md-icon
                       className="reference-connector-icon"
                       aria-hidden="true"
                     >
-                      {name === 'Drive' ? 'drive_file_move' : 'travel_explore'}
-                    </span>
+                      article
+                    </md-icon>
                     <span>{name}</span>
                     <span className="reference-toggle" aria-hidden="true" />
                   </button>

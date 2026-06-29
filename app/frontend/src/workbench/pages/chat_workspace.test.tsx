@@ -271,11 +271,11 @@ describe('ChatWorkspace', () => {
     fireEvent.click(connectors);
 
     expect(screen.getByRole('menu', {name: 'Connectors'})).toBeInTheDocument();
-    expect(screen.getByText('Enable all connectors')).toBeInTheDocument();
-    expect(screen.getByText('Google Search')).toBeInTheDocument();
+    expect(screen.getByText('Connectors')).toBeInTheDocument();
     expect(screen.getByText('PubMed')).toBeInTheDocument();
-    expect(screen.getByText('Drive')).toBeInTheDocument();
-    expect(screen.getByText('SharePoint')).toBeInTheDocument();
+    expect(screen.queryByText('Google Search')).not.toBeInTheDocument();
+    expect(screen.queryByText('Drive')).not.toBeInTheDocument();
+    expect(screen.queryByText('SharePoint')).not.toBeInTheDocument();
 
     fireEvent.mouseDown(document.body);
 
@@ -326,6 +326,9 @@ describe('ChatWorkspace', () => {
     expect(
       composer.closest('.reference-composer')?.getBoundingClientRect().top,
     ).toBe(originalComposerTop);
+
+    fireEvent.pointerLeave(suggestion);
+    expect(preview).not.toHaveClass('visible');
   });
 
   it('shows request and response action controls in the chat transcript', async () => {
