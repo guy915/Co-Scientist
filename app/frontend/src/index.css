@@ -7836,3 +7836,11 @@ body {
   background: #2b3033;
   color: #e8eaed;
 }
+
+/* Keep the workspace card rounded against the navigation rail at both left corners. */
+:is(.home-shell, .report-shell) > .ucs-workspace,
+[data-theme="dark"] :is(.home-shell, .report-shell) > .ucs-workspace {
+  overflow: hidden;
+  border-top-left-radius: 1.9rem;
+  border-bottom-left-radius: 1.9rem;
+}
