@@ -8131,3 +8131,155 @@ body {
     margin-top: 1.1rem;
   }
 }
+
+/* Composer upload previews. */
+.reference-composer.has-attachments,
+[data-theme="dark"] .reference-composer.has-attachments {
+  min-height: 13.5rem;
+}
+
+.home-shell .reference-composer.has-attachments,
+[data-theme="dark"] .home-shell .reference-composer.has-attachments {
+  min-height: 13.5rem;
+  padding-top: 1rem;
+}
+
+.reference-attachment-strip,
+[data-theme="dark"] .reference-attachment-strip {
+  display: flex;
+  min-width: 0;
+  gap: 0.8rem;
+  overflow-x: auto;
+  padding: 0 0 1.35rem;
+  pointer-events: auto;
+  scrollbar-width: none;
+}
+
+.reference-attachment-strip::-webkit-scrollbar {
+  display: none;
+}
+
+.reference-attachment-card,
+[data-theme="dark"] .reference-attachment-card {
+  position: relative;
+  display: grid;
+  box-sizing: border-box;
+  width: 13.75rem;
+  height: 4.85rem;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 0;
+  border-radius: 1rem;
+  background: #eef2f8;
+  color: #202124;
+  padding: 0.85rem 3.2rem 0.85rem 1rem;
+}
+
+[data-theme="dark"] .reference-attachment-card {
+  background: #303335;
+  color: #f1f3f4;
+}
+
+.reference-attachment-card--image,
+[data-theme="dark"] .reference-attachment-card--image {
+  width: 4.85rem;
+  overflow: hidden;
+  padding: 0;
+}
+
+.reference-attachment-card--image img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.reference-attachment-text {
+  display: grid;
+  min-width: 0;
+  gap: 0.48rem;
+}
+
+.reference-attachment-text strong {
+  overflow: hidden;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reference-attachment-text > span {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.55rem;
+  color: #202124;
+  font-size: 0.9rem;
+  line-height: 1.2;
+}
+
+[data-theme="dark"] .reference-attachment-text > span {
+  color: #e8eaed;
+}
+
+.reference-attachment-extension {
+  display: inline-grid;
+  min-width: 1.35rem;
+  height: 1.35rem;
+  place-items: center;
+  border-radius: 0.18rem;
+  background: #7d8797;
+  color: #fff;
+  font-size: 0.48rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.reference-attachment-card > button {
+  position: absolute;
+  top: 0.62rem;
+  right: 0.62rem;
+  display: grid;
+  width: 2.05rem;
+  height: 2.05rem;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  color: #3c4043;
+  cursor: pointer;
+  padding: 0;
+  transition:
+    background-color 160ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.reference-attachment-card--image > button {
+  opacity: 0;
+}
+
+.reference-attachment-card--image:hover > button,
+.reference-attachment-card--image:focus-within > button {
+  opacity: 1;
+}
+
+[data-theme="dark"] .reference-attachment-card > button {
+  background: #202124;
+  color: #e8eaed;
+}
+
+.reference-attachment-card > button:hover,
+.reference-attachment-card > button:focus-visible {
+  background: #f8fafd;
+  outline: none;
+}
+
+[data-theme="dark"] .reference-attachment-card > button:hover,
+[data-theme="dark"] .reference-attachment-card > button:focus-visible {
+  background: #3c4043;
+}
+
+.reference-attachment-card > button md-icon {
+  font-size: 1.35rem;
+}

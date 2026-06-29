@@ -284,21 +284,57 @@ describe('ChatWorkspace', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('shows selected file chips in the composer', async () => {
+  it('shows uploaded file previews in the composer', async () => {
     renderWorkspace();
 
     const fileInput = screen.getByLabelText('Upload files');
     fireEvent.change(fileInput, {
       target: {
         files: [
-          new File(['abstract'], 'mash-literature-review.pdf', {
-            type: 'application/pdf',
+          new File(['abstract'], 'deep-research-report.md', {
+            type: 'text/markdown',
           }),
         ],
       },
     });
 
-    expect(screen.getByText('mash-literature-review.pdf')).toBeInTheDocument();
+    expect(screen.getByText('deep-research-report.md')).toBeInTheDocument();
+    expect(screen.getByText('TXT')).toBeInTheDocument();
+    expect(screen.getByText('Markdown')).toBeInTheDocument();
+  });
+
+  it('shows uploaded image previews in the composer', async () => {
+    const createObjectURL = vi.fn(() => 'blob:preview-image');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL,
+      revokeObjectURL,
+    });
+    renderWorkspace();
+
+    const fileInput = screen.getByLabelText('Upload files');
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['image'], 'reference-shot.png', {
+            type: 'image/png',
+          }),
+        ],
+      },
+    });
+
+    expect(screen.getByAltText('reference-shot.png')).toHaveAttribute(
+      'src',
+      'blob:preview-image',
+    );
+
+    fireEvent.click(
+      screen.getByRole('button', {name: 'Remove reference-shot.png'}),
+    );
+
+    expect(screen.queryByAltText('reference-shot.png')).toBeNull();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:preview-image');
   });
 
   it('previews a suggestion without moving the composer', async () => {

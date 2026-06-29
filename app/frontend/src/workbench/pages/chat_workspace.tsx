@@ -99,6 +99,15 @@ const SESSION_STEPS: ReadonlyArray<{
 ];
 
 type ActiveMessageMode = 'qa' | 'steering';
+
+interface ComposerAttachment {
+  id: string;
+  name: string;
+  badge: string;
+  kind: string;
+  isImage: boolean;
+  previewUrl: string | null;
+}
 type ChatWorkspaceLocationState = {
   cosciAction?: 'new-chat' | 'focus-composer';
 };
@@ -698,6 +707,43 @@ export function ChatWorkspace() {
   );
 }
 
+function fileToAttachment(file: File): ComposerAttachment {
+  const extension = fileExtension(file.name);
+  const isImage = file.type.startsWith('image/');
+  return {
+    id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+    name: file.name,
+    badge: fileBadge(extension),
+    kind: fileKind(file, extension),
+    isImage,
+    previewUrl: isImage ? URL.createObjectURL(file) : null,
+  };
+}
+
+function fileExtension(name: string) {
+  const extension = name.split('.').pop()?.trim();
+  return extension ? extension.slice(0, 8).toLowerCase() : '';
+}
+
+function fileBadge(extension: string) {
+  if (['md', 'mkdn', 'markdown', 'txt'].includes(extension)) return 'TXT';
+  return extension ? extension.slice(0, 4).toUpperCase() : 'FILE';
+}
+
+function fileKind(file: File, extension: string) {
+  if (['md', 'mkdn', 'markdown'].includes(extension)) return 'Markdown';
+  if (file.type.startsWith('text/') || extension === 'txt') return 'Text';
+  if (extension === 'pdf') return 'PDF';
+  if (extension === 'csv') return 'CSV';
+  return (
+    file.type
+      .split('/')
+      .pop()
+      ?.replace(/[-+].*/, '')
+      .toUpperCase() ?? 'File'
+  );
+}
+
 function Composer({
   input,
   setInput,
@@ -729,7 +775,8 @@ function Composer({
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceControlsRef = useRef<HTMLDivElement>(null);
-  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const attachmentRef = useRef<ComposerAttachment[]>([]);
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -740,10 +787,32 @@ function Composer({
   }
 
   function onFilesChanged(e: ChangeEvent<HTMLInputElement>) {
-    const names = Array.from(e.target.files ?? []).map(file => file.name);
-    setSelectedFiles(names);
+    const nextAttachments = Array.from(e.target.files ?? []).map(file =>
+      fileToAttachment(file),
+    );
+    setAttachments(current => [...current, ...nextAttachments]);
     e.target.value = '';
   }
+
+  function removeAttachment(id: string) {
+    setAttachments(current => {
+      const attachment = current.find(item => item.id === id);
+      if (attachment?.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      return current.filter(item => item.id !== id);
+    });
+  }
+
+  useEffect(() => {
+    attachmentRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      attachmentRef.current.forEach(attachment => {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (!connectorsOpen) return;
@@ -791,10 +860,54 @@ function Composer({
     return (
       <form
         onSubmit={onSubmit}
-        className={
-          input.trim() ? 'reference-composer has-input' : 'reference-composer'
-        }
+        className={[
+          'reference-composer',
+          input.trim() ? 'has-input' : '',
+          attachments.length ? 'has-attachments' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
       >
+        {attachments.length > 0 ? (
+          <div className="reference-attachment-strip" aria-label="Attachments">
+            {attachments.map(attachment =>
+              attachment.isImage && attachment.previewUrl ? (
+                <div
+                  className="reference-attachment-card reference-attachment-card--image"
+                  key={attachment.id}
+                >
+                  <img src={attachment.previewUrl} alt={attachment.name} />
+                  <button
+                    type="button"
+                    aria-label={`Remove ${attachment.name}`}
+                    onClick={() => removeAttachment(attachment.id)}
+                  >
+                    <md-icon aria-hidden="true">close</md-icon>
+                  </button>
+                </div>
+              ) : (
+                <div className="reference-attachment-card" key={attachment.id}>
+                  <div className="reference-attachment-text">
+                    <strong>{attachment.name}</strong>
+                    <span>
+                      <span className="reference-attachment-extension">
+                        {attachment.badge}
+                      </span>
+                      {attachment.kind}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={`Remove ${attachment.name}`}
+                    onClick={() => removeAttachment(attachment.id)}
+                  >
+                    <md-icon aria-hidden="true">close</md-icon>
+                  </button>
+                </div>
+              ),
+            )}
+          </div>
+        ) : null}
         <label>
           <span>
             <md-icon aria-hidden="true">shield</md-icon>
@@ -874,16 +987,6 @@ function Composer({
               </div>
             ) : null}
           </div>
-          {selectedFiles.length > 0 ? (
-            <div className="reference-file-chips" aria-label="Selected files">
-              {selectedFiles.map(name => (
-                <span className="reference-file-chip" key={name}>
-                  <md-icon aria-hidden="true">draft</md-icon>
-                  {name}
-                </span>
-              ))}
-            </div>
-          ) : null}
           <button
             type="submit"
             aria-label={submitLabel}
