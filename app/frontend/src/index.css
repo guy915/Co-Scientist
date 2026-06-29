@@ -7397,3 +7397,155 @@ body {
   text-align: left;
   line-height: 1.25;
 }
+
+:is(.home-shell, .report-shell).nav-collapsed .ucs-nav-panel,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-panel {
+  align-items: center;
+  padding-inline: 0;
+}
+
+:is(.home-shell, .report-shell).nav-collapsed .ucs-nav-top,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-top,
+:is(.home-shell, .report-shell).nav-collapsed .ucs-nav-items,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-items,
+:is(.home-shell, .report-shell).nav-collapsed .ucs-nav-bottom,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-bottom {
+  width: 100%;
+  align-items: center;
+  justify-items: center;
+}
+
+:is(.home-shell, .report-shell).nav-collapsed .ucs-rail-button,
+:is(.home-shell, .report-shell).nav-collapsed .ucs-nav-item,
+:is(.home-shell, .report-shell).nav-collapsed
+  .ucs-nav-bottom
+  .ucs-rail-button,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-collapsed .ucs-rail-button,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-item,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-collapsed
+  .ucs-nav-bottom
+  .ucs-rail-button {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  grid-template-columns: 1fr;
+  place-items: center;
+  justify-self: center;
+  padding: 0;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-panel,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-panel {
+  padding: 1rem 0.75rem;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-top,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-top {
+  width: 100%;
+  align-items: stretch;
+  gap: 0.75rem;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button {
+  width: 2.5rem;
+  height: 2.5rem;
+  align-self: flex-start;
+  justify-self: flex-start;
+  padding: 0;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-items,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-items {
+  width: 100%;
+  gap: 0.25rem;
+  margin-top: 0;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item,
+:is(.home-shell, .report-shell).nav-open .ucs-nav-bottom .ucs-rail-button,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-item,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button {
+  display: grid;
+  width: 100%;
+  height: 2.45rem;
+  min-height: 2.45rem;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  align-items: center;
+  justify-content: stretch;
+  justify-items: start;
+  column-gap: 0.72rem;
+  padding: 0 0.75rem;
+  text-align: left;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item md-icon,
+:is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  md-icon,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-item md-icon,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  md-icon {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
+  min-width: 1.5rem;
+  min-height: 1.5rem;
+  place-items: center;
+  justify-self: center;
+  line-height: 1;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item .nav-label,
+:is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  .nav-label,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-item
+  .nav-label,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  .nav-label {
+  justify-self: start;
+  align-self: center;
+  text-align: left;
+  line-height: 1.25;
+}
+
+.ucs-popover--rail {
+  left: 3rem;
+  width: min(16.25rem, calc(100vw - 4rem));
+}
+
+.ucs-popover--rail .ucs-theme-segment--inline {
+  grid-template-columns: repeat(3, minmax(3.8rem, 1fr));
+  margin: 0 0.25rem 0.35rem 2.1rem;
+}
+
+.ucs-popover--rail .ucs-theme-segment--inline button {
+  min-width: 0;
+  min-height: 2rem;
+  gap: 0.18rem;
+  padding: 0 0.28rem;
+  font-size: 0.68rem;
+}
+
+.ucs-popover--rail .ucs-theme-segment--inline md-icon {
+  font-size: 0.88rem;
+}

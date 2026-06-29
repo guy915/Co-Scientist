@@ -105,7 +105,7 @@ describe('Layout', () => {
     expect(screen.getByText('Appearance')).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Personalization'})).toBeNull();
     expect(screen.queryByText(/Delft/)).toBeNull();
-    expect(screen.getByRole('button', {name: 'Get help'})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Help'})).toBeInTheDocument();
     expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();
     expect(screen.getByRole('button', {name: 'Dark'})).toHaveAttribute(
       'aria-pressed',

@@ -20,7 +20,6 @@ import {
 } from '@/api/runs';
 import {useRunStream} from '@/hooks/use_run_stream';
 import {conciseTitle} from '@/lib/text';
-import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 
 const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
@@ -158,9 +157,6 @@ export function RunDetail() {
           <Link to="/" className="cosci-report-back" aria-label="Back">
             <md-icon aria-hidden="true">arrow_back</md-icon>
           </Link>
-          <span className="reference-assistant-dot cosci-report-mark">
-            <GoogleLabsIcon aria-hidden="true" />
-          </span>
           <h1>{title}</h1>
         </div>
         <button type="button" className="cosci-session-details">

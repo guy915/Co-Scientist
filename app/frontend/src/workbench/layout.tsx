@@ -302,7 +302,7 @@ export function Layout({children}: {children: ReactNode}) {
                   className="ucs-settings-menu-row ucs-settings-help-row"
                 >
                   <md-icon aria-hidden="true">help</md-icon>
-                  <span>Get help</span>
+                  <span>Help</span>
                 </button>
               </ShellPopover>
             )}
