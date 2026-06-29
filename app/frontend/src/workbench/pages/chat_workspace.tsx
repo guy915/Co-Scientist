@@ -642,9 +642,10 @@ export function ChatWorkspace() {
                 ) : (
                   <li>
                     <div className="reference-recents-empty">
-                      <span className="reference-assistant-dot">
-                        <GoogleLabsIcon aria-hidden="true" />
-                      </span>
+                      <GoogleLabsIcon
+                        aria-hidden="true"
+                        className="reference-recents-empty-icon"
+                      />
                       <strong>You have not started any sessions yet.</strong>
                     </div>
                   </li>

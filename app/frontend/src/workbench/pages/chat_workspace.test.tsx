@@ -246,6 +246,21 @@ describe('ChatWorkspace', () => {
     expect(screen.queryByRole('button', {name: 'Load more'})).toBeNull();
   });
 
+  it('shows the reference empty recents placeholder', async () => {
+    apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.listRuns.mockResolvedValue([]);
+
+    const {container} = renderWorkspace();
+
+    expect(
+      await screen.findByText('You have not started any sessions yet.'),
+    ).toBeInTheDocument();
+    expect(
+      container.querySelector('.reference-recents-empty-icon'),
+    ).not.toBeNull();
+    expect(container.querySelector('.reference-assistant-dot')).toBeNull();
+  });
+
   it('shows composer file and connector source controls', async () => {
     renderWorkspace();
 
