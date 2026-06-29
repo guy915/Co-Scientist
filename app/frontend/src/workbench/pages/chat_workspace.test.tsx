@@ -83,6 +83,7 @@ const hypothesis = {
 
 beforeEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
   apiMock.askQuestionUrl.mockImplementation(
     (runId: string) => `/api/runs/${runId}/messages/ask`,
   );
@@ -270,6 +271,65 @@ describe('ChatWorkspace', () => {
     expect(
       composer.closest('.reference-composer')?.getBoundingClientRect().top,
     ).toBe(originalComposerTop);
+  });
+
+  it('shows request and response action controls in the chat transcript', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {writeText},
+    });
+    const createObjectURL = vi.fn(() => 'blob:co-scientist-response');
+    const revokeObjectURL = vi.fn();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => {});
+
+    renderWorkspace();
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, {
+      target: {value: 'Investigate glucose homeostasis under cold stress.'},
+    });
+    fireEvent.submit(input.closest('form')!);
+
+    expect(await screen.findByLabelText('Edit request')).toBeInTheDocument();
+    expect(screen.getByLabelText('Copy request')).toBeInTheDocument();
+    expect(screen.getByLabelText('Retry response')).toBeInTheDocument();
+    expect(screen.getByLabelText('Copy response')).toBeInTheDocument();
+    expect(screen.getByLabelText('Download response')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Copy request'));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        'Investigate glucose homeostasis under cold stress.',
+      );
+    });
+
+    fireEvent.click(screen.getByLabelText('Edit request'));
+    expect(screen.getByRole('textbox')).toHaveValue(
+      'Investigate glucose homeostasis under cold stress.',
+    );
+
+    fireEvent.click(screen.getByLabelText('Copy response'));
+    await waitFor(() => {
+      expect(writeText).toHaveBeenCalledWith(
+        expect.stringContaining('Research plan'),
+      );
+    });
+
+    fireEvent.click(screen.getByLabelText('Download response'));
+    expect(createObjectURL).toHaveBeenCalled();
+    expect(anchorClick).toHaveBeenCalled();
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:co-scientist-response');
   });
 
   it('infers a run spec in chat and starts the durable run on confirmation', async () => {

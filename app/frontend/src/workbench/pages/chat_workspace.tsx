@@ -162,6 +162,22 @@ function formatHomeRunStatus(run: Run): string {
   return run.status.charAt(0).toUpperCase() + run.status.slice(1);
 }
 
+async function copyText(text: string) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+  }
+}
+
+function downloadText(filename: string, text: string) {
+  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
 function homeRunScore(run: Run): number {
   if (run.status === 'failed' || run.status === 'blocked') return 1200;
   const goalSeed = run.research_goal
@@ -346,6 +362,21 @@ export function ChatWorkspace() {
     return createdAt;
   }
 
+  function handleEditMessage(message: ChatEntry) {
+    setInput(message.content);
+    focusComposer();
+  }
+
+  function handleRetryMessage(message: ChatEntry) {
+    appendAssistant(message.content);
+  }
+
+  function handleRetryDraftSpec() {
+    if (!draftSpec) return;
+    setDraftSpec(inferRunSpec(draftSpec.goal));
+    setDraftSpecCreatedAt(Date.now() / 1000);
+  }
+
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const text = input.trim();
@@ -413,7 +444,13 @@ export function ChatWorkspace() {
       id: `local-message-${message.id}`,
       at: message.created_at,
       order: index,
-      node: <ChatBubble message={message} />,
+      node: (
+        <ChatBubble
+          message={message}
+          onEdit={() => handleEditMessage(message)}
+          onRetry={() => handleRetryMessage(message)}
+        />
+      ),
     });
   }
   if (draftSpec && draftSpecCreatedAt !== null) {
@@ -432,6 +469,7 @@ export function ChatWorkspace() {
             setDraftSpec(current => (current ? {...current, tier} : current))
           }
           onCancel={() => setDraftSpec(null)}
+          onRetry={() => handleRetryDraftSpec()}
           onStart={() => void handleStartRun()}
         />
       ),
@@ -446,6 +484,11 @@ export function ChatWorkspace() {
         <StartedSessionCard
           session={startedSession}
           onOpen={() => void navigate(`/runs/${startedSession.id}/details`)}
+          onRetry={() =>
+            setStartedSession(current =>
+              current ? {...current, at: Date.now() / 1000} : current,
+            )
+          }
           onNewTopic={() => {
             resetWorkspace();
             focusComposer();
@@ -803,7 +846,51 @@ function Composer({
   );
 }
 
-function ChatBubble({message}: {message: ChatEntry}) {
+interface MessageAction {
+  icon: string;
+  label: string;
+  onClick: () => void;
+}
+
+function MessageActionRow({
+  actions,
+  align = 'start',
+}: {
+  actions: MessageAction[];
+  align?: 'start' | 'end';
+}) {
+  return (
+    <div
+      className={
+        align === 'end'
+          ? 'reference-message-actions end'
+          : 'reference-message-actions'
+      }
+    >
+      {actions.map(action => (
+        <button
+          key={action.label}
+          type="button"
+          aria-label={action.label}
+          title={action.label}
+          onClick={action.onClick}
+        >
+          <md-icon aria-hidden="true">{action.icon}</md-icon>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function ChatBubble({
+  message,
+  onEdit,
+  onRetry,
+}: {
+  message: ChatEntry;
+  onEdit: () => void;
+  onRetry: () => void;
+}) {
   const isUser = message.role === 'user';
   return (
     <div
@@ -815,6 +902,36 @@ function ChatBubble({message}: {message: ChatEntry}) {
         <span>{message.content}</span>
         {isUser && <md-icon aria-hidden="true">expand_more</md-icon>}
       </div>
+      {isUser ? (
+        <MessageActionRow
+          align="end"
+          actions={[
+            {icon: 'edit', label: 'Edit request', onClick: onEdit},
+            {
+              icon: 'content_copy',
+              label: 'Copy request',
+              onClick: () => void copyText(message.content),
+            },
+          ]}
+        />
+      ) : (
+        <MessageActionRow
+          actions={[
+            {icon: 'refresh', label: 'Retry response', onClick: onRetry},
+            {
+              icon: 'content_copy',
+              label: 'Copy response',
+              onClick: () => void copyText(message.content),
+            },
+            {
+              icon: 'download',
+              label: 'Download response',
+              onClick: () =>
+                downloadText('co-scientist-response.txt', message.content),
+            },
+          ]}
+        />
+      )}
     </div>
   );
 }
@@ -825,6 +942,7 @@ function RunSpecCard({
   onFocusChange,
   onTierChange,
   onCancel,
+  onRetry,
   onStart,
 }: {
   spec: InferredRunSpec;
@@ -832,8 +950,11 @@ function RunSpecCard({
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onCancel: () => void;
+  onRetry: () => void;
   onStart: () => void;
 }) {
+  const responseText = formatRunSpecResponse(spec);
+
   return (
     <section
       className="reference-setup-message"
@@ -886,19 +1007,59 @@ function RunSpecCard({
           </button>
         </div>
       </div>
+      <MessageActionRow
+        actions={[
+          {icon: 'refresh', label: 'Retry response', onClick: onRetry},
+          {
+            icon: 'content_copy',
+            label: 'Copy response',
+            onClick: () => void copyText(responseText),
+          },
+          {
+            icon: 'download',
+            label: 'Download response',
+            onClick: () =>
+              downloadText('co-scientist-research-plan.txt', responseText),
+          },
+        ]}
+      />
     </section>
   );
+}
+
+function formatRunSpecResponse(spec: InferredRunSpec): string {
+  return [
+    "Okay, I've drafted the requirements to propose a novel, testable hypothesis for this research session.",
+    '',
+    'Research plan',
+    referenceSetupTitle(spec.goal),
+    '',
+    `Goal: ${spec.goal}`,
+    '',
+    `Requirements:\n${spec.requirements.map(value => `- ${value}`).join('\n')}`,
+    '',
+    `Attributes:\n${spec.attributes.map(value => `- ${value}`).join('\n')}`,
+    '',
+    `Criteria:\n${spec.criteria.map(value => `- ${value}`).join('\n')}`,
+    '',
+    `Focus: ${spec.focus}`,
+    `Tier: ${spec.tier}`,
+  ].join('\n');
 }
 
 function StartedSessionCard({
   session,
   onOpen,
+  onRetry,
   onNewTopic,
 }: {
   session: StartedSession;
   onOpen: () => void;
+  onRetry: () => void;
   onNewTopic: () => void;
 }) {
+  const responseText = formatStartedSessionResponse(session);
+
   return (
     <section
       className="reference-started-message"
@@ -943,8 +1104,34 @@ function StartedSessionCard({
           Start a new research goal session on a new topic
         </button>
       </div>
+      <MessageActionRow
+        actions={[
+          {icon: 'refresh', label: 'Retry response', onClick: onRetry},
+          {
+            icon: 'content_copy',
+            label: 'Copy response',
+            onClick: () => void copyText(responseText),
+          },
+          {
+            icon: 'download',
+            label: 'Download response',
+            onClick: () =>
+              downloadText('co-scientist-session-started.txt', responseText),
+          },
+        ]}
+      />
     </section>
   );
+}
+
+function formatStartedSessionResponse(session: StartedSession): string {
+  return [
+    'Your session has been started and your team of AI agents has started research!',
+    'You can view and interact with your session at any time, but note that it might take a few minutes for the first ideas to be ready to view.',
+    '',
+    session.title,
+    'Research session',
+  ].join('\n');
 }
 
 function referenceSetupTitle(goal: string): string {
