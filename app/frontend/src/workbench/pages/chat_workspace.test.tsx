@@ -325,15 +325,34 @@ describe('ChatWorkspace', () => {
       expect(apiMock.startRun).toHaveBeenCalledWith('run-1');
     });
 
+    expect(screen.getByTestId('location')).toHaveTextContent('/');
+    expect(
+      await screen.findByText(
+        /Your session has been started and your team of AI agents has started research/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Research session')).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /Open/i})).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'View session details'}),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {
+        name: 'Start a new research goal session on a new topic',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Report ready')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('Mitochondrial feedback hypothesis'),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: /Open/i}));
+
     await waitFor(() => {
       expect(screen.getByTestId('location')).toHaveTextContent(
         '/runs/run-1/details',
       );
     });
-    expect(screen.queryByText('Report ready')).not.toBeInTheDocument();
-    expect(
-      screen.queryByText('Mitochondrial feedback hypothesis'),
-    ).not.toBeInTheDocument();
   });
 
   it('fills the composer from a suggested prompt', () => {

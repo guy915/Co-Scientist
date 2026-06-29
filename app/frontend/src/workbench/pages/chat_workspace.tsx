@@ -51,6 +51,12 @@ interface TimelineItem {
   node: ReactNode;
 }
 
+interface StartedSession {
+  id: string;
+  title: string;
+  at: number;
+}
+
 const SUGGESTIONS = [
   {
     short: 'Find new therapeutic targets for M.tuberculosis by combining...',
@@ -219,6 +225,9 @@ export function ChatWorkspace() {
   const [draftSpecCreatedAt, setDraftSpecCreatedAt] = useState<number | null>(
     null,
   );
+  const [startedSession, setStartedSession] = useState<StartedSession | null>(
+    null,
+  );
   const [isStarting, setIsStarting] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [history, setHistory] = useState<Run[]>([]);
@@ -245,6 +254,7 @@ export function ChatWorkspace() {
     setInput('');
     setDraftSpec(null);
     setDraftSpecCreatedAt(null);
+    setStartedSession(null);
     setIsStarting(false);
     setMessages([]);
     setError(null);
@@ -298,19 +308,24 @@ export function ChatWorkspace() {
       return;
     }
     scroller.scrollTop = scroller.scrollHeight;
-  }, [messages.length, draftSpec, draftSpecCreatedAt]);
+  }, [messages.length, draftSpec, draftSpecCreatedAt, startedSession]);
 
-  const hasConversation = messages.length > 0 || Boolean(draftSpec);
+  const hasConversation =
+    messages.length > 0 || Boolean(draftSpec) || Boolean(startedSession);
 
   useEffect(() => {
-    const title = draftSpec ? conciseTitle(draftSpec.goal) : '';
+    const title = draftSpec
+      ? conciseTitle(draftSpec.goal)
+      : startedSession
+        ? startedSession.title
+        : '';
     window.dispatchEvent(
       new CustomEvent('cosci-header-title', {detail: title}),
     );
     return () => {
       window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: ''}));
     };
-  }, [draftSpec]);
+  }, [draftSpec, startedSession]);
 
   function appendAssistant(
     content: string,
@@ -375,11 +390,16 @@ export function ChatWorkspace() {
           `Tier: ${draftSpec.tier}`,
         ].join('\n'),
       });
+      const session: StartedSession = {
+        id: created.id,
+        title: referenceSetupTitle(draftSpec.goal),
+        at: Date.now() / 1000,
+      };
       setDraftSpec(null);
       setDraftSpecCreatedAt(null);
       await startRun(created.id);
+      setStartedSession(session);
       await loadHistory();
-      void navigate(`/runs/${created.id}/details`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -413,6 +433,23 @@ export function ChatWorkspace() {
           }
           onCancel={() => setDraftSpec(null)}
           onStart={() => void handleStartRun()}
+        />
+      ),
+    });
+  }
+  if (startedSession) {
+    timelineItems.push({
+      id: `started-session-${startedSession.id}`,
+      at: startedSession.at,
+      order: 60,
+      node: (
+        <StartedSessionCard
+          session={startedSession}
+          onOpen={() => void navigate(`/runs/${startedSession.id}/details`)}
+          onNewTopic={() => {
+            resetWorkspace();
+            focusComposer();
+          }}
         />
       ),
     });
@@ -598,7 +635,7 @@ export function ChatWorkspace() {
                   setInput={setInput}
                   isEditingSpec={false}
                   activeMessageMode={inferActiveMessageMode(input)}
-                  setupDraftMode={Boolean(draftSpec)}
+                  setupDraftMode={Boolean(draftSpec || startedSession)}
                   disabled={isStarting}
                   reference
                   onSubmit={handleSubmit}
@@ -848,6 +885,63 @@ function RunSpecCard({
             {isStarting ? 'Starting...' : 'Start research'}
           </button>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function StartedSessionCard({
+  session,
+  onOpen,
+  onNewTopic,
+}: {
+  session: StartedSession;
+  onOpen: () => void;
+  onNewTopic: () => void;
+}) {
+  return (
+    <section
+      className="reference-started-message"
+      aria-label="Started research session"
+    >
+      <div className="reference-started-label">
+        <span aria-hidden="true">
+          <GoogleLabsIcon />
+        </span>
+        <strong>Co-Scientist</strong>
+      </div>
+      <div className="reference-started-copy">
+        <p>
+          Your session has been started and your team of AI agents has started
+          research!
+        </p>
+        <p>
+          You can view and interact with your session at any time, but note that
+          it might take a few minutes for the first ideas to be ready to view.
+        </p>
+      </div>
+      <button
+        type="button"
+        className="reference-started-session-card"
+        onClick={onOpen}
+      >
+        <span className="reference-started-session-icon" aria-hidden="true">
+          <GoogleLabsIcon />
+        </span>
+        <span>
+          <strong>{session.title}</strong>
+          <small>Research session</small>
+        </span>
+        <span className="reference-started-open">Open</span>
+      </button>
+      <div className="reference-started-next">
+        <p>What would you like to do next?</p>
+        <button type="button" onClick={onOpen}>
+          View session details
+        </button>
+        <button type="button" onClick={onNewTopic}>
+          Start a new research goal session on a new topic
+        </button>
       </div>
     </section>
   );

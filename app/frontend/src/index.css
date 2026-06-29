@@ -2162,6 +2162,150 @@ body {
   color: #fff;
 }
 
+.reference-started-message {
+  display: grid;
+  gap: 1.15rem;
+  color: #202124;
+}
+
+.reference-started-label {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  color: #202124;
+  font-size: 1rem;
+}
+
+.reference-started-label > span {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: #f0e7ff;
+  color: var(--idea-ref-purple);
+}
+
+.reference-started-label svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.reference-started-copy {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.reference-started-copy p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.reference-started-session-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1.2rem;
+  align-items: center;
+  min-height: 5.3rem;
+  cursor: pointer;
+  border: 0;
+  border-radius: 1rem;
+  background:
+    linear-gradient(100deg, rgba(164, 64, 84, 0.92), rgba(44, 67, 145, 0.95)),
+    #25304c;
+  color: #fff;
+  padding: 1rem 1rem 1rem 1.2rem;
+  text-align: left;
+  transition:
+    filter 180ms ease,
+    transform 180ms ease;
+}
+
+.reference-started-session-card:hover,
+.reference-started-session-card:focus-visible {
+  filter: brightness(1.05);
+}
+
+.reference-started-session-card:active {
+  transform: scale(0.995);
+}
+
+.reference-started-session-icon {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--idea-ref-purple);
+}
+
+.reference-started-session-icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.reference-started-session-card strong {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  font-size: 1.18rem;
+  line-height: 1.25;
+}
+
+.reference-started-session-card small {
+  display: block;
+  margin-top: 0.3rem;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.9rem;
+}
+
+.reference-started-open {
+  min-width: 5.4rem;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  border-radius: 999px;
+  padding: 0.65rem 1.25rem;
+  color: rgba(255, 255, 255, 0.92);
+  font-weight: 600;
+  text-align: center;
+}
+
+.reference-started-next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.reference-started-next p {
+  flex-basis: 100%;
+  margin: 0 0 0.1rem;
+  color: #3c4043;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.reference-started-next button {
+  min-height: 2.55rem;
+  cursor: pointer;
+  border: 1px solid #1a73e8;
+  border-radius: 999px;
+  background: transparent;
+  color: #1967d2;
+  padding: 0 1.2rem;
+  font-weight: 600;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.reference-started-next button:hover,
+.reference-started-next button:focus-visible {
+  background: #e8f0fe;
+}
+
 .reference-results-page {
   min-height: 100%;
   background: #fff;
@@ -3507,6 +3651,40 @@ body {
   border-color: var(--cosci-blue);
   background: #1d3354;
   color: var(--cosci-blue);
+}
+
+[data-theme="dark"] .reference-started-message,
+[data-theme="dark"] .reference-started-label {
+  color: var(--cosci-text);
+}
+
+[data-theme="dark"] .reference-started-label > span {
+  background: #35245a;
+  color: #c58af9;
+}
+
+[data-theme="dark"] .reference-started-copy p {
+  color: var(--cosci-text);
+}
+
+[data-theme="dark"] .reference-started-session-card {
+  background:
+    linear-gradient(100deg, rgba(93, 36, 52, 0.96), rgba(24, 58, 104, 0.98)),
+    #172033;
+}
+
+[data-theme="dark"] .reference-started-next p {
+  color: #bdc1c6;
+}
+
+[data-theme="dark"] .reference-started-next button {
+  border-color: #8ab4f8;
+  color: #8ab4f8;
+}
+
+[data-theme="dark"] .reference-started-next button:hover,
+[data-theme="dark"] .reference-started-next button:focus-visible {
+  background: rgba(138, 180, 248, 0.12);
 }
 
 [data-theme="dark"] .cosci-report-page {
