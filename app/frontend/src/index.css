@@ -7752,3 +7752,87 @@ body {
 .ucs-popover--rail .ucs-theme-segment--inline md-icon {
   font-size: 0.88rem;
 }
+
+/* Final rail geometry override: keep every open-rail action on the same axis. */
+:is(.home-shell, .report-shell).nav-open .ucs-nav-bottom,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-bottom {
+  width: 100%;
+  align-items: stretch;
+  justify-items: stretch;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item,
+:is(.home-shell, .report-shell).nav-open .ucs-nav-bottom .ucs-rail-button,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-item,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 2.5rem minmax(0, 1fr);
+  justify-content: stretch;
+  justify-items: start;
+  column-gap: 0.25rem;
+  padding: 0;
+  text-align: left;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item md-icon,
+:is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  md-icon,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-item md-icon,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  md-icon {
+  justify-self: center;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item .nav-label,
+:is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  .nav-label,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-item
+  .nav-label,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  .nav-label {
+  display: block;
+  max-width: 100%;
+  justify-self: start;
+  overflow: hidden;
+  opacity: 1;
+  text-align: left;
+  text-overflow: ellipsis;
+  visibility: visible;
+  white-space: nowrap;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-bottom .ucs-rail-button:hover,
+:is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button[aria-expanded="true"] {
+  background: #dfeafc;
+  color: #3c4043;
+}
+
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button:hover,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button[aria-expanded="true"] {
+  background: #2b3033;
+  color: #e8eaed;
+}
