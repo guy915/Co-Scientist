@@ -246,6 +246,46 @@ describe('ChatWorkspace', () => {
     expect(screen.queryByRole('button', {name: 'Load more'})).toBeNull();
   });
 
+  it('shows composer file and connector source controls', async () => {
+    renderWorkspace();
+
+    expect(screen.getByRole('button', {name: 'Files'})).toBeInTheDocument();
+    const connectors = screen.getByRole('button', {name: 'Connectors'});
+    expect(connectors).toBeInTheDocument();
+
+    fireEvent.click(connectors);
+
+    expect(screen.getByRole('menu', {name: 'Connectors'})).toBeInTheDocument();
+    expect(screen.getByText('Enable all connectors')).toBeInTheDocument();
+    expect(screen.getByText('Google Search')).toBeInTheDocument();
+    expect(screen.getByText('PubMed')).toBeInTheDocument();
+    expect(screen.getByText('Drive')).toBeInTheDocument();
+    expect(screen.getByText('SharePoint')).toBeInTheDocument();
+
+    fireEvent.mouseDown(document.body);
+
+    expect(
+      screen.queryByRole('menu', {name: 'Connectors'}),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows selected file chips in the composer', async () => {
+    renderWorkspace();
+
+    const fileInput = screen.getByLabelText('Upload files');
+    fireEvent.change(fileInput, {
+      target: {
+        files: [
+          new File(['abstract'], 'mash-literature-review.pdf', {
+            type: 'application/pdf',
+          }),
+        ],
+      },
+    });
+
+    expect(screen.getByText('mash-literature-review.pdf')).toBeInTheDocument();
+  });
+
   it('previews a suggestion without moving the composer', async () => {
     renderWorkspace();
 

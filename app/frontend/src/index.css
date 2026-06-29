@@ -1751,7 +1751,9 @@ body {
   bottom: 0.75rem;
   left: 1.25rem;
   display: flex;
-  justify-content: flex-end;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
   pointer-events: none;
 }
 
@@ -1767,6 +1769,207 @@ body {
 .reference-composer-actions button:disabled {
   color: #dadce0;
   cursor: default;
+}
+
+.reference-composer-source-controls {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 4.6rem;
+  pointer-events: auto;
+}
+
+.reference-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.reference-composer-source-button {
+  display: inline-flex;
+  width: 2rem;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #5f6368;
+  cursor: pointer;
+  transition:
+    background-color 160ms cubic-bezier(0.2, 0, 0, 1),
+    color 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.reference-composer-source-button:hover,
+.reference-composer-source-button:focus-visible,
+.reference-composer-source-button[aria-expanded="true"] {
+  background: #f1f3f4;
+  color: #3c4043;
+}
+
+.reference-composer-source-button md-icon {
+  font-size: 1.25rem;
+}
+
+.reference-connectors-menu {
+  position: absolute;
+  bottom: 2.45rem;
+  left: 2.35rem;
+  z-index: 10;
+  width: 18.75rem;
+  overflow: hidden;
+  border: 1px solid #dadce0;
+  border-radius: 0.9rem;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgb(60 64 67 / 16%),
+    0 8px 24px rgb(60 64 67 / 18%);
+  padding: 0.45rem 0;
+  color: #202124;
+  pointer-events: auto;
+}
+
+.reference-connectors-menu-row {
+  display: grid;
+  width: 100%;
+  min-height: 2.6rem;
+  grid-template-columns: 1.35rem 1fr auto;
+  align-items: center;
+  gap: 0.75rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.9rem;
+  text-align: left;
+}
+
+.reference-connectors-menu-row:hover,
+.reference-connectors-menu-row:focus-visible {
+  background: #f1f3f4;
+  outline: none;
+}
+
+.reference-connectors-menu-row--top {
+  grid-template-columns: 1fr auto;
+  border-bottom: 1px solid #e8eaed;
+  cursor: default;
+  font-weight: 500;
+}
+
+.reference-connector-icon {
+  font-family: "Material Symbols Outlined";
+  font-size: 1.2rem;
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 400,
+    "GRAD" 0,
+    "opsz" 24;
+}
+
+.reference-toggle {
+  position: relative;
+  width: 1.6rem;
+  height: 0.95rem;
+  border-radius: 999px;
+  background: #d2e3fc;
+}
+
+.reference-toggle::after {
+  position: absolute;
+  top: 0.15rem;
+  right: 0.18rem;
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 50%;
+  background: #1a73e8;
+  content: "";
+}
+
+.reference-connectors-menu-row[aria-checked="false"] .reference-toggle {
+  background: #dadce0;
+}
+
+.reference-connectors-menu-row[aria-checked="false"] .reference-toggle::after {
+  right: auto;
+  left: 0.18rem;
+  background: #80868b;
+}
+
+.reference-file-chips {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 0.35rem;
+  overflow: hidden;
+  pointer-events: auto;
+}
+
+.reference-file-chip {
+  display: inline-flex;
+  max-width: 12rem;
+  min-width: 0;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  background: #f1f3f4;
+  color: #3c4043;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  padding: 0.25rem 0.55rem;
+}
+
+.reference-file-chip md-icon {
+  flex: 0 0 auto;
+  font-size: 0.95rem;
+}
+
+.reference-file-chip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .reference-composer-source-button {
+  color: #bdc1c6;
+}
+
+[data-theme="dark"] .reference-composer-source-button:hover,
+[data-theme="dark"] .reference-composer-source-button:focus-visible,
+[data-theme="dark"] .reference-composer-source-button[aria-expanded="true"] {
+  background: #303134;
+  color: #e8eaed;
+}
+
+[data-theme="dark"] .reference-connectors-menu {
+  border-color: #3c4043;
+  background: #2b2d2f;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 24%),
+    0 8px 24px rgb(0 0 0 / 32%);
+  color: #e8eaed;
+}
+
+[data-theme="dark"] .reference-connectors-menu-row:hover,
+[data-theme="dark"] .reference-connectors-menu-row:focus-visible {
+  background: #35383a;
+}
+
+[data-theme="dark"] .reference-connectors-menu-row--top {
+  border-bottom-color: #3c4043;
+}
+
+[data-theme="dark"] .reference-file-chip {
+  background: #303134;
+  color: #e8eaed;
 }
 
 .reference-recents {

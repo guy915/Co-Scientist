@@ -8,6 +8,7 @@ import '@material/web/iconbutton/icon-button.js';
 
 import {
   Fragment,
+  type ChangeEvent,
   type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
@@ -70,6 +71,17 @@ const SUGGESTIONS = [
     short: 'Propose new mechanisms to explain why some patients...',
     full: 'Propose new mechanisms to explain why some patients fail to respond to checkpoint inhibitor therapy.',
   },
+];
+
+const COMPOSER_CONNECTORS = [
+  'Google Search',
+  'PubMed',
+  'ArXiv',
+  'BioRxiv',
+  'Drive',
+  'OneDrive',
+  'Box',
+  'SharePoint',
 ];
 
 /** The three phases of a session, shown on the home screen. */
@@ -722,12 +734,40 @@ function Composer({
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   onSuggestion: (value: string) => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const sourceControlsRef = useRef<HTMLDivElement>(null);
+  const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
+
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       e.currentTarget.form?.requestSubmit();
     }
   }
+
+  function onFilesChanged(e: ChangeEvent<HTMLInputElement>) {
+    const names = Array.from(e.target.files ?? []).map(file => file.name);
+    setSelectedFiles(names);
+    e.target.value = '';
+  }
+
+  useEffect(() => {
+    if (!connectorsOpen) return;
+
+    function closeConnectors(e: globalThis.MouseEvent) {
+      if (
+        e.target instanceof Node &&
+        sourceControlsRef.current?.contains(e.target)
+      ) {
+        return;
+      }
+      setConnectorsOpen(false);
+    }
+
+    document.addEventListener('mousedown', closeConnectors);
+    return () => document.removeEventListener('mousedown', closeConnectors);
+  }, [connectorsOpen]);
 
   const hasRunContext = Boolean(activeRunId);
   const referenceLabel = hasRunContext
@@ -777,6 +817,81 @@ function Composer({
           />
         </label>
         <div className="reference-composer-actions">
+          <div
+            className="reference-composer-source-controls"
+            ref={sourceControlsRef}
+          >
+            <input
+              ref={fileInputRef}
+              className="reference-file-input"
+              type="file"
+              multiple
+              aria-label="Upload files"
+              onChange={onFilesChanged}
+              tabIndex={-1}
+            />
+            <button
+              type="button"
+              className="reference-composer-source-button"
+              aria-label="Files"
+              title="Files"
+              disabled={disabled}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <md-icon aria-hidden="true">add</md-icon>
+            </button>
+            <button
+              type="button"
+              className="reference-composer-source-button"
+              aria-label="Connectors"
+              aria-expanded={connectorsOpen}
+              title="Connectors"
+              disabled={disabled}
+              onClick={() => setConnectorsOpen(open => !open)}
+            >
+              <md-icon aria-hidden="true">database</md-icon>
+            </button>
+            {connectorsOpen ? (
+              <div
+                className="reference-connectors-menu"
+                role="menu"
+                aria-label="Connectors"
+              >
+                <div className="reference-connectors-menu-row reference-connectors-menu-row--top">
+                  <span>Enable all connectors</span>
+                  <span className="reference-toggle" aria-hidden="true" />
+                </div>
+                {COMPOSER_CONNECTORS.map(name => (
+                  <button
+                    type="button"
+                    role="menuitemcheckbox"
+                    aria-checked={name !== 'Drive'}
+                    className="reference-connectors-menu-row"
+                    key={name}
+                  >
+                    <span
+                      className="reference-connector-icon"
+                      aria-hidden="true"
+                    >
+                      {name === 'Drive' ? 'drive_file_move' : 'travel_explore'}
+                    </span>
+                    <span>{name}</span>
+                    <span className="reference-toggle" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {selectedFiles.length > 0 ? (
+            <div className="reference-file-chips" aria-label="Selected files">
+              {selectedFiles.map(name => (
+                <span className="reference-file-chip" key={name}>
+                  <md-icon aria-hidden="true">draft</md-icon>
+                  {name}
+                </span>
+              ))}
+            </div>
+          ) : null}
           <button
             type="submit"
             aria-label={submitLabel}
