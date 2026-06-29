@@ -341,13 +341,13 @@ export function Layout({children}: {children: ReactNode}) {
                       <md-icon aria-hidden="true">refresh</md-icon>
                       <span>Refresh</span>
                     </button>
-                    <button type="button" onClick={copyLogs}>
-                      <md-icon aria-hidden="true">content_copy</md-icon>
-                      <span>{logsCopied ? 'Copied' : 'Copy all'}</span>
-                    </button>
                     <button type="button" onClick={clearLogs}>
                       <md-icon aria-hidden="true">delete_sweep</md-icon>
                       <span>Clear</span>
+                    </button>
+                    <button type="button" onClick={copyLogs}>
+                      <md-icon aria-hidden="true">content_copy</md-icon>
+                      <span>{logsCopied ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
                 </div>

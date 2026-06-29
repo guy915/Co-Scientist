@@ -129,6 +129,13 @@ describe('Layout', () => {
       screen.getByText(/Export includes loaded run events/),
     ).toBeInTheDocument();
     expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+    const diagnosticActions = document.querySelector('.ucs-diagnostic-actions');
+    expect(diagnosticActions).not.toBeNull();
+    expect(
+      Array.from(diagnosticActions!.querySelectorAll('button')).map(button =>
+        button.querySelector('span')?.textContent?.trim(),
+      ),
+    ).toEqual(['Refresh', 'Clear', 'Copy']);
 
     fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
     expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
