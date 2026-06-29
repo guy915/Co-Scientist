@@ -7264,6 +7264,7 @@ body {
   [data-theme="dark"] .home-shell .reference-recents {
     width: min(100%, 24rem);
     gap: 1.55rem;
+    overflow: visible;
     padding-top: 0.35rem;
   }
 
@@ -7288,7 +7289,8 @@ body {
   [data-theme="dark"] .home-shell .reference-recents > ol {
     max-height: calc(100vh - 10.4rem);
     gap: 2.65rem;
-    padding: 0.4rem 1rem 1.25rem 0;
+    margin-left: -0.7rem;
+    padding: 0.4rem 1rem 1.25rem 0.7rem;
     scrollbar-width: auto;
   }
 
