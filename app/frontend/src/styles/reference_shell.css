@@ -143,7 +143,6 @@
   width: 1.35rem;
   height: 1.35rem;
   flex: 0 0 auto;
-  color: currentColor;
 }
 
 .ucs-header-title {
@@ -200,54 +199,20 @@
 
 .ucs-logs-button {
   display: inline-flex;
-  height: 3rem;
   align-items: center;
-  gap: 0.65rem;
   border: 0;
-  border-radius: 999px;
-  background: #e7f0ef;
-  color: #335c5a;
-  padding: 0 0.95rem;
   font: inherit;
-  font-size: 1rem;
-  font-weight: 600;
   cursor: pointer;
   transition:
     background-color 180ms cubic-bezier(0.2, 0, 0, 1),
     color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.ucs-logs-button:hover {
-  background: #d9e8e6;
-}
-
-.ucs-logs-button md-icon {
-  font-size: 1.2rem;
-}
-
 .ucs-logs-count {
   display: grid;
-  min-width: 1.65rem;
-  height: 1.65rem;
   place-items: center;
   border-radius: 999px;
-  background: rgb(51 92 90 / 18%);
-  padding: 0 0.35rem;
-  font-size: 0.84rem;
   line-height: 1;
-}
-
-[data-theme="dark"] .ucs-logs-button {
-  background: #375451;
-  color: #e6f4ea;
-}
-
-[data-theme="dark"] .ucs-logs-button:hover {
-  background: #42615e;
-}
-
-[data-theme="dark"] .ucs-logs-count {
-  background: rgb(230 244 234 / 22%);
 }
 
 .ucs-popover {
