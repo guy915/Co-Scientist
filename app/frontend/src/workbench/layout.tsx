@@ -86,12 +86,15 @@ export function Layout({children}: {children: ReactNode}) {
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
   const [logsCleared, setLogsCleared] = useState(false);
   const [logsCopied, setLogsCopied] = useState(false);
+  const [showAllChats, setShowAllChats] = useState(false);
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
   const headerTitle = overrideTitle || '';
   const visibleLogEntries = logsCleared ? [] : diagnosticLogEntries;
   const logCount = logsCleared ? 0 : 23;
+  const visibleHistory = showAllChats ? history : history.slice(0, 10);
+  const hasExtraChats = history.length > 10;
   const shellClass = [
     'google-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
@@ -208,6 +211,7 @@ export function Layout({children}: {children: ReactNode}) {
             type="button"
             className="ucs-rail-button"
             aria-label="Menu"
+            title="Menu"
             data-tooltip="Menu"
             aria-expanded={navOpen}
             aria-controls="primary-navigation"
@@ -232,6 +236,7 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-nav-item"
               aria-label="Search"
+              title="Search"
               data-tooltip="Search"
               onClick={focusComposer}
             >
@@ -242,11 +247,24 @@ export function Layout({children}: {children: ReactNode}) {
           <div className="gemini-side-content">
             <p className="gemini-side-heading">Chats</p>
             <div className="gemini-chat-list">
-              {history.slice(0, 4).map(run => (
-                <Link key={run.id} to={`/runs/${run.id}/details`}>
-                  {conciseTitle(run.research_goal)}
+              {visibleHistory.map(run => (
+                <Link
+                  key={run.id}
+                  to={`/runs/${run.id}/details`}
+                  title={run.research_goal}
+                  data-tooltip={run.research_goal}
+                >
+                  <span>{conciseTitle(run.research_goal)}</span>
                 </Link>
               ))}
+              {hasExtraChats && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllChats(current => !current)}
+                >
+                  {showAllChats ? 'Show less' : 'Show more'}
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -256,6 +274,7 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-rail-button"
               aria-label="Settings"
+              title="Settings"
               data-tooltip="Settings"
               aria-expanded={activePanel === 'settings'}
               onClick={() => togglePanel('settings')}
@@ -322,6 +341,7 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-logs-button"
               aria-label={`Logs ${logCount}`}
+              title="Logs"
               data-tooltip="Logs"
               aria-expanded={activePanel === 'logs'}
               onClick={() => togglePanel('logs')}

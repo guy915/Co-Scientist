@@ -92,11 +92,54 @@ describe('Layout', () => {
 
     expect(await screen.findByText('Chats')).toBeInTheDocument();
     await waitFor(() => {
-      expect(screen.getByText(/ferroptosis/i)).toHaveAttribute(
+      expect(screen.getByRole('link', {name: /ferroptosis/i})).toHaveAttribute(
         'href',
         '/runs/demo-ferroptosis/details',
       );
     });
+  });
+
+  it('shows ten sidebar chats before expanding the rest', async () => {
+    apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.listRuns.mockResolvedValue(
+      Array.from({length: 12}, (_, index) =>
+        runFixture(
+          `run-${index + 1}`,
+          `Very long sidebar research question ${index + 1}`,
+        ),
+      ),
+    );
+
+    renderLayout();
+
+    expect(
+      await screen.findByRole('link', {
+        name: /Very long sidebar research question 10/i,
+      }),
+    ).toHaveAttribute('title', 'Very long sidebar research question 10');
+    expect(
+      screen.queryByRole('link', {
+        name: /Very long sidebar research question 11/i,
+      }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Show more'}));
+
+    expect(
+      screen.getByRole('link', {
+        name: /Very long sidebar research question 11/i,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('button', {name: 'Show more'})).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Show less'}));
+
+    expect(
+      screen.queryByRole('link', {
+        name: /Very long sidebar research question 11/i,
+      }),
+    ).toBeNull();
+    expect(screen.getByRole('button', {name: 'Show more'})).toBeInTheDocument();
   });
 
   it('opens shell panels from icon buttons and dismisses on outside click', () => {

@@ -189,13 +189,15 @@ describe('ChatWorkspace', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'Drive novel scientific discovery with Co-Scientist.',
+        name: 'What breakthrough should we chase today?',
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Recents')).toBeInTheDocument();
-    expect(screen.getByText('Create a Research goal')).toBeInTheDocument();
+    expect(screen.getByText('Frame the research goal')).toBeInTheDocument();
     expect(screen.getByText('Generate hypotheses')).toBeInTheDocument();
-    expect(screen.getByText('Evaluate and rank')).toBeInTheDocument();
+    expect(
+      screen.getByText('Pressure-test the best ideas'),
+    ).toBeInTheDocument();
     expect(screen.queryByText('AI Co-Scientist')).toBeNull();
     expect(
       screen.getByText('Start a new research goal to begin'),
@@ -211,10 +213,10 @@ describe('ChatWorkspace', () => {
     ).toHaveAttribute('href', '/runs/demo-ferroptosis/details');
   });
 
-  it('shows four recent cards before loading the rest', async () => {
+  it('shows ten recent cards before revealing the rest', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue(
-      Array.from({length: 6}, (_, index) =>
+      Array.from({length: 12}, (_, index) =>
         minimalRun({
           id: `run-${index + 1}`,
           research_goal: `Recent research question ${index + 1}`,
@@ -228,14 +230,14 @@ describe('ChatWorkspace', () => {
     renderWorkspace();
 
     expect(
-      await screen.findAllByText('Recent research question 6'),
+      await screen.findAllByText('Recent research question 12'),
     ).not.toHaveLength(0);
     expect(screen.getAllByText('Recent research question 3')).not.toHaveLength(
       0,
     );
     expect(screen.queryByText('Recent research question 2')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', {name: 'Load more'}));
+    fireEvent.click(screen.getByRole('button', {name: 'Show more'}));
 
     expect(screen.getAllByText('Recent research question 2')).not.toHaveLength(
       0,
@@ -243,7 +245,37 @@ describe('ChatWorkspace', () => {
     expect(screen.getAllByText('Recent research question 1')).not.toHaveLength(
       0,
     );
-    expect(screen.queryByRole('button', {name: 'Load more'})).toBeNull();
+    expect(screen.queryByRole('button', {name: 'Show more'})).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Show less'}));
+
+    expect(screen.queryByText('Recent research question 2')).toBeNull();
+    expect(screen.getByRole('button', {name: 'Show more'})).toBeInTheDocument();
+  });
+
+  it('shows active recents with in-progress percentage and generation state', async () => {
+    apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.listRuns.mockResolvedValue([
+      minimalRun({
+        id: 'run-active',
+        research_goal: 'Investigate synaptic pruning therapies.',
+        status: 'running',
+        completed_at: null,
+        summary: {
+          events: 9,
+          hypotheses: 3,
+          evidence: 0,
+          matches: 1,
+          reviews: 2,
+        },
+        updated_at: 20,
+      }),
+    ]);
+
+    renderWorkspace();
+
+    expect(await screen.findByText(/In Progress: \d+%/)).toBeInTheDocument();
+    expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
   });
 
   it('shows the reference empty recents placeholder', async () => {
@@ -395,11 +427,16 @@ describe('ChatWorkspace', () => {
     });
     fireEvent.submit(input.closest('form')!);
 
-    expect(await screen.findByLabelText('Edit request')).toBeInTheDocument();
-    expect(screen.getByLabelText('Copy request')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Copy request')).toBeInTheDocument();
+    expect(screen.getByLabelText('Edit request')).toBeInTheDocument();
     expect(screen.getByLabelText('Retry response')).toBeInTheDocument();
     expect(screen.getByLabelText('Copy response')).toBeInTheDocument();
     expect(screen.getByLabelText('Download response')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText('Edit request'));
+    expect(screen.getByRole('textbox')).toHaveValue(
+      'Investigate glucose homeostasis under cold stress.',
+    );
 
     fireEvent.click(screen.getByLabelText('Copy request'));
     await waitFor(() => {
@@ -407,11 +444,6 @@ describe('ChatWorkspace', () => {
         'Investigate glucose homeostasis under cold stress.',
       );
     });
-
-    fireEvent.click(screen.getByLabelText('Edit request'));
-    expect(screen.getByRole('textbox')).toHaveValue(
-      'Investigate glucose homeostasis under cold stress.',
-    );
 
     fireEvent.click(screen.getByLabelText('Copy response'));
     await waitFor(() => {
@@ -482,9 +514,18 @@ describe('ChatWorkspace', () => {
     expect(screen.getByTestId('location')).toHaveTextContent('/');
     expect(
       await screen.findByText(
-        /Your session has been started and your team of AI agents has started research/,
+        /Your session has been started and Co-Scientist has started research/,
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {name: 'Research plan'}),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {
+        name: 'Investigate glucose homeostasis under cold stress',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();
     expect(screen.getByText('Research session')).toBeInTheDocument();
     expect(screen.getByRole('button', {name: /Open/i})).toBeInTheDocument();
     expect(

@@ -15,6 +15,7 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -83,18 +84,18 @@ const SESSION_STEPS: ReadonlyArray<{
 }> = [
   {
     n: 1,
-    title: 'Create a Research goal',
-    body: 'Tell Co-Scientist what you plan to research, point it to relevant data, and set your evaluation criteria.',
+    title: 'Frame the research goal',
+    body: 'Describe the question, add useful context, and define what a strong hypothesis should satisfy.',
   },
   {
     n: 2,
     title: 'Generate hypotheses',
-    body: 'A team of agents will generate ideas on your topic using their available data',
+    body: 'Co-Scientist explores mechanisms, evidence, and candidate explanations for the topic.',
   },
   {
     n: 3,
-    title: 'Evaluate and rank',
-    body: 'The agents will evaluate the ideas against your criteria and rank them, tournament-style',
+    title: 'Pressure-test the best ideas',
+    body: 'Hypotheses are compared against the criteria so the strongest directions rise to the top.',
   },
 ];
 
@@ -165,7 +166,7 @@ function formatHomeRunTimeChip(run: Run): string {
     return `Total time: ${formatHomeRunDuration(run)}`;
   }
   if (['running', 'queued', 'synthesizing'].includes(run.status)) {
-    return `Time elapsed: ${formatHomeRunDuration(run)}`;
+    return `In Progress: ${homeRunProgress(run)}%`;
   }
   return `Status: ${formatHomeRunStatus(run)}`;
 }
@@ -196,6 +197,25 @@ function homeRunScore(run: Run): number {
     .split('')
     .reduce((acc, char) => acc + char.charCodeAt(0), 0);
   return 1240 + (goalSeed % 55);
+}
+
+function homeRunProgress(run: Run): number {
+  if (run.status === 'completed') return 100;
+  const elapsedMinutes = Math.max(
+    0,
+    Math.round(((run.updated_at || Date.now() / 1000) - run.created_at) / 60),
+  );
+  if (run.status === 'queued') {
+    return Math.max(8, Math.min(18, 8 + elapsedMinutes));
+  }
+  if (run.status === 'synthesizing') {
+    return Math.max(72, Math.min(94, 72 + elapsedMinutes * 2));
+  }
+  return Math.max(18, Math.min(86, 18 + elapsedMinutes * 3));
+}
+
+function isActiveHomeRun(run: Run): boolean {
+  return ['running', 'queued', 'synthesizing'].includes(run.status);
 }
 
 function homeRunIdeaTitles(goal: string): string[] {
@@ -253,6 +273,12 @@ export function ChatWorkspace() {
   const [draftSpecCreatedAt, setDraftSpecCreatedAt] = useState<number | null>(
     null,
   );
+  const [confirmedSpec, setConfirmedSpec] = useState<InferredRunSpec | null>(
+    null,
+  );
+  const [confirmedSpecCreatedAt, setConfirmedSpecCreatedAt] = useState<
+    number | null
+  >(null);
   const [startedSession, setStartedSession] = useState<StartedSession | null>(
     null,
   );
@@ -282,6 +308,8 @@ export function ChatWorkspace() {
     setInput('');
     setDraftSpec(null);
     setDraftSpecCreatedAt(null);
+    setConfirmedSpec(null);
+    setConfirmedSpecCreatedAt(null);
     setStartedSession(null);
     setIsStarting(false);
     setMessages([]);
@@ -328,18 +356,29 @@ export function ChatWorkspace() {
   useEffect(() => {
     const scroller = scrollRef.current;
     if (!scroller) return;
+    const top = draftSpec || confirmedSpec ? 0 : scroller.scrollHeight;
     if (typeof scroller.scrollTo === 'function') {
       scroller.scrollTo({
-        top: scroller.scrollHeight,
+        top,
         behavior: 'smooth',
       });
       return;
     }
-    scroller.scrollTop = scroller.scrollHeight;
-  }, [messages.length, draftSpec, draftSpecCreatedAt, startedSession]);
+    scroller.scrollTop = top;
+  }, [
+    messages.length,
+    draftSpec,
+    draftSpecCreatedAt,
+    confirmedSpec,
+    confirmedSpecCreatedAt,
+    startedSession,
+  ]);
 
   const hasConversation =
-    messages.length > 0 || Boolean(draftSpec) || Boolean(startedSession);
+    messages.length > 0 ||
+    Boolean(draftSpec) ||
+    Boolean(confirmedSpec) ||
+    Boolean(startedSession);
 
   useEffect(() => {
     const title = draftSpec
@@ -374,13 +413,13 @@ export function ChatWorkspace() {
     return createdAt;
   }
 
+  function handleRetryMessage(message: ChatEntry) {
+    appendAssistant(message.content);
+  }
+
   function handleEditMessage(message: ChatEntry) {
     setInput(message.content);
     focusComposer();
-  }
-
-  function handleRetryMessage(message: ChatEntry) {
-    appendAssistant(message.content);
   }
 
   function handleRetryDraftSpec() {
@@ -401,6 +440,8 @@ export function ChatWorkspace() {
       const next = reviseRunSpec(draftSpec, text);
       setDraftSpec(next);
       setDraftSpecCreatedAt(sentAt + 0.001);
+      setConfirmedSpec(null);
+      setConfirmedSpecCreatedAt(null);
       appendAssistant(
         'I updated the run setup. Start it when the spec looks right.',
         sentAt + 0.002,
@@ -411,33 +452,39 @@ export function ChatWorkspace() {
     const sentAt = appendUser(text);
     setDraftSpec(inferRunSpec(text));
     setDraftSpecCreatedAt(sentAt + 0.001);
+    setConfirmedSpec(null);
+    setConfirmedSpecCreatedAt(null);
   }
 
   async function handleStartRun() {
     if (!draftSpec) return;
+    const specToStart = draftSpec;
+    const specCreatedAt = draftSpecCreatedAt ?? Date.now() / 1000;
     setIsStarting(true);
     setError(null);
     try {
       const created = await createRun({
-        research_goal: draftSpec.goal,
-        requirements: draftSpec.requirements,
-        attributes: draftSpec.attributes,
-        criteria: draftSpec.criteria,
-        focus: draftSpec.focus,
-        tier: draftSpec.tier,
+        research_goal: specToStart.goal,
+        requirements: specToStart.requirements,
+        attributes: specToStart.attributes,
+        criteria: specToStart.criteria,
+        focus: specToStart.focus,
+        tier: specToStart.tier,
         notes: [
-          `Requirements: ${draftSpec.requirements.join(' | ')}`,
-          `Attributes: ${draftSpec.attributes.join(' | ')}`,
-          `Criteria: ${draftSpec.criteria.join(' | ')}`,
-          `Focus: ${draftSpec.focus}`,
-          `Tier: ${draftSpec.tier}`,
+          `Requirements: ${specToStart.requirements.join(' | ')}`,
+          `Attributes: ${specToStart.attributes.join(' | ')}`,
+          `Criteria: ${specToStart.criteria.join(' | ')}`,
+          `Focus: ${specToStart.focus}`,
+          `Tier: ${specToStart.tier}`,
         ].join('\n'),
       });
       const session: StartedSession = {
         id: created.id,
-        title: referenceSetupTitle(draftSpec.goal),
+        title: referenceSetupTitle(specToStart.goal),
         at: Date.now() / 1000,
       };
+      setConfirmedSpec(specToStart);
+      setConfirmedSpecCreatedAt(specCreatedAt);
       setDraftSpec(null);
       setDraftSpecCreatedAt(null);
       await startRun(created.id);
@@ -487,6 +534,30 @@ export function ChatWorkspace() {
       ),
     });
   }
+  if (confirmedSpec && confirmedSpecCreatedAt !== null) {
+    timelineItems.push({
+      id: 'confirmed-spec',
+      at: confirmedSpecCreatedAt,
+      order: 50,
+      node: (
+        <RunSpecCard
+          spec={confirmedSpec}
+          isStarting={false}
+          locked
+          onFocusChange={() => undefined}
+          onTierChange={() => undefined}
+          onCancel={() => undefined}
+          onRetry={() => {
+            setDraftSpec(confirmedSpec);
+            setDraftSpecCreatedAt(Date.now() / 1000);
+            setConfirmedSpec(null);
+            setConfirmedSpecCreatedAt(null);
+          }}
+          onStart={() => undefined}
+        />
+      ),
+    });
+  }
   if (startedSession) {
     timelineItems.push({
       id: `started-session-${startedSession.id}`,
@@ -510,8 +581,8 @@ export function ChatWorkspace() {
     });
   }
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
-  const homeRecentRuns = showAllRecents ? history : history.slice(0, 4);
-  const hasMoreRecents = history.length > homeRecentRuns.length;
+  const homeRecentRuns = showAllRecents ? history : history.slice(0, 10);
+  const hasExtraRecents = history.length > 10;
   const selectedSuggestion = SUGGESTIONS.find(
     suggestion => suggestion.full === input.trim(),
   );
@@ -522,7 +593,7 @@ export function ChatWorkspace() {
         {!hasConversation ? (
           <section className="reference-home-stage">
             <div className="reference-home-main">
-              <h1>Drive novel scientific discovery with Co-Scientist.</h1>
+              <h1>What breakthrough should we chase today?</h1>
 
               <ol className="reference-step-timeline">
                 {SESSION_STEPS.map(step => (
@@ -629,12 +700,19 @@ export function ChatWorkspace() {
                             </span>
                           </span>
                           <ol className="reference-winner-list">
-                            {topIdeas.map((idea, index) => (
-                              <li key={idea}>
-                                <span>{index + 1}.</span>
-                                <span>{idea}</span>
+                            {isActiveHomeRun(run) ? (
+                              <li className="reference-generating-row">
+                                <span aria-hidden="true" />
+                                <span>Generating hypotheses</span>
                               </li>
-                            ))}
+                            ) : (
+                              topIdeas.map((idea, index) => (
+                                <li key={idea}>
+                                  <span>{index + 1}.</span>
+                                  <span>{idea}</span>
+                                </li>
+                              ))
+                            )}
                           </ol>
                         </Link>
                       </li>
@@ -652,13 +730,13 @@ export function ChatWorkspace() {
                   </li>
                 )}
               </ol>
-              {hasMoreRecents && (
+              {hasExtraRecents && (
                 <button
                   type="button"
                   className="reference-load-more"
-                  onClick={() => setShowAllRecents(true)}
+                  onClick={() => setShowAllRecents(current => !current)}
                 >
-                  Load more
+                  {showAllRecents ? 'Show less' : 'Show more'}
                 </button>
               )}
             </aside>
@@ -1102,21 +1180,70 @@ function ChatBubble({
   onRetry: () => void;
 }) {
   const isUser = message.role === 'user';
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [canCollapse, setCanCollapse] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  useLayoutEffect(() => {
+    if (!isUser || !textRef.current) {
+      setCanCollapse(false);
+      return;
+    }
+    const element = textRef.current;
+    const styles = window.getComputedStyle(element);
+    const fontSize = Number.parseFloat(styles.fontSize) || 16;
+    const lineHeight =
+      Number.parseFloat(styles.lineHeight) || Math.round(fontSize * 1.45);
+    const naturalHeight = element.scrollHeight;
+    const exceedsThreeLines = naturalHeight > lineHeight * 3 + 2;
+    setCanCollapse(exceedsThreeLines || message.content.length > 140);
+    setExpanded(false);
+  }, [isUser, message.content]);
+
+  const bubbleClassName = isUser
+    ? [
+        'reference-user-bubble',
+        canCollapse ? 'collapsible' : '',
+        canCollapse && !expanded ? 'collapsed' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')
+    : 'reference-model-bubble';
+
   return (
     <div
       className={isUser ? 'reference-bubble-row user' : 'reference-bubble-row'}
     >
-      <div
-        className={isUser ? 'reference-user-bubble' : 'reference-model-bubble'}
-      >
-        <span>{message.content}</span>
-        {isUser && <md-icon aria-hidden="true">expand_more</md-icon>}
+      <div className={bubbleClassName}>
+        <span
+          ref={isUser ? textRef : undefined}
+          className="reference-user-bubble-text"
+        >
+          {message.content}
+        </span>
+        {isUser && canCollapse && (
+          <button
+            type="button"
+            className="reference-user-collapse"
+            aria-label={expanded ? 'Collapse request' : 'Expand request'}
+            title={expanded ? 'Collapse request' : 'Expand request'}
+            onClick={() => setExpanded(current => !current)}
+          >
+            <md-icon aria-hidden="true">
+              {expanded ? 'expand_less' : 'expand_more'}
+            </md-icon>
+          </button>
+        )}
       </div>
       {isUser ? (
         <MessageActionRow
           align="end"
           actions={[
-            {icon: 'edit', label: 'Edit request', onClick: onEdit},
+            {
+              icon: 'edit',
+              label: 'Edit request',
+              onClick: onEdit,
+            },
             {
               icon: 'content_copy',
               label: 'Copy request',
@@ -1149,6 +1276,7 @@ function ChatBubble({
 function RunSpecCard({
   spec,
   isStarting,
+  locked = false,
   onFocusChange,
   onTierChange,
   onCancel,
@@ -1157,6 +1285,7 @@ function RunSpecCard({
 }: {
   spec: InferredRunSpec;
   isStarting: boolean;
+  locked?: boolean;
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onCancel: () => void;
@@ -1181,7 +1310,6 @@ function RunSpecCard({
       </p>
       <div className="reference-plan-heading">
         <h2>Research plan</h2>
-        <md-icon aria-hidden="true">edit</md-icon>
       </div>
       <p className="reference-plan-subheading">
         Here's my plan to tackle the topic:
@@ -1199,6 +1327,7 @@ function RunSpecCard({
           name="focus"
           value={spec.focus}
           options={FOCUS_OPTIONS}
+          disabled={locked}
           onChange={value => onFocusChange(value as RunFocus)}
         />
         <RunOptionGroup
@@ -1206,13 +1335,20 @@ function RunSpecCard({
           name="tier"
           value={spec.tier}
           options={TIER_OPTIONS}
+          disabled={locked}
           onChange={value => onTierChange(value as RunTier)}
         />
         <div className="reference-setup-actions">
-          <button type="button" onClick={onCancel} disabled={isStarting}>
-            Cancel
-          </button>
-          <button type="button" onClick={onStart} disabled={isStarting}>
+          {!locked && (
+            <button type="button" onClick={onCancel} disabled={isStarting}>
+              Cancel
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onStart}
+            disabled={isStarting || locked}
+          >
             {isStarting ? 'Starting...' : 'Start research'}
           </button>
         </div>
@@ -1275,16 +1411,9 @@ function StartedSessionCard({
       className="reference-started-message"
       aria-label="Started research session"
     >
-      <div className="reference-started-label">
-        <span aria-hidden="true">
-          <GoogleLabsIcon />
-        </span>
-        <strong>Co-Scientist</strong>
-      </div>
       <div className="reference-started-copy">
         <p>
-          Your session has been started and your team of AI agents has started
-          research!
+          Your session has been started and Co-Scientist has started research!
         </p>
         <p>
           You can view and interact with your session at any time, but note that
@@ -1296,9 +1425,6 @@ function StartedSessionCard({
         className="reference-started-session-card"
         onClick={onOpen}
       >
-        <span className="reference-started-session-icon" aria-hidden="true">
-          <GoogleLabsIcon />
-        </span>
         <span>
           <strong>{session.title}</strong>
           <small>Research session</small>
@@ -1336,7 +1462,7 @@ function StartedSessionCard({
 
 function formatStartedSessionResponse(session: StartedSession): string {
   return [
-    'Your session has been started and your team of AI agents has started research!',
+    'Your session has been started and Co-Scientist has started research!',
     'You can view and interact with your session at any time, but note that it might take a few minutes for the first ideas to be ready to view.',
     '',
     session.title,
@@ -1377,12 +1503,14 @@ function RunOptionGroup({
   name,
   value,
   options,
+  disabled = false,
   onChange,
 }: {
   label: string;
   name: string;
   value: string;
   options: ReadonlyArray<{id: string; label: string; description: string}>;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
@@ -1403,6 +1531,7 @@ function RunOptionGroup({
               name={name}
               value={option.id}
               checked={option.id === value}
+              disabled={disabled}
               onChange={() => onChange(option.id)}
             />
             <span aria-hidden="true" />
