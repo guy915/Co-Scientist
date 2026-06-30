@@ -300,6 +300,7 @@
 
 /* Tooltip and attachment affordance fixes. */
 .reference-composer-source-button,
+.reference-composer-actions button[type="submit"],
 .reference-message-actions button,
 .reference-attachment-card,
 .reference-attachment-card > button {
@@ -307,6 +308,7 @@
 }
 
 .reference-composer-source-button[data-tooltip]::after,
+.reference-composer-actions button[type="submit"][data-tooltip]::after,
 .reference-message-actions button[data-tooltip]::after,
 .reference-attachment-card[data-tooltip]::after,
 .reference-attachment-card > button[data-tooltip]::after {
@@ -333,6 +335,7 @@
 }
 
 .reference-composer-source-button[data-tooltip]::after,
+.reference-composer-actions button[type="submit"][data-tooltip]::after,
 .reference-message-actions button[data-tooltip]::after,
 .reference-attachment-card > button[data-tooltip]::after {
   bottom: calc(100% + 0.45rem);
@@ -346,6 +349,9 @@
 
 .reference-composer-source-button[data-tooltip]:hover::after,
 .reference-composer-source-button[data-tooltip]:focus-visible::after,
+.reference-composer-actions button[type="submit"][data-tooltip]:hover::after,
+.reference-composer-actions
+  button[type="submit"][data-tooltip]:focus-visible::after,
 .reference-message-actions button[data-tooltip]:hover::after,
 .reference-message-actions button[data-tooltip]:focus-visible::after,
 .reference-attachment-card[data-tooltip]:hover::after,
@@ -9859,6 +9865,7 @@ body {
 
 /* Tooltip and attachment affordance fixes. */
 .reference-composer-source-button,
+.reference-composer-actions button[type="submit"],
 .reference-message-actions button,
 .reference-attachment-card,
 .reference-attachment-card > button {
@@ -9866,6 +9873,7 @@ body {
 }
 
 .reference-composer-source-button[data-tooltip]::after,
+.reference-composer-actions button[type="submit"][data-tooltip]::after,
 .reference-message-actions button[data-tooltip]::after,
 .reference-attachment-card[data-tooltip]::after,
 .reference-attachment-card > button[data-tooltip]::after {
@@ -9892,6 +9900,7 @@ body {
 }
 
 .reference-composer-source-button[data-tooltip]::after,
+.reference-composer-actions button[type="submit"][data-tooltip]::after,
 .reference-message-actions button[data-tooltip]::after,
 .reference-attachment-card > button[data-tooltip]::after {
   bottom: calc(100% + 0.45rem);
@@ -9905,6 +9914,9 @@ body {
 
 .reference-composer-source-button[data-tooltip]:hover::after,
 .reference-composer-source-button[data-tooltip]:focus-visible::after,
+.reference-composer-actions button[type="submit"][data-tooltip]:hover::after,
+.reference-composer-actions
+  button[type="submit"][data-tooltip]:focus-visible::after,
 .reference-message-actions button[data-tooltip]:hover::after,
 .reference-message-actions button[data-tooltip]:focus-visible::after,
 .reference-attachment-card[data-tooltip]:hover::after,

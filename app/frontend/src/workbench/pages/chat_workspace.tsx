@@ -1092,6 +1092,7 @@ function Composer({
           <button
             type="submit"
             aria-label={submitLabel}
+            data-tooltip="Submit"
             disabled={!input.trim() || disabled}
           >
             <md-icon aria-hidden="true">send</md-icon>

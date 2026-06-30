@@ -299,6 +299,10 @@ describe('ChatWorkspace', () => {
     expect(screen.getByRole('button', {name: 'Files'})).toBeInTheDocument();
     const connectors = screen.getByRole('button', {name: 'Connectors'});
     expect(connectors).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: 'Send'})).toHaveAttribute(
+      'data-tooltip',
+      'Submit',
+    );
 
     fireEvent.click(connectors);
 
