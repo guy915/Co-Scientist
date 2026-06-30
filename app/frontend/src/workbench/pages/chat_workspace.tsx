@@ -953,18 +953,27 @@ function Composer({
                 <div
                   className="reference-attachment-card reference-attachment-card--image"
                   key={attachment.id}
+                  title={attachment.name}
+                  data-tooltip={attachment.name}
                 >
                   <img src={attachment.previewUrl} alt={attachment.name} />
                   <button
                     type="button"
                     aria-label={`Remove ${attachment.name}`}
+                    title={`Remove ${attachment.name}`}
+                    data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
                   >
                     <md-icon aria-hidden="true">close</md-icon>
                   </button>
                 </div>
               ) : (
-                <div className="reference-attachment-card" key={attachment.id}>
+                <div
+                  className="reference-attachment-card"
+                  key={attachment.id}
+                  title={attachment.name}
+                  data-tooltip={attachment.name}
+                >
                   <div className="reference-attachment-text">
                     <strong>{attachment.name}</strong>
                     <span>
@@ -977,6 +986,8 @@ function Composer({
                   <button
                     type="button"
                     aria-label={`Remove ${attachment.name}`}
+                    title={`Remove ${attachment.name}`}
+                    data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
                   >
                     <md-icon aria-hidden="true">close</md-icon>
@@ -1019,6 +1030,7 @@ function Composer({
               className="reference-composer-source-button"
               aria-label="Files"
               title="Files"
+              data-tooltip="Files"
               disabled={disabled}
               onClick={() => fileInputRef.current?.click()}
             >
@@ -1030,6 +1042,7 @@ function Composer({
               aria-label="Connectors"
               aria-expanded={connectorsOpen}
               title="Connectors"
+              data-tooltip="Connectors"
               disabled={disabled}
               onClick={() => setConnectorsOpen(open => !open)}
             >
@@ -1161,6 +1174,7 @@ function MessageActionRow({
           type="button"
           aria-label={action.label}
           title={action.label}
+          data-tooltip={action.label}
           onClick={action.onClick}
         >
           <md-icon aria-hidden="true">{action.icon}</md-icon>

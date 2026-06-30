@@ -330,9 +330,21 @@ describe('ChatWorkspace', () => {
       },
     });
 
-    expect(screen.getByText('deep-research-report.md')).toBeInTheDocument();
+    const filename = screen.getByText('deep-research-report.md');
+    expect(filename).toBeInTheDocument();
+    expect(filename.closest('.reference-attachment-card')).toHaveAttribute(
+      'data-tooltip',
+      'deep-research-report.md',
+    );
+    expect(filename.closest('.reference-attachment-card')).toHaveAttribute(
+      'title',
+      'deep-research-report.md',
+    );
     expect(screen.getByText('TXT')).toBeInTheDocument();
     expect(screen.getByText('Markdown')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', {name: 'Remove deep-research-report.md'}),
+    ).toHaveAttribute('data-tooltip', 'Remove deep-research-report.md');
   });
 
   it('shows uploaded image previews in the composer', async () => {

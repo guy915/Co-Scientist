@@ -298,6 +298,77 @@
   }
 }
 
+/* Tooltip and attachment affordance fixes. */
+.reference-composer-source-button,
+.reference-message-actions button,
+.reference-attachment-card,
+.reference-attachment-card > button {
+  position: relative;
+}
+
+.reference-composer-source-button[data-tooltip]::after,
+.reference-message-actions button[data-tooltip]::after,
+.reference-attachment-card[data-tooltip]::after,
+.reference-attachment-card > button[data-tooltip]::after {
+  position: absolute;
+  z-index: 150;
+  width: max-content;
+  max-width: 18rem;
+  border-radius: 0.45rem;
+  background: #303134;
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.1;
+  opacity: 0;
+  padding: 0.48rem 0.58rem;
+  pointer-events: none;
+  transform: translate(-50%, -0.25rem) scale(0.98);
+  transition:
+    opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+    transform 140ms cubic-bezier(0.2, 0, 0, 1);
+  visibility: hidden;
+  white-space: normal;
+}
+
+.reference-composer-source-button[data-tooltip]::after,
+.reference-message-actions button[data-tooltip]::after,
+.reference-attachment-card > button[data-tooltip]::after {
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+}
+
+.reference-attachment-card[data-tooltip]::after {
+  bottom: calc(100% + 0.55rem);
+  left: 50%;
+}
+
+.reference-composer-source-button[data-tooltip]:hover::after,
+.reference-composer-source-button[data-tooltip]:focus-visible::after,
+.reference-message-actions button[data-tooltip]:hover::after,
+.reference-message-actions button[data-tooltip]:focus-visible::after,
+.reference-attachment-card[data-tooltip]:hover::after,
+.reference-attachment-card:focus-within[data-tooltip]::after,
+.reference-attachment-card > button[data-tooltip]:hover::after,
+.reference-attachment-card > button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+  visibility: visible;
+}
+
+.reference-attachment-card > button,
+.reference-attachment-card--image > button {
+  opacity: 0;
+}
+
+.reference-attachment-card:hover > button,
+.reference-attachment-card:focus-within > button,
+.reference-attachment-card--image:hover > button,
+.reference-attachment-card--image:focus-within > button {
+  opacity: 1;
+}
+
 @media (max-width: 720px) {
   .google-app-shell,
   .google-app-shell.nav-open,
@@ -9752,4 +9823,75 @@ body {
   [data-theme="dark"] .home-shell .reference-composer {
     margin-top: clamp(2rem, 5.5vh, 3.5rem);
   }
+}
+
+/* Tooltip and attachment affordance fixes. */
+.reference-composer-source-button,
+.reference-message-actions button,
+.reference-attachment-card,
+.reference-attachment-card > button {
+  position: relative;
+}
+
+.reference-composer-source-button[data-tooltip]::after,
+.reference-message-actions button[data-tooltip]::after,
+.reference-attachment-card[data-tooltip]::after,
+.reference-attachment-card > button[data-tooltip]::after {
+  position: absolute;
+  z-index: 150;
+  width: max-content;
+  max-width: 18rem;
+  border-radius: 0.45rem;
+  background: #303134;
+  color: #fff;
+  content: attr(data-tooltip);
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.1;
+  opacity: 0;
+  padding: 0.48rem 0.58rem;
+  pointer-events: none;
+  transform: translate(-50%, -0.25rem) scale(0.98);
+  transition:
+    opacity 140ms cubic-bezier(0.2, 0, 0, 1),
+    transform 140ms cubic-bezier(0.2, 0, 0, 1);
+  visibility: hidden;
+  white-space: normal;
+}
+
+.reference-composer-source-button[data-tooltip]::after,
+.reference-message-actions button[data-tooltip]::after,
+.reference-attachment-card > button[data-tooltip]::after {
+  bottom: calc(100% + 0.45rem);
+  left: 50%;
+}
+
+.reference-attachment-card[data-tooltip]::after {
+  bottom: calc(100% + 0.55rem);
+  left: 50%;
+}
+
+.reference-composer-source-button[data-tooltip]:hover::after,
+.reference-composer-source-button[data-tooltip]:focus-visible::after,
+.reference-message-actions button[data-tooltip]:hover::after,
+.reference-message-actions button[data-tooltip]:focus-visible::after,
+.reference-attachment-card[data-tooltip]:hover::after,
+.reference-attachment-card:focus-within[data-tooltip]::after,
+.reference-attachment-card > button[data-tooltip]:hover::after,
+.reference-attachment-card > button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(-50%, 0) scale(1);
+  visibility: visible;
+}
+
+.reference-attachment-card > button,
+.reference-attachment-card--image > button {
+  opacity: 0;
+}
+
+.reference-attachment-card:hover > button,
+.reference-attachment-card:focus-within > button,
+.reference-attachment-card--image:hover > button,
+.reference-attachment-card--image:focus-within > button {
+  opacity: 1;
 }
