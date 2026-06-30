@@ -561,14 +561,16 @@ describe('ChatWorkspace', () => {
   it('fills the composer from a suggested prompt', () => {
     renderWorkspace();
 
-    fireEvent.click(
-      screen.getByText(
-        'Find new therapeutic targets for M.tuberculosis by combining...',
-      ),
+    const suggestion = screen.getByText(
+      'Find new therapeutic targets for M.tuberculosis by combining...',
     );
+
+    fireEvent.click(suggestion);
 
     expect(screen.getByRole('textbox')).toHaveValue(
       'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
     );
+    expect(suggestion.closest('button')).not.toHaveClass('selected');
+    expect(suggestion.closest('button')).not.toHaveClass('is-previewed');
   });
 });

@@ -6546,14 +6546,14 @@ body {
 
 .home-shell .reference-suggestion-row button:hover,
 .home-shell .reference-suggestion-row button:focus-visible,
-.home-shell .reference-suggestion-row button.selected {
+.home-shell .reference-suggestion-row button.is-previewed {
   border-color: #d0d4d9;
   background: #edf2f7;
 }
 
 [data-theme="dark"] .home-shell .reference-suggestion-row button:hover,
 [data-theme="dark"] .home-shell .reference-suggestion-row button:focus-visible,
-[data-theme="dark"] .home-shell .reference-suggestion-row button.selected {
+[data-theme="dark"] .home-shell .reference-suggestion-row button.is-previewed {
   border-color: #3c4043;
   background: #282a2c;
 }
@@ -8118,6 +8118,32 @@ body {
     color: #e6f4ea;
   }
 
+  .home-shell .reference-active-progress,
+  [data-theme="dark"] .home-shell .reference-active-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-top: 0.05rem;
+    color: #1967d2;
+    font-size: 0.92rem;
+    font-weight: 550;
+    line-height: 1.25;
+  }
+
+  .home-shell .reference-active-progress span:first-child,
+  [data-theme="dark"] .home-shell .reference-active-progress span:first-child {
+    width: 1rem;
+    height: 1rem;
+    border: 0.16rem solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: reference-progress-spin 950ms linear infinite;
+  }
+
+  [data-theme="dark"] .home-shell .reference-active-progress {
+    color: #8ab4f8;
+  }
+
   .home-shell .reference-recent-chips md-icon,
   [data-theme="dark"] .home-shell .reference-recent-chips md-icon {
     --md-icon-size: 18px;
@@ -8204,6 +8230,12 @@ body {
     .reference-generating-row
     span:first-child {
     background: #81c995;
+  }
+}
+
+@keyframes reference-progress-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -9166,11 +9198,11 @@ body {
       minmax(0, var(--home-main-width))
       minmax(17rem, var(--home-recents-width));
     align-items: start;
-    justify-content: center;
-    gap: clamp(1.75rem, 3.8vw, 4.25rem);
+    justify-content: start;
+    gap: clamp(1.75rem, 3.2vw, 3.5rem);
     overflow: hidden;
-    padding: 0 clamp(1.25rem, 2.5vw, 2.5rem) 0
-      clamp(2rem, 3.5vw, 3.75rem);
+    padding: 0 clamp(1.25rem, 3vw, 3rem) 0
+      clamp(3rem, 9vw, 10rem);
   }
 
   .home-shell .reference-home-main,
@@ -10087,22 +10119,42 @@ body {
   z-index: 1000;
   top: 50%;
   left: calc(100% + 0.55rem);
+  width: max-content;
   max-width: min(28rem, calc(100vw - 20rem));
   border-radius: 0.45rem;
-  background: #303134;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 22%);
-  color: #fff;
+  border: 1px solid #dadce0;
+  background: #f1f3f4;
+  box-shadow:
+    0 1px 2px rgb(60 64 67 / 18%),
+    0 2px 6px rgb(60 64 67 / 16%);
+  color: #202124;
   font-size: 0.78rem;
   font-weight: 500;
   line-height: 1.15;
   opacity: 0;
-  padding: 0.48rem 0.58rem;
+  padding: 0.34rem 0.52rem;
   pointer-events: none;
   transform: translateY(-50%);
   transition:
     opacity 120ms ease,
     visibility 120ms ease;
   visibility: hidden;
+  white-space: nowrap;
+}
+
+.ucs-rail-button .nav-label,
+.ucs-nav-item .nav-label,
+[data-theme="dark"] .ucs-rail-button .nav-label,
+[data-theme="dark"] .ucs-nav-item .nav-label {
+  white-space: nowrap;
+}
+
+.gemini-chat-list a > .ucs-nav-tooltip,
+[data-theme="dark"] .gemini-chat-list a > .ucs-nav-tooltip {
+  max-width: min(34rem, calc(100vw - 20rem));
+  line-height: 1.22;
+  overflow-wrap: anywhere;
+  text-align: left;
   white-space: normal;
 }
 

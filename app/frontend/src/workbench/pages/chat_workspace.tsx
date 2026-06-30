@@ -161,12 +161,21 @@ function formatHomeRunDuration(run: Run): string {
   return run.status.charAt(0).toUpperCase() + run.status.slice(1);
 }
 
+function formatHomeRunElapsed(run: Run): string {
+  const elapsedSeconds = Math.max(
+    0,
+    (run.updated_at || Date.now() / 1000) - run.created_at,
+  );
+  if (elapsedSeconds < 60) return '< 1 minute';
+  return formatDurationLabel(elapsedSeconds);
+}
+
 function formatHomeRunTimeChip(run: Run): string {
   if (run.status === 'completed') {
     return `Total time: ${formatHomeRunDuration(run)}`;
   }
   if (['running', 'queued', 'synthesizing'].includes(run.status)) {
-    return `In Progress: ${homeRunProgress(run)}%`;
+    return `Time elapsed: ${formatHomeRunElapsed(run)}`;
   }
   return `Status: ${formatHomeRunStatus(run)}`;
 }
@@ -583,10 +592,6 @@ export function ChatWorkspace() {
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
   const homeRecentRuns = showAllRecents ? history : history.slice(0, 4);
   const hasExtraRecents = history.length > 4;
-  const selectedSuggestion = SUGGESTIONS.find(
-    suggestion => suggestion.full === input.trim(),
-  );
-
   return (
     <div className="cosci-workspace">
       <main className="cosci-workspace-main">
@@ -609,8 +614,6 @@ export function ChatWorkspace() {
 
               <div className="reference-suggestion-row">
                 {SUGGESTIONS.map(suggestion => {
-                  const isSelected =
-                    selectedSuggestion?.full === suggestion.full;
                   const isPreviewed = hoveredSuggestion === suggestion.full;
                   return (
                     <div
@@ -629,7 +632,7 @@ export function ChatWorkspace() {
                       </p>
                       <button
                         type="button"
-                        className={isSelected ? 'selected' : ''}
+                        className={isPreviewed ? 'is-previewed' : undefined}
                         onPointerEnter={() =>
                           setHoveredSuggestion(suggestion.full)
                         }
@@ -676,11 +679,16 @@ export function ChatWorkspace() {
                 {homeRecentRuns.length ? (
                   homeRecentRuns.map(run => {
                     const topIdeas = homeRunIdeaTitles(run.research_goal);
+                    const isActiveRun = isActiveHomeRun(run);
                     return (
                       <li key={run.id}>
                         <Link
                           to={`/runs/${run.id}/details`}
-                          className="reference-recent-card"
+                          className={
+                            isActiveRun
+                              ? 'reference-recent-card is-active-run'
+                              : 'reference-recent-card'
+                          }
                           title={run.research_goal}
                         >
                           <span className="reference-recent-meta">
@@ -689,18 +697,27 @@ export function ChatWorkspace() {
                           </span>
                           <strong>{conciseTitle(run.research_goal)}</strong>
                           <span>{run.research_goal}</span>
-                          <span className="reference-recent-chips">
-                            <span>
-                              <md-icon aria-hidden="true">emoji_events</md-icon>
-                              Winning ideas
+                          {isActiveRun ? (
+                            <div className="reference-active-progress">
+                              <span aria-hidden="true" />
+                              <span>In Progress: {homeRunProgress(run)}%</span>
+                            </div>
+                          ) : (
+                            <span className="reference-recent-chips">
+                              <span>
+                                <md-icon aria-hidden="true">
+                                  emoji_events
+                                </md-icon>
+                                Winning ideas
+                              </span>
+                              <span>
+                                <md-icon aria-hidden="true">stars</md-icon>
+                                Top score: {homeRunScore(run)}
+                              </span>
                             </span>
-                            <span>
-                              <md-icon aria-hidden="true">stars</md-icon>
-                              Top score: {homeRunScore(run)}
-                            </span>
-                          </span>
+                          )}
                           <ol className="reference-winner-list">
-                            {isActiveHomeRun(run) ? (
+                            {isActiveRun ? (
                               <li className="reference-generating-row">
                                 <span aria-hidden="true" />
                                 <span>Generating hypotheses</span>
