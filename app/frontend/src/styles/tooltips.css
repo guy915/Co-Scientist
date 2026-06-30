@@ -74,10 +74,7 @@
 }
 
 [data-tooltip].ucs-tooltip-wrap::after {
-  max-width: min(34rem, calc(100vw - 20rem)) !important;
   line-height: 1.22 !important;
-  overflow-wrap: anywhere !important;
-  white-space: normal !important;
 }
 
 [data-tooltip].ucs-tooltip-top::after {

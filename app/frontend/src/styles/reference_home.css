@@ -71,10 +71,6 @@
   height: 0.8125rem;
 }
 
-[data-theme="dark"] .reference-chip {
-  color: #bdc1c6;
-}
-
 .reference-home-main h1 {
   width: min(100%, 39rem);
   margin: 1.45rem 0 0;
@@ -226,12 +222,6 @@
   background: #273044;
 }
 
-[data-theme="dark"] .reference-suggestion-row button {
-  border-color: #5f6368;
-  background: #1f1f1f;
-  color: #e8eaed;
-}
-
 .reference-composer {
   position: relative;
   min-height: 7.9rem;
@@ -247,12 +237,6 @@
     border-color 180ms cubic-bezier(0.2, 0, 0, 1),
     background-color 180ms cubic-bezier(0.2, 0, 0, 1),
     box-shadow 180ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-[data-theme="dark"] .reference-composer {
-  border-color: #3c4043;
-  background: #1f1f1f;
-  box-shadow: none;
 }
 
 .reference-composer label > span {
@@ -277,10 +261,6 @@
   color: #202124;
   font: inherit;
   outline: none;
-}
-
-[data-theme="dark"] .reference-composer textarea {
-  color: #e8eaed;
 }
 
 .reference-composer textarea::-webkit-scrollbar {
@@ -574,12 +554,6 @@
     background-color 180ms cubic-bezier(0.2, 0, 0, 1),
     box-shadow 180ms cubic-bezier(0.2, 0, 0, 1),
     transform 180ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-[data-theme="dark"] .reference-recent-card {
-  border-color: #3c4043;
-  background: #252525;
-  color: #e8eaed;
 }
 
 .reference-recent-meta,

@@ -3,8 +3,6 @@
   display: -webkit-box;
   height: 2.5rem;
   min-height: 2.5rem;
-  margin-top: 3.65rem;
-  margin-bottom: 0.6rem;
   overflow: hidden;
   font-size: 0.86rem;
   line-height: 1.25rem;
@@ -19,10 +17,6 @@
 
 .home-shell .reference-prompt-echo:empty {
   opacity: 0;
-}
-
-.home-shell .reference-suggestion-row {
-  margin-top: 0;
 }
 
 .home-shell .reference-suggestion-row button:hover,
@@ -52,15 +46,12 @@
 .home-shell .reference-composer label {
   position: relative;
   display: block;
-  min-height: 3.2rem;
 }
 
 .home-shell .reference-composer label > span {
   position: absolute;
   top: 0;
-  left: 1.55rem;
   z-index: 1;
-  height: 1.5rem;
   pointer-events: none;
 }
 

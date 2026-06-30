@@ -24,9 +24,6 @@
 }
 
 .ucs-popover--logs {
-  width: min(36rem, calc(100vw - 2rem));
-  max-height: min(42rem, calc(100vh - 5.5rem));
-  overflow: hidden;
   border-color: #c8dbd6;
 }
 
@@ -79,11 +76,6 @@
 
 [data-theme="dark"] .ucs-diagnostic-entry pre {
   background: #132927;
-}
-
-.ucs-diagnostic-list {
-  max-height: calc(100vh - 20rem);
-  overflow: auto;
 }
 
 @media (min-width: 1024px) and (max-height: 820px) {

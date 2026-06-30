@@ -257,8 +257,6 @@
 .idea-detail-pane {
   display: grid;
   align-content: start;
-  gap: 1rem;
-  padding: 1rem;
 }
 
 .idea-detail-pane.empty {
@@ -322,19 +320,9 @@
 .idea-detail-section {
   display: grid;
   gap: 0.45rem;
-  border-top: 1px solid var(--md-sys-color-outline-variant);
-  padding-top: 0.9rem;
-}
-
-.idea-detail-section h3 {
-  margin: 0;
-  font-weight: 700;
-  text-transform: uppercase;
 }
 
 .idea-detail-section p {
   margin: 0;
   color: var(--md-sys-color-on-surface);
-  font-size: 0.92rem;
-  line-height: 1.55;
 }
