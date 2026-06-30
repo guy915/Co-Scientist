@@ -217,6 +217,7 @@ html {
   }
 
   .home-shell .reference-recents {
+    width: 100%;
     justify-self: end;
   }
 

@@ -6,30 +6,18 @@
   }
 
   .home-shell .reference-home-stage {
-    --home-main-width: clamp(34rem, 54vw, 50.75rem);
-    --home-recents-width: clamp(17.5rem, 23vw, 24rem);
     display: grid;
     height: 100%;
     min-height: 0;
-    grid-template-columns:
-      minmax(0, var(--home-main-width))
-      minmax(17rem, var(--home-recents-width));
     align-items: start;
-    justify-content: start;
-    gap: clamp(1.75rem, 3.2vw, 3.5rem);
     overflow: hidden;
-    padding: 0 clamp(1.25rem, 3vw, 3rem) 0
-      clamp(3rem, 9vw, 10rem);
+    padding-block: 0;
   }
 
   .home-shell .reference-home-main {
-    display: grid;
-    width: min(100%, var(--home-main-width));
     min-width: 0;
     max-height: calc(100vh - 4.5rem);
     align-content: start;
-    justify-self: center;
-    padding-top: clamp(2.25rem, 5.6vh, 4.25rem);
   }
 
   .home-shell .reference-home-main h1 {
@@ -41,7 +29,6 @@
   .home-shell .reference-step-timeline {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     column-gap: 0;
-    margin-top: clamp(3.2rem, 7vh, 5rem);
   }
 
   .home-shell .reference-step-timeline li {
@@ -56,23 +43,11 @@
     justify-self: end;
   }
 
-  .home-shell .reference-suggestion-row {
-    margin-top: clamp(3.15rem, 8vh, 5.25rem);
-  }
-
-  .home-shell .reference-composer {
-    margin-top: clamp(0.8rem, 1.8vh, 1.1rem);
-  }
-
   .home-shell .reference-recents {
-    width: min(100%, var(--home-recents-width));
+    width: 100%;
     max-height: calc(100vh - 4.5rem);
     overflow: visible;
     padding-top: clamp(0.35rem, 1vh, 0.75rem);
-  }
-
-  .home-shell .reference-recents > ol {
-    max-height: calc(100vh - 9.75rem);
   }
 }
 

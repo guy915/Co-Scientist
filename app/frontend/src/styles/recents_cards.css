@@ -1,15 +1,7 @@
-/* Reference Recents cards: final override for the home right rail. */
+/* Reference Recents cards for the home right rail. */
 @media (min-width: 1181px) {
-  .home-shell .reference-home-stage {
-    grid-template-columns: minmax(0, 1fr) minmax(22rem, 24rem);
-    gap: 3.6rem;
-  }
-
   .home-shell .reference-recents {
-    width: min(100%, 24rem);
     gap: 1.55rem;
-    overflow: visible;
-    padding-top: 0.35rem;
   }
 
   .home-shell .reference-recents .google-recents-heading {
@@ -27,10 +19,7 @@
   }
 
   .home-shell .reference-recents > ol {
-    max-height: calc(100vh - 10.4rem);
     gap: 2.65rem;
-    margin-left: -0.7rem;
-    padding: 0.4rem 1rem 1.25rem 0.7rem;
     scrollbar-width: auto;
   }
 

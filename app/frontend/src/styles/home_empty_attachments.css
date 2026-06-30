@@ -123,18 +123,10 @@
 @media (min-width: 1181px) {
   .home-shell .reference-home-main {
     width: min(100%, 50.75rem);
-    padding-top: clamp(3.25rem, 6.6vh, 5.25rem);
-  }
-
-  .home-shell .reference-home-main h1 {
-    width: min(100%, 43.5rem);
-    font-size: clamp(2.45rem, 3.05vw, 3rem);
-    line-height: 1.15;
   }
 
   .home-shell .reference-step-timeline {
     gap: clamp(3.15rem, 4.6vw, 4.8rem);
-    margin-top: clamp(4.4rem, 9vh, 6.6rem);
   }
 
   .home-shell .reference-step-timeline li {
@@ -163,7 +155,7 @@
   }
 }
 
-/* Final home fidelity pass: these are intentionally last in the cascade. */
+/* Home fidelity pass for hover previews, connector menu, and upload previews. */
 .home-shell .reference-suggestion-slot,
 .home-shell .reference-suggestion-slot button {
   cursor: pointer;
@@ -213,25 +205,6 @@
 
 [data-theme="dark"] .home-shell .reference-connector-icon {
   color: #c4c7c5;
-}
-
-@media (min-width: 1181px) {
-  .home-shell .reference-step-timeline {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    column-gap: 0;
-  }
-
-  .home-shell .reference-step-timeline li {
-    width: min(100%, 15.9rem);
-  }
-
-  .home-shell .reference-step-timeline li:nth-child(2) {
-    justify-self: center;
-  }
-
-  .home-shell .reference-step-timeline li:nth-child(3) {
-    justify-self: end;
-  }
 }
 
 @media (min-width: 1181px) and (min-height: 720px) {

@@ -252,10 +252,6 @@
 }
 
 @media (min-width: 781px) and (max-height: 840px) {
-  .home-shell .reference-home-main {
-    padding-top: clamp(1.4rem, 4vh, 2.15rem);
-  }
-
   .home-shell .reference-home-main h1 {
     width: min(100%, 35rem);
     margin-top: 1rem;
@@ -265,7 +261,6 @@
 
   .home-shell .reference-step-timeline {
     gap: clamp(1.5rem, 2.7vw, 2.4rem);
-    margin-top: clamp(2rem, 5vh, 2.9rem);
   }
 
   .home-shell .reference-step-timeline li {

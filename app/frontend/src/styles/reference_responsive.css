@@ -19,29 +19,13 @@
 @media (max-width: 780px) {
   .google-app-shell {
     display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto minmax(0, 1fr);
     padding-bottom: 0;
   }
 
   .ucs-nav-panel {
-    position: static;
     z-index: 40;
     grid-row: 1;
-    height: 4.25rem;
-    flex-direction: row;
-    align-items: center;
-    border-top: 1px solid var(--md-sys-color-outline-variant);
     border-right: 0;
-    padding: 0.45rem 0.65rem;
-  }
-
-  .ucs-workspace {
-    grid-row: 2;
-  }
-
-  .ucs-nav-top {
-    display: contents;
   }
 
   .ucs-product-lockup,
@@ -63,17 +47,7 @@
   }
 
   .ucs-nav-items {
-    display: grid;
-    width: 100%;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 0.25rem;
     margin: 0;
-  }
-
-  .ucs-nav-item {
-    min-height: 3.1rem;
-    border-radius: 1rem;
-    padding: 0;
   }
 
   .ucs-header-action-bar {
@@ -125,11 +99,6 @@
     grid-template-columns: 1fr;
   }
 
-  .reference-step-timeline {
-    gap: 1.6rem;
-    margin-top: 3rem;
-  }
-
   .reference-step-timeline::before {
     top: 1rem;
     right: auto;
@@ -142,14 +111,6 @@
   .reference-step-timeline li {
     grid-template-columns: auto minmax(0, 1fr);
     gap: 0.9rem;
-  }
-
-  .reference-suggestion-row {
-    margin-top: 3rem;
-  }
-
-  .reference-recents ol {
-    max-height: none;
   }
 
   .reference-results-header {
@@ -196,49 +157,5 @@
   .google-spec-row {
     grid-template-columns: 1fr;
     gap: 0.25rem;
-  }
-}
-
-/* Desktop home must fit the viewport; only Recents should scroll. */
-@media (min-width: 781px) and (max-height: 840px) {
-  .home-shell .reference-home-main {
-    padding-top: clamp(1.4rem, 4vh, 2.15rem);
-  }
-
-  .home-shell .reference-home-main h1 {
-    width: min(100%, 35rem);
-    margin-top: 1rem;
-    font-size: clamp(2.35rem, 3.2vw, 2.65rem);
-    line-height: 1.12;
-  }
-
-  .home-shell .reference-step-timeline {
-    gap: clamp(1.5rem, 2.7vw, 2.4rem);
-    margin-top: clamp(2rem, 5vh, 2.9rem);
-  }
-
-  .home-shell .reference-step-timeline li {
-    gap: 0.75rem;
-  }
-
-  .home-shell .reference-step-timeline p {
-    font-size: 0.9rem;
-    line-height: 1.32;
-  }
-
-  .home-shell .reference-suggestion-row {
-    margin-top: clamp(1.5rem, 4vh, 2.2rem);
-  }
-
-  .home-shell .reference-suggestion-row button {
-    height: 3.85rem;
-  }
-
-  .home-shell .reference-composer {
-    min-height: 6.65rem;
-  }
-
-  .home-shell .reference-composer textarea {
-    min-height: 2.6rem;
   }
 }

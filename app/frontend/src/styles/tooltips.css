@@ -175,24 +175,13 @@
 
 @media (min-width: 1181px) {
   .home-shell .reference-home-stage {
-    --home-main-width: clamp(34rem, 52vw, 50.75rem);
-    --home-recents-width: clamp(18rem, 20vw, 22rem);
-    grid-template-columns:
-      minmax(0, 1fr)
-      minmax(18rem, var(--home-recents-width));
-    gap: clamp(2.5rem, 4vw, 4rem);
     justify-content: stretch;
-    padding-right: clamp(2rem, 3vw, 4rem);
     padding-left: clamp(2rem, 3vw, 4rem);
   }
 
   .home-shell .reference-home-main {
-    display: grid;
-    width: min(100%, var(--home-main-width));
     height: 100%;
     grid-template-rows: auto auto minmax(2rem, 1fr) auto;
-    justify-self: center;
-    padding-top: clamp(4.25rem, 8vh, 5.75rem);
     padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
   }
 
@@ -203,11 +192,6 @@
 
   .home-shell .reference-composer {
     margin-top: clamp(1.25rem, 2.4vh, 1.9rem);
-  }
-
-  .home-shell .reference-recents {
-    width: 100%;
-    justify-self: stretch;
   }
 
   .home-shell .reference-recents > ol {
