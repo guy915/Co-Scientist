@@ -55,11 +55,6 @@
   background: #edf7f4;
 }
 
-.ucs-diagnostic-list {
-  max-height: calc(100vh - 20rem);
-  overflow: auto;
-}
-
 [data-theme="dark"] .ucs-diagnostic-title span,
 [data-theme="dark"] .ucs-diagnostic-chips span {
   background: #173b3b;
