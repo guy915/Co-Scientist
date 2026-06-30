@@ -211,7 +211,6 @@ export function Layout({children}: {children: ReactNode}) {
             type="button"
             className="ucs-rail-button"
             aria-label="Menu"
-            title="Menu"
             data-tooltip="Menu"
             aria-expanded={navOpen}
             aria-controls="primary-navigation"
@@ -224,7 +223,6 @@ export function Layout({children}: {children: ReactNode}) {
             <button
               type="button"
               className="ucs-nav-item selected"
-              title="New chat"
               aria-label="New chat"
               data-tooltip="New chat"
               onClick={startNewChat}
@@ -236,7 +234,6 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-nav-item"
               aria-label="Search"
-              title="Search"
               data-tooltip="Search"
               onClick={focusComposer}
             >
@@ -251,7 +248,6 @@ export function Layout({children}: {children: ReactNode}) {
                 <Link
                   key={run.id}
                   to={`/runs/${run.id}/details`}
-                  title={run.research_goal}
                   data-tooltip={run.research_goal}
                 >
                   <span>{conciseTitle(run.research_goal)}</span>
@@ -274,7 +270,6 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-rail-button"
               aria-label="Settings"
-              title="Settings"
               data-tooltip="Settings"
               aria-expanded={activePanel === 'settings'}
               onClick={() => togglePanel('settings')}
@@ -341,7 +336,6 @@ export function Layout({children}: {children: ReactNode}) {
               type="button"
               className="ucs-logs-button"
               aria-label={`Logs ${logCount}`}
-              title="Logs"
               data-tooltip="Logs"
               aria-expanded={activePanel === 'logs'}
               onClick={() => togglePanel('logs')}

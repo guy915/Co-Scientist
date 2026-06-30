@@ -116,7 +116,7 @@ describe('Layout', () => {
       await screen.findByRole('link', {
         name: /Very long sidebar research question 10/i,
       }),
-    ).toHaveAttribute('title', 'Very long sidebar research question 10');
+    ).toHaveAttribute('data-tooltip', 'Very long sidebar research question 10');
     expect(
       screen.queryByRole('link', {
         name: /Very long sidebar research question 11/i,

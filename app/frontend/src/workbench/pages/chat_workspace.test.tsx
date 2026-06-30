@@ -213,10 +213,10 @@ describe('ChatWorkspace', () => {
     ).toHaveAttribute('href', '/runs/demo-ferroptosis/details');
   });
 
-  it('shows ten recent cards before revealing the rest', async () => {
+  it('shows four recent cards before revealing the rest', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue(
-      Array.from({length: 12}, (_, index) =>
+      Array.from({length: 6}, (_, index) =>
         minimalRun({
           id: `run-${index + 1}`,
           research_goal: `Recent research question ${index + 1}`,
@@ -230,7 +230,7 @@ describe('ChatWorkspace', () => {
     renderWorkspace();
 
     expect(
-      await screen.findAllByText('Recent research question 12'),
+      await screen.findAllByText('Recent research question 6'),
     ).not.toHaveLength(0);
     expect(screen.getAllByText('Recent research question 3')).not.toHaveLength(
       0,
@@ -334,10 +334,6 @@ describe('ChatWorkspace', () => {
     expect(filename).toBeInTheDocument();
     expect(filename.closest('.reference-attachment-card')).toHaveAttribute(
       'data-tooltip',
-      'deep-research-report.md',
-    );
-    expect(filename.closest('.reference-attachment-card')).toHaveAttribute(
-      'title',
       'deep-research-report.md',
     );
     expect(screen.getByText('TXT')).toBeInTheDocument();

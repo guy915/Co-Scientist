@@ -581,8 +581,8 @@ export function ChatWorkspace() {
     });
   }
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
-  const homeRecentRuns = showAllRecents ? history : history.slice(0, 10);
-  const hasExtraRecents = history.length > 10;
+  const homeRecentRuns = showAllRecents ? history : history.slice(0, 4);
+  const hasExtraRecents = history.length > 4;
   const selectedSuggestion = SUGGESTIONS.find(
     suggestion => suggestion.full === input.trim(),
   );
@@ -953,14 +953,12 @@ function Composer({
                 <div
                   className="reference-attachment-card reference-attachment-card--image"
                   key={attachment.id}
-                  title={attachment.name}
                   data-tooltip={attachment.name}
                 >
                   <img src={attachment.previewUrl} alt={attachment.name} />
                   <button
                     type="button"
                     aria-label={`Remove ${attachment.name}`}
-                    title={`Remove ${attachment.name}`}
                     data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
                   >
@@ -971,7 +969,6 @@ function Composer({
                 <div
                   className="reference-attachment-card"
                   key={attachment.id}
-                  title={attachment.name}
                   data-tooltip={attachment.name}
                 >
                   <div className="reference-attachment-text">
@@ -986,7 +983,6 @@ function Composer({
                   <button
                     type="button"
                     aria-label={`Remove ${attachment.name}`}
-                    title={`Remove ${attachment.name}`}
                     data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
                   >
@@ -1029,7 +1025,6 @@ function Composer({
               type="button"
               className="reference-composer-source-button"
               aria-label="Files"
-              title="Files"
               data-tooltip="Files"
               disabled={disabled}
               onClick={() => fileInputRef.current?.click()}
@@ -1041,7 +1036,6 @@ function Composer({
               className="reference-composer-source-button"
               aria-label="Connectors"
               aria-expanded={connectorsOpen}
-              title="Connectors"
               data-tooltip="Connectors"
               disabled={disabled}
               onClick={() => setConnectorsOpen(open => !open)}
@@ -1173,7 +1167,6 @@ function MessageActionRow({
           key={action.label}
           type="button"
           aria-label={action.label}
-          title={action.label}
           data-tooltip={action.label}
           onClick={action.onClick}
         >
