@@ -215,6 +215,7 @@ describe('ChatWorkspace', () => {
 
   it('shows four recent cards before revealing the rest', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.getHypotheses.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue(
       Array.from({length: 6}, (_, index) =>
         minimalRun({
@@ -232,7 +233,9 @@ describe('ChatWorkspace', () => {
     expect(
       await screen.findAllByText('Recent research question 6'),
     ).not.toHaveLength(0);
-    expect(screen.getAllByText('Top score: 1200')).not.toHaveLength(0);
+    await waitFor(() => {
+      expect(screen.getAllByText('Top score: 1200')).not.toHaveLength(0);
+    });
     expect(screen.getAllByText('Recent research question 3')).not.toHaveLength(
       0,
     );
@@ -252,6 +255,25 @@ describe('ChatWorkspace', () => {
 
     expect(screen.queryByText('Recent research question 2')).toBeNull();
     expect(screen.getByRole('button', {name: 'Show more'})).toBeInTheDocument();
+  });
+
+  it('uses backend hypothesis Elo for completed home-card top scores', async () => {
+    apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.listRuns.mockResolvedValue([
+      minimalRun({
+        id: 'run-scored',
+        research_goal: 'Rank host-pathogen target hypotheses.',
+      }),
+    ]);
+    apiMock.getHypotheses.mockResolvedValue([
+      {...hypothesis, id: 'hyp-low', elo_rating: 1198},
+      {...hypothesis, id: 'hyp-high', elo_rating: 1324},
+    ]);
+
+    renderWorkspace();
+
+    expect(await screen.findByText('Top score: 1324')).toBeInTheDocument();
+    expect(screen.queryByText('Top score: 1240')).toBeNull();
   });
 
   it('shows active recents with in-progress percentage and generation state', async () => {

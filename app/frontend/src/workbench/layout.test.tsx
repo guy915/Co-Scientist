@@ -163,10 +163,9 @@ describe('Layout', () => {
     renderLayout();
 
     fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
-    expect(screen.getByText('Appearance')).toBeInTheDocument();
+    expect(screen.getByRole('group', {name: 'Theme'})).toBeInTheDocument();
     expect(screen.queryByRole('button', {name: 'Personalization'})).toBeNull();
     expect(screen.queryByText(/Delft/)).toBeNull();
-    expect(screen.getByRole('button', {name: 'Help'})).toBeInTheDocument();
     expect(screen.queryByRole('dialog', {name: 'Settings'})).toBeNull();
     expect(screen.getByRole('button', {name: 'Dark'})).toHaveAttribute(
       'aria-pressed',
@@ -180,7 +179,7 @@ describe('Layout', () => {
     );
 
     fireEvent.pointerDown(screen.getByText('Workspace content'));
-    expect(screen.queryByText('Appearance')).toBeNull();
+    expect(screen.queryByRole('group', {name: 'Theme'})).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
     expect(screen.getByRole('button', {name: /Logs 0/i})).not.toHaveAttribute(
@@ -203,7 +202,7 @@ describe('Layout', () => {
       Array.from(diagnosticActions!.querySelectorAll('button')).map(button =>
         button.querySelector('span')?.textContent?.trim(),
       ),
-    ).toEqual(['Refresh', 'Clear', 'Copy']);
+    ).toEqual(['Clear', 'Copy']);
 
     fireEvent(
       window,
@@ -226,18 +225,11 @@ describe('Layout', () => {
     expect(screen.getByText('Runs 1')).toBeInTheDocument();
     expect(screen.getByText(/"event": "draft_created"/)).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', {name: 'Refresh'}));
-    expect(screen.getByRole('button', {name: /Logs 1/i})).toBeInTheDocument();
-    expect(screen.getByText(/"event": "draft_created"/)).toBeInTheDocument();
-
     fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
     expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
     expect(
       screen.getByText('No diagnostic events loaded.'),
     ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole('button', {name: 'Refresh'}));
-    expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
     expect(screen.queryByText(/"event": "draft_created"/)).toBeNull();
 
     fireEvent.pointerDown(screen.getByText('Workspace content'));

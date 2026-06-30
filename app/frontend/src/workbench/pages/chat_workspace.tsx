@@ -22,8 +22,10 @@ import {
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {
   createRun,
+  getHypotheses,
   listDemoRuns,
   listRuns,
+  type Hypothesis,
   type RunFocus,
   type RunTier,
   type Run,
@@ -76,6 +78,7 @@ const SUGGESTIONS = [
 ];
 
 const COMPOSER_CONNECTORS = ['PubMed'];
+const BASELINE_ELO_RATING = 1200;
 
 /** The three phases of a session, shown on the home screen. */
 const SESSION_STEPS: ReadonlyArray<{
@@ -223,9 +226,22 @@ function emitDiagnosticEvent({
   );
 }
 
-function homeRunScore(run: Run): number {
-  if (run.status === 'failed' || run.status === 'blocked') return 1200;
-  return 1200;
+function topEloFromHypotheses(hypotheses: Hypothesis[]): number {
+  const ratings = hypotheses
+    .map(hypothesis => hypothesis.elo_rating)
+    .filter(Number.isFinite);
+  if (!ratings.length) return BASELINE_ELO_RATING;
+  return Math.max(...ratings);
+}
+
+function homeRunScore(
+  run: Run,
+  scoresByRunId: Record<string, number | null>,
+): number | null {
+  if (run.status !== 'completed') return null;
+  return Object.prototype.hasOwnProperty.call(scoresByRunId, run.id)
+    ? scoresByRunId[run.id]
+    : null;
 }
 
 function homeRunProgress(run: Run): number {
@@ -314,6 +330,9 @@ export function ChatWorkspace() {
   const [isStarting, setIsStarting] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [history, setHistory] = useState<Run[]>([]);
+  const [homeScores, setHomeScores] = useState<Record<string, number | null>>(
+    {},
+  );
   const [error, setError] = useState<string | null>(null);
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
@@ -322,6 +341,12 @@ export function ChatWorkspace() {
   const [toast, setToast] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const previousTimelineSignature = useRef('');
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(null), 3000);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
 
   const loadHistory = useCallback(async () => {
     const [ownedRuns, demoRuns] = await Promise.all([
@@ -361,6 +386,35 @@ export function ChatWorkspace() {
   useEffect(() => {
     void loadHistory();
   }, [loadHistory]);
+
+  useEffect(() => {
+    const completedRuns = history
+      .filter(run => run.status === 'completed')
+      .slice(0, 10);
+    if (!completedRuns.length) {
+      setHomeScores({});
+      return;
+    }
+
+    let cancelled = false;
+    void Promise.all(
+      completedRuns.map(async run => {
+        try {
+          const hypotheses = await getHypotheses(run.id);
+          return [run.id, topEloFromHypotheses(hypotheses)] as const;
+        } catch {
+          return [run.id, null] as const;
+        }
+      }),
+    ).then(entries => {
+      if (cancelled) return;
+      setHomeScores(Object.fromEntries(entries));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [history]);
 
   useEffect(() => {
     window.addEventListener('cosci-new-chat', resetWorkspace);
@@ -479,6 +533,7 @@ export function ChatWorkspace() {
     setDraftSpecCreatedAt(Date.now() / 1000);
     setConfirmedSpec(null);
     setConfirmedSpecCreatedAt(null);
+    setStartedSession(null);
     focusComposer();
     emitDiagnosticEvent({
       stage: 'CHAT',
@@ -806,6 +861,7 @@ export function ChatWorkspace() {
                   homeRecentRuns.map(run => {
                     const topIdeas = homeRunIdeaTitles(run.research_goal);
                     const isActiveRun = isActiveHomeRun(run);
+                    const topScore = homeRunScore(run, homeScores);
                     return (
                       <li key={run.id}>
                         <Link
@@ -836,10 +892,12 @@ export function ChatWorkspace() {
                                 </md-icon>
                                 Winning ideas
                               </span>
-                              <span>
-                                <md-icon aria-hidden="true">stars</md-icon>
-                                Top score: {homeRunScore(run)}
-                              </span>
+                              {topScore !== null && (
+                                <span>
+                                  <md-icon aria-hidden="true">stars</md-icon>
+                                  Top score: {topScore}
+                                </span>
+                              )}
                             </span>
                           )}
                           <ol className="reference-winner-list">

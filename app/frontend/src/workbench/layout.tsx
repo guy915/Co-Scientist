@@ -101,10 +101,6 @@ export function Layout({children}: {children: ReactNode}) {
     setActivePanel(current => (current === panel ? null : panel));
   }
 
-  function refreshLogs() {
-    setLogsCopied(false);
-  }
-
   function clearLogs() {
     nextDiagnosticId.current = 1;
     setDiagnosticLogs([]);
@@ -228,7 +224,7 @@ export function Layout({children}: {children: ReactNode}) {
             <button
               type="button"
               className={tooltipClassNames({
-                className: 'ucs-nav-item selected',
+                className: 'ucs-nav-item',
                 placement: 'right',
               })}
               aria-label="New chat"
@@ -297,46 +293,33 @@ export function Layout({children}: {children: ReactNode}) {
             </button>
             {activePanel === 'settings' && (
               <ShellPopover className="ucs-popover--rail">
-                <div className="ucs-settings-theme-block">
-                  <div className="ucs-settings-menu-row ucs-settings-menu-heading">
-                    <md-icon aria-hidden="true">palette</md-icon>
-                    <span>Appearance</span>
-                  </div>
-                  <div
-                    className="ucs-theme-segment ucs-theme-segment--inline"
-                    role="group"
-                    aria-label="Theme"
-                  >
-                    <ThemeModeButton
-                      mode="system"
-                      active={mode === 'system'}
-                      icon="computer"
-                      label="System"
-                      onModeChange={setMode}
-                    />
-                    <ThemeModeButton
-                      mode="light"
-                      active={mode === 'light'}
-                      icon="light_mode"
-                      label="Light"
-                      onModeChange={setMode}
-                    />
-                    <ThemeModeButton
-                      mode="dark"
-                      active={mode === 'dark'}
-                      icon="dark_mode"
-                      label="Dark"
-                      onModeChange={setMode}
-                    />
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  className="ucs-settings-menu-row ucs-settings-help-row"
+                <div
+                  className="ucs-theme-segment ucs-theme-segment--inline"
+                  role="group"
+                  aria-label="Theme"
                 >
-                  <md-icon aria-hidden="true">help</md-icon>
-                  <span>Help</span>
-                </button>
+                  <ThemeModeButton
+                    mode="system"
+                    active={mode === 'system'}
+                    icon="computer"
+                    label="System"
+                    onModeChange={setMode}
+                  />
+                  <ThemeModeButton
+                    mode="light"
+                    active={mode === 'light'}
+                    icon="light_mode"
+                    label="Light"
+                    onModeChange={setMode}
+                  />
+                  <ThemeModeButton
+                    mode="dark"
+                    active={mode === 'dark'}
+                    icon="dark_mode"
+                    label="Dark"
+                    onModeChange={setMode}
+                  />
+                </div>
               </ShellPopover>
             )}
           </div>
@@ -344,14 +327,15 @@ export function Layout({children}: {children: ReactNode}) {
       </aside>
       <section className="ucs-workspace">
         <header className="ucs-header-action-bar">
-          <Link
-            to="/"
+          <button
+            type="button"
             className="ucs-product-lockup"
             aria-label="Go to Co-Scientist home"
+            onClick={startNewChat}
           >
             <GoogleLabsIcon aria-hidden="true" />
             <span>Co-Scientist</span>
-          </Link>
+          </button>
           <div className="ucs-header-title">{headerTitle}</div>
           <div ref={logsControlRef} className="ucs-header-actions">
             <button
@@ -372,12 +356,8 @@ export function Layout({children}: {children: ReactNode}) {
                     <h2>Diagnostic Logs</h2>
                   </div>
                   <div className="ucs-diagnostic-actions">
-                    <button type="button" onClick={refreshLogs}>
-                      <md-icon aria-hidden="true">refresh</md-icon>
-                      <span>Refresh</span>
-                    </button>
                     <button type="button" onClick={clearLogs}>
-                      <md-icon aria-hidden="true">delete_sweep</md-icon>
+                      <md-icon aria-hidden="true">refresh</md-icon>
                       <span>Clear</span>
                     </button>
                     <button type="button" onClick={copyLogs}>

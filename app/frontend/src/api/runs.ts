@@ -24,6 +24,8 @@ import {
 } from './offline_runs';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
+const OFFLINE_FALLBACK_ENABLED =
+  (import.meta.env.VITE_ENABLE_OFFLINE_FALLBACK as string) === 'true';
 
 function clientHeaders(): Record<string, string> {
   return {'X-Client-ID': getClientId()};
@@ -288,6 +290,10 @@ function isApiUnavailable(err: unknown): boolean {
   );
 }
 
+function shouldUseOfflineFallback(err: unknown): boolean {
+  return OFFLINE_FALLBACK_ENABLED && isApiUnavailable(err);
+}
+
 /**
  * Creates a new run from a research goal and optional config overrides.
  *
@@ -317,7 +323,7 @@ export async function createRun(input: {
     });
     return await jsonOrThrow<Run>(res);
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineCreateRun(input);
+    if (shouldUseOfflineFallback(err)) return offlineCreateRun(input);
     throw err;
   }
 }
@@ -337,7 +343,7 @@ export async function listRuns(limit?: number): Promise<Run[]> {
     const data = await jsonOrThrow<{runs: Run[]}>(res);
     return data.runs;
   } catch (err) {
-    if (isApiUnavailable(err)) {
+    if (shouldUseOfflineFallback(err)) {
       const runs = offlineListRuns();
       return limit === undefined ? runs : runs.slice(0, limit);
     }
@@ -356,7 +362,7 @@ export async function listDemoRuns(): Promise<Run[]> {
     const data = await jsonOrThrow<{runs: Run[]}>(res);
     return data.runs;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineListDemoRuns();
+    if (shouldUseOfflineFallback(err)) return offlineListDemoRuns();
     throw err;
   }
 }
@@ -372,7 +378,7 @@ export async function getRun(id: string): Promise<RunWithSummary> {
     const res = await fetch(`${API_BASE_URL}/api/runs/${id}`);
     return await jsonOrThrow<RunWithSummary>(res);
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineGetRun(id);
+    if (shouldUseOfflineFallback(err)) return offlineGetRun(id);
     throw err;
   }
 }
@@ -396,7 +402,7 @@ export async function startRun(
     });
     return await jsonOrThrow(res);
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineStartRun(id);
+    if (shouldUseOfflineFallback(err)) return offlineStartRun(id);
     throw err;
   }
 }
@@ -416,7 +422,7 @@ export async function cancelRun(
     });
     return await jsonOrThrow(res);
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineCancelRun(id);
+    if (shouldUseOfflineFallback(err)) return offlineCancelRun(id);
     throw err;
   }
 }
@@ -433,7 +439,7 @@ export async function getHypotheses(id: string): Promise<Hypothesis[]> {
     const data = await jsonOrThrow<{hypotheses: Hypothesis[]}>(res);
     return data.hypotheses;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineHypotheses(id);
+    if (shouldUseOfflineFallback(err)) return offlineHypotheses(id);
     throw err;
   }
 }
@@ -450,7 +456,7 @@ export async function getEvidence(id: string): Promise<Evidence[]> {
     const data = await jsonOrThrow<{evidence: Evidence[]}>(res);
     return data.evidence;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineEvidence(id);
+    if (shouldUseOfflineFallback(err)) return offlineEvidence(id);
     throw err;
   }
 }
@@ -467,7 +473,7 @@ export async function getMatches(id: string): Promise<MatchRow[]> {
     const data = await jsonOrThrow<{matches: MatchRow[]}>(res);
     return data.matches;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineMatches(id);
+    if (shouldUseOfflineFallback(err)) return offlineMatches(id);
     throw err;
   }
 }
@@ -484,7 +490,7 @@ export async function getReviews(id: string): Promise<Review[]> {
     const data = await jsonOrThrow<{reviews: Review[]}>(res);
     return data.reviews;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineReviews(id);
+    if (shouldUseOfflineFallback(err)) return offlineReviews(id);
     throw err;
   }
 }
@@ -501,7 +507,7 @@ export async function getSafety(id: string): Promise<SafetyDecision[]> {
     const data = await jsonOrThrow<{safety: SafetyDecision[]}>(res);
     return data.safety;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineSafety(id);
+    if (shouldUseOfflineFallback(err)) return offlineSafety(id);
     throw err;
   }
 }
@@ -518,7 +524,7 @@ export async function getCitations(id: string): Promise<CitationRow[]> {
     const data = await jsonOrThrow<{citations: CitationRow[]}>(res);
     return data.citations;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineCitations(id);
+    if (shouldUseOfflineFallback(err)) return offlineCitations(id);
     throw err;
   }
 }
@@ -535,7 +541,7 @@ export async function getReport(id: string): Promise<Report | null> {
     if (res.status === 404) return null;
     return await jsonOrThrow<Report>(res);
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineReport(id);
+    if (shouldUseOfflineFallback(err)) return offlineReport(id);
     throw err;
   }
 }
@@ -580,7 +586,7 @@ export async function getRunEventsLog(id: string): Promise<RunEvent[]> {
     const res = await fetch(`${API_BASE_URL}/api/runs/${id}/events/log`);
     return await jsonOrThrow<RunEvent[]>(res);
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineEvents(id);
+    if (shouldUseOfflineFallback(err)) return offlineEvents(id);
     throw err;
   }
 }
@@ -608,7 +614,7 @@ export async function getSystemStatus(): Promise<SystemStatus> {
     const res = await fetch(`${API_BASE_URL}/status`);
     return await jsonOrThrow<SystemStatus>(res);
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineStatus();
+    if (shouldUseOfflineFallback(err)) return offlineStatus();
     throw err;
   }
 }
@@ -632,7 +638,7 @@ export async function listMessages(runId: string): Promise<Message[]> {
     const data = (await res.json()) as {messages: Message[]};
     return data.messages;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineListMessages(runId);
+    if (shouldUseOfflineFallback(err)) return offlineListMessages(runId);
     throw err;
   }
 }
@@ -663,7 +669,9 @@ export async function sendMessage(
     }
     return (await res.json()) as Message;
   } catch (err) {
-    if (isApiUnavailable(err)) return offlineSendMessage(runId, content, kind);
+    if (shouldUseOfflineFallback(err)) {
+      return offlineSendMessage(runId, content, kind);
+    }
     throw err;
   }
 }
@@ -679,7 +687,7 @@ export function askQuestionUrl(runId: string): string {
 }
 
 export function canUseOfflineRun(runId: string): boolean {
-  return isOfflineRunId(runId);
+  return OFFLINE_FALLBACK_ENABLED && isOfflineRunId(runId);
 }
 
 export function answerOfflineQuestion(
