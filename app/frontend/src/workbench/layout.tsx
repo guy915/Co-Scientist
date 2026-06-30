@@ -343,7 +343,11 @@ export function Layout({children}: {children: ReactNode}) {
       </aside>
       <section className="ucs-workspace">
         <header className="ucs-header-action-bar">
-          <Link to="/" className="ucs-product-lockup">
+          <Link
+            to="/"
+            className="ucs-product-lockup"
+            aria-label="Go to Co-Scientist home"
+          >
             <GoogleLabsIcon aria-hidden="true" />
             <span>Co-Scientist</span>
           </Link>
@@ -351,13 +355,8 @@ export function Layout({children}: {children: ReactNode}) {
           <div ref={logsControlRef} className="ucs-header-actions">
             <button
               type="button"
-              className={tooltipClassNames({
-                className: 'ucs-logs-button',
-                placement: 'bottom',
-                alignEnd: true,
-              })}
+              className="ucs-logs-button"
               aria-label={`Logs ${logCount}`}
-              data-tooltip="Logs"
               aria-expanded={activePanel === 'logs'}
               onClick={() => togglePanel('logs')}
             >
@@ -370,7 +369,6 @@ export function Layout({children}: {children: ReactNode}) {
                 <div className="ucs-diagnostic-header">
                   <div className="ucs-diagnostic-title">
                     <h2>Diagnostic Logs</h2>
-                    <span>All runs</span>
                   </div>
                   <div className="ucs-diagnostic-actions">
                     <button type="button" onClick={refreshLogs}>
@@ -388,10 +386,6 @@ export function Layout({children}: {children: ReactNode}) {
                   </div>
                 </div>
                 <div className="ucs-diagnostic-intro">
-                  <p>
-                    Export includes loaded run events, agent-stage updates,
-                    reports, safety decisions, and failure context.
-                  </p>
                   <div className="ucs-diagnostic-chips">
                     <span>Total {logCount}</span>
                     <span className="error">Errors 1</span>

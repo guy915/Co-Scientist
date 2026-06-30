@@ -189,7 +189,7 @@ describe('ChatWorkspace', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'What breakthrough should we chase today?',
+        name: 'What breakthrough should we make today?',
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Recents')).toBeInTheDocument();

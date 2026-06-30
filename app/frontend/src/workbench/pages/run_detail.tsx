@@ -1,5 +1,12 @@
 import '@material/web/icon/icon.js';
-import {useCallback, useEffect, useMemo, useState, type ReactNode} from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type MouseEvent,
+  type ReactNode,
+} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
   type CitationRow,
@@ -19,6 +26,7 @@ import {
   type RunWithSummary,
 } from '@/api/runs';
 import {useRunStream} from '@/hooks/use_run_stream';
+import {smoothScrollToSection} from '@/lib/smooth_scroll';
 import {conciseTitle} from '@/lib/text';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 
@@ -146,6 +154,18 @@ export function RunDetail() {
     [id, navigate],
   );
 
+  const onSessionDetails = useCallback(() => {
+    if (!id) return;
+    if (activeTab !== 'details') {
+      void navigate(`/runs/${id}`);
+      return;
+    }
+    document.querySelector('.cosci-report-scroll')?.scrollTo({
+      top: 0,
+      behavior: 'smooth',
+    });
+  }, [activeTab, id, navigate]);
+
   if (!id) return null;
 
   const activeTabIndex = TABS.indexOf(activeTab);
@@ -159,7 +179,11 @@ export function RunDetail() {
           </Link>
           <h1>{title}</h1>
         </div>
-        <button type="button" className="cosci-session-details">
+        <button
+          type="button"
+          className="cosci-session-details"
+          onClick={onSessionDetails}
+        >
           Session details
         </button>
       </header>
@@ -303,13 +327,26 @@ function LearningView({goal, evidence}: {goal: string; evidence: Evidence[]}) {
       </article>
       <aside className="cosci-learning-outline" aria-label="Learning sections">
         {sections.map(section => (
-          <a key={section.id} href={`#${section.id}`}>
+          <a
+            key={section.id}
+            href={`#${section.id}`}
+            onClick={event => smoothSectionClick(event, section.id)}
+          >
             {section.title}
           </a>
         ))}
       </aside>
     </div>
   );
+}
+
+function smoothSectionClick(
+  event: MouseEvent<HTMLAnchorElement>,
+  sectionId: string,
+) {
+  const didScroll = smoothScrollToSection(sectionId, 16);
+  if (!didScroll) return;
+  event.preventDefault();
 }
 
 function ReferencesBlock({

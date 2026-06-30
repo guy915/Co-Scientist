@@ -183,12 +183,13 @@ describe('Layout', () => {
     expect(screen.queryByText('Appearance')).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: /Logs 23/i}));
+    expect(screen.getByRole('button', {name: /Logs 23/i})).not.toHaveAttribute(
+      'data-tooltip',
+    );
     expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
-    expect(screen.getByText('All runs')).toBeInTheDocument();
+    expect(screen.queryByText('All runs')).toBeNull();
     expect(screen.getByText('Total 23')).toBeInTheDocument();
-    expect(
-      screen.getByText(/Export includes loaded run events/),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Export includes loaded run events/)).toBeNull();
     expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
     const diagnosticActions = document.querySelector('.ucs-diagnostic-actions');
     expect(diagnosticActions).not.toBeNull();

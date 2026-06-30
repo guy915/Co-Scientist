@@ -1,7 +1,8 @@
 import '@material/web/icon/icon.js';
-import type {ReactNode} from 'react';
+import type {MouseEvent, ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import type {CitationRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
@@ -213,12 +214,27 @@ function SectionsRail() {
         'Full review',
         'Tournament performance',
       ].map(item => (
-        <a key={item} href={`#${item.toLowerCase().replaceAll(' ', '-')}`}>
+        <a
+          key={item}
+          href={`#${item.toLowerCase().replaceAll(' ', '-')}`}
+          onClick={event =>
+            smoothSectionClick(event, item.toLowerCase().replaceAll(' ', '-'))
+          }
+        >
           {item} &gt;
         </a>
       ))}
     </aside>
   );
+}
+
+function smoothSectionClick(
+  event: MouseEvent<HTMLAnchorElement>,
+  sectionId: string,
+) {
+  const didScroll = smoothScrollToSection(sectionId, 16);
+  if (!didScroll) return;
+  event.preventDefault();
 }
 
 function Empty({msg}: {msg: string}) {

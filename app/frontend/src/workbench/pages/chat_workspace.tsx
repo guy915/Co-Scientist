@@ -599,7 +599,7 @@ export function ChatWorkspace() {
         {!hasConversation ? (
           <section className="reference-home-stage">
             <div className="reference-home-main">
-              <h1>What breakthrough should we chase today?</h1>
+              <h1>What breakthrough should we make today?</h1>
 
               <ol className="reference-step-timeline">
                 {SESSION_STEPS.map(step => (
