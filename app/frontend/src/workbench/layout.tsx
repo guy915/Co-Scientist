@@ -121,6 +121,14 @@ export function Layout({children}: {children: ReactNode}) {
     setActivePanel(current => (current === panel ? null : panel));
   }
 
+  function shellTooltip(label: string) {
+    return (
+      <span className="ucs-nav-tooltip" aria-hidden="true">
+        {label}
+      </span>
+    );
+  }
+
   function refreshLogs() {
     setLogsCleared(false);
     setLogsCopied(false);
@@ -218,6 +226,7 @@ export function Layout({children}: {children: ReactNode}) {
           >
             <md-icon aria-hidden="true">menu</md-icon>
             <span className="nav-label">Menu</span>
+            {shellTooltip('Menu')}
           </button>
           <nav id="primary-navigation" className="ucs-nav-items">
             <button
@@ -229,6 +238,7 @@ export function Layout({children}: {children: ReactNode}) {
             >
               <md-icon aria-hidden="true">edit_square</md-icon>
               <span className="nav-label">New chat</span>
+              {shellTooltip('New chat')}
             </button>
             <button
               type="button"
@@ -239,6 +249,7 @@ export function Layout({children}: {children: ReactNode}) {
             >
               <md-icon aria-hidden="true">search</md-icon>
               <span className="nav-label">Search</span>
+              {shellTooltip('Search')}
             </button>
           </nav>
           <div className="gemini-side-content">
@@ -251,6 +262,7 @@ export function Layout({children}: {children: ReactNode}) {
                   data-tooltip={run.research_goal}
                 >
                   <span>{conciseTitle(run.research_goal)}</span>
+                  {shellTooltip(run.research_goal)}
                 </Link>
               ))}
               {hasExtraChats && (
@@ -276,6 +288,7 @@ export function Layout({children}: {children: ReactNode}) {
             >
               <md-icon aria-hidden="true">settings</md-icon>
               <span className="nav-label">Settings</span>
+              {shellTooltip('Settings')}
             </button>
             {activePanel === 'settings' && (
               <ShellPopover className="ucs-popover--rail">

@@ -10012,3 +10012,96 @@ body {
     margin-top: clamp(1.4rem, 3vh, 2rem);
   }
 }
+
+/* Sidebar tooltip stacking fix: keep nav popups above the workspace. */
+.ucs-nav-panel,
+[data-theme="dark"] .ucs-nav-panel {
+  position: relative;
+  z-index: 70;
+}
+
+.ucs-workspace,
+[data-theme="dark"] .ucs-workspace {
+  position: relative;
+  z-index: 1;
+}
+
+.ucs-nav-items,
+.ucs-rail-button,
+.ucs-nav-item,
+.gemini-chat-list a,
+.gemini-side-content,
+.gemini-chat-list,
+[data-theme="dark"] .ucs-nav-items,
+[data-theme="dark"] .ucs-rail-button,
+[data-theme="dark"] .ucs-nav-item,
+[data-theme="dark"] .gemini-chat-list a,
+[data-theme="dark"] .gemini-side-content,
+[data-theme="dark"] .gemini-chat-list {
+  overflow: visible;
+}
+
+.ucs-rail-button,
+.ucs-nav-item,
+.gemini-chat-list a,
+[data-theme="dark"] .ucs-rail-button,
+[data-theme="dark"] .ucs-nav-item,
+[data-theme="dark"] .gemini-chat-list a {
+  position: relative;
+}
+
+.ucs-rail-button[data-tooltip]::after,
+.ucs-nav-item[data-tooltip]::after,
+.gemini-chat-list a[data-tooltip]::after,
+[data-theme="dark"] .ucs-rail-button[data-tooltip]::after,
+[data-theme="dark"] .ucs-nav-item[data-tooltip]::after,
+[data-theme="dark"] .gemini-chat-list a[data-tooltip]::after {
+  display: none;
+}
+
+.ucs-nav-tooltip,
+[data-theme="dark"] .ucs-nav-tooltip {
+  position: absolute;
+  z-index: 1000;
+  top: 50%;
+  left: calc(100% + 0.55rem);
+  max-width: min(28rem, calc(100vw - 20rem));
+  border-radius: 0.45rem;
+  background: #303134;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 22%);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 500;
+  line-height: 1.15;
+  opacity: 0;
+  padding: 0.48rem 0.58rem;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition:
+    opacity 120ms ease,
+    visibility 120ms ease;
+  visibility: hidden;
+  white-space: normal;
+}
+
+.ucs-rail-button:hover > .ucs-nav-tooltip,
+.ucs-rail-button:focus > .ucs-nav-tooltip,
+.ucs-rail-button:focus-visible > .ucs-nav-tooltip,
+.ucs-nav-item:hover > .ucs-nav-tooltip,
+.ucs-nav-item:focus > .ucs-nav-tooltip,
+.ucs-nav-item:focus-visible > .ucs-nav-tooltip,
+.gemini-chat-list a:hover > .ucs-nav-tooltip,
+.gemini-chat-list a:focus > .ucs-nav-tooltip,
+.gemini-chat-list a:focus-visible > .ucs-nav-tooltip,
+[data-theme="dark"] .ucs-rail-button:hover > .ucs-nav-tooltip,
+[data-theme="dark"] .ucs-rail-button:focus > .ucs-nav-tooltip,
+[data-theme="dark"] .ucs-rail-button:focus-visible > .ucs-nav-tooltip,
+[data-theme="dark"] .ucs-nav-item:hover > .ucs-nav-tooltip,
+[data-theme="dark"] .ucs-nav-item:focus > .ucs-nav-tooltip,
+[data-theme="dark"] .ucs-nav-item:focus-visible > .ucs-nav-tooltip,
+[data-theme="dark"] .gemini-chat-list a:hover > .ucs-nav-tooltip,
+[data-theme="dark"] .gemini-chat-list a:focus > .ucs-nav-tooltip,
+[data-theme="dark"] .gemini-chat-list a:focus-visible > .ucs-nav-tooltip {
+  opacity: 1;
+  visibility: visible;
+}

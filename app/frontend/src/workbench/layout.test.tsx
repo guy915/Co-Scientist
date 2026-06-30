@@ -97,6 +97,22 @@ describe('Layout', () => {
         '/runs/demo-ferroptosis/details',
       );
     });
+
+    const newChat = screen.getByRole('button', {name: 'New chat'});
+    expect(newChat.querySelector('.ucs-nav-tooltip')).toHaveTextContent(
+      'New chat',
+    );
+
+    const search = screen.getByRole('button', {name: 'Search'});
+    expect(search.querySelector('.ucs-nav-tooltip')).toHaveTextContent(
+      'Search',
+    );
+
+    const chat = screen.getByRole('link', {name: /ferroptosis/i});
+    expect(chat).not.toHaveAttribute('title');
+    expect(chat.querySelector('.ucs-nav-tooltip')).toHaveTextContent(
+      /ferroptosis in pancreatic cancer cells/i,
+    );
   });
 
   it('shows ten sidebar chats before expanding the rest', async () => {
