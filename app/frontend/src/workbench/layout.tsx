@@ -6,6 +6,7 @@ import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {useTheme} from './theme_context';
+import {tooltipClassNames} from './tooltip';
 
 type ShellPanel = 'settings' | 'logs';
 
@@ -121,14 +122,6 @@ export function Layout({children}: {children: ReactNode}) {
     setActivePanel(current => (current === panel ? null : panel));
   }
 
-  function shellTooltip(label: string) {
-    return (
-      <span className="ucs-nav-tooltip" aria-hidden="true">
-        {label}
-      </span>
-    );
-  }
-
   function refreshLogs() {
     setLogsCleared(false);
     setLogsCopied(false);
@@ -217,7 +210,10 @@ export function Layout({children}: {children: ReactNode}) {
         <div className="ucs-nav-top">
           <button
             type="button"
-            className="ucs-rail-button"
+            className={tooltipClassNames({
+              className: 'ucs-rail-button',
+              placement: 'right',
+            })}
             aria-label="Menu"
             data-tooltip="Menu"
             aria-expanded={navOpen}
@@ -226,30 +222,33 @@ export function Layout({children}: {children: ReactNode}) {
           >
             <md-icon aria-hidden="true">menu</md-icon>
             <span className="nav-label">Menu</span>
-            {shellTooltip('Menu')}
           </button>
           <nav id="primary-navigation" className="ucs-nav-items">
             <button
               type="button"
-              className="ucs-nav-item selected"
+              className={tooltipClassNames({
+                className: 'ucs-nav-item selected',
+                placement: 'right',
+              })}
               aria-label="New chat"
               data-tooltip="New chat"
               onClick={startNewChat}
             >
               <md-icon aria-hidden="true">edit_square</md-icon>
               <span className="nav-label">New chat</span>
-              {shellTooltip('New chat')}
             </button>
             <button
               type="button"
-              className="ucs-nav-item"
+              className={tooltipClassNames({
+                className: 'ucs-nav-item',
+                placement: 'right',
+              })}
               aria-label="Search"
               data-tooltip="Search"
               onClick={focusComposer}
             >
               <md-icon aria-hidden="true">search</md-icon>
               <span className="nav-label">Search</span>
-              {shellTooltip('Search')}
             </button>
           </nav>
           <div className="gemini-side-content">
@@ -259,10 +258,13 @@ export function Layout({children}: {children: ReactNode}) {
                 <Link
                   key={run.id}
                   to={`/runs/${run.id}/details`}
+                  className={tooltipClassNames({
+                    placement: 'right',
+                    wrap: true,
+                  })}
                   data-tooltip={run.research_goal}
                 >
                   <span>{conciseTitle(run.research_goal)}</span>
-                  {shellTooltip(run.research_goal)}
                 </Link>
               ))}
               {hasExtraChats && (
@@ -280,7 +282,10 @@ export function Layout({children}: {children: ReactNode}) {
           <div ref={settingsControlRef} className="ucs-settings-control">
             <button
               type="button"
-              className="ucs-rail-button"
+              className={tooltipClassNames({
+                className: 'ucs-rail-button',
+                placement: 'right',
+              })}
               aria-label="Settings"
               data-tooltip="Settings"
               aria-expanded={activePanel === 'settings'}
@@ -288,7 +293,6 @@ export function Layout({children}: {children: ReactNode}) {
             >
               <md-icon aria-hidden="true">settings</md-icon>
               <span className="nav-label">Settings</span>
-              {shellTooltip('Settings')}
             </button>
             {activePanel === 'settings' && (
               <ShellPopover className="ucs-popover--rail">
@@ -347,7 +351,11 @@ export function Layout({children}: {children: ReactNode}) {
           <div ref={logsControlRef} className="ucs-header-actions">
             <button
               type="button"
-              className="ucs-logs-button"
+              className={tooltipClassNames({
+                className: 'ucs-logs-button',
+                placement: 'bottom',
+                alignEnd: true,
+              })}
               aria-label={`Logs ${logCount}`}
               data-tooltip="Logs"
               aria-expanded={activePanel === 'logs'}

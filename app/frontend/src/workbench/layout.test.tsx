@@ -99,20 +99,21 @@ describe('Layout', () => {
     });
 
     const newChat = screen.getByRole('button', {name: 'New chat'});
-    expect(newChat.querySelector('.ucs-nav-tooltip')).toHaveTextContent(
-      'New chat',
-    );
+    expect(newChat).toHaveAttribute('data-tooltip', 'New chat');
+    expect(newChat).toHaveClass('ucs-tooltip-anchor');
+    expect(newChat).toHaveClass('ucs-tooltip-right');
 
     const search = screen.getByRole('button', {name: 'Search'});
-    expect(search.querySelector('.ucs-nav-tooltip')).toHaveTextContent(
-      'Search',
-    );
+    expect(search).toHaveAttribute('data-tooltip', 'Search');
+    expect(search).toHaveClass('ucs-tooltip-anchor');
+    expect(search).toHaveClass('ucs-tooltip-right');
 
     const chat = screen.getByRole('link', {name: /ferroptosis/i});
     expect(chat).not.toHaveAttribute('title');
-    expect(chat.querySelector('.ucs-nav-tooltip')).toHaveTextContent(
+    expect(chat.getAttribute('data-tooltip')).toMatch(
       /ferroptosis in pancreatic cancer cells/i,
     );
+    expect(chat).toHaveClass('ucs-tooltip-wrap');
   });
 
   it('shows ten sidebar chats before expanding the rest', async () => {

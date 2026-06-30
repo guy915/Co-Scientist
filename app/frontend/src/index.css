@@ -142,11 +142,6 @@
   place-self: center;
 }
 
-.ucs-rail-button[data-tooltip]::after,
-.ucs-nav-item[data-tooltip]::after {
-  z-index: 80;
-}
-
 .ucs-popover--logs,
 [data-theme="dark"] .ucs-popover--logs {
   width: min(38rem, calc(100vw - 2rem));
@@ -298,69 +293,9 @@
   }
 }
 
-/* Tooltip and attachment affordance fixes. */
-.reference-composer-source-button,
-.reference-composer-actions button[type="submit"],
-.reference-message-actions button,
-.reference-attachment-card,
-.reference-attachment-card > button {
+/* Attachment affordance fixes. */
+.reference-attachment-card {
   position: relative;
-}
-
-.reference-composer-source-button[data-tooltip]::after,
-.reference-composer-actions button[type="submit"][data-tooltip]::after,
-.reference-message-actions button[data-tooltip]::after,
-.reference-attachment-card[data-tooltip]::after,
-.reference-attachment-card > button[data-tooltip]::after {
-  position: absolute;
-  z-index: 150;
-  width: max-content;
-  max-width: 18rem;
-  border-radius: 0.45rem;
-  background: #303134;
-  color: #fff;
-  content: attr(data-tooltip);
-  font-size: 0.78rem;
-  font-weight: 500;
-  line-height: 1.1;
-  opacity: 0;
-  padding: 0.48rem 0.58rem;
-  pointer-events: none;
-  transform: translate(-50%, -0.25rem) scale(0.98);
-  transition:
-    opacity 140ms cubic-bezier(0.2, 0, 0, 1),
-    transform 140ms cubic-bezier(0.2, 0, 0, 1);
-  visibility: hidden;
-  white-space: normal;
-}
-
-.reference-composer-source-button[data-tooltip]::after,
-.reference-composer-actions button[type="submit"][data-tooltip]::after,
-.reference-message-actions button[data-tooltip]::after,
-.reference-attachment-card > button[data-tooltip]::after {
-  bottom: calc(100% + 0.45rem);
-  left: 50%;
-}
-
-.reference-attachment-card[data-tooltip]::after {
-  bottom: calc(100% + 0.55rem);
-  left: 50%;
-}
-
-.reference-composer-source-button[data-tooltip]:hover::after,
-.reference-composer-source-button[data-tooltip]:focus-visible::after,
-.reference-composer-actions button[type="submit"][data-tooltip]:hover::after,
-.reference-composer-actions
-  button[type="submit"][data-tooltip]:focus-visible::after,
-.reference-message-actions button[data-tooltip]:hover::after,
-.reference-message-actions button[data-tooltip]:focus-visible::after,
-.reference-attachment-card[data-tooltip]:hover::after,
-.reference-attachment-card:focus-within[data-tooltip]::after,
-.reference-attachment-card > button[data-tooltip]:hover::after,
-.reference-attachment-card > button[data-tooltip]:focus-visible::after {
-  opacity: 1;
-  transform: translate(-50%, 0) scale(1);
-  visibility: visible;
 }
 
 .reference-attachment-card > button,
@@ -6666,38 +6601,6 @@ body {
   color: #202124;
 }
 
-.gemini-chat-list a[data-tooltip]::after {
-  position: absolute;
-  z-index: 80;
-  top: 50%;
-  left: calc(100% + 0.55rem);
-  width: max-content;
-  max-width: min(28rem, calc(100vw - var(--nav-width-open, 17.25rem) - 2rem));
-  border: 1px solid #dfe3e7;
-  border-radius: 0.65rem;
-  background: #fff;
-  box-shadow: 0 2px 8px rgb(60 64 67 / 18%);
-  color: #202124;
-  content: attr(data-tooltip);
-  font-size: 0.82rem;
-  line-height: 1.35;
-  opacity: 0;
-  padding: 0.55rem 0.7rem;
-  pointer-events: none;
-  text-align: left;
-  transform: translate(0.15rem, -50%);
-  transition:
-    opacity 140ms cubic-bezier(0.2, 0, 0, 1),
-    transform 140ms cubic-bezier(0.2, 0, 0, 1);
-  white-space: normal;
-}
-
-.gemini-chat-list a[data-tooltip]:hover::after,
-.gemini-chat-list a[data-tooltip]:focus-visible::after {
-  opacity: 1;
-  transform: translate(0, -50%);
-}
-
 .gemini-chat-list button {
   justify-self: start;
   border: 0;
@@ -6730,13 +6633,6 @@ body {
 [data-theme="dark"] .gemini-chat-list button:focus-visible {
   background: #303134;
   color: var(--cosci-text);
-}
-
-[data-theme="dark"] .gemini-chat-list a[data-tooltip]::after {
-  border-color: #3c4043;
-  background: #202124;
-  box-shadow: 0 2px 8px rgb(0 0 0 / 34%);
-  color: #f1f3f4;
 }
 
 [data-theme="dark"] .gemini-chat-list button {
@@ -7295,55 +7191,6 @@ body {
 .ucs-nav-item,
 .ucs-logs-button {
   position: relative;
-}
-
-.ucs-rail-button[data-tooltip]::after,
-.ucs-nav-item[data-tooltip]::after,
-.ucs-logs-button[data-tooltip]::after {
-  position: absolute;
-  top: 50%;
-  left: calc(100% + 0.55rem);
-  z-index: 120;
-  width: max-content;
-  max-width: 14rem;
-  border-radius: 0.45rem;
-  background: #303134;
-  color: #fff;
-  content: attr(data-tooltip);
-  font-size: 0.78rem;
-  font-weight: 500;
-  line-height: 1;
-  opacity: 0;
-  padding: 0.48rem 0.58rem;
-  pointer-events: none;
-  transform: translateY(-50%) scale(0.98);
-  transition:
-    opacity 140ms cubic-bezier(0.2, 0, 0, 1),
-    transform 140ms cubic-bezier(0.2, 0, 0, 1);
-  visibility: hidden;
-  white-space: nowrap;
-}
-
-.ucs-logs-button[data-tooltip]::after {
-  right: 0;
-  left: auto;
-  transform: translateY(calc(100% + 0.45rem)) scale(0.98);
-}
-
-.ucs-rail-button[data-tooltip]:hover::after,
-.ucs-rail-button[data-tooltip]:focus-visible::after,
-.ucs-nav-item[data-tooltip]:hover::after,
-.ucs-nav-item[data-tooltip]:focus-visible::after,
-.ucs-logs-button[data-tooltip]:hover::after,
-.ucs-logs-button[data-tooltip]:focus-visible::after {
-  opacity: 1;
-  transform: translateY(-50%) scale(1);
-  visibility: visible;
-}
-
-.ucs-logs-button[data-tooltip]:hover::after,
-.ucs-logs-button[data-tooltip]:focus-visible::after {
-  transform: translateY(calc(100% + 0.45rem)) scale(1);
 }
 
 .home-shell.nav-open .ucs-nav-top,
@@ -9863,69 +9710,9 @@ body {
   }
 }
 
-/* Tooltip and attachment affordance fixes. */
-.reference-composer-source-button,
-.reference-composer-actions button[type="submit"],
-.reference-message-actions button,
-.reference-attachment-card,
-.reference-attachment-card > button {
+/* Attachment affordance fixes. */
+.reference-attachment-card {
   position: relative;
-}
-
-.reference-composer-source-button[data-tooltip]::after,
-.reference-composer-actions button[type="submit"][data-tooltip]::after,
-.reference-message-actions button[data-tooltip]::after,
-.reference-attachment-card[data-tooltip]::after,
-.reference-attachment-card > button[data-tooltip]::after {
-  position: absolute;
-  z-index: 150;
-  width: max-content;
-  max-width: 18rem;
-  border-radius: 0.45rem;
-  background: #303134;
-  color: #fff;
-  content: attr(data-tooltip);
-  font-size: 0.78rem;
-  font-weight: 500;
-  line-height: 1.1;
-  opacity: 0;
-  padding: 0.48rem 0.58rem;
-  pointer-events: none;
-  transform: translate(-50%, -0.25rem) scale(0.98);
-  transition:
-    opacity 140ms cubic-bezier(0.2, 0, 0, 1),
-    transform 140ms cubic-bezier(0.2, 0, 0, 1);
-  visibility: hidden;
-  white-space: normal;
-}
-
-.reference-composer-source-button[data-tooltip]::after,
-.reference-composer-actions button[type="submit"][data-tooltip]::after,
-.reference-message-actions button[data-tooltip]::after,
-.reference-attachment-card > button[data-tooltip]::after {
-  bottom: calc(100% + 0.45rem);
-  left: 50%;
-}
-
-.reference-attachment-card[data-tooltip]::after {
-  bottom: calc(100% + 0.55rem);
-  left: 50%;
-}
-
-.reference-composer-source-button[data-tooltip]:hover::after,
-.reference-composer-source-button[data-tooltip]:focus-visible::after,
-.reference-composer-actions button[type="submit"][data-tooltip]:hover::after,
-.reference-composer-actions
-  button[type="submit"][data-tooltip]:focus-visible::after,
-.reference-message-actions button[data-tooltip]:hover::after,
-.reference-message-actions button[data-tooltip]:focus-visible::after,
-.reference-attachment-card[data-tooltip]:hover::after,
-.reference-attachment-card:focus-within[data-tooltip]::after,
-.reference-attachment-card > button[data-tooltip]:hover::after,
-.reference-attachment-card > button[data-tooltip]:focus-visible::after {
-  opacity: 1;
-  transform: translate(-50%, 0) scale(1);
-  visibility: visible;
 }
 
 .reference-attachment-card > button,
@@ -9940,29 +9727,12 @@ body {
   opacity: 1;
 }
 
-/* Current correction: custom-only tooltips, green diagnostics, and 16:9 home spacing. */
+/* Diagnostics and home spacing refinements. */
 .gemini-side-content,
 .gemini-chat-list,
 .ucs-nav-panel,
 .ucs-nav-top {
   overflow: visible;
-}
-
-.gemini-chat-list a[data-tooltip]::after {
-  z-index: 180;
-  top: 50%;
-  left: calc(100% + 0.5rem);
-  max-width: min(28rem, calc(100vw - 20rem));
-  border-color: #c8dbd6;
-  background: #fff;
-  color: #202124;
-  white-space: normal;
-}
-
-[data-theme="dark"] .gemini-chat-list a[data-tooltip]::after {
-  border-color: #2d4b47;
-  background: #172523;
-  color: #f1f3f4;
 }
 
 .ucs-popover--logs,
@@ -10116,42 +9886,130 @@ body {
   position: relative;
 }
 
-.ucs-rail-button[data-tooltip]::after,
-.ucs-nav-item[data-tooltip]::after,
-.gemini-chat-list a[data-tooltip]::after,
-[data-theme="dark"] .ucs-rail-button[data-tooltip]::after,
-[data-theme="dark"] .ucs-nav-item[data-tooltip]::after,
-[data-theme="dark"] .gemini-chat-list a[data-tooltip]::after {
-  display: none;
+/* Canonical tooltip system. New tooltip affordances must use
+   data-tooltip plus these ucs-tooltip-* modifiers. */
+[data-tooltip].ucs-tooltip-anchor,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor {
+  position: relative;
+  overflow: visible !important;
+  --ucs-tooltip-x: -50%;
+  --ucs-tooltip-y: -0.25rem;
+  --ucs-tooltip-open-x: -50%;
+  --ucs-tooltip-open-y: 0;
+  --ucs-tooltip-scale: 0.98;
+  --ucs-tooltip-open-scale: 1;
 }
 
-.ucs-nav-tooltip,
-[data-theme="dark"] .ucs-nav-tooltip {
+.reference-attachment-card > button.ucs-tooltip-anchor,
+.reference-attachment-card--image > button.ucs-tooltip-anchor,
+[data-theme="dark"] .reference-attachment-card > button.ucs-tooltip-anchor,
+[data-theme="dark"]
+  .reference-attachment-card--image
+  > button.ucs-tooltip-anchor {
   position: absolute;
-  z-index: 1000;
-  top: 50%;
-  left: calc(100% + 0.55rem);
-  width: max-content;
-  max-width: min(28rem, calc(100vw - 20rem));
-  border-radius: 0.45rem;
-  border: 1px solid #dadce0;
-  background: #f1f3f4;
+}
+
+[data-tooltip].ucs-tooltip-anchor::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor::after {
+  position: absolute !important;
+  z-index: 1000 !important;
+  display: block !important;
+  width: max-content !important;
+  max-width: min(28rem, calc(100vw - 2rem)) !important;
+  border: 1px solid #dadce0 !important;
+  border-radius: 0.45rem !important;
+  background: #f1f3f4 !important;
   box-shadow:
     0 1px 2px rgb(60 64 67 / 18%),
-    0 2px 6px rgb(60 64 67 / 16%);
-  color: #202124;
-  font-size: 0.78rem;
-  font-weight: 500;
-  line-height: 1.15;
-  opacity: 0;
-  padding: 0.34rem 0.52rem;
-  pointer-events: none;
-  transform: translateY(-50%);
+    0 2px 6px rgb(60 64 67 / 16%) !important;
+  color: #202124 !important;
+  content: attr(data-tooltip) !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  line-height: 1.15 !important;
+  opacity: 0 !important;
+  padding: 0.34rem 0.52rem !important;
+  pointer-events: none !important;
+  text-align: left !important;
+  transform: translate(var(--ucs-tooltip-x), var(--ucs-tooltip-y))
+    scale(var(--ucs-tooltip-scale)) !important;
   transition:
-    opacity 120ms ease,
-    visibility 120ms ease;
-  visibility: hidden;
-  white-space: nowrap;
+    opacity 120ms cubic-bezier(0.2, 0, 0, 1),
+    transform 120ms cubic-bezier(0.2, 0, 0, 1),
+    visibility 120ms cubic-bezier(0.2, 0, 0, 1) !important;
+  visibility: hidden !important;
+  white-space: nowrap !important;
+}
+
+[data-tooltip].ucs-tooltip-wrap::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-wrap::after {
+  max-width: min(34rem, calc(100vw - 20rem)) !important;
+  line-height: 1.22 !important;
+  overflow-wrap: anywhere !important;
+  white-space: normal !important;
+}
+
+[data-tooltip].ucs-tooltip-top::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-top::after {
+  top: auto !important;
+  right: auto !important;
+  bottom: calc(100% + 0.45rem) !important;
+  left: 50% !important;
+}
+
+[data-tooltip].ucs-tooltip-right,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-right {
+  --ucs-tooltip-x: -0.2rem;
+  --ucs-tooltip-y: -50%;
+  --ucs-tooltip-open-x: 0;
+  --ucs-tooltip-open-y: -50%;
+}
+
+[data-tooltip].ucs-tooltip-right::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-right::after {
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: calc(100% + 0.55rem) !important;
+}
+
+[data-tooltip].ucs-tooltip-bottom,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-bottom {
+  --ucs-tooltip-x: -50%;
+  --ucs-tooltip-y: 0.2rem;
+  --ucs-tooltip-open-x: -50%;
+  --ucs-tooltip-open-y: 0;
+}
+
+[data-tooltip].ucs-tooltip-bottom::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-bottom::after {
+  top: calc(100% + 0.45rem) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+}
+
+[data-tooltip].ucs-tooltip-align-end::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-align-end::after {
+  right: 0 !important;
+  left: auto !important;
+  --ucs-tooltip-x: 0;
+  --ucs-tooltip-open-x: 0;
+}
+
+[data-tooltip].ucs-tooltip-anchor:hover::after,
+[data-tooltip].ucs-tooltip-anchor:focus-visible::after,
+[data-tooltip].ucs-tooltip-anchor:focus-within::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor:hover::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor:focus-visible::after,
+[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor:focus-within::after {
+  opacity: 1 !important;
+  transform: translate(
+      var(--ucs-tooltip-open-x),
+      var(--ucs-tooltip-open-y)
+    )
+    scale(var(--ucs-tooltip-open-scale)) !important;
+  visibility: visible !important;
 }
 
 .ucs-rail-button .nav-label,
@@ -10161,33 +10019,114 @@ body {
   white-space: nowrap;
 }
 
-.gemini-chat-list a > .ucs-nav-tooltip,
-[data-theme="dark"] .gemini-chat-list a > .ucs-nav-tooltip {
-  max-width: min(34rem, calc(100vw - 20rem));
-  line-height: 1.22;
-  overflow-wrap: anywhere;
-  text-align: left;
-  white-space: normal;
+:is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button,
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item,
+:is(.home-shell, .report-shell).nav-open .ucs-nav-bottom .ucs-rail-button,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button,
+[data-theme="dark"] :is(.home-shell, .report-shell).nav-open .ucs-nav-item,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button {
+  display: flex;
+  box-sizing: border-box;
+  width: 100%;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.9rem;
+  border-radius: 999px;
+  padding: 0 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 500;
 }
 
-.ucs-rail-button:hover > .ucs-nav-tooltip,
-.ucs-rail-button:focus > .ucs-nav-tooltip,
-.ucs-rail-button:focus-visible > .ucs-nav-tooltip,
-.ucs-nav-item:hover > .ucs-nav-tooltip,
-.ucs-nav-item:focus > .ucs-nav-tooltip,
-.ucs-nav-item:focus-visible > .ucs-nav-tooltip,
-.gemini-chat-list a:hover > .ucs-nav-tooltip,
-.gemini-chat-list a:focus > .ucs-nav-tooltip,
-.gemini-chat-list a:focus-visible > .ucs-nav-tooltip,
-[data-theme="dark"] .ucs-rail-button:hover > .ucs-nav-tooltip,
-[data-theme="dark"] .ucs-rail-button:focus > .ucs-nav-tooltip,
-[data-theme="dark"] .ucs-rail-button:focus-visible > .ucs-nav-tooltip,
-[data-theme="dark"] .ucs-nav-item:hover > .ucs-nav-tooltip,
-[data-theme="dark"] .ucs-nav-item:focus > .ucs-nav-tooltip,
-[data-theme="dark"] .ucs-nav-item:focus-visible > .ucs-nav-tooltip,
-[data-theme="dark"] .gemini-chat-list a:hover > .ucs-nav-tooltip,
-[data-theme="dark"] .gemini-chat-list a:focus > .ucs-nav-tooltip,
-[data-theme="dark"] .gemini-chat-list a:focus-visible > .ucs-nav-tooltip {
-  opacity: 1;
-  visibility: visible;
+:is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button {
+  align-self: stretch;
+}
+
+:is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button md-icon,
+:is(.home-shell, .report-shell).nav-open .ucs-nav-item md-icon,
+:is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  md-icon,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-top
+  > .ucs-rail-button
+  md-icon,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-item
+  md-icon,
+[data-theme="dark"]
+  :is(.home-shell, .report-shell).nav-open
+  .ucs-nav-bottom
+  .ucs-rail-button
+  md-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  min-width: 1.25rem;
+  min-height: 1.25rem;
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+@media (min-width: 1181px) {
+  .home-shell .reference-home-stage,
+  [data-theme="dark"] .home-shell .reference-home-stage {
+    --home-main-width: clamp(34rem, 52vw, 50.75rem);
+    --home-recents-width: clamp(18rem, 20vw, 22rem);
+    grid-template-columns:
+      minmax(0, 1fr)
+      minmax(18rem, var(--home-recents-width));
+    gap: clamp(2.5rem, 4vw, 4rem);
+    justify-content: stretch;
+    padding-right: clamp(2rem, 3vw, 4rem);
+    padding-left: clamp(2rem, 3vw, 4rem);
+  }
+
+  .home-shell .reference-home-main,
+  [data-theme="dark"] .home-shell .reference-home-main {
+    display: grid;
+    width: min(100%, var(--home-main-width));
+    height: 100%;
+    grid-template-rows: auto auto minmax(2rem, 1fr) auto;
+    justify-self: center;
+    padding-top: clamp(4.25rem, 8vh, 5.75rem);
+    padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
+  }
+
+  .home-shell .reference-suggestion-row,
+  [data-theme="dark"] .home-shell .reference-suggestion-row {
+    align-self: end;
+    margin-top: 0;
+  }
+
+  .home-shell .reference-composer,
+  [data-theme="dark"] .home-shell .reference-composer {
+    margin-top: clamp(1.25rem, 2.4vh, 1.9rem);
+  }
+
+  .home-shell .reference-recents,
+  [data-theme="dark"] .home-shell .reference-recents {
+    width: 100%;
+    justify-self: stretch;
+  }
+
+  .home-shell .reference-recents > ol,
+  [data-theme="dark"] .home-shell .reference-recents > ol {
+    margin-left: 0;
+    padding-right: 0;
+    padding-left: 0;
+  }
 }

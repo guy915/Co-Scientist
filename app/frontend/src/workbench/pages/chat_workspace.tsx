@@ -38,6 +38,7 @@ import {
   TIER_OPTIONS,
 } from '../run_spec';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
+import {tooltipClassNames} from '../tooltip';
 
 interface ChatEntry {
   id: string;
@@ -968,13 +969,19 @@ function Composer({
             {attachments.map(attachment =>
               attachment.isImage && attachment.previewUrl ? (
                 <div
-                  className="reference-attachment-card reference-attachment-card--image"
+                  className={tooltipClassNames({
+                    className:
+                      'reference-attachment-card reference-attachment-card--image',
+                    placement: 'top',
+                    wrap: true,
+                  })}
                   key={attachment.id}
                   data-tooltip={attachment.name}
                 >
                   <img src={attachment.previewUrl} alt={attachment.name} />
                   <button
                     type="button"
+                    className={tooltipClassNames({placement: 'top'})}
                     aria-label={`Remove ${attachment.name}`}
                     data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
@@ -984,7 +991,11 @@ function Composer({
                 </div>
               ) : (
                 <div
-                  className="reference-attachment-card"
+                  className={tooltipClassNames({
+                    className: 'reference-attachment-card',
+                    placement: 'top',
+                    wrap: true,
+                  })}
                   key={attachment.id}
                   data-tooltip={attachment.name}
                 >
@@ -999,6 +1010,7 @@ function Composer({
                   </div>
                   <button
                     type="button"
+                    className={tooltipClassNames({placement: 'top'})}
                     aria-label={`Remove ${attachment.name}`}
                     data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
@@ -1040,7 +1052,10 @@ function Composer({
             />
             <button
               type="button"
-              className="reference-composer-source-button"
+              className={tooltipClassNames({
+                className: 'reference-composer-source-button',
+                placement: 'top',
+              })}
               aria-label="Files"
               data-tooltip="Files"
               disabled={disabled}
@@ -1050,7 +1065,10 @@ function Composer({
             </button>
             <button
               type="button"
-              className="reference-composer-source-button"
+              className={tooltipClassNames({
+                className: 'reference-composer-source-button',
+                placement: 'top',
+              })}
               aria-label="Connectors"
               aria-expanded={connectorsOpen}
               data-tooltip="Connectors"
@@ -1091,6 +1109,7 @@ function Composer({
           </div>
           <button
             type="submit"
+            className={tooltipClassNames({placement: 'top'})}
             aria-label={submitLabel}
             data-tooltip="Submit"
             disabled={!input.trim() || disabled}
@@ -1184,6 +1203,7 @@ function MessageActionRow({
         <button
           key={action.label}
           type="button"
+          className={tooltipClassNames({placement: 'top'})}
           aria-label={action.label}
           data-tooltip={action.label}
           onClick={action.onClick}

@@ -299,10 +299,10 @@ describe('ChatWorkspace', () => {
     expect(screen.getByRole('button', {name: 'Files'})).toBeInTheDocument();
     const connectors = screen.getByRole('button', {name: 'Connectors'});
     expect(connectors).toBeInTheDocument();
-    expect(screen.getByRole('button', {name: 'Send'})).toHaveAttribute(
-      'data-tooltip',
-      'Submit',
-    );
+    const sendButton = screen.getByRole('button', {name: 'Send'});
+    expect(sendButton).toHaveAttribute('data-tooltip', 'Submit');
+    expect(sendButton).toHaveClass('ucs-tooltip-anchor');
+    expect(sendButton).toHaveClass('ucs-tooltip-top');
 
     fireEvent.click(connectors);
 
