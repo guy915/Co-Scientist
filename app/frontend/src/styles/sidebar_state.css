@@ -1,0 +1,419 @@
+/* Explicit Co-Scientist sidebar state. Keep this after breakpoint rules. */
+.google-app-shell.nav-open {
+  grid-template-columns: 20rem minmax(0, 1fr);
+}
+
+.google-app-shell.nav-collapsed {
+  grid-template-columns: 4.75rem minmax(0, 1fr);
+}
+
+.nav-open .ucs-nav-panel {
+  align-items: stretch;
+  padding: 1rem 0.75rem;
+}
+
+.nav-collapsed .ucs-nav-panel {
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.nav-open .ucs-nav-top {
+  align-items: stretch;
+}
+
+.nav-collapsed .ucs-nav-top {
+  align-items: center;
+}
+
+.nav-open .ucs-nav-items {
+  width: 100%;
+  gap: 0.3rem;
+}
+
+.nav-collapsed .ucs-nav-items {
+  width: auto;
+  gap: 0.85rem;
+}
+
+.nav-open .ucs-nav-item {
+  display: flex;
+  width: 100%;
+  height: 2.75rem;
+  min-height: 2.75rem;
+  justify-content: flex-start;
+  border-radius: 999px;
+  padding: 0 0.9rem;
+}
+
+.nav-collapsed .ucs-nav-item {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  min-height: 2.5rem;
+  justify-content: center;
+  place-items: center;
+  border-radius: 50%;
+  padding: 0;
+}
+
+.nav-open .nav-label {
+  display: inline-block;
+  max-width: 9.5rem;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-width 220ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 180ms cubic-bezier(0.2, 0, 0, 1),
+    visibility 180ms cubic-bezier(0.2, 0, 0, 1);
+  visibility: visible;
+  white-space: nowrap;
+}
+
+.nav-collapsed .nav-label {
+  display: inline-block;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-width 220ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 180ms cubic-bezier(0.2, 0, 0, 1),
+    visibility 180ms cubic-bezier(0.2, 0, 0, 1);
+  visibility: hidden;
+  white-space: nowrap;
+}
+
+.nav-collapsed .gemini-side-content {
+  display: grid;
+  max-height: 0;
+  margin-top: 0;
+  opacity: 0;
+  visibility: hidden;
+}
+
+.nav-open .gemini-side-content {
+  display: grid;
+  max-height: 20rem;
+  opacity: 1;
+  visibility: visible;
+}
+
+.nav-open .ucs-nav-bottom {
+  display: grid;
+  width: 100%;
+  justify-items: start;
+  padding-inline: 0.15rem 0;
+}
+
+.nav-open .ucs-nav-bottom .ucs-rail-button {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 0.9rem;
+  border-radius: 999px;
+  padding: 0 0.9rem;
+}
+
+.nav-collapsed .ucs-nav-bottom {
+  display: grid;
+  width: auto;
+  justify-items: center;
+  padding-inline: 0;
+}
+
+@media (max-width: 780px) {
+  .google-app-shell.nav-open,
+.google-app-shell.nav-collapsed {
+    grid-template-columns: 4.75rem minmax(0, 1fr);
+  }
+
+  .nav-open .ucs-nav-panel {
+    align-items: center;
+    padding: 1rem 0;
+  }
+
+  .nav-open .ucs-nav-top {
+    align-items: center;
+  }
+
+  .nav-open .ucs-nav-items {
+    width: auto;
+    gap: 0.85rem;
+  }
+
+  .nav-open .ucs-nav-item {
+    display: grid;
+    width: 2.5rem;
+    height: 2.5rem;
+    min-height: 2.5rem;
+    justify-content: center;
+    place-items: center;
+    border-radius: 50%;
+    padding: 0;
+  }
+
+  .nav-open .nav-label,
+.nav-open .gemini-side-content {
+    max-width: 0;
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.reference-home-main.prompt-open {
+  padding-top: clamp(2rem, 5vh, 3.3rem);
+}
+
+.reference-home-main.prompt-open .reference-chip {
+  transform: translateY(-0.25rem);
+}
+
+.reference-home-main.prompt-open h1 {
+  margin-top: 0.95rem;
+  transform: translateY(-0.2rem);
+}
+
+.reference-home-main.prompt-open .reference-step-timeline {
+  margin-top: clamp(3rem, 8vh, 5.2rem);
+}
+
+.reference-home-main.prompt-open .reference-prompt-echo {
+  margin-top: clamp(2rem, 6vh, 4.8rem);
+}
+
+.reference-home-main.prompt-open .reference-suggestion-row.prompt-open {
+  margin-top: 0.75rem;
+}
+
+.reference-home-main.prompt-open .reference-composer {
+  min-height: 7.35rem;
+  margin-top: 0.9rem;
+}
+
+[data-theme="dark"] .reference-suggestion-row button.selected {
+  border-color: var(--cosci-green);
+  background: #282a2c;
+}
+
+.reference-recents ol {
+  scrollbar-width: thin;
+  scrollbar-color: #9aa0a6 transparent;
+}
+
+.reference-recents ol::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.reference-recents ol::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reference-recents ol::-webkit-scrollbar-thumb {
+  border: 0.125rem solid transparent;
+  border-radius: 999px;
+  background: #9aa0a6;
+  background-clip: content-box;
+}
+
+[data-theme="dark"] .reference-recent-card {
+  border-color: #3c4043;
+  background: #202124;
+}
+
+[data-theme="dark"] .reference-recent-meta span {
+  background: #2b2c2f;
+  color: #e8eaed;
+}
+
+[data-theme="dark"] .reference-recent-chips span {
+  background: #188038;
+  color: #e6f4ea;
+}
+
+[data-theme="dark"] .reference-recent-chips md-icon {
+  color: #e6f4ea;
+}
+
+@media (max-height: 900px) {
+  .reference-home-main.prompt-open {
+    padding-top: 0.85rem;
+  }
+
+  .reference-home-main.prompt-open .reference-chip,
+  .reference-home-main.prompt-open h1 {
+    display: inline-flex;
+  }
+
+  .reference-home-main.prompt-open .reference-chip {
+    transform: translateY(-0.15rem) scale(0.96);
+  }
+
+  .reference-home-main.prompt-open h1 {
+    display: block;
+    width: min(100%, 34rem);
+    margin-top: 0.65rem;
+    font-size: clamp(1.95rem, 3vw, 2.35rem);
+    line-height: 1.12;
+    transform: translateY(-0.15rem);
+  }
+
+  .reference-home-main.prompt-open .reference-step-timeline {
+    margin-top: 1.35rem;
+  }
+
+  .reference-home-main.prompt-open .reference-step-timeline li {
+    gap: 0.45rem;
+  }
+
+  .reference-home-main.prompt-open .reference-step-timeline p {
+    display: block;
+    max-height: 0;
+    overflow: hidden;
+    margin-top: 0;
+    opacity: 0;
+  }
+
+  .reference-home-main.prompt-open .reference-prompt-echo {
+    margin-top: 1.25rem;
+  }
+
+  .reference-home-main.prompt-open .reference-suggestion-row.prompt-open {
+    margin-top: 0.55rem;
+  }
+
+  .reference-home-main.prompt-open .reference-suggestion-row button {
+    height: 3.9rem;
+  }
+
+  .reference-home-main.prompt-open .reference-composer {
+    min-height: 6.75rem;
+    margin-top: 0.7rem;
+  }
+}
+
+@media (min-width: 781px) and (max-height: 840px) {
+  .home-shell .reference-home-main {
+    padding-top: clamp(1.4rem, 4vh, 2.15rem);
+  }
+
+  .home-shell .reference-home-main h1 {
+    width: min(100%, 35rem);
+    margin-top: 1rem;
+    font-size: clamp(2.35rem, 3.2vw, 2.65rem);
+    line-height: 1.12;
+  }
+
+  .home-shell .reference-step-timeline {
+    gap: clamp(1.5rem, 2.7vw, 2.4rem);
+    margin-top: clamp(2rem, 5vh, 2.9rem);
+  }
+
+  .home-shell .reference-step-timeline li {
+    gap: 0.75rem;
+  }
+
+  .home-shell .reference-step-timeline p {
+    font-size: 0.9rem;
+    line-height: 1.32;
+  }
+
+  .home-shell .reference-suggestion-row {
+    margin-top: clamp(1.5rem, 4vh, 2.2rem);
+  }
+
+  .home-shell .reference-suggestion-row button {
+    height: 3.85rem;
+  }
+
+  .home-shell .reference-composer {
+    min-height: 6.65rem;
+  }
+
+  .home-shell .reference-composer textarea {
+    min-height: 2.6rem;
+  }
+}
+
+/* Shared home geometry. Theme changes below this point are paint-only. */
+@media (max-width: 780px) {
+  .reference-home-main,
+  .reference-step-timeline,
+  .reference-suggestion-row,
+  .reference-composer,
+  .reference-recents {
+    box-sizing: border-box;
+    inline-size: 100%;
+    justify-self: stretch;
+  }
+
+  .reference-step-timeline,
+  .reference-suggestion-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .reference-step-timeline {
+    gap: 1.6rem;
+    margin-top: 3rem;
+  }
+
+  .reference-suggestion-row {
+    gap: 0.85rem;
+    margin-top: 3rem;
+  }
+
+  .reference-suggestion-row button {
+    box-sizing: border-box;
+    inline-size: 100%;
+  }
+
+  .reference-recents {
+    display: grid;
+    min-height: auto;
+  }
+
+  .reference-recents ol {
+    overflow-y: visible;
+    max-height: none;
+  }
+}
+
+/* The hamburger must visibly expand/collapse the sidebar at every width. */
+@media (max-width: 780px) {
+  .google-app-shell.nav-open {
+    grid-template-columns: minmax(16rem, 20rem) minmax(0, 1fr);
+  }
+
+  .google-app-shell.nav-collapsed {
+    grid-template-columns: 4.75rem minmax(0, 1fr);
+  }
+
+  .nav-open .ucs-nav-panel {
+    align-items: stretch;
+    padding: 1rem 0.75rem;
+  }
+
+  .nav-open .ucs-nav-top {
+    align-items: stretch;
+  }
+
+  .nav-open .ucs-nav-items {
+    width: 100%;
+    gap: 0.3rem;
+  }
+
+  .nav-open .ucs-nav-item {
+    display: flex;
+    width: 100%;
+    height: 2.75rem;
+    min-height: 2.75rem;
+    justify-content: flex-start;
+    border-radius: 999px;
+    padding: 0 0.9rem;
+  }
+
+  .nav-open .nav-label,
+.nav-open .gemini-side-content {
+    max-width: 20rem;
+    opacity: 1;
+    visibility: visible;
+  }
+}

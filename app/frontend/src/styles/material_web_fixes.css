@@ -1,0 +1,27 @@
+/* Material Web Component button text clipping / padding fix */
+md-filled-button,
+md-outlined-button,
+md-filled-tonal-button,
+md-elevated-button,
+md-text-button {
+  padding-inline-start: 24px;
+  padding-inline-end: 24px;
+}
+
+md-filled-button[has-icon]:not([trailing-icon]),
+md-outlined-button[has-icon]:not([trailing-icon]),
+md-filled-tonal-button[has-icon]:not([trailing-icon]),
+md-elevated-button[has-icon]:not([trailing-icon]),
+md-text-button[has-icon]:not([trailing-icon]) {
+  padding-inline-start: 16px;
+  padding-inline-end: 24px;
+}
+
+md-filled-button[has-icon][trailing-icon],
+md-outlined-button[has-icon][trailing-icon],
+md-filled-tonal-button[has-icon][trailing-icon],
+md-elevated-button[has-icon][trailing-icon],
+md-text-button[has-icon][trailing-icon] {
+  padding-inline-start: 24px;
+  padding-inline-end: 16px;
+}

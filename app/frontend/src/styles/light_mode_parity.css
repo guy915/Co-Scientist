@@ -1,0 +1,601 @@
+/* Light-mode parity fixes for the Google-style shell and goal report. */
+.gemini-side-content {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 20rem;
+  margin-top: 1.6rem;
+  min-width: 0;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    max-height 220ms cubic-bezier(0.2, 0, 0, 1),
+    margin 220ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 180ms cubic-bezier(0.2, 0, 0, 1),
+    visibility 180ms cubic-bezier(0.2, 0, 0, 1);
+  visibility: visible;
+}
+
+.gemini-side-heading {
+  margin: 1rem 0 0.4rem;
+  color: #5f6368;
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.gemini-chat-list {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 0;
+}
+
+.gemini-chat-list a {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 2.35rem;
+  overflow: visible;
+  border-radius: 999px;
+  color: #3c4043;
+  padding: 0 0.75rem;
+  font-size: 0.86rem;
+  line-height: 2.35rem;
+  text-decoration: none;
+  transition:
+    background-color 180ms cubic-bezier(0.2, 0, 0, 1),
+    color 180ms cubic-bezier(0.2, 0, 0, 1),
+    padding 220ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.gemini-chat-list a > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gemini-chat-list a:hover,
+.gemini-chat-list a:focus-visible {
+  background: #dfeafc;
+  color: #202124;
+}
+
+.gemini-chat-list button {
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #3c4043;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.84rem;
+  padding: 0.48rem 0.75rem;
+}
+
+.gemini-chat-list button:hover,
+.gemini-chat-list button:focus-visible {
+  background: #dfeafc;
+  color: #202124;
+}
+
+[data-theme="dark"] .gemini-side-heading {
+  color: var(--cosci-subtle);
+}
+
+[data-theme="dark"] .gemini-chat-list a {
+  color: var(--cosci-muted);
+}
+
+[data-theme="dark"] .gemini-chat-list a:hover,
+[data-theme="dark"] .gemini-chat-list a:focus-visible,
+[data-theme="dark"] .gemini-chat-list button:hover,
+[data-theme="dark"] .gemini-chat-list button:focus-visible {
+  background: #303134;
+  color: var(--cosci-text);
+}
+
+[data-theme="dark"] .gemini-chat-list button {
+  color: var(--cosci-muted);
+}
+
+.report-shell .ucs-page {
+  height: calc(100vh - 4.5rem);
+  min-height: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+.report-shell .ucs-workspace {
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.cosci-report-page {
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: 4.75rem 5.5rem minmax(0, 1fr);
+  background: #fff;
+  color: #202124;
+}
+
+.cosci-report-titlebar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border-bottom: 1px solid #dadce0;
+  padding: 0 2.25rem;
+}
+
+.cosci-report-title-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 1rem;
+}
+
+.cosci-report-back {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #5f6368;
+  text-decoration: none;
+  transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.cosci-report-back:hover {
+  background: #f1f3f4;
+}
+
+.cosci-report-mark {
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 auto;
+}
+
+.cosci-report-titlebar h1 {
+  overflow: hidden;
+  min-width: 0;
+  margin: 0;
+  color: #202124;
+  font-size: 1.2rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cosci-session-details {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: #1967d2;
+  padding: 0.45rem 0;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.cosci-report-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-bottom: 1px solid #dadce0;
+}
+
+.cosci-report-tabs button {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  align-content: center;
+  justify-items: center;
+  gap: 0.35rem;
+  border: 0;
+  background: transparent;
+  color: #5f6368;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 180ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.cosci-report-tabs button.selected {
+  color: #1967d2;
+}
+
+.cosci-report-tabs button.selected::after {
+  position: absolute;
+  right: 1.1rem;
+  bottom: 0;
+  left: 1.1rem;
+  height: 0.18rem;
+  border-radius: 999px 999px 0 0;
+  background: #1a73e8;
+  content: "";
+}
+
+.cosci-report-tabs md-icon {
+  font-size: 1.35rem;
+}
+
+.cosci-report-back:focus-visible,
+.cosci-report-tabs button:focus-visible {
+  outline: 0;
+  box-shadow: none;
+}
+
+.cosci-report-scroll {
+  min-height: 0;
+  overflow: auto;
+}
+
+.cosci-report-document {
+  width: min(100% - 3rem, 58rem);
+  margin: 2.25rem auto 6rem;
+  color: #202124;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.cosci-generated-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border-radius: 0.5rem;
+  background: #f1f3f4;
+  color: #5f6368;
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.cosci-report-document h2 {
+  margin: 2.25rem 0 1.25rem;
+  color: #202124;
+  font-size: clamp(2.15rem, 3.2vw, 2.75rem);
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.12;
+}
+
+.cosci-report-document h3 {
+  margin: 1.4rem 0 0.75rem;
+  color: #202124;
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.cosci-report-document h4 {
+  margin: 1rem 0 0.35rem;
+  color: #202124;
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.cosci-report-document p,
+.cosci-report-document li {
+  color: #202124;
+}
+
+.cosci-report-list ul,
+.cosci-overview-section ul,
+.cosci-overview-section ol {
+  margin: 0.45rem 0 0;
+  padding-left: 1.35rem;
+}
+
+.cosci-overview-section {
+  margin-top: 2rem;
+}
+
+.cosci-overview-section ol li {
+  display: grid;
+  gap: 0.15rem;
+  margin-block: 0.6rem;
+}
+
+.cosci-overview-section ol li span {
+  color: #5f6368;
+  font-size: 0.88rem;
+}
+
+.cosci-learning-shell {
+  display: grid;
+  width: min(100% - 3rem, 72rem);
+  grid-template-columns: minmax(0, 1fr) 16rem;
+  gap: 2rem;
+  margin: 2.25rem auto 6rem;
+}
+
+.cosci-learning-document {
+  min-width: 0;
+  color: #202124;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.cosci-learning-section {
+  padding: 1.2rem 0 2.3rem;
+  border-bottom: 1px solid #dadce0;
+  scroll-margin-top: 10rem;
+}
+
+.cosci-learning-section:first-child {
+  padding-top: 0;
+}
+
+.cosci-learning-section h2 {
+  margin: 0 0 1.35rem;
+  color: #202124;
+  font-size: 1.45rem;
+  font-weight: 500;
+  line-height: 1.28;
+}
+
+.cosci-learning-section h3 {
+  margin: 0 0 0.65rem;
+  color: #202124;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.cosci-learning-section p {
+  width: min(100%, 51rem);
+  margin: 0;
+  color: #202124;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.cosci-learning-expanded {
+  width: min(100%, 51rem);
+  margin-top: 1.15rem;
+  border-left: 2px solid var(--cosci-teal);
+  padding-left: 1rem;
+  animation: reference-fade-up 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.cosci-learning-expanded h3 {
+  margin-bottom: 0.45rem;
+}
+
+.cosci-learning-show-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 1.7rem;
+  border: 0;
+  background: transparent;
+  color: #202124;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.cosci-learning-show-more md-icon {
+  font-size: 1rem;
+}
+
+.cosci-learning-outline {
+  position: sticky;
+  top: 10.5rem;
+  align-self: start;
+  display: grid;
+  gap: 1rem;
+  max-height: calc(100vh - 12rem);
+  overflow: auto;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, #f1f3f4 74%, transparent);
+  padding: 1.2rem;
+}
+
+.cosci-learning-outline a {
+  color: #5f6368;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.cosci-learning-outline a:hover {
+  color: #202124;
+}
+
+.cosci-learning-references {
+  margin-top: 2.6rem;
+}
+
+.cosci-learning-references h2 {
+  margin-bottom: 1rem;
+}
+
+.cosci-learning-search {
+  display: flex;
+  width: min(100%, 44rem);
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.4rem;
+  border-bottom: 1px solid #dadce0;
+  color: #5f6368;
+  padding: 0.45rem 0;
+}
+
+.cosci-learning-search md-icon {
+  font-size: 1rem;
+}
+
+.cosci-learning-search input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #202124;
+  font: inherit;
+  font-size: 0.86rem;
+}
+
+.cosci-learning-search input::placeholder {
+  color: #5f6368;
+}
+
+.cosci-learning-references ol {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cosci-learning-references li {
+  display: grid;
+  grid-template-columns: 2.2rem minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 3.8rem;
+  border-bottom: 1px solid #dadce0;
+  color: #202124;
+  font-size: 0.86rem;
+}
+
+.cosci-learning-references li > span {
+  color: #5f6368;
+}
+
+.cosci-learning-references strong {
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.cosci-learning-references a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #1967d2;
+  font-size: 0.78rem;
+  text-decoration: none;
+}
+
+.cosci-learning-references a md-icon {
+  font-size: 1rem;
+}
+
+.cosci-all-ideas {
+  height: 100%;
+  padding: 0;
+}
+
+.cosci-all-ideas .idea-split-shell {
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  background: #fff;
+  box-shadow: none;
+}
+
+.cosci-all-ideas .idea-split-grid.reference {
+  min-height: 100%;
+  grid-template-columns: minmax(24rem, 0.66fr) minmax(0, 1.25fr) 15rem;
+}
+
+.cosci-all-ideas .idea-rank-list,
+.cosci-all-ideas .idea-detail-pane {
+  scrollbar-width: thin;
+  scrollbar-color: #d7e0ea transparent;
+}
+
+.cosci-all-ideas .idea-rank-list::-webkit-scrollbar,
+.cosci-all-ideas .idea-detail-pane::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+.cosci-all-ideas .idea-rank-list::-webkit-scrollbar-track,
+.cosci-all-ideas .idea-detail-pane::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.cosci-all-ideas .idea-rank-list::-webkit-scrollbar-thumb,
+.cosci-all-ideas .idea-detail-pane::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #d7e0ea;
+}
+
+.cosci-report-alert,
+.cosci-report-toast {
+  border: 1px solid #b3261e;
+  background: #fce8e6;
+  color: #b3261e;
+}
+
+.cosci-report-alert {
+  margin: 1rem 2rem 0;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.cosci-report-toast {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+}
+
+.cosci-report-skeleton {
+  display: grid;
+  width: min(100% - 3rem, 58rem);
+  gap: 1rem;
+  margin: 2.25rem auto;
+}
+
+@media (max-width: 720px) {
+  .cosci-report-titlebar {
+    padding-inline: 1rem;
+  }
+
+  .cosci-session-details {
+    display: none;
+  }
+
+  .cosci-report-tabs button span {
+    font-size: 0.75rem;
+  }
+
+  .cosci-learning-shell {
+    width: min(100% - 2rem, 58rem);
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+
+  .cosci-learning-outline {
+    position: static;
+    order: -1;
+    grid-template-columns: 1fr;
+    max-height: none;
+    padding: 1rem;
+  }
+
+  .cosci-learning-references li {
+    grid-template-columns: 2rem minmax(0, 1fr);
+  }
+
+  .cosci-learning-references a {
+    grid-column: 2;
+    width: fit-content;
+  }
+
+  .cosci-all-ideas .idea-split-grid.reference {
+    grid-template-columns: 1fr;
+  }
+
+  .idea-sections-rail {
+    display: none;
+  }
+}

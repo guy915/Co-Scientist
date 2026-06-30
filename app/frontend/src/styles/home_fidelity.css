@@ -1,0 +1,636 @@
+/* Home fidelity polish: keep this last so older reference-pass rules do not
+   reintroduce oversized controls or shifted composer spacing. */
+.ucs-product-lockup svg {
+  color: #66b2aa;
+}
+
+.ucs-logs-button {
+  height: 2.4rem;
+  gap: 0.48rem;
+  border-radius: 999px;
+  background: var(--cosci-teal-bg);
+  color: var(--cosci-teal-dark);
+  padding: 0 0.72rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.ucs-logs-button:hover {
+  background: #d4ece7;
+}
+
+.ucs-logs-button md-icon {
+  font-size: 1.05rem;
+}
+
+.ucs-logs-count {
+  min-width: 1.38rem;
+  height: 1.38rem;
+  background: rgb(26 107 107 / 18%);
+  font-size: 0.72rem;
+}
+
+[data-theme="dark"] .ucs-logs-button {
+  background: #173b3b;
+  color: #7fd7bf;
+}
+
+[data-theme="dark"] .ucs-logs-button:hover {
+  background: #1f4b4b;
+}
+
+[data-theme="dark"] .ucs-logs-count {
+  background: rgb(127 215 191 / 22%);
+}
+
+.ucs-rail-button,
+.ucs-nav-item,
+.ucs-logs-button {
+  position: relative;
+}
+
+.home-shell.nav-open .ucs-nav-top {
+  align-items: stretch;
+}
+
+.home-shell.nav-open .ucs-nav-top > .ucs-rail-button {
+  align-self: flex-start;
+}
+
+.home-shell.nav-open .ucs-nav-item {
+  justify-content: flex-start;
+}
+
+.home-shell.nav-open .ucs-nav-item md-icon {
+  flex: 0 0 auto;
+}
+
+.home-shell .reference-home-stage {
+  padding-bottom: clamp(1.6rem, 4vh, 2.6rem);
+}
+
+.home-shell .reference-home-main {
+  align-content: start;
+  padding-top: clamp(2.4rem, 7vh, 3.5rem);
+}
+
+.home-shell .reference-home-main h1 {
+  margin-top: 0;
+}
+
+.home-shell .reference-step-timeline {
+  margin-top: clamp(3.7rem, 8.5vh, 5.2rem);
+}
+
+.home-shell .reference-prompt-echo {
+  margin-top: clamp(2.8rem, 7vh, 4.5rem);
+  margin-bottom: 0.55rem;
+}
+
+.home-shell .reference-suggestion-row button {
+  display: -webkit-box;
+  min-height: 4.45rem;
+  overflow: hidden;
+  align-content: center;
+  padding: 0.82rem 1rem;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.home-shell .reference-composer {
+  min-height: 5.65rem;
+  margin-top: 1rem;
+  border-radius: 1.45rem;
+  padding: 0.95rem 1.35rem 0.7rem;
+}
+
+.home-shell .reference-composer label {
+  min-height: 2.5rem;
+}
+
+.home-shell .reference-composer label > span {
+  left: 0;
+  height: 1.4rem;
+}
+
+.home-shell .reference-composer textarea,
+.home-shell .reference-composer.has-input textarea {
+  height: 2.5rem;
+  min-height: 2.5rem;
+  max-height: 2.5rem;
+  padding-top: 0;
+  line-height: 1.35;
+}
+
+.home-shell .reference-composer-actions {
+  right: 1.15rem;
+  bottom: 0.48rem;
+  left: 1.15rem;
+}
+
+.reference-load-more {
+  justify-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--idea-ref-blue);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-load-more:hover,
+.reference-load-more:focus-visible {
+  text-decoration: underline;
+}
+
+[data-theme="dark"] .reference-load-more {
+  color: var(--cosci-blue);
+}
+
+/* Home correction pass: final source of truth for the current Gemini-style
+   shell after feedback on alignment, composer sizing, and popover behavior. */
+.ucs-header-actions {
+  min-width: max-content;
+}
+
+.ucs-logs-button {
+  height: 2.35rem;
+  min-width: max-content;
+  gap: 0.45rem;
+  background: var(--cosci-teal-bg);
+  color: var(--cosci-teal-dark);
+  padding: 0 0.62rem 0 0.72rem;
+  white-space: nowrap;
+}
+
+.ucs-logs-button:hover,
+.ucs-logs-button[aria-expanded="true"] {
+  background: #d4ece7;
+}
+
+.ucs-logs-count {
+  width: auto;
+  min-width: 1.35rem;
+  max-width: none;
+  padding: 0 0.42rem;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .ucs-logs-button {
+  background: #173b3b;
+  color: #7fd7bf;
+}
+
+[data-theme="dark"] .ucs-logs-button:hover,
+[data-theme="dark"] .ucs-logs-button[aria-expanded="true"] {
+  background: #1f4b4b;
+}
+
+.ucs-popover--logs {
+  top: calc(100% + 0.45rem);
+  right: 0;
+  width: min(27rem, calc(100vw - 2rem));
+  max-height: min(21.5rem, calc(100vh - 5rem));
+  overflow: hidden;
+  gap: 0;
+  padding: 0;
+  border-radius: 1rem;
+  box-shadow:
+    0 2px 5px rgb(60 64 67 / 14%),
+    0 10px 24px rgb(60 64 67 / 18%);
+}
+
+.ucs-diagnostic-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  padding: 0.8rem 0.9rem 0.7rem;
+  border-bottom: 1px solid #dfe3e7;
+}
+
+.ucs-diagnostic-title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.ucs-diagnostic-title h2 {
+  margin: 0;
+  color: #202124;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: 0;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+
+.ucs-diagnostic-title span,
+.ucs-diagnostic-chips span {
+  display: inline-flex;
+  min-height: 1.45rem;
+  align-items: center;
+  border-radius: 999px;
+  background: #eadcff;
+  color: #5f2997;
+  padding: 0.14rem 0.52rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.ucs-diagnostic-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.4rem;
+}
+
+.ucs-diagnostic-actions button {
+  display: inline-flex;
+  height: 1.85rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  border: 1px solid #d3c5ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #6c35aa;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 650;
+  padding: 0 0.58rem;
+  transition:
+    background 160ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 160ms cubic-bezier(0.2, 0, 0, 1);
+  white-space: nowrap;
+}
+
+.ucs-diagnostic-actions button:hover,
+.ucs-diagnostic-actions button:focus-visible {
+  border-color: #1a6b6b;
+  background: #e0f2ef;
+}
+
+.ucs-diagnostic-actions md-icon {
+  font-size: 1rem;
+}
+
+.ucs-diagnostic-intro {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.7rem 0.9rem 0.78rem;
+  border-bottom: 1px solid #dfe3e7;
+  color: #4f5358;
+}
+
+.ucs-diagnostic-intro p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.ucs-diagnostic-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+}
+
+.ucs-diagnostic-chips span.error {
+  background: #f8d6d2;
+  color: #9b1c13;
+}
+
+.ucs-diagnostic-list {
+  display: grid;
+  max-height: 11.75rem;
+  gap: 0.62rem;
+  overflow: auto;
+  padding: 0.7rem 0.9rem 0.9rem;
+  scrollbar-color: #cfd8dc transparent;
+  scrollbar-width: thin;
+}
+
+.ucs-diagnostic-entry {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ucs-diagnostic-entry-meta {
+  display: grid;
+  grid-template-columns: 2rem 5.8rem minmax(6rem, 1fr) max-content;
+  align-items: center;
+  gap: 0.55rem;
+  color: #4f5358;
+  font-family:
+    "Roboto Mono", "Google Sans Mono", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.ucs-diagnostic-entry-meta span:nth-child(3) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ucs-diagnostic-entry-meta strong {
+  color: #6c35aa;
+  font-weight: 750;
+  letter-spacing: 0.03em;
+}
+
+.ucs-diagnostic-entry pre {
+  max-height: 4.8rem;
+  overflow: auto;
+  margin: 0 0 0 4.05rem;
+  border-radius: 0.65rem;
+  background: #f1e8ff;
+  color: #202124;
+  font-family:
+    "Roboto Mono", "Google Sans Mono", ui-monospace, SFMono-Regular, Menlo,
+    monospace;
+  font-size: 0.74rem;
+  line-height: 1.5;
+  padding: 0.58rem 0.68rem;
+}
+
+.ucs-diagnostic-empty {
+  margin: 0;
+  border-radius: 0.85rem;
+  background: #edf7f4;
+  color: #0f5454;
+  padding: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .ucs-popover--logs {
+    right: -0.5rem;
+    width: min(18.5rem, calc(100vw - 1.5rem));
+  }
+
+  .ucs-diagnostic-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ucs-diagnostic-actions {
+    justify-content: flex-start;
+  }
+
+  .ucs-diagnostic-entry-meta {
+    grid-template-columns: 1.8rem 5rem minmax(0, 1fr);
+  }
+
+  .ucs-diagnostic-entry-meta strong {
+    grid-column: 2 / -1;
+  }
+
+  .ucs-diagnostic-entry pre {
+    margin-left: 0;
+  }
+}
+
+[data-theme="dark"] .ucs-popover--logs {
+  border-color: #33363b;
+  background: #17181b;
+  box-shadow:
+    0 2px 5px rgb(0 0 0 / 24%),
+    0 16px 30px rgb(0 0 0 / 34%);
+}
+
+[data-theme="dark"] .ucs-diagnostic-header,
+[data-theme="dark"] .ucs-diagnostic-intro {
+  border-color: #33363b;
+}
+
+[data-theme="dark"] .ucs-diagnostic-title h2 {
+  color: #f1f3f4;
+}
+
+[data-theme="dark"] .ucs-diagnostic-title span,
+[data-theme="dark"] .ucs-diagnostic-chips span {
+  background: #173b3b;
+  color: #7fd7bf;
+}
+
+[data-theme="dark"] .ucs-diagnostic-chips span.error {
+  background: #5b2b2b;
+  color: #ffb4aa;
+}
+
+[data-theme="dark"] .ucs-diagnostic-actions button {
+  border-color: #315e57;
+  background: #17181b;
+  color: #7fd7bf;
+}
+
+[data-theme="dark"] .ucs-diagnostic-actions button:hover,
+[data-theme="dark"] .ucs-diagnostic-actions button:focus-visible {
+  border-color: #7fd7bf;
+  background: #173b3b;
+}
+
+[data-theme="dark"] .ucs-diagnostic-intro,
+[data-theme="dark"] .ucs-diagnostic-entry-meta {
+  color: #bdc1c6;
+}
+
+[data-theme="dark"] .ucs-diagnostic-entry-meta strong {
+  color: #7fd7bf;
+}
+
+[data-theme="dark"] .ucs-diagnostic-entry pre {
+  background: #132927;
+  color: #f1f3f4;
+}
+
+[data-theme="dark"] .ucs-diagnostic-empty {
+  background: #132927;
+  color: #7fd7bf;
+}
+
+.ucs-settings-control {
+  position: relative;
+  display: grid;
+  width: 100%;
+}
+
+.nav-collapsed .ucs-settings-control {
+  width: auto;
+}
+
+.home-shell.nav-open .ucs-nav-panel {
+  padding: 1rem 0.75rem 1rem 0.95rem;
+}
+
+.home-shell.nav-open .ucs-nav-top {
+  width: 100%;
+  align-items: stretch;
+  gap: 1rem;
+}
+
+.home-shell.nav-open .ucs-nav-top > .ucs-rail-button {
+  width: 2.5rem;
+  align-self: flex-start;
+  justify-self: flex-start;
+  margin: 0;
+  padding: 0;
+}
+
+.home-shell.nav-open .ucs-nav-items {
+  gap: 0.38rem;
+  margin-top: 0;
+}
+
+.home-shell.nav-open .ucs-nav-item,
+.home-shell.nav-open .ucs-nav-bottom .ucs-rail-button {
+  display: grid;
+  height: 2.55rem;
+  min-height: 2.55rem;
+  grid-template-columns: 1.35rem minmax(0, 1fr);
+  align-items: center;
+  justify-content: start;
+  column-gap: 0.78rem;
+  padding: 0 0.75rem;
+}
+
+.home-shell.nav-open .ucs-nav-item md-icon,
+.home-shell.nav-open .ucs-nav-bottom .ucs-rail-button md-icon {
+  justify-self: center;
+}
+
+.home-shell.nav-open .gemini-side-content {
+  max-height: 18rem;
+  margin-top: 0.85rem;
+}
+
+.home-shell.nav-open .gemini-chat-list {
+  gap: 0.35rem;
+}
+
+.home-shell.nav-open .ucs-nav-bottom {
+  padding-inline: 0;
+}
+
+.home-shell .reference-home-main h1 {
+  margin-right: auto;
+  margin-left: auto;
+  text-align: center;
+}
+
+.home-shell .reference-suggestion-row button {
+  display: block;
+  height: 4.4rem;
+  min-height: 4.4rem;
+  max-height: 4.4rem;
+  cursor: pointer;
+  outline: 0;
+  padding: 0.9rem 1rem;
+}
+
+.home-shell .reference-suggestion-row {
+  margin-top: clamp(3.2rem, 7vh, 4.35rem);
+}
+
+.reference-suggestion-slot {
+  position: relative;
+  min-width: 0;
+}
+
+.reference-suggestion-slot button {
+  width: 100%;
+}
+
+.reference-suggestion-preview {
+  position: absolute;
+  z-index: 5;
+  bottom: calc(100% + 0.5rem);
+  display: -webkit-box;
+  width: max-content;
+  max-width: min(42rem, calc(100vw - 7rem));
+  margin: 0;
+  overflow: hidden;
+  color: #3c4043;
+  font-size: 0.84rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.2rem);
+  transition:
+    opacity 160ms cubic-bezier(0.2, 0, 0, 1),
+    transform 160ms cubic-bezier(0.2, 0, 0, 1);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.reference-suggestion-preview.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reference-suggestion-slot:nth-child(1) .reference-suggestion-preview {
+  left: 0;
+  text-align: left;
+}
+
+.reference-suggestion-slot:nth-child(2) .reference-suggestion-preview {
+  left: 50%;
+  text-align: center;
+}
+
+.reference-suggestion-slot:nth-child(3) .reference-suggestion-preview {
+  right: 0;
+  text-align: right;
+}
+
+[data-theme="dark"] .reference-suggestion-preview {
+  color: #e8eaed;
+}
+
+.reference-suggestion-text {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.home-shell .reference-composer {
+  min-height: 7.9rem;
+  margin-top: 1rem;
+  border-radius: 1.7rem;
+  padding: 1.25rem 1.5rem 0.8rem;
+}
+
+.home-shell .reference-composer label {
+  min-height: 3.6rem;
+}
+
+.home-shell .reference-composer label > span {
+  left: 0;
+  height: 1.5rem;
+}
+
+.home-shell .reference-composer textarea,
+.home-shell .reference-composer.has-input textarea {
+  height: 3.6rem;
+  min-height: 3.6rem;
+  max-height: 3.6rem;
+  padding-top: 0;
+  line-height: 1.5rem;
+}
+
+.home-shell .reference-composer-actions {
+  right: 1.25rem;
+  bottom: 0.75rem;
+  left: 1.25rem;
+}

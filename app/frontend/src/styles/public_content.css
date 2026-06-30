@@ -1,0 +1,362 @@
+/* Not found page */
+.not-found-page {
+  width: min(100% - 3rem, 76rem);
+  min-height: 70vh;
+  margin-inline: auto;
+  padding-block: clamp(5rem, 12vw, 9rem);
+}
+
+.not-found-page h1 {
+  max-width: 12ch;
+  margin: 0;
+  font-size: clamp(2.5rem, 5.2vw, 4rem);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.not-found-page > p:not(.section-label) {
+  max-width: 36rem;
+  margin: 1.5rem 0 0;
+  color: var(--color-th-muted-fg);
+  font-size: 1.1rem;
+}
+
+.not-found-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2rem;
+}
+
+.public-button {
+  display: inline-flex;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0.72rem 1.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+
+.public-button:focus-visible,
+.public-button:focus-visible {
+  outline: 2px solid var(--md-sys-color-primary);
+  outline-offset: 3px;
+}
+
+.public-button--filled {
+  background: var(--md-sys-color-primary);
+  color: var(--md-sys-color-on-primary);
+}
+
+.public-button--filled:hover {
+  opacity: 0.92;
+}
+
+.public-button--outline {
+  border-color: var(--md-sys-color-outline);
+  background: transparent;
+  color: var(--md-sys-color-on-surface);
+}
+
+.public-button--outline:hover {
+  background: var(--md-sys-color-secondary-container);
+  border-color: var(--md-sys-color-primary);
+}
+
+.section-label {
+  margin-bottom: 1rem;
+  color: var(--md-sys-color-primary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 640px) {
+  .not-found-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .public-button {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-fade-in,
+  .wb-live-dot,
+  .wb-skeleton {
+    animation: none;
+  }
+
+  .public-button {
+    transition: none;
+  }
+}
+
+/* Markdown rendering inside the Report tab */
+.wb-markdown {
+  color: var(--color-th-fg);
+}
+.wb-markdown h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.75rem;
+}
+.wb-markdown h2 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin: 1rem 0 0.5rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--color-th-border);
+}
+.wb-markdown h3 {
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0.85rem 0 0.4rem;
+}
+.wb-markdown p {
+  margin: 0.5rem 0;
+  line-height: 1.55;
+}
+.wb-markdown ul,
+.wb-markdown ol {
+  padding-left: 1.25rem;
+  margin: 0.5rem 0;
+}
+.wb-markdown ul {
+  list-style: disc;
+}
+.wb-markdown ol {
+  list-style: decimal;
+}
+.wb-markdown li {
+  margin: 0.15rem 0;
+}
+.wb-markdown code {
+  background-color: var(--color-th-secondary);
+  padding: 0.125rem 0.3rem;
+  border-radius: 0.25rem;
+  font-size: 0.85em;
+}
+.wb-markdown blockquote {
+  border-left: 3px solid var(--color-th-border);
+  padding-left: 0.75rem;
+  color: var(--color-th-muted-fg);
+  font-style: italic;
+  margin: 0.5rem 0;
+}
+.wb-markdown em {
+  color: var(--color-th-muted-fg);
+}
+.wb-markdown strong {
+  color: var(--color-th-fg);
+}
+.wb-markdown a {
+  color: var(--color-th-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.wb-markdown a:hover {
+  color: var(--color-th-link-hover);
+}
+
+@media print {
+  .wb-print-hide {
+    display: none;
+  }
+  .wb-markdown {
+    color: black;
+  }
+}
+
+/* ─── Mobile responsive helpers ─────────────────────────────────────── */
+
+/* Hide an element only on mobile (< 640px) */
+@media (max-width: 639px) {
+  .mobile-hide {
+    display: none;
+  }
+}
+
+/* Show an element only on mobile */
+.mobile-only {
+  display: none;
+}
+@media (max-width: 639px) {
+  .mobile-only {
+    display: revert;
+  }
+}
+
+/* Make a table cell disappear on mobile – use on <th>/<td> pairs */
+@media (max-width: 639px) {
+  .sm\:table-cell-hidden {
+    display: none;
+  }
+}
+
+/* Debate/literature styling */
+.debate-transcript,
+.literature-review-card {
+  h1 {
+    font-weight: 600;
+    font-size: 1.25rem;
+  }
+
+  h2 {
+    font-weight: 500;
+    font-size: 1.125rem;
+  }
+
+  h3 {
+    font-weight: 500;
+    font-size: 1.1rem;
+  }
+
+  h4 {
+    font-weight: 400;
+    font-size: 0.89rem;
+  }
+
+  h5 {
+    font-weight: 300;
+    font-size: 0.8rem;
+  }
+}
+
+.literature-review-card {
+  .articles-with-reasoning {
+    p,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    li {
+      padding-bottom: 1rem;
+    }
+  }
+}
+
+.reflection-analysis {
+  p {
+    padding-bottom: 0.5rem;
+  }
+  ul {
+    list-style: none;
+  }
+  li {
+    padding-bottom: 0.5rem;
+    margin-left: 0.5rem;
+  }
+}
+
+.debate-transcript {
+  p {
+    padding-bottom: 0.5rem;
+  }
+  ul {
+    list-style: disc;
+  }
+  li {
+    padding-bottom: 0.5rem;
+    margin-left: 0.5rem;
+  }
+}
+
+.debate-transcript {
+  hr {
+    margin: 0.5rem 0;
+  }
+}
+
+/* Debate chat bubble styling for markdown content */
+.debate-bubble {
+  p {
+    margin-bottom: 0.75rem;
+  }
+
+  p:last-child {
+    margin-bottom: 0;
+  }
+
+  ul,
+  ol {
+    margin-bottom: 0.75rem;
+    margin-top: 0.5rem;
+  }
+
+  ul {
+    list-style: disc;
+    padding-left: 1.5rem;
+  }
+
+  ol {
+    list-style: decimal;
+    padding-left: 1.5rem;
+  }
+
+  li {
+    margin-bottom: 0.5rem;
+  }
+
+  li:last-child {
+    margin-bottom: 0;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+  }
+
+  h1:first-child,
+  h2:first-child,
+  h3:first-child,
+  h4:first-child,
+  h5:first-child,
+  h6:first-child {
+    margin-top: 0;
+  }
+
+  code {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.125rem 0.25rem;
+    border-radius: 0.25rem;
+    font-size: 0.875em;
+  }
+
+  pre {
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 0.75rem;
+    border-radius: 0.375rem;
+    overflow-x: auto;
+    margin-bottom: 0.75rem;
+  }
+
+  blockquote {
+    border-left: 3px solid rgba(0, 0, 0, 0.2);
+    padding-left: 1rem;
+    margin-left: 0;
+    margin-bottom: 0.75rem;
+    font-style: italic;
+  }
+}
