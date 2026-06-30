@@ -191,8 +191,12 @@ async function copyText(text: string) {
   }
 }
 
-function downloadText(filename: string, text: string) {
-  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+function downloadText(
+  filename: string,
+  text: string,
+  type = 'text/markdown;charset=utf-8',
+) {
+  const blob = new Blob([text], {type});
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;
@@ -201,12 +205,27 @@ function downloadText(filename: string, text: string) {
   URL.revokeObjectURL(url);
 }
 
+function emitDiagnosticEvent({
+  stage,
+  run,
+  level = 'info',
+  payload = {},
+}: {
+  stage: string;
+  run?: string;
+  level?: 'info' | 'success' | 'error';
+  payload?: Record<string, unknown>;
+}) {
+  window.dispatchEvent(
+    new CustomEvent('cosci-diagnostic-event', {
+      detail: {stage, run, level, payload},
+    }),
+  );
+}
+
 function homeRunScore(run: Run): number {
   if (run.status === 'failed' || run.status === 'blocked') return 1200;
-  const goalSeed = run.research_goal
-    .split('')
-    .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-  return 1240 + (goalSeed % 55);
+  return 1200;
 }
 
 function homeRunProgress(run: Run): number {
@@ -300,7 +319,9 @@ export function ChatWorkspace() {
     null,
   );
   const [showAllRecents, setShowAllRecents] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const previousTimelineSignature = useRef('');
 
   const loadHistory = useCallback(async () => {
     const [ownedRuns, demoRuns] = await Promise.all([
@@ -324,6 +345,7 @@ export function ChatWorkspace() {
     setIsStarting(false);
     setMessages([]);
     setError(null);
+    setToast(null);
     void loadHistory();
   }, [loadHistory]);
 
@@ -361,27 +383,6 @@ export function ChatWorkspace() {
     location.state,
     navigate,
     resetWorkspace,
-  ]);
-
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!scroller) return;
-    const top = draftSpec || confirmedSpec ? 0 : scroller.scrollHeight;
-    if (typeof scroller.scrollTo === 'function') {
-      scroller.scrollTo({
-        top,
-        behavior: 'smooth',
-      });
-      return;
-    }
-    scroller.scrollTop = top;
-  }, [
-    messages.length,
-    draftSpec,
-    draftSpecCreatedAt,
-    confirmedSpec,
-    confirmedSpecCreatedAt,
-    startedSession,
   ]);
 
   const hasConversation =
@@ -432,10 +433,58 @@ export function ChatWorkspace() {
     focusComposer();
   }
 
+  async function handleCopyRequest(message: ChatEntry) {
+    await copyText(message.content);
+    const copiedSpec = inferRunSpec(message.content);
+    const createdAt = Date.now() / 1000;
+    setDraftSpec(copiedSpec);
+    setDraftSpecCreatedAt(createdAt);
+    setConfirmedSpec(null);
+    setConfirmedSpecCreatedAt(null);
+    setStartedSession(null);
+    setToast(null);
+    emitDiagnosticEvent({
+      stage: 'CHAT',
+      run: referenceSetupTitle(copiedSpec.goal),
+      payload: {event: 'prompt_copied_to_plan'},
+    });
+  }
+
   function handleRetryDraftSpec() {
     if (!draftSpec) return;
     setDraftSpec(inferRunSpec(draftSpec.goal));
     setDraftSpecCreatedAt(Date.now() / 1000);
+  }
+
+  function handleCancelDraftSpec() {
+    const title = draftSpec ? referenceSetupTitle(draftSpec.goal) : undefined;
+    setInput('');
+    setDraftSpec(null);
+    setDraftSpecCreatedAt(null);
+    setConfirmedSpec(null);
+    setConfirmedSpecCreatedAt(null);
+    setStartedSession(null);
+    setMessages([]);
+    setError(null);
+    setToast('The session was canceled');
+    emitDiagnosticEvent({
+      stage: 'LIFECYCLE',
+      run: title,
+      payload: {event: 'draft_cancelled'},
+    });
+  }
+
+  function handleEditPlan(spec: InferredRunSpec) {
+    setDraftSpec(spec);
+    setDraftSpecCreatedAt(Date.now() / 1000);
+    setConfirmedSpec(null);
+    setConfirmedSpecCreatedAt(null);
+    focusComposer();
+    emitDiagnosticEvent({
+      stage: 'CHAT',
+      run: referenceSetupTitle(spec.goal),
+      payload: {event: 'plan_edit_requested'},
+    });
   }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -444,6 +493,7 @@ export function ChatWorkspace() {
     if (!text) return;
     setInput('');
     setError(null);
+    setToast(null);
 
     if (draftSpec) {
       const sentAt = appendUser(text);
@@ -456,14 +506,25 @@ export function ChatWorkspace() {
         'I updated the run setup. Start it when the spec looks right.',
         sentAt + 0.002,
       );
+      emitDiagnosticEvent({
+        stage: 'CHAT',
+        run: referenceSetupTitle(next.goal),
+        payload: {event: 'draft_revised'},
+      });
       return;
     }
 
     const sentAt = appendUser(text);
-    setDraftSpec(inferRunSpec(text));
+    const next = inferRunSpec(text);
+    setDraftSpec(next);
     setDraftSpecCreatedAt(sentAt + 0.001);
     setConfirmedSpec(null);
     setConfirmedSpecCreatedAt(null);
+    emitDiagnosticEvent({
+      stage: 'LIFECYCLE',
+      run: referenceSetupTitle(next.goal),
+      payload: {event: 'draft_created'},
+    });
   }
 
   async function handleStartRun() {
@@ -472,6 +533,12 @@ export function ChatWorkspace() {
     const specCreatedAt = draftSpecCreatedAt ?? Date.now() / 1000;
     setIsStarting(true);
     setError(null);
+    setToast(null);
+    emitDiagnosticEvent({
+      stage: 'LIFECYCLE',
+      run: referenceSetupTitle(specToStart.goal),
+      payload: {event: 'start_requested'},
+    });
     try {
       const created = await createRun({
         research_goal: specToStart.goal,
@@ -500,8 +567,23 @@ export function ChatWorkspace() {
       await startRun(created.id);
       setStartedSession(session);
       await loadHistory();
+      emitDiagnosticEvent({
+        stage: 'LIFECYCLE',
+        run: session.title,
+        level: 'success',
+        payload: {event: 'start_queued', run_id: created.id},
+      });
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
+      emitDiagnosticEvent({
+        stage: 'LIFECYCLE',
+        run: referenceSetupTitle(specToStart.goal),
+        level: 'error',
+        payload: {
+          event: 'start_failed',
+          message: err instanceof Error ? err.message : String(err),
+        },
+      });
     } finally {
       setIsStarting(false);
     }
@@ -517,6 +599,7 @@ export function ChatWorkspace() {
         <ChatBubble
           message={message}
           onEdit={() => handleEditMessage(message)}
+          onCopyRequest={() => void handleCopyRequest(message)}
           onRetry={() => handleRetryMessage(message)}
         />
       ),
@@ -537,7 +620,8 @@ export function ChatWorkspace() {
           onTierChange={tier =>
             setDraftSpec(current => (current ? {...current, tier} : current))
           }
-          onCancel={() => setDraftSpec(null)}
+          onCancel={handleCancelDraftSpec}
+          onEdit={() => handleEditPlan(draftSpec)}
           onRetry={() => handleRetryDraftSpec()}
           onStart={() => void handleStartRun()}
         />
@@ -557,6 +641,7 @@ export function ChatWorkspace() {
           onFocusChange={() => undefined}
           onTierChange={() => undefined}
           onCancel={() => undefined}
+          onEdit={() => handleEditPlan(confirmedSpec)}
           onRetry={() => {
             setDraftSpec(confirmedSpec);
             setDraftSpecCreatedAt(Date.now() / 1000);
@@ -591,6 +676,42 @@ export function ChatWorkspace() {
     });
   }
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
+  const timelineSignature = timelineItems
+    .map(item => `${item.id}:${item.at}`)
+    .join('|');
+  const latestTimelineItemId =
+    timelineItems.length > 0 ? timelineItems[timelineItems.length - 1].id : '';
+  const timelineAnchorMode = startedSession
+    ? 'bottom'
+    : latestTimelineItemId === 'draft-spec' ||
+        latestTimelineItemId === 'confirmed-spec'
+      ? 'top'
+      : 'bottom';
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || previousTimelineSignature.current === timelineSignature) {
+      return;
+    }
+    previousTimelineSignature.current = timelineSignature;
+    const timeout = window.setTimeout(() => {
+      scroller.scrollTop =
+        timelineAnchorMode === 'top' ? 0 : scroller.scrollHeight;
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [timelineAnchorMode, timelineSignature]);
+
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!startedSession || !scroller) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      scroller.scrollTop = scroller.scrollHeight;
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [startedSession]);
+
   const homeRecentRuns = showAllRecents ? history : history.slice(0, 4);
   const hasExtraRecents = history.length > 4;
   return (
@@ -634,6 +755,10 @@ export function ChatWorkspace() {
                       <button
                         type="button"
                         className={isPreviewed ? 'is-previewed' : undefined}
+                        onMouseEnter={() =>
+                          setHoveredSuggestion(suggestion.full)
+                        }
+                        onMouseLeave={() => setHoveredSuggestion(null)}
                         onPointerEnter={() =>
                           setHoveredSuggestion(suggestion.full)
                         }
@@ -747,16 +872,18 @@ export function ChatWorkspace() {
                     </div>
                   </li>
                 )}
+                {hasExtraRecents && (
+                  <li className="reference-load-more-item">
+                    <button
+                      type="button"
+                      className="reference-load-more"
+                      onClick={() => setShowAllRecents(current => !current)}
+                    >
+                      {showAllRecents ? 'Show less' : 'Show more'}
+                    </button>
+                  </li>
+                )}
               </ol>
-              {hasExtraRecents && (
-                <button
-                  type="button"
-                  className="reference-load-more"
-                  onClick={() => setShowAllRecents(current => !current)}
-                >
-                  {showAllRecents ? 'Show less' : 'Show more'}
-                </button>
-              )}
             </aside>
           </section>
         ) : (
@@ -797,6 +924,11 @@ export function ChatWorkspace() {
               </div>
             </div>
           </>
+        )}
+        {toast && (
+          <div className="reference-toast" role="status">
+            {toast}
+          </div>
         )}
       </main>
     </div>
@@ -1218,10 +1350,12 @@ function MessageActionRow({
 function ChatBubble({
   message,
   onEdit,
+  onCopyRequest,
   onRetry,
 }: {
   message: ChatEntry;
   onEdit: () => void;
+  onCopyRequest: () => void;
   onRetry: () => void;
 }) {
   const isUser = message.role === 'user';
@@ -1292,7 +1426,7 @@ function ChatBubble({
             {
               icon: 'content_copy',
               label: 'Copy request',
-              onClick: () => void copyText(message.content),
+              onClick: onCopyRequest,
             },
           ]}
         />
@@ -1309,7 +1443,7 @@ function ChatBubble({
               icon: 'download',
               label: 'Download response',
               onClick: () =>
-                downloadText('co-scientist-response.txt', message.content),
+                downloadText('co-scientist-response.md', message.content),
             },
           ]}
         />
@@ -1325,6 +1459,7 @@ function RunSpecCard({
   onFocusChange,
   onTierChange,
   onCancel,
+  onEdit,
   onRetry,
   onStart,
 }: {
@@ -1334,6 +1469,7 @@ function RunSpecCard({
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onCancel: () => void;
+  onEdit: () => void;
   onRetry: () => void;
   onStart: () => void;
 }) {
@@ -1355,6 +1491,18 @@ function RunSpecCard({
       </p>
       <div className="reference-plan-heading">
         <h2>Research plan</h2>
+        <button
+          type="button"
+          className={tooltipClassNames({
+            className: 'reference-plan-edit',
+            placement: 'top',
+          })}
+          aria-label="Edit research plan"
+          data-tooltip="Edit research plan"
+          onClick={onEdit}
+        >
+          <md-icon aria-hidden="true">edit</md-icon>
+        </button>
       </div>
       <p className="reference-plan-subheading">
         Here's my plan to tackle the topic:
@@ -1410,7 +1558,7 @@ function RunSpecCard({
             icon: 'download',
             label: 'Download response',
             onClick: () =>
-              downloadText('co-scientist-research-plan.txt', responseText),
+              downloadText('co-scientist-research-plan.md', responseText),
           },
         ]}
       />
@@ -1420,22 +1568,33 @@ function RunSpecCard({
 
 function formatRunSpecResponse(spec: InferredRunSpec): string {
   return [
-    "Okay, I've drafted the requirements to propose a novel, testable hypothesis for this research session.",
+    `# ${referenceSetupTitle(spec.goal)}`,
     '',
-    'Research plan',
-    referenceSetupTitle(spec.goal),
+    "I've drafted the requirements to propose a novel, testable hypothesis for this research session.",
     '',
-    `Goal: ${spec.goal}`,
+    '## Goal',
+    spec.goal,
     '',
-    `Requirements:\n${spec.requirements.map(value => `- ${value}`).join('\n')}`,
+    '## Requirements',
+    ...spec.requirements.map(value => `* ${value}`),
     '',
-    `Attributes:\n${spec.attributes.map(value => `- ${value}`).join('\n')}`,
+    '## Attributes',
+    ...spec.attributes.map(value => `* ${value}`),
     '',
-    `Criteria:\n${spec.criteria.map(value => `- ${value}`).join('\n')}`,
+    '## Criteria',
+    ...spec.criteria.map(value => `* ${value}`),
     '',
-    `Focus: ${spec.focus}`,
-    `Tier: ${spec.tier}`,
+    '## Setup Options',
+    `* **Focus:** ${runOptionLabel(FOCUS_OPTIONS, spec.focus)}`,
+    `* **Tier:** ${runOptionLabel(TIER_OPTIONS, spec.tier)}`,
   ].join('\n');
+}
+
+function runOptionLabel(
+  options: ReadonlyArray<{id: string; label: string}>,
+  value: string,
+): string {
+  return options.find(option => option.id === value)?.label || value;
 }
 
 function StartedSessionCard({
@@ -1497,7 +1656,7 @@ function StartedSessionCard({
             icon: 'download',
             label: 'Download response',
             onClick: () =>
-              downloadText('co-scientist-session-started.txt', responseText),
+              downloadText('co-scientist-session-started.md', responseText),
           },
         ]}
       />
@@ -1507,11 +1666,15 @@ function StartedSessionCard({
 
 function formatStartedSessionResponse(session: StartedSession): string {
   return [
-    'Your session has been started and Co-Scientist has started research!',
+    `# ${session.title}`,
+    '',
+    'Your session has been started and Co-Scientist has started research.',
+    '',
+    '## Status',
     'You can view and interact with your session at any time, but note that it might take a few minutes for the first ideas to be ready to view.',
     '',
-    session.title,
-    'Research session',
+    '* **Type:** Research session',
+    '* **Action:** Open the session details when you want to inspect progress.',
   ].join('\n');
 }
 

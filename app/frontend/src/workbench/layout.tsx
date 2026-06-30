@@ -10,67 +10,31 @@ import {tooltipClassNames} from './tooltip';
 
 type ShellPanel = 'settings' | 'logs';
 
-const diagnosticLogEntries = [
-  {
-    id: 1,
-    time: '11:05:03 AM',
-    run: 'Find new therapeutic targets for M',
-    stage: 'LIFECYCLE',
-    payload: {
-      event: 'created',
-      profile: 'standard',
-      provider: 'engine',
-    },
-  },
-  {
-    id: 2,
-    time: '11:05:03 AM',
-    run: 'Find new therapeutic targets for M',
-    stage: 'LIFECYCLE',
-    payload: {
-      event: 'queued',
-    },
-  },
-  {
-    id: 3,
-    time: '11:05:04 AM',
-    run: 'Find new therapeutic targets for M',
-    stage: 'STATUS',
-    payload: {
-      status: 'running',
-    },
-  },
-  {
-    id: 4,
-    time: '11:05:09 AM',
-    run: 'Find new therapeutic targets for M',
-    stage: 'SUPERVISOR',
-    payload: {
-      phase: 'scoped',
-      requirements: 4,
-    },
-  },
-  {
-    id: 5,
-    time: '11:05:22 AM',
-    run: 'Find new therapeutic targets for M',
-    stage: 'LITERATURE',
-    payload: {
-      evidence: 8,
-      papers: 12,
-    },
-  },
-  {
-    id: 6,
-    time: '11:05:40 AM',
-    run: 'Find new therapeutic targets for M',
-    stage: 'TOURNAMENT',
-    payload: {
-      matches: 12,
-      leading_score: 1290,
-    },
-  },
-];
+type DiagnosticLogLevel = 'info' | 'success' | 'error';
+
+interface DiagnosticLogEntry {
+  id: number;
+  time: string;
+  run: string;
+  stage: string;
+  level: DiagnosticLogLevel;
+  payload: Record<string, unknown>;
+}
+
+interface DiagnosticLogEventDetail {
+  run?: string;
+  stage: string;
+  level?: DiagnosticLogLevel;
+  payload?: Record<string, unknown>;
+}
+
+function formatDiagnosticTime(date = new Date()): string {
+  return new Intl.DateTimeFormat(undefined, {
+    hour: 'numeric',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(date);
+}
 
 /**
  * Renders the app shell with header navigation, main content, and footer.
@@ -85,15 +49,30 @@ export function Layout({children}: {children: ReactNode}) {
   const [history, setHistory] = useState<Run[]>([]);
   const [navOpen, setNavOpen] = useState(true);
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
-  const [logsCleared, setLogsCleared] = useState(false);
+  const [diagnosticLogs, setDiagnosticLogs] = useState<DiagnosticLogEntry[]>(
+    [],
+  );
   const [logsCopied, setLogsCopied] = useState(false);
   const [showAllChats, setShowAllChats] = useState(false);
+  const nextDiagnosticId = useRef(1);
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
   const headerTitle = overrideTitle || '';
-  const visibleLogEntries = logsCleared ? [] : diagnosticLogEntries;
-  const logCount = logsCleared ? 0 : 23;
+  const visibleLogEntries = diagnosticLogs;
+  const logCount = visibleLogEntries.length;
+  const errorLogCount = visibleLogEntries.filter(
+    entry => entry.level === 'error',
+  ).length;
+  const successLogCount = visibleLogEntries.filter(
+    entry => entry.level === 'success',
+  ).length;
+  const infoLogCount = visibleLogEntries.filter(
+    entry => entry.level === 'info',
+  ).length;
+  const runLogCount = new Set(
+    visibleLogEntries.map(entry => entry.run).filter(Boolean),
+  ).size;
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
   const shellClass = [
@@ -123,12 +102,12 @@ export function Layout({children}: {children: ReactNode}) {
   }
 
   function refreshLogs() {
-    setLogsCleared(false);
     setLogsCopied(false);
   }
 
   function clearLogs() {
-    setLogsCleared(true);
+    nextDiagnosticId.current = 1;
+    setDiagnosticLogs([]);
     setLogsCopied(false);
   }
 
@@ -181,6 +160,28 @@ export function Layout({children}: {children: ReactNode}) {
     window.addEventListener('cosci-header-title', onHeaderTitle);
     return () => {
       window.removeEventListener('cosci-header-title', onHeaderTitle);
+    };
+  }, []);
+
+  useEffect(() => {
+    function onDiagnosticEvent(event: Event) {
+      const custom = event as CustomEvent<DiagnosticLogEventDetail>;
+      if (!custom.detail?.stage) return;
+      const entry: DiagnosticLogEntry = {
+        id: nextDiagnosticId.current,
+        time: formatDiagnosticTime(),
+        run: custom.detail.run || 'Current session',
+        stage: custom.detail.stage,
+        level: custom.detail.level || 'info',
+        payload: custom.detail.payload || {},
+      };
+      nextDiagnosticId.current += 1;
+      setDiagnosticLogs(current => [...current, entry]);
+      setLogsCopied(false);
+    }
+    window.addEventListener('cosci-diagnostic-event', onDiagnosticEvent);
+    return () => {
+      window.removeEventListener('cosci-diagnostic-event', onDiagnosticEvent);
     };
   }, []);
 
@@ -388,10 +389,12 @@ export function Layout({children}: {children: ReactNode}) {
                 <div className="ucs-diagnostic-intro">
                   <div className="ucs-diagnostic-chips">
                     <span>Total {logCount}</span>
-                    <span className="error">Errors 1</span>
-                    <span>Success 2</span>
-                    <span>Info {Math.max(logCount - 3, 0)}</span>
-                    <span>Runs 2</span>
+                    <span className={errorLogCount ? 'error' : undefined}>
+                      Errors {errorLogCount}
+                    </span>
+                    <span>Success {successLogCount}</span>
+                    <span>Info {infoLogCount}</span>
+                    <span>Runs {runLogCount}</span>
                   </div>
                 </div>
                 <div className="ucs-diagnostic-list" aria-label="Log events">

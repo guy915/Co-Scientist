@@ -232,6 +232,7 @@ describe('ChatWorkspace', () => {
     expect(
       await screen.findAllByText('Recent research question 6'),
     ).not.toHaveLength(0);
+    expect(screen.getAllByText('Top score: 1200')).not.toHaveLength(0);
     expect(screen.getAllByText('Recent research question 3')).not.toHaveLength(
       0,
     );
@@ -417,7 +418,10 @@ describe('ChatWorkspace', () => {
       configurable: true,
       value: {writeText},
     });
-    const createObjectURL = vi.fn(() => 'blob:co-scientist-response');
+    const createObjectURL = vi.fn((blob: Blob) => {
+      expect(blob).toBeInstanceOf(Blob);
+      return 'blob:co-scientist-response';
+    });
     const revokeObjectURL = vi.fn();
     Object.defineProperty(URL, 'createObjectURL', {
       configurable: true,
@@ -427,9 +431,12 @@ describe('ChatWorkspace', () => {
       configurable: true,
       value: revokeObjectURL,
     });
+    const downloadedNames: string[] = [];
     const anchorClick = vi
       .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => {});
+      .mockImplementation(function (this: HTMLAnchorElement) {
+        downloadedNames.push(this.download);
+      });
 
     renderWorkspace();
 
@@ -456,18 +463,51 @@ describe('ChatWorkspace', () => {
         'Investigate glucose homeostasis under cold stress.',
       );
     });
+    expect(
+      screen.getByRole('heading', {name: 'Research plan'}),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByLabelText('Copy response'));
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining('Research plan'),
+        expect.stringContaining(
+          '# Investigate glucose homeostasis under cold stress',
+        ),
       );
     });
 
     fireEvent.click(screen.getByLabelText('Download response'));
     expect(createObjectURL).toHaveBeenCalled();
+    expect(createObjectURL.mock.calls[0][0].type).toBe(
+      'text/markdown;charset=utf-8',
+    );
+    expect(downloadedNames).toContain('co-scientist-research-plan.md');
     expect(anchorClick).toHaveBeenCalled();
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:co-scientist-response');
+  });
+
+  it('cancels a draft setup back to the home screen with a toast', async () => {
+    renderWorkspace();
+
+    const input = screen.getByRole('textbox');
+    fireEvent.change(input, {
+      target: {value: 'Investigate glucose homeostasis under cold stress.'},
+    });
+    fireEvent.submit(input.closest('form')!);
+
+    expect(
+      await screen.findByRole('heading', {name: 'Research plan'}),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText('Cancel'));
+
+    expect(
+      screen.getByRole('heading', {
+        name: 'What breakthrough should we make today?',
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('The session was canceled')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', {name: 'Research plan'})).toBeNull();
   });
 
   it('infers a run spec in chat and starts the durable run on confirmation', async () => {
@@ -576,5 +616,25 @@ describe('ChatWorkspace', () => {
     );
     expect(suggestion.closest('button')).not.toHaveClass('selected');
     expect(suggestion.closest('button')).not.toHaveClass('is-previewed');
+  });
+
+  it('hides the suggestion preview after selecting a suggested prompt', () => {
+    renderWorkspace();
+
+    const suggestion = screen.getByRole('button', {
+      name: 'Generate novel hypotheses for the link between...',
+    });
+
+    fireEvent.pointerEnter(suggestion);
+
+    const preview = screen.getByText(
+      'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
+    );
+    expect(preview).toHaveClass('visible');
+
+    fireEvent.click(suggestion);
+
+    expect(preview).not.toHaveClass('visible');
+    expect(suggestion).not.toHaveClass('is-previewed');
   });
 });

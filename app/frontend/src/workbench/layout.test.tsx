@@ -88,7 +88,7 @@ describe('Layout', () => {
     expect(screen.queryByText('Deep Research')).toBeNull();
     expect(screen.queryByText('NotebookLM')).toBeNull();
     expect(screen.queryByLabelText('Switch to Gemini app')).toBeNull();
-    expect(screen.getByRole('button', {name: /Logs 23/i})).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
 
     expect(await screen.findByText('Chats')).toBeInTheDocument();
     await waitFor(() => {
@@ -159,7 +159,7 @@ describe('Layout', () => {
     expect(screen.getByRole('button', {name: 'Show more'})).toBeInTheDocument();
   });
 
-  it('opens shell panels from icon buttons and dismisses on outside click', () => {
+  it('opens shell panels from icon buttons and dismisses on outside click', async () => {
     renderLayout();
 
     fireEvent.click(screen.getByRole('button', {name: 'Settings'}));
@@ -182,15 +182,21 @@ describe('Layout', () => {
     fireEvent.pointerDown(screen.getByText('Workspace content'));
     expect(screen.queryByText('Appearance')).toBeNull();
 
-    fireEvent.click(screen.getByRole('button', {name: /Logs 23/i}));
-    expect(screen.getByRole('button', {name: /Logs 23/i})).not.toHaveAttribute(
+    fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
+    expect(screen.getByRole('button', {name: /Logs 0/i})).not.toHaveAttribute(
       'data-tooltip',
     );
     expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
     expect(screen.queryByText('All runs')).toBeNull();
-    expect(screen.getByText('Total 23')).toBeInTheDocument();
+    expect(screen.getByText('Total 0')).toBeInTheDocument();
+    expect(screen.getByText('Errors 0')).toBeInTheDocument();
+    expect(screen.getByText('Success 0')).toBeInTheDocument();
+    expect(screen.getByText('Info 0')).toBeInTheDocument();
+    expect(screen.getByText('Runs 0')).toBeInTheDocument();
     expect(screen.queryByText(/Export includes loaded run events/)).toBeNull();
-    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+    expect(
+      screen.getByText('No diagnostic events loaded.'),
+    ).toBeInTheDocument();
     const diagnosticActions = document.querySelector('.ucs-diagnostic-actions');
     expect(diagnosticActions).not.toBeNull();
     expect(
@@ -199,6 +205,31 @@ describe('Layout', () => {
       ),
     ).toEqual(['Refresh', 'Clear', 'Copy']);
 
+    fireEvent(
+      window,
+      new CustomEvent('cosci-diagnostic-event', {
+        detail: {
+          stage: 'LIFECYCLE',
+          run: 'Investigate glucose homeostasis',
+          level: 'success',
+          payload: {event: 'draft_created'},
+        },
+      }),
+    );
+
+    expect(
+      await screen.findByRole('button', {name: /Logs 1/i}),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Total 1')).toBeInTheDocument();
+    expect(screen.getByText('Success 1')).toBeInTheDocument();
+    expect(screen.getByText('Info 0')).toBeInTheDocument();
+    expect(screen.getByText('Runs 1')).toBeInTheDocument();
+    expect(screen.getByText(/"event": "draft_created"/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', {name: 'Refresh'}));
+    expect(screen.getByRole('button', {name: /Logs 1/i})).toBeInTheDocument();
+    expect(screen.getByText(/"event": "draft_created"/)).toBeInTheDocument();
+
     fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
     expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
     expect(
@@ -206,8 +237,8 @@ describe('Layout', () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', {name: 'Refresh'}));
-    expect(screen.getByRole('button', {name: /Logs 23/i})).toBeInTheDocument();
-    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+    expect(screen.getByRole('button', {name: /Logs 0/i})).toBeInTheDocument();
+    expect(screen.queryByText(/"event": "draft_created"/)).toBeNull();
 
     fireEvent.pointerDown(screen.getByText('Workspace content'));
     expect(screen.queryByText('Diagnostic Logs')).toBeNull();

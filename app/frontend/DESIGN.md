@@ -6,18 +6,18 @@ colors:
   # Seed — the single source of truth for the MD3 palette.
   # The full palette (primary, secondary, tertiary, surface, …) is computed
   # at runtime by applyMd3Theme() in src/lib/theme.ts.
-  seed: "#7C4DFF"
+  seed: "#1A6B6B"
 
-  # Core MD3 roles (approximate light-mode values from the purple reference seed).
+  # Core MD3 roles (approximate light-mode values from the Co-Scientist green seed).
   # Dark-mode inversions are handled automatically by applyMd3Theme(true).
-  primary: "#7C4DFF"
+  primary: "#1A6B6B"
   on-primary: "#ffffff"
-  primary-container: "#EADDFF"
-  on-primary-container: "#21005D"
+  primary-container: "#BFECE3"
+  on-primary-container: "#00201F"
   secondary: "#625B71"
   on-secondary: "#ffffff"
-  secondary-container: "#E8DEF8"
-  on-secondary-container: "#1D192B"
+  secondary-container: "#CCE8E4"
+  on-secondary-container: "#051F1D"
   tertiary: "#1967D2"
   on-tertiary: "#ffffff"
   tertiary-container: "#C2E7FF"
@@ -46,10 +46,10 @@ colors:
 
   # Agent-pipeline phase colors (one per stage, shown as progress steps).
   phase-0: "hsl(142 71% 45%)"   # Supervisor / plan
-  phase-1: "hsl(271 69% 55%)"   # Generate
+  phase-1: "hsl(174 54% 36%)"   # Generate
   phase-2: "hsl(32 95% 50%)"    # Reflect / review
   phase-3: "hsl(0 72% 51%)"     # Tournament / rank
-  phase-4: "hsl(248 53% 58%)"   # Evolve / meta-review
+  phase-4: "hsl(188 64% 35%)"   # Evolve / meta-review
 
 typography:
   # Landing / marketing headings
@@ -261,15 +261,15 @@ components:
 
 Idea Generation is a Gemini Enterprise-style workbench for multi-agent idea development. The UI serves users who launch and monitor idea sessions plus visitors who land on support/demo pages.
 
-The visual language is **precise, neutral, and data-forward** — more Google product workspace than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: reference purple/blue for primary actions, tonal containers for states, status colors for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
+The visual language is **precise, neutral, and data-forward** — more Google product workspace than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: Co-Scientist green/blue for primary actions, tonal containers for states, status colors for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
 
 The design personality is calm competence. Typography is tight and confident. Rounded corners are present but not playful. Animation is brief and functional — fade-ins on load, a live dot pulse on active runs, shimmer on skeleton loaders.
 
 ## Colors
 
-The palette is derived at runtime from a single reference purple seed (`#7C4DFF`) using the MD3 `themeFromSourceColor` algorithm. This means exact hex values shift slightly between builds but the semantic relationships — primary/on-primary, container/on-container — are always correct and WCAG-compliant.
+The palette is derived at runtime from a single Co-Scientist green seed (`#1A6B6B`) using the MD3 `themeFromSourceColor` algorithm. This means exact hex values shift slightly between builds but the semantic relationships — primary/on-primary, container/on-container — are always correct and WCAG-compliant.
 
-- **Primary:** Reference purple used for the single most important action per screen, active states, links, and the app logo mark. Never used decoratively.
+- **Primary:** Co-Scientist green used for the single most important action per screen, active states, links, and the app logo mark. Never used decoratively.
 - **Secondary container:** The de-facto "hover" and "selected" surface. Table rows hover to secondary-container. Active filter chips use secondary-container. Secondary navigation context uses it. Applied with restraint so it stays meaningful.
 - **Surface / surface-container-low (EFF4F4):** The card background. All data cards and form containers sit one tone above the base surface. Never pure white; always tinted by the seed.
 - **On-surface-variant (#3F4949):** Used for all secondary/helper text — stat card labels, metadata columns, column headers, placeholder text, and the `section-label` caps-uppercase style.
@@ -374,7 +374,7 @@ Run list table on Dashboard uses `sm:block hidden`. Structure: `thead` with `sec
 
 ### Progress & Loading
 
-- **Skeleton loaders:** `.wb-skeleton` — shimmer animation over `secondary` → `accent` → `secondary` gradient. Used while API calls resolve.
+- **Skeleton loaders:** `.wb-skeleton` — neutral gray shimmer animation. Used while API calls resolve.
 - **Live dot:** `.wb-live-dot` — pulsing status circle indicating an active session. Appears inline next to "Running" status.
 - `md-linear-progress` — used inside run detail header to show iteration progress.
 - `md-circular-progress` — used for stream-loading states within tabs.
