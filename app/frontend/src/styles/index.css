@@ -17,7 +17,6 @@
 @import "./shell_alignment.css";
 @import "./home_empty_attachments.css";
 @import "./responsive_shell.css";
-@import "./legacy_cascade_overrides.css";
 @import "./diagnostics.css";
 @import "./tooltips.css";
 @import "./final_interactions.css";
