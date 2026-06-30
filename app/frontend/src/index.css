@@ -10013,6 +10013,28 @@ body {
   }
 }
 
+@media (min-width: 1181px) and (min-height: 900px) {
+  .home-shell .reference-home-main,
+  [data-theme="dark"] .home-shell .reference-home-main {
+    padding-top: clamp(4.5rem, 9.5vh, 7.1rem);
+  }
+
+  .home-shell .reference-step-timeline,
+  [data-theme="dark"] .home-shell .reference-step-timeline {
+    margin-top: clamp(5.4rem, 11vh, 8.1rem);
+  }
+
+  .home-shell .reference-suggestion-row,
+  [data-theme="dark"] .home-shell .reference-suggestion-row {
+    margin-top: clamp(8.5rem, 18vh, 13rem);
+  }
+
+  .home-shell .reference-composer,
+  [data-theme="dark"] .home-shell .reference-composer {
+    margin-top: clamp(2.25rem, 4.8vh, 3.6rem);
+  }
+}
+
 /* Sidebar tooltip stacking fix: keep nav popups above the workspace. */
 .ucs-nav-panel,
 [data-theme="dark"] .ucs-nav-panel {
