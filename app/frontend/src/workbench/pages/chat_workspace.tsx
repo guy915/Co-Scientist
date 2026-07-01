@@ -41,20 +41,53 @@ import {
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {tooltipClassNames} from '../tooltip';
 import {
+  COMPOSER_ACTIONS_CLASSES,
+  COMPOSER_BASE_CLASSES,
+  COMPOSER_FILE_INPUT_CLASSES,
+  COMPOSER_LABEL_CLASSES,
+  COMPOSER_LABEL_ICON_CLASSES,
+  COMPOSER_LABEL_TEXT_CLASSES,
+  COMPOSER_LABEL_TEXT_HIDDEN_CLASSES,
+  COMPOSER_SOURCE_BUTTON_CLASSES,
+  COMPOSER_SOURCE_CONTROLS_CLASSES,
+  COMPOSER_SOURCE_ICON_CLASSES,
+  COMPOSER_SUBMIT_BUTTON_CLASSES,
+  COMPOSER_TEXTAREA_CLASSES,
+  CONNECTOR_ICON_CLASSES,
+  CONNECTOR_TOGGLE_BASE_CLASSES,
+  CONNECTOR_TOGGLE_OFF_CLASSES,
+  CONNECTOR_TOGGLE_ON_CLASSES,
+  CONNECTORS_MENU_CLASSES,
+  CONNECTORS_MENU_HEADER_CLASSES,
+  CONNECTORS_MENU_ROW_CLASSES,
   HOME_COMPOSER_CLASSES,
   HOME_COMPOSER_TEXTAREA_CLASSES,
+  HOME_LOAD_MORE_BUTTON_CLASSES,
+  HOME_LOAD_MORE_ITEM_CLASSES,
   HOME_MAIN_CLASSES,
   HOME_RECENTS_LIST_CLASSES,
   HOME_RECENTS_PANEL_CLASSES,
+  HOME_RECENTS_HEADING_ROW_CLASSES,
   HOME_STAGE_CLASSES,
   HOME_STEP_BODY_CLASSES,
+  HOME_STEP_HEADING_CLASSES,
   HOME_STEP_ITEM_CENTER_CLASSES,
   HOME_STEP_ITEM_CLASSES,
   HOME_STEP_ITEM_END_CLASSES,
+  HOME_STEP_NUMBER_CLASSES,
   HOME_STEP_TIMELINE_CLASSES,
   HOME_SUGGESTION_BUTTON_CLASSES,
+  HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES,
+  HOME_SUGGESTION_PREVIEW_CENTER_CLASSES,
+  HOME_SUGGESTION_PREVIEW_CLASSES,
+  HOME_SUGGESTION_PREVIEW_END_CLASSES,
+  HOME_SUGGESTION_PREVIEW_START_CLASSES,
+  HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES,
   HOME_SUGGESTION_ROW_CLASSES,
+  HOME_SUGGESTION_SLOT_CLASSES,
+  HOME_SUGGESTION_TEXT_CLASSES,
   HOME_TITLE_CLASSES,
+  HOME_TOAST_CLASSES,
   HOME_WORKSPACE_CLASSES,
   HOME_WORKSPACE_MAIN_CLASSES,
 } from './chat_home_classes';
@@ -156,7 +189,8 @@ const RECENTS_HEADING_ICON_CLASSES =
   '[--md-icon-size:20px] min-[1181px]:[--md-icon-size:22px]';
 
 const RECENTS_HEADING_CLASSES =
-  '!font-normal min-[1181px]:!text-[1.22rem] min-[1181px]:!font-medium ' +
+  'm-0 text-[1.15rem] font-semibold text-[var(--cosci-recents-heading)] ' +
+  'min-[1181px]:!text-[1.22rem] min-[1181px]:!font-medium ' +
   'min-[1181px]:!leading-[1.2]';
 
 const RECENTS_LIST_CLASSES = `min-[1181px]:!gap-[2.65rem] ${HOME_RECENTS_LIST_CLASSES}`;
@@ -181,7 +215,11 @@ const EMPTY_RECENTS_COPY_CLASSES =
   'max-w-[17rem] text-base leading-[1.35] font-[650] text-inherit';
 
 const RECENT_CARD_CLASSES =
-  'reference-recent-card min-[1181px]:!min-h-0 min-[1181px]:!rounded-2xl ' +
+  'reference-recent-card grid min-h-[15.75rem] w-full content-start gap-[0.7rem] ' +
+  'rounded-[0.8rem] border border-[var(--cosci-recent-card-border)] ' +
+  'bg-[var(--cosci-recent-card-bg)] p-[1.05rem_1.2rem] text-left ' +
+  'text-[var(--cosci-recent-card-text)] no-underline shadow-[var(--cosci-recent-card-shadow)] ' +
+  'cursor-pointer min-[1181px]:!min-h-0 min-[1181px]:!rounded-2xl ' +
   'min-[1181px]:!border-[#eef1f4] min-[1181px]:!px-[1.15rem] ' +
   'min-[1181px]:!pt-[1.05rem] min-[1181px]:!pb-[1.12rem] ' +
   'min-[1181px]:hover:!border-[#dadce0] min-[1181px]:hover:!bg-[#f8fafd] ' +
@@ -195,24 +233,33 @@ const RECENT_CARD_CLASSES =
 
 const ACTIVE_RECENT_CARD_CLASSES = `${RECENT_CARD_CLASSES} is-active-run`;
 
-const RECENT_META_CLASSES = 'reference-recent-meta !gap-[0.35rem]';
+const RECENT_META_CLASSES =
+  'reference-recent-meta flex flex-wrap gap-[0.35rem]';
 
 const RECENT_META_CHIP_CLASSES =
+  'rounded-[0.35rem] bg-[var(--cosci-recent-meta-bg)] px-[0.48rem] ' +
+  'py-[0.32rem] text-[0.75rem] font-semibold text-[var(--cosci-recent-meta-text)] ' +
   'min-[1181px]:!bg-[#f1f4f7] min-[1181px]:!px-[0.62rem] ' +
   'min-[1181px]:!py-[0.38rem] min-[1181px]:!text-[0.78rem] ' +
   'min-[1181px]:!leading-[1.1] min-[1181px]:!text-[#3c4043] ' +
   'dark:min-[1181px]:!bg-[#303335] dark:min-[1181px]:!text-[#f1f3f4]';
 
-const RECENT_TITLE_CLASSES = '!text-[1.08rem]';
+const RECENT_TITLE_CLASSES =
+  'text-[1.02rem] leading-[1.35] min-[1181px]:!text-[1.08rem]';
 
 const RECENT_DESCRIPTION_CLASSES =
-  '!text-[0.94rem] !leading-[1.34] ![-webkit-line-clamp:3]';
+  'line-clamp-4 overflow-hidden text-[0.9rem] leading-[1.35] ' +
+  'text-[var(--cosci-recent-card-copy)] min-[1181px]:!text-[0.94rem] ' +
+  'min-[1181px]:!leading-[1.34] min-[1181px]:!line-clamp-3';
 
 const RECENT_CHIPS_CLASSES =
-  'reference-recent-chips !flex-nowrap !items-center !gap-[0.35rem]';
+  'reference-recent-chips flex flex-nowrap items-center gap-[0.35rem]';
 
 const RECENT_CHIP_CLASSES =
-  'min-[1181px]:!flex-none min-[1181px]:!min-h-[1.62rem] ' +
+  'inline-flex items-center gap-1 rounded-[0.35rem] bg-[var(--cosci-recent-chip-bg)] ' +
+  'px-[0.48rem] py-[0.32rem] text-[0.75rem] font-semibold ' +
+  'text-[var(--cosci-recent-chip-text)] min-[1181px]:!flex-none ' +
+  'min-[1181px]:!min-h-[1.62rem] ' +
   'min-[1181px]:!px-[0.42rem] min-[1181px]:!py-[0.26rem] ' +
   'min-[1181px]:!text-[0.68rem] min-[1181px]:!leading-none ' +
   'min-[1181px]:!whitespace-nowrap dark:min-[1181px]:!bg-[#0b8043] ' +
@@ -233,7 +280,9 @@ const ACTIVE_PROGRESS_DOT_CLASSES =
   'min-[1181px]:!bg-current';
 
 const WINNER_LIST_CLASSES =
-  'reference-winner-list min-[1181px]:!gap-2 min-[1181px]:!text-[0.84rem] ' +
+  'reference-winner-list m-[0.15rem_0_0] grid list-none gap-[0.65rem] p-0 ' +
+  'text-[0.78rem] leading-[1.35] text-[var(--cosci-recent-card-text)] ' +
+  'min-[1181px]:!gap-2 min-[1181px]:!text-[0.84rem] ' +
   'min-[1181px]:!leading-[1.25] min-[1181px]:!text-[#202124] ' +
   'dark:min-[1181px]:!text-[#f1f3f4]';
 
@@ -1022,9 +1071,11 @@ export function ChatWorkspace() {
                       .filter(Boolean)
                       .join(' ')}
                   >
-                    <span>{step.n}</span>
+                    <span className={HOME_STEP_NUMBER_CLASSES}>{step.n}</span>
                     <div>
-                      <h2>{step.title}</h2>
+                      <h2 className={HOME_STEP_HEADING_CLASSES}>
+                        {step.title}
+                      </h2>
                       <p className={HOME_STEP_BODY_CLASSES}>{step.body}</p>
                     </div>
                   </li>
@@ -1032,19 +1083,29 @@ export function ChatWorkspace() {
               </ol>
 
               <div className={HOME_SUGGESTION_ROW_CLASSES}>
-                {SUGGESTIONS.map(suggestion => {
+                {SUGGESTIONS.map((suggestion, index) => {
                   const isPreviewed = hoveredSuggestion === suggestion.full;
+                  const previewPositionClass =
+                    index === 0
+                      ? HOME_SUGGESTION_PREVIEW_START_CLASSES
+                      : index === 1
+                        ? HOME_SUGGESTION_PREVIEW_CENTER_CLASSES
+                        : HOME_SUGGESTION_PREVIEW_END_CLASSES;
                   return (
                     <div
                       key={suggestion.short}
-                      className="reference-suggestion-slot"
+                      className={HOME_SUGGESTION_SLOT_CLASSES}
                     >
                       <p
-                        className={
+                        className={[
+                          HOME_SUGGESTION_PREVIEW_CLASSES,
+                          previewPositionClass,
                           isPreviewed
-                            ? 'reference-suggestion-preview visible'
-                            : 'reference-suggestion-preview'
-                        }
+                            ? HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES
+                            : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
                         aria-hidden={!isPreviewed}
                       >
                         {suggestion.full}
@@ -1053,7 +1114,9 @@ export function ChatWorkspace() {
                         type="button"
                         className={[
                           HOME_SUGGESTION_BUTTON_CLASSES,
-                          isPreviewed ? 'is-previewed' : '',
+                          isPreviewed
+                            ? HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES
+                            : '',
                         ]
                           .filter(Boolean)
                           .join(' ')}
@@ -1072,7 +1135,7 @@ export function ChatWorkspace() {
                           setHoveredSuggestion(null);
                         }}
                       >
-                        <span className="reference-suggestion-text">
+                        <span className={HOME_SUGGESTION_TEXT_CLASSES}>
                           {suggestion.short}
                         </span>
                       </button>
@@ -1096,7 +1159,7 @@ export function ChatWorkspace() {
             </div>
 
             <aside className={recentsPanelClassName} aria-label="Recent runs">
-              <div className="google-recents-heading">
+              <div className={HOME_RECENTS_HEADING_ROW_CLASSES}>
                 <md-icon
                   aria-hidden="true"
                   className={RECENTS_HEADING_ICON_CLASSES}
@@ -1207,10 +1270,10 @@ export function ChatWorkspace() {
                   </li>
                 )}
                 {hasExtraRecents && (
-                  <li className="reference-load-more-item">
+                  <li className={HOME_LOAD_MORE_ITEM_CLASSES}>
                     <button
                       type="button"
-                      className="reference-load-more"
+                      className={HOME_LOAD_MORE_BUTTON_CLASSES}
                       onClick={() => setShowAllRecents(current => !current)}
                     >
                       {showAllRecents ? 'Show less' : 'Show more'}
@@ -1262,7 +1325,7 @@ export function ChatWorkspace() {
           </>
         )}
         {toast && (
-          <div className="reference-toast" role="status">
+          <div className={HOME_TOAST_CLASSES} role="status">
             {toast}
           </div>
         )}
@@ -1429,7 +1492,7 @@ function Composer({
       <form
         onSubmit={onSubmit}
         className={[
-          'reference-composer',
+          COMPOSER_BASE_CLASSES,
           input.trim() ? 'has-input' : '',
           large ? HOME_COMPOSER_CLASSES : '',
           attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
@@ -1516,29 +1579,43 @@ function Composer({
             )}
           </div>
         ) : null}
-        <label>
-          <span>
-            <md-icon aria-hidden="true">shield</md-icon>
+        <label className={COMPOSER_LABEL_CLASSES}>
+          <span
+            className={[
+              COMPOSER_LABEL_TEXT_CLASSES,
+              input.trim() ? COMPOSER_LABEL_TEXT_HIDDEN_CLASSES : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            <md-icon aria-hidden="true" className={COMPOSER_LABEL_ICON_CLASSES}>
+              shield
+            </md-icon>
             {referenceLabel}
           </span>
           <textarea
             rows={large ? 4 : 3}
             value={input}
             disabled={disabled}
-            className={large ? HOME_COMPOSER_TEXTAREA_CLASSES : undefined}
+            className={[
+              COMPOSER_TEXTAREA_CLASSES,
+              large ? HOME_COMPOSER_TEXTAREA_CLASSES : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
             onChange={e => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={placeholder}
           />
         </label>
-        <div className="reference-composer-actions">
+        <div className={COMPOSER_ACTIONS_CLASSES}>
           <div
-            className="reference-composer-source-controls"
+            className={COMPOSER_SOURCE_CONTROLS_CLASSES}
             ref={sourceControlsRef}
           >
             <input
               ref={fileInputRef}
-              className="reference-file-input"
+              className={COMPOSER_FILE_INPUT_CLASSES}
               type="file"
               multiple
               aria-label="Upload files"
@@ -1548,7 +1625,7 @@ function Composer({
             <button
               type="button"
               className={tooltipClassNames({
-                className: 'reference-composer-source-button',
+                className: COMPOSER_SOURCE_BUTTON_CLASSES,
                 placement: 'top',
               })}
               aria-label="Files"
@@ -1556,12 +1633,17 @@ function Composer({
               disabled={disabled}
               onClick={() => fileInputRef.current?.click()}
             >
-              <md-icon aria-hidden="true">add</md-icon>
+              <md-icon
+                aria-hidden="true"
+                className={COMPOSER_SOURCE_ICON_CLASSES}
+              >
+                add
+              </md-icon>
             </button>
             <button
               type="button"
               className={tooltipClassNames({
-                className: 'reference-composer-source-button',
+                className: COMPOSER_SOURCE_BUTTON_CLASSES,
                 placement: 'top',
               })}
               aria-label="Connectors"
@@ -1570,15 +1652,20 @@ function Composer({
               disabled={disabled}
               onClick={() => setConnectorsOpen(open => !open)}
             >
-              <md-icon aria-hidden="true">database</md-icon>
+              <md-icon
+                aria-hidden="true"
+                className={COMPOSER_SOURCE_ICON_CLASSES}
+              >
+                database
+              </md-icon>
             </button>
             {connectorsOpen ? (
               <div
-                className="reference-connectors-menu"
+                className={CONNECTORS_MENU_CLASSES}
                 role="menu"
                 aria-label="Connectors"
               >
-                <div className="reference-connectors-menu-row reference-connectors-menu-row--top">
+                <div className={CONNECTORS_MENU_HEADER_CLASSES}>
                   <span>Connectors</span>
                 </div>
                 {COMPOSER_CONNECTORS.map(name => (
@@ -1586,18 +1673,26 @@ function Composer({
                     type="button"
                     role="menuitemcheckbox"
                     aria-checked={pubmedEnabled}
-                    className="reference-connectors-menu-row"
+                    className={CONNECTORS_MENU_ROW_CLASSES}
                     key={name}
                     onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
                   >
                     <md-icon
-                      className="reference-connector-icon"
+                      className={CONNECTOR_ICON_CLASSES}
                       aria-hidden="true"
                     >
                       article
                     </md-icon>
                     <span>{name}</span>
-                    <span className="reference-toggle" aria-hidden="true" />
+                    <span
+                      className={[
+                        CONNECTOR_TOGGLE_BASE_CLASSES,
+                        pubmedEnabled
+                          ? CONNECTOR_TOGGLE_ON_CLASSES
+                          : CONNECTOR_TOGGLE_OFF_CLASSES,
+                      ].join(' ')}
+                      aria-hidden="true"
+                    />
                   </button>
                 ))}
               </div>
@@ -1605,7 +1700,10 @@ function Composer({
           </div>
           <button
             type="submit"
-            className={tooltipClassNames({placement: 'top'})}
+            className={tooltipClassNames({
+              className: COMPOSER_SUBMIT_BUTTON_CLASSES,
+              placement: 'top',
+            })}
             aria-label={submitLabel}
             data-tooltip="Submit"
             disabled={!input.trim() || disabled}

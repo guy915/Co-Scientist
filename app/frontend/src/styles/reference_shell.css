@@ -27,8 +27,7 @@
   padding: 1.25rem 0;
 }
 
-.ucs-nav-item,
-.reference-composer-actions button {
+.ucs-nav-item {
   display: grid;
   width: 2.5rem;
   height: 2.5rem;
