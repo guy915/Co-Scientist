@@ -1,8 +1,67 @@
 .reference-chat-column {
+  --reference-setup-text: #202124;
+  --reference-setup-muted: #5f6368;
+  --reference-setup-icon: #3c4043;
+  --reference-setup-subtle-text: #3c4043;
+  --reference-setup-user-bg: #e9eefb;
+  --reference-setup-surface: var(--idea-ref-card-bg);
+  --reference-setup-option-bg: #fff;
+  --reference-setup-option-hover-bg: #e8eef6;
+  --reference-setup-option-hover-border: #d4dbe6;
+  --reference-setup-option-selected-bg: #e5eefc;
+  --reference-setup-radio-border: #5f6368;
+  --reference-setup-radio-selected: #8ab4f8;
+  --reference-setup-radio-shadow: #e5eefc;
+  --reference-setup-action-border: #9aa0a6;
+  --reference-setup-action-text: #3c4043;
+  --reference-setup-primary: var(--idea-ref-blue);
+  --reference-setup-primary-hover: #0842a0;
+  --reference-setup-primary-text: #fff;
+  --reference-started-action-border: #1a73e8;
+  --reference-started-action-text: #1967d2;
+  --reference-started-action-hover: #e8f0fe;
+  --reference-started-next-text: #3c4043;
+  --reference-started-card-bg: linear-gradient(
+      100deg,
+      rgba(16, 92, 92, 0.95),
+      rgba(42, 117, 95, 0.94)
+    ),
+    #145d5d;
   display: grid;
   width: min(100%, 50.75rem);
   gap: 1.15rem;
   margin-inline: auto;
+}
+
+[data-theme="dark"] .reference-chat-column {
+  --reference-setup-text: var(--cosci-text);
+  --reference-setup-muted: #bdc1c6;
+  --reference-setup-icon: #bdc1c6;
+  --reference-setup-subtle-text: var(--cosci-text);
+  --reference-setup-user-bg: #303134;
+  --reference-setup-surface: #25272d;
+  --reference-setup-option-bg: #202427;
+  --reference-setup-option-hover-bg: #252a2d;
+  --reference-setup-option-hover-border: #3c4043;
+  --reference-setup-option-selected-bg: #1f2224;
+  --reference-setup-radio-border: var(--cosci-blue);
+  --reference-setup-radio-selected: var(--cosci-blue);
+  --reference-setup-radio-shadow: #1f2224;
+  --reference-setup-action-border: var(--cosci-border);
+  --reference-setup-action-text: var(--cosci-text);
+  --reference-setup-primary: #1d3354;
+  --reference-setup-primary-hover: rgba(127, 215, 191, 0.14);
+  --reference-setup-primary-text: var(--cosci-blue);
+  --reference-started-action-border: #7fd7bf;
+  --reference-started-action-text: #7fd7bf;
+  --reference-started-action-hover: rgba(127, 215, 191, 0.14);
+  --reference-started-next-text: #bdc1c6;
+  --reference-started-card-bg: linear-gradient(
+      100deg,
+      rgba(21, 76, 76, 0.98),
+      rgba(26, 92, 70, 0.96)
+    ),
+    #123a3a;
 }
 
 .google-chat-timeline {
@@ -46,7 +105,7 @@
 .reference-setup-message {
   display: grid;
   gap: 1.15rem;
-  color: #202124;
+  color: var(--reference-setup-text);
 }
 
 .reference-bubble-row {
@@ -66,7 +125,7 @@
 .reference-user-bubble,
 .reference-model-bubble {
   max-width: 31rem;
-  color: #202124;
+  color: var(--reference-setup-text);
   font-size: 1rem;
   line-height: 1.45;
 }
@@ -76,13 +135,13 @@
   align-items: flex-start;
   gap: 1rem;
   border-radius: 1rem;
-  background: #e9eefb;
+  background: var(--reference-setup-user-bg);
   padding: 0.75rem 0.9rem 0.75rem 1rem;
 }
 
 .reference-user-bubble md-icon {
   margin-top: 0.15rem;
-  color: #3c4043;
+  color: var(--reference-setup-icon);
   font-size: 1.2rem;
 }
 
@@ -152,14 +211,6 @@
   transform: translateY(-50%) scale(1);
 }
 
-[data-theme="dark"] .reference-model-bubble {
-  color: #e8eaed;
-}
-
-[data-theme="dark"] .reference-user-bubble md-icon {
-  color: #bdc1c6;
-}
-
 [data-theme="dark"] .reference-message-actions button {
   color: #bdc1c6;
 }
@@ -195,6 +246,7 @@
 
 .reference-plan-heading h2 {
   margin: 0;
+  color: var(--reference-setup-text);
   font-size: 2rem;
   font-weight: 400;
   letter-spacing: 0;
@@ -202,7 +254,7 @@
 }
 
 .reference-plan-heading md-icon {
-  color: #5f6368;
+  color: var(--reference-setup-muted);
   font-size: 1.55rem;
 }
 
@@ -240,19 +292,15 @@
 
 .reference-plan-subheading {
   margin-top: -0.35rem !important;
-  color: #3c4043;
+  color: var(--reference-setup-subtle-text);
 }
 
 .reference-setup-document {
   display: grid;
   gap: 1.15rem;
   border-radius: 1rem;
-  background: var(--idea-ref-card-bg);
+  background: var(--reference-setup-surface);
   padding: 1.5rem 1.45rem;
-}
-
-[data-theme="dark"] .reference-setup-document {
-  background: #25272d;
 }
 
 .reference-setup-document h3 {
@@ -274,7 +322,7 @@
 
 .reference-setup-document .google-spec-row dt {
   margin: 0 0 0.85rem;
-  color: #202124 !important;
+  color: var(--reference-setup-text) !important;
   font-size: 1.18rem;
   font-weight: 700;
   text-transform: none;
@@ -286,13 +334,8 @@
 
 .reference-setup-document .google-spec-row dd {
   margin: 0;
-  color: #202124;
+  color: var(--reference-setup-text);
   line-height: 1.45;
-}
-
-[data-theme="dark"] .reference-setup-document .google-spec-row dt,
-[data-theme="dark"] .reference-setup-document .google-spec-row dd {
-  color: #e8eaed !important;
 }
 
 .reference-setup-document .google-spec-list {
@@ -312,7 +355,7 @@
 
 .reference-option-group legend {
   margin: 0;
-  color: #202124;
+  color: var(--reference-setup-text);
   font-size: 1.18rem;
   font-weight: 700;
 }
@@ -333,8 +376,8 @@
   align-content: start;
   border: 1px solid transparent;
   border-radius: 0.65rem;
-  background: #fff;
-  color: #202124;
+  background: var(--reference-setup-option-bg);
+  color: var(--reference-setup-text);
   padding: 0.85rem 0.95rem;
   transition:
     background-color 180ms ease,
@@ -355,7 +398,7 @@
 .reference-option-card > span {
   width: 1.28rem;
   height: 1.28rem;
-  border: 2px solid #5f6368;
+  border: 2px solid var(--reference-setup-radio-border);
   border-radius: 999px;
   margin-top: 0.08rem;
   transition:
@@ -364,19 +407,19 @@
 }
 
 .reference-option-card.selected > span {
-  border-color: #8ab4f8;
-  box-shadow: inset 0 0 0 0.25rem #e5eefc;
-  background: #8ab4f8;
+  border-color: var(--reference-setup-radio-selected);
+  box-shadow: inset 0 0 0 0.25rem var(--reference-setup-radio-shadow);
+  background: var(--reference-setup-radio-selected);
 }
 
 .reference-option-card:hover,
 .reference-option-card:focus-within {
-  background: #e8eef6;
-  border-color: #d4dbe6;
+  background: var(--reference-setup-option-hover-bg);
+  border-color: var(--reference-setup-option-hover-border);
 }
 
 .reference-option-card.selected {
-  background: #e5eefc;
+  background: var(--reference-setup-option-selected-bg);
 }
 
 .reference-option-card strong {
@@ -388,7 +431,7 @@
 
 .reference-option-card small {
   grid-column: 2;
-  color: #5f6368;
+  color: var(--reference-setup-muted);
   font-size: 0.92rem;
   line-height: 1.3;
 }
@@ -402,26 +445,26 @@
 
 .reference-setup-actions button {
   min-height: 2.6rem;
-  border: 1px solid #9aa0a6;
+  border: 1px solid var(--reference-setup-action-border);
   border-radius: 999px;
   background: transparent;
-  color: #3c4043;
+  color: var(--reference-setup-action-text);
   cursor: pointer;
   padding: 0 1.45rem;
   font-weight: 500;
 }
 
 .reference-setup-actions button:last-child {
-  border-color: var(--idea-ref-blue);
-  background: var(--idea-ref-blue);
-  color: #fff;
+  border-color: var(--reference-setup-primary);
+  background: var(--reference-setup-primary);
+  color: var(--reference-setup-primary-text);
 }
 
 .reference-setup-actions button:last-child:hover:not(:disabled),
 .reference-setup-actions button:last-child:focus-visible:not(:disabled) {
-  border-color: #0842a0;
-  background: #0842a0;
-  color: #fff;
+  border-color: var(--reference-setup-primary);
+  background: var(--reference-setup-primary-hover);
+  color: var(--reference-setup-primary-text);
 }
 
 .reference-setup-actions button:disabled {
@@ -440,7 +483,7 @@
 .reference-started-message {
   display: grid;
   gap: 1.15rem;
-  color: #202124;
+  color: var(--reference-setup-text);
 }
 
 .reference-started-copy {
@@ -463,9 +506,7 @@
   cursor: pointer;
   border: 0;
   border-radius: 1rem;
-  background:
-    linear-gradient(100deg, rgba(16, 92, 92, 0.95), rgba(42, 117, 95, 0.94)),
-    #145d5d;
+  background: var(--reference-started-card-bg);
   color: #fff;
   padding: 1rem 1rem 1rem 1.35rem;
   text-align: left;
@@ -519,7 +560,7 @@
 .reference-started-next p {
   flex-basis: 100%;
   margin: 0 0 0.1rem;
-  color: #3c4043;
+  color: var(--reference-started-next-text);
   font-size: 0.95rem;
   font-weight: 600;
 }
@@ -527,10 +568,10 @@
 .reference-started-next button {
   min-height: 2.55rem;
   cursor: pointer;
-  border: 1px solid #1a73e8;
+  border: 1px solid var(--reference-started-action-border);
   border-radius: 999px;
   background: transparent;
-  color: #1967d2;
+  color: var(--reference-started-action-text);
   padding: 0 1.2rem;
   font-weight: 600;
   transition:
@@ -540,5 +581,5 @@
 
 .reference-started-next button:hover,
 .reference-started-next button:focus-visible {
-  background: #e8f0fe;
+  background: var(--reference-started-action-hover);
 }
