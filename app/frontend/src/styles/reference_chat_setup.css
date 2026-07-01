@@ -188,6 +188,8 @@
 
 .reference-plan-heading {
   display: flex;
+  align-items: center;
+  gap: 0.45rem;
   margin-top: 1.75rem;
 }
 
@@ -202,6 +204,38 @@
 .reference-plan-heading md-icon {
   color: #5f6368;
   font-size: 1.55rem;
+}
+
+.reference-plan-edit {
+  display: inline-grid;
+  width: 2.1rem;
+  height: 2.1rem;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #5f6368;
+  cursor: pointer;
+}
+
+.reference-plan-heading .reference-plan-edit md-icon {
+  display: inline-flex;
+}
+
+.reference-plan-edit:hover,
+.reference-plan-edit:focus-visible {
+  background: #eef4f3;
+  color: #1a6b6b;
+}
+
+[data-theme="dark"] .reference-plan-edit {
+  color: #bdc1c6;
+}
+
+[data-theme="dark"] .reference-plan-edit:hover,
+[data-theme="dark"] .reference-plan-edit:focus-visible {
+  background: #2a2d2f;
+  color: #8fd8c7;
 }
 
 .reference-plan-subheading {
@@ -395,6 +429,12 @@
   background: #f1f3f4;
   color: #9aa0a6;
   cursor: default;
+}
+
+[data-theme="dark"] .reference-setup-actions button:disabled {
+  border-color: #3c4043;
+  background: #202124;
+  color: #5f6368;
 }
 
 .reference-started-message {
