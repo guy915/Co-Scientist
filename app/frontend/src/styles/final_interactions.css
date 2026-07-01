@@ -28,6 +28,14 @@ html {
     opacity: 1 !important;
     visibility: visible !important;
   }
+
+  :is(.home-shell, .report-shell).nav-collapsed .gemini-side-content {
+    display: grid;
+    max-height: 0;
+    margin-top: 0;
+    opacity: 0;
+    visibility: hidden;
+  }
 }
 
 @media (min-width: 1181px) {
@@ -527,4 +535,8 @@ html {
   :is(.home-shell, .report-shell) .ucs-header-action-bar .ucs-product-lockup {
     margin-left: 3.25rem;
   }
+}
+
+:is(.home-shell, .report-shell) > .ucs-workspace {
+  border-bottom-left-radius: 1.9rem;
 }
