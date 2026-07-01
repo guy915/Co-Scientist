@@ -2,6 +2,15 @@
 :root {
   --cosci-bg: #fff;
   --cosci-rail: var(--idea-ref-rail);
+  --cosci-panel: #f1f3f4;
+  --cosci-border: #dadce0;
+  --cosci-text: #202124;
+  --cosci-muted: #5f6368;
+  --cosci-subtle: #9aa0a6;
+  --cosci-blue: #1967d2;
+  --cosci-blue-strong: #1a73e8;
+  --cosci-hover: #f1f3f4;
+  --cosci-scrollbar: #d7e0ea;
   --cosci-shell-icon: #3c4043;
   --cosci-shell-hover-bg: #dfeafc;
   --cosci-shell-hover-text: #202124;
@@ -81,6 +90,8 @@
   --cosci-subtle: #9aa0a6;
   --cosci-blue: #a8c7fa;
   --cosci-blue-strong: #8ab4f8;
+  --cosci-hover: #303134;
+  --cosci-scrollbar: #3c4043;
   --cosci-green: #7fd7bf;
   --cosci-green-bg: #173b3b;
   --cosci-shell-icon: var(--cosci-muted);
