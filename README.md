@@ -4,6 +4,10 @@
   A multi-agent hypothesis-generation system for scientific discovery.
 </p>
 
+<p align="center">
+  <a href="https://deepwiki.com/guy915/Co-Scientist"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"/></a>
+</p>
+
 <table align="center">
 <tr>
 <td align="center"><strong>Pipeline architecture</strong></td>
