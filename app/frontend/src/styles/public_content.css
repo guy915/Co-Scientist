@@ -40,11 +40,6 @@
   font-weight: 600;
   line-height: 1;
   text-decoration: none;
-  transition:
-    background-color 160ms ease,
-    color 160ms ease,
-    border-color 160ms ease,
-    transform 160ms ease;
 }
 
 .public-button:focus-visible {
@@ -89,16 +84,5 @@
 
   .public-button {
     width: 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .wb-fade-in,
-  .wb-skeleton {
-    animation: none;
-  }
-
-  .public-button {
-    transition: none;
   }
 }

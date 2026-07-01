@@ -99,39 +99,13 @@ body {
   color: var(--color-th-muted-fg);
 }
 
-/* Workbench-specific polish */
-@keyframes wb-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-.wb-fade-in {
-  animation: wb-fade-in 180ms ease-out both;
-}
-
-@keyframes wb-shimmer {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
-  }
-}
 .wb-skeleton {
-  background: linear-gradient(90deg, #2f3336 0%, #3a3f42 50%, #2f3336 100%);
-  background-size: 200% 100%;
-  animation: wb-shimmer 1.6s ease-in-out infinite;
+  background: #3a3f42;
   border-radius: 0.375rem;
 }
 
 [data-theme="light"] .wb-skeleton {
-  background: linear-gradient(90deg, #eceff1 0%, #f7f9fa 50%, #eceff1 100%);
-  background-size: 200% 100%;
+  background: #eceff1;
 }
 
 .wb-link {
