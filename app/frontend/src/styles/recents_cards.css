@@ -42,20 +42,6 @@
 
   .home-shell .reference-recents > ol {
     gap: 2.65rem;
-    scrollbar-width: auto;
-  }
-
-  .home-shell .reference-recents > ol::-webkit-scrollbar {
-    width: 0.55rem;
-  }
-
-  .home-shell .reference-recents > ol::-webkit-scrollbar-thumb {
-    border: 0;
-    background: #d9e1ea;
-  }
-
-  [data-theme="dark"] .home-shell .reference-recents > ol::-webkit-scrollbar-thumb {
-    background: #54585b;
   }
 
   .home-shell .reference-recent-card {

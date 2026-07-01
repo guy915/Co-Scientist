@@ -392,29 +392,6 @@
   grid-template-columns: minmax(24rem, 0.66fr) minmax(0, 1.25fr) 15rem;
 }
 
-.cosci-all-ideas .idea-rank-list,
-.cosci-all-ideas .idea-detail-pane {
-  scrollbar-width: thin;
-  scrollbar-color: var(--cosci-scrollbar) transparent;
-}
-
-.cosci-all-ideas .idea-rank-list::-webkit-scrollbar,
-.cosci-all-ideas .idea-detail-pane::-webkit-scrollbar {
-  width: 0.5rem;
-  height: 0.5rem;
-}
-
-.cosci-all-ideas .idea-rank-list::-webkit-scrollbar-track,
-.cosci-all-ideas .idea-detail-pane::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.cosci-all-ideas .idea-rank-list::-webkit-scrollbar-thumb,
-.cosci-all-ideas .idea-detail-pane::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: var(--cosci-scrollbar);
-}
-
 .cosci-report-alert,
 .cosci-report-toast {
   border: 1px solid #b3261e;

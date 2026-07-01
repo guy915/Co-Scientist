@@ -240,10 +240,6 @@
   line-height: 1.5;
 }
 
-.reference-review-copy {
-  font-weight: 400;
-}
-
 .reference-plan-heading {
   display: flex;
   align-items: center;
@@ -486,15 +482,6 @@
   color: #fff;
   padding: 1rem 1rem 1rem 1.35rem;
   text-align: left;
-}
-
-.reference-started-session-card:hover,
-.reference-started-session-card:focus-visible {
-  filter: brightness(1.05);
-}
-
-.reference-started-session-card:active {
-  transform: scale(0.995);
 }
 
 .reference-started-session-card strong {
