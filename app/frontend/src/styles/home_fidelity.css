@@ -9,10 +9,6 @@
   font-weight: 600;
 }
 
-.ucs-logs-button:hover {
-  background: #d4ece7;
-}
-
 .ucs-logs-button md-icon {
   font-size: 1.05rem;
 }
@@ -23,16 +19,10 @@
   font-size: 0.72rem;
 }
 
-[data-theme="dark"] .ucs-logs-button:hover {
-  background: #1f4b4b;
-}
-
 [data-theme="dark"] .ucs-logs-count {
   background: rgb(127 215 191 / 22%);
 }
 
-.ucs-rail-button,
-.ucs-nav-item,
 .ucs-logs-button {
   position: relative;
 }
@@ -74,7 +64,6 @@
   border: 0;
   background: transparent;
   color: var(--idea-ref-blue);
-  cursor: pointer;
   font: inherit;
   font-size: 0.9rem;
   font-weight: 500;

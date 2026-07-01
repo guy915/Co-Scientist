@@ -39,9 +39,7 @@
 
   .home-shell .reference-recent-card {
     min-height: 0;
-    gap: 0.9rem;
     border-radius: 1rem;
-    padding: 1.25rem 1.4rem 1.35rem;
   }
 
   .home-shell .reference-recent-card {
@@ -56,11 +54,6 @@
     border-color: transparent;
     background: #1b2020;
     box-shadow: none;
-  }
-
-  .home-shell .reference-recent-meta,
-.home-shell .reference-recent-chips {
-    gap: 0.45rem;
   }
 
   .home-shell .reference-recent-meta span {
@@ -82,7 +75,6 @@
   }
 
   .home-shell .reference-recent-card > strong {
-    font-size: 1.18rem;
     font-weight: 650;
     line-height: 1.25;
     -webkit-line-clamp: 2;
@@ -92,9 +84,6 @@
     .reference-recent-card
     > span:not(.reference-recent-meta):not(.reference-recent-chips) {
     color: #5f6368;
-    font-size: 1rem;
-    line-height: 1.42;
-    -webkit-line-clamp: 4;
   }
 
   [data-theme="dark"]
@@ -105,16 +94,11 @@
   }
 
   .home-shell .reference-recent-chips span {
-    min-height: 1.82rem;
     align-items: center;
-    gap: 0.34rem;
     border-radius: 0.42rem;
     background: #d0f3ca;
     color: #174f2a;
-    padding: 0.34rem 0.58rem;
-    font-size: 0.76rem;
     font-weight: 650;
-    line-height: 1;
   }
 
   [data-theme="dark"] .home-shell .reference-recent-chips span {
@@ -146,20 +130,13 @@
     color: #8ab4f8;
   }
 
-  .home-shell .reference-recent-chips md-icon {
-    --md-icon-size: 18px;
-  }
-
   .home-shell .reference-recent-card .reference-winner-list {
     display: grid;
     max-height: none;
-    gap: 0.72rem;
     overflow: visible;
     margin: 0.15rem 0 0;
     padding: 0;
     color: #202124;
-    font-size: 0.9rem;
-    line-height: 1.34;
     list-style: none;
     scrollbar-width: auto;
   }

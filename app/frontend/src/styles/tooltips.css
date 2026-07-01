@@ -155,31 +155,3 @@
   font-size: 1.25rem;
   line-height: 1;
 }
-
-@media (min-width: 1181px) {
-  .home-shell .reference-home-stage {
-    justify-content: stretch;
-    padding-left: clamp(2rem, 3vw, 4rem);
-  }
-
-  .home-shell .reference-home-main {
-    height: 100%;
-    grid-template-rows: auto auto minmax(2rem, 1fr) auto;
-    padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
-  }
-
-  .home-shell .reference-suggestion-row {
-    align-self: end;
-    margin-top: 0;
-  }
-
-  .home-shell .reference-composer {
-    margin-top: clamp(1.25rem, 2.4vh, 1.9rem);
-  }
-
-  .home-shell .reference-recents > ol {
-    margin-left: 0;
-    padding-right: 0;
-    padding-left: 0;
-  }
-}

@@ -51,11 +51,6 @@
     transform 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-[data-theme="dark"] .ucs-rail-button,
-[data-theme="dark"] .ucs-nav-item {
-  color: #e8eaed;
-}
-
 .ucs-nav-items {
   gap: 0.85rem;
   margin-top: 1.4rem;
@@ -75,7 +70,6 @@
     padding 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.ucs-nav-item:hover,
 .ucs-nav-item.selected {
   background: transparent;
   color: #3c4043;

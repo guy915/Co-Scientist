@@ -334,15 +334,6 @@
     opacity 160ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.reference-attachment-card--image > button {
-  opacity: 0;
-}
-
-.reference-attachment-card--image:hover > button,
-.reference-attachment-card--image:focus-within > button {
-  opacity: 1;
-}
-
 [data-theme="dark"] .reference-attachment-card > button {
   background: #202124;
   color: #e8eaed;
