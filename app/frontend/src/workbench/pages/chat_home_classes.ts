@@ -12,8 +12,6 @@ export const HOME_STAGE_CLASSES =
   'grid-cols-[minmax(40rem,50.75rem)_minmax(17rem,21rem)] justify-center ' +
   'gap-[clamp(2.5rem,7vw,7.5rem)] overflow-hidden ' +
   'p-[1.15rem_1.5rem_clamp(1.6rem,4vh,2.6rem)] ' +
-  'min-[1500px]:!justify-start min-[1500px]:!gap-[clamp(16rem,17.5vw,21rem)] ' +
-  'min-[1500px]:!pl-[clamp(17rem,19.25vw,22.5rem)] min-[1500px]:!pr-5 ' +
   'min-[1181px]:[--home-recents-width:clamp(20.75rem,20vw,22rem)] ' +
   'min-[1181px]:!grid min-[1181px]:!h-full min-[1181px]:!min-h-0 ' +
   'min-[1181px]:!items-start min-[1181px]:!overflow-hidden ' +
