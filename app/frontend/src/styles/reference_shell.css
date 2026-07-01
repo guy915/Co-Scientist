@@ -87,6 +87,18 @@
   background: #dfeafc;
 }
 
+.home-shell.nav-open .ucs-nav-item {
+  justify-content: flex-start;
+}
+
+.home-shell.nav-open .ucs-nav-item md-icon {
+  flex: 0 0 auto;
+}
+
+.home-shell.nav-open .ucs-nav-top > .ucs-rail-button {
+  margin: 0;
+}
+
 .ucs-nav-bottom {
   position: relative;
   display: grid;
@@ -94,6 +106,10 @@
   gap: 0.8rem;
   justify-items: center;
   padding: 0;
+}
+
+.home-shell.nav-open .ucs-nav-bottom {
+  padding-inline: 0;
 }
 
 .ucs-workspace {
@@ -175,27 +191,70 @@
   top: 50%;
   right: 1.35rem;
   display: flex;
+  min-width: max-content;
   align-items: center;
   gap: 0.55rem;
   transform: translateY(-50%);
 }
 
 .ucs-logs-button {
+  position: relative;
   display: inline-flex;
+  height: 2.35rem;
+  min-width: max-content;
   align-items: center;
+  gap: 0.45rem;
   border: 0;
+  border-radius: 999px;
+  background: var(--cosci-teal-bg);
+  color: var(--cosci-teal-dark);
   font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
   cursor: pointer;
+  padding: 0 0.62rem 0 0.72rem;
   transition:
     background-color 180ms cubic-bezier(0.2, 0, 0, 1),
     color 180ms cubic-bezier(0.2, 0, 0, 1);
+  white-space: nowrap;
+}
+
+.ucs-logs-button:hover,
+.ucs-logs-button[aria-expanded="true"] {
+  background: #d4ece7;
+}
+
+.ucs-logs-button md-icon {
+  font-size: 1.05rem;
 }
 
 .ucs-logs-count {
   display: grid;
+  width: auto;
+  height: 1.38rem;
+  min-width: 1.35rem;
+  max-width: none;
   place-items: center;
   border-radius: 999px;
+  background: rgb(26 107 107 / 18%);
+  font-size: 0.72rem;
   line-height: 1;
+  padding: 0 0.42rem;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .ucs-logs-button {
+  background: #173b3b;
+  color: #7fd7bf;
+}
+
+[data-theme="dark"] .ucs-logs-button:hover,
+[data-theme="dark"] .ucs-logs-button[aria-expanded="true"] {
+  background: #1f4b4b;
+}
+
+[data-theme="dark"] .ucs-logs-count {
+  background: rgb(127 215 191 / 22%);
 }
 
 .ucs-popover {
@@ -302,6 +361,16 @@
   border: 1px solid #dadce0;
   background: #f8fafd;
   padding: 0.15rem;
+}
+
+.ucs-settings-control {
+  position: relative;
+  display: grid;
+  width: 100%;
+}
+
+.nav-collapsed .ucs-settings-control {
+  width: auto;
 }
 
 .ucs-theme-segment--inline button {

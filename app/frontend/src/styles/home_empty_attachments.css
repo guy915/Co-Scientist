@@ -107,11 +107,6 @@
   line-height: 1.35;
 }
 
-.home-shell .reference-suggestion-slot,
-.home-shell .reference-suggestion-slot button {
-  cursor: pointer;
-}
-
 .home-shell .reference-recents .google-recents-heading h2 {
   font-weight: 400;
 }

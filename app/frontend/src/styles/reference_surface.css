@@ -42,11 +42,6 @@ body {
   opacity: 1;
 }
 
-[data-theme="dark"] .gemini-chat-list a:hover {
-  background: #303134;
-  color: var(--cosci-text);
-}
-
 [data-theme="dark"] .ucs-workspace {
   background: var(--cosci-bg);
 }
@@ -199,7 +194,6 @@ body {
   background: #004b72;
 }
 
-[data-theme="dark"] .idea-split-grid.reference .idea-rank-row.selected,
 [data-theme="dark"] .idea-split-grid.reference .idea-rank-row:hover {
   border-color: #4aa5d8;
   background: #004b72;

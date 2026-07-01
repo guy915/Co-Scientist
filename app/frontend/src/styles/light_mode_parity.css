@@ -28,6 +28,15 @@
   min-width: 0;
 }
 
+.home-shell.nav-open .gemini-side-content {
+  max-height: 18rem;
+  margin-top: 0.85rem;
+}
+
+.home-shell.nav-open .gemini-chat-list {
+  gap: 0.35rem;
+}
+
 .gemini-chat-list a {
   position: relative;
   display: flex;
