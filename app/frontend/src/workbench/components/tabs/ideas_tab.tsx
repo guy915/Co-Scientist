@@ -4,6 +4,16 @@ import {useMemo, useState} from 'react';
 import type {CitationRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
+const IDEA_SPLIT_SHELL_CLASSES =
+  'idea-split-shell !h-full !rounded-none !border-0 !bg-[var(--cosci-bg)] !shadow-none';
+
+const IDEA_SPLIT_GRID_CLASSES =
+  'idea-split-grid reference !min-h-full ' +
+  '!grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_15rem] ' +
+  'max-[720px]:!grid-cols-1';
+
+const IDEA_SECTIONS_RAIL_CLASSES = 'idea-sections-rail max-[720px]:!hidden';
+
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
  *
@@ -44,8 +54,8 @@ export function IdeasTab({
   }
 
   return (
-    <div className="idea-split-shell">
-      <div className="idea-split-grid reference">
+    <div className={IDEA_SPLIT_SHELL_CLASSES}>
+      <div className={IDEA_SPLIT_GRID_CLASSES}>
         <ol className="idea-rank-list" aria-label="Ranked hypothesis list">
           {sorted.map((h, index) => (
             <IdeaListItem
@@ -205,7 +215,7 @@ function DetailSection({
 
 function SectionsRail() {
   return (
-    <aside className="idea-sections-rail" aria-label="Sections">
+    <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
       <span>Sections</span>
       {[
         'Hypothesis overview',

@@ -90,6 +90,25 @@ const RECENTS_HEADING_CLASSES =
 
 const RECENTS_LIST_CLASSES = 'min-[1181px]:!gap-[2.65rem]';
 
+const EMPTY_RECENTS_PANEL_CLASSES = `${RECENTS_PANEL_CLASSES} grid-rows-[auto_1fr] self-stretch pb-8`;
+
+const EMPTY_RECENTS_LIST_CLASSES = `${RECENTS_LIST_CLASSES} h-full !max-h-none !overflow-hidden !p-0`;
+
+const EMPTY_RECENTS_ITEM_CLASSES = 'h-full min-h-0';
+
+const EMPTY_RECENTS_CLASSES =
+  'reference-recents-empty box-border grid h-full min-h-[25rem] w-full ' +
+  'place-items-center content-center gap-4 rounded-[1.35rem] border-[1.5px] ' +
+  'border-dashed border-[#c7c9cc] bg-transparent p-6 text-center ' +
+  'text-[#5f6368] dark:border-[#53565a] dark:text-[#bdc1c6]';
+
+const EMPTY_RECENTS_ICON_CLASSES =
+  'reference-recents-empty-icon block h-[1.95rem] w-[2.1rem] ' +
+  'text-[var(--cosci-teal)] dark:text-[#7fd7bf]';
+
+const EMPTY_RECENTS_COPY_CLASSES =
+  'max-w-[17rem] text-base leading-[1.35] font-[650] text-inherit';
+
 const RECENT_CARD_CLASSES =
   'reference-recent-card min-[1181px]:!min-h-0 min-[1181px]:!rounded-2xl ' +
   'min-[1181px]:!border-[#eef1f4] min-[1181px]:!px-[1.15rem] ' +
@@ -162,6 +181,55 @@ const GENERATING_DOT_CLASSES =
   'min-[1181px]:!block min-[1181px]:!size-[0.6rem] ' +
   'min-[1181px]:!shrink-0 min-[1181px]:!rounded-full ' +
   'min-[1181px]:!bg-current min-[1181px]:!opacity-70';
+
+const REFERENCE_COMPOSER_ATTACHED_CLASSES =
+  'has-attachments !min-h-[13.5rem] !pt-4';
+
+const ATTACHMENT_STRIP_CLASSES =
+  'reference-attachment-strip flex min-w-0 gap-[0.8rem] overflow-x-auto ' +
+  'pb-[1.35rem] pointer-events-auto [scrollbar-width:none] ' +
+  '[&::-webkit-scrollbar]:hidden';
+
+const ATTACHMENT_CARD_CLASSES =
+  'reference-attachment-card group relative box-border grid h-[4.85rem] ' +
+  'w-[13.75rem] flex-none items-center rounded-2xl border-0 bg-[#eef2f8] ' +
+  'py-[0.85rem] pr-[3.2rem] pl-4 text-[#202124] dark:bg-[#303335] ' +
+  'dark:text-[#f1f3f4]';
+
+const ATTACHMENT_IMAGE_CARD_CLASSES =
+  'reference-attachment-card reference-attachment-card--image group relative ' +
+  'box-border grid size-[4.85rem] flex-none items-center overflow-hidden ' +
+  'rounded-2xl border-0 bg-[#eef2f8] p-0 text-[#202124] dark:bg-[#303335] ' +
+  'dark:text-[#f1f3f4]';
+
+const ATTACHMENT_PREVIEW_IMAGE_CLASSES = 'block size-full object-cover';
+
+const ATTACHMENT_TEXT_CLASSES =
+  'reference-attachment-text grid min-w-0 gap-[0.48rem]';
+
+const ATTACHMENT_NAME_CLASSES =
+  'overflow-hidden text-ellipsis whitespace-nowrap text-base font-medium ' +
+  'leading-[1.15]';
+
+const ATTACHMENT_META_CLASSES =
+  'flex min-w-0 items-center gap-[0.55rem] text-[0.9rem] leading-[1.2] ' +
+  'text-[#202124] dark:text-[#e8eaed]';
+
+const ATTACHMENT_EXTENSION_CLASSES =
+  'reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] ' +
+  'place-items-center rounded-[0.18rem] bg-[#7d8797] text-[0.48rem] ' +
+  'leading-none font-bold text-white';
+
+const ATTACHMENT_REMOVE_BUTTON_CLASSES =
+  'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] ' +
+  'cursor-pointer place-items-center rounded-full border-0 bg-white p-0 ' +
+  'text-[#3c4043] opacity-0 group-hover:opacity-100 ' +
+  'group-focus-within:opacity-100 hover:bg-[#f8fafd] ' +
+  'focus-visible:bg-[#f8fafd] focus-visible:outline-none dark:bg-[#202124] ' +
+  'dark:text-[#e8eaed] dark:hover:bg-[#3c4043] ' +
+  'dark:focus-visible:bg-[#3c4043]';
+
+const ATTACHMENT_REMOVE_ICON_CLASSES = 'text-[1.35rem]';
 
 /** The three phases of a session, shown on the home screen. */
 const SESSION_STEPS: ReadonlyArray<{
@@ -853,7 +921,14 @@ export function ChatWorkspace() {
   }, [startedSession]);
 
   const homeRecentRuns = showAllRecents ? history : history.slice(0, 4);
+  const hasHomeRecentRuns = homeRecentRuns.length > 0;
   const hasExtraRecents = history.length > 4;
+  const recentsPanelClassName = hasHomeRecentRuns
+    ? RECENTS_PANEL_CLASSES
+    : EMPTY_RECENTS_PANEL_CLASSES;
+  const recentsListClassName = hasHomeRecentRuns
+    ? RECENTS_LIST_CLASSES
+    : EMPTY_RECENTS_LIST_CLASSES;
   return (
     <div className="cosci-workspace">
       <main className="cosci-workspace-main">
@@ -933,7 +1008,7 @@ export function ChatWorkspace() {
               />
             </div>
 
-            <aside className={RECENTS_PANEL_CLASSES} aria-label="Recent runs">
+            <aside className={recentsPanelClassName} aria-label="Recent runs">
               <div className="google-recents-heading">
                 <md-icon
                   aria-hidden="true"
@@ -943,8 +1018,8 @@ export function ChatWorkspace() {
                 </md-icon>
                 <h2 className={RECENTS_HEADING_CLASSES}>Recents</h2>
               </div>
-              <ol className={RECENTS_LIST_CLASSES}>
-                {homeRecentRuns.length ? (
+              <ol className={recentsListClassName}>
+                {hasHomeRecentRuns ? (
                   homeRecentRuns.map(run => {
                     const topIdeas = homeRunIdeaTitles(run.research_goal);
                     const isActiveRun = isActiveHomeRun(run);
@@ -1032,13 +1107,15 @@ export function ChatWorkspace() {
                     );
                   })
                 ) : (
-                  <li>
-                    <div className="reference-recents-empty">
+                  <li className={EMPTY_RECENTS_ITEM_CLASSES}>
+                    <div className={EMPTY_RECENTS_CLASSES}>
                       <GoogleLabsIcon
                         aria-hidden="true"
-                        className="reference-recents-empty-icon"
+                        className={EMPTY_RECENTS_ICON_CLASSES}
                       />
-                      <strong>You have not started any sessions yet.</strong>
+                      <strong className={EMPTY_RECENTS_COPY_CLASSES}>
+                        You have not started any sessions yet.
+                      </strong>
                     </div>
                   </li>
                 )}
@@ -1267,50 +1344,63 @@ function Composer({
         className={[
           'reference-composer',
           input.trim() ? 'has-input' : '',
-          attachments.length ? 'has-attachments' : '',
+          attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
         ]
           .filter(Boolean)
           .join(' ')}
       >
         {attachments.length > 0 ? (
-          <div className="reference-attachment-strip" aria-label="Attachments">
+          <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
             {attachments.map(attachment =>
               attachment.isImage && attachment.previewUrl ? (
                 <div
                   className={tooltipClassNames({
-                    className:
-                      'reference-attachment-card reference-attachment-card--image',
+                    className: ATTACHMENT_IMAGE_CARD_CLASSES,
                     placement: 'top',
                     wrap: true,
                   })}
                   key={attachment.id}
                   data-tooltip={attachment.name}
                 >
-                  <img src={attachment.previewUrl} alt={attachment.name} />
+                  <img
+                    src={attachment.previewUrl}
+                    alt={attachment.name}
+                    className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
+                  />
                   <button
                     type="button"
-                    className={tooltipClassNames({placement: 'top'})}
+                    className={tooltipClassNames({
+                      className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
+                      placement: 'top',
+                    })}
                     aria-label={`Remove ${attachment.name}`}
                     data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
                   >
-                    <md-icon aria-hidden="true">close</md-icon>
+                    <md-icon
+                      aria-hidden="true"
+                      className={ATTACHMENT_REMOVE_ICON_CLASSES}
+                    >
+                      close
+                    </md-icon>
                   </button>
                 </div>
               ) : (
                 <div
                   className={tooltipClassNames({
-                    className: 'reference-attachment-card',
+                    className: ATTACHMENT_CARD_CLASSES,
                     placement: 'top',
                     wrap: true,
                   })}
                   key={attachment.id}
                   data-tooltip={attachment.name}
                 >
-                  <div className="reference-attachment-text">
-                    <strong>{attachment.name}</strong>
-                    <span>
-                      <span className="reference-attachment-extension">
+                  <div className={ATTACHMENT_TEXT_CLASSES}>
+                    <strong className={ATTACHMENT_NAME_CLASSES}>
+                      {attachment.name}
+                    </strong>
+                    <span className={ATTACHMENT_META_CLASSES}>
+                      <span className={ATTACHMENT_EXTENSION_CLASSES}>
                         {attachment.badge}
                       </span>
                       {attachment.kind}
@@ -1318,12 +1408,20 @@ function Composer({
                   </div>
                   <button
                     type="button"
-                    className={tooltipClassNames({placement: 'top'})}
+                    className={tooltipClassNames({
+                      className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
+                      placement: 'top',
+                    })}
                     aria-label={`Remove ${attachment.name}`}
                     data-tooltip={`Remove ${attachment.name}`}
                     onClick={() => removeAttachment(attachment.id)}
                   >
-                    <md-icon aria-hidden="true">close</md-icon>
+                    <md-icon
+                      aria-hidden="true"
+                      className={ATTACHMENT_REMOVE_ICON_CLASSES}
+                    >
+                      close
+                    </md-icon>
                   </button>
                 </div>
               ),

@@ -95,6 +95,50 @@ const DIAGNOSTIC_EMPTY_CLASSES =
   'py-[0.55rem] text-center text-[#0f5454] dark:bg-[#132927] ' +
   'dark:text-[#7fd7bf]';
 
+const WORKSPACE_CLASSES = 'ucs-workspace';
+
+const REPORT_WORKSPACE_CLASSES = 'ucs-workspace min-h-screen !overflow-hidden';
+
+const PAGE_CLASSES = 'ucs-page';
+
+const REPORT_PAGE_CLASSES =
+  'ucs-page !h-[calc(100vh-4.5rem)] min-h-0 !overflow-hidden !p-0';
+
+const SIDE_CONTENT_BASE_CLASSES =
+  'gemini-side-content grid min-w-0 gap-[0.35rem] overflow-hidden opacity-100 visible';
+
+const HOME_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-[0.85rem] max-h-72`;
+
+const REPORT_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-6 max-h-80`;
+
+const SIDE_HEADING_CLASSES =
+  'gemini-side-heading mt-4 mb-[0.4rem] text-[0.78rem] font-medium ' +
+  'text-[#5f6368] dark:text-[var(--cosci-subtle)]';
+
+const HOME_CHAT_LIST_CLASSES = 'gemini-chat-list grid min-w-0 gap-[0.35rem]';
+
+const REPORT_CHAT_LIST_CLASSES = 'gemini-chat-list grid min-w-0 gap-[0.1rem]';
+
+const CHAT_HISTORY_LINK_CLASSES =
+  'relative flex min-h-[2.35rem] min-w-0 items-center overflow-visible ' +
+  'rounded-full px-3 text-[0.86rem] leading-[2.35rem] text-[#3c4043] ' +
+  'no-underline hover:bg-[#dfeafc] hover:text-[#202124] ' +
+  'focus-visible:bg-[#dfeafc] focus-visible:text-[#202124] ' +
+  'dark:text-[var(--cosci-muted)] dark:hover:bg-[#303134] ' +
+  'dark:hover:text-[var(--cosci-text)] dark:focus-visible:bg-[#303134] ' +
+  'dark:focus-visible:text-[var(--cosci-text)]';
+
+const CHAT_HISTORY_LABEL_CLASSES =
+  'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap';
+
+const CHAT_HISTORY_MORE_CLASSES =
+  'justify-self-start rounded-full border-0 bg-transparent px-3 ' +
+  'py-[0.48rem] font-[inherit] text-[0.84rem] text-[#3c4043] ' +
+  'hover:bg-[#dfeafc] hover:text-[#202124] focus-visible:bg-[#dfeafc] ' +
+  'focus-visible:text-[#202124] dark:text-[var(--cosci-muted)] ' +
+  'dark:hover:bg-[#303134] dark:hover:text-[var(--cosci-text)] ' +
+  'dark:focus-visible:bg-[#303134] dark:focus-visible:text-[var(--cosci-text)]';
+
 function formatDiagnosticTime(date = new Date()): string {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
@@ -142,6 +186,16 @@ export function Layout({children}: {children: ReactNode}) {
   ).size;
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
+  const sideContentClasses = isRunRoute
+    ? REPORT_SIDE_CONTENT_CLASSES
+    : HOME_SIDE_CONTENT_CLASSES;
+  const chatListClasses = isRunRoute
+    ? REPORT_CHAT_LIST_CLASSES
+    : HOME_CHAT_LIST_CLASSES;
+  const workspaceClasses = isRunRoute
+    ? REPORT_WORKSPACE_CLASSES
+    : WORKSPACE_CLASSES;
+  const pageClasses = isRunRoute ? REPORT_PAGE_CLASSES : PAGE_CLASSES;
   const shellClass = [
     'google-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
@@ -315,25 +369,29 @@ export function Layout({children}: {children: ReactNode}) {
               <span className="nav-label">Search</span>
             </button>
           </nav>
-          <div className="gemini-side-content">
-            <p className="gemini-side-heading">Chats</p>
-            <div className="gemini-chat-list">
+          <div className={sideContentClasses}>
+            <p className={SIDE_HEADING_CLASSES}>Chats</p>
+            <div className={chatListClasses}>
               {visibleHistory.map(run => (
                 <Link
                   key={run.id}
                   to={`/runs/${run.id}/details`}
                   className={tooltipClassNames({
+                    className: CHAT_HISTORY_LINK_CLASSES,
                     placement: 'right',
                     wrap: true,
                   })}
                   data-tooltip={run.research_goal}
                 >
-                  <span>{conciseTitle(run.research_goal)}</span>
+                  <span className={CHAT_HISTORY_LABEL_CLASSES}>
+                    {conciseTitle(run.research_goal)}
+                  </span>
                 </Link>
               ))}
               {hasExtraChats && (
                 <button
                   type="button"
+                  className={CHAT_HISTORY_MORE_CLASSES}
                   onClick={() => setShowAllChats(current => !current)}
                 >
                   {showAllChats ? 'Show less' : 'Show more'}
@@ -392,7 +450,7 @@ export function Layout({children}: {children: ReactNode}) {
           </div>
         </div>
       </aside>
-      <section className="ucs-workspace">
+      <section className={workspaceClasses}>
         <header className="ucs-header-action-bar">
           <button
             type="button"
@@ -506,7 +564,7 @@ export function Layout({children}: {children: ReactNode}) {
             )}
           </div>
         </header>
-        <main className="ucs-page">{children}</main>
+        <main className={pageClasses}>{children}</main>
       </section>
     </div>
   );
