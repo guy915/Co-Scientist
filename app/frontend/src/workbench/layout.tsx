@@ -28,6 +28,73 @@ interface DiagnosticLogEventDetail {
   payload?: Record<string, unknown>;
 }
 
+const LOGS_POPOVER_CLASSES = [
+  'ucs-popover--logs',
+  'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
+  'max-h-[min(32rem,calc(100vh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
+  '!gap-0 overflow-hidden !p-0 dark:!border-[#33363b] dark:!bg-[#17181b]',
+  'max-[720px]:right-[-0.5rem] max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
+].join(' ');
+
+const DIAGNOSTIC_HEADER_CLASSES =
+  'ucs-diagnostic-header flex items-center justify-between gap-3 border-b ' +
+  'border-[#dfe3e7] px-4 py-3 dark:border-[#33363b] ' +
+  'max-[720px]:flex-col max-[720px]:items-start';
+
+const DIAGNOSTIC_INTRO_CLASSES =
+  'ucs-diagnostic-intro border-b border-[#dfe3e7] px-4 py-3 ' +
+  'dark:border-[#33363b]';
+
+const DIAGNOSTIC_TITLE_CLASSES =
+  'm-0 text-base font-semibold leading-tight text-[#202124] ' +
+  'dark:text-[#f1f3f4]';
+
+const DIAGNOSTIC_ACTIONS_CLASSES =
+  'ucs-diagnostic-actions flex flex-nowrap gap-[0.45rem]';
+
+const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
+  'inline-flex min-h-8 cursor-pointer items-center gap-[0.3rem] rounded-full ' +
+  'border border-[#9accc3] bg-white px-[0.7rem] text-[0.82rem] ' +
+  'font-semibold whitespace-nowrap text-[#0f5454] dark:border-[#315e57] ' +
+  'dark:bg-[#173b3b] dark:text-[#7fd7bf]';
+
+const DIAGNOSTIC_CHIPS_CLASSES =
+  'ucs-diagnostic-chips flex flex-wrap gap-[0.45rem]';
+
+const DIAGNOSTIC_CHIP_CLASSES =
+  'rounded-full bg-[#e0f2ef] px-2 py-[0.15rem] text-[0.7rem] font-semibold ' +
+  'whitespace-nowrap text-[#0f5454] dark:bg-[#173b3b] dark:text-[#7fd7bf]';
+
+const DIAGNOSTIC_ERROR_CHIP_CLASSES =
+  'rounded-full bg-[#f8d6d2] px-2 py-[0.15rem] text-[0.7rem] font-semibold ' +
+  'whitespace-nowrap text-[#9b1c13] dark:bg-[#5b2b2b] dark:text-[#ffb4aa]';
+
+const DIAGNOSTIC_LIST_CLASSES =
+  'ucs-diagnostic-list grid min-h-0 gap-2 overflow-auto px-4 pt-3 pb-4 ' +
+  '[scrollbar-color:#cfd8dc_transparent] [scrollbar-width:thin]';
+
+const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid gap-1';
+
+const DIAGNOSTIC_ENTRY_META_CLASSES =
+  'ucs-diagnostic-entry-meta grid grid-cols-[auto_auto_minmax(0,1fr)_auto] ' +
+  'items-center gap-2 text-[0.72rem] font-semibold text-[#4f5358] ' +
+  'dark:text-[#bdc1c6] max-[720px]:grid-cols-[auto_auto_minmax(0,1fr)]';
+
+const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
+
+const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
+  'max-[720px]:col-start-2 max-[720px]:col-end-[-1]';
+
+const DIAGNOSTIC_CODE_CLASSES =
+  'm-0 max-h-20 overflow-auto rounded-[0.55rem] bg-[#edf7f4] px-[0.7rem] ' +
+  'py-[0.55rem] font-mono text-[0.72rem] leading-[1.3] text-[#202124] ' +
+  'dark:bg-[#132927] dark:text-[#f1f3f4]';
+
+const DIAGNOSTIC_EMPTY_CLASSES =
+  'ucs-diagnostic-empty m-0 rounded-[0.55rem] bg-[#edf7f4] px-[0.7rem] ' +
+  'py-[0.55rem] text-center text-[#0f5454] dark:bg-[#132927] ' +
+  'dark:text-[#7fd7bf]';
+
 function formatDiagnosticTime(date = new Date()): string {
   return new Intl.DateTimeFormat(undefined, {
     hour: 'numeric',
@@ -350,47 +417,87 @@ export function Layout({children}: {children: ReactNode}) {
               <span className="ucs-logs-count">{logCount}</span>
             </button>
             {activePanel === 'logs' && (
-              <ShellPopover className="ucs-popover--logs">
-                <div className="ucs-diagnostic-header">
+              <ShellPopover className={LOGS_POPOVER_CLASSES}>
+                <div className={DIAGNOSTIC_HEADER_CLASSES}>
                   <div className="ucs-diagnostic-title">
-                    <h2>Diagnostic Logs</h2>
+                    <h2 className={DIAGNOSTIC_TITLE_CLASSES}>
+                      Diagnostic Logs
+                    </h2>
                   </div>
-                  <div className="ucs-diagnostic-actions">
-                    <button type="button" onClick={clearLogs}>
-                      <md-icon aria-hidden="true">refresh</md-icon>
+                  <div className={DIAGNOSTIC_ACTIONS_CLASSES}>
+                    <button
+                      type="button"
+                      className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
+                      onClick={clearLogs}
+                    >
+                      <md-icon aria-hidden="true" className="text-base">
+                        refresh
+                      </md-icon>
                       <span>Clear</span>
                     </button>
-                    <button type="button" onClick={copyLogs}>
-                      <md-icon aria-hidden="true">content_copy</md-icon>
+                    <button
+                      type="button"
+                      className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
+                      onClick={copyLogs}
+                    >
+                      <md-icon aria-hidden="true" className="text-base">
+                        content_copy
+                      </md-icon>
                       <span>{logsCopied ? 'Copied' : 'Copy'}</span>
                     </button>
                   </div>
                 </div>
-                <div className="ucs-diagnostic-intro">
-                  <div className="ucs-diagnostic-chips">
-                    <span>Total {logCount}</span>
-                    <span className={errorLogCount ? 'error' : undefined}>
+                <div className={DIAGNOSTIC_INTRO_CLASSES}>
+                  <div className={DIAGNOSTIC_CHIPS_CLASSES}>
+                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
+                      Total {logCount}
+                    </span>
+                    <span
+                      className={
+                        errorLogCount
+                          ? DIAGNOSTIC_ERROR_CHIP_CLASSES
+                          : DIAGNOSTIC_CHIP_CLASSES
+                      }
+                    >
                       Errors {errorLogCount}
                     </span>
-                    <span>Success {successLogCount}</span>
-                    <span>Info {infoLogCount}</span>
-                    <span>Runs {runLogCount}</span>
+                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
+                      Success {successLogCount}
+                    </span>
+                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
+                      Info {infoLogCount}
+                    </span>
+                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
+                      Runs {runLogCount}
+                    </span>
                   </div>
                 </div>
-                <div className="ucs-diagnostic-list" aria-label="Log events">
+                <div
+                  className={DIAGNOSTIC_LIST_CLASSES}
+                  aria-label="Log events"
+                >
                   {visibleLogEntries.map(entry => (
-                    <article key={entry.id} className="ucs-diagnostic-entry">
-                      <div className="ucs-diagnostic-entry-meta">
+                    <article
+                      key={entry.id}
+                      className={DIAGNOSTIC_ENTRY_CLASSES}
+                    >
+                      <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
                         <span>#{entry.id}</span>
                         <span>[{entry.time}]</span>
-                        <span>{entry.run}</span>
-                        <strong>{entry.stage}:</strong>
+                        <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>
+                          {entry.run}
+                        </span>
+                        <strong className={DIAGNOSTIC_ENTRY_STAGE_CLASSES}>
+                          {entry.stage}:
+                        </strong>
                       </div>
-                      <pre>{JSON.stringify(entry.payload, null, 2)}</pre>
+                      <pre className={DIAGNOSTIC_CODE_CLASSES}>
+                        {JSON.stringify(entry.payload, null, 2)}
+                      </pre>
                     </article>
                   ))}
                   {visibleLogEntries.length === 0 && (
-                    <p className="ucs-diagnostic-empty">
+                    <p className={DIAGNOSTIC_EMPTY_CLASSES}>
                       No diagnostic events loaded.
                     </p>
                   )}

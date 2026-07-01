@@ -9,7 +9,6 @@ import '@material/web/iconbutton/icon-button.js';
 import {
   Fragment,
   type ChangeEvent,
-  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
   type ReactNode,
@@ -79,6 +78,90 @@ const SUGGESTIONS = [
 
 const COMPOSER_CONNECTORS = ['PubMed'];
 const BASELINE_ELO_RATING = 1200;
+
+const RECENTS_PANEL_CLASSES = 'reference-recents min-[1181px]:!gap-[1.55rem]';
+
+const RECENTS_HEADING_ICON_CLASSES =
+  '[--md-icon-size:20px] min-[1181px]:[--md-icon-size:22px]';
+
+const RECENTS_HEADING_CLASSES =
+  '!font-normal min-[1181px]:!text-[1.22rem] min-[1181px]:!font-medium ' +
+  'min-[1181px]:!leading-[1.2]';
+
+const RECENTS_LIST_CLASSES = 'min-[1181px]:!gap-[2.65rem]';
+
+const RECENT_CARD_CLASSES =
+  'reference-recent-card min-[1181px]:!min-h-0 min-[1181px]:!rounded-2xl ' +
+  'min-[1181px]:!border-[#eef1f4] min-[1181px]:!px-[1.15rem] ' +
+  'min-[1181px]:!pt-[1.05rem] min-[1181px]:!pb-[1.12rem] ' +
+  'min-[1181px]:hover:!border-[#dadce0] min-[1181px]:hover:!bg-[#f8fafd] ' +
+  'min-[1181px]:focus-visible:!border-[#dadce0] ' +
+  'min-[1181px]:focus-visible:!bg-[#f8fafd] ' +
+  'dark:min-[1181px]:!border-transparent dark:min-[1181px]:!bg-[#17191c] ' +
+  'dark:min-[1181px]:hover:!border-[#3c4043] ' +
+  'dark:min-[1181px]:hover:!bg-[#202124] ' +
+  'dark:min-[1181px]:focus-visible:!border-[#3c4043] ' +
+  'dark:min-[1181px]:focus-visible:!bg-[#202124]';
+
+const ACTIVE_RECENT_CARD_CLASSES = `${RECENT_CARD_CLASSES} is-active-run`;
+
+const RECENT_META_CLASSES = 'reference-recent-meta !gap-[0.35rem]';
+
+const RECENT_META_CHIP_CLASSES =
+  'min-[1181px]:!bg-[#f1f4f7] min-[1181px]:!px-[0.62rem] ' +
+  'min-[1181px]:!py-[0.38rem] min-[1181px]:!text-[0.78rem] ' +
+  'min-[1181px]:!leading-[1.1] min-[1181px]:!text-[#3c4043] ' +
+  'dark:min-[1181px]:!bg-[#303335] dark:min-[1181px]:!text-[#f1f3f4]';
+
+const RECENT_TITLE_CLASSES = '!text-[1.08rem]';
+
+const RECENT_DESCRIPTION_CLASSES =
+  '!text-[0.94rem] !leading-[1.34] ![-webkit-line-clamp:3]';
+
+const RECENT_CHIPS_CLASSES =
+  'reference-recent-chips !flex-nowrap !items-center !gap-[0.35rem]';
+
+const RECENT_CHIP_CLASSES =
+  'min-[1181px]:!flex-none min-[1181px]:!min-h-[1.62rem] ' +
+  'min-[1181px]:!px-[0.42rem] min-[1181px]:!py-[0.26rem] ' +
+  'min-[1181px]:!text-[0.68rem] min-[1181px]:!leading-none ' +
+  'min-[1181px]:!whitespace-nowrap dark:min-[1181px]:!bg-[#0b8043] ' +
+  'dark:min-[1181px]:!text-[#e6f4ea]';
+
+const RECENT_CHIP_ICON_CLASSES = '[--md-icon-size:16px]';
+
+const ACTIVE_PROGRESS_CLASSES =
+  'reference-active-progress min-[1181px]:!mt-[0.05rem] min-[1181px]:!flex ' +
+  'min-[1181px]:!items-center min-[1181px]:!gap-[0.65rem] ' +
+  'min-[1181px]:!text-[0.92rem] min-[1181px]:!font-medium ' +
+  'min-[1181px]:!leading-[1.25] min-[1181px]:!text-[#1967d2] ' +
+  'dark:min-[1181px]:!text-[#8fd8c7]';
+
+const ACTIVE_PROGRESS_DOT_CLASSES =
+  'min-[1181px]:!block min-[1181px]:!size-[0.7rem] ' +
+  'min-[1181px]:!shrink-0 min-[1181px]:!rounded-full ' +
+  'min-[1181px]:!bg-current';
+
+const WINNER_LIST_CLASSES =
+  'reference-winner-list min-[1181px]:!gap-2 min-[1181px]:!text-[0.84rem] ' +
+  'min-[1181px]:!leading-[1.25] min-[1181px]:!text-[#202124] ' +
+  'dark:min-[1181px]:!text-[#f1f3f4]';
+
+const WINNER_LIST_ITEM_CLASSES =
+  'min-[1181px]:!grid min-[1181px]:!grid-cols-[1.4rem_minmax(0,1fr)] ' +
+  'min-[1181px]:!gap-[0.2rem]';
+
+const GENERATING_ROW_CLASSES =
+  'reference-generating-row min-[1181px]:!grid ' +
+  'min-[1181px]:!grid-cols-[0.75rem_minmax(0,1fr)] ' +
+  'min-[1181px]:!items-center min-[1181px]:!gap-[0.65rem] ' +
+  'min-[1181px]:!font-medium min-[1181px]:!text-[#137333] ' +
+  'dark:min-[1181px]:!text-[#8fd8c7]';
+
+const GENERATING_DOT_CLASSES =
+  'min-[1181px]:!block min-[1181px]:!size-[0.6rem] ' +
+  'min-[1181px]:!shrink-0 min-[1181px]:!rounded-full ' +
+  'min-[1181px]:!bg-current min-[1181px]:!opacity-70';
 
 /** The three phases of a session, shown on the home screen. */
 const SESSION_STEPS: ReadonlyArray<{
@@ -850,17 +933,17 @@ export function ChatWorkspace() {
               />
             </div>
 
-            <aside className="reference-recents" aria-label="Recent runs">
+            <aside className={RECENTS_PANEL_CLASSES} aria-label="Recent runs">
               <div className="google-recents-heading">
                 <md-icon
                   aria-hidden="true"
-                  style={{'--md-icon-size': '20px'} as CSSProperties}
+                  className={RECENTS_HEADING_ICON_CLASSES}
                 >
                   history
                 </md-icon>
-                <h2>Recents</h2>
+                <h2 className={RECENTS_HEADING_CLASSES}>Recents</h2>
               </div>
-              <ol>
+              <ol className={RECENTS_LIST_CLASSES}>
                 {homeRecentRuns.length ? (
                   homeRecentRuns.map(run => {
                     const topIdeas = homeRunIdeaTitles(run.research_goal);
@@ -872,47 +955,72 @@ export function ChatWorkspace() {
                           to={`/runs/${run.id}/details`}
                           className={
                             isActiveRun
-                              ? 'reference-recent-card is-active-run'
-                              : 'reference-recent-card'
+                              ? ACTIVE_RECENT_CARD_CLASSES
+                              : RECENT_CARD_CLASSES
                           }
                           title={run.research_goal}
                         >
-                          <span className="reference-recent-meta">
-                            <span>{formatHomeRunDate(run.updated_at)}</span>
-                            <span>{formatHomeRunTimeChip(run)}</span>
+                          <span className={RECENT_META_CLASSES}>
+                            <span className={RECENT_META_CHIP_CLASSES}>
+                              {formatHomeRunDate(run.updated_at)}
+                            </span>
+                            <span className={RECENT_META_CHIP_CLASSES}>
+                              {formatHomeRunTimeChip(run)}
+                            </span>
                           </span>
-                          <strong>{conciseTitle(run.research_goal)}</strong>
-                          <span>{run.research_goal}</span>
+                          <strong className={RECENT_TITLE_CLASSES}>
+                            {conciseTitle(run.research_goal)}
+                          </strong>
+                          <span className={RECENT_DESCRIPTION_CLASSES}>
+                            {run.research_goal}
+                          </span>
                           {isActiveRun ? (
-                            <div className="reference-active-progress">
-                              <span aria-hidden="true" />
+                            <div className={ACTIVE_PROGRESS_CLASSES}>
+                              <span
+                                aria-hidden="true"
+                                className={ACTIVE_PROGRESS_DOT_CLASSES}
+                              />
                               <span>In Progress: {homeRunProgress(run)}%</span>
                             </div>
                           ) : (
-                            <span className="reference-recent-chips">
-                              <span>
-                                <md-icon aria-hidden="true">
+                            <span className={RECENT_CHIPS_CLASSES}>
+                              <span className={RECENT_CHIP_CLASSES}>
+                                <md-icon
+                                  aria-hidden="true"
+                                  className={RECENT_CHIP_ICON_CLASSES}
+                                >
                                   emoji_events
                                 </md-icon>
                                 Winning ideas
                               </span>
                               {topScore !== null && (
-                                <span>
-                                  <md-icon aria-hidden="true">stars</md-icon>
+                                <span className={RECENT_CHIP_CLASSES}>
+                                  <md-icon
+                                    aria-hidden="true"
+                                    className={RECENT_CHIP_ICON_CLASSES}
+                                  >
+                                    stars
+                                  </md-icon>
                                   Top score: {topScore}
                                 </span>
                               )}
                             </span>
                           )}
-                          <ol className="reference-winner-list">
+                          <ol className={WINNER_LIST_CLASSES}>
                             {isActiveRun ? (
-                              <li className="reference-generating-row">
-                                <span aria-hidden="true" />
+                              <li className={GENERATING_ROW_CLASSES}>
+                                <span
+                                  aria-hidden="true"
+                                  className={GENERATING_DOT_CLASSES}
+                                />
                                 <span>Generating hypotheses</span>
                               </li>
                             ) : (
                               topIdeas.map((idea, index) => (
-                                <li key={idea}>
+                                <li
+                                  key={idea}
+                                  className={WINNER_LIST_ITEM_CLASSES}
+                                >
                                   <span>{index + 1}.</span>
                                   <span>{idea}</span>
                                 </li>
