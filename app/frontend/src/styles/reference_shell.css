@@ -35,7 +35,6 @@
 
 .ucs-rail-button,
 .ucs-nav-item,
-.ucs-header-icon,
 .reference-composer-actions button {
   display: grid;
   width: 2.5rem;
@@ -53,8 +52,7 @@
 }
 
 [data-theme="dark"] .ucs-rail-button,
-[data-theme="dark"] .ucs-nav-item,
-[data-theme="dark"] .ucs-header-icon {
+[data-theme="dark"] .ucs-nav-item {
   color: #e8eaed;
 }
 
@@ -159,35 +157,6 @@
   transform: translateY(-50%);
 }
 
-.ucs-icon-action {
-  display: grid;
-  width: 2.5rem;
-  height: 2.5rem;
-  place-items: center;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: #5f6368;
-  padding: 0;
-  cursor: pointer;
-}
-
-.ucs-icon-action:hover {
-  background: #f1f3f4;
-}
-
-.ucs-icon-action md-icon {
-  font-size: 1.45rem;
-}
-
-[data-theme="dark"] .ucs-icon-action {
-  color: var(--cosci-muted);
-}
-
-[data-theme="dark"] .ucs-icon-action:hover {
-  background: #303134;
-}
-
 .ucs-logs-button {
   display: inline-flex;
   align-items: center;
@@ -228,11 +197,6 @@
   background: #202124;
   color: #e8eaed;
   box-shadow: 0 8px 24px rgb(0 0 0 / 36%);
-}
-
-.ucs-popover--header {
-  top: calc(100% + 0.4rem);
-  right: 0;
 }
 
 .ucs-popover--rail {
@@ -310,10 +274,6 @@
 [data-theme="dark"] .ucs-theme-segment--inline {
   border-color: #3c4043;
   background: #171717;
-}
-
-.ucs-mobile-action {
-  display: none;
 }
 
 .ucs-page {

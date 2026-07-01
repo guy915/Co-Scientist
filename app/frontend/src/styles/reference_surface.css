@@ -24,8 +24,7 @@ body {
   background: var(--cosci-rail) !important;
 }
 
-[data-theme="dark"] .ucs-rail-button,
-[data-theme="dark"] .ucs-header-icon {
+[data-theme="dark"] .ucs-rail-button {
   color: var(--cosci-muted);
 }
 
@@ -43,26 +42,9 @@ body {
   opacity: 1;
 }
 
-[data-theme="dark"] .gemini-side-row.selected,
 [data-theme="dark"] .gemini-chat-list a:hover {
   background: #303134;
   color: var(--cosci-text);
-}
-
-[data-theme="dark"] .gemini-agent-dot {
-  color: var(--cosci-muted);
-}
-
-[data-theme="dark"] .gemini-agent-dot.deep {
-  background: #8ab4f8;
-}
-
-[data-theme="dark"] .gemini-agent-dot.notebook {
-  background: #81c995;
-}
-
-[data-theme="dark"] .gemini-agent-dot.cosci {
-  background: var(--cosci-green);
 }
 
 [data-theme="dark"] .ucs-workspace {
@@ -209,14 +191,8 @@ body {
   color: var(--cosci-blue);
 }
 
-[data-theme="dark"] .reference-started-message,
-[data-theme="dark"] .reference-started-label {
+[data-theme="dark"] .reference-started-message {
   color: var(--cosci-text);
-}
-
-[data-theme="dark"] .reference-started-label > span {
-  background: #173b3b;
-  color: #7fd7bf;
 }
 
 [data-theme="dark"] .reference-started-copy p {

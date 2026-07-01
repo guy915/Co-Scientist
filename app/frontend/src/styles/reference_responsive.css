@@ -11,9 +11,6 @@
     padding-inline: 0;
   }
 
-  .cosci-workspace.with-panel {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 @media (max-width: 780px) {
@@ -42,20 +39,12 @@
     display: none;
   }
 
-  .ucs-mobile-action {
-    display: block;
-  }
-
   .ucs-nav-items {
     margin: 0;
   }
 
   .ucs-header-action-bar {
     position: sticky;
-  }
-
-  .ucs-mobile-brand {
-    display: inline-flex;
   }
 
   .ucs-header-title {
@@ -66,16 +55,7 @@
     padding: 1rem;
   }
 
-  .google-home-stage {
-    min-height: auto;
-    align-content: start;
-    padding-block: 1rem;
-  }
-
-  .google-step-grid,
   .reference-home-stage,
-  .google-focus-tier-grid,
-  .google-stat-grid,
   .idea-split-grid {
     grid-template-columns: 1fr;
   }
@@ -113,22 +93,6 @@
     gap: 0.9rem;
   }
 
-  .reference-results-header {
-    padding: 0 1rem;
-  }
-
-  .reference-results-header > a {
-    display: none;
-  }
-
-  .reference-results-title strong {
-    max-width: 12rem;
-  }
-
-  .reference-results-page .idea-split-shell {
-    height: auto;
-  }
-
   .idea-split-grid.reference .idea-rank-list {
     max-height: 24rem;
   }
@@ -140,18 +104,6 @@
   .idea-rank-list {
     border-right: 0;
     border-bottom: 1px solid var(--md-sys-color-outline-variant);
-  }
-
-  .run-detail-hero-grid,
-  .google-page-hero,
-  .idea-split-toolbar,
-  .google-run-chat-header {
-    flex-direction: column;
-  }
-
-  .run-detail-actions,
-  .run-session-tile {
-    width: 100%;
   }
 
   .google-spec-row {

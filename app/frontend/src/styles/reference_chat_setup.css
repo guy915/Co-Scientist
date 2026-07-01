@@ -148,14 +148,6 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.34);
 }
 
-.reference-assistant-label {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  color: #3c4043;
-  font-weight: 500;
-}
-
 .reference-setup-message > p {
   margin: 0;
   font-size: 1rem;
@@ -370,29 +362,6 @@
   color: #202124;
 }
 
-.reference-started-label {
-  display: flex;
-  align-items: center;
-  gap: 0.9rem;
-  color: #202124;
-  font-size: 1rem;
-}
-
-.reference-started-label > span {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 999px;
-  background: var(--cosci-teal-bg);
-  color: var(--cosci-teal);
-}
-
-.reference-started-label svg {
-  width: 1.25rem;
-  height: 1.25rem;
-}
-
 .reference-started-copy {
   display: grid;
   gap: 0.1rem;
@@ -431,21 +400,6 @@
 
 .reference-started-session-card:active {
   transform: scale(0.995);
-}
-
-.reference-started-session-icon {
-  display: grid;
-  width: 2rem;
-  height: 2rem;
-  place-items: center;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.88);
-  color: var(--cosci-teal);
-}
-
-.reference-started-session-icon svg {
-  width: 1.15rem;
-  height: 1.15rem;
 }
 
 .reference-started-session-card strong {

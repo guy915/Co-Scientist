@@ -94,49 +94,6 @@ body {
   border-color: var(--color-th-border);
 }
 
-/* Button variants */
-.btn-default {
-  background-color: var(--color-th-primary);
-  color: var(--color-th-primary-fg);
-}
-.btn-default:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.btn-destructive {
-  background-color: var(--color-th-destructive);
-  color: var(--color-th-destructive-fg);
-}
-.btn-destructive:hover:not(:disabled) {
-  opacity: 0.9;
-}
-
-.btn-outline {
-  border-color: var(--color-th-input);
-  background-color: var(--color-th-bg);
-}
-.btn-outline:hover:not(:disabled) {
-  background-color: var(--color-th-accent);
-  color: var(--color-th-accent-fg);
-}
-
-.btn-secondary {
-  background-color: var(--color-th-secondary);
-  color: var(--color-th-secondary-fg);
-}
-.btn-secondary:hover:not(:disabled) {
-  opacity: 0.8;
-}
-
-.btn-ghost:hover:not(:disabled) {
-  background-color: var(--color-th-accent);
-  color: var(--color-th-accent-fg);
-}
-
-.btn-link {
-  color: var(--color-th-primary);
-}
-
 /* Focus ring using theme color */
 .focus-visible\:ring-ring:focus-visible {
   --tw-ring-color: var(--color-th-ring);
@@ -158,15 +115,6 @@ body {
     opacity: 0.55;
     transform: scale(0.85);
   }
-}
-
-.wb-live-dot {
-  display: inline-block;
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 9999px;
-  background-color: var(--color-th-success);
-  animation: wb-pulse 1.4s ease-in-out infinite;
 }
 
 @keyframes wb-fade-in {
