@@ -81,7 +81,6 @@
 :root[data-theme="dark"] {
   --cosci-bg: #131314;
   --cosci-rail: #1e1f20;
-  --cosci-surface: #1b1c1d;
   --cosci-panel: #202124;
   --cosci-panel-2: #282a2c;
   --cosci-border: #3c4043;
@@ -92,7 +91,6 @@
   --cosci-blue-strong: #8ab4f8;
   --cosci-hover: #303134;
   --cosci-green: #7fd7bf;
-  --cosci-green-bg: #173b3b;
   --cosci-shell-icon: var(--cosci-muted);
   --cosci-shell-hover-bg: #303134;
   --cosci-shell-hover-text: var(--cosci-text);

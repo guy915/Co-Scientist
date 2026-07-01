@@ -1,20 +1,12 @@
 /* Reference-match pass: Google AI Co-Scientist shell */
 :root {
   --idea-ref-rail: #eef4ff;
-  --idea-ref-green: #1a6b6b;
-  --idea-ref-green-dark: #0f5454;
-  --idea-ref-green-bg: #e0f2ef;
   --cosci-teal: #1a6b6b;
   --cosci-teal-dark: #0f5454;
   --cosci-teal-bg: #e0f2ef;
   --cosci-green: #7fd7bf;
-  --cosci-green-bg: #173b3b;
   --idea-ref-blue: #0b57d0;
-  --idea-ref-blue-bg: #c2e7ff;
   --idea-ref-card-bg: #f1f4fa;
-  --idea-ref-text: #1f1f1f;
-  --idea-ref-muted: #5f6368;
-  --idea-ref-border: #dadce0;
 }
 
 .google-app-shell {

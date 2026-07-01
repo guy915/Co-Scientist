@@ -173,7 +173,6 @@
   }
 
   .home-shell .reference-home-stage {
-    --home-main-width: clamp(34rem, 52vw, 50.75rem);
     --home-recents-width: clamp(20.75rem, 20vw, 22rem);
     grid-template-columns:
       minmax(0, 1fr)
