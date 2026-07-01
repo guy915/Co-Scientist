@@ -372,6 +372,7 @@
   border-radius: 999px;
   background: transparent;
   color: #3c4043;
+  cursor: pointer;
   padding: 0 1.45rem;
   font-weight: 500;
 }
@@ -380,6 +381,20 @@
   border-color: var(--idea-ref-blue);
   background: var(--idea-ref-blue);
   color: #fff;
+}
+
+.reference-setup-actions button:last-child:hover:not(:disabled),
+.reference-setup-actions button:last-child:focus-visible:not(:disabled) {
+  border-color: #0842a0;
+  background: #0842a0;
+  color: #fff;
+}
+
+.reference-setup-actions button:disabled {
+  border-color: #dadce0;
+  background: #f1f3f4;
+  color: #9aa0a6;
+  cursor: default;
 }
 
 .reference-started-message {

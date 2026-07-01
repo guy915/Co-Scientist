@@ -39,7 +39,37 @@
 }
 
 .idea-split-grid.reference .idea-rank-row.selected {
+  border-color: #8ab4f8;
+  background: #f1f8fc;
   box-shadow: none;
+}
+
+.idea-split-grid.reference .idea-rank-row:hover {
+  border-color: #dadce0;
+  background: #f1f3f4;
+}
+
+.idea-split-grid.reference .idea-rank-row.selected:hover {
+  border-color: #8ab4f8;
+  background:
+    linear-gradient(rgb(60 64 67 / 7%), rgb(60 64 67 / 7%)),
+    #f1f8fc;
+}
+
+[data-theme="dark"] .idea-split-grid.reference .idea-rank-row:hover {
+  border-color: #3c4043;
+  background: #2a2d2f;
+}
+
+[data-theme="dark"] .idea-split-grid.reference .idea-rank-row.selected {
+  border-color: #4aa5d8;
+  background: #004b72;
+}
+
+[data-theme="dark"] .idea-split-grid.reference .idea-rank-row.selected:hover {
+  background:
+    linear-gradient(rgb(255 255 255 / 9%), rgb(255 255 255 / 9%)),
+    #004b72;
 }
 
 .idea-split-grid.reference .idea-rank-number,
