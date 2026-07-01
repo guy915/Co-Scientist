@@ -14,9 +14,21 @@
   --reference-setup-radio-shadow: #e5eefc;
   --reference-setup-action-border: #9aa0a6;
   --reference-setup-action-text: #3c4043;
+  --reference-setup-disabled-border: #dadce0;
+  --reference-setup-disabled-bg: #f1f3f4;
+  --reference-setup-disabled-text: #9aa0a6;
   --reference-setup-primary: var(--idea-ref-blue);
   --reference-setup-primary-hover: #0842a0;
   --reference-setup-primary-text: #fff;
+  --reference-message-action-text: #5f6368;
+  --reference-message-action-hover-bg: #f1f3f4;
+  --reference-message-action-hover-text: #202124;
+  --reference-message-actions-border: #dadce0;
+  --reference-message-actions-bg: #fff;
+  --reference-message-actions-shadow: 0 1px 3px rgba(60, 64, 67, 0.18);
+  --reference-plan-edit-text: #5f6368;
+  --reference-plan-edit-hover-bg: #eef4f3;
+  --reference-plan-edit-hover-text: #1a6b6b;
   --reference-started-action-border: #1a73e8;
   --reference-started-action-text: #1967d2;
   --reference-started-action-hover: #e8f0fe;
@@ -49,9 +61,21 @@
   --reference-setup-radio-shadow: #1f2224;
   --reference-setup-action-border: var(--cosci-border);
   --reference-setup-action-text: var(--cosci-text);
+  --reference-setup-disabled-border: #3c4043;
+  --reference-setup-disabled-bg: #202124;
+  --reference-setup-disabled-text: #5f6368;
   --reference-setup-primary: #1d3354;
   --reference-setup-primary-hover: rgba(127, 215, 191, 0.14);
   --reference-setup-primary-text: var(--cosci-blue);
+  --reference-message-action-text: #bdc1c6;
+  --reference-message-action-hover-bg: #303134;
+  --reference-message-action-hover-text: #e8eaed;
+  --reference-message-actions-border: #3c4043;
+  --reference-message-actions-bg: #202124;
+  --reference-message-actions-shadow: 0 1px 4px rgba(0, 0, 0, 0.34);
+  --reference-plan-edit-text: #bdc1c6;
+  --reference-plan-edit-hover-bg: #2a2d2f;
+  --reference-plan-edit-hover-text: #8fd8c7;
   --reference-started-action-border: #7fd7bf;
   --reference-started-action-text: #7fd7bf;
   --reference-started-action-hover: rgba(127, 215, 191, 0.14);
@@ -169,7 +193,7 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #5f6368;
+  color: var(--reference-message-action-text);
   padding: 0;
   transition:
     background-color 160ms ease,
@@ -178,8 +202,8 @@
 
 .reference-message-actions button:hover,
 .reference-message-actions button:focus-visible {
-  background: #f1f3f4;
-  color: #202124;
+  background: var(--reference-message-action-hover-bg);
+  color: var(--reference-message-action-hover-text);
 }
 
 .reference-message-actions md-icon {
@@ -191,10 +215,10 @@
   top: 50%;
   right: calc(min(31rem, 72vw) + 0.4rem);
   z-index: 2;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--reference-message-actions-border);
   border-radius: 999px;
-  background: #fff;
-  box-shadow: 0 1px 3px rgba(60, 64, 67, 0.18);
+  background: var(--reference-message-actions-bg);
+  box-shadow: var(--reference-message-actions-shadow);
   opacity: 0;
   padding: 0.1rem;
   pointer-events: none;
@@ -209,22 +233,6 @@
   opacity: 1;
   pointer-events: auto;
   transform: translateY(-50%) scale(1);
-}
-
-[data-theme="dark"] .reference-message-actions button {
-  color: #bdc1c6;
-}
-
-[data-theme="dark"] .reference-message-actions button:hover,
-[data-theme="dark"] .reference-message-actions button:focus-visible {
-  background: #303134;
-  color: #e8eaed;
-}
-
-[data-theme="dark"] .reference-bubble-row.user .reference-message-actions {
-  border-color: #3c4043;
-  background: #202124;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.34);
 }
 
 .reference-setup-message > p {
@@ -266,7 +274,7 @@
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: #5f6368;
+  color: var(--reference-plan-edit-text);
   cursor: pointer;
 }
 
@@ -276,18 +284,8 @@
 
 .reference-plan-edit:hover,
 .reference-plan-edit:focus-visible {
-  background: #eef4f3;
-  color: #1a6b6b;
-}
-
-[data-theme="dark"] .reference-plan-edit {
-  color: #bdc1c6;
-}
-
-[data-theme="dark"] .reference-plan-edit:hover,
-[data-theme="dark"] .reference-plan-edit:focus-visible {
-  background: #2a2d2f;
-  color: #8fd8c7;
+  background: var(--reference-plan-edit-hover-bg);
+  color: var(--reference-plan-edit-hover-text);
 }
 
 .reference-plan-subheading {
@@ -468,16 +466,10 @@
 }
 
 .reference-setup-actions button:disabled {
-  border-color: #dadce0;
-  background: #f1f3f4;
-  color: #9aa0a6;
+  border-color: var(--reference-setup-disabled-border);
+  background: var(--reference-setup-disabled-bg);
+  color: var(--reference-setup-disabled-text);
   cursor: default;
-}
-
-[data-theme="dark"] .reference-setup-actions button:disabled {
-  border-color: #3c4043;
-  background: #202124;
-  color: #5f6368;
 }
 
 .reference-started-message {

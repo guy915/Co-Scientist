@@ -16,7 +16,7 @@
   gap: 0.7rem;
   overflow-y: auto;
   margin: 0;
-  border-right: 1px solid #dadce0;
+  border-right: 1px solid var(--idea-list-border);
   background: transparent;
   padding: 1.25rem 1.5rem 1.25rem 1.25rem;
   list-style: none;
@@ -29,47 +29,29 @@
   grid-template-columns: 1.75rem minmax(0, 1fr);
   gap: 0.65rem;
   align-items: start;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--idea-row-border);
   border-radius: 0.5rem;
-  background: #fff;
-  color: var(--md-sys-color-on-surface);
+  background: var(--idea-row-bg);
+  color: var(--idea-row-text);
   cursor: pointer;
   padding: 0.9rem;
   text-align: left;
 }
 
 .idea-split-grid.reference .idea-rank-row.selected {
-  border-color: #8ab4f8;
-  background: #f1f8fc;
+  border-color: var(--idea-row-selected-border);
+  background: var(--idea-row-selected-bg);
   box-shadow: none;
 }
 
 .idea-split-grid.reference .idea-rank-row:hover {
-  border-color: #dadce0;
-  background: #f1f3f4;
+  border-color: var(--idea-row-hover-border);
+  background: var(--idea-row-hover-bg);
 }
 
 .idea-split-grid.reference .idea-rank-row.selected:hover {
-  border-color: #8ab4f8;
-  background:
-    linear-gradient(rgb(60 64 67 / 7%), rgb(60 64 67 / 7%)),
-    #f1f8fc;
-}
-
-[data-theme="dark"] .idea-split-grid.reference .idea-rank-row:hover {
-  border-color: #3c4043;
-  background: #2a2d2f;
-}
-
-[data-theme="dark"] .idea-split-grid.reference .idea-rank-row.selected {
-  border-color: #4aa5d8;
-  background: #004b72;
-}
-
-[data-theme="dark"] .idea-split-grid.reference .idea-rank-row.selected:hover {
-  background:
-    linear-gradient(rgb(255 255 255 / 9%), rgb(255 255 255 / 9%)),
-    #004b72;
+  border-color: var(--idea-row-selected-border);
+  background: var(--idea-row-selected-hover-bg);
 }
 
 .idea-split-grid.reference .idea-rank-number,
@@ -80,8 +62,8 @@
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: #e6f4ff;
-  color: #202124;
+  background: var(--idea-chip-bg);
+  color: var(--idea-chip-text);
   font-size: 0.78rem;
   font-weight: 500;
 }
@@ -104,6 +86,7 @@
 .idea-split-grid.reference .idea-rank-title {
   overflow: hidden;
   margin-top: 0.15rem;
+  color: var(--idea-title-text);
   font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.3;
@@ -115,6 +98,7 @@
   display: -webkit-box;
   margin-top: 0.45rem;
   overflow: hidden;
+  color: var(--idea-preview-text);
   font-size: 0.72rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -148,8 +132,8 @@
   max-width: 100%;
   overflow: hidden;
   border-radius: 0.25rem;
-  background: #f1f3f4;
-  color: #3c4043;
+  background: var(--idea-breadcrumb-bg);
+  color: var(--idea-breadcrumb-text);
   padding: 0 0.45rem;
   font-size: 0.78rem;
   font-weight: 600;
@@ -173,7 +157,7 @@
 
 .idea-detail-section h2 {
   margin: 0;
-  color: #202124;
+  color: var(--idea-title-text);
   font-size: clamp(1.5rem, 2.2vw, 1.9rem);
   font-weight: 400;
   line-height: 1.15;
@@ -181,7 +165,7 @@
 
 .idea-detail-section h3 {
   margin: 0;
-  color: #202124;
+  color: var(--idea-title-text);
   font-size: 1rem;
   font-weight: 600;
   text-transform: none;
@@ -189,7 +173,7 @@
 
 .idea-detail-section p {
   margin: 0;
-  color: var(--md-sys-color-on-surface);
+  color: var(--idea-detail-text);
   font-size: 0.88rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
