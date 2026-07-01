@@ -47,9 +47,6 @@
   background: transparent;
   color: var(--cosci-shell-icon);
   cursor: pointer;
-  transition:
-    background-color 180ms cubic-bezier(0.2, 0, 0, 1),
-    color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-nav-items {
@@ -63,9 +60,6 @@
   padding: 0;
   overflow: hidden;
   text-decoration: none;
-  transition:
-    background-color 180ms cubic-bezier(0.2, 0, 0, 1),
-    color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-nav-item.selected {
@@ -110,7 +104,6 @@
   overflow: hidden;
   border-top-left-radius: 1.85rem;
   background: var(--cosci-workspace-bg);
-  transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-header-action-bar {
@@ -198,9 +191,6 @@
   font-weight: 600;
   cursor: pointer;
   padding: 0 0.62rem 0 0.72rem;
-  transition:
-    background-color 180ms cubic-bezier(0.2, 0, 0, 1),
-    color 180ms cubic-bezier(0.2, 0, 0, 1);
   white-space: nowrap;
 }
 
@@ -256,7 +246,6 @@
     0 1px 3px rgb(60 64 67 / 30%),
     0 4px 8px 3px rgb(60 64 67 / 15%);
   padding: 0.75rem;
-  animation: reference-fade-up 160ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 [data-theme="dark"] .ucs-popover {
@@ -318,9 +307,6 @@
   font-size: 1.02rem;
   font-weight: 600;
   cursor: pointer;
-  transition:
-    background-color 180ms cubic-bezier(0.2, 0, 0, 1),
-    color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-theme-segment button.selected {

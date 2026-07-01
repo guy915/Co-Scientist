@@ -45,9 +45,6 @@
   font-size: 0.86rem;
   line-height: 2.35rem;
   text-decoration: none;
-  transition:
-    background-color 180ms cubic-bezier(0.2, 0, 0, 1),
-    color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .gemini-chat-list a > span {
@@ -148,7 +145,6 @@
   border-radius: 50%;
   color: var(--cosci-muted);
   text-decoration: none;
-  transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .cosci-report-back:hover {
@@ -198,7 +194,6 @@
   font: inherit;
   font-size: 0.9rem;
   cursor: pointer;
-  transition: color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .cosci-report-tabs button.selected {

@@ -28,17 +28,16 @@
     padding: 1rem 0;
   }
 
-  :is(.home-shell, .report-shell).nav-open .ucs-nav-top,
-  :is(.home-shell, .report-shell).nav-open .ucs-nav-items {
+  :is(.home-shell, .report-shell).nav-open
+    :is(.ucs-nav-top, .ucs-nav-items) {
     width: 100%;
     align-items: stretch;
     gap: 0.25rem;
     margin-top: 0.25rem;
   }
 
-  :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-top,
-  :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-items,
-  :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-bottom {
+  :is(.home-shell, .report-shell).nav-collapsed
+    :is(.ucs-nav-top, .ucs-nav-items, .ucs-nav-bottom) {
     width: 100%;
     align-items: center;
     justify-items: center;
@@ -50,11 +49,8 @@
     margin-top: 0.74rem;
   }
 
-  :is(.home-shell, .report-shell).nav-open .ucs-nav-top > .ucs-rail-button,
-  :is(.home-shell, .report-shell).nav-open .ucs-nav-item,
   :is(.home-shell, .report-shell).nav-open
-    .ucs-nav-bottom
-    .ucs-rail-button {
+    :is(.ucs-nav-top > .ucs-rail-button, .ucs-nav-item, .ucs-nav-bottom .ucs-rail-button) {
     display: grid;
     width: 100%;
     height: 2.45rem;
@@ -70,11 +66,8 @@
     line-height: 1;
   }
 
-  :is(.home-shell, .report-shell).nav-collapsed .ucs-rail-button,
-  :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-item,
   :is(.home-shell, .report-shell).nav-collapsed
-    .ucs-nav-bottom
-    .ucs-rail-button {
+    :is(.ucs-rail-button, .ucs-nav-item, .ucs-nav-bottom .ucs-rail-button) {
     display: grid;
     width: 2.5rem;
     height: 2.5rem;
@@ -86,9 +79,9 @@
     padding: 0;
   }
 
-  :is(.home-shell, .report-shell) .ucs-nav-top > .ucs-rail-button md-icon,
-  :is(.home-shell, .report-shell) .ucs-nav-item md-icon,
-  :is(.home-shell, .report-shell) .ucs-nav-bottom .ucs-rail-button md-icon {
+  :is(.home-shell, .report-shell)
+    :is(.ucs-nav-top > .ucs-rail-button, .ucs-nav-item, .ucs-nav-bottom .ucs-rail-button)
+    md-icon {
     display: grid;
     width: 1.5rem;
     height: 1.5rem;
@@ -100,8 +93,8 @@
     line-height: 1;
   }
 
-  :is(.home-shell, .report-shell).nav-open .gemini-side-content,
-  :is(.home-shell, .report-shell).nav-open .nav-label {
+  :is(.home-shell, .report-shell).nav-open
+    :is(.gemini-side-content, .nav-label) {
     display: block !important;
     max-width: none !important;
     opacity: 1 !important;
@@ -315,8 +308,7 @@
     margin-left: 3.25rem;
   }
 
-  .home-shell .ucs-header-action-bar .ucs-header-actions,
-  .report-shell .ucs-header-action-bar .ucs-header-actions {
+  :is(.home-shell, .report-shell) .ucs-header-action-bar .ucs-header-actions {
     display: none;
   }
 

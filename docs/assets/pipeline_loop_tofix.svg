@@ -1,0 +1,155 @@
+<!--
+  WIP — NOT REFERENCED.
+  Loop-aware engine graph. Visual layout needs fixing: overlapping loop-back
+  arrows, edge labels collide with the bypass arrow, and several arrowheads
+  miss their targets. See docs/explainer.md section 3 for the intended flow.
+  Active pipeline diagram is pipeline.svg (linear app-event view).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 470" fill="none">
+  <style>
+    .node { fill: #E0F2F2; stroke: #00696C; stroke-width: 1.5; }
+    .node-opt { fill: #F5FAFA; stroke: #BEC9C9; stroke-width: 1.5; stroke-dasharray: 6 3; }
+    .node-term { fill: #00696C; stroke: #00696C; stroke-width: 1.5; }
+    .decision { fill: #FFF8E1; stroke: #F59E0B; stroke-width: 1.5; }
+    .label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; fill: #002021; text-anchor: middle; dominant-baseline: central; }
+    .label-sm { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; fill: #002021; text-anchor: middle; dominant-baseline: central; }
+    .label-opt { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; fill: #6F7979; text-anchor: middle; dominant-baseline: central; }
+    .label-term { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; fill: #ffffff; text-anchor: middle; dominant-baseline: central; }
+    .label-dec { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 8px; font-weight: 600; fill: #7C4700; text-anchor: middle; dominant-baseline: central; }
+    .arrow { stroke: #BEC9C9; stroke-width: 1.5; fill: none; marker-end: url(#ah); }
+    .arrow-loop { stroke: #00696C; stroke-width: 1.5; fill: none; marker-end: url(#ah-loop); }
+    .arrow-end { stroke: #BEC9C9; stroke-width: 1.5; fill: none; stroke-dasharray: 5 3; marker-end: url(#ah); }
+    .arrow-bypass { stroke: #BEC9C9; stroke-width: 1.3; fill: none; stroke-dasharray: 4 3; marker-end: url(#ah); }
+    .edge-label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; font-weight: 600; fill: #00696C; text-anchor: middle; dominant-baseline: central; }
+    .edge-label-end { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; font-weight: 600; fill: #6F7979; text-anchor: middle; dominant-baseline: central; }
+    .phase-label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; font-weight: 400; fill: #6F7979; text-anchor: middle; }
+    .title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 600; fill: #171D1D; text-anchor: middle; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 400; fill: #6F7979; text-anchor: middle; }
+    .legend-box { fill: #F5FAFA; stroke: #BEC9C9; stroke-width: 1; }
+  </style>
+  <defs>
+    <marker id="ah" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#BEC9C9"/>
+    </marker>
+    <marker id="ah-loop" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#00696C"/>
+    </marker>
+  </defs>
+
+  <!-- Title -->
+  <text x="470" y="22" class="title">Co-Scientist Engine — Multi-Agent Workflow Graph</text>
+  <text x="470" y="38" class="subtitle">Linear first pass feeds a conditional meta-review → evolve → re-review → re-rank → proximity iteration loop</text>
+
+  <!-- First pass row (y=50..88) -->
+  <rect x="20" y="50" width="112" height="38" rx="16" class="node"/>
+  <text x="76" y="69" class="label">Supervisor</text>
+  <text x="76" y="98" class="phase-label">plan</text>
+  <line x1="132" y1="69" x2="148" y2="69" class="arrow"/>
+
+  <rect x="148" y="50" width="112" height="38" rx="16" class="node-opt"/>
+  <text x="204" y="64" class="label-opt">Literature</text>
+  <text x="204" y="76" class="label-opt">Review</text>
+  <text x="204" y="98" class="phase-label">MCP-gated</text>
+  <line x1="260" y1="69" x2="276" y2="69" class="arrow"/>
+
+  <rect x="276" y="50" width="112" height="38" rx="16" class="node"/>
+  <text x="332" y="69" class="label">Generate</text>
+  <text x="332" y="98" class="phase-label">hypotheses</text>
+  <line x1="388" y1="69" x2="404" y2="69" class="arrow"/>
+
+  <rect x="404" y="50" width="112" height="38" rx="16" class="node-opt"/>
+  <text x="460" y="69" class="label-opt">Reflect</text>
+  <text x="460" y="98" class="phase-label">MCP-gated</text>
+  <line x1="516" y1="69" x2="532" y2="69" class="arrow"/>
+
+  <rect x="532" y="50" width="112" height="38" rx="16" class="node"/>
+  <text x="588" y="69" class="label">Review</text>
+  <text x="588" y="98" class="phase-label">peer review</text>
+  <line x1="644" y1="69" x2="660" y2="69" class="arrow"/>
+
+  <rect x="660" y="50" width="112" height="38" rx="16" class="node"/>
+  <text x="716" y="69" class="label">Ranking</text>
+  <text x="716" y="98" class="phase-label">Elo tournament</text>
+  <line x1="772" y1="69" x2="788" y2="69" class="arrow"/>
+
+  <rect x="788" y="50" width="112" height="38" rx="16" class="node"/>
+  <text x="844" y="64" class="label">Deep</text>
+  <text x="844" y="76" class="label">Verify</text>
+  <text x="844" y="98" class="phase-label">probe top-3</text>
+
+  <!-- MCP-off bypass: supervisor -> generate -->
+  <path d="M76,88 V122 H332 V50" class="arrow-bypass"/>
+  <text x="204" y="117" class="edge-label-end">no MCP: skip lit + reflect</text>
+
+  <!-- down to after_ranking decision -->
+  <line x1="844" y1="88" x2="844" y2="122" class="arrow"/>
+  <polygon points="844,122 910,142 844,162 778,142" class="decision"/>
+  <text x="844" y="138" class="label-dec">after_</text>
+  <text x="844" y="148" class="label-dec">ranking</text>
+
+  <!-- after_ranking -> meta_review (iterate, first entry) -->
+  <path d="M778,142 H588 V240" class="arrow-loop"/>
+  <text x="650" y="135" class="edge-label">iterate</text>
+
+  <!-- after_ranking -> proximity (after first cycle, has meta_review) -->
+  <line x1="844" y1="162" x2="844" y2="240" class="arrow-loop"/>
+  <text x="828" y="200" class="edge-label" text-anchor="end">to proximity</text>
+
+  <!-- after_ranking -> research_overview (end, max_iter=0) dashed -->
+  <path d="M910,142 H926 V429 H772" class="arrow-end"/>
+  <text x="864" y="134" class="edge-label-end">end</text>
+
+  <!-- Iteration row (y=240..278) -->
+  <rect x="532" y="240" width="112" height="38" rx="16" class="node"/>
+  <text x="588" y="259" class="label">Meta-Review</text>
+  <text x="588" y="288" class="phase-label">synthesize</text>
+  <line x1="644" y1="259" x2="660" y2="259" class="arrow"/>
+
+  <rect x="660" y="240" width="112" height="38" rx="16" class="node"/>
+  <text x="716" y="259" class="label">Evolve</text>
+  <text x="716" y="288" class="phase-label">refine top-N</text>
+
+  <rect x="788" y="240" width="112" height="38" rx="16" class="node"/>
+  <text x="844" y="259" class="label">Proximity</text>
+  <text x="844" y="288" class="phase-label">dedup + iter++</text>
+
+  <!-- evolve -> review (re-review loop back up) -->
+  <path d="M716,240 V208 H620 V88" class="arrow-loop"/>
+  <text x="668" y="202" class="edge-label">re-review → re-rank</text>
+
+  <!-- proximity -> after_proximity decision -->
+  <line x1="844" y1="278" x2="844" y2="302" class="arrow"/>
+  <polygon points="844,302 910,322 844,342 778,322" class="decision"/>
+  <text x="844" y="318" class="label-dec">after_</text>
+  <text x="844" y="328" class="label-dec">proximity</text>
+
+  <!-- after_proximity -> meta_review (iterate loop back) -->
+  <path d="M778,322 H452 V278 H588" class="arrow-loop"/>
+  <text x="612" y="304" class="edge-label">iterate (loop)</text>
+
+  <!-- after_proximity -> research_overview (end) -->
+  <path d="M844,342 V400 H716 V410" class="arrow"/>
+  <text x="782" y="392" class="edge-label">end</text>
+
+  <!-- Terminal row (y=410..448) -->
+  <rect x="660" y="410" width="112" height="38" rx="16" class="node"/>
+  <text x="716" y="425" class="label">Research</text>
+  <text x="716" y="437" class="label">Overview</text>
+  <line x1="772" y1="429" x2="788" y2="429" class="arrow"/>
+  <rect x="788" y="410" width="112" height="38" rx="16" class="node-term"/>
+  <text x="844" y="429" class="label-term">END</text>
+
+  <!-- Legend -->
+  <rect x="20" y="240" width="210" height="128" rx="8" class="legend-box"/>
+  <text x="125" y="258" class="label-sm">Legend</text>
+  <rect x="32" y="270" width="22" height="13" rx="6" class="node"/>
+  <text x="62" y="277" class="phase-label" text-anchor="start">always-on node</text>
+  <rect x="32" y="290" width="22" height="13" rx="6" class="node-opt"/>
+  <text x="62" y="297" class="phase-label" text-anchor="start">MCP-gated (optional)</text>
+  <polygon points="43,310 56,317 43,324 30,317" class="decision"/>
+  <text x="62" y="317" class="phase-label" text-anchor="start">routing decision</text>
+  <line x1="32" y1="335" x2="54" y2="335" class="arrow-loop"/>
+  <text x="62" y="335" class="phase-label" text-anchor="start">iteration loop-back</text>
+  <line x1="32" y1="353" x2="54" y2="353" class="arrow-end"/>
+  <text x="62" y="353" class="phase-label" text-anchor="start">edge / terminal path</text>
+</svg>

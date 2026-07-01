@@ -126,7 +126,8 @@
   padding: 0 1rem 2rem;
 }
 
-.reference-setup-message {
+.reference-setup-message,
+.reference-started-message {
   display: grid;
   gap: 1.15rem;
   color: var(--reference-setup-text);
@@ -184,20 +185,21 @@
   justify-content: flex-end;
 }
 
-.reference-message-actions button {
+.reference-message-actions button,
+.reference-plan-edit {
   display: grid;
-  width: 2rem;
-  height: 2rem;
   cursor: pointer;
   place-items: center;
   border: 0;
   border-radius: 999px;
   background: transparent;
-  color: var(--reference-message-action-text);
   padding: 0;
-  transition:
-    background-color 160ms ease,
-    color 160ms ease;
+}
+
+.reference-message-actions button {
+  width: 2rem;
+  height: 2rem;
+  color: var(--reference-message-action-text);
 }
 
 .reference-message-actions button:hover,
@@ -223,9 +225,6 @@
   padding: 0.1rem;
   pointer-events: none;
   transform: translateY(-50%) scale(0.98);
-  transition:
-    opacity 140ms ease,
-    transform 140ms ease;
 }
 
 .reference-bubble-row.user:hover .reference-message-actions,
@@ -267,15 +266,9 @@
 }
 
 .reference-plan-edit {
-  display: inline-grid;
   width: 2.1rem;
   height: 2.1rem;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
   color: var(--reference-plan-edit-text);
-  cursor: pointer;
 }
 
 .reference-plan-heading .reference-plan-edit md-icon {
@@ -377,10 +370,6 @@
   background: var(--reference-setup-option-bg);
   color: var(--reference-setup-text);
   padding: 0.85rem 0.95rem;
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease,
-    box-shadow 180ms ease;
 }
 
 .reference-option-card input {
@@ -399,9 +388,6 @@
   border: 2px solid var(--reference-setup-radio-border);
   border-radius: 999px;
   margin-top: 0.08rem;
-  transition:
-    border-color 180ms ease,
-    box-shadow 180ms ease;
 }
 
 .reference-option-card.selected > span {
@@ -441,15 +427,19 @@
   padding-top: 0.3rem;
 }
 
-.reference-setup-actions button {
+.reference-setup-actions button,
+.reference-started-next button {
   min-height: 2.6rem;
-  border: 1px solid var(--reference-setup-action-border);
   border-radius: 999px;
   background: transparent;
-  color: var(--reference-setup-action-text);
   cursor: pointer;
-  padding: 0 1.45rem;
   font-weight: 500;
+}
+
+.reference-setup-actions button {
+  border: 1px solid var(--reference-setup-action-border);
+  color: var(--reference-setup-action-text);
+  padding: 0 1.45rem;
 }
 
 .reference-setup-actions button:last-child {
@@ -470,12 +460,6 @@
   background: var(--reference-setup-disabled-bg);
   color: var(--reference-setup-disabled-text);
   cursor: default;
-}
-
-.reference-started-message {
-  display: grid;
-  gap: 1.15rem;
-  color: var(--reference-setup-text);
 }
 
 .reference-started-copy {
@@ -502,9 +486,6 @@
   color: #fff;
   padding: 1rem 1rem 1rem 1.35rem;
   text-align: left;
-  transition:
-    filter 180ms ease,
-    transform 180ms ease;
 }
 
 .reference-started-session-card:hover,
@@ -558,17 +539,10 @@
 }
 
 .reference-started-next button {
-  min-height: 2.55rem;
-  cursor: pointer;
   border: 1px solid var(--reference-started-action-border);
-  border-radius: 999px;
-  background: transparent;
   color: var(--reference-started-action-text);
   padding: 0 1.2rem;
   font-weight: 600;
-  transition:
-    background-color 180ms ease,
-    border-color 180ms ease;
 }
 
 .reference-started-next button:hover,
