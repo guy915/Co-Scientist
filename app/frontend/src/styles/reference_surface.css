@@ -1,4 +1,56 @@
 /* Co-Scientist reference surface override */
+:root {
+  --cosci-bg: #fff;
+  --cosci-rail: var(--idea-ref-rail);
+  --cosci-shell-icon: #3c4043;
+  --cosci-shell-hover-bg: #dfeafc;
+  --cosci-shell-hover-text: #202124;
+  --cosci-workspace-bg: #fff;
+  --cosci-surface-bg: #fff;
+  --cosci-home-heading: #202124;
+  --cosci-step-line: color-mix(in srgb, var(--cosci-teal) 38%, #dadce0);
+  --cosci-step-dot-bg: var(--cosci-teal);
+  --cosci-step-dot-text: #fff;
+  --cosci-step-heading: #3c4043;
+  --cosci-step-text: #202124;
+  --cosci-suggestion-border: #c4c7c5;
+  --cosci-suggestion-bg: #fff;
+  --cosci-suggestion-text: #202124;
+  --cosci-suggestion-hover-border: #d0d4d9;
+  --cosci-suggestion-active-bg: #edf2f7;
+  --cosci-suggestion-selected-border: var(--cosci-suggestion-border);
+  --cosci-suggestion-selected-bg: #e6f4ea;
+  --cosci-composer-border: #e0e0e0;
+  --cosci-composer-bg: #fff;
+  --cosci-composer-shadow: 0 2px 8px rgb(60 64 67 / 12%);
+  --cosci-composer-label: #5f6368;
+  --cosci-composer-text: #202124;
+  --cosci-composer-submit: var(--cosci-teal);
+  --cosci-composer-submit-disabled: #dadce0;
+  --cosci-source-button: #5f6368;
+  --cosci-source-button-hover-bg: #f1f3f4;
+  --cosci-source-button-hover: #3c4043;
+  --cosci-menu-border: #dadce0;
+  --cosci-menu-bg: #fff;
+  --cosci-menu-shadow:
+    0 1px 2px rgb(60 64 67 / 16%),
+    0 8px 24px rgb(60 64 67 / 18%);
+  --cosci-menu-text: #202124;
+  --cosci-menu-row-hover: #f1f3f4;
+  --cosci-menu-divider: #e8eaed;
+  --cosci-menu-icon: #5f6368;
+  --cosci-recents-heading: #202124;
+  --cosci-recent-card-border: #e0e0e0;
+  --cosci-recent-card-bg: #fff;
+  --cosci-recent-card-shadow: 0 2px 8px rgb(60 64 67 / 16%);
+  --cosci-recent-card-text: #202124;
+  --cosci-recent-card-copy: #3c4043;
+  --cosci-recent-meta-bg: #f1f3f4;
+  --cosci-recent-meta-text: #202124;
+  --cosci-recent-chip-bg: #d7f4d1;
+  --cosci-recent-chip-text: #174f2a;
+}
+
 :root[data-theme="dark"] {
   --cosci-bg: #131314;
   --cosci-rail: #1e1f20;
@@ -13,126 +65,58 @@
   --cosci-blue-strong: #8ab4f8;
   --cosci-green: #7fd7bf;
   --cosci-green-bg: #173b3b;
+  --cosci-shell-icon: var(--cosci-muted);
+  --cosci-shell-hover-bg: #303134;
+  --cosci-shell-hover-text: var(--cosci-text);
+  --cosci-workspace-bg: var(--cosci-bg);
+  --cosci-surface-bg: var(--cosci-bg);
+  --cosci-home-heading: #f1f3f4;
+  --cosci-step-line: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
+  --cosci-step-dot-bg: var(--cosci-green);
+  --cosci-step-dot-text: #202124;
+  --cosci-step-heading: var(--cosci-muted);
+  --cosci-step-text: var(--cosci-text);
+  --cosci-suggestion-border: var(--cosci-border);
+  --cosci-suggestion-bg: var(--cosci-bg);
+  --cosci-suggestion-text: var(--cosci-text);
+  --cosci-suggestion-hover-border: var(--cosci-border);
+  --cosci-suggestion-active-bg: #173b3b;
+  --cosci-suggestion-selected-border: var(--cosci-green);
+  --cosci-suggestion-selected-bg: #173b3b;
+  --cosci-composer-border: var(--cosci-border);
+  --cosci-composer-bg: var(--cosci-panel);
+  --cosci-composer-shadow: none;
+  --cosci-composer-label: var(--cosci-muted);
+  --cosci-composer-text: var(--cosci-text);
+  --cosci-composer-submit: var(--cosci-green);
+  --cosci-composer-submit-disabled: var(--cosci-subtle);
+  --cosci-source-button: #bdc1c6;
+  --cosci-source-button-hover-bg: #303134;
+  --cosci-source-button-hover: #e8eaed;
+  --cosci-menu-border: #3c4043;
+  --cosci-menu-bg: #2b2d2f;
+  --cosci-menu-shadow:
+    0 1px 2px rgb(0 0 0 / 24%),
+    0 8px 24px rgb(0 0 0 / 32%);
+  --cosci-menu-text: #e8eaed;
+  --cosci-menu-row-hover: #35383a;
+  --cosci-menu-divider: #3c4043;
+  --cosci-menu-icon: #c4c7c5;
+  --cosci-recents-heading: var(--cosci-text);
+  --cosci-recent-card-border: #3c4043;
+  --cosci-recent-card-bg: #202124;
+  --cosci-recent-card-shadow: none;
+  --cosci-recent-card-text: var(--cosci-text);
+  --cosci-recent-card-copy: var(--cosci-muted);
+  --cosci-recent-meta-bg: #2b2c2f;
+  --cosci-recent-meta-text: #e8eaed;
+  --cosci-recent-chip-bg: #188038;
+  --cosci-recent-chip-text: #e6f4ea;
   background: var(--cosci-bg);
 }
 
 body {
   background: var(--cosci-bg, var(--color-th-bg));
-}
-
-[data-theme="dark"] .google-app-shell {
-  background: var(--cosci-rail) !important;
-}
-
-[data-theme="dark"] .ucs-rail-button {
-  color: var(--cosci-muted);
-}
-
-[data-theme="dark"] .ucs-nav-item {
-  color: var(--cosci-muted);
-}
-
-[data-theme="dark"] .ucs-nav-item:hover,
-[data-theme="dark"] .ucs-nav-item.selected {
-  background: #303134;
-  color: var(--cosci-text);
-}
-
-[data-theme="dark"] .gemini-side-content {
-  opacity: 1;
-}
-
-[data-theme="dark"] .ucs-workspace {
-  background: var(--cosci-bg);
-}
-
-[data-theme="dark"] .ucs-header-action-bar {
-  background: var(--cosci-bg);
-}
-
-[data-theme="dark"] .ucs-page {
-  background: var(--cosci-bg);
-}
-
-[data-theme="dark"] .reference-step-timeline::before {
-  background: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
-}
-
-[data-theme="dark"] .reference-step-timeline li > span {
-  background: var(--cosci-green);
-  color: #202124;
-}
-
-[data-theme="dark"] .reference-step-timeline h2 {
-  color: var(--cosci-muted);
-}
-
-[data-theme="dark"] .reference-step-timeline p {
-  color: var(--cosci-text);
-}
-
-[data-theme="dark"] .reference-suggestion-row button {
-  border-color: var(--cosci-border);
-  background: var(--cosci-bg);
-  color: var(--cosci-text);
-}
-
-[data-theme="dark"] .reference-suggestion-row button:hover,
-[data-theme="dark"] .reference-suggestion-row button.selected {
-  background: #173b3b;
-}
-
-[data-theme="dark"] .reference-composer {
-  border-color: var(--cosci-border);
-  background: var(--cosci-panel);
-  box-shadow: none;
-}
-
-[data-theme="dark"] .reference-composer label > span {
-  color: var(--cosci-muted);
-}
-
-[data-theme="dark"] .reference-composer textarea {
-  color: var(--cosci-text);
-}
-
-[data-theme="dark"] .reference-composer-actions button[type="submit"] {
-  color: var(--cosci-green);
-}
-
-[data-theme="dark"] .reference-composer-actions button:disabled {
-  color: var(--cosci-subtle);
-}
-
-[data-theme="dark"] .reference-recents .google-recents-heading h2,
-[data-theme="dark"] .reference-recents .google-recents-heading md-icon {
-  color: var(--cosci-text);
-}
-
-[data-theme="dark"] .reference-recent-card {
-  border-color: #3c4043;
-  background: #202124;
-  box-shadow: none;
-  color: var(--cosci-text);
-}
-
-[data-theme="dark"] .reference-recent-meta span,
-[data-theme="dark"] .reference-recent-chips span {
-  background: #2b2c2f;
-  color: #e8eaed;
-}
-
-[data-theme="dark"] .reference-recent-chips span {
-  background: #188038;
-  color: #e6f4ea;
-}
-
-[data-theme="dark"] .reference-recent-chips md-icon {
-  color: #e6f4ea;
-}
-
-[data-theme="dark"] .reference-recent-card > span:not(.reference-recent-meta):not(.reference-recent-chips) {
-  color: var(--cosci-muted);
 }
 
 @media (min-width: 781px) and (max-height: 840px) {

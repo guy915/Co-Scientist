@@ -47,7 +47,6 @@
     transform 160ms ease;
 }
 
-.public-button:focus-visible,
 .public-button:focus-visible {
   outline: 2px solid var(--md-sys-color-primary);
   outline-offset: 3px;
@@ -101,81 +100,5 @@
 
   .public-button {
     transition: none;
-  }
-}
-
-/* Markdown rendering inside the Report tab */
-.wb-markdown {
-  color: var(--color-th-fg);
-}
-.wb-markdown h1 {
-  font-size: 1.5rem;
-  font-weight: 700;
-  margin: 1.25rem 0 0.75rem;
-}
-.wb-markdown h2 {
-  font-size: 1.2rem;
-  font-weight: 600;
-  margin: 1rem 0 0.5rem;
-  padding-bottom: 0.25rem;
-  border-bottom: 1px solid var(--color-th-border);
-}
-.wb-markdown h3 {
-  font-size: 1.05rem;
-  font-weight: 600;
-  margin: 0.85rem 0 0.4rem;
-}
-.wb-markdown p {
-  margin: 0.5rem 0;
-  line-height: 1.55;
-}
-.wb-markdown ul,
-.wb-markdown ol {
-  padding-left: 1.25rem;
-  margin: 0.5rem 0;
-}
-.wb-markdown ul {
-  list-style: disc;
-}
-.wb-markdown ol {
-  list-style: decimal;
-}
-.wb-markdown li {
-  margin: 0.15rem 0;
-}
-.wb-markdown code {
-  background-color: var(--color-th-secondary);
-  padding: 0.125rem 0.3rem;
-  border-radius: 0.25rem;
-  font-size: 0.85em;
-}
-.wb-markdown blockquote {
-  border-left: 3px solid var(--color-th-border);
-  padding-left: 0.75rem;
-  color: var(--color-th-muted-fg);
-  font-style: italic;
-  margin: 0.5rem 0;
-}
-.wb-markdown em {
-  color: var(--color-th-muted-fg);
-}
-.wb-markdown strong {
-  color: var(--color-th-fg);
-}
-.wb-markdown a {
-  color: var(--color-th-link);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-.wb-markdown a:hover {
-  color: var(--color-th-link-hover);
-}
-
-@media print {
-  .wb-print-hide {
-    display: none;
-  }
-  .wb-markdown {
-    color: black;
   }
 }

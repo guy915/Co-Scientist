@@ -48,7 +48,7 @@
 .reference-home-main h1 {
   width: min(100%, 39rem);
   margin: 0 auto;
-  color: #202124;
+  color: var(--cosci-home-heading);
   font-size: clamp(2.75rem, 4.2vw, 3.2rem);
   font-weight: 400;
   line-height: 1.13;
@@ -58,10 +58,6 @@
     font-size 240ms cubic-bezier(0.2, 0, 0, 1),
     opacity 220ms cubic-bezier(0.2, 0, 0, 1),
     transform 220ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-[data-theme="dark"] .reference-home-main h1 {
-  color: #f1f3f4;
 }
 
 .reference-step-timeline {
@@ -83,7 +79,7 @@
   left: 1rem;
   right: 1rem;
   height: 1px;
-  background: color-mix(in srgb, var(--cosci-teal) 38%, #dadce0);
+  background: var(--cosci-step-line);
   content: "";
 }
 
@@ -101,15 +97,15 @@
   height: 2rem;
   place-items: center;
   border-radius: 50%;
-  background: var(--cosci-teal);
-  color: #fff;
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
   font-size: 0.95rem;
   font-weight: 600;
 }
 
 .reference-step-timeline h2 {
   margin: 0;
-  color: #3c4043;
+  color: var(--cosci-step-heading);
   font-size: 0.92rem;
   font-weight: 400;
 }
@@ -117,18 +113,13 @@
 .reference-step-timeline p {
   max-width: 16rem;
   margin: 0.25rem 0 0;
-  color: #202124;
+  color: var(--cosci-step-text);
   font-size: 0.96rem;
   line-height: 1.35;
   transition:
     opacity 220ms cubic-bezier(0.2, 0, 0, 1),
     max-height 220ms cubic-bezier(0.2, 0, 0, 1),
     margin 220ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-[data-theme="dark"] .reference-step-timeline h2,
-[data-theme="dark"] .reference-step-timeline p {
-  color: #e8eaed;
 }
 
 .reference-suggestion-row {
@@ -160,10 +151,10 @@
   max-height: 4.4rem;
   overflow: hidden;
   align-content: center;
-  border: 1px solid #c4c7c5;
+  border: 1px solid var(--cosci-suggestion-border);
   border-radius: 1rem;
-  background: #fff;
-  color: #202124;
+  background: var(--cosci-suggestion-bg);
+  color: var(--cosci-suggestion-text);
   cursor: pointer;
   outline: 0;
   padding: 0.9rem 1rem;
@@ -180,26 +171,15 @@
 }
 
 .reference-suggestion-row button.selected {
-  background: #e6f4ea;
+  border-color: var(--cosci-suggestion-selected-border);
+  background: var(--cosci-suggestion-selected-bg);
 }
 
 .reference-suggestion-row button:hover,
 .reference-suggestion-row button:focus-visible,
 .reference-suggestion-row button.is-previewed {
-  border-color: #d0d4d9;
-  background: #edf2f7;
-}
-
-[data-theme="dark"] .reference-suggestion-row button:hover,
-[data-theme="dark"] .reference-suggestion-row button:focus-visible,
-[data-theme="dark"] .reference-suggestion-row button.is-previewed {
-  border-color: #3c4043;
-  background: #282a2c;
-}
-
-[data-theme="dark"] .reference-suggestion-row button.selected {
-  border-color: var(--cosci-green);
-  background: #282a2c;
+  border-color: var(--cosci-suggestion-hover-border);
+  background: var(--cosci-suggestion-active-bg);
 }
 
 .reference-suggestion-slot {
@@ -279,10 +259,10 @@
   position: relative;
   min-height: 7.9rem;
   margin-top: 1rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--cosci-composer-border);
   border-radius: 1.7rem;
-  background: #fff;
-  box-shadow: 0 2px 8px rgb(60 64 67 / 12%);
+  background: var(--cosci-composer-bg);
+  box-shadow: var(--cosci-composer-shadow);
   padding: 1.25rem 1.5rem 0.8rem;
   transition:
     min-height 240ms cubic-bezier(0.2, 0, 0, 1),
@@ -315,7 +295,7 @@
   display: flex;
   align-items: center;
   gap: 0.45rem;
-  color: #5f6368;
+  color: var(--cosci-composer-label);
   font-size: 1rem;
 }
 
@@ -335,7 +315,7 @@
   resize: none;
   border: 0;
   background: transparent;
-  color: #202124;
+  color: var(--cosci-composer-text);
   font: inherit;
   line-height: 1.5rem;
   outline: none;
@@ -378,11 +358,11 @@
 }
 
 .reference-composer-actions button[type="submit"] {
-  color: var(--cosci-teal);
+  color: var(--cosci-composer-submit);
 }
 
 .reference-composer-actions button:disabled {
-  color: #dadce0;
+  color: var(--cosci-composer-submit-disabled);
   cursor: default;
 }
 
@@ -414,7 +394,7 @@
   border: 0;
   border-radius: 50%;
   background: transparent;
-  color: #5f6368;
+  color: var(--cosci-source-button);
   cursor: pointer;
   transition:
     background-color 160ms cubic-bezier(0.2, 0, 0, 1),
@@ -424,8 +404,8 @@
 .reference-composer-source-button:hover,
 .reference-composer-source-button:focus-visible,
 .reference-composer-source-button[aria-expanded="true"] {
-  background: #f1f3f4;
-  color: #3c4043;
+  background: var(--cosci-source-button-hover-bg);
+  color: var(--cosci-source-button-hover);
 }
 
 .reference-composer-source-button md-icon {
@@ -439,14 +419,12 @@
   z-index: 10;
   width: 14rem;
   overflow: hidden;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--cosci-menu-border);
   border-radius: 0.9rem;
-  background: #fff;
-  box-shadow:
-    0 1px 2px rgb(60 64 67 / 16%),
-    0 8px 24px rgb(60 64 67 / 18%);
+  background: var(--cosci-menu-bg);
+  box-shadow: var(--cosci-menu-shadow);
   padding: 0.45rem 0;
-  color: #202124;
+  color: var(--cosci-menu-text);
   pointer-events: auto;
 }
 
@@ -469,19 +447,19 @@
 
 .reference-connectors-menu-row:hover,
 .reference-connectors-menu-row:focus-visible {
-  background: #f1f3f4;
+  background: var(--cosci-menu-row-hover);
   outline: none;
 }
 
 .reference-connectors-menu-row--top {
   grid-template-columns: 1fr;
-  border-bottom: 1px solid #e8eaed;
+  border-bottom: 1px solid var(--cosci-menu-divider);
   cursor: default;
   font-weight: 500;
 }
 
 .reference-connector-icon {
-  color: #5f6368;
+  color: var(--cosci-menu-icon);
   font-family: "Material Symbols Outlined";
   font-size: 1.15rem;
   font-variation-settings:
@@ -520,39 +498,6 @@
   background: #80868b;
 }
 
-[data-theme="dark"] .reference-composer-source-button {
-  color: #bdc1c6;
-}
-
-[data-theme="dark"] .reference-composer-source-button:hover,
-[data-theme="dark"] .reference-composer-source-button:focus-visible,
-[data-theme="dark"] .reference-composer-source-button[aria-expanded="true"] {
-  background: #303134;
-  color: #e8eaed;
-}
-
-[data-theme="dark"] .reference-connectors-menu {
-  border-color: #3c4043;
-  background: #2b2d2f;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 24%),
-    0 8px 24px rgb(0 0 0 / 32%);
-  color: #e8eaed;
-}
-
-[data-theme="dark"] .reference-connectors-menu-row:hover,
-[data-theme="dark"] .reference-connectors-menu-row:focus-visible {
-  background: #35383a;
-}
-
-[data-theme="dark"] .reference-connectors-menu-row--top {
-  border-bottom-color: #3c4043;
-}
-
-[data-theme="dark"] .reference-connector-icon {
-  color: #c4c7c5;
-}
-
 .reference-recents {
   display: grid;
   min-height: 0;
@@ -570,7 +515,7 @@
 }
 
 .reference-recents .google-recents-heading h2 {
-  color: #202124;
+  color: var(--cosci-recents-heading);
   font-size: 1.15rem;
   font-weight: 600;
 }
@@ -635,11 +580,11 @@
   min-height: 15.75rem;
   align-content: start;
   gap: 0.7rem;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--cosci-recent-card-border);
   border-radius: 0.8rem;
-  background: #fff;
-  box-shadow: 0 2px 8px rgb(60 64 67 / 16%);
-  color: #202124;
+  background: var(--cosci-recent-card-bg);
+  box-shadow: var(--cosci-recent-card-shadow);
+  color: var(--cosci-recent-card-text);
   cursor: pointer;
   padding: 1.05rem 1.2rem;
   text-align: left;
@@ -661,9 +606,9 @@
 .reference-recent-meta span,
 .reference-recent-chips span {
   border-radius: 0.35rem;
-  background: #f1f3f4;
+  background: var(--cosci-recent-meta-bg);
   padding: 0.32rem 0.48rem;
-  color: #202124;
+  color: var(--cosci-recent-meta-text);
   font-size: 0.75rem;
   font-weight: 600;
 }
@@ -676,7 +621,7 @@
 .reference-recent-card > span:not(.reference-recent-meta):not(.reference-recent-chips) {
   display: -webkit-box;
   overflow: hidden;
-  color: #3c4043;
+  color: var(--cosci-recent-card-copy);
   font-size: 0.9rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
@@ -688,22 +633,18 @@
   gap: 0.65rem;
   margin: 0.15rem 0 0;
   padding: 0;
-  color: #202124;
+  color: var(--cosci-recent-card-text);
   font-size: 0.78rem;
   line-height: 1.35;
   list-style: none;
-}
-
-[data-theme="dark"] .reference-winner-list {
-  color: #e8eaed;
 }
 
 .reference-recent-chips span {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  background: #d7f4d1;
-  color: #174f2a;
+  background: var(--cosci-recent-chip-bg);
+  color: var(--cosci-recent-chip-text);
 }
 
 .reference-toast {
