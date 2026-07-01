@@ -41,6 +41,24 @@ import {
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {tooltipClassNames} from '../tooltip';
 import {
+  HOME_COMPOSER_CLASSES,
+  HOME_COMPOSER_TEXTAREA_CLASSES,
+  HOME_MAIN_CLASSES,
+  HOME_RECENTS_LIST_CLASSES,
+  HOME_RECENTS_PANEL_CLASSES,
+  HOME_STAGE_CLASSES,
+  HOME_STEP_BODY_CLASSES,
+  HOME_STEP_ITEM_CENTER_CLASSES,
+  HOME_STEP_ITEM_CLASSES,
+  HOME_STEP_ITEM_END_CLASSES,
+  HOME_STEP_TIMELINE_CLASSES,
+  HOME_SUGGESTION_BUTTON_CLASSES,
+  HOME_SUGGESTION_ROW_CLASSES,
+  HOME_TITLE_CLASSES,
+  HOME_WORKSPACE_CLASSES,
+  HOME_WORKSPACE_MAIN_CLASSES,
+} from './chat_home_classes';
+import {
   CHAT_BUBBLE_ROW_CLASSES,
   CHAT_BUBBLE_USER_ROW_CLASSES,
   CHAT_COLUMN_CLASSES,
@@ -132,7 +150,7 @@ const SUGGESTIONS = [
 const COMPOSER_CONNECTORS = ['PubMed'];
 const BASELINE_ELO_RATING = 1200;
 
-const RECENTS_PANEL_CLASSES = 'reference-recents min-[1181px]:!gap-[1.55rem]';
+const RECENTS_PANEL_CLASSES = `reference-recents min-[1181px]:!gap-[1.55rem] ${HOME_RECENTS_PANEL_CLASSES}`;
 
 const RECENTS_HEADING_ICON_CLASSES =
   '[--md-icon-size:20px] min-[1181px]:[--md-icon-size:22px]';
@@ -141,7 +159,7 @@ const RECENTS_HEADING_CLASSES =
   '!font-normal min-[1181px]:!text-[1.22rem] min-[1181px]:!font-medium ' +
   'min-[1181px]:!leading-[1.2]';
 
-const RECENTS_LIST_CLASSES = 'min-[1181px]:!gap-[2.65rem]';
+const RECENTS_LIST_CLASSES = `min-[1181px]:!gap-[2.65rem] ${HOME_RECENTS_LIST_CLASSES}`;
 
 const EMPTY_RECENTS_PANEL_CLASSES = `${RECENTS_PANEL_CLASSES} grid-rows-[auto_1fr] self-stretch pb-8`;
 
@@ -983,26 +1001,37 @@ export function ChatWorkspace() {
     ? RECENTS_LIST_CLASSES
     : EMPTY_RECENTS_LIST_CLASSES;
   return (
-    <div className="cosci-workspace">
-      <main className="cosci-workspace-main">
+    <div className={HOME_WORKSPACE_CLASSES}>
+      <main className={HOME_WORKSPACE_MAIN_CLASSES}>
         {!hasConversation ? (
-          <section className="reference-home-stage">
-            <div className="reference-home-main">
-              <h1>What breakthrough should we make today?</h1>
+          <section className={HOME_STAGE_CLASSES}>
+            <div className={HOME_MAIN_CLASSES}>
+              <h1 className={HOME_TITLE_CLASSES}>
+                What breakthrough should we make today?
+              </h1>
 
-              <ol className="reference-step-timeline">
-                {SESSION_STEPS.map(step => (
-                  <li key={step.n}>
+              <ol className={HOME_STEP_TIMELINE_CLASSES}>
+                {SESSION_STEPS.map((step, index) => (
+                  <li
+                    key={step.n}
+                    className={[
+                      HOME_STEP_ITEM_CLASSES,
+                      index === 1 ? HOME_STEP_ITEM_CENTER_CLASSES : '',
+                      index === 2 ? HOME_STEP_ITEM_END_CLASSES : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
                     <span>{step.n}</span>
                     <div>
                       <h2>{step.title}</h2>
-                      <p>{step.body}</p>
+                      <p className={HOME_STEP_BODY_CLASSES}>{step.body}</p>
                     </div>
                   </li>
                 ))}
               </ol>
 
-              <div className="reference-suggestion-row">
+              <div className={HOME_SUGGESTION_ROW_CLASSES}>
                 {SUGGESTIONS.map(suggestion => {
                   const isPreviewed = hoveredSuggestion === suggestion.full;
                   return (
@@ -1022,7 +1051,12 @@ export function ChatWorkspace() {
                       </p>
                       <button
                         type="button"
-                        className={isPreviewed ? 'is-previewed' : undefined}
+                        className={[
+                          HOME_SUGGESTION_BUTTON_CLASSES,
+                          isPreviewed ? 'is-previewed' : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
                         onMouseEnter={() =>
                           setHoveredSuggestion(suggestion.full)
                         }
@@ -1397,6 +1431,7 @@ function Composer({
         className={[
           'reference-composer',
           input.trim() ? 'has-input' : '',
+          large ? HOME_COMPOSER_CLASSES : '',
           attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
         ]
           .filter(Boolean)
@@ -1490,6 +1525,7 @@ function Composer({
             rows={large ? 4 : 3}
             value={input}
             disabled={disabled}
+            className={large ? HOME_COMPOSER_TEXTAREA_CLASSES : undefined}
             onChange={e => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             placeholder={placeholder}

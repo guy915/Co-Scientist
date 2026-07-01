@@ -97,12 +97,113 @@ const DIAGNOSTIC_EMPTY_CLASSES =
 
 const WORKSPACE_CLASSES = 'ucs-workspace';
 
-const REPORT_WORKSPACE_CLASSES = 'ucs-workspace min-h-screen !overflow-hidden';
+const WORKSPACE_RESPONSIVE_CLASSES = 'rounded-bl-[1.9rem]';
+
+const REPORT_WORKSPACE_CLASSES =
+  'ucs-workspace min-h-screen !overflow-hidden rounded-bl-[1.9rem] ' +
+  'max-[700px]:!min-w-0 max-[700px]:!overflow-hidden';
 
 const PAGE_CLASSES = 'ucs-page';
 
+const HOME_PAGE_CLASSES =
+  'ucs-page min-[1181px]:!h-[calc(100vh-4.5rem)] ' +
+  'min-[1181px]:!overflow-hidden max-[1180px]:!overflow-y-auto ' +
+  'max-[1180px]:!overflow-x-hidden';
+
 const REPORT_PAGE_CLASSES =
-  'ucs-page !h-[calc(100vh-4.5rem)] min-h-0 !overflow-hidden !p-0';
+  'ucs-page !h-[calc(100vh-4.5rem)] min-h-0 !overflow-hidden !p-0 ' +
+  'max-[700px]:!min-w-0';
+
+const SHELL_OPEN_GRID_CLASSES =
+  'nav-open min-[701px]:!grid-cols-[17.25rem_minmax(0,1fr)] ' +
+  'max-[700px]:!grid-cols-[4.125rem_minmax(0,1fr)]';
+
+const SHELL_COLLAPSED_GRID_CLASSES =
+  'nav-collapsed min-[701px]:!grid-cols-[4.75rem_minmax(0,1fr)] ' +
+  'max-[700px]:!grid-cols-[4.125rem_minmax(0,1fr)]';
+
+const NAV_PANEL_BASE_CLASSES =
+  'ucs-nav-panel box-border w-full dark:bg-[var(--cosci-rail)] ' +
+  'max-[700px]:!w-[4.125rem] max-[700px]:!min-w-[4.125rem] ' +
+  'max-[700px]:!max-w-[4.125rem] max-[700px]:!items-center ' +
+  'max-[700px]:!overflow-hidden max-[700px]:!px-0 max-[700px]:!py-4';
+
+const NAV_PANEL_OPEN_CLASSES =
+  `${NAV_PANEL_BASE_CLASSES} min-[701px]:!items-stretch min-[701px]:!px-3 ` +
+  'min-[701px]:!py-4';
+
+const NAV_PANEL_COLLAPSED_CLASSES =
+  `${NAV_PANEL_BASE_CLASSES} min-[701px]:!items-center min-[701px]:!px-0 ` +
+  'min-[701px]:!py-4';
+
+const NAV_GROUP_OPEN_CLASSES =
+  'ucs-nav-top grid max-[700px]:w-full max-[700px]:items-center ' +
+  'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem] ' +
+  'min-[701px]:w-full min-[701px]:items-stretch min-[701px]:gap-1 ' +
+  'min-[701px]:mt-1';
+
+const NAV_GROUP_COLLAPSED_CLASSES =
+  'ucs-nav-top grid w-full items-center justify-items-center gap-[0.74rem] ' +
+  'mt-0 max-[700px]:gap-[0.65rem]';
+
+const NAV_ITEMS_OPEN_CLASSES =
+  'ucs-nav-items max-[700px]:w-full max-[700px]:items-center ' +
+  'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem] ' +
+  'min-[701px]:!w-full min-[701px]:!items-stretch min-[701px]:!gap-1 ' +
+  'min-[701px]:!mt-1';
+
+const NAV_ITEMS_COLLAPSED_CLASSES =
+  'ucs-nav-items !w-full !items-center !justify-items-center ' +
+  '!gap-[0.74rem] !mt-[0.74rem] max-[700px]:!gap-[0.65rem]';
+
+const NAV_BOTTOM_CLASSES =
+  'ucs-nav-bottom max-[700px]:w-full max-[700px]:items-center ' +
+  'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem]';
+
+const NAV_BOTTOM_COLLAPSED_CLASSES =
+  `${NAV_BOTTOM_CLASSES} min-[701px]:!w-full min-[701px]:!items-center ` +
+  'min-[701px]:!justify-items-center min-[701px]:!gap-[0.74rem] ' +
+  'min-[701px]:!mt-0';
+
+const NAV_ITEM_OPEN_CLASSES =
+  'ucs-nav-item max-[700px]:!grid max-[700px]:!size-10 ' +
+  'max-[700px]:!min-h-10 max-[700px]:!min-w-10 max-[700px]:!grid-cols-[1fr] ' +
+  'max-[700px]:!place-items-center max-[700px]:!overflow-hidden ' +
+  'max-[700px]:!rounded-full max-[700px]:!p-0 min-[701px]:!grid ' +
+  'min-[701px]:!h-[2.45rem] min-[701px]:!min-h-[2.45rem] ' +
+  'min-[701px]:!w-full min-[701px]:!grid-cols-[1.5rem_minmax(0,1fr)] ' +
+  'min-[701px]:!items-center min-[701px]:!justify-stretch ' +
+  'min-[701px]:!justify-items-start min-[701px]:!gap-x-[0.72rem] ' +
+  'min-[701px]:!rounded-full min-[701px]:!px-3 min-[701px]:!py-0 ' +
+  'min-[701px]:!text-left min-[701px]:!leading-none';
+
+const NAV_ITEM_COLLAPSED_CLASSES =
+  'ucs-nav-item !grid !size-10 !min-h-10 !grid-cols-[1fr] !place-items-center ' +
+  '!justify-self-center !rounded-full !p-0 max-[700px]:!min-w-10 ' +
+  'max-[700px]:!overflow-hidden';
+
+const NAV_ICON_CLASSES =
+  'grid size-6 min-h-6 min-w-6 place-items-center justify-self-center ' +
+  'text-xl leading-none';
+
+const NAV_LABEL_OPEN_CLASSES =
+  'nav-label max-[700px]:!hidden max-[700px]:!max-w-0 ' +
+  'max-[700px]:!opacity-0 max-[700px]:!invisible min-[701px]:!block ' +
+  'min-[701px]:!max-w-none min-[701px]:!opacity-100 ' +
+  'min-[701px]:!visible';
+
+const NAV_LABEL_COLLAPSED_CLASSES =
+  'nav-label w-0 max-w-0 max-[700px]:!hidden max-[700px]:!opacity-0 ' +
+  'max-[700px]:!invisible';
+
+const HEADER_CLASSES =
+  'ucs-header-action-bar max-[700px]:!min-w-0 max-[700px]:!px-[0.85rem]';
+
+const PRODUCT_LOCKUP_CLASSES = 'ucs-product-lockup max-[700px]:ml-[3.25rem]';
+
+const HEADER_TITLE_CLASSES = 'ucs-header-title max-[700px]:!hidden';
+
+const HEADER_ACTIONS_CLASSES = 'ucs-header-actions max-[700px]:!hidden';
 
 const SIDE_CONTENT_BASE_CLASSES =
   'gemini-side-content grid min-w-0 gap-[0.35rem] overflow-hidden opacity-100 visible';
@@ -110,6 +211,16 @@ const SIDE_CONTENT_BASE_CLASSES =
 const HOME_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-[0.85rem] max-h-72`;
 
 const REPORT_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-6 max-h-80`;
+
+const SIDE_CONTENT_OPEN_CLASSES =
+  'max-[700px]:!hidden max-[700px]:!max-w-0 max-[700px]:!opacity-0 ' +
+  'max-[700px]:!invisible min-[701px]:!block min-[701px]:!max-w-none ' +
+  'min-[701px]:!opacity-100 min-[701px]:!visible';
+
+const SIDE_CONTENT_COLLAPSED_CLASSES =
+  'max-[700px]:!hidden max-[700px]:!max-w-0 max-[700px]:!opacity-0 ' +
+  'max-[700px]:!invisible min-[701px]:!grid min-[701px]:!max-h-0 ' +
+  'min-[701px]:!mt-0 min-[701px]:!opacity-0 min-[701px]:!invisible';
 
 const SIDE_HEADING_CLASSES =
   'gemini-side-heading mt-4 mb-[0.4rem] text-[0.78rem] font-medium ' +
@@ -186,22 +297,46 @@ export function Layout({children}: {children: ReactNode}) {
   ).size;
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
-  const sideContentClasses = isRunRoute
-    ? REPORT_SIDE_CONTENT_CLASSES
-    : HOME_SIDE_CONTENT_CLASSES;
+  const sideContentClasses = [
+    isRunRoute ? REPORT_SIDE_CONTENT_CLASSES : HOME_SIDE_CONTENT_CLASSES,
+    navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
+  ].join(' ');
   const chatListClasses = isRunRoute
     ? REPORT_CHAT_LIST_CLASSES
     : HOME_CHAT_LIST_CLASSES;
   const workspaceClasses = isRunRoute
     ? REPORT_WORKSPACE_CLASSES
-    : WORKSPACE_CLASSES;
-  const pageClasses = isRunRoute ? REPORT_PAGE_CLASSES : PAGE_CLASSES;
+    : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
+  const isHomeRoute = location.pathname === '/';
+  const pageClasses = isRunRoute
+    ? REPORT_PAGE_CLASSES
+    : isHomeRoute
+      ? HOME_PAGE_CLASSES
+      : PAGE_CLASSES;
   const shellClass = [
     'google-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
-    navOpen ? 'nav-open' : 'nav-collapsed',
+    navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
     'min-h-screen',
   ].join(' ');
+  const navPanelClasses = navOpen
+    ? NAV_PANEL_OPEN_CLASSES
+    : NAV_PANEL_COLLAPSED_CLASSES;
+  const navGroupClasses = navOpen
+    ? NAV_GROUP_OPEN_CLASSES
+    : NAV_GROUP_COLLAPSED_CLASSES;
+  const navItemsClasses = navOpen
+    ? NAV_ITEMS_OPEN_CLASSES
+    : NAV_ITEMS_COLLAPSED_CLASSES;
+  const navBottomClasses = navOpen
+    ? NAV_BOTTOM_CLASSES
+    : NAV_BOTTOM_COLLAPSED_CLASSES;
+  const navItemClasses = navOpen
+    ? NAV_ITEM_OPEN_CLASSES
+    : NAV_ITEM_COLLAPSED_CLASSES;
+  const navLabelClasses = navOpen
+    ? NAV_LABEL_OPEN_CLASSES
+    : NAV_LABEL_COLLAPSED_CLASSES;
 
   function startNewChat() {
     window.dispatchEvent(new Event('cosci-new-chat'));
@@ -324,12 +459,12 @@ export function Layout({children}: {children: ReactNode}) {
 
   return (
     <div className={shellClass}>
-      <aside className="ucs-nav-panel" aria-label="Primary navigation">
-        <div className="ucs-nav-top">
+      <aside className={navPanelClasses} aria-label="Primary navigation">
+        <div className={navGroupClasses}>
           <button
             type="button"
             className={tooltipClassNames({
-              className: 'ucs-nav-item',
+              className: navItemClasses,
               placement: 'right',
             })}
             aria-label="Menu"
@@ -338,35 +473,41 @@ export function Layout({children}: {children: ReactNode}) {
             aria-controls="primary-navigation"
             onClick={toggleNav}
           >
-            <md-icon aria-hidden="true">menu</md-icon>
-            <span className="nav-label">Menu</span>
+            <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
+              menu
+            </md-icon>
+            <span className={navLabelClasses}>Menu</span>
           </button>
-          <nav id="primary-navigation" className="ucs-nav-items">
+          <nav id="primary-navigation" className={navItemsClasses}>
             <button
               type="button"
               className={tooltipClassNames({
-                className: 'ucs-nav-item',
+                className: navItemClasses,
                 placement: 'right',
               })}
               aria-label="New chat"
               data-tooltip="New chat"
               onClick={startNewChat}
             >
-              <md-icon aria-hidden="true">edit_square</md-icon>
-              <span className="nav-label">New chat</span>
+              <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
+                edit_square
+              </md-icon>
+              <span className={navLabelClasses}>New chat</span>
             </button>
             <button
               type="button"
               className={tooltipClassNames({
-                className: 'ucs-nav-item',
+                className: navItemClasses,
                 placement: 'right',
               })}
               aria-label="Search"
               data-tooltip="Search"
               onClick={focusComposer}
             >
-              <md-icon aria-hidden="true">search</md-icon>
-              <span className="nav-label">Search</span>
+              <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
+                search
+              </md-icon>
+              <span className={navLabelClasses}>Search</span>
             </button>
           </nav>
           <div className={sideContentClasses}>
@@ -400,12 +541,12 @@ export function Layout({children}: {children: ReactNode}) {
             </div>
           </div>
         </div>
-        <div className="ucs-nav-bottom">
+        <div className={navBottomClasses}>
           <div ref={settingsControlRef} className="ucs-settings-control">
             <button
               type="button"
               className={tooltipClassNames({
-                className: 'ucs-nav-item',
+                className: navItemClasses,
                 placement: 'right',
               })}
               aria-label="Settings"
@@ -413,8 +554,10 @@ export function Layout({children}: {children: ReactNode}) {
               aria-expanded={activePanel === 'settings'}
               onClick={() => togglePanel('settings')}
             >
-              <md-icon aria-hidden="true">settings</md-icon>
-              <span className="nav-label">Settings</span>
+              <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
+                settings
+              </md-icon>
+              <span className={navLabelClasses}>Settings</span>
             </button>
             {activePanel === 'settings' && (
               <ShellPopover className="ucs-popover--rail">
@@ -451,18 +594,18 @@ export function Layout({children}: {children: ReactNode}) {
         </div>
       </aside>
       <section className={workspaceClasses}>
-        <header className="ucs-header-action-bar">
+        <header className={HEADER_CLASSES}>
           <button
             type="button"
-            className="ucs-product-lockup"
+            className={PRODUCT_LOCKUP_CLASSES}
             aria-label="Go to Co-Scientist home"
             onClick={startNewChat}
           >
             <GoogleLabsIcon aria-hidden="true" />
             <span>Co-Scientist</span>
           </button>
-          <div className="ucs-header-title">{headerTitle}</div>
-          <div ref={logsControlRef} className="ucs-header-actions">
+          <div className={HEADER_TITLE_CLASSES}>{headerTitle}</div>
+          <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
             <button
               type="button"
               className="ucs-logs-button"
