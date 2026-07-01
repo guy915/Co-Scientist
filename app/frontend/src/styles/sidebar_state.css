@@ -120,36 +120,6 @@
   padding-inline: 0;
 }
 
-.reference-home-main.prompt-open {
-  padding-top: clamp(2rem, 5vh, 3.3rem);
-}
-
-.reference-home-main.prompt-open .reference-chip {
-  transform: translateY(-0.25rem);
-}
-
-.reference-home-main.prompt-open h1 {
-  margin-top: 0.95rem;
-  transform: translateY(-0.2rem);
-}
-
-.reference-home-main.prompt-open .reference-step-timeline {
-  margin-top: clamp(3rem, 8vh, 5.2rem);
-}
-
-.reference-home-main.prompt-open .reference-prompt-echo {
-  margin-top: clamp(2rem, 6vh, 4.8rem);
-}
-
-.reference-home-main.prompt-open .reference-suggestion-row.prompt-open {
-  margin-top: 0.75rem;
-}
-
-.reference-home-main.prompt-open .reference-composer {
-  min-height: 7.35rem;
-  margin-top: 0.9rem;
-}
-
 [data-theme="dark"] .reference-suggestion-row button.selected {
   border-color: var(--cosci-green);
   background: #282a2c;
@@ -192,63 +162,6 @@
 
 [data-theme="dark"] .reference-recent-chips md-icon {
   color: #e6f4ea;
-}
-
-@media (max-height: 900px) {
-  .reference-home-main.prompt-open {
-    padding-top: 0.85rem;
-  }
-
-  .reference-home-main.prompt-open .reference-chip,
-  .reference-home-main.prompt-open h1 {
-    display: inline-flex;
-  }
-
-  .reference-home-main.prompt-open .reference-chip {
-    transform: translateY(-0.15rem) scale(0.96);
-  }
-
-  .reference-home-main.prompt-open h1 {
-    display: block;
-    width: min(100%, 34rem);
-    margin-top: 0.65rem;
-    font-size: clamp(1.95rem, 3vw, 2.35rem);
-    line-height: 1.12;
-    transform: translateY(-0.15rem);
-  }
-
-  .reference-home-main.prompt-open .reference-step-timeline {
-    margin-top: 1.35rem;
-  }
-
-  .reference-home-main.prompt-open .reference-step-timeline li {
-    gap: 0.45rem;
-  }
-
-  .reference-home-main.prompt-open .reference-step-timeline p {
-    display: block;
-    max-height: 0;
-    overflow: hidden;
-    margin-top: 0;
-    opacity: 0;
-  }
-
-  .reference-home-main.prompt-open .reference-prompt-echo {
-    margin-top: 1.25rem;
-  }
-
-  .reference-home-main.prompt-open .reference-suggestion-row.prompt-open {
-    margin-top: 0.55rem;
-  }
-
-  .reference-home-main.prompt-open .reference-suggestion-row button {
-    height: 3.9rem;
-  }
-
-  .reference-home-main.prompt-open .reference-composer {
-    min-height: 6.75rem;
-    margin-top: 0.7rem;
-  }
 }
 
 @media (min-width: 781px) and (max-height: 840px) {

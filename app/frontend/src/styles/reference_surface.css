@@ -77,16 +77,6 @@ body {
   background: var(--cosci-bg);
 }
 
-[data-theme="dark"] .reference-chip {
-  color: var(--cosci-muted);
-}
-
-[data-theme="dark"] .reference-chip svg,
-[data-theme="dark"] .reference-assistant-dot {
-  background: var(--cosci-green-bg);
-  color: var(--cosci-green);
-}
-
 [data-theme="dark"] .reference-step-timeline::before {
   background: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
 }

@@ -145,18 +145,6 @@
     text-align: left;
   }
 
-  .home-shell .reference-chip {
-    justify-self: start;
-    gap: 0.7rem;
-    font-size: 1rem;
-  }
-
-  .home-shell .reference-chip svg {
-    width: 1.75rem;
-    height: 1.75rem;
-    padding: 0.42rem;
-  }
-
   .home-shell .reference-home-main h1 {
     justify-self: start;
     width: 100%;

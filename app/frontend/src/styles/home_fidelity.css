@@ -62,11 +62,6 @@
   margin-top: clamp(3.7rem, 8.5vh, 5.2rem);
 }
 
-.home-shell .reference-prompt-echo {
-  margin-top: clamp(2.8rem, 7vh, 4.5rem);
-  margin-bottom: 0.55rem;
-}
-
 .home-shell .reference-suggestion-row button {
   overflow: hidden;
   align-content: center;
