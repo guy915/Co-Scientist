@@ -115,18 +115,67 @@ body {
 }
 
 [data-theme="dark"] .reference-recent-card {
+  border-color: #3c4043;
+  background: #202124;
   box-shadow: none;
   color: var(--cosci-text);
 }
 
 [data-theme="dark"] .reference-recent-meta span,
 [data-theme="dark"] .reference-recent-chips span {
-  background: #303134;
-  color: var(--cosci-muted);
+  background: #2b2c2f;
+  color: #e8eaed;
+}
+
+[data-theme="dark"] .reference-recent-chips span {
+  background: #188038;
+  color: #e6f4ea;
+}
+
+[data-theme="dark"] .reference-recent-chips md-icon {
+  color: #e6f4ea;
 }
 
 [data-theme="dark"] .reference-recent-card > span:not(.reference-recent-meta):not(.reference-recent-chips) {
   color: var(--cosci-muted);
+}
+
+@media (min-width: 781px) and (max-height: 840px) {
+  .home-shell .reference-home-main h1 {
+    width: min(100%, 35rem);
+    margin-top: 1rem;
+    font-size: clamp(2.35rem, 3.2vw, 2.65rem);
+    line-height: 1.12;
+  }
+
+  .home-shell .reference-step-timeline {
+    gap: clamp(1.5rem, 2.7vw, 2.4rem);
+  }
+
+  .home-shell .reference-step-timeline li {
+    gap: 0.75rem;
+  }
+
+  .home-shell .reference-step-timeline p {
+    font-size: 0.9rem;
+    line-height: 1.32;
+  }
+
+  .home-shell .reference-suggestion-row {
+    margin-top: clamp(1.5rem, 4vh, 2.2rem);
+  }
+
+  .home-shell .reference-suggestion-row button {
+    height: 3.85rem;
+  }
+
+  .home-shell .reference-composer {
+    min-height: 6.65rem;
+  }
+
+  .home-shell .reference-composer textarea {
+    min-height: 2.6rem;
+  }
 }
 
 [data-theme="dark"] .reference-setup-message,

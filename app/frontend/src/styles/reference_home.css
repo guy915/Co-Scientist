@@ -433,6 +433,23 @@
   margin: 0;
   padding: 0 0.6rem 0 0;
   list-style: none;
+  scrollbar-color: #9aa0a6 transparent;
+  scrollbar-width: thin;
+}
+
+.reference-recents ol::-webkit-scrollbar {
+  width: 0.5rem;
+}
+
+.reference-recents ol::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.reference-recents ol::-webkit-scrollbar-thumb {
+  border: 0.125rem solid transparent;
+  border-radius: 999px;
+  background: #9aa0a6;
+  background-clip: content-box;
 }
 
 .reference-recent-card {

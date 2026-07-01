@@ -209,6 +209,8 @@
 .ucs-diagnostic-empty {
   margin: 0;
   border-radius: 0.85rem;
+  background: #edf7f4;
+  color: #0f5454;
   padding: 0.85rem;
   text-align: center;
 }
@@ -265,6 +267,11 @@
 [data-theme="dark"] .ucs-diagnostic-intro,
 [data-theme="dark"] .ucs-diagnostic-entry-meta {
   color: #bdc1c6;
+}
+
+[data-theme="dark"] .ucs-diagnostic-empty {
+  background: #132927;
+  color: #7fd7bf;
 }
 
 @media (max-width: 720px) {

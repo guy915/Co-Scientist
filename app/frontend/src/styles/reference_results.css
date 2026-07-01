@@ -1,4 +1,9 @@
+.idea-split-shell {
+  overflow: hidden;
+}
+
 .idea-split-grid.reference {
+  display: grid;
   min-width: 0;
   grid-template-columns: 29.45rem minmax(0, 1fr) 16.25rem;
   height: 100%;
@@ -6,15 +11,20 @@
 }
 
 .idea-split-grid.reference .idea-rank-list {
+  display: grid;
+  align-content: start;
   gap: 0.7rem;
   overflow-y: auto;
+  margin: 0;
   border-right: 1px solid #dadce0;
   background: transparent;
   padding: 1.25rem 1.5rem 1.25rem 1.25rem;
+  list-style: none;
 }
 
 .idea-split-grid.reference .idea-rank-row {
   display: grid;
+  width: 100%;
   min-height: 8.9rem;
   grid-template-columns: 1.75rem minmax(0, 1fr);
   gap: 0.65rem;
@@ -22,6 +32,8 @@
   border: 1px solid #dadce0;
   border-radius: 0.5rem;
   background: #fff;
+  color: var(--md-sys-color-on-surface);
+  cursor: pointer;
   padding: 0.9rem;
   text-align: left;
 }
@@ -54,10 +66,19 @@
   min-width: 0;
 }
 
+.idea-split-grid.reference .idea-rank-title,
+.idea-split-grid.reference .idea-rank-preview {
+  display: block;
+}
+
 .idea-split-grid.reference .idea-rank-title {
+  overflow: hidden;
   margin-top: 0.15rem;
   font-size: 0.9rem;
+  font-weight: 600;
   line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .idea-split-grid.reference .idea-rank-preview {
@@ -71,13 +92,21 @@
 }
 
 .idea-detail-pane {
+  display: grid;
   min-width: 0;
+  align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
   gap: 1.35rem;
   border-right: 0;
   background: transparent;
   padding: 1.45rem 1.75rem 3.5rem;
+}
+
+.idea-detail-pane.empty {
+  place-items: center;
+  color: var(--md-sys-color-on-surface-variant);
+  text-align: center;
 }
 
 .idea-breadcrumb {
@@ -106,6 +135,8 @@
 }
 
 .idea-detail-section {
+  display: grid;
+  gap: 0.45rem;
   border-top: 0;
   padding-top: 0;
 }
@@ -127,6 +158,8 @@
 }
 
 .idea-detail-section p {
+  margin: 0;
+  color: var(--md-sys-color-on-surface);
   font-size: 0.88rem;
   line-height: 1.5;
   overflow-wrap: anywhere;

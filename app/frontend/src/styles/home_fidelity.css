@@ -157,6 +157,11 @@
   background: #282a2c;
 }
 
+[data-theme="dark"] .home-shell .reference-suggestion-row button.selected {
+  border-color: var(--cosci-green);
+  background: #282a2c;
+}
+
 .home-shell .reference-suggestion-row {
   margin-top: clamp(3.2rem, 7vh, 4.35rem);
 }
