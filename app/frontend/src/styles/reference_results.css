@@ -186,17 +186,17 @@
   gap: 1.1rem;
   margin: 1.25rem 1.25rem 0 0.5rem;
   border-radius: 0.45rem;
-  background: #eef3f8;
+  background: var(--cosci-panel);
   padding: 1rem;
 }
 
 .idea-sections-rail span {
-  color: #3c4043;
+  color: var(--cosci-muted);
   font-size: 0.78rem;
 }
 
 .idea-sections-rail a {
-  color: #1967d2;
+  color: var(--cosci-blue);
   font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.35;

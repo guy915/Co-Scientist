@@ -10,7 +10,6 @@
 }
 
 .ucs-nav-items,
-.ucs-rail-button,
 .ucs-nav-item,
 .gemini-chat-list a,
 .gemini-side-content,
@@ -18,7 +17,6 @@
   overflow: visible;
 }
 
-.ucs-rail-button,
 .ucs-nav-item,
 .gemini-chat-list a {
   position: relative;
@@ -128,7 +126,6 @@
   visibility: visible !important;
 }
 
-.ucs-rail-button .nav-label,
 .ucs-nav-item .nav-label {
   white-space: nowrap;
 }

@@ -208,7 +208,7 @@ export function Layout({children}: {children: ReactNode}) {
           <button
             type="button"
             className={tooltipClassNames({
-              className: 'ucs-rail-button',
+              className: 'ucs-nav-item',
               placement: 'right',
             })}
             aria-label="Menu"
@@ -280,7 +280,7 @@ export function Layout({children}: {children: ReactNode}) {
             <button
               type="button"
               className={tooltipClassNames({
-                className: 'ucs-rail-button',
+                className: 'ucs-nav-item',
                 placement: 'right',
               })}
               aria-label="Settings"

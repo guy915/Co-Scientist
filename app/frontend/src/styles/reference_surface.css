@@ -20,6 +20,7 @@
   --cosci-step-line: color-mix(in srgb, var(--cosci-teal) 38%, #dadce0);
   --cosci-step-dot-bg: var(--cosci-teal);
   --cosci-step-dot-text: #fff;
+  --cosci-logo-color: var(--cosci-teal);
   --cosci-step-heading: #3c4043;
   --cosci-step-text: #202124;
   --cosci-suggestion-border: #c4c7c5;
@@ -103,6 +104,7 @@
   --cosci-step-line: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
   --cosci-step-dot-bg: var(--cosci-green);
   --cosci-step-dot-text: #202124;
+  --cosci-logo-color: var(--cosci-green);
   --cosci-step-heading: var(--cosci-muted);
   --cosci-step-text: var(--cosci-text);
   --cosci-suggestion-border: var(--cosci-border);

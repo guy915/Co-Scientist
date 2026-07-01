@@ -36,6 +36,7 @@
 }
 
 .reference-home-main {
+  display: grid;
   align-content: start;
   padding-top: clamp(2.4rem, 7vh, 3.5rem);
 }

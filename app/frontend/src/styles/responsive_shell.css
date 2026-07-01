@@ -49,8 +49,7 @@
     margin-top: 0.74rem;
   }
 
-  :is(.home-shell, .report-shell).nav-open
-    :is(.ucs-nav-top > .ucs-rail-button, .ucs-nav-item, .ucs-nav-bottom .ucs-rail-button) {
+  :is(.home-shell, .report-shell).nav-open .ucs-nav-item {
     display: grid;
     width: 100%;
     height: 2.45rem;
@@ -66,8 +65,7 @@
     line-height: 1;
   }
 
-  :is(.home-shell, .report-shell).nav-collapsed
-    :is(.ucs-rail-button, .ucs-nav-item, .ucs-nav-bottom .ucs-rail-button) {
+  :is(.home-shell, .report-shell).nav-collapsed .ucs-nav-item {
     display: grid;
     width: 2.5rem;
     height: 2.5rem;
@@ -79,9 +77,7 @@
     padding: 0;
   }
 
-  :is(.home-shell, .report-shell)
-    :is(.ucs-nav-top > .ucs-rail-button, .ucs-nav-item, .ucs-nav-bottom .ucs-rail-button)
-    md-icon {
+  :is(.home-shell, .report-shell) .ucs-nav-item md-icon {
     display: grid;
     width: 1.5rem;
     height: 1.5rem;
@@ -338,12 +334,7 @@
     gap: 0.65rem;
   }
 
-  :is(.home-shell, .report-shell)
-    :is(
-      .ucs-nav-top > .ucs-rail-button,
-      .ucs-nav-item,
-      .ucs-nav-bottom .ucs-rail-button
-    ) {
+  :is(.home-shell, .report-shell) .ucs-nav-item {
     display: grid;
     width: 2.5rem;
     min-width: 2.5rem;
