@@ -46,7 +46,7 @@ const IDEA_RANK_TITLE_CLASSES =
   'text-[var(--idea-title-text)]';
 
 const IDEA_RANK_PREVIEW_CLASSES =
-  'idea-rank-preview mt-[0.45rem] line-clamp-2 block overflow-hidden ' +
+  'idea-rank-preview mt-[0.45rem] line-clamp-2 overflow-hidden ' +
   'text-[0.72rem] leading-[1.35] text-[var(--idea-preview-text)]';
 
 const IDEA_DETAIL_PANE_CLASSES =
