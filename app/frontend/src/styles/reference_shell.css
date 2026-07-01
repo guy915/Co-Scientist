@@ -22,7 +22,6 @@
   grid-template-columns: 4.75rem minmax(0, 1fr);
   min-height: 100vh;
   background: var(--cosci-rail) !important;
-  transition: grid-template-columns 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-nav-panel {
@@ -34,9 +33,6 @@
   border-right: 0;
   background: var(--cosci-rail);
   padding: 1.25rem 0;
-  transition:
-    align-items 220ms cubic-bezier(0.2, 0, 0, 1),
-    padding 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-rail-button,
@@ -53,8 +49,7 @@
   cursor: pointer;
   transition:
     background-color 180ms cubic-bezier(0.2, 0, 0, 1),
-    color 180ms cubic-bezier(0.2, 0, 0, 1),
-    transform 180ms cubic-bezier(0.2, 0, 0, 1);
+    color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-nav-items {
@@ -69,13 +64,8 @@
   overflow: hidden;
   text-decoration: none;
   transition:
-    width 220ms cubic-bezier(0.2, 0, 0, 1),
-    height 220ms cubic-bezier(0.2, 0, 0, 1),
-    min-height 220ms cubic-bezier(0.2, 0, 0, 1),
-    border-radius 220ms cubic-bezier(0.2, 0, 0, 1),
     background-color 180ms cubic-bezier(0.2, 0, 0, 1),
-    color 180ms cubic-bezier(0.2, 0, 0, 1),
-    padding 220ms cubic-bezier(0.2, 0, 0, 1);
+    color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-nav-item.selected {
@@ -120,9 +110,7 @@
   overflow: hidden;
   border-top-left-radius: 1.85rem;
   background: var(--cosci-workspace-bg);
-  transition:
-    border-radius 220ms cubic-bezier(0.2, 0, 0, 1),
-    background-color 180ms cubic-bezier(0.2, 0, 0, 1);
+  transition: background-color 180ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-header-action-bar {

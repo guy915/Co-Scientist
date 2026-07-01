@@ -243,17 +243,3 @@
     margin-top: clamp(3.5rem, 8.2vh, 4.7rem);
   }
 }
-
-@media (min-width: 1181px) and (min-height: 720px) {
-  .home-shell .reference-step-timeline {
-    margin-top: clamp(4.25rem, 8.3vh, 5.65rem);
-  }
-
-  .home-shell .reference-suggestion-row {
-    margin-top: clamp(7.75rem, 17vh, 9.15rem);
-  }
-
-  .home-shell .reference-composer {
-    margin-top: 1.1rem;
-  }
-}
