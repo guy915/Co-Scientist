@@ -39,6 +39,49 @@ const TAB_LABELS: Record<TabName, string> = {
   ideas: 'All Ideas',
 };
 
+const REPORT_PAGE_CLASSES =
+  'cosci-report-page grid h-full min-h-0 grid-rows-[4.75rem_5.5rem_minmax(0,1fr)] bg-[var(--cosci-bg)] text-[var(--cosci-text)] max-[720px]:min-w-0 max-[720px]:overflow-hidden';
+
+const REPORT_TITLEBAR_CLASSES =
+  'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-[var(--cosci-border)] px-9 max-[720px]:gap-[0.35rem] max-[720px]:px-[0.7rem]';
+
+const REPORT_TITLE_LEFT_CLASSES =
+  'cosci-report-title-left flex min-w-0 items-center gap-4 max-[720px]:gap-[0.45rem]';
+
+const REPORT_BACK_CLASSES =
+  'cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-[var(--cosci-muted)] no-underline hover:bg-[var(--cosci-hover)]';
+
+const REPORT_TITLE_CLASSES =
+  'm-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[720px]:text-[0.9rem]';
+
+const SESSION_DETAILS_CLASSES =
+  'cosci-session-details cursor-pointer border-0 bg-transparent px-0 py-[0.45rem] font-[inherit] text-sm font-medium text-[var(--cosci-blue)] max-[720px]:hidden';
+
+const REPORT_TABS_CLASSES =
+  'cosci-report-tabs grid grid-cols-4 border-b border-[var(--cosci-border)] max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
+
+const REPORT_TAB_BUTTON_BASE_CLASSES =
+  'relative grid min-w-0 cursor-pointer content-center justify-items-center gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm max-[720px]:gap-[0.2rem] max-[720px]:text-[0.68rem]';
+
+const REPORT_TAB_SELECTED_CLASSES =
+  "text-[var(--cosci-blue)] after:absolute after:right-[1.1rem] after:bottom-0 after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full after:bg-[var(--cosci-blue-strong)] after:content-['']";
+
+const REPORT_TAB_ICON_CLASSES = 'text-[1.35rem] max-[720px]:text-[1.12rem]';
+
+const REPORT_TAB_LABEL_CLASSES = 'max-[720px]:text-[0.75rem]';
+
+const REPORT_SCROLL_CLASSES =
+  'cosci-report-scroll min-h-0 overflow-auto max-[720px]:overflow-x-hidden';
+
+const REPORT_ALERT_CLASSES =
+  'cosci-report-alert mx-8 mt-4 rounded-xl border border-[#b3261e] bg-[#fce8e6] px-4 py-3 text-[#b3261e] dark:border-[#5b2b2b] dark:bg-[#3c1715] dark:text-[#ffb4aa]';
+
+const REPORT_TOAST_CLASSES =
+  'cosci-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-[#b3261e] bg-[#fce8e6] px-4 py-3 text-[#b3261e] dark:border-[#5b2b2b] dark:bg-[#3c1715] dark:text-[#ffb4aa]';
+
+const REPORT_SKELETON_CLASSES =
+  'cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 max-[720px]:mt-5 max-[720px]:mb-12 max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
+
 const TAB_ALIASES: Record<string, TabName> = {
   specifications: 'details',
   specs: 'details',
@@ -163,40 +206,44 @@ export function RunDetail() {
   const activeTabIndex = TABS.indexOf(activeTab);
 
   return (
-    <div className="cosci-report-page">
-      <header className="cosci-report-titlebar">
-        <div className="cosci-report-title-left">
-          <Link to="/" className="cosci-report-back" aria-label="Back">
+    <div className={REPORT_PAGE_CLASSES}>
+      <header className={REPORT_TITLEBAR_CLASSES}>
+        <div className={REPORT_TITLE_LEFT_CLASSES}>
+          <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
             <md-icon aria-hidden="true">arrow_back</md-icon>
           </Link>
-          <h1>{title}</h1>
+          <h1 className={REPORT_TITLE_CLASSES}>{title}</h1>
         </div>
         <button
           type="button"
-          className="cosci-session-details"
+          className={SESSION_DETAILS_CLASSES}
           onClick={onSessionDetails}
         >
           Session details
         </button>
       </header>
 
-      <nav className="cosci-report-tabs" aria-label="Goal report sections">
+      <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
         {TABS.map((tabName, index) => (
           <button
             key={tabName}
             type="button"
-            className={index === activeTabIndex ? 'selected' : ''}
+            className={reportTabButtonClass(index === activeTabIndex)}
             aria-current={index === activeTabIndex ? 'page' : undefined}
             onClick={() => onTabChange(tabName)}
           >
-            <md-icon aria-hidden="true">{TAB_ICON_NAMES[tabName]}</md-icon>
-            <span>{TAB_LABELS[tabName]}</span>
+            <md-icon className={REPORT_TAB_ICON_CLASSES} aria-hidden="true">
+              {TAB_ICON_NAMES[tabName]}
+            </md-icon>
+            <span className={REPORT_TAB_LABEL_CLASSES}>
+              {TAB_LABELS[tabName]}
+            </span>
           </button>
         ))}
       </nav>
 
       {error && (
-        <div role="alert" className="cosci-report-alert">
+        <div role="alert" className={REPORT_ALERT_CLASSES}>
           {error}
         </div>
       )}
@@ -204,7 +251,7 @@ export function RunDetail() {
       {!loaded && !error ? (
         <RunDetailSkeleton />
       ) : (
-        <main className="cosci-report-scroll" key={activeTab}>
+        <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
           {activeTab === 'details' && <GoalDetailsView run={run} />}
           {activeTab === 'learning' && (
             <LearningView
@@ -235,6 +282,12 @@ export function RunDetail() {
       {toast && <RunToast toast={toast} />}
     </div>
   );
+}
+
+function reportTabButtonClass(selected: boolean): string {
+  return `${REPORT_TAB_BUTTON_BASE_CLASSES} ${
+    selected ? REPORT_TAB_SELECTED_CLASSES : 'text-[var(--cosci-muted)]'
+  }`;
 }
 
 function GoalDetailsView({run}: {run: RunWithSummary | null}) {
@@ -553,7 +606,7 @@ function goalReportTitle(goal: string, setup?: RunSetupConfig): string {
 
 function RunToast({toast}: {toast: {type: 'info' | 'error'; message: string}}) {
   return (
-    <div role="status" className="cosci-report-toast">
+    <div role="status" className={REPORT_TOAST_CLASSES}>
       {toast.message}
     </div>
   );
@@ -567,7 +620,7 @@ function normalizeTab(tab: string | undefined): TabName {
 
 function RunDetailSkeleton() {
   return (
-    <div className="cosci-report-skeleton" aria-busy="true">
+    <div className={REPORT_SKELETON_CLASSES} aria-busy="true">
       <div className="wb-skeleton h-8 w-64" />
       <div className="wb-skeleton h-12 w-full" />
       <div className="wb-skeleton h-48 w-full" />
