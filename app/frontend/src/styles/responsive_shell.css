@@ -324,17 +324,12 @@
     display: none !important;
   }
 
-  .home-shell.nav-open,
-.home-shell.nav-collapsed,
-.report-shell.nav-open,
-.report-shell.nav-collapsed {
+  :is(.home-shell, .report-shell):is(.nav-open, .nav-collapsed) {
     grid-template-columns: 4.125rem minmax(0, 1fr);
   }
 
-  .home-shell.nav-open .ucs-nav-panel,
-.home-shell.nav-collapsed .ucs-nav-panel,
-.report-shell.nav-open .ucs-nav-panel,
-.report-shell.nav-collapsed .ucs-nav-panel {
+  :is(.home-shell, .report-shell):is(.nav-open, .nav-collapsed)
+    .ucs-nav-panel {
     width: 4.125rem;
     min-width: 4.125rem;
     max-width: 4.125rem;
@@ -343,24 +338,20 @@
     overflow: hidden;
   }
 
-  .home-shell .ucs-nav-top,
-.home-shell .ucs-nav-items,
-.home-shell .ucs-nav-bottom,
-.report-shell .ucs-nav-top,
-.report-shell .ucs-nav-items,
-.report-shell .ucs-nav-bottom {
+  :is(.home-shell, .report-shell)
+    :is(.ucs-nav-top, .ucs-nav-items, .ucs-nav-bottom) {
     width: 100%;
     align-items: center;
     justify-items: center;
     gap: 0.65rem;
   }
 
-  .home-shell .ucs-nav-top > .ucs-rail-button,
-.home-shell .ucs-nav-item,
-.home-shell .ucs-nav-bottom .ucs-rail-button,
-.report-shell .ucs-nav-top > .ucs-rail-button,
-.report-shell .ucs-nav-item,
-.report-shell .ucs-nav-bottom .ucs-rail-button {
+  :is(.home-shell, .report-shell)
+    :is(
+      .ucs-nav-top > .ucs-rail-button,
+      .ucs-nav-item,
+      .ucs-nav-bottom .ucs-rail-button
+    ) {
     display: grid;
     width: 2.5rem;
     min-width: 2.5rem;
@@ -373,10 +364,7 @@
     overflow: hidden;
   }
 
-  .home-shell .nav-label,
-.home-shell .gemini-side-content,
-.report-shell .nav-label,
-.report-shell .gemini-side-content {
+  :is(.home-shell, .report-shell) :is(.nav-label, .gemini-side-content) {
     display: none !important;
     max-width: 0 !important;
     opacity: 0 !important;
@@ -399,8 +387,9 @@
     overflow-x: hidden;
   }
 
-  .home-shell .ucs-page:has(.reference-home-stage) .cosci-workspace,
-.home-shell .ucs-page:has(.reference-home-stage) .cosci-workspace-main {
+  .home-shell
+    .ucs-page:has(.reference-home-stage)
+    :is(.cosci-workspace, .cosci-workspace-main) {
     height: auto;
     min-height: 100%;
     overflow: visible;
