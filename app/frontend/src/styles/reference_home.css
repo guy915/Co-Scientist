@@ -437,7 +437,7 @@
   bottom: 2.45rem;
   left: 2.35rem;
   z-index: 10;
-  width: 18.75rem;
+  width: 14rem;
   overflow: hidden;
   border: 1px solid #dadce0;
   border-radius: 0.9rem;
@@ -474,15 +474,16 @@
 }
 
 .reference-connectors-menu-row--top {
-  grid-template-columns: 1fr auto;
+  grid-template-columns: 1fr;
   border-bottom: 1px solid #e8eaed;
   cursor: default;
   font-weight: 500;
 }
 
 .reference-connector-icon {
+  color: #5f6368;
   font-family: "Material Symbols Outlined";
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   font-variation-settings:
     "FILL" 0,
     "wght" 400,
@@ -546,6 +547,10 @@
 
 [data-theme="dark"] .reference-connectors-menu-row--top {
   border-bottom-color: #3c4043;
+}
+
+[data-theme="dark"] .reference-connector-icon {
+  color: #c4c7c5;
 }
 
 .reference-recents {

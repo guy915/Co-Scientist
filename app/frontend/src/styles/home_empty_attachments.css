@@ -1,49 +1,4 @@
-/* Home reference fidelity: empty recents, hero glow, connector menu, attachments. */
-.home-shell .reference-home-stage,
-.home-shell .reference-home-main {
-  position: relative;
-}
-
-.home-shell .reference-home-main {
-  isolation: isolate;
-}
-
-.home-shell .reference-home-main::before {
-  position: absolute;
-  z-index: -1;
-  top: 30%;
-  left: 58%;
-  width: min(31rem, 44vw);
-  height: min(28rem, 42vh);
-  border-radius: 42% 58% 52% 48%;
-  background:
-    radial-gradient(
-      ellipse at 42% 38%,
-      rgb(61 150 132 / 24%) 0,
-      rgb(61 150 132 / 15%) 22%,
-      transparent 54%
-    ),
-    radial-gradient(ellipse at 66% 64%, rgb(109 184 145 / 18%) 0, transparent 48%),
-    radial-gradient(ellipse at 26% 62%, rgb(170 211 122 / 10%) 0, transparent 46%);
-  content: "";
-  filter: blur(24px);
-  opacity: 0.58;
-  pointer-events: none;
-  transform: translate(-18%, -2%);
-}
-
-[data-theme="dark"] .home-shell .reference-home-main::before {
-  background:
-    radial-gradient(
-      ellipse at 44% 38%,
-      rgb(72 165 145 / 22%) 0,
-      rgb(72 165 145 / 14%) 24%,
-      transparent 56%
-    ),
-    radial-gradient(ellipse at 66% 64%, rgb(74 132 112 / 18%) 0, transparent 48%),
-    radial-gradient(ellipse at 22% 62%, rgb(120 180 92 / 10%) 0, transparent 46%);
-  opacity: 0.72;
-}
+/* Home empty recents and attachment affordances. */
 
 .home-shell .reference-recents:has(.reference-recents-empty) {
   grid-template-rows: auto 1fr;
@@ -109,23 +64,6 @@
 
 .home-shell .reference-recents .google-recents-heading h2 {
   font-weight: 400;
-}
-
-.home-shell .reference-connectors-menu {
-  width: 14rem;
-}
-
-.home-shell .reference-connectors-menu-row--top {
-  grid-template-columns: 1fr;
-}
-
-.home-shell .reference-connector-icon {
-  color: #5f6368;
-  font-size: 1.15rem;
-}
-
-[data-theme="dark"] .home-shell .reference-connector-icon {
-  color: #c4c7c5;
 }
 
 .reference-composer.has-attachments,
