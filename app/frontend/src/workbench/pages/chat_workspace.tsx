@@ -40,6 +40,59 @@ import {
 } from '../run_spec';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {tooltipClassNames} from '../tooltip';
+import {
+  CHAT_BUBBLE_ROW_CLASSES,
+  CHAT_BUBBLE_USER_ROW_CLASSES,
+  CHAT_COLUMN_CLASSES,
+  CHAT_COMPOSER_CLASSES,
+  CHAT_TIMELINE_CLASSES,
+  MESSAGE_ACTION_BUTTON_CLASSES,
+  MESSAGE_ACTION_ICON_CLASSES,
+  MESSAGE_ACTIONS_CLASSES,
+  MESSAGE_ACTIONS_END_CLASSES,
+  MODEL_BUBBLE_CLASSES,
+  OPTION_CARD_BASE_CLASSES,
+  OPTION_CARD_SELECTED_CLASSES,
+  OPTION_DESCRIPTION_CLASSES,
+  OPTION_GRID_CLASSES,
+  OPTION_GROUP_CLASSES,
+  OPTION_GROUP_LEGEND_CLASSES,
+  OPTION_INPUT_CLASSES,
+  OPTION_LABEL_CLASSES,
+  OPTION_MARKER_CLASSES,
+  OPTION_MARKER_SELECTED_CLASSES,
+  PLAN_EDIT_BUTTON_CLASSES,
+  PLAN_EDIT_ICON_CLASSES,
+  PLAN_HEADING_CLASSES,
+  PLAN_SUBHEADING_CLASSES,
+  PLAN_TITLE_CLASSES,
+  SETUP_ACTIONS_CLASSES,
+  SETUP_DOCUMENT_CLASSES,
+  SETUP_DOCUMENT_TITLE_CLASSES,
+  SETUP_MESSAGE_CLASSES,
+  SETUP_PARAGRAPH_CLASSES,
+  SETUP_PRIMARY_BUTTON_CLASSES,
+  SETUP_SECONDARY_BUTTON_CLASSES,
+  SPEC_DETAIL_CLASSES,
+  SPEC_GRID_CLASSES,
+  SPEC_LIST_CLASSES,
+  SPEC_ROW_CLASSES,
+  SPEC_TERM_CLASSES,
+  STARTED_COPY_CLASSES,
+  STARTED_COPY_PARAGRAPH_CLASSES,
+  STARTED_MESSAGE_CLASSES,
+  STARTED_NEXT_BUTTON_CLASSES,
+  STARTED_NEXT_CLASSES,
+  STARTED_NEXT_COPY_CLASSES,
+  STARTED_OPEN_CLASSES,
+  STARTED_SESSION_CARD_CLASSES,
+  STARTED_SESSION_META_CLASSES,
+  STARTED_SESSION_TITLE_CLASSES,
+  USER_BUBBLE_CLASSES,
+  USER_BUBBLE_TEXT_CLASSES,
+  USER_BUBBLE_TEXT_COLLAPSED_CLASSES,
+  USER_COLLAPSE_BUTTON_CLASSES,
+} from './chat_setup_classes';
 
 interface ChatEntry {
   id: string;
@@ -1135,8 +1188,8 @@ export function ChatWorkspace() {
           </section>
         ) : (
           <>
-            <section ref={scrollRef} className="google-chat-timeline">
-              <div className="reference-chat-column">
+            <section ref={scrollRef} className={CHAT_TIMELINE_CLASSES}>
+              <div className={CHAT_COLUMN_CLASSES}>
                 {timelineItems.map(item => (
                   <Fragment key={item.id}>{item.node}</Fragment>
                 ))}
@@ -1155,8 +1208,8 @@ export function ChatWorkspace() {
                 )}
               </div>
             </section>
-            <div className="google-chat-composer">
-              <div className="reference-chat-column">
+            <div className={CHAT_COMPOSER_CLASSES}>
+              <div className={CHAT_COLUMN_CLASSES}>
                 <Composer
                   input={input}
                   setInput={setInput}
@@ -1601,21 +1654,24 @@ function MessageActionRow({
   return (
     <div
       className={
-        align === 'end'
-          ? 'reference-message-actions end'
-          : 'reference-message-actions'
+        align === 'end' ? MESSAGE_ACTIONS_END_CLASSES : MESSAGE_ACTIONS_CLASSES
       }
     >
       {actions.map(action => (
         <button
           key={action.label}
           type="button"
-          className={tooltipClassNames({placement: 'top'})}
+          className={tooltipClassNames({
+            className: MESSAGE_ACTION_BUTTON_CLASSES,
+            placement: 'top',
+          })}
           aria-label={action.label}
           data-tooltip={action.label}
           onClick={action.onClick}
         >
-          <md-icon aria-hidden="true">{action.icon}</md-icon>
+          <md-icon aria-hidden="true" className={MESSAGE_ACTION_ICON_CLASSES}>
+            {action.icon}
+          </md-icon>
         </button>
       ))}
     </div>
@@ -1654,31 +1710,29 @@ function ChatBubble({
     setExpanded(false);
   }, [isUser, message.content]);
 
-  const bubbleClassName = isUser
-    ? [
-        'reference-user-bubble',
-        canCollapse ? 'collapsible' : '',
-        canCollapse && !expanded ? 'collapsed' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')
-    : 'reference-model-bubble';
+  const bubbleClassName = isUser ? USER_BUBBLE_CLASSES : MODEL_BUBBLE_CLASSES;
 
   return (
     <div
-      className={isUser ? 'reference-bubble-row user' : 'reference-bubble-row'}
+      className={
+        isUser ? CHAT_BUBBLE_USER_ROW_CLASSES : CHAT_BUBBLE_ROW_CLASSES
+      }
     >
       <div className={bubbleClassName}>
         <span
           ref={isUser ? textRef : undefined}
-          className="reference-user-bubble-text"
+          className={
+            isUser && canCollapse && !expanded
+              ? USER_BUBBLE_TEXT_COLLAPSED_CLASSES
+              : USER_BUBBLE_TEXT_CLASSES
+          }
         >
           {message.content}
         </span>
         {isUser && canCollapse && (
           <button
             type="button"
-            className="reference-user-collapse"
+            className={USER_COLLAPSE_BUTTON_CLASSES}
             aria-label={expanded ? 'Collapse request' : 'Expand request'}
             title={expanded ? 'Collapse request' : 'Expand request'}
             onClick={() => setExpanded(current => !current)}
@@ -1751,40 +1805,41 @@ function RunSpecCard({
   const responseText = formatRunSpecResponse(spec);
 
   return (
-    <section
-      className="reference-setup-message"
-      aria-label="Inferred run setup"
-    >
-      <p>
+    <section className={SETUP_MESSAGE_CLASSES} aria-label="Inferred run setup">
+      <p className={SETUP_PARAGRAPH_CLASSES}>
         Okay, I've drafted the requirements to propose a novel, testable
         hypothesis for this research session. Let me know if you have any
         suggestions.
       </p>
-      <p className="reference-review-copy">
+      <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
         Please review or edit the details below as needed. Once ready, click
         "Start research" to start generating hypotheses.
       </p>
-      <div className="reference-plan-heading">
-        <h2>Research plan</h2>
+      <div className={PLAN_HEADING_CLASSES}>
+        <h2 className={PLAN_TITLE_CLASSES}>Research plan</h2>
         <button
           type="button"
           className={tooltipClassNames({
-            className: 'reference-plan-edit',
+            className: PLAN_EDIT_BUTTON_CLASSES,
             placement: 'top',
           })}
           aria-label="Edit research plan"
           data-tooltip="Edit research plan"
           onClick={onEdit}
         >
-          <md-icon aria-hidden="true">edit</md-icon>
+          <md-icon aria-hidden="true" className={PLAN_EDIT_ICON_CLASSES}>
+            edit
+          </md-icon>
         </button>
       </div>
-      <p className="reference-plan-subheading">
+      <p className={PLAN_SUBHEADING_CLASSES}>
         Here's my plan to tackle the topic:
       </p>
-      <div className="reference-setup-document">
-        <h3>{referenceSetupTitle(spec.goal)}</h3>
-        <dl className="google-setup-grid">
+      <div className={SETUP_DOCUMENT_CLASSES}>
+        <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
+          {referenceSetupTitle(spec.goal)}
+        </h3>
+        <dl className={SPEC_GRID_CLASSES}>
           <SpecRow label="Goal">{spec.goal}</SpecRow>
           <SpecList label="Requirements" values={spec.requirements} />
           <SpecList label="Attributes" values={spec.attributes} />
@@ -1806,14 +1861,20 @@ function RunSpecCard({
           disabled={locked}
           onChange={value => onTierChange(value as RunTier)}
         />
-        <div className="reference-setup-actions">
+        <div className={SETUP_ACTIONS_CLASSES}>
           {!locked && (
-            <button type="button" onClick={onCancel} disabled={isStarting}>
+            <button
+              type="button"
+              className={SETUP_SECONDARY_BUTTON_CLASSES}
+              onClick={onCancel}
+              disabled={isStarting}
+            >
               Cancel
             </button>
           )}
           <button
             type="button"
+            className={SETUP_PRIMARY_BUTTON_CLASSES}
             onClick={onStart}
             disabled={isStarting || locked}
           >
@@ -1887,35 +1948,49 @@ function StartedSessionCard({
 
   return (
     <section
-      className="reference-started-message"
+      className={STARTED_MESSAGE_CLASSES}
       aria-label="Started research session"
     >
-      <div className="reference-started-copy">
-        <p>
+      <div className={STARTED_COPY_CLASSES}>
+        <p className={STARTED_COPY_PARAGRAPH_CLASSES}>
           Your session has been started and Co-Scientist has started research!
         </p>
-        <p>
+        <p className={STARTED_COPY_PARAGRAPH_CLASSES}>
           You can view and interact with your session at any time, but note that
           it might take a few minutes for the first ideas to be ready to view.
         </p>
       </div>
       <button
         type="button"
-        className="reference-started-session-card"
+        className={STARTED_SESSION_CARD_CLASSES}
         onClick={onOpen}
       >
         <span>
-          <strong>{session.title}</strong>
-          <small>Research session</small>
+          <strong className={STARTED_SESSION_TITLE_CLASSES}>
+            {session.title}
+          </strong>
+          <small className={STARTED_SESSION_META_CLASSES}>
+            Research session
+          </small>
         </span>
-        <span className="reference-started-open">Open</span>
+        <span className={STARTED_OPEN_CLASSES}>Open</span>
       </button>
-      <div className="reference-started-next">
-        <p>What would you like to do next?</p>
-        <button type="button" onClick={onOpen}>
+      <div className={STARTED_NEXT_CLASSES}>
+        <p className={STARTED_NEXT_COPY_CLASSES}>
+          What would you like to do next?
+        </p>
+        <button
+          type="button"
+          className={STARTED_NEXT_BUTTON_CLASSES}
+          onClick={onOpen}
+        >
           View session details
         </button>
-        <button type="button" onClick={onNewTopic}>
+        <button
+          type="button"
+          className={STARTED_NEXT_BUTTON_CLASSES}
+          onClick={onNewTopic}
+        >
           Start a new research goal session on a new topic
         </button>
       </div>
@@ -1962,9 +2037,9 @@ function referenceSetupTitle(goal: string): string {
 
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
-    <div className="google-spec-row">
-      <dt style={{color: 'var(--md-sys-color-on-surface-variant)'}}>{label}</dt>
-      <dd>{children}</dd>
+    <div className={SPEC_ROW_CLASSES}>
+      <dt className={SPEC_TERM_CLASSES}>{label}:</dt>
+      <dd className={SPEC_DETAIL_CLASSES}>{children}</dd>
     </div>
   );
 }
@@ -1972,7 +2047,7 @@ function SpecRow({label, children}: {label: string; children: ReactNode}) {
 function SpecList({label, values}: {label: string; values: string[]}) {
   return (
     <SpecRow label={label}>
-      <ul className="google-spec-list">
+      <ul className={SPEC_LIST_CLASSES}>
         {values.map(value => (
           <li key={value}>{value}</li>
         ))}
@@ -1997,29 +2072,42 @@ function RunOptionGroup({
   onChange: (value: string) => void;
 }) {
   return (
-    <fieldset className="reference-option-group" aria-label={label}>
-      <legend>{label}</legend>
-      <div>
+    <fieldset className={OPTION_GROUP_CLASSES} aria-label={label}>
+      <legend className={OPTION_GROUP_LEGEND_CLASSES}>{label}</legend>
+      <div className={OPTION_GRID_CLASSES}>
         {options.map(option => (
           <label
             key={option.id}
-            className={
-              option.id === value
-                ? 'reference-option-card selected'
-                : 'reference-option-card'
-            }
+            className={[
+              OPTION_CARD_BASE_CLASSES,
+              disabled ? 'cursor-default' : 'cursor-pointer',
+              option.id === value ? OPTION_CARD_SELECTED_CLASSES : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
           >
             <input
               type="radio"
+              className={OPTION_INPUT_CLASSES}
               name={name}
               value={option.id}
               checked={option.id === value}
               disabled={disabled}
               onChange={() => onChange(option.id)}
             />
-            <span aria-hidden="true" />
-            <strong>{option.label}</strong>
-            <small>{option.description}</small>
+            <span
+              className={[
+                OPTION_MARKER_CLASSES,
+                option.id === value ? OPTION_MARKER_SELECTED_CLASSES : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              aria-hidden="true"
+            />
+            <strong className={OPTION_LABEL_CLASSES}>{option.label}</strong>
+            <small className={OPTION_DESCRIPTION_CLASSES}>
+              {option.description}
+            </small>
           </label>
         ))}
       </div>
