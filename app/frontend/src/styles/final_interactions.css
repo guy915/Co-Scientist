@@ -70,58 +70,6 @@ html {
   white-space: nowrap;
 }
 
-.ucs-diagnostic-header {
-  gap: 0.78rem;
-  padding: 0.78rem 1.05rem 0.68rem;
-}
-
-.ucs-diagnostic-title h2 {
-  overflow: hidden;
-  font-size: 1.3rem;
-  text-overflow: ellipsis;
-}
-
-.ucs-diagnostic-actions {
-  flex-wrap: nowrap;
-  gap: 0.5rem;
-}
-
-.ucs-diagnostic-actions button {
-  height: 2.25rem;
-  min-width: 5.15rem;
-  padding-inline: 0.8rem;
-  font-size: 0.84rem;
-}
-
-.ucs-diagnostic-intro {
-  padding: 0.56rem 1.05rem;
-}
-
-.ucs-diagnostic-list {
-  gap: 0.32rem;
-  padding: 0.65rem 1.05rem 1.75rem;
-}
-
-.ucs-diagnostic-entry {
-  gap: 0.18rem;
-}
-
-.ucs-diagnostic-entry-meta {
-  font-size: 0.72rem;
-}
-
-.ucs-diagnostic-entry pre {
-  border-radius: 0.55rem;
-  line-height: 1.22;
-  padding: 0.36rem 0.62rem;
-}
-
-.ucs-diagnostic-chips span {
-  min-height: 1.35rem;
-  padding: 0.1rem 0.46rem;
-  font-size: 0.68rem;
-}
-
 /* Geometry pass: keep hover, cards, and rail controls neutral and stable. */
 @media (min-width: 701px) {
   :is(.home-shell, .report-shell).nav-open {
@@ -503,20 +451,6 @@ html {
   border-color: #3c4043;
   background: #202124;
   color: #5f6368;
-}
-
-.ucs-popover--logs {
-  width: min(34rem, calc(100vw - 2rem));
-  max-height: min(34rem, calc(100vh - 6rem));
-  grid-template-rows: auto auto 1fr;
-  overflow: hidden;
-}
-
-.ucs-diagnostic-list {
-  min-height: 0;
-  max-height: none;
-  overflow: auto;
-  padding-bottom: 0.9rem;
 }
 
 [data-theme="dark"] :is(.home-shell, .report-shell) .ucs-nav-panel {
