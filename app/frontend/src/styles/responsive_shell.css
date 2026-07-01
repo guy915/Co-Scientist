@@ -315,6 +315,11 @@
     margin-left: 3.25rem;
   }
 
+  .home-shell .ucs-header-action-bar .ucs-header-actions,
+  .report-shell .ucs-header-action-bar .ucs-header-actions {
+    display: none;
+  }
+
   .home-shell.nav-open,
 .home-shell.nav-collapsed,
 .report-shell.nav-open,
