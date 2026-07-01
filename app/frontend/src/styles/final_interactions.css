@@ -9,17 +9,6 @@ html {
   scroll-behavior: smooth;
 }
 
-[data-tooltip].ucs-tooltip-wrap::after {
-  width: max-content !important;
-  max-width: min(18rem, calc(100vw - 2rem)) !important;
-  overflow-wrap: break-word !important;
-  white-space: normal !important;
-}
-
-.gemini-chat-list [data-tooltip].ucs-tooltip-wrap::after {
-  max-width: min(16.5rem, calc(100vw - 2rem)) !important;
-}
-
 @media (min-width: 701px) {
   :is(.home-shell, .report-shell).nav-open .gemini-side-content,
 :is(.home-shell, .report-shell).nav-open .nav-label {
@@ -287,38 +276,6 @@ html {
   background:
     linear-gradient(rgb(255 255 255 / 9%), rgb(255 255 255 / 9%)),
     #004b72;
-}
-
-/* Active color guards for theme-inverted tooltips, empty diagnostics,
-   and neutral wireframe loading placeholders. */
-[data-tooltip].ucs-tooltip-anchor::after,
-[data-theme="light"] [data-tooltip].ucs-tooltip-anchor::after {
-  max-width: min(20rem, calc(100vw - 2rem)) !important;
-  border-color: #3c4043 !important;
-  background: #303134 !important;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 22%),
-    0 3px 8px rgb(0 0 0 / 24%) !important;
-  color: #f1f3f4 !important;
-}
-
-[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor::after {
-  border-color: #dadce0 !important;
-  background: #f1f3f4 !important;
-  box-shadow:
-    0 1px 2px rgb(60 64 67 / 18%),
-    0 2px 6px rgb(60 64 67 / 16%) !important;
-  color: #202124 !important;
-}
-
-.wb-skeleton {
-  background: linear-gradient(90deg, #2f3336 0%, #3a3f42 50%, #2f3336 100%);
-  background-size: 200% 100%;
-}
-
-[data-theme="light"] .wb-skeleton {
-  background: linear-gradient(90deg, #eceff1 0%, #f7f9fa 50%, #eceff1 100%);
-  background-size: 200% 100%;
 }
 
 /* Active interaction/layout fixes for the chat and Recents refactor. */

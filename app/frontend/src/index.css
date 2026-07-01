@@ -123,10 +123,15 @@ body {
   }
 }
 .wb-skeleton {
-  background: linear-gradient(90deg, #eceff1 0%, #f7f9fa 50%, #eceff1 100%);
+  background: linear-gradient(90deg, #2f3336 0%, #3a3f42 50%, #2f3336 100%);
   background-size: 200% 100%;
   animation: wb-shimmer 1.6s ease-in-out infinite;
   border-radius: 0.375rem;
+}
+
+[data-theme="light"] .wb-skeleton {
+  background: linear-gradient(90deg, #eceff1 0%, #f7f9fa 50%, #eceff1 100%);
+  background-size: 200% 100%;
 }
 
 .wb-link {
