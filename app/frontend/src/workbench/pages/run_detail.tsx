@@ -19,6 +19,8 @@ import {
   type RunWithSummary,
 } from '@/api/runs';
 import {useRunStream} from '@/hooks/use_run_stream';
+import {splitAbstractSections} from '@/lib/format_abstract';
+import {renderInlineHtml} from '@/lib/sanitize_html';
 import {conciseTitle} from '@/lib/text';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 
@@ -389,13 +391,22 @@ function LearningView({goal, evidence}: {goal: string; evidence: Evidence[]}) {
             id={section.id}
             className={REPORT_SECTION_CLASSES}
           >
-            <h3 className={REPORT_H3_CLASSES}>{section.title}</h3>
+            <h3
+              className={REPORT_H3_CLASSES}
+              dangerouslySetInnerHTML={{
+                __html: renderInlineHtml(section.title),
+              }}
+            />
             <h4 className={REPORT_H4_CLASSES}>Summary</h4>
-            <p>{section.summary}</p>
+            <AbstractBody text={section.summary} />
             {expanded && (
               <>
                 <h4 className={REPORT_H4_CLASSES}>Details</h4>
-                <p>{section.detail}</p>
+                <p
+                  dangerouslySetInnerHTML={{
+                    __html: renderInlineHtml(section.detail),
+                  }}
+                />
               </>
             )}
             <button
@@ -421,6 +432,28 @@ function LearningView({goal, evidence}: {goal: string; evidence: Evidence[]}) {
         onQueryChange={setQuery}
       />
     </ReportDocument>
+  );
+}
+
+/**
+ * Renders a (possibly structured) PubMed abstract as one paragraph per section.
+ * Section labels are shown as a bold lead-in, except "Summary", which would just
+ * echo the surrounding heading.
+ */
+function AbstractBody({text}: {text: string}) {
+  const parts = splitAbstractSections(text);
+  return (
+    <>
+      {parts.map((part, index) => {
+        const showLabel = part.label && part.label.toLowerCase() !== 'summary';
+        return (
+          <p key={index}>
+            {showLabel ? <strong>{part.label} </strong> : null}
+            <span dangerouslySetInnerHTML={{__html: part.html}} />
+          </p>
+        );
+      })}
+    </>
   );
 }
 
@@ -455,9 +488,10 @@ function ReferencesBlock({
               <span className={REFERENCE_LIST_INDEX_CLASSES}>
                 [{index + 1}]
               </span>
-              <strong className={REFERENCE_LIST_TITLE_CLASSES}>
-                {item.title}
-              </strong>
+              <strong
+                className={REFERENCE_LIST_TITLE_CLASSES}
+                dangerouslySetInnerHTML={{__html: renderInlineHtml(item.title)}}
+              />
               {item.url ? (
                 <a
                   className={REFERENCE_LIST_LINK_CLASSES}
