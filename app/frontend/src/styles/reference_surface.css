@@ -115,8 +115,6 @@ body {
 }
 
 [data-theme="dark"] .reference-recent-card {
-  border-color: var(--cosci-border);
-  background: var(--cosci-panel);
   box-shadow: none;
   color: var(--cosci-text);
 }

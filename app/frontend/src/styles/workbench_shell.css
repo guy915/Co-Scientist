@@ -11,15 +11,6 @@
   justify-content: space-between;
 }
 
-.ucs-product-lockup {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-  color: var(--md-sys-color-on-surface);
-  font-weight: 600;
-  text-decoration: none;
-}
-
 .ucs-nav-items {
   display: grid;
 }

@@ -375,7 +375,6 @@ Run list table on Dashboard uses `sm:block hidden`. Structure: `thead` with `sec
 ### Progress & Loading
 
 - **Skeleton loaders:** `.wb-skeleton` — neutral gray shimmer animation. Used while API calls resolve.
-- **Live dot:** `.wb-live-dot` — pulsing status circle indicating an active session. Appears inline next to "Running" status.
 - `md-linear-progress` — used inside run detail header to show iteration progress.
 - `md-circular-progress` — used for stream-loading states within tabs.
 

@@ -1,4 +1,4 @@
-type TooltipPlacement = 'top' | 'right' | 'bottom';
+type TooltipPlacement = 'top' | 'right';
 
 type TooltipClassOptions = {
   className?: string;

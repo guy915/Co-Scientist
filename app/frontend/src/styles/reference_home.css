@@ -162,10 +162,6 @@
   background: #e6f4ea;
 }
 
-[data-theme="dark"] .reference-suggestion-row button.selected {
-  background: #273044;
-}
-
 .reference-composer {
   position: relative;
   min-height: 7.9rem;

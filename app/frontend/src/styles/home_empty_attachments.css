@@ -186,10 +186,6 @@
   font-weight: 400;
 }
 
-.home-shell .reference-recent-card > strong {
-  font-weight: 500;
-}
-
 .home-shell .reference-connectors-menu {
   width: 14rem;
 }
@@ -246,7 +242,6 @@
 }
 
 .reference-attachment-card {
-  position: relative;
   display: grid;
   box-sizing: border-box;
   width: 13.75rem;

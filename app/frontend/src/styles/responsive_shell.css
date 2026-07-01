@@ -44,7 +44,6 @@
   }
 
   .home-shell .reference-recents {
-    width: 100%;
     max-height: calc(100vh - 4.5rem);
     overflow: visible;
     padding-top: clamp(0.35rem, 1vh, 0.75rem);
