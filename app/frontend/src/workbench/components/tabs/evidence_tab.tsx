@@ -85,7 +85,7 @@ export function EvidenceTab({
   }
 
   return (
-    <div className="space-y-4 wb-fade-in">
+    <div className="space-y-4">
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {ALL_STATES.map(state => {
           const s = citationStateStyle(state);

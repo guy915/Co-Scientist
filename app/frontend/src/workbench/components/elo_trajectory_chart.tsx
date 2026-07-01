@@ -101,7 +101,7 @@ export function EloTrajectoryChart({
 
   return (
     <section
-      className="rounded border p-4 wb-fade-in"
+      className="rounded border p-4"
       style={{
         borderColor: 'var(--color-th-border)',
         backgroundColor: 'var(--color-th-card)',

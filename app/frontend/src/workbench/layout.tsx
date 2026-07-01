@@ -399,7 +399,7 @@ export function Layout({children}: {children: ReactNode}) {
             )}
           </div>
         </header>
-        <main className="ucs-page wb-fade-in">{children}</main>
+        <main className="ucs-page">{children}</main>
       </section>
     </div>
   );

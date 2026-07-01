@@ -44,7 +44,7 @@ export function IdeasTab({
   }
 
   return (
-    <div className="idea-split-shell wb-fade-in">
+    <div className="idea-split-shell">
       <div className="idea-split-grid reference">
         <ol className="idea-rank-list" aria-label="Ranked hypothesis list">
           {sorted.map((h, index) => (

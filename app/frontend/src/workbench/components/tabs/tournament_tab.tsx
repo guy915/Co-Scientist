@@ -50,7 +50,7 @@ export function TournamentTab({
             Leaderboard
           </h2>
           <ol
-            className="rounded border divide-y wb-fade-in"
+            className="rounded border divide-y"
             style={{
               borderColor: 'var(--md-sys-color-outline-variant)',
               backgroundColor: 'var(--md-sys-color-surface-container-low)',

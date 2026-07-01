@@ -62,7 +62,7 @@ export function ReportTab({
   return (
     <div className="flex flex-col-reverse gap-4 lg:grid lg:grid-cols-4">
       <article
-        className="lg:col-span-3 rounded border p-4 sm:p-6 wb-fade-in"
+        className="lg:col-span-3 rounded border p-4 sm:p-6"
         style={{
           borderColor: 'var(--md-sys-color-outline-variant)',
           backgroundColor: 'var(--md-sys-color-surface-container-low)',
