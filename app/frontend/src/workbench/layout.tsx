@@ -95,7 +95,9 @@ const DIAGNOSTIC_EMPTY_CLASSES =
   'py-[0.55rem] text-center text-[#0f5454] dark:bg-[#132927] ' +
   'dark:text-[#7fd7bf]';
 
-const WORKSPACE_CLASSES = 'ucs-workspace';
+const WORKSPACE_CLASSES =
+  'ucs-workspace grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden ' +
+  'rounded-tl-[1.85rem] bg-[var(--cosci-workspace-bg)]';
 
 const WORKSPACE_RESPONSIVE_CLASSES = 'rounded-bl-[1.9rem]';
 
@@ -103,7 +105,8 @@ const REPORT_WORKSPACE_CLASSES =
   'ucs-workspace min-h-screen !overflow-hidden rounded-bl-[1.9rem] ' +
   'max-[700px]:!min-w-0 max-[700px]:!overflow-hidden';
 
-const PAGE_CLASSES = 'ucs-page';
+const PAGE_CLASSES =
+  'ucs-page min-w-0 h-[calc(100vh-4.5rem)] overflow-auto p-0';
 
 const HOME_PAGE_CLASSES =
   'ucs-page min-[1181px]:!h-[calc(100vh-4.5rem)] ' +
@@ -115,15 +118,16 @@ const REPORT_PAGE_CLASSES =
   'max-[700px]:!min-w-0';
 
 const SHELL_OPEN_GRID_CLASSES =
-  'nav-open min-[701px]:!grid-cols-[17.25rem_minmax(0,1fr)] ' +
+  'nav-open grid bg-[var(--cosci-rail)] min-[701px]:!grid-cols-[17.25rem_minmax(0,1fr)] ' +
   'max-[700px]:!grid-cols-[4.125rem_minmax(0,1fr)]';
 
 const SHELL_COLLAPSED_GRID_CLASSES =
-  'nav-collapsed min-[701px]:!grid-cols-[4.75rem_minmax(0,1fr)] ' +
+  'nav-collapsed grid bg-[var(--cosci-rail)] min-[701px]:!grid-cols-[4.75rem_minmax(0,1fr)] ' +
   'max-[700px]:!grid-cols-[4.125rem_minmax(0,1fr)]';
 
 const NAV_PANEL_BASE_CLASSES =
-  'ucs-nav-panel box-border w-full dark:bg-[var(--cosci-rail)] ' +
+  'ucs-nav-panel box-border flex h-screen w-full flex-col items-center ' +
+  'justify-between border-r-0 bg-[var(--cosci-rail)] py-5 ' +
   'max-[700px]:!w-[4.125rem] max-[700px]:!min-w-[4.125rem] ' +
   'max-[700px]:!max-w-[4.125rem] max-[700px]:!items-center ' +
   'max-[700px]:!overflow-hidden max-[700px]:!px-0 max-[700px]:!py-4';
@@ -147,17 +151,18 @@ const NAV_GROUP_COLLAPSED_CLASSES =
   'mt-0 max-[700px]:gap-[0.65rem]';
 
 const NAV_ITEMS_OPEN_CLASSES =
-  'ucs-nav-items max-[700px]:w-full max-[700px]:items-center ' +
+  'ucs-nav-items grid gap-[0.85rem] mt-[1.4rem] max-[700px]:w-full max-[700px]:items-center ' +
   'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem] ' +
   'min-[701px]:!w-full min-[701px]:!items-stretch min-[701px]:!gap-1 ' +
   'min-[701px]:!mt-1';
 
 const NAV_ITEMS_COLLAPSED_CLASSES =
-  'ucs-nav-items !w-full !items-center !justify-items-center ' +
+  'ucs-nav-items grid !w-full !items-center !justify-items-center ' +
   '!gap-[0.74rem] !mt-[0.74rem] max-[700px]:!gap-[0.65rem]';
 
 const NAV_BOTTOM_CLASSES =
-  'ucs-nav-bottom max-[700px]:w-full max-[700px]:items-center ' +
+  'ucs-nav-bottom relative grid items-center justify-items-center gap-[0.8rem] p-0 ' +
+  'max-[700px]:w-full max-[700px]:items-center ' +
   'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem]';
 
 const NAV_BOTTOM_COLLAPSED_CLASSES =
@@ -166,7 +171,13 @@ const NAV_BOTTOM_COLLAPSED_CLASSES =
   'min-[701px]:!mt-0';
 
 const NAV_ITEM_OPEN_CLASSES =
-  'ucs-nav-item max-[700px]:!grid max-[700px]:!size-10 ' +
+  'ucs-nav-item grid size-10 min-h-10 cursor-pointer place-items-center ' +
+  'rounded-full border-0 bg-transparent p-0 text-[var(--cosci-shell-icon)] ' +
+  'no-underline hover:bg-[var(--cosci-shell-hover-bg)] ' +
+  'hover:text-[var(--cosci-shell-hover-text)] ' +
+  'focus-visible:bg-[var(--cosci-shell-hover-bg)] ' +
+  'focus-visible:text-[var(--cosci-shell-hover-text)] max-[700px]:!grid ' +
+  'max-[700px]:!size-10 ' +
   'max-[700px]:!min-h-10 max-[700px]:!min-w-10 max-[700px]:!grid-cols-[1fr] ' +
   'max-[700px]:!place-items-center max-[700px]:!overflow-hidden ' +
   'max-[700px]:!rounded-full max-[700px]:!p-0 min-[701px]:!grid ' +
@@ -179,7 +190,11 @@ const NAV_ITEM_OPEN_CLASSES =
 
 const NAV_ITEM_COLLAPSED_CLASSES =
   'ucs-nav-item !grid !size-10 !min-h-10 !grid-cols-[1fr] !place-items-center ' +
-  '!justify-self-center !rounded-full !p-0 max-[700px]:!min-w-10 ' +
+  '!justify-self-center !rounded-full !border-0 !bg-transparent !p-0 ' +
+  '!text-[var(--cosci-shell-icon)] hover:!bg-[var(--cosci-shell-hover-bg)] ' +
+  'hover:!text-[var(--cosci-shell-hover-text)] ' +
+  'focus-visible:!bg-[var(--cosci-shell-hover-bg)] ' +
+  'focus-visible:!text-[var(--cosci-shell-hover-text)] max-[700px]:!min-w-10 ' +
   'max-[700px]:!overflow-hidden';
 
 const NAV_ICON_CLASSES =
@@ -197,13 +212,69 @@ const NAV_LABEL_COLLAPSED_CLASSES =
   'max-[700px]:!invisible';
 
 const HEADER_CLASSES =
-  'ucs-header-action-bar max-[700px]:!min-w-0 max-[700px]:!px-[0.85rem]';
+  'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4.5rem] items-center ' +
+  'justify-between gap-4 border-b-0 bg-[var(--cosci-surface-bg)] ' +
+  'px-[1.625rem] backdrop-blur-none max-[700px]:!min-w-0 ' +
+  'max-[700px]:!px-[0.85rem]';
 
-const PRODUCT_LOCKUP_CLASSES = 'ucs-product-lockup max-[700px]:ml-[3.25rem]';
+const PRODUCT_LOCKUP_CLASSES =
+  'ucs-product-lockup inline-flex cursor-pointer items-center gap-2 ' +
+  'text-[1.375rem] font-medium text-[var(--cosci-home-heading)] no-underline ' +
+  '[&_svg]:size-[1.32rem] [&_svg]:flex-[0_0_1.32rem] ' +
+  '[&_svg]:text-[var(--cosci-logo-color)] [&_svg_path]:fill-current ' +
+  '[&_svg_path]:stroke-current max-[700px]:ml-[3.25rem]';
 
-const HEADER_TITLE_CLASSES = 'ucs-header-title max-[700px]:!hidden';
+const HEADER_TITLE_CLASSES =
+  'ucs-header-title absolute left-1/2 -translate-x-1/2 text-base font-medium ' +
+  'text-[#202124] dark:text-[#e8eaed] max-[700px]:!hidden';
 
-const HEADER_ACTIONS_CLASSES = 'ucs-header-actions max-[700px]:!hidden';
+const HEADER_ACTIONS_CLASSES =
+  'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max ' +
+  '-translate-y-1/2 items-center gap-[0.55rem] max-[700px]:!hidden';
+
+const LOGS_BUTTON_CLASSES =
+  'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +
+  'items-center gap-[0.45rem] rounded-full border-0 bg-[var(--cosci-teal-bg)] ' +
+  'px-[0.62rem] py-0 pl-[0.72rem] font-[inherit] text-[0.88rem] font-semibold ' +
+  'whitespace-nowrap text-[var(--cosci-teal-dark)] hover:bg-[#d4ece7] ' +
+  '[&[aria-expanded=true]]:bg-[#d4ece7] dark:bg-[#173b3b] dark:text-[#7fd7bf] ' +
+  'dark:hover:bg-[#1f4b4b] dark:[&[aria-expanded=true]]:bg-[#1f4b4b]';
+
+const LOGS_BUTTON_ICON_CLASSES = 'text-[1.05rem]';
+
+const LOGS_COUNT_CLASSES =
+  'ucs-logs-count grid h-[1.38rem] min-w-[1.35rem] place-items-center ' +
+  'rounded-full bg-[rgb(26_107_107_/_18%)] px-[0.42rem] text-[0.72rem] ' +
+  'leading-none whitespace-nowrap dark:bg-[rgb(127_215_191_/_22%)]';
+
+const SHELL_POPOVER_CLASSES =
+  'ucs-popover absolute z-[35] grid w-80 gap-[0.35rem] rounded-2xl border ' +
+  'border-[#dadce0] bg-white p-3 text-[#202124] ' +
+  'shadow-[0_1px_3px_rgb(60_64_67_/_30%),0_4px_8px_3px_rgb(60_64_67_/_15%)] ' +
+  'dark:border-[#3c4043] dark:bg-[#202124] dark:text-[#e8eaed] ' +
+  'dark:shadow-[0_8px_24px_rgb(0_0_0_/_36%)]';
+
+const RAIL_POPOVER_CLASSES =
+  'ucs-popover--rail bottom-[0.15rem] left-12 !w-[min(18.25rem,calc(100vw-4rem))] !p-[0.8rem]';
+
+const SETTINGS_CONTROL_CLASSES = 'ucs-settings-control relative grid';
+
+const THEME_SEGMENT_CLASSES =
+  'ucs-theme-segment ucs-theme-segment--inline m-[0.1rem_0_0.45rem] grid ' +
+  'grid-cols-[repeat(3,minmax(0,1fr))] gap-[0.3rem] rounded-full border ' +
+  'border-[#dadce0] bg-[#f8fafd] p-[0.18rem] dark:border-[#3c4043] ' +
+  'dark:bg-[#171717]';
+
+const THEME_BUTTON_BASE_CLASSES =
+  'flex min-h-[2.2rem] min-w-0 cursor-pointer items-center justify-center ' +
+  'gap-[0.28rem] rounded-full border-0 bg-transparent px-[0.44rem] ' +
+  'font-[inherit] text-[0.74rem] font-semibold text-[#3c4043] ' +
+  'dark:text-[#e8eaed]';
+
+const THEME_BUTTON_ACTIVE_CLASSES =
+  'selected bg-[#d3e3fd] text-[#0b57d0] dark:bg-[#0b57d0] dark:text-[#f8fbff]';
+
+const THEME_BUTTON_ICON_CLASSES = 'text-base';
 
 const SIDE_CONTENT_BASE_CLASSES =
   'gemini-side-content grid min-w-0 gap-[0.35rem] overflow-hidden opacity-100 visible';
@@ -542,7 +613,12 @@ export function Layout({children}: {children: ReactNode}) {
           </div>
         </div>
         <div className={navBottomClasses}>
-          <div ref={settingsControlRef} className="ucs-settings-control">
+          <div
+            ref={settingsControlRef}
+            className={`${SETTINGS_CONTROL_CLASSES} ${
+              navOpen ? 'w-full' : 'w-auto'
+            }`}
+          >
             <button
               type="button"
               className={tooltipClassNames({
@@ -560,9 +636,9 @@ export function Layout({children}: {children: ReactNode}) {
               <span className={navLabelClasses}>Settings</span>
             </button>
             {activePanel === 'settings' && (
-              <ShellPopover className="ucs-popover--rail">
+              <ShellPopover className={RAIL_POPOVER_CLASSES}>
                 <div
-                  className="ucs-theme-segment ucs-theme-segment--inline"
+                  className={THEME_SEGMENT_CLASSES}
                   role="group"
                   aria-label="Theme"
                 >
@@ -608,14 +684,16 @@ export function Layout({children}: {children: ReactNode}) {
           <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
             <button
               type="button"
-              className="ucs-logs-button"
+              className={LOGS_BUTTON_CLASSES}
               aria-label={`Logs ${logCount}`}
               aria-expanded={activePanel === 'logs'}
               onClick={() => togglePanel('logs')}
             >
-              <md-icon aria-hidden="true">expand_more</md-icon>
+              <md-icon aria-hidden="true" className={LOGS_BUTTON_ICON_CLASSES}>
+                expand_more
+              </md-icon>
               <span>Logs</span>
-              <span className="ucs-logs-count">{logCount}</span>
+              <span className={LOGS_COUNT_CLASSES}>{logCount}</span>
             </button>
             {activePanel === 'logs' && (
               <ShellPopover className={LOGS_POPOVER_CLASSES}>
@@ -729,11 +807,17 @@ function ThemeModeButton({
   return (
     <button
       type="button"
-      className={active ? 'selected' : ''}
+      className={
+        active
+          ? `${THEME_BUTTON_BASE_CLASSES} ${THEME_BUTTON_ACTIVE_CLASSES}`
+          : THEME_BUTTON_BASE_CLASSES
+      }
       aria-pressed={active}
       onClick={() => onModeChange(mode)}
     >
-      <md-icon aria-hidden="true">{icon}</md-icon>
+      <md-icon aria-hidden="true" className={THEME_BUTTON_ICON_CLASSES}>
+        {icon}
+      </md-icon>
       <span>{label}</span>
     </button>
   );
@@ -747,7 +831,7 @@ function ShellPopover({
   className: string;
 }) {
   return (
-    <div className={`ucs-popover ${className}`} role="status">
+    <div className={`${SHELL_POPOVER_CLASSES} ${className}`} role="status">
       {children}
     </div>
   );

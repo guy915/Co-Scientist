@@ -1,5 +1,12 @@
 /* Co-Scientist reference surface override */
 :root {
+  --idea-ref-rail: #eef4ff;
+  --idea-ref-blue: #0b57d0;
+  --idea-ref-card-bg: #f1f4fa;
+  --cosci-teal: #1a6b6b;
+  --cosci-teal-dark: #0f5454;
+  --cosci-teal-bg: #e0f2ef;
+  --cosci-green: #7fd7bf;
   --cosci-bg: #fff;
   --cosci-rail: var(--idea-ref-rail);
   --cosci-panel: #f1f3f4;
