@@ -161,27 +161,6 @@
   cursor: pointer;
 }
 
-.home-shell .reference-suggestion-preview {
-  bottom: calc(100% + 0.45rem);
-  visibility: hidden;
-}
-
-.home-shell .reference-suggestion-slot:nth-child(2) .reference-suggestion-preview {
-  transform: translateX(-50%) translateY(0.2rem);
-}
-
-.home-shell .reference-suggestion-preview.visible {
-  opacity: 1;
-  transform: translateY(0);
-  visibility: visible;
-}
-
-.home-shell
-  .reference-suggestion-slot:nth-child(2)
-  .reference-suggestion-preview.visible {
-  transform: translateX(-50%) translateY(0);
-}
-
 .home-shell .reference-recents .google-recents-heading h2 {
   font-weight: 400;
 }

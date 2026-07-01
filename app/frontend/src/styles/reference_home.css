@@ -1,6 +1,17 @@
 .cosci-workspace {
+  display: grid;
   height: 100%;
   min-height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.cosci-workspace-main {
+  display: flex;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
 }
 
 .reference-home-stage {
@@ -416,6 +427,13 @@
   gap: 1.3rem;
   overflow: hidden;
   padding-top: 0.25rem;
+}
+
+.google-recents-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--md-sys-color-on-surface-variant);
 }
 
 .reference-recents .google-recents-heading h2 {

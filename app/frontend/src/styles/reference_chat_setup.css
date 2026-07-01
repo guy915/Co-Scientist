@@ -6,7 +6,35 @@
 }
 
 .google-chat-timeline {
+  flex: 1;
+  overflow-y: auto;
   padding: 1.25rem 1rem 2rem;
+}
+
+.google-setup-grid {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+
+.google-spec-row {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 1rem;
+  font-size: 0.9rem;
+}
+
+.google-spec-row dt {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.google-spec-list {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0;
+  padding-left: 1rem;
 }
 
 .google-chat-composer {

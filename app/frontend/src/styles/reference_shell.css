@@ -18,13 +18,19 @@
 }
 
 .google-app-shell {
+  display: grid;
   grid-template-columns: 4.75rem minmax(0, 1fr);
+  min-height: 100vh;
   background: var(--idea-ref-rail) !important;
   transition: grid-template-columns 220ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-nav-panel {
+  display: flex;
+  height: 100vh;
   align-items: center;
+  flex-direction: column;
+  justify-content: space-between;
   border-right: 0;
   background: var(--idea-ref-rail);
   padding: 1.25rem 0;
@@ -52,6 +58,7 @@
 }
 
 .ucs-nav-items {
+  display: grid;
   gap: 0.85rem;
   margin-top: 1.4rem;
 }
@@ -60,6 +67,7 @@
   min-height: 2.5rem;
   padding: 0;
   overflow: hidden;
+  text-decoration: none;
   transition:
     width 220ms cubic-bezier(0.2, 0, 0, 1),
     height 220ms cubic-bezier(0.2, 0, 0, 1),
@@ -82,12 +90,16 @@
 .ucs-nav-bottom {
   position: relative;
   display: grid;
+  align-items: center;
   gap: 0.8rem;
   justify-items: center;
   padding: 0;
 }
 
 .ucs-workspace {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   border-top-left-radius: 1.85rem;
   background: #fff;
@@ -97,7 +109,14 @@
 }
 
 .ucs-header-action-bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
   min-height: 4.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
   border-bottom: 0;
   background: #fff;
   padding: 0 1.625rem;
@@ -302,6 +321,7 @@
 }
 
 .ucs-page {
+  min-width: 0;
   height: calc(100vh - 4.5rem);
   overflow: auto;
   padding: 0;
