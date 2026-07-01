@@ -88,6 +88,7 @@ export interface RunConfig {
   tournament_pairs?: number;
   evidence_count?: number;
   literature_review_papers_count?: number;
+  enable_literature_review?: boolean;
   k_factor?: number;
   tier?: RunTier;
   focus?: RunFocus;
@@ -313,6 +314,7 @@ export async function createRun(input: {
   max_iterations?: number;
   evolution_max_count?: number;
   k_factor?: number;
+  enable_literature_review?: boolean;
   notes?: string;
 }): Promise<Run> {
   try {

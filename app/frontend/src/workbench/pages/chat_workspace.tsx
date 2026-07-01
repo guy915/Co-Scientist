@@ -339,6 +339,7 @@ export function ChatWorkspace() {
   );
   const [showAllRecents, setShowAllRecents] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [pubmedEnabled, setPubmedEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
   const previousTimelineSignature = useRef('');
 
@@ -602,6 +603,7 @@ export function ChatWorkspace() {
         criteria: specToStart.criteria,
         focus: specToStart.focus,
         tier: specToStart.tier,
+        enable_literature_review: pubmedEnabled,
         notes: [
           `Requirements: ${specToStart.requirements.join(' | ')}`,
           `Attributes: ${specToStart.attributes.join(' | ')}`,
@@ -841,6 +843,8 @@ export function ChatWorkspace() {
                 disabled={false}
                 large
                 reference
+                pubmedEnabled={pubmedEnabled}
+                onPubmedEnabledChange={setPubmedEnabled}
                 onSubmit={handleSubmit}
                 onSuggestion={suggestion => setInput(suggestion)}
               />
@@ -976,6 +980,8 @@ export function ChatWorkspace() {
                   setupDraftMode={Boolean(draftSpec || startedSession)}
                   disabled={isStarting}
                   reference
+                  pubmedEnabled={pubmedEnabled}
+                  onPubmedEnabledChange={setPubmedEnabled}
                   onSubmit={handleSubmit}
                   onSuggestion={suggestion => setInput(suggestion)}
                 />
@@ -1042,6 +1048,8 @@ function Composer({
   disabled,
   large = false,
   reference = false,
+  pubmedEnabled = true,
+  onPubmedEnabledChange,
   onSubmit,
   onSuggestion,
 }: {
@@ -1056,6 +1064,8 @@ function Composer({
   disabled: boolean;
   large?: boolean;
   reference?: boolean;
+  pubmedEnabled?: boolean;
+  onPubmedEnabledChange?: (value: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
   onSuggestion: (value: string) => void;
 }) {
@@ -1280,9 +1290,10 @@ function Composer({
                   <button
                     type="button"
                     role="menuitemcheckbox"
-                    aria-checked="true"
+                    aria-checked={pubmedEnabled}
                     className="reference-connectors-menu-row"
                     key={name}
+                    onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
                   >
                     <md-icon
                       className="reference-connector-icon"

@@ -90,6 +90,7 @@ class CreateRunRequest(BaseModel):
     max_iterations: int | None = None
     evolution_max_count: int | None = None
     k_factor: int | None = None
+    enable_literature_review: bool | None = None
     notes: str | None = None
 
 
@@ -172,6 +173,8 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         overrides["evolution_max_count"] = req.evolution_max_count
     if req.k_factor is not None:
         overrides["k_factor"] = req.k_factor
+    if req.enable_literature_review is not None:
+        overrides["enable_literature_review"] = req.enable_literature_review
     config = resolved_run_config(run_mode, overrides)
     run = store.create_run(
         research_goal=req.research_goal,

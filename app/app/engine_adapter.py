@@ -667,14 +667,15 @@ async def run_workflow(
     if preference_parts:
         initial_opts["preferences"] = "\n\n".join(preference_parts)
 
-    # Literature grounding is always-on for real runs and is never exposed as a
-    # user-facing option. Force the engine to include the literature_review node
-    # so every run uses PubMed/INDRA evidence whenever the MCP server is
-    # reachable. The engine still degrades gracefully to LLM-only if MCP is
-    # unavailable, so a down MCP never breaks a run. Set FORCE_LITERATURE_REVIEW=0
-    # only for tests/dev that must run without it.
-    if os.getenv("FORCE_LITERATURE_REVIEW", "1") != "0":
-        initial_opts["enable_literature_review_node"] = True
+    # Literature grounding defaults on but is user-controlled per run (the
+    # PubMed connector toggle in the composer). The engine still degrades
+    # gracefully to LLM-only if MCP is unreachable, so a down MCP never breaks
+    # a run. FORCE_LITERATURE_REVIEW=0 is a hard kill switch for tests/dev
+    # that must run without it, regardless of the per-run setting.
+    enable_literature_review = bool(cfg.get("enable_literature_review", True))
+    if os.getenv("FORCE_LITERATURE_REVIEW") == "0":
+        enable_literature_review = False
+    initial_opts["enable_literature_review_node"] = enable_literature_review
 
     generator = HypothesisGenerator(
         model_name=os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash"),

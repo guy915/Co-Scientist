@@ -180,6 +180,9 @@ def resolved_run_config(
                 base[key] = normalize_run_focus(
                     raw_value if isinstance(raw_value, str) else None)
                 continue
+            if key == "enable_literature_review":
+                base[key] = bool(raw_value)
+                continue
             if raw_value is None:
                 continue
             try:
@@ -198,4 +201,5 @@ def resolved_run_config(
         else:
             base["focus"] = DEFAULT_RUN_FOCUS
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
+    base.setdefault("enable_literature_review", True)
     return base
