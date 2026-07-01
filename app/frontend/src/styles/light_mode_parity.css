@@ -324,68 +324,11 @@
   font-size: 0.88rem;
 }
 
-.cosci-learning-shell {
-  display: grid;
-  width: min(100% - 3rem, 72rem);
-  grid-template-columns: minmax(0, 1fr) 16rem;
-  gap: 2rem;
-  margin: 2.25rem auto 6rem;
-}
-
-.cosci-learning-document {
-  min-width: 0;
-  color: var(--cosci-report-text);
-  font-size: 1rem;
-  line-height: 1.7;
-}
-
-.cosci-learning-section {
-  padding: 1.2rem 0 2.3rem;
-  border-bottom: 1px solid var(--cosci-report-border);
-  scroll-margin-top: 10rem;
-}
-
-.cosci-learning-section:first-child {
-  padding-top: 0;
-}
-
-.cosci-learning-section h2 {
-  margin: 0 0 1.35rem;
-  font-size: 1.45rem;
-  font-weight: 500;
-  line-height: 1.28;
-}
-
-.cosci-learning-section h3 {
-  margin: 0 0 0.65rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-.cosci-learning-section p {
-  width: min(100%, 51rem);
-  margin: 0;
-  font-size: 0.92rem;
-  line-height: 1.55;
-}
-
-.cosci-learning-expanded {
-  width: min(100%, 51rem);
-  margin-top: 1.15rem;
-  border-left: 2px solid var(--cosci-teal);
-  padding-left: 1rem;
-  animation: reference-fade-up 160ms cubic-bezier(0.2, 0, 0, 1);
-}
-
-.cosci-learning-expanded h3 {
-  margin-bottom: 0.45rem;
-}
-
-.cosci-learning-show-more {
+.cosci-inline-action {
   display: inline-flex;
   align-items: center;
   gap: 0.3rem;
-  margin-top: 1.7rem;
+  margin-top: 1rem;
   border: 0;
   background: transparent;
   color: var(--cosci-report-text);
@@ -394,43 +337,11 @@
   cursor: pointer;
 }
 
-.cosci-learning-show-more md-icon {
+.cosci-inline-action md-icon {
   font-size: 1rem;
 }
 
-.cosci-learning-outline {
-  position: sticky;
-  top: 10.5rem;
-  align-self: start;
-  display: grid;
-  gap: 1rem;
-  max-height: calc(100vh - 12rem);
-  overflow: auto;
-  border-radius: 0.75rem;
-  background: var(--cosci-report-outline-bg);
-  padding: 1.2rem;
-}
-
-.cosci-learning-outline a {
-  color: var(--cosci-report-muted);
-  font-size: 0.86rem;
-  line-height: 1.35;
-  text-decoration: none;
-}
-
-.cosci-learning-outline a:hover {
-  color: var(--cosci-report-text);
-}
-
-.cosci-learning-references {
-  margin-top: 2.6rem;
-}
-
-.cosci-learning-references h2 {
-  margin-bottom: 1rem;
-}
-
-.cosci-learning-search {
+.cosci-reference-search {
   display: flex;
   width: min(100%, 44rem);
   align-items: center;
@@ -441,11 +352,11 @@
   padding: 0.45rem 0;
 }
 
-.cosci-learning-search md-icon {
+.cosci-reference-search md-icon {
   font-size: 1rem;
 }
 
-.cosci-learning-search input {
+.cosci-reference-search input {
   min-width: 0;
   flex: 1;
   border: 0;
@@ -456,11 +367,11 @@
   font-size: 0.86rem;
 }
 
-.cosci-learning-search input::placeholder {
+.cosci-reference-search input::placeholder {
   color: var(--cosci-report-muted);
 }
 
-.cosci-learning-references ol {
+.cosci-reference-list ol {
   display: grid;
   gap: 0;
   margin: 0;
@@ -468,7 +379,7 @@
   list-style: none;
 }
 
-.cosci-learning-references li {
+.cosci-reference-list li {
   display: grid;
   grid-template-columns: 2.2rem minmax(0, 1fr) auto;
   align-items: center;
@@ -479,16 +390,16 @@
   font-size: 0.86rem;
 }
 
-.cosci-learning-references li > span {
+.cosci-reference-list li > span {
   color: var(--cosci-report-muted);
 }
 
-.cosci-learning-references strong {
+.cosci-reference-list strong {
   font-weight: 500;
   line-height: 1.35;
 }
 
-.cosci-learning-references a {
+.cosci-reference-list a {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -497,7 +408,7 @@
   text-decoration: none;
 }
 
-.cosci-learning-references a md-icon {
+.cosci-reference-list a md-icon {
   font-size: 1rem;
 }
 
@@ -572,37 +483,71 @@
 }
 
 @media (max-width: 720px) {
+  .cosci-report-page {
+    min-width: 0;
+    overflow: hidden;
+  }
+
   .cosci-report-titlebar {
-    padding-inline: 1rem;
+    min-width: 0;
+    gap: 0.35rem;
+    padding-inline: 0.7rem;
+  }
+
+  .cosci-report-title-left {
+    min-width: 0;
+    gap: 0.45rem;
+  }
+
+  .cosci-report-titlebar h1 {
+    min-width: 0;
+    font-size: 0.9rem;
   }
 
   .cosci-session-details {
     display: none;
   }
 
+  .cosci-report-tabs {
+    min-width: 0;
+    overflow-x: hidden;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .cosci-report-tabs button {
+    min-width: 0;
+    gap: 0.2rem;
+    font-size: 0.68rem;
+  }
+
   .cosci-report-tabs button span {
     font-size: 0.75rem;
   }
 
-  .cosci-learning-shell {
-    width: min(100% - 2rem, 58rem);
-    grid-template-columns: 1fr;
-    gap: 1.25rem;
+  .cosci-report-tabs md-icon {
+    font-size: 1.12rem;
   }
 
-  .cosci-learning-outline {
-    position: static;
-    order: -1;
-    grid-template-columns: 1fr;
-    max-height: none;
-    padding: 1rem;
+  .cosci-report-scroll {
+    overflow-x: hidden;
   }
 
-  .cosci-learning-references li {
+  .cosci-report-document,
+  .cosci-report-skeleton {
+    width: min(100% - 1.2rem, 100%);
+    max-width: none;
+    margin: 1.25rem auto 3rem;
+  }
+
+  .cosci-report-document h2 {
+    font-size: clamp(1.65rem, 8vw, 2.15rem);
+  }
+
+  .cosci-reference-list li {
     grid-template-columns: 2rem minmax(0, 1fr);
   }
 
-  .cosci-learning-references a {
+  .cosci-reference-list a {
     grid-column: 2;
     width: fit-content;
   }

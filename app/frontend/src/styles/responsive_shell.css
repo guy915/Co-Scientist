@@ -393,59 +393,6 @@
     padding-inline: 0.85rem;
   }
 
-  .report-shell .cosci-report-page {
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .report-shell .cosci-report-titlebar {
-    min-width: 0;
-    gap: 0.35rem;
-    padding-inline: 0.7rem;
-  }
-
-  .report-shell .cosci-report-title-left {
-    min-width: 0;
-    gap: 0.45rem;
-  }
-
-  .report-shell .cosci-report-titlebar h1 {
-    min-width: 0;
-    font-size: 0.9rem;
-  }
-
-  .report-shell .cosci-report-tabs {
-    min-width: 0;
-    overflow-x: hidden;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .report-shell .cosci-report-tabs button {
-    min-width: 0;
-    gap: 0.2rem;
-    font-size: 0.68rem;
-  }
-
-  .report-shell .cosci-report-tabs md-icon {
-    font-size: 1.12rem;
-  }
-
-  .report-shell .cosci-report-scroll {
-    overflow-x: hidden;
-  }
-
-  .report-shell .cosci-report-document,
-.report-shell .cosci-learning-shell,
-.report-shell .cosci-report-skeleton {
-    width: min(100% - 1.2rem, 100%);
-    max-width: none;
-    margin: 1.25rem auto 3rem;
-  }
-
-  .report-shell .cosci-report-document h2 {
-    font-size: clamp(1.65rem, 8vw, 2.15rem);
-  }
-
   .home-shell .ucs-page:has(.reference-home-stage) {
     height: calc(100vh - 4.5rem);
     overflow-y: auto;

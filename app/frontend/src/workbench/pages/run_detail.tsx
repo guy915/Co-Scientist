@@ -1,12 +1,5 @@
 import '@material/web/icon/icon.js';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type MouseEvent,
-  type ReactNode,
-} from 'react';
+import {useCallback, useEffect, useMemo, useState, type ReactNode} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
   type CitationRow,
@@ -26,7 +19,6 @@ import {
   type RunWithSummary,
 } from '@/api/runs';
 import {useRunStream} from '@/hooks/use_run_stream';
-import {smoothScrollToSection} from '@/lib/smooth_scroll';
 import {conciseTitle} from '@/lib/text';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 
@@ -284,69 +276,45 @@ function LearningView({goal, evidence}: {goal: string; evidence: Evidence[]}) {
   }
 
   return (
-    <div className="cosci-learning-shell">
-      <article className="cosci-learning-document">
-        {sections.map((section, index) => {
-          const expanded = expandedSectionIds.includes(section.id);
-          return (
-            <section
-              key={section.id}
-              id={section.id}
-              className="cosci-learning-section"
-            >
-              <h2>{section.title}</h2>
-              <h3>Summary</h3>
-              <p>{section.summary}</p>
-              {expanded && (
-                <div className="cosci-learning-expanded">
-                  <h3>Details</h3>
-                  <p>{section.detail}</p>
-                </div>
-              )}
-              <button
-                type="button"
-                className="cosci-learning-show-more"
-                aria-expanded={expanded}
-                onClick={() => toggleSection(section.id)}
-              >
-                <span>{expanded ? 'Show less' : 'Show more'}</span>
-                <md-icon aria-hidden="true">
-                  {expanded ? 'expand_less' : 'expand_more'}
-                </md-icon>
-              </button>
-              {index === sections.length - 1 && (
-                <ReferencesBlock
-                  evidence={filteredReferences}
-                  query={query}
-                  onQueryChange={setQuery}
-                />
-              )}
-            </section>
-          );
-        })}
-      </article>
-      <aside className="cosci-learning-outline" aria-label="Learning sections">
-        {sections.map(section => (
-          <a
+    <ReportDocument title="Learning">
+      {sections.map(section => {
+        const expanded = expandedSectionIds.includes(section.id);
+        return (
+          <section
             key={section.id}
-            href={`#${section.id}`}
-            onClick={event => smoothSectionClick(event, section.id)}
+            id={section.id}
+            className="cosci-overview-section"
           >
-            {section.title}
-          </a>
-        ))}
-      </aside>
-    </div>
+            <h3>{section.title}</h3>
+            <h4>Summary</h4>
+            <p>{section.summary}</p>
+            {expanded && (
+              <>
+                <h4>Details</h4>
+                <p>{section.detail}</p>
+              </>
+            )}
+            <button
+              type="button"
+              className="cosci-inline-action"
+              aria-expanded={expanded}
+              onClick={() => toggleSection(section.id)}
+            >
+              <span>{expanded ? 'Show less' : 'Show more'}</span>
+              <md-icon aria-hidden="true">
+                {expanded ? 'expand_less' : 'expand_more'}
+              </md-icon>
+            </button>
+          </section>
+        );
+      })}
+      <ReferencesBlock
+        evidence={filteredReferences}
+        query={query}
+        onQueryChange={setQuery}
+      />
+    </ReportDocument>
   );
-}
-
-function smoothSectionClick(
-  event: MouseEvent<HTMLAnchorElement>,
-  sectionId: string,
-) {
-  const didScroll = smoothScrollToSection(sectionId, 16);
-  if (!didScroll) return;
-  event.preventDefault();
 }
 
 function ReferencesBlock({
@@ -359,9 +327,9 @@ function ReferencesBlock({
   onQueryChange: (value: string) => void;
 }) {
   return (
-    <section className="cosci-learning-references">
-      <h2>References</h2>
-      <label className="cosci-learning-search">
+    <section className="cosci-overview-section cosci-reference-list">
+      <h3>References</h3>
+      <label className="cosci-reference-search">
         <md-icon aria-hidden="true">search</md-icon>
         <input
           value={query}
