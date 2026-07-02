@@ -1,10 +1,4 @@
-import '@material/web/button/filled-button.js';
-import '@material/web/button/outlined-button.js';
-import '@material/web/button/text-button.js';
-import '@material/web/chips/chip-set.js';
-import '@material/web/chips/filter-chip.js';
 import '@material/web/icon/icon.js';
-import '@material/web/iconbutton/icon-button.js';
 
 import {
   Fragment,
@@ -18,13 +12,12 @@ import {
   useRef,
   useState,
 } from 'react';
-import {Link, useLocation, useNavigate} from 'react-router-dom';
+import {useLocation, useNavigate} from 'react-router-dom';
 import {
   createRun,
   getHypotheses,
   listDemoRuns,
   listRuns,
-  type Hypothesis,
   type RunFocus,
   type RunTier,
   type Run,
@@ -38,7 +31,6 @@ import {
   reviseRunSpec,
   TIER_OPTIONS,
 } from '../run_spec';
-import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {tooltipClassNames} from '../tooltip';
 import {
   COMPOSER_ACTIONS_CLASSES,
@@ -62,12 +54,7 @@ import {
   CONNECTORS_MENU_ROW_CLASSES,
   HOME_COMPOSER_CLASSES,
   HOME_COMPOSER_TEXTAREA_CLASSES,
-  HOME_LOAD_MORE_BUTTON_CLASSES,
-  HOME_LOAD_MORE_ITEM_CLASSES,
   HOME_MAIN_CLASSES,
-  HOME_RECENTS_LIST_CLASSES,
-  HOME_RECENTS_PANEL_CLASSES,
-  HOME_RECENTS_HEADING_ROW_CLASSES,
   HOME_STAGE_CLASSES,
   HOME_STEP_BODY_CLASSES,
   HOME_STEP_HEADING_CLASSES,
@@ -144,6 +131,7 @@ import {
   USER_BUBBLE_TEXT_COLLAPSED_CLASSES,
   USER_COLLAPSE_BUTTON_CLASSES,
 } from './chat_setup_classes';
+import {HomeRecentsPanel, topEloFromHypotheses} from './home_recents';
 
 interface ChatEntry {
   id: string;
@@ -181,126 +169,6 @@ const SUGGESTIONS = [
 ];
 
 const COMPOSER_CONNECTORS = ['PubMed'];
-const BASELINE_ELO_RATING = 1200;
-
-const RECENTS_PANEL_CLASSES = `reference-recents min-[1181px]:!gap-[1.55rem] ${HOME_RECENTS_PANEL_CLASSES}`;
-
-const RECENTS_HEADING_ICON_CLASSES =
-  '[--md-icon-size:20px] min-[1181px]:[--md-icon-size:22px]';
-
-const RECENTS_HEADING_CLASSES =
-  'm-0 text-[1.15rem] font-semibold text-[var(--cosci-recents-heading)] ' +
-  'min-[1181px]:!text-[1.22rem] min-[1181px]:!font-medium ' +
-  'min-[1181px]:!leading-[1.2]';
-
-const RECENTS_LIST_CLASSES = `min-[1181px]:!gap-[2.65rem] ${HOME_RECENTS_LIST_CLASSES}`;
-
-const EMPTY_RECENTS_PANEL_CLASSES = `${RECENTS_PANEL_CLASSES} grid-rows-[auto_1fr] self-stretch pb-8`;
-
-const EMPTY_RECENTS_LIST_CLASSES = `${RECENTS_LIST_CLASSES} h-full !max-h-none !overflow-hidden !p-0`;
-
-const EMPTY_RECENTS_ITEM_CLASSES = 'h-full min-h-0';
-
-const EMPTY_RECENTS_CLASSES =
-  'reference-recents-empty box-border grid h-full min-h-[25rem] w-full ' +
-  'place-items-center content-center gap-4 rounded-[1.35rem] border-[1.5px] ' +
-  'border-dashed border-[#c7c9cc] bg-transparent p-6 text-center ' +
-  'text-[#5f6368] dark:border-[#53565a] dark:text-[#bdc1c6]';
-
-const EMPTY_RECENTS_ICON_CLASSES =
-  'reference-recents-empty-icon block h-[1.95rem] w-[2.1rem] ' +
-  'text-[var(--cosci-teal)] dark:text-[#7fd7bf]';
-
-const EMPTY_RECENTS_COPY_CLASSES =
-  'max-w-[17rem] text-base leading-[1.35] font-[650] text-inherit';
-
-const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full content-start gap-[0.7rem] ' +
-  'rounded-[0.8rem] border border-[var(--cosci-recent-card-border)] ' +
-  'bg-[var(--cosci-recent-card-bg)] p-[1.05rem_1.2rem] text-left ' +
-  'text-[var(--cosci-recent-card-text)] no-underline shadow-[var(--cosci-recent-card-shadow)] ' +
-  'cursor-pointer min-[1181px]:!min-h-0 min-[1181px]:!rounded-2xl ' +
-  'min-[1181px]:!border-[#eef1f4] min-[1181px]:!px-[1.15rem] ' +
-  'min-[1181px]:!pt-[1.05rem] min-[1181px]:!pb-[1.12rem] ' +
-  'min-[1181px]:hover:!border-[#dadce0] min-[1181px]:hover:!bg-[#f8fafd] ' +
-  'min-[1181px]:focus-visible:!border-[#dadce0] ' +
-  'min-[1181px]:focus-visible:!bg-[#f8fafd] ' +
-  'dark:min-[1181px]:!border-transparent dark:min-[1181px]:!bg-[#17191c] ' +
-  'dark:min-[1181px]:hover:!border-[#3c4043] ' +
-  'dark:min-[1181px]:hover:!bg-[#202124] ' +
-  'dark:min-[1181px]:focus-visible:!border-[#3c4043] ' +
-  'dark:min-[1181px]:focus-visible:!bg-[#202124]';
-
-const ACTIVE_RECENT_CARD_CLASSES = `${RECENT_CARD_CLASSES} is-active-run`;
-
-const RECENT_META_CLASSES =
-  'reference-recent-meta flex flex-wrap gap-[0.35rem]';
-
-const RECENT_META_CHIP_CLASSES =
-  'rounded-[0.35rem] bg-[var(--cosci-recent-meta-bg)] px-[0.48rem] ' +
-  'py-[0.32rem] text-[0.75rem] font-semibold text-[var(--cosci-recent-meta-text)] ' +
-  'min-[1181px]:!bg-[#f1f4f7] min-[1181px]:!px-[0.62rem] ' +
-  'min-[1181px]:!py-[0.38rem] min-[1181px]:!text-[0.78rem] ' +
-  'min-[1181px]:!leading-[1.1] min-[1181px]:!text-[#3c4043] ' +
-  'dark:min-[1181px]:!bg-[#303335] dark:min-[1181px]:!text-[#f1f3f4]';
-
-const RECENT_TITLE_CLASSES =
-  'text-[1.02rem] leading-[1.35] min-[1181px]:!text-[1.08rem]';
-
-const RECENT_DESCRIPTION_CLASSES =
-  'line-clamp-4 overflow-hidden text-[0.9rem] leading-[1.35] ' +
-  'text-[var(--cosci-recent-card-copy)] min-[1181px]:!text-[0.94rem] ' +
-  'min-[1181px]:!leading-[1.34] min-[1181px]:!line-clamp-3';
-
-const RECENT_CHIPS_CLASSES =
-  'reference-recent-chips flex flex-nowrap items-center gap-[0.35rem]';
-
-const RECENT_CHIP_CLASSES =
-  'inline-flex items-center gap-1 rounded-[0.35rem] bg-[var(--cosci-recent-chip-bg)] ' +
-  'px-[0.48rem] py-[0.32rem] text-[0.75rem] font-semibold ' +
-  'text-[var(--cosci-recent-chip-text)] min-[1181px]:!flex-none ' +
-  'min-[1181px]:!min-h-[1.62rem] ' +
-  'min-[1181px]:!px-[0.42rem] min-[1181px]:!py-[0.26rem] ' +
-  'min-[1181px]:!text-[0.68rem] min-[1181px]:!leading-none ' +
-  'min-[1181px]:!whitespace-nowrap dark:min-[1181px]:!bg-[#0b8043] ' +
-  'dark:min-[1181px]:!text-[#e6f4ea]';
-
-const RECENT_CHIP_ICON_CLASSES = '[--md-icon-size:16px]';
-
-const ACTIVE_PROGRESS_CLASSES =
-  'reference-active-progress min-[1181px]:!mt-[0.05rem] min-[1181px]:!flex ' +
-  'min-[1181px]:!items-center min-[1181px]:!gap-[0.65rem] ' +
-  'min-[1181px]:!text-[0.92rem] min-[1181px]:!font-medium ' +
-  'min-[1181px]:!leading-[1.25] min-[1181px]:!text-[#1967d2] ' +
-  'dark:min-[1181px]:!text-[#8fd8c7]';
-
-const ACTIVE_PROGRESS_DOT_CLASSES =
-  'min-[1181px]:!block min-[1181px]:!size-[0.7rem] ' +
-  'min-[1181px]:!shrink-0 min-[1181px]:!rounded-full ' +
-  'min-[1181px]:!bg-current';
-
-const WINNER_LIST_CLASSES =
-  'reference-winner-list m-[0.15rem_0_0] grid list-none gap-[0.65rem] p-0 ' +
-  'text-[0.78rem] leading-[1.35] text-[var(--cosci-recent-card-text)] ' +
-  'min-[1181px]:!gap-2 min-[1181px]:!text-[0.84rem] ' +
-  'min-[1181px]:!leading-[1.25] min-[1181px]:!text-[#202124] ' +
-  'dark:min-[1181px]:!text-[#f1f3f4]';
-
-const WINNER_LIST_ITEM_CLASSES =
-  'min-[1181px]:!grid min-[1181px]:!grid-cols-[1.4rem_minmax(0,1fr)] ' +
-  'min-[1181px]:!gap-[0.2rem]';
-
-const GENERATING_ROW_CLASSES =
-  'reference-generating-row min-[1181px]:!grid ' +
-  'min-[1181px]:!grid-cols-[0.75rem_minmax(0,1fr)] ' +
-  'min-[1181px]:!items-center min-[1181px]:!gap-[0.65rem] ' +
-  'min-[1181px]:!font-medium min-[1181px]:!text-[#137333] ' +
-  'dark:min-[1181px]:!text-[#8fd8c7]';
-
-const GENERATING_DOT_CLASSES =
-  'min-[1181px]:!block min-[1181px]:!size-[0.6rem] ' +
-  'min-[1181px]:!shrink-0 min-[1181px]:!rounded-full ' +
-  'min-[1181px]:!bg-current min-[1181px]:!opacity-70';
 
 const REFERENCE_COMPOSER_ATTACHED_CLASSES =
   'has-attachments !min-h-[13.5rem] !pt-4';
@@ -374,8 +242,6 @@ const SESSION_STEPS: ReadonlyArray<{
   },
 ];
 
-type ActiveMessageMode = 'qa' | 'steering';
-
 interface ComposerAttachment {
   id: string;
   name: string;
@@ -390,73 +256,6 @@ type ChatWorkspaceLocationState = {
 
 function id(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function inferActiveMessageMode(text: string): ActiveMessageMode {
-  const trimmed = text.trim();
-  if (
-    trimmed.endsWith('?') ||
-    /^(why|what|how|when|who|which|explain|tell me|can you|could you)\b/i.test(
-      trimmed,
-    )
-  ) {
-    return 'qa';
-  }
-  return 'steering';
-}
-
-function formatHomeRunDate(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(timestamp * 1000));
-}
-
-function formatDurationLabel(seconds: number): string {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes >= 90) {
-    const hours = Math.max(1, Math.round(minutes / 60));
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-}
-
-function formatHomeRunDuration(run: Run): string {
-  const endTime = run.completed_at ?? run.updated_at;
-  if (endTime && endTime > run.created_at) {
-    return formatDurationLabel(endTime - run.created_at);
-  }
-  if (run.status === 'completed') {
-    return formatDurationLabel(60);
-  }
-  if (['running', 'queued', 'synthesizing'].includes(run.status)) {
-    return 'In progress';
-  }
-  return run.status.charAt(0).toUpperCase() + run.status.slice(1);
-}
-
-function formatHomeRunElapsed(run: Run): string {
-  const elapsedSeconds = Math.max(
-    0,
-    (run.updated_at || Date.now() / 1000) - run.created_at,
-  );
-  if (elapsedSeconds < 60) return '< 1 minute';
-  return formatDurationLabel(elapsedSeconds);
-}
-
-function formatHomeRunTimeChip(run: Run): string {
-  if (run.status === 'completed') {
-    return `Total time: ${formatHomeRunDuration(run)}`;
-  }
-  if (['running', 'queued', 'synthesizing'].includes(run.status)) {
-    return `Time elapsed: ${formatHomeRunElapsed(run)}`;
-  }
-  return `Status: ${formatHomeRunStatus(run)}`;
-}
-
-function formatHomeRunStatus(run: Run): string {
-  return run.status.charAt(0).toUpperCase() + run.status.slice(1);
 }
 
 async function copyText(text: string) {
@@ -495,87 +294,6 @@ function emitDiagnosticEvent({
       detail: {stage, run, level, payload},
     }),
   );
-}
-
-function topEloFromHypotheses(hypotheses: Hypothesis[]): number {
-  const ratings = hypotheses
-    .map(hypothesis => hypothesis.elo_rating)
-    .filter(Number.isFinite);
-  if (!ratings.length) return BASELINE_ELO_RATING;
-  return Math.max(...ratings);
-}
-
-function homeRunScore(
-  run: Run,
-  scoresByRunId: Record<string, number | null>,
-): number | null {
-  if (run.status !== 'completed') return null;
-  return Object.prototype.hasOwnProperty.call(scoresByRunId, run.id)
-    ? scoresByRunId[run.id]
-    : null;
-}
-
-function homeRunProgress(run: Run): number {
-  if (run.status === 'completed') return 100;
-  const elapsedMinutes = Math.max(
-    0,
-    Math.round(((run.updated_at || Date.now() / 1000) - run.created_at) / 60),
-  );
-  if (run.status === 'queued') {
-    return Math.max(8, Math.min(18, 8 + elapsedMinutes));
-  }
-  if (run.status === 'synthesizing') {
-    return Math.max(72, Math.min(94, 72 + elapsedMinutes * 2));
-  }
-  return Math.max(18, Math.min(86, 18 + elapsedMinutes * 3));
-}
-
-function isActiveHomeRun(run: Run): boolean {
-  return ['running', 'queued', 'synthesizing'].includes(run.status);
-}
-
-function homeRunIdeaTitles(goal: string): string[] {
-  const normalized = goal.toLowerCase();
-  if (normalized.includes('ferroptosis') || normalized.includes('pancreatic')) {
-    return [
-      'Mitochondrial feedback rescue hypothesis',
-      'Lipid peroxide buffering threshold hypothesis',
-      'Iron-trafficking checkpoint hypothesis',
-    ];
-  }
-  if (
-    normalized.includes('fibrosis') ||
-    normalized.includes('mash') ||
-    normalized.includes('masld')
-  ) {
-    return [
-      'Epigenetic stromal reversal hypothesis',
-      'Fibrotic memory erasure hypothesis',
-      'Macrophage remodeling checkpoint hypothesis',
-    ];
-  }
-  if (
-    normalized.includes('m.tuberculosis') ||
-    normalized.includes('tuberculosis')
-  ) {
-    return [
-      'Metabolic refuge disruption hypothesis',
-      'Biofilm redox-state vulnerability hypothesis',
-      'Quorum-linked susceptibility restoration hypothesis',
-    ];
-  }
-  if (normalized.includes('synaptic') || normalized.includes('pruning')) {
-    return [
-      'Microglial timing-window pruning hypothesis',
-      'Complement-gated flexibility hypothesis',
-      'Activity-dependent dendritic retention hypothesis',
-    ];
-  }
-  return [
-    conciseTitle(goal),
-    'Mechanistic differentiation hypothesis',
-    'Evidence-guided intervention hypothesis',
-  ];
 }
 
 /**
@@ -1040,15 +758,6 @@ export function ChatWorkspace() {
     return () => window.clearTimeout(timeout);
   }, [startedSession]);
 
-  const homeRecentRuns = showAllRecents ? history : history.slice(0, 4);
-  const hasHomeRecentRuns = homeRecentRuns.length > 0;
-  const hasExtraRecents = history.length > 4;
-  const recentsPanelClassName = hasHomeRecentRuns
-    ? RECENTS_PANEL_CLASSES
-    : EMPTY_RECENTS_PANEL_CLASSES;
-  const recentsListClassName = hasHomeRecentRuns
-    ? RECENTS_LIST_CLASSES
-    : EMPTY_RECENTS_LIST_CLASSES;
   return (
     <div className={HOME_WORKSPACE_CLASSES}>
       <main className={HOME_WORKSPACE_MAIN_CLASSES}>
@@ -1147,141 +856,20 @@ export function ChatWorkspace() {
               <Composer
                 input={input}
                 setInput={setInput}
-                isEditingSpec={false}
                 disabled={false}
                 large
-                reference
                 pubmedEnabled={pubmedEnabled}
                 onPubmedEnabledChange={setPubmedEnabled}
                 onSubmit={handleSubmit}
-                onSuggestion={suggestion => setInput(suggestion)}
               />
             </div>
 
-            <aside className={recentsPanelClassName} aria-label="Recent runs">
-              <div className={HOME_RECENTS_HEADING_ROW_CLASSES}>
-                <md-icon
-                  aria-hidden="true"
-                  className={RECENTS_HEADING_ICON_CLASSES}
-                >
-                  history
-                </md-icon>
-                <h2 className={RECENTS_HEADING_CLASSES}>Recents</h2>
-              </div>
-              <ol className={recentsListClassName}>
-                {hasHomeRecentRuns ? (
-                  homeRecentRuns.map(run => {
-                    const topIdeas = homeRunIdeaTitles(run.research_goal);
-                    const isActiveRun = isActiveHomeRun(run);
-                    const topScore = homeRunScore(run, homeScores);
-                    return (
-                      <li key={run.id}>
-                        <Link
-                          to={`/runs/${run.id}/details`}
-                          className={
-                            isActiveRun
-                              ? ACTIVE_RECENT_CARD_CLASSES
-                              : RECENT_CARD_CLASSES
-                          }
-                          title={run.research_goal}
-                        >
-                          <span className={RECENT_META_CLASSES}>
-                            <span className={RECENT_META_CHIP_CLASSES}>
-                              {formatHomeRunDate(run.updated_at)}
-                            </span>
-                            <span className={RECENT_META_CHIP_CLASSES}>
-                              {formatHomeRunTimeChip(run)}
-                            </span>
-                          </span>
-                          <strong className={RECENT_TITLE_CLASSES}>
-                            {conciseTitle(run.research_goal)}
-                          </strong>
-                          <span className={RECENT_DESCRIPTION_CLASSES}>
-                            {run.research_goal}
-                          </span>
-                          {isActiveRun ? (
-                            <div className={ACTIVE_PROGRESS_CLASSES}>
-                              <span
-                                aria-hidden="true"
-                                className={ACTIVE_PROGRESS_DOT_CLASSES}
-                              />
-                              <span>In Progress: {homeRunProgress(run)}%</span>
-                            </div>
-                          ) : (
-                            <span className={RECENT_CHIPS_CLASSES}>
-                              <span className={RECENT_CHIP_CLASSES}>
-                                <md-icon
-                                  aria-hidden="true"
-                                  className={RECENT_CHIP_ICON_CLASSES}
-                                >
-                                  emoji_events
-                                </md-icon>
-                                Winning ideas
-                              </span>
-                              {topScore !== null && (
-                                <span className={RECENT_CHIP_CLASSES}>
-                                  <md-icon
-                                    aria-hidden="true"
-                                    className={RECENT_CHIP_ICON_CLASSES}
-                                  >
-                                    stars
-                                  </md-icon>
-                                  Top score: {topScore}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                          <ol className={WINNER_LIST_CLASSES}>
-                            {isActiveRun ? (
-                              <li className={GENERATING_ROW_CLASSES}>
-                                <span
-                                  aria-hidden="true"
-                                  className={GENERATING_DOT_CLASSES}
-                                />
-                                <span>Generating hypotheses</span>
-                              </li>
-                            ) : (
-                              topIdeas.map((idea, index) => (
-                                <li
-                                  key={idea}
-                                  className={WINNER_LIST_ITEM_CLASSES}
-                                >
-                                  <span>{index + 1}.</span>
-                                  <span>{idea}</span>
-                                </li>
-                              ))
-                            )}
-                          </ol>
-                        </Link>
-                      </li>
-                    );
-                  })
-                ) : (
-                  <li className={EMPTY_RECENTS_ITEM_CLASSES}>
-                    <div className={EMPTY_RECENTS_CLASSES}>
-                      <GoogleLabsIcon
-                        aria-hidden="true"
-                        className={EMPTY_RECENTS_ICON_CLASSES}
-                      />
-                      <strong className={EMPTY_RECENTS_COPY_CLASSES}>
-                        You have not started any sessions yet.
-                      </strong>
-                    </div>
-                  </li>
-                )}
-                {hasExtraRecents && (
-                  <li className={HOME_LOAD_MORE_ITEM_CLASSES}>
-                    <button
-                      type="button"
-                      className={HOME_LOAD_MORE_BUTTON_CLASSES}
-                      onClick={() => setShowAllRecents(current => !current)}
-                    >
-                      {showAllRecents ? 'Show less' : 'Show more'}
-                    </button>
-                  </li>
-                )}
-              </ol>
-            </aside>
+            <HomeRecentsPanel
+              runs={history}
+              scoresByRunId={homeScores}
+              showAll={showAllRecents}
+              onToggleShowAll={() => setShowAllRecents(current => !current)}
+            />
           </section>
         ) : (
           <>
@@ -1310,15 +898,11 @@ export function ChatWorkspace() {
                 <Composer
                   input={input}
                   setInput={setInput}
-                  isEditingSpec={false}
-                  activeMessageMode={inferActiveMessageMode(input)}
                   setupDraftMode={Boolean(draftSpec || startedSession)}
                   disabled={isStarting}
-                  reference
                   pubmedEnabled={pubmedEnabled}
                   onPubmedEnabledChange={setPubmedEnabled}
                   onSubmit={handleSubmit}
-                  onSuggestion={suggestion => setInput(suggestion)}
                 />
               </div>
             </div>
@@ -1374,35 +958,21 @@ function fileKind(file: File, extension: string) {
 function Composer({
   input,
   setInput,
-  isEditingSpec,
-  activeRunId = null,
-  activeMessageMode = 'steering',
-  canSteerActiveRun = false,
-  isAnswering = false,
   setupDraftMode = false,
   disabled,
   large = false,
-  reference = false,
   pubmedEnabled = true,
   onPubmedEnabledChange,
   onSubmit,
-  onSuggestion,
 }: {
   input: string;
   setInput: (value: string) => void;
-  isEditingSpec: boolean;
-  activeRunId?: string | null;
-  activeMessageMode?: ActiveMessageMode;
-  canSteerActiveRun?: boolean;
-  isAnswering?: boolean;
   setupDraftMode?: boolean;
   disabled: boolean;
   large?: boolean;
-  reference?: boolean;
   pubmedEnabled?: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
-  onSuggestion: (value: string) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const sourceControlsRef = useRef<HTMLDivElement>(null);
@@ -1462,311 +1032,232 @@ function Composer({
     return () => document.removeEventListener('mousedown', closeConnectors);
   }, [connectorsOpen]);
 
-  const hasRunContext = Boolean(activeRunId);
-  const referenceLabel = hasRunContext
-    ? isEditingSpec
-      ? 'Type to edit session details'
-      : 'Ask Co-Scientist'
-    : setupDraftMode
-      ? 'Type to edit session details'
-      : 'Start a new research goal to begin';
-  const placeholder = isEditingSpec
-    ? 'Describe the change to the run setup...'
-    : setupDraftMode
-      ? ''
-      : hasRunContext
-        ? activeMessageMode === 'qa' || !canSteerActiveRun
-          ? 'Ask what this run is doing...'
-          : 'Ask a question or steer the active run...'
-        : '';
-  const submitLabel = hasRunContext
-    ? isAnswering
-      ? 'Answering...'
-      : activeMessageMode === 'qa' || !canSteerActiveRun
-        ? 'Ask'
-        : 'Send'
-    : 'Send';
-
-  if (reference) {
-    return (
-      <form
-        onSubmit={onSubmit}
-        className={[
-          COMPOSER_BASE_CLASSES,
-          input.trim() ? 'has-input' : '',
-          large ? HOME_COMPOSER_CLASSES : '',
-          attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-      >
-        {attachments.length > 0 ? (
-          <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
-            {attachments.map(attachment =>
-              attachment.isImage && attachment.previewUrl ? (
-                <div
-                  className={tooltipClassNames({
-                    className: ATTACHMENT_IMAGE_CARD_CLASSES,
-                    placement: 'top',
-                    wrap: true,
-                  })}
-                  key={attachment.id}
-                  data-tooltip={attachment.name}
-                >
-                  <img
-                    src={attachment.previewUrl}
-                    alt={attachment.name}
-                    className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
-                  />
-                  <button
-                    type="button"
-                    className={tooltipClassNames({
-                      className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
-                      placement: 'top',
-                    })}
-                    aria-label={`Remove ${attachment.name}`}
-                    data-tooltip={`Remove ${attachment.name}`}
-                    onClick={() => removeAttachment(attachment.id)}
-                  >
-                    <md-icon
-                      aria-hidden="true"
-                      className={ATTACHMENT_REMOVE_ICON_CLASSES}
-                    >
-                      close
-                    </md-icon>
-                  </button>
-                </div>
-              ) : (
-                <div
-                  className={tooltipClassNames({
-                    className: ATTACHMENT_CARD_CLASSES,
-                    placement: 'top',
-                    wrap: true,
-                  })}
-                  key={attachment.id}
-                  data-tooltip={attachment.name}
-                >
-                  <div className={ATTACHMENT_TEXT_CLASSES}>
-                    <strong className={ATTACHMENT_NAME_CLASSES}>
-                      {attachment.name}
-                    </strong>
-                    <span className={ATTACHMENT_META_CLASSES}>
-                      <span className={ATTACHMENT_EXTENSION_CLASSES}>
-                        {attachment.badge}
-                      </span>
-                      {attachment.kind}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    className={tooltipClassNames({
-                      className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
-                      placement: 'top',
-                    })}
-                    aria-label={`Remove ${attachment.name}`}
-                    data-tooltip={`Remove ${attachment.name}`}
-                    onClick={() => removeAttachment(attachment.id)}
-                  >
-                    <md-icon
-                      aria-hidden="true"
-                      className={ATTACHMENT_REMOVE_ICON_CLASSES}
-                    >
-                      close
-                    </md-icon>
-                  </button>
-                </div>
-              ),
-            )}
-          </div>
-        ) : null}
-        <label className={COMPOSER_LABEL_CLASSES}>
-          <span
-            className={[
-              COMPOSER_LABEL_TEXT_CLASSES,
-              input.trim() ? COMPOSER_LABEL_TEXT_HIDDEN_CLASSES : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-          >
-            <md-icon aria-hidden="true" className={COMPOSER_LABEL_ICON_CLASSES}>
-              shield
-            </md-icon>
-            {referenceLabel}
-          </span>
-          <textarea
-            rows={large ? 4 : 3}
-            value={input}
-            disabled={disabled}
-            className={[
-              COMPOSER_TEXTAREA_CLASSES,
-              large ? HOME_COMPOSER_TEXTAREA_CLASSES : '',
-            ]
-              .filter(Boolean)
-              .join(' ')}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={placeholder}
-          />
-        </label>
-        <div className={COMPOSER_ACTIONS_CLASSES}>
-          <div
-            className={COMPOSER_SOURCE_CONTROLS_CLASSES}
-            ref={sourceControlsRef}
-          >
-            <input
-              ref={fileInputRef}
-              className={COMPOSER_FILE_INPUT_CLASSES}
-              type="file"
-              multiple
-              aria-label="Upload files"
-              onChange={onFilesChanged}
-              tabIndex={-1}
-            />
-            <button
-              type="button"
-              className={tooltipClassNames({
-                className: COMPOSER_SOURCE_BUTTON_CLASSES,
-                placement: 'top',
-              })}
-              aria-label="Files"
-              data-tooltip="Files"
-              disabled={disabled}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <md-icon
-                aria-hidden="true"
-                className={COMPOSER_SOURCE_ICON_CLASSES}
-              >
-                add
-              </md-icon>
-            </button>
-            <button
-              type="button"
-              className={tooltipClassNames({
-                className: COMPOSER_SOURCE_BUTTON_CLASSES,
-                placement: 'top',
-              })}
-              aria-label="Connectors"
-              aria-expanded={connectorsOpen}
-              data-tooltip="Connectors"
-              disabled={disabled}
-              onClick={() => setConnectorsOpen(open => !open)}
-            >
-              <md-icon
-                aria-hidden="true"
-                className={COMPOSER_SOURCE_ICON_CLASSES}
-              >
-                database
-              </md-icon>
-            </button>
-            {connectorsOpen ? (
-              <div
-                className={CONNECTORS_MENU_CLASSES}
-                role="menu"
-                aria-label="Connectors"
-              >
-                <div className={CONNECTORS_MENU_HEADER_CLASSES}>
-                  <span>Connectors</span>
-                </div>
-                {COMPOSER_CONNECTORS.map(name => (
-                  <button
-                    type="button"
-                    role="menuitemcheckbox"
-                    aria-checked={pubmedEnabled}
-                    className={CONNECTORS_MENU_ROW_CLASSES}
-                    key={name}
-                    onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
-                  >
-                    <md-icon
-                      className={CONNECTOR_ICON_CLASSES}
-                      aria-hidden="true"
-                    >
-                      article
-                    </md-icon>
-                    <span>{name}</span>
-                    <span
-                      className={[
-                        CONNECTOR_TOGGLE_BASE_CLASSES,
-                        pubmedEnabled
-                          ? CONNECTOR_TOGGLE_ON_CLASSES
-                          : CONNECTOR_TOGGLE_OFF_CLASSES,
-                      ].join(' ')}
-                      aria-hidden="true"
-                    />
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-          <button
-            type="submit"
-            className={tooltipClassNames({
-              className: COMPOSER_SUBMIT_BUTTON_CLASSES,
-              placement: 'top',
-            })}
-            aria-label={submitLabel}
-            data-tooltip="Submit"
-            disabled={!input.trim() || disabled}
-          >
-            <md-icon aria-hidden="true">send</md-icon>
-          </button>
-        </div>
-      </form>
-    );
-  }
+  const referenceLabel = setupDraftMode
+    ? 'Type to edit session details'
+    : 'Start a new research goal to begin';
+  const submitLabel = 'Send';
 
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-xl border p-3"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        backgroundColor: 'var(--md-sys-color-surface-container-low)',
-      }}
+      className={[
+        COMPOSER_BASE_CLASSES,
+        input.trim() ? 'has-input' : '',
+        large ? HOME_COMPOSER_CLASSES : '',
+        attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
     >
-      <textarea
-        className="block w-full resize-none bg-transparent text-base outline-none placeholder:text-[color:var(--md-sys-color-on-surface-variant)]"
-        rows={large ? 5 : 3}
-        value={input}
-        disabled={disabled}
-        onChange={e => setInput(e.target.value)}
-        onKeyDown={onKeyDown}
-        placeholder={placeholder}
-        style={{
-          color: 'var(--md-sys-color-on-surface)',
-          minHeight: large ? '9rem' : '5.5rem',
-        }}
-      />
-      <div className="flex flex-col gap-2 pt-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap items-center gap-2">
-          {large && (
-            <div className="hidden md:flex flex-wrap gap-1.5">
-              {SUGGESTIONS.map(suggestion => (
+      {attachments.length > 0 ? (
+        <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
+          {attachments.map(attachment =>
+            attachment.isImage && attachment.previewUrl ? (
+              <div
+                className={tooltipClassNames({
+                  className: ATTACHMENT_IMAGE_CARD_CLASSES,
+                  placement: 'top',
+                  wrap: true,
+                })}
+                key={attachment.id}
+                data-tooltip={attachment.name}
+              >
+                <img
+                  src={attachment.previewUrl}
+                  alt={attachment.name}
+                  className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
+                />
                 <button
-                  key={suggestion.short}
                   type="button"
-                  onClick={() => onSuggestion(suggestion.full)}
-                  className="cursor-pointer rounded-full border px-2.5 py-1 text-xs"
-                  style={{
-                    borderColor: 'var(--md-sys-color-outline-variant)',
-                    color: 'var(--md-sys-color-on-surface-variant)',
-                  }}
+                  className={tooltipClassNames({
+                    className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
+                    placement: 'top',
+                  })}
+                  aria-label={`Remove ${attachment.name}`}
+                  data-tooltip={`Remove ${attachment.name}`}
+                  onClick={() => removeAttachment(attachment.id)}
                 >
-                  {suggestion.short}
+                  <md-icon
+                    aria-hidden="true"
+                    className={ATTACHMENT_REMOVE_ICON_CLASSES}
+                  >
+                    close
+                  </md-icon>
+                </button>
+              </div>
+            ) : (
+              <div
+                className={tooltipClassNames({
+                  className: ATTACHMENT_CARD_CLASSES,
+                  placement: 'top',
+                  wrap: true,
+                })}
+                key={attachment.id}
+                data-tooltip={attachment.name}
+              >
+                <div className={ATTACHMENT_TEXT_CLASSES}>
+                  <strong className={ATTACHMENT_NAME_CLASSES}>
+                    {attachment.name}
+                  </strong>
+                  <span className={ATTACHMENT_META_CLASSES}>
+                    <span className={ATTACHMENT_EXTENSION_CLASSES}>
+                      {attachment.badge}
+                    </span>
+                    {attachment.kind}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className={tooltipClassNames({
+                    className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
+                    placement: 'top',
+                  })}
+                  aria-label={`Remove ${attachment.name}`}
+                  data-tooltip={`Remove ${attachment.name}`}
+                  onClick={() => removeAttachment(attachment.id)}
+                >
+                  <md-icon
+                    aria-hidden="true"
+                    className={ATTACHMENT_REMOVE_ICON_CLASSES}
+                  >
+                    close
+                  </md-icon>
+                </button>
+              </div>
+            ),
+          )}
+        </div>
+      ) : null}
+      <label className={COMPOSER_LABEL_CLASSES}>
+        <span
+          className={[
+            COMPOSER_LABEL_TEXT_CLASSES,
+            input.trim() ? COMPOSER_LABEL_TEXT_HIDDEN_CLASSES : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          <md-icon aria-hidden="true" className={COMPOSER_LABEL_ICON_CLASSES}>
+            shield
+          </md-icon>
+          {referenceLabel}
+        </span>
+        <textarea
+          rows={large ? 4 : 3}
+          value={input}
+          disabled={disabled}
+          className={[
+            COMPOSER_TEXTAREA_CLASSES,
+            large ? HOME_COMPOSER_TEXTAREA_CLASSES : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={onKeyDown}
+        />
+      </label>
+      <div className={COMPOSER_ACTIONS_CLASSES}>
+        <div
+          className={COMPOSER_SOURCE_CONTROLS_CLASSES}
+          ref={sourceControlsRef}
+        >
+          <input
+            ref={fileInputRef}
+            className={COMPOSER_FILE_INPUT_CLASSES}
+            type="file"
+            multiple
+            aria-label="Upload files"
+            onChange={onFilesChanged}
+            tabIndex={-1}
+          />
+          <button
+            type="button"
+            className={tooltipClassNames({
+              className: COMPOSER_SOURCE_BUTTON_CLASSES,
+              placement: 'top',
+            })}
+            aria-label="Files"
+            data-tooltip="Files"
+            disabled={disabled}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <md-icon
+              aria-hidden="true"
+              className={COMPOSER_SOURCE_ICON_CLASSES}
+            >
+              add
+            </md-icon>
+          </button>
+          <button
+            type="button"
+            className={tooltipClassNames({
+              className: COMPOSER_SOURCE_BUTTON_CLASSES,
+              placement: 'top',
+            })}
+            aria-label="Connectors"
+            aria-expanded={connectorsOpen}
+            data-tooltip="Connectors"
+            disabled={disabled}
+            onClick={() => setConnectorsOpen(open => !open)}
+          >
+            <md-icon
+              aria-hidden="true"
+              className={COMPOSER_SOURCE_ICON_CLASSES}
+            >
+              database
+            </md-icon>
+          </button>
+          {connectorsOpen ? (
+            <div
+              className={CONNECTORS_MENU_CLASSES}
+              role="menu"
+              aria-label="Connectors"
+            >
+              <div className={CONNECTORS_MENU_HEADER_CLASSES}>
+                <span>Connectors</span>
+              </div>
+              {COMPOSER_CONNECTORS.map(name => (
+                <button
+                  type="button"
+                  role="menuitemcheckbox"
+                  aria-checked={pubmedEnabled}
+                  className={CONNECTORS_MENU_ROW_CLASSES}
+                  key={name}
+                  onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
+                >
+                  <md-icon
+                    className={CONNECTOR_ICON_CLASSES}
+                    aria-hidden="true"
+                  >
+                    article
+                  </md-icon>
+                  <span>{name}</span>
+                  <span
+                    className={[
+                      CONNECTOR_TOGGLE_BASE_CLASSES,
+                      pubmedEnabled
+                        ? CONNECTOR_TOGGLE_ON_CLASSES
+                        : CONNECTOR_TOGGLE_OFF_CLASSES,
+                    ].join(' ')}
+                    aria-hidden="true"
+                  />
                 </button>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
-        <md-filled-button
+        <button
           type="submit"
-          disabled={!input.trim() || disabled || undefined}
+          className={tooltipClassNames({
+            className: COMPOSER_SUBMIT_BUTTON_CLASSES,
+            placement: 'top',
+          })}
+          aria-label={submitLabel}
+          data-tooltip="Submit"
+          disabled={!input.trim() || disabled}
         >
-          <md-icon slot="icon" aria-hidden="true">
-            arrow_upward
-          </md-icon>
-          {submitLabel}
-        </md-filled-button>
+          <md-icon aria-hidden="true">send</md-icon>
+        </button>
       </div>
     </form>
   );
