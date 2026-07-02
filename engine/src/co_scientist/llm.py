@@ -298,6 +298,103 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
     return temperature
 
 
+# Provider-capability shim: some providers reject
+# response_format={"type": "json_schema", ...} outright (DeepSeek returns an
+# invalid-request error). For those models every schema'd call is downgraded,
+# per call, to {"type": "json_object"} with the schema restated as prompt
+# text, and missing required fields are back-filled with empty defaults
+# before schema validation (json_object mode has no server-side schema
+# enforcement, so nested required fields are routinely omitted). Models that
+# support json_schema are untouched.
+#
+# Families listed here are checked BEFORE litellm's capability registry:
+# litellm's cost map marks deepseek/* as supporting response schema, but the
+# DeepSeek API only accepts json_object, so the registry alone cannot be
+# trusted for these providers.
+_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
+
+
+def _supports_json_schema_response_format(model_name: str) -> bool:
+    """Checks whether a model accepts the json_schema response format.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        False when the model belongs to a known json_object-only family or
+        when litellm's capability registry reports no json_schema support.
+        True otherwise, including when the registry lookup itself raises, so
+        the default json_schema path is preserved for unknown models.
+    """
+    lowered = model_name.lower()
+    if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+        return False
+    try:
+        return bool(litellm.supports_response_schema(model=model_name))
+    except Exception:  # pylint: disable=broad-exception-caught
+        return True
+
+
+def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
+    """Appends the JSON schema to the prompt for json_object-only models.
+
+    Downgrading to the json_object response format loses the server-side
+    schema constraint, so the schema is restated as prompt text to keep the
+    model aware of the required structure.
+
+    Args:
+        prompt: The original user prompt.
+        json_schema: JSON schema dict (may have a nested "schema" key).
+
+    Returns:
+        The prompt with the schema instruction block appended.
+    """
+    actual_schema = json_schema.get("schema", json_schema)
+    schema_str = json.dumps(actual_schema, indent=2)
+    return (prompt + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
+            "Your output MUST strictly match this JSON schema "
+            "(all required fields must be present):\n" + schema_str)
+
+
+def _backfill_required_fields(obj: Any, schema: Any) -> None:
+    """Recursively fills missing required fields with empty defaults.
+
+    Provider-capability shim for json_object-only models (see
+    ``_supports_json_schema_response_format``): without server-side schema
+    enforcement those models routinely omit nested required fields (e.g.
+    ``performance_assessment.agent_performance.reflection_agent``), which
+    would otherwise abort the run in schema validation. Missing required
+    fields are filled in place with neutral empty values (empty string or
+    first enum value, ``{}``, ``[]``, ``0``); fields that are present are
+    never modified.
+
+    Args:
+        obj: Parsed JSON value to back-fill (non-dicts are ignored).
+        schema: JSON schema node describing ``obj``.
+    """
+    if not isinstance(obj, dict) or not isinstance(schema, dict):
+        return
+    props = schema.get("properties", {})
+    for field in schema.get("required", []):
+        if field not in obj and field in props:
+            field_schema = props[field]
+            field_type = field_schema.get("type")
+            if field_type == "string":
+                obj[field] = (field_schema["enum"][0]
+                              if "enum" in field_schema else "")
+            elif field_type == "object":
+                obj[field] = {}
+            elif field_type == "array":
+                obj[field] = []
+            elif field_type in ("integer", "number"):
+                obj[field] = 0
+            else:
+                obj[field] = ""
+    for key, value in obj.items():
+        if key in props:
+            _backfill_required_fields(value, props[key])
+
+
 async def call_llm(
     prompt: str,
     model_name: str,
@@ -357,23 +454,25 @@ async def call_llm(
 
         # Try to add response_format based on schema or force_json
         if json_schema:
-            try:
+            if _supports_json_schema_response_format(model_name):
                 completion_args["response_format"] = {
                     "type": "json_schema",
                     "json_schema": json_schema,
                 }
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                # Some models/providers don't support json_schema, fall back to
-                # json_object
-                logger.warning(
-                    "JSON schema not supported, falling back to"
-                    " json_object: %s", e)
-                try:
-                    completion_args["response_format"] = {"type": "json_object"}
-                except Exception:  # pylint: disable=broad-exception-caught
-                    # Some models/providers don't support this either, silently
-                    # continue
-                    pass
+            else:
+                # Provider-capability shim: this model rejects the
+                # json_schema response format, so downgrade this call to
+                # json_object and restate the schema in the prompt. The
+                # cache keys above stay on the original prompt.
+                logger.debug(
+                    "model %s does not support json_schema response format;"
+                    " downgrading to json_object with schema in prompt",
+                    model_name)
+                completion_args["messages"] = [{
+                    "role": "user",
+                    "content": _inject_schema_into_prompt(prompt, json_schema),
+                }]
+                completion_args["response_format"] = {"type": "json_object"}
         elif force_json:
             try:
                 completion_args["response_format"] = {"type": "json_object"}
@@ -549,6 +648,15 @@ async def call_llm_json(
             if result is not None:
                 try:
                     if json_schema is not None:
+                        # Provider-capability shim: calls downgraded to
+                        # json_object have no server-side schema enforcement,
+                        # so back-fill missing required fields with empty
+                        # defaults before validating. Keyed on the same
+                        # condition as the downgrade in call_llm.
+                        if not _supports_json_schema_response_format(
+                                model_name):
+                            _backfill_required_fields(
+                                result, json_schema.get("schema", json_schema))
                         validate_json_schema(result, json_schema)
                     cache.set(
                         prompt,
