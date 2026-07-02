@@ -267,7 +267,12 @@ The design personality is calm competence. Typography is tight and confident. Ro
 
 ## Colors
 
-The palette is derived at runtime from a single Co-Scientist green seed (`#1A6B6B`) using the MD3 `themeFromSourceColor` algorithm. This means exact hex values shift slightly between builds but the semantic relationships — primary/on-primary, container/on-container — are always correct and WCAG-compliant.
+The UI runs **two deliberately separate palettes**, and knowing which is which is essential before changing any color:
+
+1. **MD3 dynamic palette** (`--md-sys-color-*`, bridged to `--color-th-*`) — derived at runtime from the `#1A6B6B` seed via `themeFromSourceColor`. Used for **data and semantic UI**: run status, Elo/tournament visuals, error/success states, primary actions. Its neutrals are intentionally *tinted toward the seed* by the MD3 tonal algorithm.
+2. **Gemini product palette** (`--cosci-*`, in `reference_surface.css`) — the **exact Google/Gemini product colors** (`#5f6368` gray text, `#dadce0` borders, `#f1f3f4` surfaces, `#202124` ink). Used for the **shell and home** (rail, composer, recents, step timeline). These are hand-picked to match Gemini 1:1 and are **neutral, not seed-tinted** — do not "consolidate" them onto the MD3 tokens, which would swap Google's true grays for teal-tinted approximations and make the UI *less* Google-accurate. Each `--cosci-*` token has its own light/dark value (many share a light value but diverge in dark), so they cannot be collapsed by light-mode hex.
+
+The MD3-palette semantics below apply to the data/semantic surfaces:
 
 - **Primary:** Co-Scientist green used for the single most important action per screen, active states, links, and the app logo mark. Never used decoratively.
 - **Secondary container:** The de-facto "hover" and "selected" surface. Table rows hover to secondary-container. Active filter chips use secondary-container. Secondary navigation context uses it. Applied with restraint so it stays meaningful.

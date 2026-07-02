@@ -1,4 +1,14 @@
-/* Co-Scientist reference surface override */
+/* Gemini product palette (--cosci-*).
+ *
+ * These are the exact Google/Gemini product colors (neutral grays such as
+ * #5f6368, #dadce0, #f1f3f4, #202124) used by the app shell and home surface
+ * — rail, composer, recents, step timeline. They are intentionally SEPARATE
+ * from the seed-derived MD3 palette (--md-sys-color-* / --color-th-*): MD3
+ * tints its neutrals toward the teal seed, whereas Gemini's product neutrals
+ * are true grays. Do not fold these onto the MD3 tokens; doing so would make
+ * the shell less 1:1 with Google. Each token carries its own light/dark value.
+ * See DESIGN.md > Colors.
+ */
 :root {
   --idea-ref-blue: #0b57d0;
   --idea-ref-card-bg: #f1f4fa;
