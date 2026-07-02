@@ -279,29 +279,24 @@ body {
   border-color: var(--color-th-border);
 }
 
-/* Scrollbars — always visible with a subtle themed track (Google style). */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: #c4c7c5 #f1f3f4;
-}
-
-:root[data-theme="dark"] * {
-  scrollbar-color: #5f6368 #1e1f20;
-}
-
+/* Scrollbars — always visible with a themed track (Google style).
+   Note: we deliberately do NOT set scrollbar-width/scrollbar-color here — in
+   Chromium those standard properties suppress the ::-webkit-scrollbar pseudos
+   below, leaving a near-invisible overlay track. Webkit pseudos give the
+   always-on channel + rounded thumb we want. */
 *::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
+  width: 14px;
+  height: 14px;
 }
 
 *::-webkit-scrollbar-track {
-  background: #f1f3f4;
+  background: #e8eaed;
 }
 
 *::-webkit-scrollbar-thumb {
-  border: 3px solid #f1f3f4;
+  border: 3px solid #e8eaed;
   border-radius: 9999px;
-  background: #c4c7c5;
+  background: #bdc1c6;
   background-clip: padding-box;
 }
 
@@ -311,11 +306,11 @@ body {
 }
 
 :root[data-theme="dark"] *::-webkit-scrollbar-track {
-  background: #1e1f20;
+  background: #2a2c2e;
 }
 
 :root[data-theme="dark"] *::-webkit-scrollbar-thumb {
-  border-color: #1e1f20;
+  border-color: #2a2c2e;
   background: #5f6368;
   background-clip: padding-box;
 }
