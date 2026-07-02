@@ -115,7 +115,7 @@
   --cosci-suggestion-bg: var(--cosci-bg);
   --cosci-suggestion-text: var(--cosci-text);
   --cosci-suggestion-hover-border: var(--cosci-border);
-  --cosci-suggestion-active-bg: #173b3b;
+  --cosci-suggestion-active-bg: #303134;
   --cosci-composer-border: var(--cosci-border);
   --cosci-composer-bg: var(--cosci-panel);
   --cosci-composer-label: var(--cosci-muted);
