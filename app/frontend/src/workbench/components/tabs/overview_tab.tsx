@@ -7,31 +7,8 @@ import type {
 } from '@/api/runs';
 import {isActiveStatus} from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
+import {formatEventLabel} from '@/workbench/lib/event_labels';
 import {selectLiveLeaderboard} from '@/workbench/lib/live_state';
-
-const AGENT_LABELS: Record<string, string> = {
-  'supervisor.plan': 'Supervisor',
-  'intake.scope': 'Intake',
-  'safety.intake': 'Safety (intake)',
-  literature_review: 'Literature retrieval',
-  generate: 'Generation',
-  reflection: 'Reflection',
-  proximity: 'Proximity',
-  ranking: 'Ranking',
-  evolve: 'Evolution',
-  meta_review: 'Meta-review',
-  deep_verification: 'Deep verification',
-  citation_audit: 'Citation audit',
-  research_overview: 'Research overview',
-  'safety.final': 'Safety (final)',
-  report: 'Report synthesis',
-  status: 'Status',
-  lifecycle: 'Lifecycle',
-};
-
-function fmtAgent(t: string) {
-  return AGENT_LABELS[t] ?? t.replace(/[._]/g, ' ');
-}
 
 /**
  * Renders the run summary: pipeline timeline, safety decisions, and stats.
@@ -140,7 +117,7 @@ export function OverviewTab({
                     {e.seq}
                   </span>
                   <span className="min-w-0 font-medium sm:w-44 sm:shrink-0">
-                    {fmtAgent(e.type)}
+                    {formatEventLabel(e.type)}
                   </span>
                   <span
                     style={{color: 'var(--color-th-muted-fg)'}}

@@ -49,6 +49,7 @@ import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {useMessages} from '@/hooks/use_messages';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {conciseTitle} from '@/lib/text';
+import {formatEventLabel} from '@/workbench/lib/event_labels';
 import {inferMessageMode} from '@/workbench/lib/message_mode';
 import {ThemeToggle} from '../components/theme_toggle';
 import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
@@ -1103,7 +1104,7 @@ function RunStatusCard({
           className="mt-1 text-xs"
           style={{color: 'var(--md-sys-color-on-surface-variant)'}}
         >
-          Latest: {formatEventName(lastEvent.type)}
+          Latest: {formatEventLabel(lastEvent.type)}
         </p>
       )}
     </section>
@@ -1652,11 +1653,4 @@ function PanelBlock({title, children}: {title: string; children: ReactNode}) {
       <div className="leading-relaxed">{children}</div>
     </section>
   );
-}
-
-function formatEventName(type: string): string {
-  if (type === 'status') return 'Status update';
-  return type
-    .replace(/[._]/g, ' ')
-    .replace(/\b\w/g, char => char.toUpperCase());
 }

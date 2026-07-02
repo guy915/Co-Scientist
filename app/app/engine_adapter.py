@@ -81,24 +81,162 @@ def system_status() -> dict[str, Any]:
     }
 
 
+# Maps each real-engine graph node name (from generator.py's ``add_node``
+# calls) to the canonical, unprefixed event type that the mock workflow emits.
+# Only ``supervisor`` differs from its node name (it emits ``supervisor.plan``);
+# every other node maps to itself. ``review`` has no mock counterpart, so it is
+# absent here and keeps its unprefixed node name via ``_canonical_event_type``.
+_NODE_TO_EVENT_TYPE: dict[str, str] = {
+    "supervisor": "supervisor.plan",
+    "literature_review": "literature_review",
+    "generate": "generate",
+    "reflection": "reflection",
+    "ranking": "ranking",
+    "deep_verification": "deep_verification",
+    "meta_review": "meta_review",
+    "evolve": "evolve",
+    "proximity": "proximity",
+    "research_overview": "research_overview",
+}
+
+
+def _canonical_event_type(node_name: str) -> str:
+    """Map an engine node name to the canonical mock event vocabulary.
+
+    Any node with no mock counterpart (e.g. ``review``) keeps its unprefixed
+    node name, so it renders via the frontend's prettify fallback rather than
+    a legacy ``engine.`` prefix.
+
+    Args:
+        node_name: The engine graph node name streamed by the generator.
+
+    Returns:
+        The canonical event type used across the mock, adapter, and frontend.
+    """
+    return _NODE_TO_EVENT_TYPE.get(node_name, node_name)
+
+
+# Canonical pipeline stages the real engine runs, surfaced in the
+# ``supervisor.plan`` payload's ``agents`` key so the frontend summary matches
+# the mock's shape. Derived from the engine's actual graph nodes rather than
+# copying the mock's list (which carries stages the engine never emits).
+_ENGINE_PIPELINE_AGENTS: list[str] = [
+    "supervisor",
+    "literature_review",
+    "generate",
+    "reflection",
+    "review",
+    "ranking",
+    "proximity",
+    "evolve",
+    "meta_review",
+    "deep_verification",
+    "research_overview",
+]
+
+
+def _hypothesis_stub(h: dict[str, Any]) -> dict[str, str]:
+    """Project a hypothesis to a minimal JSON-safe stub for event payloads."""
+    return {
+        "id": str(h.get("id") or h.get("hypothesis_id") or ""),
+        "title": str(h.get("title") or h.get("text") or "Untitled")[:140],
+    }
+
+
+def _article_stub(a: dict[str, Any]) -> dict[str, str]:
+    """Project an article to a minimal JSON-safe stub for event payloads."""
+    return {
+        "title": str(a.get("title") or "Untitled"),
+        "url": str(a.get("url") or ""),
+    }
+
+
+def _match_stub(m: dict[str, Any]) -> dict[str, str]:
+    """Project a tournament matchup to a minimal JSON-safe stub."""
+    return {"winner": str(m.get("winner") or "")}
+
+
+def _canonical_engine_payload(node_name: str, node_type: str,
+                              state: dict[str, Any]) -> dict[str, Any]:
+    """Build a canonical event payload for a streamed engine node.
+
+    The generic fields (``node``, ``iteration``, counts, ``leaderboard``) are
+    kept as-is. On top of them, per-stage keys are added to match the mock's
+    payload shape (``count``, ``hypotheses``, ``evidence``, ``matches``,
+    ``children``, ``agents``) so a single vocabulary drives both
+    ``_format_milestone`` and the frontend's ``summarizeEventPayload`` /
+    ``selectLiveLeaderboard`` readers.
+
+    The list-shaped keys are projected to minimal stubs rather than carrying
+    raw engine-state objects: every consumer reads only their ``length``, and
+    ``store.append_event`` JSON-serializes the payload with no fallback
+    handler, so raw hypothesis/article dicts (which may carry non-serializable
+    fields such as embeddings) must never be embedded whole. This mirrors the
+    projection discipline in ``_persist_final_state``.
+
+    Args:
+        node_name: The engine graph node name.
+        node_type: The canonical event type for ``node_name``.
+        state: The cumulative engine state snapshot for this node.
+
+    Returns:
+        The event payload dict (JSON-serializable; only plain dicts/lists).
+    """
+    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
+    matchups: list[dict[str, Any]] = state.get("tournament_matchups") or []
+    articles: list[dict[str, Any]] = state.get("articles") or []
+    iteration = state.get("current_iteration", 0)
+
+    payload: dict[str, Any] = {
+        "node": node_name,
+        "iteration": iteration,
+        "hypothesis_count": len(hyps),
+        "matches_count": len(matchups),
+        "articles_count": len(articles),
+        "leaderboard": _live_leaderboard(hyps),
+    }
+
+    if node_type == "generate":
+        payload["count"] = len(hyps)
+        payload["hypotheses"] = [_hypothesis_stub(h) for h in hyps]
+    elif node_type == "literature_review":
+        payload["count"] = len(articles)
+        payload["evidence"] = [_article_stub(a) for a in articles]
+    elif node_type == "ranking":
+        payload["matches"] = [_match_stub(m) for m in matchups]
+    elif node_type == "evolve":
+        payload["children"] = [
+            _hypothesis_stub(h) for h in hyps if h.get("evolution_history")
+        ]
+    elif node_type == "supervisor.plan":
+        payload["agents"] = list(_ENGINE_PIPELINE_AGENTS)
+
+    return payload
+
+
 def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
-    """Return a human-readable milestone string for key node events, or None."""
-    if node_type in ("supervisor", "supervisor.plan"):
+    """Return a human-readable milestone string for key node events, or None.
+
+    Reads the single canonical (mock-shaped) payload vocabulary. Unknown or
+    legacy types (e.g. old persisted ``engine.*`` events) fall through to
+    ``None``, so no milestone is generated — the same behaviour today's code
+    has for unmatched types.
+    """
+    if node_type == "supervisor.plan":
         return "Research plan ready — supervisor complete"
     if node_type == "generate":
-        count = payload.get("count") or payload.get("hypothesis_count", 0)
+        count = payload.get("count", 0)
         itr = payload.get("iteration", 0)
         label = f"iteration {itr}" if itr else "initial"
         return f"{count} hypotheses generated ({label})"
     if node_type == "ranking":
-        count = payload.get("hypothesis_count") or payload.get(
-            "matches_count", 0)
+        count = len(payload.get("matches") or [])
         itr = payload.get("iteration", 0)
         return f"Tournament complete (iteration {itr}, {count} matches)"
     if node_type == "meta_review":
         return "Meta-review complete"
     if node_type == "evolve":
-        count = payload.get("count") or payload.get("hypothesis_count", 0)
+        count = len(payload.get("children") or [])
         itr = payload.get("iteration", 0)
         return f"{count} hypotheses evolved (iteration {itr})"
     return None
@@ -603,22 +741,18 @@ async def run_workflow(
                 if state.get(key) is not None:
                     final_state[key] = state[key]
 
-            payload = {
-                "node": node_name,
-                "iteration": state.get("current_iteration", 0),
-                "hypothesis_count": len(state.get("hypotheses") or []),
-                "matches_count": len(state.get("tournament_matchups") or []),
-                "articles_count": len(state.get("articles") or []),
-                "leaderboard": _live_leaderboard(state.get("hypotheses") or []),
-            }
-            milestone = _format_milestone(node_name, payload)
+            # Normalize the engine node to the canonical mock event vocabulary
+            # so every downstream consumer reads one shape (no engine.* types).
+            node_type = _canonical_event_type(node_name)
+            payload = _canonical_engine_payload(node_name, node_type, state)
+            milestone = _format_milestone(node_type, payload)
             if milestone:
                 store.append_message(run_id,
                                      "system",
                                      milestone,
                                      "milestone",
                                      db_path=db_path)
-            yield await _emit(f"engine.{node_name}", payload)
+            yield await _emit(node_type, payload)
 
         # ---- Drain final state into the store ----
         report_payload = _persist_final_state(

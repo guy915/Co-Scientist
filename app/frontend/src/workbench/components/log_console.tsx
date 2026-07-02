@@ -3,6 +3,7 @@ import '@material/web/button/outlined-button.js';
 import '@material/web/button/filled-tonal-button.js';
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {useIsMobile} from '@/hooks/use_media_query';
+import {formatEventLabel} from '@/workbench/lib/event_labels';
 import {useLogs, type LogEntry} from '../log_context';
 
 function fmtTime(ts: number) {
@@ -19,10 +20,9 @@ function fmtDateTime(ts: number) {
 }
 
 function eventLabel(type: string): string {
-  if (type === 'status') return 'STATUS';
-  if (type === 'report') return 'REPORT';
-  if (type.startsWith('engine.')) return `NODE: ${type.slice(7).toUpperCase()}`;
-  return type.toUpperCase();
+  // Uppercase the shared canonical label. Legacy engine.* types (old persisted
+  // runs) are handled by formatEventLabel's prefix fallback.
+  return formatEventLabel(type).toUpperCase();
 }
 
 type LogSeverity = 'ERROR' | 'SUCCESS' | 'INFO';
@@ -85,7 +85,6 @@ function severityColor(severity: LogSeverity): string {
 function eventLabelColor(type: string, severity: LogSeverity): string {
   if (severity !== 'INFO') return severityColor(severity);
   if (type === 'status') return 'var(--color-info)';
-  if (type.startsWith('engine.')) return 'var(--md-sys-color-tertiary)';
   return 'var(--md-sys-color-primary)';
 }
 
