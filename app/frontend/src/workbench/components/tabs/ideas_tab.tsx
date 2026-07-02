@@ -89,8 +89,7 @@ const IDEA_SECTION_LINK_CLASSES =
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
  *
- * @param props The hypotheses, citations, reviews, matches, and optional
- *   handler invoked when a user asks for the legacy full-detail modal.
+ * @param props The hypotheses, citations, reviews, and matches.
  */
 export function IdeasTab({
   hypotheses,

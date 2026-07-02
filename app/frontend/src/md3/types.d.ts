@@ -1,6 +1,5 @@
 import type {MdChipSet} from '@material/web/chips/chip-set.js';
 import type {MdFilterChip} from '@material/web/chips/filter-chip.js';
-import type {MdDialog} from '@material/web/dialog/dialog.js';
 import type {MdDivider} from '@material/web/divider/divider.js';
 import type {MdIcon} from '@material/web/icon/icon.js';
 import type {MdFilledIconButton} from '@material/web/iconbutton/filled-icon-button.js';
@@ -10,9 +9,6 @@ import type {MdLinearProgress} from '@material/web/progress/linear-progress.js';
 import type {MdOutlinedSelect} from '@material/web/select/outlined-select.js';
 import type {MdSelectOption} from '@material/web/select/select-option.js';
 import type {MdSwitch} from '@material/web/switch/switch.js';
-import type {MdPrimaryTab} from '@material/web/tabs/primary-tab.js';
-import type {MdSecondaryTab} from '@material/web/tabs/secondary-tab.js';
-import type {MdTabs} from '@material/web/tabs/tabs.js';
 import type {MdOutlinedTextField} from '@material/web/textfield/outlined-text-field.js';
 import type {MdElevatedButton} from '@material/web/button/elevated-button.js';
 import type {MdFilledButton} from '@material/web/button/filled-button.js';
@@ -65,10 +61,6 @@ declare module 'react' {
       'md-linear-progress': CustomEl<MdLinearProgress>;
       'md-divider': CustomEl<MdDivider>;
       'md-switch': CustomEl<MdSwitch>;
-      'md-dialog': CustomEl<MdDialog>;
-      'md-tabs': CustomEl<MdTabs>;
-      'md-primary-tab': CustomEl<MdPrimaryTab>;
-      'md-secondary-tab': CustomEl<MdSecondaryTab>;
     }
   }
 }

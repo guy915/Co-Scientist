@@ -1,5 +1,4 @@
 import '@material/web/icon/icon.js';
-import '@material/web/iconbutton/icon-button.js';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {listDemoRuns, listRuns, type Run} from '@/api/runs';
@@ -10,6 +9,13 @@ import {useTheme} from './theme_context';
 import {tooltipClassNames} from './tooltip';
 
 type ShellPanel = 'settings' | 'logs';
+type ThemeMode = 'system' | 'light' | 'dark';
+
+const THEME_MODES: Array<{mode: ThemeMode; icon: string; label: string}> = [
+  {mode: 'system', icon: 'computer', label: 'System'},
+  {mode: 'light', icon: 'light_mode', label: 'Light'},
+  {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
+];
 
 const WORKSPACE_CLASSES =
   'ucs-workspace grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden ' +
@@ -117,15 +123,18 @@ const NAV_ICON_CLASSES =
   'grid size-6 min-h-6 min-w-6 place-items-center justify-self-center ' +
   'text-xl leading-none';
 
-const NAV_LABEL_OPEN_CLASSES =
-  'nav-label max-[700px]:!hidden max-[700px]:!max-w-0 ' +
-  'max-[700px]:!opacity-0 max-[700px]:!invisible min-[701px]:!block ' +
-  'min-[701px]:!max-w-none min-[701px]:!opacity-100 ' +
-  'min-[701px]:!visible';
-
-const NAV_LABEL_COLLAPSED_CLASSES =
-  'nav-label w-0 max-w-0 max-[700px]:!hidden max-[700px]:!opacity-0 ' +
+const HIDDEN_ON_MOBILE_CLASSES =
+  'max-[700px]:!hidden max-[700px]:!max-w-0 max-[700px]:!opacity-0 ' +
   'max-[700px]:!invisible';
+
+const VISIBLE_ON_DESKTOP_CLASSES =
+  'min-[701px]:!max-w-none min-[701px]:!opacity-100 min-[701px]:!visible';
+
+const NAV_LABEL_OPEN_CLASSES =
+  `nav-label ${HIDDEN_ON_MOBILE_CLASSES} min-[701px]:!block ` +
+  VISIBLE_ON_DESKTOP_CLASSES;
+
+const NAV_LABEL_COLLAPSED_CLASSES = `nav-label w-0 max-w-0 ${HIDDEN_ON_MOBILE_CLASSES}`;
 
 const HEADER_CLASSES =
   'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4.5rem] items-center ' +
@@ -185,13 +194,11 @@ const HOME_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-[0.85rem] max
 const REPORT_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-6 max-h-80`;
 
 const SIDE_CONTENT_OPEN_CLASSES =
-  'max-[700px]:!hidden max-[700px]:!max-w-0 max-[700px]:!opacity-0 ' +
-  'max-[700px]:!invisible min-[701px]:!block min-[701px]:!max-w-none ' +
-  'min-[701px]:!opacity-100 min-[701px]:!visible';
+  `${HIDDEN_ON_MOBILE_CLASSES} min-[701px]:!block ` +
+  VISIBLE_ON_DESKTOP_CLASSES;
 
 const SIDE_CONTENT_COLLAPSED_CLASSES =
-  'max-[700px]:!hidden max-[700px]:!max-w-0 max-[700px]:!opacity-0 ' +
-  'max-[700px]:!invisible min-[701px]:!grid min-[701px]:!max-h-0 ' +
+  `${HIDDEN_ON_MOBILE_CLASSES} min-[701px]:!grid min-[701px]:!max-h-0 ` +
   'min-[701px]:!mt-0 min-[701px]:!opacity-0 min-[701px]:!invisible';
 
 const SIDE_HEADING_CLASSES =
@@ -356,54 +363,30 @@ export function Layout({children}: {children: ReactNode}) {
     <div className={shellClass}>
       <aside className={navPanelClasses} aria-label="Primary navigation">
         <div className={navGroupClasses}>
-          <button
-            type="button"
-            className={tooltipClassNames({
-              className: navItemClasses,
-              placement: 'right',
-            })}
-            aria-label="Menu"
-            data-tooltip="Menu"
-            aria-expanded={navOpen}
-            aria-controls="primary-navigation"
+          <NavActionButton
+            label="Menu"
+            icon="menu"
+            className={navItemClasses}
+            labelClassName={navLabelClasses}
+            expanded={navOpen}
+            controls="primary-navigation"
             onClick={toggleNav}
-          >
-            <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
-              menu
-            </md-icon>
-            <span className={navLabelClasses}>Menu</span>
-          </button>
+          />
           <nav id="primary-navigation" className={navItemsClasses}>
-            <button
-              type="button"
-              className={tooltipClassNames({
-                className: navItemClasses,
-                placement: 'right',
-              })}
-              aria-label="New chat"
-              data-tooltip="New chat"
+            <NavActionButton
+              label="New chat"
+              icon="edit_square"
+              className={navItemClasses}
+              labelClassName={navLabelClasses}
               onClick={startNewChat}
-            >
-              <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
-                edit_square
-              </md-icon>
-              <span className={navLabelClasses}>New chat</span>
-            </button>
-            <button
-              type="button"
-              className={tooltipClassNames({
-                className: navItemClasses,
-                placement: 'right',
-              })}
-              aria-label="Search"
-              data-tooltip="Search"
+            />
+            <NavActionButton
+              label="Search"
+              icon="search"
+              className={navItemClasses}
+              labelClassName={navLabelClasses}
               onClick={focusComposer}
-            >
-              <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
-                search
-              </md-icon>
-              <span className={navLabelClasses}>Search</span>
-            </button>
+            />
           </nav>
           <div className={sideContentClasses}>
             <p className={SIDE_HEADING_CLASSES}>Chats</p>
@@ -443,22 +426,14 @@ export function Layout({children}: {children: ReactNode}) {
               navOpen ? 'w-full' : 'w-auto'
             }`}
           >
-            <button
-              type="button"
-              className={tooltipClassNames({
-                className: navItemClasses,
-                placement: 'right',
-              })}
-              aria-label="Settings"
-              data-tooltip="Settings"
-              aria-expanded={activePanel === 'settings'}
+            <NavActionButton
+              label="Settings"
+              icon="settings"
+              className={navItemClasses}
+              labelClassName={navLabelClasses}
+              expanded={activePanel === 'settings'}
               onClick={() => togglePanel('settings')}
-            >
-              <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
-                settings
-              </md-icon>
-              <span className={navLabelClasses}>Settings</span>
-            </button>
+            />
             {activePanel === 'settings' && (
               <ShellPopover className={RAIL_POPOVER_CLASSES}>
                 <div
@@ -466,27 +441,14 @@ export function Layout({children}: {children: ReactNode}) {
                   role="group"
                   aria-label="Theme"
                 >
-                  <ThemeModeButton
-                    mode="system"
-                    active={mode === 'system'}
-                    icon="computer"
-                    label="System"
-                    onModeChange={setMode}
-                  />
-                  <ThemeModeButton
-                    mode="light"
-                    active={mode === 'light'}
-                    icon="light_mode"
-                    label="Light"
-                    onModeChange={setMode}
-                  />
-                  <ThemeModeButton
-                    mode="dark"
-                    active={mode === 'dark'}
-                    icon="dark_mode"
-                    label="Dark"
-                    onModeChange={setMode}
-                  />
+                  {THEME_MODES.map(option => (
+                    <ThemeModeButton
+                      key={option.mode}
+                      {...option}
+                      active={mode === option.mode}
+                      onModeChange={setMode}
+                    />
+                  ))}
                 </div>
               </ShellPopover>
             )}
@@ -521,6 +483,41 @@ export function Layout({children}: {children: ReactNode}) {
   );
 }
 
+function NavActionButton({
+  label,
+  icon,
+  className,
+  labelClassName,
+  expanded,
+  controls,
+  onClick,
+}: {
+  label: string;
+  icon: string;
+  className: string;
+  labelClassName: string;
+  expanded?: boolean;
+  controls?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({className, placement: 'right'})}
+      aria-label={label}
+      data-tooltip={label}
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onClick}
+    >
+      <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
+        {icon}
+      </md-icon>
+      <span className={labelClassName}>{label}</span>
+    </button>
+  );
+}
+
 function ThemeModeButton({
   mode,
   active,
@@ -532,7 +529,7 @@ function ThemeModeButton({
   active: boolean;
   icon: string;
   label: string;
-  onModeChange: (mode: 'system' | 'light' | 'dark') => void;
+  onModeChange: (mode: ThemeMode) => void;
 }) {
   return (
     <button
