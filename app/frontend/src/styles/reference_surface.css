@@ -75,9 +75,7 @@
   --idea-row-hover-bg: #f1f3f4;
   --idea-row-selected-border: #8ab4f8;
   --idea-row-selected-bg: #f1f8fc;
-  --idea-row-selected-hover-bg:
-    linear-gradient(rgb(60 64 67 / 7%), rgb(60 64 67 / 7%)),
-    #f1f8fc;
+  --idea-row-selected-hover-bg: #e6eefb;
   --idea-chip-bg: #e6f4ff;
   --idea-chip-text: #202124;
   --idea-title-text: #202124;
@@ -85,6 +83,68 @@
   --idea-breadcrumb-bg: #f1f3f4;
   --idea-breadcrumb-text: #3c4043;
   --idea-detail-text: var(--md-sys-color-on-surface);
+
+  /* ---- Semantic component tokens (dark values paired in the dark block) ----
+     Components reference these via [var(--cosci-*)] with NO dark: variant, so a
+     surface's light/dark appearance is defined once, here. */
+
+  /* Danger / alert (report alert + toast) */
+  --cosci-danger-bg: #fce8e6;
+  --cosci-danger-border: #b3261e;
+  --cosci-danger-fg: #b3261e;
+
+  /* Attachment cards */
+  --cosci-attach-bg: #eef2f8;
+  --cosci-attach-fg: #202124;
+  --cosci-attach-meta: #202124;
+
+  /* Center toast + raised action pill */
+  --cosci-toast-bg: #303134;
+  --cosci-toast-fg: #f1f3f4;
+  --cosci-surface-raised: #fff;
+
+  /* Diagnostics / Logs — the teal accent intentionally inverts vs the page
+     (dark accent in light mode, light accent in dark mode) so it reads as a
+     prominent badge; box chrome stays themed for readability. */
+  --cosci-logs-accent-bg: #173b3b;
+  --cosci-logs-accent-fg: #7fd7bf;
+  --cosci-logs-accent-hover: #1f4b4b;
+  --cosci-logs-count-bg: rgb(127 215 191 / 22%);
+  --cosci-logs-surface: #fff;
+  --cosci-logs-border: #dfe3e7;
+  --cosci-logs-heading: #202124;
+  --cosci-logs-meta: #4f5358;
+  --cosci-logs-panel-bg: #edf7f4;
+  --cosci-logs-panel-fg: #0f5454;
+  --cosci-logs-code-fg: #202124;
+  --cosci-logs-danger-bg: #f8d6d2;
+  --cosci-logs-danger-fg: #9b1c13;
+
+  /* Radio option cards */
+  --cosci-option-bg: #fff;
+  --cosci-option-hover-bg: #e8eef6;
+  --cosci-option-hover-border: #d4dbe6;
+  --cosci-option-selected-bg: #e5eefc;
+  --cosci-option-marker: #5f6368;
+  --cosci-option-marker-on: #8ab4f8;
+
+  /* Buttons — primary (filled), outline (blue in both modes), secondary */
+  --cosci-btn-primary-bg: #0b57d0;
+  --cosci-btn-primary-fg: #fff;
+  --cosci-btn-primary-hover: #0842a0;
+  --cosci-btn-outline-border: #1a73e8;
+  --cosci-btn-outline-fg: #1967d2;
+  --cosci-btn-outline-hover-bg: #e8f0fe;
+  --cosci-btn-secondary-border: #9aa0a6;
+  --cosci-btn-secondary-fg: #3c4043;
+  --cosci-btn-secondary-hover-bg: #f1f3f4;
+  --cosci-btn-disabled-border: #dadce0;
+  --cosci-btn-disabled-bg: #f1f3f4;
+  --cosci-btn-disabled-fg: #9aa0a6;
+
+  /* Chat bubbles + setup document */
+  --cosci-user-bubble-bg: #e9eefb;
+  --cosci-setup-doc-bg: #f1f4fa;
 }
 
 :root[data-theme="dark"] {
@@ -148,9 +208,7 @@
   --idea-row-hover-bg: #303134;
   --idea-row-selected-border: #4aa5d8;
   --idea-row-selected-bg: #004b72;
-  --idea-row-selected-hover-bg:
-    linear-gradient(rgb(255 255 255 / 9%), rgb(255 255 255 / 9%)),
-    #004b72;
+  --idea-row-selected-hover-bg: #075d8c;
   --idea-chip-bg: #15384d;
   --idea-chip-text: var(--cosci-text);
   --idea-title-text: var(--cosci-text);
@@ -158,6 +216,57 @@
   --idea-breadcrumb-bg: #282a2c;
   --idea-breadcrumb-text: var(--cosci-muted);
   --idea-detail-text: var(--cosci-muted);
+
+  /* ---- Semantic component tokens — dark values (paired with light above) ---- */
+  --cosci-danger-bg: #3c1715;
+  --cosci-danger-border: #5b2b2b;
+  --cosci-danger-fg: #ffb4aa;
+
+  --cosci-attach-bg: #303335;
+  --cosci-attach-fg: #f1f3f4;
+  --cosci-attach-meta: #e8eaed;
+
+  --cosci-toast-bg: #f1f3f4;
+  --cosci-toast-fg: #202124;
+  --cosci-surface-raised: #202124;
+
+  --cosci-logs-accent-bg: #e0f2ef;
+  --cosci-logs-accent-fg: #0f5454;
+  --cosci-logs-accent-hover: #d4ece7;
+  --cosci-logs-count-bg: rgb(26 107 107 / 18%);
+  --cosci-logs-surface: #17181b;
+  --cosci-logs-border: #33363b;
+  --cosci-logs-heading: #f1f3f4;
+  --cosci-logs-meta: #bdc1c6;
+  --cosci-logs-panel-bg: #132927;
+  --cosci-logs-panel-fg: #7fd7bf;
+  --cosci-logs-code-fg: #f1f3f4;
+  --cosci-logs-danger-bg: #5b2b2b;
+  --cosci-logs-danger-fg: #ffb4aa;
+
+  --cosci-option-bg: #202427;
+  --cosci-option-hover-bg: #252a2d;
+  --cosci-option-hover-border: #3c4043;
+  --cosci-option-selected-bg: #1f2224;
+  --cosci-option-marker: #9aa0a6;
+  --cosci-option-marker-on: #a8c7fa;
+
+  --cosci-btn-primary-bg: #1d3354;
+  --cosci-btn-primary-fg: #a8c7fa;
+  --cosci-btn-primary-hover: rgb(168 199 250 / 14%);
+  --cosci-btn-outline-border: #8ab4f8;
+  --cosci-btn-outline-fg: #8ab4f8;
+  --cosci-btn-outline-hover-bg: rgb(138 180 248 / 14%);
+  --cosci-btn-secondary-border: var(--cosci-border);
+  --cosci-btn-secondary-fg: var(--cosci-text);
+  --cosci-btn-secondary-hover-bg: #303134;
+  --cosci-btn-disabled-border: #3c4043;
+  --cosci-btn-disabled-bg: #202124;
+  --cosci-btn-disabled-fg: #5f6368;
+
+  --cosci-user-bubble-bg: #303134;
+  --cosci-setup-doc-bg: #25272d;
+
   background: var(--cosci-bg);
 }
 
