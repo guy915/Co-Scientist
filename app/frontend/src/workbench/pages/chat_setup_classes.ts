@@ -111,9 +111,6 @@ export const OPTION_CARD_BASE_CLASSES =
   'focus-within:border-[var(--cosci-option-hover-border)] ' +
   'focus-within:bg-[var(--cosci-option-hover-bg)]';
 
-export const OPTION_CARD_SELECTED_CLASSES =
-  'selected bg-[var(--cosci-option-selected-bg)]';
-
 export const OPTION_INPUT_CLASSES = 'absolute pointer-events-none opacity-0';
 
 export const OPTION_MARKER_CLASSES =
@@ -121,8 +118,8 @@ export const OPTION_MARKER_CLASSES =
   'border-[var(--cosci-option-marker)]';
 
 export const OPTION_MARKER_SELECTED_CLASSES =
-  'selected border-[var(--cosci-option-marker-on)] ' +
-  'bg-[var(--cosci-option-marker-on)]';
+  'border-[var(--cosci-option-marker-on)] ' +
+  'bg-[radial-gradient(circle,var(--cosci-option-marker-on)_0_42%,transparent_44%)]';
 
 export const OPTION_LABEL_CLASSES = 'min-w-0 text-base leading-[1.2] font-bold';
 

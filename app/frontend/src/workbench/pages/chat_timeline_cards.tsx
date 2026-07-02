@@ -13,7 +13,6 @@ import {
   MESSAGE_ACTIONS_END_CLASSES,
   MODEL_BUBBLE_CLASSES,
   OPTION_CARD_BASE_CLASSES,
-  OPTION_CARD_SELECTED_CLASSES,
   OPTION_DESCRIPTION_CLASSES,
   OPTION_GRID_CLASSES,
   OPTION_GROUP_CLASSES,
@@ -536,7 +535,6 @@ function RunOptionGroup({
             className={[
               OPTION_CARD_BASE_CLASSES,
               disabled ? 'cursor-default' : 'cursor-pointer',
-              option.id === value ? OPTION_CARD_SELECTED_CLASSES : '',
             ]
               .filter(Boolean)
               .join(' ')}
