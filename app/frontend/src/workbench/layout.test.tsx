@@ -182,8 +182,9 @@ describe('Layout', () => {
     expect(screen.queryByRole('group', {name: 'Theme'})).toBeNull();
 
     fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
-    expect(screen.getByRole('button', {name: /Logs 0/i})).not.toHaveAttribute(
+    expect(screen.getByRole('button', {name: /Logs 0/i})).toHaveAttribute(
       'data-tooltip',
+      'Diagnostic logs',
     );
     expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
     expect(screen.queryByText('All runs')).toBeNull();

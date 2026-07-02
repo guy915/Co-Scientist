@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Icon} from '@/components/icon';
+import {tooltipClassNames} from './tooltip';
 
 type DiagnosticLogLevel = 'info' | 'success' | 'error';
 
@@ -182,8 +183,13 @@ export function DiagnosticsControl({
     <>
       <button
         type="button"
-        className={LOGS_BUTTON_CLASSES}
+        className={tooltipClassNames({
+          className: LOGS_BUTTON_CLASSES,
+          placement: 'bottom',
+          alignEnd: true,
+        })}
         aria-label={`Logs ${entries.length}`}
+        data-tooltip="Diagnostic logs"
         aria-expanded={open}
         onClick={onToggle}
       >

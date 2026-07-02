@@ -94,6 +94,13 @@
   left: 50% !important;
 }
 
+[data-tooltip].ucs-tooltip-bottom::after {
+  top: calc(100% + 0.45rem) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+}
+
 [data-tooltip].ucs-tooltip-right {
   --ucs-tooltip-x: -0.2rem;
   --ucs-tooltip-y: -50%;
@@ -111,6 +118,13 @@
 [data-tooltip].ucs-tooltip-align-end::after {
   right: 0 !important;
   left: auto !important;
+  --ucs-tooltip-x: 0;
+  --ucs-tooltip-open-x: 0;
+}
+
+[data-tooltip].ucs-tooltip-align-start::after {
+  right: auto !important;
+  left: 0 !important;
   --ucs-tooltip-x: 0;
   --ucs-tooltip-open-x: 0;
 }

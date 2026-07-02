@@ -1,10 +1,11 @@
-type TooltipPlacement = 'top' | 'right';
+type TooltipPlacement = 'top' | 'right' | 'bottom';
 
 type TooltipClassOptions = {
   className?: string;
   placement: TooltipPlacement;
   wrap?: boolean;
   alignEnd?: boolean;
+  alignStart?: boolean;
 };
 
 export function tooltipClassNames({
@@ -12,6 +13,7 @@ export function tooltipClassNames({
   placement,
   wrap = false,
   alignEnd = false,
+  alignStart = false,
 }: TooltipClassOptions): string {
   return [
     className,
@@ -19,6 +21,7 @@ export function tooltipClassNames({
     `ucs-tooltip-${placement}`,
     wrap ? 'ucs-tooltip-wrap' : 'ucs-tooltip-nowrap',
     alignEnd ? 'ucs-tooltip-align-end' : '',
+    alignStart ? 'ucs-tooltip-align-start' : '',
   ]
     .filter(Boolean)
     .join(' ');

@@ -334,8 +334,12 @@ export function Layout({children}: {children: ReactNode}) {
         <header className={HEADER_CLASSES}>
           <button
             type="button"
-            className={PRODUCT_LOCKUP_CLASSES}
+            className={tooltipClassNames({
+              className: PRODUCT_LOCKUP_CLASSES,
+              placement: 'bottom',
+            })}
             aria-label="Go to Co-Scientist home"
+            data-tooltip="Home"
             onClick={startNewChat}
           >
             <GoogleLabsIcon aria-hidden="true" />
