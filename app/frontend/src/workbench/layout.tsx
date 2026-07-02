@@ -5,95 +5,11 @@ import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
+import {DiagnosticsControl} from './layout_diagnostics';
 import {useTheme} from './theme_context';
 import {tooltipClassNames} from './tooltip';
 
 type ShellPanel = 'settings' | 'logs';
-
-type DiagnosticLogLevel = 'info' | 'success' | 'error';
-
-interface DiagnosticLogEntry {
-  id: number;
-  time: string;
-  run: string;
-  stage: string;
-  level: DiagnosticLogLevel;
-  payload: Record<string, unknown>;
-}
-
-interface DiagnosticLogEventDetail {
-  run?: string;
-  stage: string;
-  level?: DiagnosticLogLevel;
-  payload?: Record<string, unknown>;
-}
-
-const LOGS_POPOVER_CLASSES = [
-  'ucs-popover--logs',
-  'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
-  'max-h-[min(32rem,calc(100vh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
-  '!gap-0 overflow-hidden !p-0 dark:!border-[#33363b] dark:!bg-[#17181b]',
-  'max-[720px]:right-[-0.5rem] max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
-].join(' ');
-
-const DIAGNOSTIC_HEADER_CLASSES =
-  'ucs-diagnostic-header flex items-center justify-between gap-3 border-b ' +
-  'border-[#dfe3e7] px-4 py-3 dark:border-[#33363b] ' +
-  'max-[720px]:flex-col max-[720px]:items-start';
-
-const DIAGNOSTIC_INTRO_CLASSES =
-  'ucs-diagnostic-intro border-b border-[#dfe3e7] px-4 py-3 ' +
-  'dark:border-[#33363b]';
-
-const DIAGNOSTIC_TITLE_CLASSES =
-  'm-0 text-base font-semibold leading-tight text-[#202124] ' +
-  'dark:text-[#f1f3f4]';
-
-const DIAGNOSTIC_ACTIONS_CLASSES =
-  'ucs-diagnostic-actions flex flex-nowrap gap-[0.45rem]';
-
-const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
-  'inline-flex min-h-8 cursor-pointer items-center gap-[0.3rem] rounded-full ' +
-  'border border-[#9accc3] bg-white px-[0.7rem] text-[0.82rem] ' +
-  'font-semibold whitespace-nowrap text-[#0f5454] dark:border-[#315e57] ' +
-  'dark:bg-[#173b3b] dark:text-[#7fd7bf]';
-
-const DIAGNOSTIC_CHIPS_CLASSES =
-  'ucs-diagnostic-chips flex flex-wrap gap-[0.45rem]';
-
-const DIAGNOSTIC_CHIP_CLASSES =
-  'rounded-full bg-[#e0f2ef] px-2 py-[0.15rem] text-[0.7rem] font-semibold ' +
-  'whitespace-nowrap text-[#0f5454] dark:bg-[#173b3b] dark:text-[#7fd7bf]';
-
-const DIAGNOSTIC_ERROR_CHIP_CLASSES =
-  'rounded-full bg-[#f8d6d2] px-2 py-[0.15rem] text-[0.7rem] font-semibold ' +
-  'whitespace-nowrap text-[#9b1c13] dark:bg-[#5b2b2b] dark:text-[#ffb4aa]';
-
-const DIAGNOSTIC_LIST_CLASSES =
-  'ucs-diagnostic-list grid min-h-0 gap-2 overflow-auto px-4 pt-3 pb-4 ' +
-  '[scrollbar-color:#cfd8dc_transparent] [scrollbar-width:thin]';
-
-const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid gap-1';
-
-const DIAGNOSTIC_ENTRY_META_CLASSES =
-  'ucs-diagnostic-entry-meta grid grid-cols-[auto_auto_minmax(0,1fr)_auto] ' +
-  'items-center gap-2 text-[0.72rem] font-semibold text-[#4f5358] ' +
-  'dark:text-[#bdc1c6] max-[720px]:grid-cols-[auto_auto_minmax(0,1fr)]';
-
-const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
-
-const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
-  'max-[720px]:col-start-2 max-[720px]:col-end-[-1]';
-
-const DIAGNOSTIC_CODE_CLASSES =
-  'm-0 max-h-20 overflow-auto rounded-[0.55rem] bg-[#edf7f4] px-[0.7rem] ' +
-  'py-[0.55rem] font-mono text-[0.72rem] leading-[1.3] text-[#202124] ' +
-  'dark:bg-[#132927] dark:text-[#f1f3f4]';
-
-const DIAGNOSTIC_EMPTY_CLASSES =
-  'ucs-diagnostic-empty m-0 rounded-[0.55rem] bg-[#edf7f4] px-[0.7rem] ' +
-  'py-[0.55rem] text-center text-[#0f5454] dark:bg-[#132927] ' +
-  'dark:text-[#7fd7bf]';
 
 const WORKSPACE_CLASSES =
   'ucs-workspace grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden ' +
@@ -232,21 +148,6 @@ const HEADER_ACTIONS_CLASSES =
   'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max ' +
   '-translate-y-1/2 items-center gap-[0.55rem] max-[700px]:!hidden';
 
-const LOGS_BUTTON_CLASSES =
-  'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +
-  'items-center gap-[0.45rem] rounded-full border-0 bg-[var(--cosci-teal-bg)] ' +
-  'px-[0.62rem] py-0 pl-[0.72rem] font-[inherit] text-[0.88rem] font-semibold ' +
-  'whitespace-nowrap text-[var(--cosci-teal-dark)] hover:bg-[#d4ece7] ' +
-  '[&[aria-expanded=true]]:bg-[#d4ece7] dark:bg-[#173b3b] dark:text-[#7fd7bf] ' +
-  'dark:hover:bg-[#1f4b4b] dark:[&[aria-expanded=true]]:bg-[#1f4b4b]';
-
-const LOGS_BUTTON_ICON_CLASSES = 'text-[1.05rem]';
-
-const LOGS_COUNT_CLASSES =
-  'ucs-logs-count grid h-[1.38rem] min-w-[1.35rem] place-items-center ' +
-  'rounded-full bg-[rgb(26_107_107_/_18%)] px-[0.42rem] text-[0.72rem] ' +
-  'leading-none whitespace-nowrap dark:bg-[rgb(127_215_191_/_22%)]';
-
 const SHELL_POPOVER_CLASSES =
   'ucs-popover absolute z-[35] grid w-80 gap-[0.35rem] rounded-2xl border ' +
   'border-[#dadce0] bg-white p-3 text-[#202124] ' +
@@ -321,14 +222,6 @@ const CHAT_HISTORY_MORE_CLASSES =
   'dark:hover:bg-[#303134] dark:hover:text-[var(--cosci-text)] ' +
   'dark:focus-visible:bg-[#303134] dark:focus-visible:text-[var(--cosci-text)]';
 
-function formatDiagnosticTime(date = new Date()): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(date);
-}
-
 /**
  * Renders the app shell with header navigation, main content, and footer.
  *
@@ -342,30 +235,11 @@ export function Layout({children}: {children: ReactNode}) {
   const [history, setHistory] = useState<Run[]>([]);
   const [navOpen, setNavOpen] = useState(true);
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
-  const [diagnosticLogs, setDiagnosticLogs] = useState<DiagnosticLogEntry[]>(
-    [],
-  );
-  const [logsCopied, setLogsCopied] = useState(false);
   const [showAllChats, setShowAllChats] = useState(false);
-  const nextDiagnosticId = useRef(1);
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
   const headerTitle = overrideTitle || '';
-  const visibleLogEntries = diagnosticLogs;
-  const logCount = visibleLogEntries.length;
-  const errorLogCount = visibleLogEntries.filter(
-    entry => entry.level === 'error',
-  ).length;
-  const successLogCount = visibleLogEntries.filter(
-    entry => entry.level === 'success',
-  ).length;
-  const infoLogCount = visibleLogEntries.filter(
-    entry => entry.level === 'info',
-  ).length;
-  const runLogCount = new Set(
-    visibleLogEntries.map(entry => entry.run).filter(Boolean),
-  ).size;
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
   const sideContentClasses = [
@@ -428,34 +302,6 @@ export function Layout({children}: {children: ReactNode}) {
     setActivePanel(current => (current === panel ? null : panel));
   }
 
-  function clearLogs() {
-    nextDiagnosticId.current = 1;
-    setDiagnosticLogs([]);
-    setLogsCopied(false);
-  }
-
-  async function copyLogs() {
-    const text = JSON.stringify(visibleLogEntries, null, 2);
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        throw new Error('Clipboard API unavailable');
-      }
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.append(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
-    setLogsCopied(true);
-  }
-
   useEffect(() => {
     setOverrideTitle('');
     setActivePanel(null);
@@ -483,28 +329,6 @@ export function Layout({children}: {children: ReactNode}) {
     window.addEventListener('cosci-header-title', onHeaderTitle);
     return () => {
       window.removeEventListener('cosci-header-title', onHeaderTitle);
-    };
-  }, []);
-
-  useEffect(() => {
-    function onDiagnosticEvent(event: Event) {
-      const custom = event as CustomEvent<DiagnosticLogEventDetail>;
-      if (!custom.detail?.stage) return;
-      const entry: DiagnosticLogEntry = {
-        id: nextDiagnosticId.current,
-        time: formatDiagnosticTime(),
-        run: custom.detail.run || 'Current session',
-        stage: custom.detail.stage,
-        level: custom.detail.level || 'info',
-        payload: custom.detail.payload || {},
-      };
-      nextDiagnosticId.current += 1;
-      setDiagnosticLogs(current => [...current, entry]);
-      setLogsCopied(false);
-    }
-    window.addEventListener('cosci-diagnostic-event', onDiagnosticEvent);
-    return () => {
-      window.removeEventListener('cosci-diagnostic-event', onDiagnosticEvent);
     };
   }, []);
 
@@ -682,107 +506,13 @@ export function Layout({children}: {children: ReactNode}) {
           </button>
           <div className={HEADER_TITLE_CLASSES}>{headerTitle}</div>
           <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
-            <button
-              type="button"
-              className={LOGS_BUTTON_CLASSES}
-              aria-label={`Logs ${logCount}`}
-              aria-expanded={activePanel === 'logs'}
-              onClick={() => togglePanel('logs')}
-            >
-              <md-icon aria-hidden="true" className={LOGS_BUTTON_ICON_CLASSES}>
-                expand_more
-              </md-icon>
-              <span>Logs</span>
-              <span className={LOGS_COUNT_CLASSES}>{logCount}</span>
-            </button>
-            {activePanel === 'logs' && (
-              <ShellPopover className={LOGS_POPOVER_CLASSES}>
-                <div className={DIAGNOSTIC_HEADER_CLASSES}>
-                  <div className="ucs-diagnostic-title">
-                    <h2 className={DIAGNOSTIC_TITLE_CLASSES}>
-                      Diagnostic Logs
-                    </h2>
-                  </div>
-                  <div className={DIAGNOSTIC_ACTIONS_CLASSES}>
-                    <button
-                      type="button"
-                      className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
-                      onClick={clearLogs}
-                    >
-                      <md-icon aria-hidden="true" className="text-base">
-                        refresh
-                      </md-icon>
-                      <span>Clear</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
-                      onClick={copyLogs}
-                    >
-                      <md-icon aria-hidden="true" className="text-base">
-                        content_copy
-                      </md-icon>
-                      <span>{logsCopied ? 'Copied' : 'Copy'}</span>
-                    </button>
-                  </div>
-                </div>
-                <div className={DIAGNOSTIC_INTRO_CLASSES}>
-                  <div className={DIAGNOSTIC_CHIPS_CLASSES}>
-                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
-                      Total {logCount}
-                    </span>
-                    <span
-                      className={
-                        errorLogCount
-                          ? DIAGNOSTIC_ERROR_CHIP_CLASSES
-                          : DIAGNOSTIC_CHIP_CLASSES
-                      }
-                    >
-                      Errors {errorLogCount}
-                    </span>
-                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
-                      Success {successLogCount}
-                    </span>
-                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
-                      Info {infoLogCount}
-                    </span>
-                    <span className={DIAGNOSTIC_CHIP_CLASSES}>
-                      Runs {runLogCount}
-                    </span>
-                  </div>
-                </div>
-                <div
-                  className={DIAGNOSTIC_LIST_CLASSES}
-                  aria-label="Log events"
-                >
-                  {visibleLogEntries.map(entry => (
-                    <article
-                      key={entry.id}
-                      className={DIAGNOSTIC_ENTRY_CLASSES}
-                    >
-                      <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
-                        <span>#{entry.id}</span>
-                        <span>[{entry.time}]</span>
-                        <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>
-                          {entry.run}
-                        </span>
-                        <strong className={DIAGNOSTIC_ENTRY_STAGE_CLASSES}>
-                          {entry.stage}:
-                        </strong>
-                      </div>
-                      <pre className={DIAGNOSTIC_CODE_CLASSES}>
-                        {JSON.stringify(entry.payload, null, 2)}
-                      </pre>
-                    </article>
-                  ))}
-                  {visibleLogEntries.length === 0 && (
-                    <p className={DIAGNOSTIC_EMPTY_CLASSES}>
-                      No diagnostic events loaded.
-                    </p>
-                  )}
-                </div>
-              </ShellPopover>
-            )}
+            <DiagnosticsControl
+              open={activePanel === 'logs'}
+              onToggle={() => togglePanel('logs')}
+              renderPopover={(children, className) => (
+                <ShellPopover className={className}>{children}</ShellPopover>
+              )}
+            />
           </div>
         </header>
         <main className={pageClasses}>{children}</main>

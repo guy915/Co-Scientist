@@ -236,6 +236,22 @@ describe('Layout', () => {
     expect(screen.queryByText('Diagnostic Logs')).toBeNull();
   });
 
+  it('opens the diagnostics panel with dark-mode shell styling', () => {
+    const {container} = renderLayout();
+
+    expect(document.documentElement.dataset.theme).toBe('dark');
+    expect(document.documentElement).toHaveClass('dark');
+
+    const logsButton = screen.getByRole('button', {name: /Logs 0/i});
+    expect(logsButton.className).toContain('dark:bg-[#173b3b]');
+
+    fireEvent.click(logsButton);
+
+    const logsPopover = container.querySelector('.ucs-popover--logs');
+    expect(logsPopover?.className).toContain('dark:!bg-[#17181b]');
+    expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
+  });
+
   it('does not show an overflow menu on run routes', () => {
     renderLayout('/runs/demo-ferroptosis/ideas');
 
