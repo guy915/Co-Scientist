@@ -1,3 +1,7 @@
+/* Declare layer order so hand-rolled resets in @layer base yield to utilities
+   (this project imports theme + utilities only, not Tailwind's preflight). */
+@layer theme, base, components, utilities;
+
 @import "tailwindcss/theme" layer(theme);
 @import "tailwindcss/utilities" layer(utilities) source(none);
 
@@ -258,17 +262,67 @@ body {
   margin: 0;
 }
 
-button,
-input,
-select,
-textarea {
-  color: inherit;
-  font: inherit;
+/* Preflight-style resets belong in @layer base so Tailwind utilities (font
+   size/weight, text color) applied to buttons and inputs still win. */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    color: inherit;
+    font: inherit;
+  }
 }
 
 /* Default border color */
 * {
   border-color: var(--color-th-border);
+}
+
+/* Scrollbars — always visible with a subtle themed track (Google style). */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #c4c7c5 #f1f3f4;
+}
+
+:root[data-theme="dark"] * {
+  scrollbar-color: #5f6368 #1e1f20;
+}
+
+*::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+*::-webkit-scrollbar-track {
+  background: #f1f3f4;
+}
+
+*::-webkit-scrollbar-thumb {
+  border: 3px solid #f1f3f4;
+  border-radius: 9999px;
+  background: #c4c7c5;
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: #9aa0a6;
+  background-clip: padding-box;
+}
+
+:root[data-theme="dark"] *::-webkit-scrollbar-track {
+  background: #1e1f20;
+}
+
+:root[data-theme="dark"] *::-webkit-scrollbar-thumb {
+  border-color: #1e1f20;
+  background: #5f6368;
+  background-clip: padding-box;
+}
+
+:root[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
+  background: #80868b;
+  background-clip: padding-box;
 }
 
 /* Muted text color utility */
