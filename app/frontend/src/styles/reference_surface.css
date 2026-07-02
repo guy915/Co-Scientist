@@ -117,8 +117,8 @@
   --cosci-logs-border: #dfe3e7;
   --cosci-logs-heading: #202124;
   --cosci-logs-meta: #4f5358;
-  --cosci-logs-panel-bg: #f1f3f4;
-  --cosci-logs-panel-fg: #5f6368;
+  --cosci-logs-panel-bg: #edf7f4;
+  --cosci-logs-panel-fg: #0f5454;
   --cosci-logs-code-fg: #202124;
   --cosci-logs-danger-bg: #f8d6d2;
   --cosci-logs-danger-fg: #9b1c13;
@@ -233,10 +233,10 @@
   --cosci-toast-fg: #202124;
   --cosci-surface-raised: #202124;
 
-  --cosci-logs-action-border: #315e57;
-  --cosci-logs-action-bg: #173b3b;
-  --cosci-logs-action-fg: #7fd7bf;
-  --cosci-logs-action-hover: #1f4b4b;
+  --cosci-logs-action-border: #d4ece7;
+  --cosci-logs-action-bg: #e0f2ef;
+  --cosci-logs-action-fg: #0f5454;
+  --cosci-logs-action-hover: #d4ece7;
   --cosci-logs-surface: #17181b;
   --cosci-logs-border: #33363b;
   --cosci-logs-heading: #f1f3f4;
