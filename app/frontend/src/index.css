@@ -82,6 +82,13 @@
 
 /* MD3 dark tokens are set by applyMd3Theme(true) at runtime */
 :root[data-theme="dark"] {
+  /* MD3 elevation — shadows read less on dark surfaces, so opacities lift. */
+  --md-elevation-1:
+    0 1px 2px 0 rgb(0 0 0 / 45%), 0 1px 3px 1px rgb(0 0 0 / 30%);
+  --md-elevation-2:
+    0 1px 2px 0 rgb(0 0 0 / 50%), 0 2px 6px 2px rgb(0 0 0 / 35%);
+  --md-elevation-3:
+    0 4px 8px 3px rgb(0 0 0 / 40%), 0 1px 3px 0 rgb(0 0 0 / 55%);
   /* No MD3 equivalent — keep hardcoded dark overrides */
   --color-th-success: hsl(142 60% 48%);
   --color-th-warning: hsl(38 90% 56%);
@@ -103,6 +110,99 @@
   --md-ref-typeface-brand: "Google Sans", system-ui, sans-serif;
   --md-ref-typeface-plain: "Google Sans", system-ui, sans-serif;
   font-family: "Google Sans", system-ui, sans-serif;
+
+  /* MD3 elevation levels (light). Reserved for overlays that float above the
+     page — menus, popovers, dialogs, toasts. Cards, inputs, and tables stay
+     flat and rely on tonal layers + outline-variant borders (see DESIGN.md). */
+  --md-elevation-1:
+    0 1px 2px 0 rgb(0 0 0 / 30%), 0 1px 3px 1px rgb(0 0 0 / 15%);
+  --md-elevation-2:
+    0 1px 2px 0 rgb(0 0 0 / 30%), 0 2px 6px 2px rgb(0 0 0 / 15%);
+  --md-elevation-3:
+    0 4px 8px 3px rgb(0 0 0 / 15%), 0 1px 3px 0 rgb(0 0 0 / 30%);
+}
+
+/* MD3 elevation, applied only to floating overlay surfaces. */
+.ucs-popover,
+.reference-connectors-menu {
+  box-shadow: var(--md-elevation-2);
+}
+
+.reference-toast,
+.cosci-report-toast {
+  box-shadow: var(--md-elevation-3);
+}
+
+/* MD3 state layer — a translucent overlay of the content color that fades in on
+   hover/focus/press, composited over whatever background the element carries.
+   Opacities (8% / 10% / 10%) are the MD3 spec values. Add `md-state` to any
+   interactive element; it establishes its own stacking/positioning context. */
+.md-state {
+  position: relative;
+  isolation: isolate;
+}
+
+.md-state::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+  pointer-events: none;
+}
+
+.md-state:hover::after {
+  opacity: 0.08;
+}
+
+.md-state:focus-visible::after {
+  opacity: 0.1;
+}
+
+.md-state:active::after {
+  opacity: 0.1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .md-state::after {
+    transition: none;
+  }
+}
+
+/* Run-detail tabs already use ::after for the selected underline, so their MD3
+   state layer rides on ::before (which paints beneath the label + icon). */
+.cosci-report-tabs button {
+  position: relative;
+  transition: color 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.cosci-report-tabs button::before {
+  content: "";
+  position: absolute;
+  inset: 0.3rem 0.6rem;
+  border-radius: 0.75rem;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+  pointer-events: none;
+}
+
+.cosci-report-tabs button:hover::before {
+  opacity: 0.06;
+}
+
+.cosci-report-tabs button:focus-visible::before {
+  opacity: 0.1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cosci-report-tabs button,
+  .cosci-report-tabs button::before {
+    transition: none;
+  }
 }
 
 *,

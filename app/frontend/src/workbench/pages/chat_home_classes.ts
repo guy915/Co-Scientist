@@ -129,11 +129,10 @@ export const CONNECTORS_MENU_HEADER_CLASSES =
   'font-medium text-inherit';
 
 export const CONNECTORS_MENU_ROW_CLASSES =
-  'reference-connectors-menu-row grid min-h-[2.6rem] w-full cursor-pointer ' +
-  'grid-cols-[1.35rem_1fr_auto] items-center gap-3 border-0 bg-transparent ' +
-  'px-[0.9rem] py-[0.45rem] text-left font-[inherit] text-[0.9rem] ' +
-  'text-inherit hover:bg-[var(--cosci-menu-row-hover)] ' +
-  'focus-visible:bg-[var(--cosci-menu-row-hover)] focus-visible:outline-none';
+  'reference-connectors-menu-row md-state grid min-h-[2.6rem] w-full ' +
+  'cursor-pointer grid-cols-[1.35rem_1fr_auto] items-center gap-3 border-0 ' +
+  'bg-transparent px-[0.9rem] py-[0.45rem] text-left font-[inherit] ' +
+  'text-[0.9rem] text-inherit focus-visible:outline-none';
 
 export const CONNECTOR_ICON_CLASSES =
   'reference-connector-icon text-[1.15rem] text-[var(--cosci-menu-icon)]';

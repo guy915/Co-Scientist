@@ -101,12 +101,25 @@
   cursor: pointer;
   padding: 0;
   text-decoration: none;
+  transition:
+    background-color 120ms cubic-bezier(0.2, 0, 0, 1),
+    color 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
 .ucs-nav-item:hover,
 .ucs-nav-item:focus-visible {
   background: var(--cosci-shell-hover-bg);
   color: var(--cosci-shell-hover-text);
+}
+
+.ucs-nav-item:active {
+  background: color-mix(in srgb, var(--cosci-shell-hover-bg) 82%, #000);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ucs-nav-item {
+    transition: none;
+  }
 }
 
 .ucs-nav-item--collapsed {
