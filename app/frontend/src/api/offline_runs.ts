@@ -16,7 +16,7 @@ import type {
   RunWithSummary,
   SafetyDecision,
   SystemStatus,
-} from './runs';
+} from './run_types';
 
 const STORAGE_KEY = 'coscientist-offline-runs-v1';
 const MESSAGE_KEY = 'coscientist-offline-messages-v1';
