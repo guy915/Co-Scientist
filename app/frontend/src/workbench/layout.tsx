@@ -17,215 +17,91 @@ const THEME_MODES: Array<{mode: ThemeMode; icon: IconName; label: string}> = [
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
 ];
 
-const WORKSPACE_CLASSES =
-  'ucs-workspace grid min-w-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden ' +
-  'rounded-tl-[1.85rem] bg-[var(--cosci-workspace-bg)]';
+const WORKSPACE_CLASSES = 'ucs-workspace';
 
-const WORKSPACE_RESPONSIVE_CLASSES = 'rounded-bl-[1.9rem]';
+const WORKSPACE_RESPONSIVE_CLASSES = 'ucs-workspace--rounded-bottom';
 
-const REPORT_WORKSPACE_CLASSES =
-  'ucs-workspace min-h-screen !overflow-hidden rounded-bl-[1.9rem] ' +
-  'max-[700px]:!min-w-0 max-[700px]:!overflow-hidden';
+const REPORT_WORKSPACE_CLASSES = 'ucs-workspace ucs-workspace--report';
 
-const PAGE_CLASSES =
-  'ucs-page min-w-0 h-[calc(100vh-4.5rem)] overflow-auto p-0';
+const PAGE_CLASSES = 'ucs-page';
 
-const HOME_PAGE_CLASSES =
-  'ucs-page min-[1181px]:!h-[calc(100vh-4.5rem)] ' +
-  'min-[1181px]:!overflow-hidden max-[1180px]:!overflow-y-auto ' +
-  'max-[1180px]:!overflow-x-hidden';
+const HOME_PAGE_CLASSES = 'ucs-page ucs-page--home';
 
-const REPORT_PAGE_CLASSES =
-  'ucs-page !h-[calc(100vh-4.5rem)] min-h-0 !overflow-hidden !p-0 ' +
-  'max-[700px]:!min-w-0';
+const REPORT_PAGE_CLASSES = 'ucs-page ucs-page--report';
 
-const SHELL_OPEN_GRID_CLASSES =
-  'nav-open grid bg-[var(--cosci-rail)] min-[701px]:!grid-cols-[17.25rem_minmax(0,1fr)] ' +
-  'max-[700px]:!grid-cols-[4.125rem_minmax(0,1fr)]';
+const SHELL_OPEN_GRID_CLASSES = 'nav-open';
 
-const SHELL_COLLAPSED_GRID_CLASSES =
-  'nav-collapsed grid bg-[var(--cosci-rail)] min-[701px]:!grid-cols-[4.75rem_minmax(0,1fr)] ' +
-  'max-[700px]:!grid-cols-[4.125rem_minmax(0,1fr)]';
+const SHELL_COLLAPSED_GRID_CLASSES = 'nav-collapsed';
 
-const NAV_PANEL_BASE_CLASSES =
-  'ucs-nav-panel box-border flex h-screen w-full flex-col items-center ' +
-  'justify-between border-r-0 bg-[var(--cosci-rail)] py-5 ' +
-  'max-[700px]:!w-[4.125rem] max-[700px]:!min-w-[4.125rem] ' +
-  'max-[700px]:!max-w-[4.125rem] max-[700px]:!items-center ' +
-  'max-[700px]:!overflow-hidden max-[700px]:!px-0 max-[700px]:!py-4';
+const NAV_PANEL_OPEN_CLASSES = 'ucs-nav-panel ucs-nav-panel--open';
 
-const NAV_PANEL_OPEN_CLASSES =
-  `${NAV_PANEL_BASE_CLASSES} min-[701px]:!items-stretch min-[701px]:!px-3 ` +
-  'min-[701px]:!py-4';
+const NAV_PANEL_COLLAPSED_CLASSES = 'ucs-nav-panel ucs-nav-panel--collapsed';
 
-const NAV_PANEL_COLLAPSED_CLASSES =
-  `${NAV_PANEL_BASE_CLASSES} min-[701px]:!items-center min-[701px]:!px-0 ` +
-  'min-[701px]:!py-4';
+const NAV_GROUP_OPEN_CLASSES = 'ucs-nav-top ucs-nav-top--open';
 
-const NAV_GROUP_OPEN_CLASSES =
-  'ucs-nav-top grid max-[700px]:w-full max-[700px]:items-center ' +
-  'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem] ' +
-  'min-[701px]:w-full min-[701px]:items-stretch min-[701px]:gap-1 ' +
-  'min-[701px]:mt-1';
+const NAV_GROUP_COLLAPSED_CLASSES = 'ucs-nav-top ucs-nav-top--collapsed';
 
-const NAV_GROUP_COLLAPSED_CLASSES =
-  'ucs-nav-top grid w-full items-center justify-items-center gap-[0.74rem] ' +
-  'mt-0 max-[700px]:gap-[0.65rem]';
+const NAV_ITEMS_OPEN_CLASSES = 'ucs-nav-items ucs-nav-items--open';
 
-const NAV_ITEMS_OPEN_CLASSES =
-  'ucs-nav-items grid gap-[0.85rem] mt-[1.4rem] max-[700px]:w-full max-[700px]:items-center ' +
-  'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem] ' +
-  'min-[701px]:!w-full min-[701px]:!items-stretch min-[701px]:!gap-1 ' +
-  'min-[701px]:!mt-1';
+const NAV_ITEMS_COLLAPSED_CLASSES = 'ucs-nav-items ucs-nav-items--collapsed';
 
-const NAV_ITEMS_COLLAPSED_CLASSES =
-  'ucs-nav-items grid !w-full !items-center !justify-items-center ' +
-  '!gap-[0.74rem] !mt-[0.74rem] max-[700px]:!gap-[0.65rem]';
+const NAV_BOTTOM_CLASSES = 'ucs-nav-bottom ucs-nav-bottom--open';
 
-const NAV_BOTTOM_CLASSES =
-  'ucs-nav-bottom relative grid items-center justify-items-center gap-[0.8rem] p-0 ' +
-  'max-[700px]:w-full max-[700px]:items-center ' +
-  'max-[700px]:justify-items-center max-[700px]:gap-[0.65rem]';
+const NAV_BOTTOM_COLLAPSED_CLASSES = 'ucs-nav-bottom ucs-nav-bottom--collapsed';
 
-const NAV_BOTTOM_COLLAPSED_CLASSES =
-  `${NAV_BOTTOM_CLASSES} min-[701px]:!w-full min-[701px]:!items-center ` +
-  'min-[701px]:!justify-items-center min-[701px]:!gap-[0.74rem] ' +
-  'min-[701px]:!mt-0';
+const NAV_ITEM_OPEN_CLASSES = 'ucs-nav-item ucs-nav-item--open';
 
-const NAV_ITEM_OPEN_CLASSES =
-  'ucs-nav-item grid size-10 min-h-10 cursor-pointer place-items-center ' +
-  'rounded-full border-0 bg-transparent p-0 text-[var(--cosci-shell-icon)] ' +
-  'no-underline hover:bg-[var(--cosci-shell-hover-bg)] ' +
-  'hover:text-[var(--cosci-shell-hover-text)] ' +
-  'focus-visible:bg-[var(--cosci-shell-hover-bg)] ' +
-  'focus-visible:text-[var(--cosci-shell-hover-text)] max-[700px]:!grid ' +
-  'max-[700px]:!size-10 ' +
-  'max-[700px]:!min-h-10 max-[700px]:!min-w-10 max-[700px]:!grid-cols-[1fr] ' +
-  'max-[700px]:!place-items-center max-[700px]:!overflow-hidden ' +
-  'max-[700px]:!rounded-full max-[700px]:!p-0 min-[701px]:!grid ' +
-  'min-[701px]:!h-[2.45rem] min-[701px]:!min-h-[2.45rem] ' +
-  'min-[701px]:!w-full min-[701px]:!grid-cols-[1.5rem_minmax(0,1fr)] ' +
-  'min-[701px]:!items-center min-[701px]:!justify-stretch ' +
-  'min-[701px]:!justify-items-start min-[701px]:!gap-x-[0.72rem] ' +
-  'min-[701px]:!rounded-full min-[701px]:!px-3 min-[701px]:!py-0 ' +
-  'min-[701px]:!text-left min-[701px]:!leading-none';
+const NAV_ITEM_COLLAPSED_CLASSES = 'ucs-nav-item ucs-nav-item--collapsed';
 
-const NAV_ITEM_COLLAPSED_CLASSES =
-  'ucs-nav-item !grid !size-10 !min-h-10 !grid-cols-[1fr] !place-items-center ' +
-  '!justify-self-center !rounded-full !border-0 !bg-transparent !p-0 ' +
-  '!text-[var(--cosci-shell-icon)] hover:!bg-[var(--cosci-shell-hover-bg)] ' +
-  'hover:!text-[var(--cosci-shell-hover-text)] ' +
-  'focus-visible:!bg-[var(--cosci-shell-hover-bg)] ' +
-  'focus-visible:!text-[var(--cosci-shell-hover-text)] max-[700px]:!min-w-10 ' +
-  'max-[700px]:!overflow-hidden';
+const NAV_ICON_CLASSES = 'ucs-nav-icon';
 
-const NAV_ICON_CLASSES =
-  'grid size-6 min-h-6 min-w-6 place-items-center justify-self-center ' +
-  'text-xl leading-none';
+const NAV_LABEL_OPEN_CLASSES = 'nav-label nav-label--open';
 
-const HIDDEN_ON_MOBILE_CLASSES =
-  'max-[700px]:!hidden max-[700px]:!max-w-0 max-[700px]:!opacity-0 ' +
-  'max-[700px]:!invisible';
+const NAV_LABEL_COLLAPSED_CLASSES = 'nav-label nav-label--collapsed';
 
-const VISIBLE_ON_DESKTOP_CLASSES =
-  'min-[701px]:!max-w-none min-[701px]:!opacity-100 min-[701px]:!visible';
+const HEADER_CLASSES = 'ucs-header-action-bar';
 
-const NAV_LABEL_OPEN_CLASSES =
-  `nav-label ${HIDDEN_ON_MOBILE_CLASSES} min-[701px]:!block ` +
-  VISIBLE_ON_DESKTOP_CLASSES;
+const PRODUCT_LOCKUP_CLASSES = 'ucs-product-lockup';
 
-const NAV_LABEL_COLLAPSED_CLASSES = `nav-label w-0 max-w-0 ${HIDDEN_ON_MOBILE_CLASSES}`;
+const HEADER_TITLE_CLASSES = 'ucs-header-title';
 
-const HEADER_CLASSES =
-  'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4.5rem] items-center ' +
-  'justify-between gap-4 border-b-0 bg-[var(--cosci-surface-bg)] ' +
-  'px-[1.625rem] max-[700px]:!min-w-0 ' +
-  'max-[700px]:!px-[0.85rem]';
+const HEADER_ACTIONS_CLASSES = 'ucs-header-actions';
 
-const PRODUCT_LOCKUP_CLASSES =
-  'ucs-product-lockup inline-flex cursor-pointer items-center gap-2 ' +
-  'text-[1.375rem] font-medium text-[var(--cosci-home-heading)] no-underline ' +
-  '[&_svg]:size-[1.32rem] [&_svg]:flex-[0_0_1.32rem] ' +
-  '[&_svg]:text-[var(--cosci-logo-color)] [&_svg_path]:fill-current ' +
-  '[&_svg_path]:stroke-current max-[700px]:ml-[3.25rem]';
+const SHELL_POPOVER_CLASSES = 'ucs-popover';
 
-const HEADER_TITLE_CLASSES =
-  'ucs-header-title absolute left-1/2 -translate-x-1/2 text-base font-medium ' +
-  'text-[#202124] dark:text-[#e8eaed] max-[700px]:!hidden';
+const RAIL_POPOVER_CLASSES = 'ucs-popover--rail';
 
-const HEADER_ACTIONS_CLASSES =
-  'ucs-header-actions absolute top-1/2 right-[1.35rem] flex min-w-max ' +
-  '-translate-y-1/2 items-center gap-[0.55rem] max-[700px]:!hidden';
+const SETTINGS_CONTROL_CLASSES = 'ucs-settings-control';
 
-const SHELL_POPOVER_CLASSES =
-  'ucs-popover absolute z-[35] grid w-80 gap-[0.35rem] rounded-2xl border ' +
-  'border-[#dadce0] bg-white p-3 text-[#202124] ' +
-  'dark:border-[#3c4043] dark:bg-[#202124] dark:text-[#e8eaed]';
+const THEME_SEGMENT_CLASSES = 'ucs-theme-segment ucs-theme-segment--inline';
 
-const RAIL_POPOVER_CLASSES =
-  'ucs-popover--rail bottom-[0.15rem] left-12 !w-[min(18.25rem,calc(100vw-4rem))] !p-[0.8rem]';
+const THEME_BUTTON_BASE_CLASSES = 'ucs-theme-button';
 
-const SETTINGS_CONTROL_CLASSES = 'ucs-settings-control relative grid';
+const THEME_BUTTON_ACTIVE_CLASSES = 'selected';
 
-const THEME_SEGMENT_CLASSES =
-  'ucs-theme-segment ucs-theme-segment--inline m-[0.1rem_0_0.45rem] grid ' +
-  'grid-cols-[repeat(3,minmax(0,1fr))] gap-[0.3rem] rounded-full border ' +
-  'border-[#dadce0] bg-[#f8fafd] p-[0.18rem] dark:border-[#3c4043] ' +
-  'dark:bg-[#171717]';
+const THEME_BUTTON_ICON_CLASSES = 'ucs-theme-button-icon';
 
-const THEME_BUTTON_BASE_CLASSES =
-  'flex min-h-[2.2rem] min-w-0 cursor-pointer items-center justify-center ' +
-  'gap-[0.28rem] rounded-full border-0 bg-transparent px-[0.44rem] ' +
-  'font-[inherit] text-[0.74rem] font-semibold text-[#3c4043] ' +
-  'dark:text-[#e8eaed]';
+const HOME_SIDE_CONTENT_CLASSES =
+  'gemini-side-content gemini-side-content--home';
 
-const THEME_BUTTON_ACTIVE_CLASSES =
-  'selected bg-[#d3e3fd] text-[#0b57d0] dark:bg-[#0b57d0] dark:text-[#f8fbff]';
+const REPORT_SIDE_CONTENT_CLASSES =
+  'gemini-side-content gemini-side-content--report';
 
-const THEME_BUTTON_ICON_CLASSES = 'text-base';
+const SIDE_CONTENT_OPEN_CLASSES = 'gemini-side-content--open';
 
-const SIDE_CONTENT_BASE_CLASSES =
-  'gemini-side-content grid min-w-0 gap-[0.35rem] overflow-hidden opacity-100 visible';
+const SIDE_CONTENT_COLLAPSED_CLASSES = 'gemini-side-content--collapsed';
 
-const HOME_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-[0.85rem] max-h-72`;
+const SIDE_HEADING_CLASSES = 'gemini-side-heading';
 
-const REPORT_SIDE_CONTENT_CLASSES = `${SIDE_CONTENT_BASE_CLASSES} mt-6 max-h-80`;
+const HOME_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--home';
 
-const SIDE_CONTENT_OPEN_CLASSES =
-  `${HIDDEN_ON_MOBILE_CLASSES} min-[701px]:!block ` +
-  VISIBLE_ON_DESKTOP_CLASSES;
+const REPORT_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--report';
 
-const SIDE_CONTENT_COLLAPSED_CLASSES =
-  `${HIDDEN_ON_MOBILE_CLASSES} min-[701px]:!grid min-[701px]:!max-h-0 ` +
-  'min-[701px]:!mt-0 min-[701px]:!opacity-0 min-[701px]:!invisible';
+const CHAT_HISTORY_LINK_CLASSES = 'gemini-chat-link';
 
-const SIDE_HEADING_CLASSES =
-  'gemini-side-heading mt-4 mb-[0.4rem] text-[0.78rem] font-medium ' +
-  'text-[#5f6368] dark:text-[var(--cosci-subtle)]';
+const CHAT_HISTORY_LABEL_CLASSES = 'gemini-chat-label';
 
-const HOME_CHAT_LIST_CLASSES = 'gemini-chat-list grid min-w-0 gap-[0.35rem]';
-
-const REPORT_CHAT_LIST_CLASSES = 'gemini-chat-list grid min-w-0 gap-[0.1rem]';
-
-const CHAT_HISTORY_LINK_CLASSES =
-  'relative flex min-h-[2.35rem] min-w-0 items-center overflow-visible ' +
-  'rounded-full px-3 text-[0.86rem] leading-[2.35rem] text-[#3c4043] ' +
-  'no-underline hover:bg-[#dfeafc] hover:text-[#202124] ' +
-  'focus-visible:bg-[#dfeafc] focus-visible:text-[#202124] ' +
-  'dark:text-[var(--cosci-muted)] dark:hover:bg-[#303134] ' +
-  'dark:hover:text-[var(--cosci-text)] dark:focus-visible:bg-[#303134] ' +
-  'dark:focus-visible:text-[var(--cosci-text)]';
-
-const CHAT_HISTORY_LABEL_CLASSES =
-  'min-w-0 overflow-hidden text-ellipsis whitespace-nowrap';
-
-const CHAT_HISTORY_MORE_CLASSES =
-  'justify-self-start rounded-full border-0 bg-transparent px-3 ' +
-  'py-[0.48rem] font-[inherit] text-[0.84rem] text-[#3c4043] ' +
-  'hover:bg-[#dfeafc] hover:text-[#202124] focus-visible:bg-[#dfeafc] ' +
-  'focus-visible:text-[#202124] dark:text-[var(--cosci-muted)] ' +
-  'dark:hover:bg-[#303134] dark:hover:text-[var(--cosci-text)] ' +
-  'dark:focus-visible:bg-[#303134] dark:focus-visible:text-[var(--cosci-text)]';
+const CHAT_HISTORY_MORE_CLASSES = 'gemini-chat-more';
 
 /**
  * Renders the app shell with header navigation, main content, and footer.
@@ -267,7 +143,6 @@ export function Layout({children}: {children: ReactNode}) {
     'google-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
     navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
-    'min-h-screen',
   ].join(' ');
   const navPanelClasses = navOpen
     ? NAV_PANEL_OPEN_CLASSES
@@ -421,7 +296,9 @@ export function Layout({children}: {children: ReactNode}) {
           <div
             ref={settingsControlRef}
             className={`${SETTINGS_CONTROL_CLASSES} ${
-              navOpen ? 'w-full' : 'w-auto'
+              navOpen
+                ? 'ucs-settings-control--open'
+                : 'ucs-settings-control--collapsed'
             }`}
           >
             <NavActionButton
