@@ -59,11 +59,21 @@ export function ThemeProvider({children}: {children: ReactNode}) {
   }, []);
 
   useLayoutEffect(() => {
+    const root = document.documentElement;
+    // Freeze transitions across the swap so light/dark toggling doesn't animate
+    // every color on the page (re-enabled after the new styles are applied).
+    root.classList.add('theme-switching');
     applyMd3Theme(resolvedMode === 'dark');
-    document.documentElement.dataset.theme = resolvedMode;
-    document.documentElement.dataset.themePreference = mode;
-    document.documentElement.classList.toggle('dark', resolvedMode === 'dark');
+    root.dataset.theme = resolvedMode;
+    root.dataset.themePreference = mode;
+    root.classList.toggle('dark', resolvedMode === 'dark');
     window.localStorage.setItem('cosci-theme', mode);
+    const id = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        root.classList.remove('theme-switching');
+      });
+    });
+    return () => window.cancelAnimationFrame(id);
   }, [mode, resolvedMode]);
 
   const setMode = useCallback((m: Mode) => {

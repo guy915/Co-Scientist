@@ -320,6 +320,46 @@ body {
   background-clip: padding-box;
 }
 
+/* Motion baseline — interactive surfaces ease their color/shadow changes so
+   nothing snaps. Component-specific transitions (higher specificity) still win
+   where set. */
+button,
+a,
+summary,
+[role="button"],
+[role="tab"],
+input,
+select,
+textarea {
+  transition:
+    background-color 140ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 140ms cubic-bezier(0.2, 0, 0, 1),
+    color 140ms cubic-bezier(0.2, 0, 0, 1),
+    box-shadow 140ms cubic-bezier(0.2, 0, 0, 1),
+    opacity 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Suppress every transition for one frame during a theme switch so toggling
+   light/dark doesn't animate the whole page. Toggled by theme_context. */
+.theme-switching *,
+.theme-switching *::before,
+.theme-switching *::after {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button,
+  a,
+  summary,
+  [role="button"],
+  [role="tab"],
+  input,
+  select,
+  textarea {
+    transition: none;
+  }
+}
+
 /* Muted text color utility */
 .text-muted-foreground {
   color: var(--color-th-muted-fg);
