@@ -60,10 +60,11 @@ const DIAGNOSTIC_ACTIONS_CLASSES =
 
 const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
   'inline-flex min-h-8 cursor-pointer items-center gap-[0.3rem] rounded-full ' +
-  'border-0 bg-[var(--cosci-logs-accent-bg)] px-[0.75rem] text-[0.82rem] ' +
-  'font-semibold whitespace-nowrap text-[var(--cosci-logs-accent-fg)] ' +
-  'hover:bg-[var(--cosci-logs-accent-hover)] ' +
-  'focus-visible:bg-[var(--cosci-logs-accent-hover)]';
+  'border border-[var(--cosci-logs-action-border)] ' +
+  'bg-[var(--cosci-logs-action-bg)] px-[0.75rem] text-[0.82rem] font-semibold ' +
+  'whitespace-nowrap text-[var(--cosci-logs-action-fg)] ' +
+  'hover:bg-[var(--cosci-logs-action-hover)] ' +
+  'focus-visible:bg-[var(--cosci-logs-action-hover)]';
 
 const DIAGNOSTIC_CHIPS_CLASSES =
   'ucs-diagnostic-chips flex flex-wrap gap-[0.45rem]';

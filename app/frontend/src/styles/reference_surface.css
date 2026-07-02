@@ -103,19 +103,22 @@
   --cosci-toast-fg: #f1f3f4;
   --cosci-surface-raised: #fff;
 
-  /* Diagnostics / Logs — the teal accent intentionally inverts vs the page
-     (dark accent in light mode, light accent in dark mode) so it reads as a
-     prominent badge; box chrome stays themed for readability. */
-  --cosci-logs-accent-bg: #173b3b;
-  --cosci-logs-accent-fg: #7fd7bf;
-  --cosci-logs-accent-hover: #1f4b4b;
-  --cosci-logs-count-bg: rgb(127 215 191 / 22%);
+  /* Diagnostics / Logs. The mint accent pill is the same in both modes
+     (defined once here); only the box chrome re-themes in dark mode. */
+  --cosci-logs-accent-bg: #e0f2ef;
+  --cosci-logs-accent-fg: #0f5454;
+  --cosci-logs-accent-hover: #d4ece7;
+  --cosci-logs-count-bg: rgb(26 107 107 / 18%);
+  --cosci-logs-action-border: #9accc3;
+  --cosci-logs-action-bg: #fff;
+  --cosci-logs-action-fg: #0f5454;
+  --cosci-logs-action-hover: #e0f2ef;
   --cosci-logs-surface: #fff;
   --cosci-logs-border: #dfe3e7;
   --cosci-logs-heading: #202124;
   --cosci-logs-meta: #4f5358;
-  --cosci-logs-panel-bg: #edf7f4;
-  --cosci-logs-panel-fg: #0f5454;
+  --cosci-logs-panel-bg: #f1f3f4;
+  --cosci-logs-panel-fg: #5f6368;
   --cosci-logs-code-fg: #202124;
   --cosci-logs-danger-bg: #f8d6d2;
   --cosci-logs-danger-fg: #9b1c13;
@@ -230,17 +233,17 @@
   --cosci-toast-fg: #202124;
   --cosci-surface-raised: #202124;
 
-  --cosci-logs-accent-bg: #e0f2ef;
-  --cosci-logs-accent-fg: #0f5454;
-  --cosci-logs-accent-hover: #d4ece7;
-  --cosci-logs-count-bg: rgb(26 107 107 / 18%);
+  --cosci-logs-action-border: #315e57;
+  --cosci-logs-action-bg: #173b3b;
+  --cosci-logs-action-fg: #7fd7bf;
+  --cosci-logs-action-hover: #1f4b4b;
   --cosci-logs-surface: #17181b;
   --cosci-logs-border: #33363b;
   --cosci-logs-heading: #f1f3f4;
   --cosci-logs-meta: #bdc1c6;
-  --cosci-logs-panel-bg: #132927;
-  --cosci-logs-panel-fg: #7fd7bf;
-  --cosci-logs-code-fg: #f1f3f4;
+  --cosci-logs-panel-bg: #202124;
+  --cosci-logs-panel-fg: #9aa0a6;
+  --cosci-logs-code-fg: #e8eaed;
   --cosci-logs-danger-bg: #5b2b2b;
   --cosci-logs-danger-fg: #ffb4aa;
 
