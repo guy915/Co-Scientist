@@ -24,6 +24,7 @@ from co_scientist.models import (
     HypothesisReview,
     create_metrics_update,
 )
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_review_batch_prompt, get_review_prompt
 from co_scientist.state import WorkflowState
 
@@ -189,27 +190,6 @@ async def review_comparative_batch(
         tool_registry=tool_registry,
     )
 
-    # Save prompt to disk for debugging
-    if run_id:
-        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-        scaled_max_tokens = min(
-            THINKING_MAX_TOKENS + (max(0,
-                                       len(hypotheses) - 5) * 1500), 24000)
-        save_prompt_to_disk(
-            run_id=run_id,
-            prompt_name="review_batch",
-            content=prompt,
-            metadata={
-                "hypotheses_count": len(hypotheses),
-                "scaled_max_tokens": scaled_max_tokens,
-                "prompt_length_chars": len(prompt),
-            },
-        )
-        logger.debug(
-            "saved batch review prompt to"
-            " .coscientist_prompts/%s/review_batch.txt", run_id)
-
     # Scale max_tokens based on hypothesis count in batch
     # base: 18000 (THINKING_MAX_TOKENS), add 1500 per hypothesis beyond 5
     hypothesis_count = len(hypotheses)
@@ -217,6 +197,24 @@ async def review_comparative_batch(
         THINKING_MAX_TOKENS + (max(0, hypothesis_count - 5) * 1500),
         24000,  # reasonable upper limit for batch review
     )
+
+    # Save prompt to disk for debugging
+    if run_id:
+        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
+
+        save_prompt_to_disk(
+            run_id=run_id,
+            prompt_name="review_batch",
+            content=prompt,
+            metadata={
+                "hypotheses_count": hypothesis_count,
+                "scaled_max_tokens": scaled_max_tokens,
+                "prompt_length_chars": len(prompt),
+            },
+        )
+        logger.debug(
+            "saved batch review prompt to"
+            " .coscientist_prompts/%s/review_batch.txt", run_id)
 
     logger.debug("batch review: %s hypotheses, max_tokens=%s", hypothesis_count,
                  scaled_max_tokens)
@@ -323,15 +321,9 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
         strategy_name = "parallel"
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "review_start",
-            {
-                "message": f"Reviewing {num_hypotheses} hypotheses...",
-                "progress": PROGRESS_REVIEW_START,
-            },
-        )
+    await emit_progress(state, "review_start",
+                        f"Reviewing {num_hypotheses} hypotheses...",
+                        PROGRESS_REVIEW_START)
 
     # Get supervisor guidance and meta_review from state
     supervisor_guidance = state.get("supervisor_guidance")
@@ -383,16 +375,11 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
                 strategy_name)
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "review_complete",
-            {
-                "message": f"Completed {len(reviews)} reviews",
-                "progress": PROGRESS_REVIEW_COMPLETE,
-                "reviews_count": len(reviews),
-            },
-        )
+    await emit_progress(state,
+                        "review_complete",
+                        f"Completed {len(reviews)} reviews",
+                        PROGRESS_REVIEW_COMPLETE,
+                        reviews_count=len(reviews))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(reviews_count_delta=len(reviews),

@@ -13,6 +13,7 @@ from typing import Any
 
 import pickle
 
+from co_scientist.config.registry import parse_bool_env
 from co_scientist.constants import DEFAULT_CACHE_DIR, DEFAULT_CACHE_ENABLED
 
 logger = logging.getLogger(__name__)
@@ -277,7 +278,7 @@ def get_cache() -> LLMCache:
         # Check environment variable for cache configuration
         cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
                                       str(DEFAULT_CACHE_ENABLED).lower())
-        cache_enabled = cache_enabled_str.lower() in ("true", "1", "yes")
+        cache_enabled = parse_bool_env(cache_enabled_str)
         cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
 
         _global_cache = LLMCache(cache_dir=cache_dir, enabled=cache_enabled)
@@ -466,7 +467,7 @@ def get_node_cache() -> NodeCache:
         # Reuse same cache enabled flag as LLM cache
         cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
                                       str(DEFAULT_CACHE_ENABLED).lower())
-        cache_enabled = cache_enabled_str.lower() in ("true", "1", "yes")
+        cache_enabled = parse_bool_env(cache_enabled_str)
         cache_dir = os.getenv("COSCIENTIST_CACHE_DIR", DEFAULT_CACHE_DIR)
 
         _global_node_cache = NodeCache(cache_dir=cache_dir,

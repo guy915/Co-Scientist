@@ -17,7 +17,6 @@ from co_scientist.exceptions import ResponseParseError
 from co_scientist.llm import call_llm_with_tools, attempt_json_repair
 from co_scientist.prompts import get_draft_prompt_with_tools
 from co_scientist.state import WorkflowState
-from co_scientist.tools.literature import literature_tools
 from co_scientist.tools.provider import HybridToolProvider
 
 if TYPE_CHECKING:
@@ -82,8 +81,7 @@ async def draft_hypotheses(
                        " - agent will examine papers directly")
 
     # Initialize hybrid tool provider with draft-specific whitelist
-    provider = HybridToolProvider(mcp_client=mcp_client,
-                                  python_registry=literature_tools)
+    provider = HybridToolProvider(mcp_client=mcp_client)
 
     # Get tool whitelist from registry or try global registry
     if tool_registry is None:
@@ -104,10 +102,7 @@ async def draft_hypotheses(
         mcp_whitelist = None
         logger.warning("No tool registry - using all available MCP tools")
 
-    python_whitelist: list[str] = []
-
-    tools_dict, openai_tools = provider.get_tools(
-        mcp_whitelist=mcp_whitelist, python_whitelist=python_whitelist)
+    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
 
     logger.info("Initialized draft provider with %s tools", len(tools_dict))
 

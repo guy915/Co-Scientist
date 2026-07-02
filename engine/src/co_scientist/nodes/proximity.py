@@ -12,6 +12,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.state import WorkflowState
 
@@ -44,17 +45,10 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "proximity_start",
-            {
-                "message":
-                    f"Analyzing similarity of {len(hypotheses)} hypotheses...",
-                "progress":
-                    PROGRESS_PROXIMITY_START,
-            },
-        )
+    await emit_progress(
+        state, "proximity_start",
+        f"Analyzing similarity of {len(hypotheses)} hypotheses...",
+        PROGRESS_PROXIMITY_START)
 
     # Prepare hypotheses for similarity analysis
     hypotheses_for_analysis = [{
@@ -187,17 +181,12 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
             logger.warning("- %s...", dup['text'][:80])
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "proximity_complete",
-            {
-                "message": f"Removed {len(removed_duplicates)} duplicates",
-                "progress": PROGRESS_PROXIMITY_COMPLETE,
-                "duplicates_removed": len(removed_duplicates),
-                "remaining": len(hypotheses_to_keep),
-            },
-        )
+    await emit_progress(state,
+                        "proximity_complete",
+                        f"Removed {len(removed_duplicates)} duplicates",
+                        PROGRESS_PROXIMITY_COMPLETE,
+                        duplicates_removed=len(removed_duplicates),
+                        remaining=len(hypotheses_to_keep))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(llm_calls_delta=1)

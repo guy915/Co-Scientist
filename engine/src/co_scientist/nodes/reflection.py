@@ -13,6 +13,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_reflection_prompt
 from co_scientist.state import WorkflowState
 
@@ -141,17 +142,12 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "reflection_start",
-            {
-                "message": f"Analyzing {len(hypotheses)} hypotheses"
-                           " against literature...",
-                "progress": PROGRESS_REFLECTION_START,
-                "hypotheses_count": len(hypotheses),
-            },
-        )
+    await emit_progress(state,
+                        "reflection_start",
+                        f"Analyzing {len(hypotheses)} hypotheses"
+                        " against literature...",
+                        PROGRESS_REFLECTION_START,
+                        hypotheses_count=len(hypotheses))
 
     # Analyze all hypotheses in parallel
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
@@ -191,16 +187,11 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
                 "Analysis failed\n\nClassification: neutral")
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "reflection_complete",
-            {
-                "message": "Reflection analysis complete",
-                "progress": PROGRESS_REFLECTION_COMPLETE,
-                "hypotheses_count": len(hypotheses),
-            },
-        )
+    await emit_progress(state,
+                        "reflection_complete",
+                        "Reflection analysis complete",
+                        PROGRESS_REFLECTION_COMPLETE,
+                        hypotheses_count=len(hypotheses))
 
     logger.info("Completed reflection analysis for %s hypotheses",
                 len(hypotheses))

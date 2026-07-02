@@ -7,7 +7,6 @@ import random
 from typing import Any
 
 from co_scientist.constants import (
-    INITIAL_ELO_RATING,
     ELO_K_FACTOR,
     THINKING_MAX_TOKENS,
     LOW_TEMPERATURE,
@@ -15,6 +14,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_ranking_prompt
 from co_scientist.state import WorkflowState
 
@@ -48,6 +48,63 @@ def calculate_elo_update(winner_elo: int,
     return int(new_winner_elo), int(new_loser_elo)
 
 
+def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
+    """Extracts the latest review scores for a matchup prompt.
+
+    Args:
+        hypothesis: Hypothesis to summarize
+
+    Returns:
+        Review summary dict, or None if the hypothesis has no reviews
+    """
+    if not hypothesis.reviews:
+        return None
+    latest_review = hypothesis.reviews[-1]
+    return {
+        "scores": latest_review.scores,
+        "overall_score": latest_review.overall_score,
+    }
+
+
+def _deep_verification_summary(
+        hypothesis: Hypothesis) -> dict[str, Any] | None:
+    """Extracts deep-verification probes for a matchup prompt.
+
+    Args:
+        hypothesis: Hypothesis to summarize
+
+    Returns:
+        Deep-verification summary dict, or None if no probes are present
+    """
+    if not hypothesis.deep_verification_probes:
+        return None
+    return {
+        "probes": hypothesis.deep_verification_probes,
+        "verdict": hypothesis.deep_verification_verdict,
+    }
+
+
+def _log_reflection_debug(label: str, reflection_notes: str | None) -> None:
+    """Logs reflection-note availability for one side of a matchup.
+
+    Args:
+        label: Display label for the hypothesis ("A" or "B")
+        reflection_notes: Reflection notes for that hypothesis, if any
+    """
+    if not reflection_notes:
+        logger.debug("hypothesis %s: missing reflection notes", label)
+        return
+    # Extract classification from notes
+    classification = "unknown"
+    if "Classification:" in reflection_notes:
+        classification = (reflection_notes.split("Classification:")
+                          [-1].strip().split("\n")[0])
+    logger.debug("hypothesis %s: has reflection (%s chars, classification: %s)",
+                 label, len(reflection_notes), classification)
+    logger.debug("hypothesis %s reflection: %s...", label,
+                 reflection_notes[:200])
+
+
 async def judge_matchup(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
@@ -76,20 +133,8 @@ async def judge_matchup(
         Tuple of (winner, full_response) where winner is "a" or "b"
     """
     # Extract review data if available
-    review_a = None
-    review_b = None
-    if hypothesis_a.reviews:
-        latest_review_a = hypothesis_a.reviews[-1]
-        review_a = {
-            "scores": latest_review_a.scores,
-            "overall_score": latest_review_a.overall_score,
-        }
-    if hypothesis_b.reviews:
-        latest_review_b = hypothesis_b.reviews[-1]
-        review_b = {
-            "scores": latest_review_b.scores,
-            "overall_score": latest_review_b.overall_score,
-        }
+    review_a = _review_summary(hypothesis_a)
+    review_b = _review_summary(hypothesis_b)
 
     # Extract reflection notes if available
     reflection_notes_a = hypothesis_a.reflection_notes
@@ -97,46 +142,12 @@ async def judge_matchup(
 
     # Extract deep-verification probes if available (populated after the first
     # tournament, once the deep_verification node has run on the leaders).
-    deep_verification_a = None
-    if hypothesis_a.deep_verification_probes:
-        deep_verification_a = {
-            "probes": hypothesis_a.deep_verification_probes,
-            "verdict": hypothesis_a.deep_verification_verdict,
-        }
-    deep_verification_b = None
-    if hypothesis_b.deep_verification_probes:
-        deep_verification_b = {
-            "probes": hypothesis_b.deep_verification_probes,
-            "verdict": hypothesis_b.deep_verification_verdict,
-        }
+    deep_verification_a = _deep_verification_summary(hypothesis_a)
+    deep_verification_b = _deep_verification_summary(hypothesis_b)
 
     logger.debug("\n→ Ranking Tournament Matchup")
-
-    if reflection_notes_a:
-        # Extract classification from notes
-        classification_a = "unknown"
-        if "Classification:" in reflection_notes_a:
-            classification_a = (reflection_notes_a.split("Classification:")
-                                [-1].strip().split("\n")[0])
-        logger.debug(
-            "hypothesis A: has reflection (%s chars, classification: %s)",
-            len(reflection_notes_a), classification_a)
-        logger.debug("hypothesis A reflection: %s...", reflection_notes_a[:200])
-    else:
-        logger.debug("hypothesis A: missing reflection notes")
-
-    if reflection_notes_b:
-        # Extract classification from notes
-        classification_b = "unknown"
-        if "Classification:" in reflection_notes_b:
-            classification_b = (reflection_notes_b.split("Classification:")
-                                [-1].strip().split("\n")[0])
-        logger.debug(
-            "hypothesis B: has reflection (%s chars, classification: %s)",
-            len(reflection_notes_b), classification_b)
-        logger.debug("hypothesis B reflection: %s...", reflection_notes_b[:200])
-    else:
-        logger.debug("hypothesis B: missing reflection notes")
+    _log_reflection_debug("A", reflection_notes_a)
+    _log_reflection_debug("B", reflection_notes_b)
 
     prompt, schema = get_ranking_prompt(
         research_goal=research_goal,
@@ -247,22 +258,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
                 hypotheses[0].score)
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "tournament_start",
-            {
-                "message":
-                    f"Running tournament with {len(hypotheses)} hypotheses...",
-                "progress":
-                    65
-            },
-        )
-
-    # Initialize Elo ratings if not already set
-    for hyp in hypotheses:
-        if hyp.elo_rating == INITIAL_ELO_RATING:  # Default value from dataclass
-            hyp.elo_rating = INITIAL_ELO_RATING
+    await emit_progress(
+        state, "tournament_start",
+        f"Running tournament with {len(hypotheses)} hypotheses...", 65)
 
     # Calculate number of tournament rounds
     tournament_rounds = len(hypotheses) * 1
@@ -368,17 +366,12 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "tournament_complete",
-            {
-                "message": f"Tournament complete ({tournament_rounds} rounds)",
-                "progress": 80,
-                "top_elo": hypotheses[0].elo_rating,
-                "top_hypothesis": hypotheses[0].text[:200],
-            },
-        )
+    await emit_progress(state,
+                        "tournament_complete",
+                        f"Tournament complete ({tournament_rounds} rounds)",
+                        80,
+                        top_elo=hypotheses[0].elo_rating,
+                        top_hypothesis=hypotheses[0].text[:200])
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(llm_calls_delta=llm_calls,

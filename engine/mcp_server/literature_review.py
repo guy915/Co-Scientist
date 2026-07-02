@@ -163,6 +163,80 @@ class PubmedSource(DocumentSource):
         handle.close()
         return results
 
+    def _fetch_paper_details(self, paper_id: str) -> dict[str, Any]:
+        """Fetches and parses one paper's metadata from Entrez (blocking).
+
+        Performs the blocking efetch/elink network calls and XML parsing for a
+        single paper. Intended to be dispatched via asyncio.to_thread so
+        callers can fetch many papers concurrently without blocking the event
+        loop.
+
+        Args:
+            paper_id: PubMed article ID.
+
+        Returns:
+            Metadata dict for the paper (title, abstract, authors, doi, etc.).
+        """
+        results = self.entrez_read(Entrez.efetch(db="pubmed", id=paper_id))
+        pubmed_article = results["PubmedArticle"][0]
+        citation = pubmed_article["MedlineCitation"]
+        article = citation["Article"]
+
+        date_revised_raw = citation["DateRevised"]
+        date_revised = "{}/{}/{}".format(  # pylint: disable=consider-using-f-string
+            *[
+                str(date_revised_raw[field])
+                for field in ["Year", "Month", "Day"]
+            ])
+        try:
+            abstract = " ".join(article["Abstract"]["AbstractText"])
+        except KeyError:
+            abstract = "<not found>"
+
+        title = article["ArticleTitle"]
+
+        authors = list(
+            filter(
+                lambda author: '<invalid>' not in author,
+                [
+                    f"{author.get('ForeName', '<invalid>')} "
+                    f"{author.get('LastName', '<invalid>')}"
+                    for author in [
+                        dict(author_data)
+                        for author_data in article['AuthorList']
+                    ]
+                ]))
+
+        try:
+            doi = [
+                str(element) for element in filter(
+                    lambda xml_string: xml_string.attributes.get(
+                        "IdType", None) == 'doi',
+                    pubmed_article['PubmedData']['ArticleIdList'])
+            ][0]
+        except IndexError:
+            doi = "<not found>"
+
+        publication = article['Journal']['Title']
+
+        try:
+            related = self.entrez_read(
+                Entrez.elink(dbfrom="pubmed", db="pmc", id=paper_id))
+            pmc_full_text = related[0]["LinkSetDb"][0]["Link"][0]["Id"]
+        except Exception:  # pylint: disable=broad-exception-caught
+            pmc_full_text = None
+            logger.debug("%s -- fulltext not available in pmc", doi)
+
+        return {
+            "date_revised": date_revised,
+            "title": title,
+            "abstract": abstract,
+            "doi": doi,
+            "authors": authors,
+            "publication": publication,
+            "pmc_full_text_id": pmc_full_text
+        }
+
     def pubmed_search_ids(self,
                           query: str,
                           retmax: int = 10,
@@ -359,6 +433,16 @@ class PubmedSource(DocumentSource):
         # allow 3 concurrent (conservative, can increase to 10 with API key)
         semaphore = asyncio.Semaphore(3)
 
+        def link_to_run(paper_id: str) -> None:
+            """Symlinks a shared-pool metadata file into the run directory."""
+            if not run_dir:
+                return
+            run_metadata_symlink = run_dir / f"{paper_id}.metadata.json"
+            if not run_metadata_symlink.exists():
+                run_metadata_symlink.symlink_to(
+                    f"../../shared/{paper_id}.metadata.json")
+            current_run_papers.append(paper_id)
+
         async def fetch_paper_metadata(
                 paper_id: str) -> tuple[str, dict[str, Any] | None]:
             """Fetches metadata for a single paper with rate limiting.
@@ -378,84 +462,16 @@ class PubmedSource(DocumentSource):
                 with open(metadata_file, encoding='utf-8') as f:
                     metadata = json.load(f)
 
-                # Create symlink to run directory if run_id provided
-                if run_dir:
-                    run_metadata_symlink = (run_dir /
-                                            f"{paper_id}.metadata.json")
-                    if not run_metadata_symlink.exists():
-                        run_metadata_symlink.symlink_to(
-                            f"../../shared/{paper_id}.metadata.json")
-                    current_run_papers.append(paper_id)
-
+                link_to_run(paper_id)
                 return (paper_id, metadata)
 
             async with semaphore:
                 try:
-                    results = self.entrez_read(
-                        Entrez.efetch(db="pubmed", id=paper_id))
-                    date_revised_raw = results["PubmedArticle"][0][
-                        "MedlineCitation"]["DateRevised"]
-                    date_revised = "{}/{}/{}".format(  # pylint: disable=consider-using-f-string
-                        *[
-                            str(date_revised_raw[field])
-                            for field in ["Year", "Month", "Day"]
-                        ])
-                    try:
-                        abstract = " ".join(
-                            results["PubmedArticle"][0]["MedlineCitation"]
-                            ["Article"]["Abstract"]["AbstractText"])
-                    except KeyError:
-                        abstract = "<not found>"
-
-                    title = results["PubmedArticle"][0]["MedlineCitation"][
-                        "Article"]["ArticleTitle"]
-
-                    authors = list(
-                        filter(
-                            lambda author: '<invalid>' not in author,
-                            [
-                                f"{author.get('ForeName', '<invalid>')} "  # pylint: disable=line-too-long
-                                f"{author.get('LastName', '<invalid>')}"
-                                for author in [
-                                    dict(author_data) for author_data in
-                                    results["PubmedArticle"][0]
-                                    ['MedlineCitation']['Article']['AuthorList']
-                                ]
-                            ]))
-
-                    try:
-                        doi = [
-                            str(element) for element in filter(
-                                lambda xml_string: xml_string.attributes.get(
-                                    "IdType", None) == 'doi',
-                                results["PubmedArticle"][0]['PubmedData']
-                                ['ArticleIdList'])
-                        ][0]
-                    except IndexError:
-                        doi = "<not found>"
-
-                    publication = results["PubmedArticle"][0][
-                        'MedlineCitation']['Article']['Journal']['Title']
-
-                    try:
-                        related = self.entrez_read(
-                            Entrez.elink(dbfrom="pubmed", db="pmc",
-                                         id=paper_id))
-                        pmc_full_text = related[0]["LinkSetDb"][0]["Link"][0][
-                            "Id"]
-                    except Exception:  # pylint: disable=broad-exception-caught
-                        pmc_full_text = None
-                        logger.debug("%s -- fulltext not available in pmc", doi)
-
-                    paper_details = {
-                        "date_revised": date_revised,
-                        "title": title,
-                        "abstract": abstract,
-                        "doi": doi,
-                        "authors": authors,
-                        "publication": publication,
-                        "pmc_full_text_id": pmc_full_text
-                    }
+                    # Entrez.efetch/elink use blocking urllib and entrez_read
+                    # sleeps for rate limiting; run off the event loop so the
+                    # gathered fetches actually proceed concurrently.
+                    paper_details = await asyncio.to_thread(
+                        self._fetch_paper_details, paper_id)
 
                     # Save metadata to shared pool
                     with open(metadata_file, "w", encoding="utf-8") as f:
@@ -463,15 +479,7 @@ class PubmedSource(DocumentSource):
                     logger.debug("Saved metadata for %s to shared pool",
                                  paper_id)
 
-                    # Create symlink to run directory if run_id provided
-                    if run_dir:
-                        run_metadata_symlink = (run_dir /
-                                                f"{paper_id}.metadata.json")
-                        if not run_metadata_symlink.exists():
-                            run_metadata_symlink.symlink_to(
-                                f"../../shared/{paper_id}.metadata.json")
-                        current_run_papers.append(paper_id)
-
+                    link_to_run(paper_id)
                     return (paper_id, paper_details)
 
                 except Exception as e:  # pylint: disable=broad-exception-caught

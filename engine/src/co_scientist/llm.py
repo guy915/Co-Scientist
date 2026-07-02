@@ -277,6 +277,27 @@ def get_fallback_response(
     return None
 
 
+def _clamp_temperature(model_name: str, temperature: float) -> float:
+    """Clamps temperature to model-specific minimums.
+
+    Gemini 3 models require temperature >= 1.0 to avoid degraded performance.
+
+    Args:
+        model_name: LLM model identifier.
+        temperature: Requested sampling temperature.
+
+    Returns:
+        The temperature to actually use for the call.
+    """
+    if "gemini-3" in model_name.lower() and temperature < 1.0:
+        logger.debug(
+            "clamping temperature %s -> 1.0 for gemini 3 model "
+            "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
+            temperature)
+        return 1.0
+    return temperature
+
+
 async def call_llm(
     prompt: str,
     model_name: str,
@@ -304,14 +325,7 @@ async def call_llm(
     Raises:
         Exception: If the LLM call fails
     """
-    # Clamp temperature for gemini 3 models (requires temp >= 1.0)
-    if "gemini-3" in model_name.lower() and temperature < 1.0:
-        original_temp = temperature
-        temperature = 1.0
-        logger.debug(
-            "clamping temperature %s -> 1.0 for gemini 3 model "
-            "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
-            original_temp)
+    temperature = _clamp_temperature(model_name, temperature)
 
     # Check cache first (NullCache when caching is bypassed for this call).
     cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
@@ -396,6 +410,25 @@ async def call_llm(
         raise
 
 
+def _validation_feedback(error: ValidationError) -> str:
+    """Builds the retry-prompt suffix describing a schema validation error.
+
+    Args:
+        error: The validation error from the previous attempt.
+
+    Returns:
+        Feedback text to append to the original prompt for the retry.
+    """
+    error_path = ".".join(str(p) for p in error.path) if error.path else "root"
+    return ("\n\n--- VALIDATION ERROR FROM PREVIOUS"
+            " ATTEMPT ---\n"
+            f"Error: {error.message}\n"
+            f"Location: {error_path}\n"
+            "Please ensure your JSON output strictly"
+            " matches the required schema structure.\n"
+            "---")
+
+
 async def call_llm_json(
     prompt: str,
     model_name: str,
@@ -427,6 +460,11 @@ async def call_llm_json(
             (for critical nodes)
         Exception: If the LLM call fails or returns empty response
     """
+    # Clamp before the cache key is built so requested temperatures that
+    # execute identically share one cache entry (matches call_llm and
+    # call_llm_with_tools, which clamp before their own cache lookups).
+    temperature = _clamp_temperature(model_name, temperature)
+
     # Check cache first (NullCache when caching is bypassed for this call).
     cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
     cached_response = cache.get(prompt,
@@ -452,14 +490,19 @@ async def call_llm_json(
                          max_attempts)
 
         try:
-            # Call LLM
+            # Call LLM. Caching is disabled on the inner call: call_llm_json
+            # keeps its own cache of the validated dict and returns from it
+            # before ever reaching this point, so a raw-text entry would only
+            # duplicate every cached payload on disk (and could replay an
+            # invalid response into the retry loop).
             response_text = await call_llm(
                 prompt,
                 model_name,
                 max_tokens,
                 temperature,
-                force_json=True if not json_schema else False,
+                force_json=not json_schema,
                 json_schema=json_schema,
+                use_cache=False,
             )
 
             # Check for None or empty response
@@ -493,121 +536,51 @@ async def call_llm_json(
                 parse_error = e
                 result = None
 
-            # Step 2: If parsing succeeded, validate schema
-            if result is not None:
-                if json_schema is not None:
-                    try:
-                        validate_json_schema(result, json_schema)
-                        # Success! Cache and return
-                        cache.set(
-                            prompt,
-                            model_name,
-                            temperature,
-                            max_tokens,
-                            result,
-                            json_schema=json_schema,
-                        )
-                        return result
-                    except ValidationError as e:
-                        last_error = e
-                        logger.warning(
-                            "Schema validation failed on attempt %s: %s",
-                            attempt, e.message)
-
-                        # Add validation feedback to prompt for next retry
-                        if not is_final_attempt:
-                            error_path = ".".join(
-                                str(p) for p in e.path) if e.path else "root"
-                            validation_feedback = (
-                                "\n\n--- VALIDATION ERROR FROM PREVIOUS"
-                                " ATTEMPT ---\n"
-                                f"Error: {e.message}\n"
-                                f"Location: {error_path}\n"
-                                "Please ensure your JSON output strictly"
-                                " matches the required schema structure.\n"
-                                "---")
-                            prompt = original_prompt + validation_feedback
-                            logger.debug(
-                                "added validation feedback to retry prompt")
-
-                        # Retry on validation failure
-                        continue
-                else:
-                    # No schema, parsing succeeded - we're done
-                    cache.set(prompt,
-                              model_name,
-                              temperature,
-                              max_tokens,
-                              result,
-                              json_schema=json_schema)
-                    return result
-
-            # Step 3: Parsing failed, attempt repairs
+            # Step 2: If parsing failed, attempt repairs (minor only unless
+            # final attempt)
             was_major_repair = False
-            if parse_error is not None:
-                # Attempt repairs (minor only unless final attempt)
+            repaired = False
+            if result is None:
                 result, was_major_repair = attempt_json_repair(
                     response_text, allow_major_repairs=is_final_attempt)
+                repaired = result is not None
 
-                if result is not None:
-                    # Repair succeeded, validate schema if provided
+            # Step 3: Validate against the schema (when given), cache, return
+            if result is not None:
+                try:
                     if json_schema is not None:
-                        try:
-                            validate_json_schema(result, json_schema)
-                            # Success! Cache and return
-                            cache.set(
-                                prompt,
-                                model_name,
-                                temperature,
-                                max_tokens,
-                                result,
-                                json_schema=json_schema,
-                            )
-                            return result
-                        except ValidationError as e:
-                            last_error = e
-                            logger.warning(
-                                "Schema validation failed after repair"
-                                " on attempt %s: %s", attempt, e.message)
+                        validate_json_schema(result, json_schema)
+                    cache.set(
+                        prompt,
+                        model_name,
+                        temperature,
+                        max_tokens,
+                        result,
+                        json_schema=json_schema,
+                    )
+                    return result
+                except ValidationError as e:
+                    last_error = e
+                    logger.warning("Schema validation failed%s on attempt"
+                                   " %s: %s",
+                                   " after repair" if repaired else "", attempt,
+                                   e.message)
 
-                            # Add validation feedback to prompt for next retry
-                            if not is_final_attempt:
-                                error_path = ".".join(
-                                    str(p)
-                                    for p in e.path) if e.path else "root"
-                                validation_feedback = (
-                                    "\n\n--- VALIDATION ERROR FROM PREVIOUS"
-                                    " ATTEMPT ---\n"
-                                    f"Error: {e.message}\n"
-                                    f"Location: {error_path}\n"
-                                    "Please ensure your JSON output strictly"
-                                    " matches the required schema structure.\n"
-                                    "---")
-                                prompt = original_prompt + validation_feedback
-                                logger.debug(
-                                    "added validation feedback to retry"
-                                    " prompt after repair")
+                    # Add validation feedback to prompt for next retry
+                    if not is_final_attempt:
+                        prompt = original_prompt + _validation_feedback(e)
+                        logger.debug("added validation feedback to retry"
+                                     " prompt")
 
-                            # Retry on validation failure
-                            continue
-                    else:
-                        # No schema, repair succeeded - we're done
-                        cache.set(
-                            prompt,
-                            model_name,
-                            temperature,
-                            max_tokens,
-                            result,
-                            json_schema=json_schema,
-                        )
-                        return result
-
-                # If major repair was needed but we're not on final attempt,
-                # retry immediately
-                if was_major_repair and not is_final_attempt:
-                    logger.info("Major repair needed (truncation detected),"
-                                " retrying immediately")
+                    # Retry on validation failure
                     continue
+
+            # If major repair was needed but we're not on final attempt,
+            # retry immediately
+            if was_major_repair and not is_final_attempt:
+                logger.info("Major repair needed (truncation detected),"
+                            " retrying immediately")
+                continue
 
             # All repairs exhausted for this attempt
             last_error = parse_error or ValueError(
@@ -724,14 +697,7 @@ async def call_llm_with_tools(
     Raises:
         Exception: If the LLM call fails or max iterations reached
     """
-    # Clamp temperature for gemini 3 models (requires temp >= 1.0)
-    if "gemini-3" in model_name.lower() and temperature < 1.0:
-        original_temp = temperature
-        temperature = 1.0
-        logger.debug(
-            "clamping temperature %s -> 1.0 for gemini 3 model "
-            "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
-            original_temp)
+    temperature = _clamp_temperature(model_name, temperature)
 
     # Check cache first (NullCache when caching is bypassed for this call).
     cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()

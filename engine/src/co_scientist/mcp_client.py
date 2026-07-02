@@ -316,10 +316,19 @@ async def check_literature_source_available(
                                     "http://localhost:8888/mcp")
 
     try:
-        # First check if MCP server is up
-        if not await check_mcp_available(server_url, tool_registry):
-            logger.debug(
-                "mcp server unavailable, literature source unavailable")
+        # One throwaway client serves both the server-availability probe and
+        # the tool-name lookup. Deliberately not the cached global client: a
+        # down server must not poison global state.
+        mcp_client = MCPToolClient(server_url=server_url,
+                                   tool_registry=tool_registry)
+        await mcp_client.initialize()
+
+        # Get available tools; an empty tool list means the MCP server is not
+        # usable, so the literature source is unavailable.
+        all_tools_dict, _ = mcp_client.get_tools()
+        if not all_tools_dict:
+            logger.warning("MCP server responded but provided no tools,"
+                           " literature source unavailable")
             return False
 
         # If no availability check configured, assume available since MCP is up
@@ -336,14 +345,6 @@ async def check_literature_source_available(
 
         logger.debug("checking literature source availability (tool: %s)",
                      check_tool_name)
-
-        # Create client
-        mcp_client = MCPToolClient(server_url=server_url,
-                                   tool_registry=tool_registry)
-        await mcp_client.initialize()
-
-        # Get available tools
-        all_tools_dict, _ = mcp_client.get_tools()
         logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
 
         if check_tool_name not in all_tools_dict:

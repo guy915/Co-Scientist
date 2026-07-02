@@ -12,6 +12,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_supervisor_prompt
 from co_scientist.state import WorkflowState
 
@@ -50,15 +51,9 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     pubmed_available = bool(state.get("pubmed_available", False))
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "supervisor_start",
-            {
-                "message": "Analyzing research goal and creating plan...",
-                "progress": PROGRESS_SUPERVISOR_START,
-            },
-        )
+    await emit_progress(state, "supervisor_start",
+                        "Analyzing research goal and creating plan...",
+                        PROGRESS_SUPERVISOR_START)
 
     # Call llm to create research plan with all context
     prompt, schema = get_supervisor_prompt(
@@ -120,16 +115,11 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
                     ', '.join(key_areas[:3]))
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "supervisor_complete",
-            {
-                "message": "Research plan created",
-                "progress": PROGRESS_SUPERVISOR_COMPLETE,
-                "key_areas": len(key_areas),
-            },
-        )
+    await emit_progress(state,
+                        "supervisor_complete",
+                        "Research plan created",
+                        PROGRESS_SUPERVISOR_COMPLETE,
+                        key_areas=len(key_areas))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(llm_calls_delta=1)

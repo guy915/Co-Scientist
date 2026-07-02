@@ -16,6 +16,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.state import WorkflowState
 
@@ -380,15 +381,9 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Evolving top %s hypotheses", actual_count)
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "evolve_start",
-            {
-                "message": f"Evolving top {actual_count} hypotheses...",
-                "progress": PROGRESS_EVOLVE_START,
-            },
-        )
+    await emit_progress(state, "evolve_start",
+                        f"Evolving top {actual_count} hypotheses...",
+                        PROGRESS_EVOLVE_START)
 
     # Get top-k hypotheses
     top_k = hypotheses[:evolution_max_count]
@@ -451,16 +446,11 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
                 len(evolved_hypotheses), len(evolution_details))
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "evolve_complete",
-            {
-                "message": f"Evolved {len(evolved_hypotheses)} hypotheses",
-                "progress": PROGRESS_EVOLVE_COMPLETE,
-                "evolved_count": len(evolved_hypotheses),
-            },
-        )
+    await emit_progress(state,
+                        "evolve_complete",
+                        f"Evolved {len(evolved_hypotheses)} hypotheses",
+                        PROGRESS_EVOLVE_COMPLETE,
+                        evolved_count=len(evolved_hypotheses))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(

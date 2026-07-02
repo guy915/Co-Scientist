@@ -5,10 +5,12 @@ All prompts are stored as markdown files in the prompts/ directory.
 # pylint: disable=inconsistent-quotes
 
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any
 
+from co_scientist.config.registry import parse_bool_env
 from co_scientist.schemas import get_schema_for_prompt
 
 logger = logging.getLogger(__name__)
@@ -61,6 +63,11 @@ def save_prompt_to_disk(run_id: str,
     Returns:
         True if saved successfully, False otherwise
     """
+    # One synchronous file write per LLM call adds up over a run; deployments
+    # that don't need the debug artifacts can turn them off globally here.
+    if not parse_bool_env(os.getenv("COSCIENTIST_SAVE_PROMPTS", "true")):
+        return False
+
     try:
         path = get_prompt_save_path(run_id, prompt_name)
 

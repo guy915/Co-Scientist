@@ -16,8 +16,6 @@ if TYPE_CHECKING:
 from co_scientist.mcp_client import get_mcp_client
 from co_scientist.models import Hypothesis
 from co_scientist.state import WorkflowState
-from co_scientist.tools.literature import literature_tools
-from co_scientist.tools.provider import HybridToolProvider
 from co_scientist.nodes.generation.literature_tools.draft import (
     draft_hypotheses,)
 from co_scientist.nodes.generation.literature_tools.validate import (

@@ -212,9 +212,8 @@ class ConsoleReporter:
             self._show_generated_hypotheses(state)
         elif node_name == "review":
             self._show_reviews(state)
-        elif node_name == "rank":
+        elif node_name == "ranking":
             self._show_rankings(state)
-        elif node_name == "tournament":
             self._show_tournament(state)
         elif node_name == "meta_review":
             self._show_meta_review(state)

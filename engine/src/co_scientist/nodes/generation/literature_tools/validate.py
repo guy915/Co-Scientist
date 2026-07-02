@@ -7,7 +7,6 @@ access)
 """
 
 import asyncio
-import json
 import logging
 from typing import Any, Optional, TYPE_CHECKING, cast
 
@@ -32,39 +31,14 @@ from co_scientist.prompts import (
 )
 from co_scientist.schemas import (HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA)
 from co_scientist.state import WorkflowState
-from co_scientist.tools.literature import literature_tools
 from co_scientist.nodes.generation.citations import resolve_citation_keys
 from co_scientist.tools.provider import HybridToolProvider
-from co_scientist.tools.response_parser import ResponseParser
+from co_scientist.tools.response_parser import ResponseParser, parse_mcp_result
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolConfig, ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-
-def _extract_papers_for_hypothesis(
-    hypothesis_with_analyses: dict[str, Any],
-    literature_grounding: str | None = None,
-) -> list[dict[str, str]]:
-    """Extract papers cited by this hypothesis from novelty analysis metadata.
-
-    When literature_grounding is available, filters to only papers whose
-    author+year appear in the grounding text. Falls back to all analyzed
-    papers for this hypothesis when grounding is empty or has no matches.
-    """
-    from co_scientist.nodes.generation.papers import analyses_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
-
-    analyses = hypothesis_with_analyses.get("novelty_analyses", [])
-    candidates = analyses_to_candidates(analyses)
-
-    if literature_grounding:
-        matched = filter_papers_by_grounding(candidates, literature_grounding)
-        if matched:
-            return matched
-
-    # Fallback: return all papers analyzed for this hypothesis
-    return [{"title": c["title"], "url": c["url"]} for c in candidates]
 
 
 def _find_search_tool(
@@ -151,9 +125,7 @@ async def _search_papers_for_hypothesis(
         slug=shared_slug,
         run_id=run_id,
     )
-    if isinstance(result, str):
-        return cast(dict[str, dict[str, Any]], json.loads(result))
-    return cast(dict[str, dict[str, Any]], result)
+    return cast(dict[str, dict[str, Any]], parse_mcp_result(result))
 
 
 async def validate_hypotheses(
@@ -331,8 +303,7 @@ async def validate_hypotheses(
             logger.warning("Failed to get tool registry: %s", e)
 
     # Initialize hybrid tool provider
-    provider = HybridToolProvider(mcp_client=mcp_client,
-                                  python_registry=literature_tools)
+    provider = HybridToolProvider(mcp_client=mcp_client)
 
     # Get tool whitelist from registry
     if tool_registry:
@@ -343,8 +314,7 @@ async def validate_hypotheses(
         mcp_whitelist = None
         logger.warning("No tool registry - using all available MCP tools")
 
-    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist,
-                                                  python_whitelist=[])
+    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
     logger.info("Initialized validation provider with %s tools",
                 len(tools_dict))
 

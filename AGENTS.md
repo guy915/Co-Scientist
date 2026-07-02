@@ -44,7 +44,7 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 |---|---|
 | Supervisor (planning) | `nodes/supervisor.py` |
 | Literature Review (MCP-gated) | `nodes/literature_review.py`, `nodes/literature_review_helpers.py` |
-| Generate | `nodes/generate.py`, `nodes/generation/` (incl. `coordinator.py`, `debate.py`, `citations.py`, `papers.py`, `literature_tools/`) |
+| Generate | `nodes/generate.py`, `nodes/generation/` (incl. `coordinator.py`, `debate.py`, `citations.py`, `literature_tools/`) |
 | Reflection | `nodes/reflection.py`, `nodes/reflection_helpers.py` |
 | Review | `nodes/review.py` |
 | Ranking | `nodes/ranking.py` |

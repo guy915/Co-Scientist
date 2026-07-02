@@ -4,6 +4,7 @@ These models maintain compatibility with the original AI-CoScientist
 while providing clean type safety for LangGraph.
 """
 
+import dataclasses
 import enum
 from dataclasses import dataclass, field
 from typing import Any
@@ -148,6 +149,48 @@ class ExecutionMetrics:
     phase_times: dict[str, float] = field(default_factory=dict)
 
 
+def merge_metrics(existing: ExecutionMetrics,
+                  new: ExecutionMetrics) -> ExecutionMetrics:
+    """State reducer that merges metrics from multiple nodes.
+
+    When multiple nodes update metrics concurrently, this combines them. Lives
+    next to ExecutionMetrics so field additions and their merge policy are a
+    one-file change.
+
+    Args:
+        existing: Existing metrics in state
+        new: New metrics being added (should contain only deltas)
+
+    Returns:
+        Merged metrics (new object, does not mutate inputs)
+    """
+    # Create a NEW metrics object (don't mutate existing!)
+    merged_phase_times = {}
+
+    # Merge phase times from both existing and new
+    for phase, time_val in existing.phase_times.items():
+        merged_phase_times[phase] = time_val
+
+    for phase, time_val in new.phase_times.items():
+        if phase in merged_phase_times:
+            merged_phase_times[phase] += time_val
+        else:
+            merged_phase_times[phase] = time_val
+
+    merged = ExecutionMetrics(
+        hypothesis_count=max(existing.hypothesis_count, new.hypothesis_count),
+        reviews_count=existing.reviews_count + new.reviews_count,
+        tournaments_count=existing.tournaments_count + new.tournaments_count,
+        evolutions_count=existing.evolutions_count + new.evolutions_count,
+        llm_calls=existing.llm_calls + new.llm_calls,
+        total_time=new.total_time
+        if new.total_time > 0 else existing.total_time,
+        phase_times=merged_phase_times,
+    )
+
+    return merged
+
+
 def create_metrics_update(
     hypothesis_count: int | None = None,
     reviews_count_delta: int = 0,
@@ -213,17 +256,4 @@ class Article:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
-        return {
-            "title": self.title,
-            "url": self.url,
-            "authors": self.authors,
-            "year": self.year,
-            "venue": self.venue,
-            "citations": self.citations,
-            "abstract": self.abstract,
-            "content": self.content,
-            "source_id": self.source_id,
-            "source": self.source,
-            "pdf_links": self.pdf_links,
-            "used_in_analysis": self.used_in_analysis,
-        }
+        return dataclasses.asdict(self)

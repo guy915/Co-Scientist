@@ -20,7 +20,7 @@ from co_scientist.constants import (
 )
 from co_scientist.exceptions import GenerationError
 from co_scientist.llm import call_llm, call_llm_json
-from co_scientist.models import Article, GenerationMethod, Hypothesis
+from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
     get_debate_generation_prompt,
     save_prompt_to_disk,
@@ -63,23 +63,6 @@ def _append_diversity_instruction(preferences: str | None,
     if preferences:
         return f"{preferences}\n\n{instruction}"
     return instruction
-
-
-def _match_papers_to_grounding(
-    articles: list[Article],
-    literature_grounding: str | None,
-) -> list[dict[str, str]]:
-    """Match lit review articles against a hypothesis's literature_grounding.
-
-    Uses author last name + year matching against citation patterns like
-    "(Roepert et al., 2020; Erba et al., 2021)" in the grounding text.
-
-    Returns empty list if no grounding text or no matches.
-    """
-    from co_scientist.nodes.generation.papers import articles_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
-
-    candidates = articles_to_candidates(articles)
-    return filter_papers_by_grounding(candidates, literature_grounding)
 
 
 async def _run_single_debate(
