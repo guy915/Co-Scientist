@@ -45,6 +45,7 @@ import {
   startRun,
   type SystemStatus,
 } from '@/api/runs';
+import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {useMessages} from '@/hooks/use_messages';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {conciseTitle} from '@/lib/text';
@@ -218,6 +219,15 @@ export function ChatWorkspace() {
     setReport(nextReport);
   }, []);
 
+  // Debounced variant for event-driven refetches: the SSE stream replays the
+  // full history on mount and live runs emit rapid bursts, so per-event
+  // refetches collapse into one trailing call. The identity is stable, and any
+  // pending call is cancelled on unmount.
+  const debouncedRefreshRun = useDebouncedCallback(
+    (runId: string) => void refreshRun(runId).catch(() => {}),
+    600,
+  );
+
   useEffect(() => {
     void loadHistory();
     void getSystemStatus()
@@ -225,23 +235,28 @@ export function ChatWorkspace() {
       .catch(() => {});
   }, [loadHistory]);
 
+  // Initial load when a run becomes active stays immediate.
   useEffect(() => {
     if (!activeRunId) return;
+    debouncedRefreshRun.cancel();
     void refreshRun(activeRunId).catch(e =>
       setError(e instanceof Error ? e.message : String(e)),
     );
-  }, [activeRunId, refreshRun]);
+  }, [activeRunId, debouncedRefreshRun, refreshRun]);
 
   useEffect(() => {
     if (!activeRunId || !events.length) return;
-    void refreshRun(activeRunId).catch(() => {});
-  }, [activeRunId, events.length, refreshRun]);
+    debouncedRefreshRun(activeRunId);
+  }, [activeRunId, events.length, debouncedRefreshRun]);
 
+  // On stream end, refetch immediately so a pending debounce cannot leave the
+  // completed state stale.
   useEffect(() => {
     if (!activeRunId || !terminal) return;
+    debouncedRefreshRun.cancel();
     void refreshRun(activeRunId).catch(() => {});
     void loadHistory();
-  }, [activeRunId, loadHistory, refreshRun, terminal]);
+  }, [activeRunId, debouncedRefreshRun, loadHistory, refreshRun, terminal]);
 
   useEffect(() => {
     const scroller = scrollRef.current;

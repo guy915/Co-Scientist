@@ -24,6 +24,7 @@ import {
   reportMarkdownUrl,
   type SafetyDecision,
 } from '@/api/runs';
+import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {triggerDownload} from '@/lib/download';
 import {MdSecondaryTabs} from '@/md3/md_tabs';
@@ -131,20 +132,32 @@ export function RunDetail() {
     }
   }, [id]);
 
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
+  // Debounced variant for event-driven refetches: the SSE stream replays the
+  // full history on mount and live runs emit rapid bursts, so per-event
+  // refetches collapse into one trailing call. The identity is stable, and any
+  // pending call is cancelled on unmount.
+  const debouncedRefresh = useDebouncedCallback(() => void refresh(), 600);
 
-  // Re-pull on new events so tabs stay in sync.
+  // Initial load (and reload when the run id changes) stays immediate.
+  useEffect(() => {
+    debouncedRefresh.cancel();
+    void refresh();
+  }, [refresh, debouncedRefresh]);
+
+  // Re-pull on new events so tabs stay in sync, debounced to absorb bursts.
   useEffect(() => {
     if (!events.length) return;
     const interesting = events[events.length - 1]?.type;
-    if (interesting && interesting !== 'status') void refresh();
-  }, [events, refresh]);
+    if (interesting && interesting !== 'status') debouncedRefresh();
+  }, [events, debouncedRefresh]);
 
+  // On stream end, refetch immediately so a pending debounce cannot leave the
+  // completed state stale.
   useEffect(() => {
-    if (terminal) void refresh();
-  }, [terminal, refresh]);
+    if (!terminal) return;
+    debouncedRefresh.cancel();
+    void refresh();
+  }, [terminal, refresh, debouncedRefresh]);
 
   // Toast on terminal status.
   useEffect(() => {
