@@ -75,6 +75,31 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+
+def _describe_exc(exc: BaseException) -> str:
+    """Describe an exception by type and message for diagnostic logging.
+
+    Unwraps ``ExceptionGroup`` (raised by the anyio task groups inside the MCP
+    transport) down to its first leaf so the root cause - e.g. a connection
+    error versus a validation error - is visible instead of the opaque group
+    wrapper.
+
+    Args:
+        exc: The caught exception.
+
+    Returns:
+        A "TypeName: message" string describing the underlying cause.
+    """
+    current: BaseException = exc
+    # ExceptionGroup (Python 3.11+) exposes an ``exceptions`` tuple; descend to
+    # the first leaf so the real cause surfaces instead of the group wrapper.
+    while getattr(current, "exceptions", None):
+        current = current.exceptions[0]  # type: ignore[attr-defined]
+    message = str(current).strip()
+    return (f"{type(current).__name__}: {message}"
+            if message else type(current).__name__)
+
+
 # =============================================================================
 # Configuration setup
 # =============================================================================
@@ -148,7 +173,7 @@ async def _generate_queries_via_mcp(
         return queries
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.warning("MCP query generation failed: %s, falling back to LLM",
-                       e)
+                       _describe_exc(e))
         return []
 
 
@@ -245,6 +270,7 @@ async def _search_single_source(
     run_id: str,
     tool_registry: "ToolRegistry",
     mcp_client: MCPToolClient,
+    errors: Optional[list[str]] = None,
 ) -> tuple[str, dict[str, dict[str, Any]]]:
     """Search a single source with all queries."""
     tool_config = tool_registry.get_tool(source_config.tool)
@@ -286,7 +312,10 @@ async def _search_single_source(
             source_results.update(normalized)
 
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error("Query failed for %s: %s", src_name, e)
+            detail = _describe_exc(e)
+            logger.error("Query failed for %s: %s", src_name, detail)
+            if errors is not None:
+                errors.append(f"{src_name}: {detail}")
 
     logger.info("Source %s: collected %s papers", src_name, len(source_results))
     return (source_config.tool, source_results)
@@ -301,6 +330,7 @@ async def _search_single_query(
     search_tool_name: str,
     search_tool_config: Optional["ToolConfig"],
     mcp_client: MCPToolClient,
+    errors: Optional[list[str]] = None,
 ) -> tuple[int, dict[str, dict[str, Any]]]:
     """Search single query (for single-source mode)."""
     logger.debug("Searching query %s (%s papers): %s...", index, papers_count,
@@ -331,7 +361,11 @@ async def _search_single_query(
         return (index, normalized)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.error("Query %s failed: %s", index, e)
+        detail = _describe_exc(e)
+        logger.error("Query %s (%s) failed: %s", index, search_tool_name,
+                     detail)
+        if errors is not None:
+            errors.append(f"query {index}: {detail}")
         return (index, {})
 
 
@@ -341,6 +375,7 @@ async def _phase2_collect_papers_multi_source(
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
+    errors: Optional[list[str]] = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Phase 2 (multi-source): Collect papers from multiple sources in parallel.
     """
@@ -360,6 +395,7 @@ async def _phase2_collect_papers_multi_source(
             state["run_id"],
             config.tool_registry,
             mcp_client,
+            errors,
         ) for source in enabled_sources
     ]
     source_results = await asyncio.gather(*tasks)
@@ -383,6 +419,7 @@ async def _phase2_collect_papers_single_source(
     state: WorkflowState,
     config: SearchConfig,
     mcp_client: MCPToolClient,
+    errors: Optional[list[str]] = None,
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     """Phase 2 (single-source): Collect papers with legacy distribution."""
     logger.info("Phase 2: collecting papers with %s", config.search_tool_name)
@@ -406,6 +443,7 @@ async def _phase2_collect_papers_single_source(
             config.search_tool_name,
             config.search_tool_config,
             mcp_client,
+            errors,
         ) for i, query in enumerate(queries)
     ]
     search_results = await asyncio.gather(*tasks)
@@ -1048,14 +1086,44 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     slug = "research_" + hashlib.md5(
         state["research_goal"].encode()).hexdigest()[:8]
 
+    search_errors: list[str] = []
     if config.is_multi_source:
         all_paper_metadata, paper_source_map = (
             await _phase2_collect_papers_multi_source(queries, slug, state,
-                                                      config, mcp_client))
+                                                      config, mcp_client,
+                                                      search_errors))
     else:
         all_paper_metadata, paper_source_map = (
             await _phase2_collect_papers_single_source(queries, slug, state,
-                                                       config, mcp_client))
+                                                       config, mcp_client,
+                                                       search_errors))
+
+    # Distinguish a genuinely empty search from one where every call errored:
+    # both otherwise surface as zero articles with no trace of the cause.
+    if not all_paper_metadata:
+        if search_errors:
+            logger.error(
+                "Literature review found no papers: %s of %s search call(s) "
+                "errored: %s", len(search_errors), len(queries),
+                "; ".join(search_errors[:5]))
+            await emit_progress(
+                state,
+                "literature_review_error",
+                "Literature search failed (no papers retrieved)",
+                0.2,
+                queries_count=len(queries),
+                search_errors_count=len(search_errors),
+                search_error_sample=search_errors[:5])
+        else:
+            logger.warning(
+                "Literature review found no papers: all %s query/queries "
+                "returned zero results (no errors)", len(queries))
+            await emit_progress(state,
+                                "literature_review_empty",
+                                "Literature search returned no results",
+                                0.2,
+                                queries_count=len(queries),
+                                search_errors_count=0)
 
     # Phase 2.4: discover PDF links
     await _phase2_4_discover_pdf_links(all_paper_metadata, paper_source_map,
@@ -1157,6 +1225,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
         0.2,
         queries_count=len(queries),
         articles_count=len(articles),
+        search_errors_count=len(search_errors),
     )
 
     logger.info(
