@@ -38,9 +38,8 @@ const REFERENCE_COMPOSER_ATTACHED_CLASSES =
   'has-attachments !min-h-[13.5rem] !pt-4';
 
 const ATTACHMENT_STRIP_CLASSES =
-  'reference-attachment-strip flex min-w-0 gap-[0.8rem] overflow-x-auto ' +
-  'pb-[1.35rem] pointer-events-auto [scrollbar-width:none] ' +
-  '[&::-webkit-scrollbar]:hidden';
+  'reference-attachment-strip flex min-w-0 flex-wrap gap-[0.8rem] ' +
+  'pb-[1.35rem] pointer-events-auto';
 
 const ATTACHMENT_CARD_CLASSES =
   'reference-attachment-card group relative box-border grid h-[4.85rem] ' +
@@ -54,7 +53,8 @@ const ATTACHMENT_IMAGE_CARD_CLASSES =
   'rounded-2xl border-0 bg-[#eef2f8] p-0 text-[#202124] dark:bg-[#303335] ' +
   'dark:text-[#f1f3f4]';
 
-const ATTACHMENT_PREVIEW_IMAGE_CLASSES = 'block size-full object-cover';
+const ATTACHMENT_PREVIEW_IMAGE_CLASSES =
+  'block size-full rounded-2xl object-cover';
 
 const ATTACHMENT_TEXT_CLASSES =
   'reference-attachment-text grid min-w-0 gap-[0.48rem]';
@@ -195,6 +195,7 @@ export function Composer({
                   className: ATTACHMENT_IMAGE_CARD_CLASSES,
                   placement: 'top',
                   wrap: true,
+                  alignStart: true,
                 })}
                 key={attachment.id}
                 data-tooltip={attachment.name}
@@ -227,6 +228,7 @@ export function Composer({
                   className: ATTACHMENT_CARD_CLASSES,
                   placement: 'top',
                   wrap: true,
+                  alignStart: true,
                 })}
                 key={attachment.id}
                 data-tooltip={attachment.name}
