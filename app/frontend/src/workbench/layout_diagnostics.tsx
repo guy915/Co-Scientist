@@ -70,13 +70,13 @@ const DIAGNOSTIC_CHIPS_CLASSES =
   'ucs-diagnostic-chips flex flex-wrap gap-[0.45rem]';
 
 const DIAGNOSTIC_CHIP_CLASSES =
-  'rounded-full border border-[var(--cosci-logs-action-border)] ' +
-  'bg-[var(--cosci-logs-action-bg)] px-2 py-[0.15rem] text-[0.7rem] ' +
-  'font-semibold whitespace-nowrap text-[var(--cosci-logs-action-fg)]';
+  'rounded-full bg-[var(--cosci-logs-accent-bg)] px-2 py-[0.15rem] ' +
+  'text-[0.7rem] font-semibold whitespace-nowrap ' +
+  'text-[var(--cosci-logs-accent-fg)]';
 
 const DIAGNOSTIC_ERROR_CHIP_CLASSES =
-  'rounded-full border border-[var(--cosci-logs-danger-fg)] bg-transparent ' +
-  'px-2 py-[0.15rem] text-[0.7rem] font-semibold whitespace-nowrap ' +
+  'rounded-full bg-[var(--cosci-logs-danger-bg)] px-2 py-[0.15rem] ' +
+  'text-[0.7rem] font-semibold whitespace-nowrap ' +
   'text-[var(--cosci-logs-danger-fg)]';
 
 const DIAGNOSTIC_LIST_CLASSES =
