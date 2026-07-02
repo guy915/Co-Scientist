@@ -1,6 +1,5 @@
 /* Co-Scientist reference surface override */
 :root {
-  --idea-ref-rail: #eef4ff;
   --idea-ref-blue: #0b57d0;
   --idea-ref-card-bg: #f1f4fa;
   --cosci-teal: #1a6b6b;
@@ -8,7 +7,7 @@
   --cosci-teal-bg: #e0f2ef;
   --cosci-green: #7fd7bf;
   --cosci-bg: #fff;
-  --cosci-rail: var(--idea-ref-rail);
+  --cosci-rail: #eef4ff;
   --cosci-panel: #f1f3f4;
   --cosci-border: #dadce0;
   --cosci-text: #202124;
@@ -34,8 +33,6 @@
   --cosci-suggestion-text: #202124;
   --cosci-suggestion-hover-border: #d0d4d9;
   --cosci-suggestion-active-bg: #edf2f7;
-  --cosci-suggestion-selected-border: var(--cosci-suggestion-border);
-  --cosci-suggestion-selected-bg: #e6f4ea;
   --cosci-composer-border: #e0e0e0;
   --cosci-composer-bg: #fff;
   --cosci-composer-shadow: 0 2px 8px rgb(60 64 67 / 12%);
@@ -89,7 +86,6 @@
   --cosci-bg: #131314;
   --cosci-rail: #1e1f20;
   --cosci-panel: #202124;
-  --cosci-panel-2: #282a2c;
   --cosci-border: #3c4043;
   --cosci-text: #e8eaed;
   --cosci-muted: #bdc1c6;
@@ -115,8 +111,6 @@
   --cosci-suggestion-text: var(--cosci-text);
   --cosci-suggestion-hover-border: var(--cosci-border);
   --cosci-suggestion-active-bg: #173b3b;
-  --cosci-suggestion-selected-border: var(--cosci-green);
-  --cosci-suggestion-selected-bg: #173b3b;
   --cosci-composer-border: var(--cosci-border);
   --cosci-composer-bg: var(--cosci-panel);
   --cosci-composer-shadow: none;
@@ -161,7 +155,7 @@
   --idea-chip-text: var(--cosci-text);
   --idea-title-text: var(--cosci-text);
   --idea-preview-text: var(--cosci-muted);
-  --idea-breadcrumb-bg: var(--cosci-panel-2);
+  --idea-breadcrumb-bg: #282a2c;
   --idea-breadcrumb-text: var(--cosci-muted);
   --idea-detail-text: var(--cosci-muted);
   background: var(--cosci-bg);

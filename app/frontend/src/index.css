@@ -1,6 +1,6 @@
-@import "@fontsource/google-sans/400.css";
-@import "@fontsource/google-sans/500.css";
-@import "@fontsource/google-sans/700.css";
+@import "@fontsource/google-sans/latin-400.css";
+@import "@fontsource/google-sans/latin-500.css";
+@import "@fontsource/google-sans/latin-700.css";
 @import "material-symbols/outlined.css";
 @import "tailwindcss";
 
