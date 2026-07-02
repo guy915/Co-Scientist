@@ -336,7 +336,7 @@ export function Layout({children}: {children: ReactNode}) {
             type="button"
             className={tooltipClassNames({
               className: PRODUCT_LOCKUP_CLASSES,
-              placement: 'bottom',
+              placement: 'right',
             })}
             aria-label="Go to Co-Scientist home"
             data-tooltip="Home"

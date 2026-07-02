@@ -184,7 +184,7 @@ describe('Layout', () => {
     fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
     expect(screen.getByRole('button', {name: /Logs 0/i})).toHaveAttribute(
       'data-tooltip',
-      'Diagnostic logs',
+      'Logs',
     );
     expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
     expect(screen.queryByText('All runs')).toBeNull();

@@ -187,11 +187,10 @@ export function DiagnosticsControl({
         type="button"
         className={tooltipClassNames({
           className: LOGS_BUTTON_CLASSES,
-          placement: 'bottom',
-          alignEnd: true,
+          placement: 'left',
         })}
         aria-label={`Logs ${entries.length}`}
-        data-tooltip="Diagnostic logs"
+        data-tooltip="Logs"
         aria-expanded={open}
         onClick={onToggle}
       >

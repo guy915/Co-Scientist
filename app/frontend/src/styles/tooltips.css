@@ -115,6 +115,20 @@
   left: calc(100% + 0.55rem) !important;
 }
 
+[data-tooltip].ucs-tooltip-left {
+  --ucs-tooltip-x: 0.2rem;
+  --ucs-tooltip-y: -50%;
+  --ucs-tooltip-open-x: 0;
+  --ucs-tooltip-open-y: -50%;
+}
+
+[data-tooltip].ucs-tooltip-left::after {
+  top: 50% !important;
+  right: calc(100% + 0.55rem) !important;
+  bottom: auto !important;
+  left: auto !important;
+}
+
 [data-tooltip].ucs-tooltip-align-end::after {
   right: 0 !important;
   left: auto !important;
