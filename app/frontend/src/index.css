@@ -263,7 +263,7 @@ body {
 }
 
 /* Preflight-style resets belong in @layer base so Tailwind utilities (font
-   size/weight, text color) applied to buttons and inputs still win. */
+   size/weight, text color, border color) applied to elements still win. */
 @layer base {
   button,
   input,
@@ -272,11 +272,11 @@ body {
     color: inherit;
     font: inherit;
   }
-}
 
-/* Default border color */
-* {
-  border-color: var(--color-th-border);
+  /* Default border color */
+  * {
+    border-color: var(--color-th-border);
+  }
 }
 
 /* Scrollbars — always visible with a themed track (Google style).

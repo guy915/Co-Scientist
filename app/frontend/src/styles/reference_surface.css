@@ -119,10 +119,14 @@
     var(--cosci-step-dot-text) 16%,
     transparent
   );
-  --cosci-logs-action-border: var(--cosci-logs-accent-bg);
-  --cosci-logs-action-bg: var(--cosci-logs-accent-bg);
-  --cosci-logs-action-fg: var(--cosci-logs-accent-fg);
-  --cosci-logs-action-hover: var(--cosci-logs-accent-hover);
+  --cosci-logs-action-border: var(--cosci-step-dot-bg);
+  --cosci-logs-action-bg: transparent;
+  --cosci-logs-action-fg: var(--cosci-step-dot-bg);
+  --cosci-logs-action-hover: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 10%,
+    transparent
+  );
   --cosci-logs-surface: var(--cosci-surface-raised);
   --cosci-logs-border: var(--cosci-border);
   --cosci-logs-heading: var(--cosci-text);
