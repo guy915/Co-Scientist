@@ -17,16 +17,22 @@ memoizes a process-global instance that may already exist.
 """
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from co_scientist import llm
+from co_scientist import prompts as prompts_mod
 from co_scientist.cache import LLMCache
 from co_scientist.llm import call_llm
 from co_scientist.llm import call_llm_json
 from co_scientist.llm import call_llm_with_tools
+
+# The real prompt writer, captured at import time -- i.e. before the autouse
+# ``_no_prompt_disk_writes`` conftest fixture swaps in its per-test no-op.
+_REAL_SAVE_PROMPT_TO_DISK = prompts_mod.save_prompt_to_disk
 
 # --- helpers ---------------------------------------------------------------
 
@@ -333,3 +339,133 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
     assert final_text == "direct answer"
     assert called["ran"] is False
     assert history[-1]["content"] == "direct answer"
+
+
+# --- prompt debug-artifact saving --------------------------------------------
+
+
+def _enable_real_prompt_saving(monkeypatch: pytest.MonkeyPatch,
+                               tmp_path: Path) -> None:
+    """Restore the real prompt writer and sandbox its output under tmp_path.
+
+    The autouse ``_no_prompt_disk_writes`` conftest fixture no-ops
+    ``prompts.save_prompt_to_disk`` for every test; the wrappers resolve the
+    writer through the ``prompts`` module at call time, so re-installing the
+    real function (captured at module import, before the fixture ran) makes
+    the save observable again. ``get_prompt_save_path`` writes to the relative
+    ``.coscientist_prompts/<run_id>/`` directory, so chdir-ing into
+    ``tmp_path`` keeps the files out of the working tree.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+        tmp_path: The pytest per-test temporary directory.
+    """
+    monkeypatch.setattr(prompts_mod, "save_prompt_to_disk",
+                        _REAL_SAVE_PROMPT_TO_DISK)
+    monkeypatch.setenv("COSCIENTIST_SAVE_PROMPTS", "true")
+    monkeypatch.chdir(tmp_path)
+
+
+async def test_call_llm_json_saves_prompt_when_named(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``call_llm_json`` writes the prompt artifact when prompt_name is given.
+
+    The file lands at ``.coscientist_prompts/<run_id>/<prompt_name>.txt`` and
+    carries the prompt content plus the appended metadata block.
+    """
+    _enable_real_prompt_saving(monkeypatch, tmp_path)
+    _disable_cache(monkeypatch)
+    _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
+
+    result = await call_llm_json(
+        "the review prompt",
+        "test-model",
+        run_id="run-1",
+        prompt_name="review_batch",
+        prompt_metadata={"hypotheses_count": 3},
+    )
+
+    assert result == {"a": 1}
+    saved = tmp_path / ".coscientist_prompts" / "run-1" / "review_batch.txt"
+    assert saved.exists()
+    content = saved.read_text(encoding="utf-8")
+    assert content.startswith("the review prompt")
+    assert "hypotheses_count: 3" in content
+
+
+async def test_call_llm_json_does_not_save_without_prompt_name(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """Without a prompt_name, ``call_llm_json`` writes no prompt artifact."""
+    _enable_real_prompt_saving(monkeypatch, tmp_path)
+    _disable_cache(monkeypatch)
+    _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
+
+    await call_llm_json("a prompt", "test-model", run_id="run-1")
+
+    assert not (tmp_path / ".coscientist_prompts").exists()
+
+
+async def test_call_llm_json_run_id_falls_back_to_unknown(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """A named prompt with no run_id is saved under the "unknown" directory.
+
+    This is the unified save policy: ``prompt_name`` alone triggers the save;
+    a missing ``run_id`` no longer skips it.
+    """
+    _enable_real_prompt_saving(monkeypatch, tmp_path)
+    _disable_cache(monkeypatch)
+    _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1}'))])
+
+    await call_llm_json("a prompt", "test-model", prompt_name="proximity")
+
+    saved = tmp_path / ".coscientist_prompts" / "unknown" / "proximity.txt"
+    assert saved.exists()
+
+
+async def test_call_llm_saves_prompt_when_named(monkeypatch: pytest.MonkeyPatch,
+                                                tmp_path: Path) -> None:
+    """``call_llm`` shares the same save-when-named policy."""
+    _enable_real_prompt_saving(monkeypatch, tmp_path)
+    _disable_cache(monkeypatch)
+    _patch_acompletion(monkeypatch, [_completion(_message("synthesis text"))])
+
+    await call_llm(
+        "the synthesis prompt",
+        "test-model",
+        run_id="run-2",
+        prompt_name="literature_review_synthesis",
+    )
+
+    saved = (tmp_path / ".coscientist_prompts" / "run-2" /
+             "literature_review_synthesis.txt")
+    assert saved.exists()
+    assert saved.read_text(encoding="utf-8").startswith("the synthesis prompt")
+
+
+async def test_call_llm_with_tools_saves_prompt_when_named(
+        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """``call_llm_with_tools`` shares the same save-when-named policy."""
+    _enable_real_prompt_saving(monkeypatch, tmp_path)
+    _disable_cache(monkeypatch)
+    _patch_acompletion(monkeypatch, [_completion(_message("done"))])
+
+    async def tool_executor(unused_tc: Any) -> dict[str, Any]:
+        return {"role": "tool", "content": ""}
+
+    await call_llm_with_tools(
+        "the draft prompt",
+        "test-model",
+        tools=[{
+            "type": "function",
+            "function": {
+                "name": "search"
+            }
+        }],
+        tool_executor=tool_executor,
+        prompt_name="generate_draft_with_tools",
+    )
+
+    saved = (tmp_path / ".coscientist_prompts" / "unknown" /
+             "generate_draft_with_tools.txt")
+    assert saved.exists()
+    assert saved.read_text(encoding="utf-8").startswith("the draft prompt")

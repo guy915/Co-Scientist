@@ -16,9 +16,8 @@ namespace):
   standing in for the real MCP search/tool path.
 * ``call_llm_json`` -> shared by query-generation (returns ``queries``) and
   per-paper analysis (the dict is stored opaquely and fed to synthesis).
-* ``call_llm`` -> phase-4 synthesis text.
-* ``save_prompt_to_disk`` -> no-op (its node-local binding is NOT covered by the
-  autouse conftest fixture, which patches a different binding).
+* ``call_llm`` -> phase-4 synthesis text (prompt saving lives inside the real
+  LLM wrappers now, so stubbing them also keeps prompt files off disk).
 
 With ``tool_registry=None`` the multi-source/PDF-discovery/content-fetch/
 context-enrichment phases (2.4/2.5/2.6) all early-return, so the node runs in
@@ -107,7 +106,6 @@ def _stub_node(
     fake_client = _FakeMCPClient(search_payload or {})
 
     monkeypatch.setattr(lr, "get_node_cache", lambda: _NoOpNodeCache())
-    monkeypatch.setattr(lr, "save_prompt_to_disk", lambda **_: None)
 
     async def fake_available(**_: Any) -> bool:
         return source_available

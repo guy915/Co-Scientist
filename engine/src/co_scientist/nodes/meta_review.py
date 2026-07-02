@@ -100,26 +100,19 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         tool_registry=state.get("tool_registry"),
     )
 
-    # Save prompt to disk for debugging
-    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-    save_prompt_to_disk(
-        run_id=state.get("run_id", "unknown"),
-        prompt_name="meta_review",
-        content=prompt,
-        metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": len(hypotheses),
-            "reviews_count": len(all_reviews),
-        },
-    )
-
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
         max_tokens=THINKING_MAX_TOKENS,  # more space to aggregate all reviews
         temperature=MEDIUM_TEMPERATURE,
         json_schema=schema,
+        run_id=state.get("run_id"),
+        prompt_name="meta_review",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+            "hypotheses_count": len(hypotheses),
+            "reviews_count": len(all_reviews),
+        },
     )
 
     # Schema returns recurring_themes as objects {theme, description,

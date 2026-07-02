@@ -65,20 +65,6 @@ async def analyze_single_hypothesis(
         indra_evidence=indra_data.get("prompt_text", ""),
     )
 
-    # Save prompt to disk for debugging
-    if run_id:
-        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-        save_prompt_to_disk(
-            run_id=run_id,
-            prompt_name=f"reflection_{hypothesis_index}",
-            content=prompt,
-            metadata={
-                "hypothesis_index": hypothesis_index,
-                "total_count": total_count,
-                "prompt_length_chars": len(prompt),
-            },
-        )
-
     try:
         # Call llm
         response = await call_llm_json(
@@ -87,6 +73,13 @@ async def analyze_single_hypothesis(
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=LOW_TEMPERATURE,
             json_schema=schema,
+            run_id=run_id,
+            prompt_name=f"reflection_{hypothesis_index}",
+            prompt_metadata={
+                "hypothesis_index": hypothesis_index,
+                "total_count": total_count,
+                "prompt_length_chars": len(prompt),
+            },
         )
 
         classification = response.get("classification", "neutral")

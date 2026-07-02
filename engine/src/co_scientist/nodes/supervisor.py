@@ -71,24 +71,17 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         tool_registry=state.get("tool_registry"),
     )
 
-    # Save prompt to disk for debugging
-    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-    save_prompt_to_disk(
-        run_id=state.get("run_id", "unknown"),
-        prompt_name="supervisor",
-        content=prompt,
-        metadata={
-            "prompt_length_chars": len(prompt),
-        },
-    )
-
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
         max_tokens=EXTENDED_MAX_TOKENS,
         temperature=MEDIUM_TEMPERATURE,
         json_schema=schema,
+        run_id=state.get("run_id"),
+        prompt_name="supervisor",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+        },
     )
 
     supervisor_guidance = {

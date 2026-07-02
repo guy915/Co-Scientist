@@ -164,30 +164,15 @@ async def judge_matchup(
         tool_registry=tool_registry,
     )
 
-    # Save prompt to disk for debugging
-    if run_id:
-        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-        filename = (f"ranking_matchup_{matchup_index}"
-                    if matchup_index is not None else "ranking_matchup")
-        save_prompt_to_disk(
-            run_id=run_id,
-            prompt_name=filename,
-            content=prompt,
-            metadata={
-                "matchup_index": matchup_index,
-                "prompt_length_chars": len(prompt),
-                "has_reflection_a": bool(reflection_notes_a),
-                "has_reflection_b": bool(reflection_notes_b),
-            },
-        )
-
     if reflection_notes_a or reflection_notes_b:
         if "Reflection Notes" in prompt:
             logger.debug("prompt includes 'Reflection Notes' section")
         else:
             logger.debug(
                 "warning: Reflection notes provided but not found in prompt")
+
+    prompt_name = (f"ranking_matchup_{matchup_index}"
+                   if matchup_index is not None else "ranking_matchup")
 
     # Use semaphore to limit concurrent calls (avoid rate limits)
     async with _ranking_semaphore:
@@ -197,6 +182,14 @@ async def judge_matchup(
             max_tokens=THINKING_MAX_TOKENS,
             temperature=LOW_TEMPERATURE,
             json_schema=schema,
+            run_id=run_id,
+            prompt_name=prompt_name,
+            prompt_metadata={
+                "matchup_index": matchup_index,
+                "prompt_length_chars": len(prompt),
+                "has_reflection_a": bool(reflection_notes_a),
+                "has_reflection_b": bool(reflection_notes_b),
+            },
         )
 
     winner = response.get("winner", "a").lower()

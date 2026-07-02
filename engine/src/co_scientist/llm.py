@@ -18,9 +18,44 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 import litellm
 
+from co_scientist import prompts
 from co_scientist.cache import LLMCache, NullCache, get_cache
 
 logger = logging.getLogger(__name__)
+
+
+def _save_prompt_if_named(
+    prompt: str,
+    run_id: str | None,
+    prompt_name: str | None,
+    prompt_metadata: dict[str, Any] | None,
+) -> None:
+    """Saves the filled-in prompt to disk when a prompt name is given.
+
+    Unified save policy for every LLM call site: the prompt is saved
+    whenever ``prompt_name`` is provided, under ``run_id or "unknown"``.
+    Every write is still globally gated by the ``COSCIENTIST_SAVE_PROMPTS``
+    env check inside ``prompts.save_prompt_to_disk`` (which also emits the
+    canonical debug log for each saved prompt).
+
+    ``save_prompt_to_disk`` is resolved through the ``prompts`` module at
+    call time so tests can monkeypatch it there.
+
+    Args:
+        prompt: The filled-in prompt content to save.
+        run_id: Optional run identifier; ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name; ``None`` disables saving.
+        prompt_metadata: Optional metadata appended to the saved file.
+    """
+    if prompt_name is None:
+        return
+    prompts.save_prompt_to_disk(
+        run_id=run_id or "unknown",
+        prompt_name=prompt_name,
+        content=prompt,
+        metadata=prompt_metadata,
+    )
+
 
 # Suppress Pydantic serialization warnings from LiteLLM globally
 # these occur when LiteLLM response objects (Pydantic models) are serialized
@@ -403,6 +438,9 @@ async def call_llm(
     force_json: bool = False,
     json_schema: dict[str, Any] | None = None,
     use_cache: bool = True,
+    run_id: str | None = None,
+    prompt_name: str | None = None,
+    prompt_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Call an LLM via litellm and return the response.
 
@@ -415,6 +453,12 @@ async def call_llm(
         force_json: If True, try to force JSON mode (model support varies)
         json_schema: Optional JSON schema to constrain the response format
         use_cache: When False, bypass the LLM cache so the call is always fresh.
+        run_id: Optional run identifier for the saved prompt's directory;
+            ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name. When provided, the prompt
+            is saved to disk before the call — always, regardless of
+            ``run_id`` (globally gated by ``COSCIENTIST_SAVE_PROMPTS``).
+        prompt_metadata: Optional metadata appended to the saved prompt file.
 
     Returns:
         String response from the LLM
@@ -422,6 +466,8 @@ async def call_llm(
     Raises:
         Exception: If the LLM call fails
     """
+    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+
     temperature = _clamp_temperature(model_name, temperature)
 
     # Check cache first (NullCache when caching is bypassed for this call).
@@ -536,6 +582,9 @@ async def call_llm_json(
     json_schema: dict[str, Any] | None = None,
     max_attempts: int = 5,
     use_cache: bool = True,
+    run_id: str | None = None,
+    prompt_name: str | None = None,
+    prompt_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Call LLM and parse response as JSON with validation and retry logic.
 
@@ -548,6 +597,14 @@ async def call_llm_json(
         max_attempts: Maximum number of retry attempts (default 5)
         use_cache: When False, bypass the LLM cache so the call is always fresh
             (used for stochastic, diversity-critical generation).
+        run_id: Optional run identifier for the saved prompt's directory;
+            ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name. When provided, the
+            original prompt is saved to disk once, before the first attempt —
+            always, regardless of ``run_id`` (globally gated by
+            ``COSCIENTIST_SAVE_PROMPTS``). Retry prompts carrying validation
+            feedback are not re-saved.
+        prompt_metadata: Optional metadata appended to the saved prompt file.
 
     Returns:
         Parsed JSON response as a dictionary
@@ -559,6 +616,8 @@ async def call_llm_json(
             (for critical nodes)
         Exception: If the LLM call fails or returns empty response
     """
+    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+
     # Clamp before the cache key is built so requested temperatures that
     # execute identically share one cache entry (matches call_llm and
     # call_llm_with_tools, which clamp before their own cache lookups).
@@ -781,6 +840,9 @@ async def call_llm_with_tools(
     temperature: float = 0.7,
     max_iterations: int = 10,
     use_cache: bool = True,
+    run_id: str | None = None,
+    prompt_name: str | None = None,
+    prompt_metadata: dict[str, Any] | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Call an LLM with tool access and handle tool execution loop.
 
@@ -798,6 +860,12 @@ async def call_llm_with_tools(
         max_iterations: Maximum number of LLM calls (prevents infinite loops)
         use_cache: When False, bypass the LLM cache so the call is always fresh
             (used for stochastic, diversity-critical generation).
+        run_id: Optional run identifier for the saved prompt's directory;
+            ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name. When provided, the prompt
+            is saved to disk before the call — always, regardless of
+            ``run_id`` (globally gated by ``COSCIENTIST_SAVE_PROMPTS``).
+        prompt_metadata: Optional metadata appended to the saved prompt file.
 
     Returns:
         Tuple of (final_response_text, complete_message_history)
@@ -805,6 +873,8 @@ async def call_llm_with_tools(
     Raises:
         Exception: If the LLM call fails or max iterations reached
     """
+    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+
     temperature = _clamp_temperature(model_name, temperature)
 
     # Check cache first (NullCache when caching is bypassed for this call).

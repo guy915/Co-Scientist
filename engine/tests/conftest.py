@@ -17,7 +17,9 @@ if str(_SRC) not in sys.path:
 def _no_prompt_disk_writes(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stop nodes writing prompt debug files to disk during tests.
 
-    Pipeline nodes call ``save_prompt_to_disk`` for debugging; patching it to a
+    The LLM wrappers in ``co_scientist.llm`` save each named prompt for
+    debugging by resolving ``save_prompt_to_disk`` through the
+    ``co_scientist.prompts`` module at call time; patching it there to a
     no-op keeps the test run from littering the working tree.
 
     Args:

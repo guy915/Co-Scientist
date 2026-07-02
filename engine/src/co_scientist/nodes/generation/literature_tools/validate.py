@@ -16,7 +16,10 @@ from co_scientist.constants import (
     HIGH_TEMPERATURE,
     INITIAL_ELO_RATING,
     VALIDATION_SYNTHESIS_BATCH_SIZE,
+    VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
+    VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,
     get_validate_max_iterations,
+    scaled_max_tokens,
 )
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.llm import (
@@ -370,26 +373,12 @@ async def validate_hypotheses(
             already_validated_texts=already_validated_texts,
         )
 
-        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-        save_prompt_to_disk(
-            run_id=state.get("run_id", "unknown"),
-            prompt_name=f"validation_synthesis_batch_{batch_label}",
-            content=synthesis_prompt,
-            metadata={
-                "batch_label":
-                    batch_label,
-                "batch_size":
-                    batch_size,
-                "max_iterations":
-                    max_iterations,
-                "retry_context_count":
-                    len(already_validated_texts)
-                    if already_validated_texts else 0,
-            },
+        synthesis_max_tokens = scaled_max_tokens(
+            EXTENDED_MAX_TOKENS,
+            batch_size,
+            per_item=VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,
+            cap=VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
         )
-
-        synthesis_max_tokens = min(EXTENDED_MAX_TOKENS + (batch_size * 2500),
-                                   20000)
         logger.debug("Batch %s token budget: %s for %s hypotheses", batch_label,
                      synthesis_max_tokens, batch_size)
 
@@ -410,6 +399,19 @@ async def validate_hypotheses(
             max_tokens=synthesis_max_tokens,
             temperature=HIGH_TEMPERATURE,
             max_iterations=max_iterations,
+            run_id=state.get("run_id"),
+            prompt_name=f"validation_synthesis_batch_{batch_label}",
+            prompt_metadata={
+                "batch_label":
+                    batch_label,
+                "batch_size":
+                    batch_size,
+                "max_iterations":
+                    max_iterations,
+                "retry_context_count":
+                    len(already_validated_texts)
+                    if already_validated_texts else 0,
+            },
         )
 
         total_calls = sum(tool_call_counts.values())

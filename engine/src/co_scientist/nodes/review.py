@@ -16,6 +16,10 @@ from co_scientist.constants import (
     PROGRESS_REVIEW_START,
     PROGRESS_REVIEW_COMPLETE,
     COMPARATIVE_BATCH_THRESHOLD,
+    REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
+    REVIEW_BATCH_FREE_HYPOTHESES,
+    REVIEW_BATCH_MAX_TOKENS_CAP,
+    scaled_max_tokens,
 )
 from co_scientist.exceptions import GenerationError
 from co_scientist.llm import call_llm_json
@@ -66,28 +70,20 @@ async def review_single_hypothesis(
         tool_registry=tool_registry,
     )
 
-    # Save prompt to disk for debugging
-    if run_id:
-        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-        filename = (f"review_individual_{hypothesis_index}"
-                    if hypothesis_index is not None else "review_individual")
-        save_prompt_to_disk(
-            run_id=run_id,
-            prompt_name=filename,
-            content=prompt,
-            metadata={
-                "hypothesis_index": hypothesis_index,
-                "prompt_length_chars": len(prompt),
-            },
-        )
-
+    prompt_name = (f"review_individual_{hypothesis_index}"
+                   if hypothesis_index is not None else "review_individual")
     response = await call_llm_json(
         prompt=prompt,
         model_name=model_name,
         max_tokens=EXTENDED_MAX_TOKENS,
         temperature=HIGH_TEMPERATURE,
         json_schema=schema,
+        run_id=run_id,
+        prompt_name=prompt_name,
+        prompt_metadata={
+            "hypothesis_index": hypothesis_index,
+            "prompt_length_chars": len(prompt),
+        },
     )
 
     # Calculate overall_score from criterion scores (more consistent than LLM-
@@ -190,43 +186,35 @@ async def review_comparative_batch(
         tool_registry=tool_registry,
     )
 
-    # Scale max_tokens based on hypothesis count in batch
-    # base: 18000 (THINKING_MAX_TOKENS), add 1500 per hypothesis beyond 5
+    # Scale max_tokens based on hypothesis count in batch (base budget covers
+    # the first REVIEW_BATCH_FREE_HYPOTHESES hypotheses).
     hypothesis_count = len(hypotheses)
-    scaled_max_tokens = min(
-        THINKING_MAX_TOKENS + (max(0, hypothesis_count - 5) * 1500),
-        24000,  # reasonable upper limit for batch review
+    batch_max_tokens = scaled_max_tokens(
+        THINKING_MAX_TOKENS,
+        hypothesis_count,
+        per_item=REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
+        cap=REVIEW_BATCH_MAX_TOKENS_CAP,
+        free_count=REVIEW_BATCH_FREE_HYPOTHESES,
     )
 
-    # Save prompt to disk for debugging
-    if run_id:
-        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-        save_prompt_to_disk(
-            run_id=run_id,
-            prompt_name="review_batch",
-            content=prompt,
-            metadata={
-                "hypotheses_count": hypothesis_count,
-                "scaled_max_tokens": scaled_max_tokens,
-                "prompt_length_chars": len(prompt),
-            },
-        )
-        logger.debug(
-            "saved batch review prompt to"
-            " .coscientist_prompts/%s/review_batch.txt", run_id)
-
     logger.debug("batch review: %s hypotheses, max_tokens=%s", hypothesis_count,
-                 scaled_max_tokens)
+                 batch_max_tokens)
 
     response = await call_llm_json(
         prompt=prompt,
         model_name=model_name,
-        max_tokens=scaled_max_tokens,
+        max_tokens=batch_max_tokens,
         temperature=HIGH_TEMPERATURE,
         json_schema=schema,
         max_attempts=7
         if hypothesis_count > 10 else 5,  # increase retries for large batches
+        run_id=run_id,
+        prompt_name="review_batch",
+        prompt_metadata={
+            "hypotheses_count": hypothesis_count,
+            "scaled_max_tokens": batch_max_tokens,
+            "prompt_length_chars": len(prompt),
+        },
     )
 
     # Extract reviews from response

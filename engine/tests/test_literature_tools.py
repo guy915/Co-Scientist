@@ -9,9 +9,9 @@ logic. ``validate_hypotheses`` runs a per-paper novelty pass
 search so the deterministic assembly logic is asserted directly.
 
 Shared seams stubbed in both phases:
-  * ``call_llm_with_tools`` / ``call_llm_json`` -- the LLM calls.
-  * ``co_scientist.prompts.save_prompt_to_disk`` -- patched to a no-op so the
-    tests never touch the filesystem (imported locally inside the functions).
+  * ``call_llm_with_tools`` / ``call_llm_json`` -- the LLM calls. Prompt
+    saving lives inside the real wrappers, so stubbing them also keeps the
+    prompt debug files off the filesystem.
   * ``co_scientist.config.get_tool_registry`` -- patched to raise so the
     ``tool_registry=None`` "no registry" fallback path is taken (otherwise the
     real global default registry would load config from disk). With no
@@ -26,7 +26,6 @@ from typing import Any
 import pytest
 
 from co_scientist import config as config_mod
-from co_scientist import prompts as prompts_mod
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.nodes.generation.literature_tools import draft as draft_mod
@@ -68,24 +67,18 @@ class _FakeReferenceIndex:
         self.sources = sources
 
 
-def _disable_registry_and_disk(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Force the no-registry fallback and silence the prompt-to-disk writer.
+def _disable_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Force the no-registry fallback in both generation phases.
 
     ``get_tool_registry`` is imported locally (``from co_scientist.config
     import get_tool_registry``) so it is patched at its source module; making it
     raise drives both phases down the documented "No tool registry" branch.
-    ``save_prompt_to_disk`` is likewise imported locally inside each function,
-    so it is patched at ``co_scientist.prompts``.
     """
 
     def _raise(*_: Any, **__: Any) -> Any:
         raise RuntimeError("registry disabled for test")
 
-    def _noop(*_: Any, **__: Any) -> bool:
-        return True
-
     monkeypatch.setattr(config_mod, "get_tool_registry", _raise)
-    monkeypatch.setattr(prompts_mod, "save_prompt_to_disk", _noop)
 
 
 def _stub_draft_llm(monkeypatch: pytest.MonkeyPatch, final_response: str) -> None:
@@ -105,7 +98,7 @@ def _stub_draft_llm(monkeypatch: pytest.MonkeyPatch, final_response: str) -> Non
 async def test_draft_parses_plain_json(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A bare JSON object yields the parsed list of draft dicts verbatim."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     drafts = [
         {
             "text": "alpha gates the pathway",
@@ -135,7 +128,7 @@ async def test_draft_parses_plain_json(
 async def test_draft_strips_json_fence(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A ```json fenced response is unwrapped before parsing."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     drafts = [{"text": "fenced hypothesis", "gap_reasoning": "gap"}]
     fenced = "```json\n" + json.dumps({"drafts": drafts}) + "\n```"
     _stub_draft_llm(monkeypatch, fenced)
@@ -153,7 +146,7 @@ async def test_draft_strips_json_fence(
 async def test_draft_repairs_trailing_comma(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A malformed response with a trailing comma is repaired, not rejected."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     # Trailing comma after the array element -- invalid JSON that
     # attempt_json_repair fixes via its minor-repair path.
     malformed = '{"drafts": [{"text": "repaired hypothesis"},]}'
@@ -172,7 +165,7 @@ async def test_draft_repairs_trailing_comma(
 async def test_draft_missing_drafts_key_defaults_empty(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A well-formed object lacking a 'drafts' key defaults to an empty list."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     _stub_draft_llm(monkeypatch, json.dumps({"notes": "no drafts here"}))
 
     result = await draft_hypotheses(
@@ -188,7 +181,7 @@ async def test_draft_missing_drafts_key_defaults_empty(
 async def test_draft_unparseable_response_raises(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A response that survives every repair attempt raises ResponseParseError."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     # No braces anywhere: attempt_json_repair cannot recover a dict.
     _stub_draft_llm(monkeypatch, "the agent failed to emit any json output")
 
@@ -204,7 +197,7 @@ async def test_draft_unparseable_response_raises(
 async def test_draft_records_corpus_slug(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """The draft phase stores a deterministic corpus slug on the state."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     _stub_draft_llm(monkeypatch, json.dumps({"drafts": []}))
     state = make_state(research_goal="cure the common cold")
 
@@ -253,7 +246,7 @@ async def test_validate_builds_literature_tools_hypotheses(
     Papers search returns empty, so the novelty pass is skipped and only the
     synthesis seam is exercised -- the clean synthesis-only path.
     """
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     synthesis: list[dict[str, Any]] = [
         {
             "hypothesis": "alpha kinase drives resistance",
@@ -302,7 +295,7 @@ async def test_validate_runs_novelty_pass_when_papers_found(
     This exercises ``call_llm_json`` (the novelty seam) for real, which the
     empty-papers path never reaches.
     """
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     papers = {
         "p1": {
             "title": "Prior alpha study",
@@ -341,7 +334,7 @@ async def test_validate_runs_novelty_pass_when_papers_found(
 async def test_validate_empty_drafts_returns_empty(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """No drafts means no synthesis batches and an empty result list."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
 
     called: list[bool] = []
 
@@ -366,7 +359,7 @@ async def test_validate_empty_drafts_returns_empty(
 async def test_validate_text_fallback_key(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """Synthesis output using 'text' (not 'hypothesis') is still assembled."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     _stub_synthesis_llm(monkeypatch, [{
         "text": "fallback-keyed hypothesis",
         "explanation": "uses text key",
@@ -387,7 +380,7 @@ async def test_validate_text_fallback_key(
 async def test_validate_resolves_citation_map(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A [C*] key in the grounding resolves against the reference index."""
-    _disable_registry_and_disk(monkeypatch)
+    _disable_registry(monkeypatch)
     _stub_synthesis_llm(monkeypatch, [{
         "hypothesis": "cited hypothesis",
         "explanation": "fits",

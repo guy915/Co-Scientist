@@ -65,25 +65,18 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     prompt, schema = get_proximity_prompt(
         hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
 
-    # Save prompt to disk for debugging
-    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-    save_prompt_to_disk(
-        run_id=state.get("run_id", "unknown"),
-        prompt_name="proximity",
-        content=prompt,
-        metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": len(hypotheses),
-        },
-    )
-
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["model_name"],
         max_tokens=LONG_MAX_TOKENS,
         temperature=LOW_TEMPERATURE,
         json_schema=schema,
+        run_id=state.get("run_id"),
+        prompt_name="proximity",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+            "hypotheses_count": len(hypotheses),
+        },
     )
 
     similarity_clusters = response.get("similarity_clusters", [])

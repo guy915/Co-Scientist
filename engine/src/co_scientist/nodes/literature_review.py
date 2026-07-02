@@ -38,7 +38,6 @@ from co_scientist.prompts import (
     get_literature_review_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_synthesis_prompt,
-    save_prompt_to_disk,
 )
 from co_scientist.schemas import (
     LITERATURE_QUERY_SCHEMA,
@@ -950,16 +949,6 @@ async def _phase4_synthesize(
             background_context=background_context,
         )
 
-        save_prompt_to_disk(
-            run_id=state.get("run_id", "unknown"),
-            prompt_name="literature_review_synthesis",
-            content=prompt,
-            metadata={
-                "prompt_length_chars": len(prompt),
-                "papers_analyzed": len(paper_analyses),
-            },
-        )
-
         logger.info("Calling synthesis LLM with %s chars, %s papers",
                     len(prompt), len(paper_analyses))
 
@@ -968,6 +957,12 @@ async def _phase4_synthesize(
             model_name=state["model_name"],
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,
+            run_id=state.get("run_id"),
+            prompt_name="literature_review_synthesis",
+            prompt_metadata={
+                "prompt_length_chars": len(prompt),
+                "papers_analyzed": len(paper_analyses),
+            },
         )
 
         logger.info("Synthesis complete - length: %s chars", len(synthesis))

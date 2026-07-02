@@ -177,3 +177,66 @@ VALIDATION_SYNTHESIS_BATCH_SIZE: Final = 3
 Smaller = less output per call, more reliable for models with tight output
 token budgets (e.g. gemini-3-pro). Trade-off: more parallel API calls.
 """
+
+# Token-budget scaling for count-dependent LLM calls. Each per-node pair
+# below feeds scaled_max_tokens() at exactly one call site; the cap keeps
+# large batches from requesting unbounded output budgets.
+
+
+def scaled_max_tokens(base: int,
+                      count: int,
+                      *,
+                      per_item: int,
+                      cap: int,
+                      free_count: int = 0) -> int:
+    """Scales an LLM output-token budget with the number of items in a call.
+
+    Computes ``min(base + max(0, count - free_count) * per_item, cap)``:
+    the base budget covers the first ``free_count`` items, every further
+    item adds ``per_item`` tokens, and ``cap`` bounds the total.
+
+    Args:
+        base: Base token budget for the call.
+        count: Number of items (hypotheses, context entries, ...) in the call.
+        per_item: Extra tokens granted per item beyond ``free_count``.
+        cap: Hard upper limit for the returned budget.
+        free_count: Number of items already covered by ``base``.
+
+    Returns:
+        The scaled token budget, never exceeding ``cap``.
+    """
+    return min(base + max(0, count - free_count) * per_item, cap)
+
+
+REVIEW_BATCH_TOKENS_PER_HYPOTHESIS: Final = 1500
+"""Extra batch-review output tokens per hypothesis beyond the free count."""
+
+REVIEW_BATCH_FREE_HYPOTHESES: Final = 5
+"""Hypotheses already covered by the batch-review base budget."""
+
+REVIEW_BATCH_MAX_TOKENS_CAP: Final = 24000
+"""Upper limit for the batch-review output budget."""
+
+EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS: Final = 800
+"""Extra evolution output tokens per context hypothesis (max 15 sampled)."""
+
+EVOLVE_MAX_TOKENS_CAP: Final = 20000
+"""Upper limit for the evolution output budget."""
+
+DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS: Final = 4000
+"""Extra final-debate-turn output tokens per generated hypothesis."""
+
+DEBATE_FINAL_TURN_MAX_TOKENS_CAP: Final = 20000
+"""Upper limit for the final-debate-turn output budget."""
+
+DRAFT_TOKENS_PER_HYPOTHESIS: Final = 200
+"""Extra draft-phase output tokens per requested hypothesis."""
+
+DRAFT_MAX_TOKENS_CAP: Final = 16000
+"""Upper limit for the draft-phase output budget."""
+
+VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS: Final = 2500
+"""Extra validation-synthesis output tokens per hypothesis in the batch."""
+
+VALIDATION_SYNTHESIS_MAX_TOKENS_CAP: Final = 20000
+"""Upper limit for the validation-synthesis output budget."""
