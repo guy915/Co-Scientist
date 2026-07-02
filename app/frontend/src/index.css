@@ -279,22 +279,27 @@ body {
   }
 }
 
-/* Scrollbars — always visible with a themed track (Google style).
+/* Scrollbars — trackless floating thumb (Google style): no channel behind
+   the thumb, just a rounded pill on the page surface. The transparent border
+   + padding-box clip keeps the visible thumb slim inside the 14px hit area.
    Note: we deliberately do NOT set scrollbar-width/scrollbar-color here — in
    Chromium those standard properties suppress the ::-webkit-scrollbar pseudos
-   below, leaving a near-invisible overlay track. Webkit pseudos give the
-   always-on channel + rounded thumb we want. */
+   below. */
 *::-webkit-scrollbar {
   width: 14px;
   height: 14px;
 }
 
 *::-webkit-scrollbar-track {
-  background: #e8eaed;
+  background: transparent;
+}
+
+*::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 *::-webkit-scrollbar-thumb {
-  border: 3px solid #e8eaed;
+  border: 3px solid transparent;
   border-radius: 9999px;
   background: #bdc1c6;
   background-clip: padding-box;
@@ -305,12 +310,7 @@ body {
   background-clip: padding-box;
 }
 
-:root[data-theme="dark"] *::-webkit-scrollbar-track {
-  background: #2a2c2e;
-}
-
 :root[data-theme="dark"] *::-webkit-scrollbar-thumb {
-  border-color: #2a2c2e;
   background: #5f6368;
   background-clip: padding-box;
 }
