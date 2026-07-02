@@ -306,6 +306,38 @@
   padding: 1.05rem 1.2rem;
   text-align: left;
   text-decoration: none;
+  box-shadow:
+    0 1px 2px rgb(60 64 67 / 10%),
+    0 1px 3px 1px rgb(60 64 67 / 8%);
+  transition:
+    box-shadow 140ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.reference-recent-card:hover,
+.reference-recent-card:focus-visible {
+  box-shadow:
+    0 1px 3px rgb(60 64 67 / 16%),
+    0 4px 8px 3px rgb(60 64 67 / 10%);
+}
+
+:root[data-theme="dark"] .reference-recent-card {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 40%),
+    0 1px 3px 1px rgb(0 0 0 / 30%);
+}
+
+:root[data-theme="dark"] .reference-recent-card:hover,
+:root[data-theme="dark"] .reference-recent-card:focus-visible {
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 48%),
+    0 4px 8px 3px rgb(0 0 0 / 36%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-recent-card {
+    transition: none;
+  }
 }
 
 .reference-recent-meta {
