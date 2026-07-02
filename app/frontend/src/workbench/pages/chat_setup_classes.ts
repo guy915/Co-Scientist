@@ -39,8 +39,8 @@ export const MESSAGE_ACTIONS_CLASSES =
 export const MESSAGE_ACTIONS_END_CLASSES =
   'reference-message-actions end pointer-events-none absolute top-1/2 ' +
   'z-[2] flex -translate-y-1/2 scale-[0.98] items-center gap-[0.2rem] ' +
-  'rounded-full border border-cosci-border bg-[var(--cosci-surface-raised)] ' +
-  'p-[0.1rem] opacity-0 [right:calc(min(31rem,72vw)+0.4rem)] ' +
+  'border-0 bg-transparent p-[0.1rem] opacity-0 ' +
+  '[right:calc(min(31rem,72vw)+0.4rem)] ' +
   'group-hover/user:pointer-events-auto group-hover/user:scale-100 ' +
   'group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto ' +
   'group-focus-within/user:scale-100 group-focus-within/user:opacity-100';
