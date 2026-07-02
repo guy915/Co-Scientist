@@ -49,9 +49,15 @@
 }
 
 .ucs-nav-top,
-.ucs-nav-items,
 .ucs-nav-bottom {
   display: grid;
+}
+
+/* The primary-navigation <nav> is kept for semantics/aria, but dissolved from
+   layout so Menu, New chat, and Search are uniform siblings of a single grid
+   (one gap source) instead of Menu sitting a level above the other two. */
+.ucs-nav-items {
+  display: contents;
 }
 
 .ucs-nav-top--open {
