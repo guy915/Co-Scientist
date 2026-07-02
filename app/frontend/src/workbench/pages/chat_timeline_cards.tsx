@@ -209,12 +209,12 @@ export function ChatBubble({
           actions={[
             {
               icon: 'edit',
-              label: 'Edit request',
+              label: 'Edit prompt',
               onClick: onEdit,
             },
             {
               icon: 'content_copy',
-              label: 'Copy request',
+              label: 'Copy prompt',
               onClick: onCopyRequest,
             },
           ]}

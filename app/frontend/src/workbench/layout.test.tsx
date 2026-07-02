@@ -244,12 +244,12 @@ describe('Layout', () => {
     expect(document.documentElement).toHaveClass('dark');
 
     const logsButton = screen.getByRole('button', {name: /Logs 0/i});
-    expect(logsButton.className).toContain('dark:bg-cosci-teal-bg');
+    expect(logsButton.className).toContain('bg-[var(--cosci-logs-accent-bg)]');
 
     fireEvent.click(logsButton);
 
     const logsPopover = container.querySelector('.ucs-popover--logs');
-    expect(logsPopover?.className).toContain('dark:!bg-[#17181b]');
+    expect(logsPopover?.className).toContain('!bg-[var(--cosci-logs-surface)]');
     expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
   });
 

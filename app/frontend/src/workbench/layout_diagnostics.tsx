@@ -24,69 +24,70 @@ const LOGS_POPOVER_CLASSES = [
   'ucs-popover--logs',
   'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
   'max-h-[min(32rem,calc(100vh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
-  '!gap-0 overflow-hidden !p-0 dark:!border-[#33363b] dark:!bg-[#17181b]',
+  '!gap-0 overflow-hidden !p-0 !border-[var(--cosci-logs-border)] ' +
+    '!bg-[var(--cosci-logs-surface)]',
   'max-[720px]:right-[-0.5rem] max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
 ].join(' ');
 
 const LOGS_BUTTON_CLASSES =
   'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +
-  'items-center gap-[0.45rem] rounded-full border-0 bg-[#173b3b] ' +
-  'px-[0.62rem] py-0 pl-[0.72rem] font-[inherit] text-[0.88rem] font-semibold ' +
-  'whitespace-nowrap text-[#7fd7bf] hover:bg-[#1f4b4b] ' +
-  '[&[aria-expanded=true]]:bg-[#1f4b4b] dark:bg-cosci-teal-bg ' +
-  'dark:text-cosci-teal-dark dark:hover:bg-[#d4ece7] ' +
-  'dark:[&[aria-expanded=true]]:bg-[#d4ece7]';
+  'items-center gap-[0.45rem] rounded-full border-0 ' +
+  'bg-[var(--cosci-logs-accent-bg)] px-[0.62rem] py-0 pl-[0.72rem] ' +
+  'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap ' +
+  'text-[var(--cosci-logs-accent-fg)] hover:bg-[var(--cosci-logs-accent-hover)] ' +
+  '[&[aria-expanded=true]]:bg-[var(--cosci-logs-accent-hover)]';
 
 const LOGS_BUTTON_ICON_CLASSES = 'text-[1.05rem]';
 
 const LOGS_COUNT_CLASSES =
   'ucs-logs-count grid h-[1.38rem] min-w-[1.35rem] place-items-center ' +
-  'rounded-full bg-[rgb(127_215_191_/_22%)] px-[0.42rem] text-[0.72rem] ' +
-  'leading-none whitespace-nowrap dark:bg-[rgb(26_107_107_/_18%)]';
+  'rounded-full bg-[var(--cosci-logs-count-bg)] px-[0.42rem] text-[0.72rem] ' +
+  'leading-none whitespace-nowrap';
 
 const DIAGNOSTIC_HEADER_CLASSES =
   'ucs-diagnostic-header flex items-center justify-between gap-3 border-b ' +
-  'border-[#dfe3e7] px-4 py-3 dark:border-[#33363b] ' +
+  'border-[var(--cosci-logs-border)] px-4 py-3 ' +
   'max-[720px]:flex-col max-[720px]:items-start';
 
 const DIAGNOSTIC_INTRO_CLASSES =
-  'ucs-diagnostic-intro border-b border-[#dfe3e7] px-4 py-3 ' +
-  'dark:border-[#33363b]';
+  'ucs-diagnostic-intro border-b border-[var(--cosci-logs-border)] px-4 py-3';
 
 const DIAGNOSTIC_TITLE_CLASSES =
-  'm-0 text-base font-semibold leading-tight text-[#202124] ' +
-  'dark:text-[#f1f3f4]';
+  'm-0 text-base font-semibold leading-tight text-[var(--cosci-logs-heading)]';
 
 const DIAGNOSTIC_ACTIONS_CLASSES =
   'ucs-diagnostic-actions flex flex-nowrap gap-[0.45rem]';
 
 const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
   'inline-flex min-h-8 cursor-pointer items-center gap-[0.3rem] rounded-full ' +
-  'border border-[#9accc3] bg-white px-[0.7rem] text-[0.82rem] ' +
-  'font-semibold whitespace-nowrap text-[#0f5454] dark:border-[#315e57] ' +
-  'dark:bg-[#173b3b] dark:text-[#7fd7bf]';
+  'border-0 bg-[var(--cosci-logs-accent-bg)] px-[0.75rem] text-[0.82rem] ' +
+  'font-semibold whitespace-nowrap text-[var(--cosci-logs-accent-fg)] ' +
+  'hover:bg-[var(--cosci-logs-accent-hover)] ' +
+  'focus-visible:bg-[var(--cosci-logs-accent-hover)]';
 
 const DIAGNOSTIC_CHIPS_CLASSES =
   'ucs-diagnostic-chips flex flex-wrap gap-[0.45rem]';
 
 const DIAGNOSTIC_CHIP_CLASSES =
-  'rounded-full bg-[#e0f2ef] px-2 py-[0.15rem] text-[0.7rem] font-semibold ' +
-  'whitespace-nowrap text-[#0f5454] dark:bg-[#173b3b] dark:text-[#7fd7bf]';
+  'rounded-full bg-[var(--cosci-logs-accent-bg)] px-2 py-[0.15rem] ' +
+  'text-[0.7rem] font-semibold whitespace-nowrap ' +
+  'text-[var(--cosci-logs-accent-fg)]';
 
 const DIAGNOSTIC_ERROR_CHIP_CLASSES =
-  'rounded-full bg-[#f8d6d2] px-2 py-[0.15rem] text-[0.7rem] font-semibold ' +
-  'whitespace-nowrap text-[#9b1c13] dark:bg-[#5b2b2b] dark:text-[#ffb4aa]';
+  'rounded-full bg-[var(--cosci-logs-danger-bg)] px-2 py-[0.15rem] ' +
+  'text-[0.7rem] font-semibold whitespace-nowrap ' +
+  'text-[var(--cosci-logs-danger-fg)]';
 
 const DIAGNOSTIC_LIST_CLASSES =
-  'ucs-diagnostic-list grid min-h-0 gap-2 overflow-auto px-4 pt-3 pb-4 ' +
-  '[scrollbar-color:#cfd8dc_transparent] [scrollbar-width:thin]';
+  'ucs-diagnostic-list grid min-h-0 gap-2 overflow-auto px-4 pt-3 pb-4';
 
 const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid gap-1';
 
 const DIAGNOSTIC_ENTRY_META_CLASSES =
   'ucs-diagnostic-entry-meta grid grid-cols-[auto_auto_minmax(0,1fr)_auto] ' +
-  'items-center gap-2 text-[0.72rem] font-semibold text-[#4f5358] ' +
-  'dark:text-[#bdc1c6] max-[720px]:grid-cols-[auto_auto_minmax(0,1fr)]';
+  'items-center gap-2 text-[0.72rem] font-semibold ' +
+  'text-[var(--cosci-logs-meta)] ' +
+  'max-[720px]:grid-cols-[auto_auto_minmax(0,1fr)]';
 
 const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
 
@@ -94,14 +95,14 @@ const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
   'max-[720px]:col-start-2 max-[720px]:col-end-[-1]';
 
 const DIAGNOSTIC_CODE_CLASSES =
-  'm-0 max-h-20 overflow-auto rounded-[0.55rem] bg-[#edf7f4] px-[0.7rem] ' +
-  'py-[0.55rem] font-mono text-[0.72rem] leading-[1.3] text-[#202124] ' +
-  'dark:bg-[#132927] dark:text-[#f1f3f4]';
+  'm-0 max-h-20 overflow-auto rounded-[0.55rem] ' +
+  'bg-[var(--cosci-logs-panel-bg)] px-[0.7rem] py-[0.55rem] font-mono ' +
+  'text-[0.72rem] leading-[1.3] text-[var(--cosci-logs-code-fg)]';
 
 const DIAGNOSTIC_EMPTY_CLASSES =
-  'ucs-diagnostic-empty m-0 rounded-[0.55rem] bg-[#edf7f4] px-[0.7rem] ' +
-  'py-[0.55rem] text-center text-[#0f5454] dark:bg-[#132927] ' +
-  'dark:text-[#7fd7bf]';
+  'ucs-diagnostic-empty m-0 rounded-[0.55rem] ' +
+  'bg-[var(--cosci-logs-panel-bg)] px-[0.7rem] py-[0.55rem] text-center ' +
+  'text-[var(--cosci-logs-panel-fg)]';
 
 function formatDiagnosticTime(date = new Date()): string {
   return new Intl.DateTimeFormat(undefined, {

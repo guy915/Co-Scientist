@@ -62,9 +62,8 @@ export const HOME_LOAD_MORE_BUTTON_CLASSES = 'reference-load-more';
 
 export const HOME_TOAST_CLASSES =
   'reference-toast fixed top-1/2 left-1/2 z-[60] -translate-x-1/2 ' +
-  '-translate-y-1/2 rounded bg-[#303134] px-5 py-[0.82rem] text-[0.92rem] ' +
-  'font-medium text-[#f1f3f4] ' +
-  'dark:bg-[#f1f3f4] dark:text-[#202124]';
+  '-translate-y-1/2 rounded bg-[var(--cosci-toast-bg)] px-5 py-[0.82rem] ' +
+  'text-[0.92rem] font-medium text-[var(--cosci-toast-fg)]';
 
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[1.7rem] border ' +

@@ -85,10 +85,10 @@ const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto max-[720px]:overflow-x-hidden';
 
 const REPORT_ALERT_CLASSES =
-  'cosci-report-alert mx-8 mt-4 rounded-xl border border-[#b3261e] bg-[#fce8e6] px-4 py-3 text-[#b3261e] dark:border-[#5b2b2b] dark:bg-[#3c1715] dark:text-[#ffb4aa]';
+  'cosci-report-alert mx-8 mt-4 rounded-xl border border-[var(--cosci-danger-border)] bg-[var(--cosci-danger-bg)] px-4 py-3 text-[var(--cosci-danger-fg)]';
 
 const REPORT_TOAST_CLASSES =
-  'cosci-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-[#b3261e] bg-[#fce8e6] px-4 py-3 text-[#b3261e] dark:border-[#5b2b2b] dark:bg-[#3c1715] dark:text-[#ffb4aa]';
+  'cosci-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-[var(--cosci-danger-border)] bg-[var(--cosci-danger-bg)] px-4 py-3 text-[var(--cosci-danger-fg)]';
 
 const REPORT_SKELETON_CLASSES =
   'cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 max-[720px]:mt-5 max-[720px]:mb-12 max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';

@@ -369,18 +369,18 @@ describe('ChatWorkspace', () => {
     });
     fireEvent.submit(input.closest('form')!);
 
-    expect(await screen.findByLabelText('Copy request')).toBeInTheDocument();
-    expect(screen.getByLabelText('Edit request')).toBeInTheDocument();
+    expect(await screen.findByLabelText('Copy prompt')).toBeInTheDocument();
+    expect(screen.getByLabelText('Edit prompt')).toBeInTheDocument();
     expect(screen.getByLabelText('Retry response')).toBeInTheDocument();
     expect(screen.getByLabelText('Copy response')).toBeInTheDocument();
     expect(screen.getByLabelText('Download response')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText('Edit request'));
+    fireEvent.click(screen.getByLabelText('Edit prompt'));
     expect(screen.getByRole('textbox')).toHaveValue(
       'Investigate glucose homeostasis under cold stress.',
     );
 
-    fireEvent.click(screen.getByLabelText('Copy request'));
+    fireEvent.click(screen.getByLabelText('Copy prompt'));
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
         'Investigate glucose homeostasis under cold stress.',
