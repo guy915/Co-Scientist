@@ -1,4 +1,3 @@
-import '@material/web/icon/icon.js';
 import type {
   Evidence,
   Hypothesis,
@@ -7,6 +6,7 @@ import type {
   RunWithSummary,
   SafetyDecision,
 } from '@/api/runs';
+import {Icon} from '@/components/icon';
 
 function fmtNumber(value: number | null | undefined): string {
   return typeof value === 'number' ? String(value) : '0';
@@ -215,9 +215,11 @@ function SetupList({label, values}: {label: string; values: string[]}) {
       <ul className="space-y-1 text-sm">
         {values.map(value => (
           <li key={value} className="flex gap-2">
-            <md-icon style={{fontSize: '16px'}} aria-hidden="true">
-              check_circle
-            </md-icon>
+            <Icon
+              style={{fontSize: '16px'}}
+              aria-hidden="true"
+              name="check_circle"
+            />
             <span>{value}</span>
           </li>
         ))}

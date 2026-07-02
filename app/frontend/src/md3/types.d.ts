@@ -1,7 +1,6 @@
 import type {MdChipSet} from '@material/web/chips/chip-set.js';
 import type {MdFilterChip} from '@material/web/chips/filter-chip.js';
 import type {MdDivider} from '@material/web/divider/divider.js';
-import type {MdIcon} from '@material/web/icon/icon.js';
 import type {MdCircularProgress} from '@material/web/progress/circular-progress.js';
 import type {MdLinearProgress} from '@material/web/progress/linear-progress.js';
 import type {MdOutlinedSelect} from '@material/web/select/outlined-select.js';
@@ -37,7 +36,6 @@ type CustomEl<T> = Omit<
 declare module 'react' {
   namespace JSX {
     interface IntrinsicElements {
-      'md-icon': CustomEl<MdIcon>;
       'md-outlined-text-field': CustomEl<MdOutlinedTextField>;
       'md-outlined-select': CustomEl<MdOutlinedSelect>;
       'md-select-option': CustomEl<MdSelectOption>;

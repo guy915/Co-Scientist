@@ -1,5 +1,5 @@
-import '@material/web/icon/icon.js';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {Icon} from '@/components/icon';
 
 type DiagnosticLogLevel = 'info' | 'success' | 'error';
 
@@ -187,9 +187,11 @@ export function DiagnosticsControl({
         aria-expanded={open}
         onClick={onToggle}
       >
-        <md-icon aria-hidden="true" className={LOGS_BUTTON_ICON_CLASSES}>
-          expand_more
-        </md-icon>
+        <Icon
+          aria-hidden="true"
+          className={LOGS_BUTTON_ICON_CLASSES}
+          name="expand_more"
+        />
         <span>Logs</span>
         <span className={LOGS_COUNT_CLASSES}>{entries.length}</span>
       </button>
@@ -254,9 +256,7 @@ function DiagnosticLogsPanel({
             className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
             onClick={onClear}
           >
-            <md-icon aria-hidden="true" className="text-base">
-              refresh
-            </md-icon>
+            <Icon aria-hidden="true" className="text-base" name="refresh" />
             <span>Clear</span>
           </button>
           <button
@@ -264,9 +264,11 @@ function DiagnosticLogsPanel({
             className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
             onClick={onCopy}
           >
-            <md-icon aria-hidden="true" className="text-base">
-              content_copy
-            </md-icon>
+            <Icon
+              aria-hidden="true"
+              className="text-base"
+              name="content_copy"
+            />
             <span>{copied ? 'Copied' : 'Copy'}</span>
           </button>
         </div>

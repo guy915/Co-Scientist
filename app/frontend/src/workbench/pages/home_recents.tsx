@@ -1,7 +1,6 @@
-import '@material/web/icon/icon.js';
-
 import {Link} from 'react-router-dom';
 import {type Hypothesis, type Run} from '@/api/runs';
+import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {
@@ -16,8 +15,7 @@ const BASELINE_ELO_RATING = 1200;
 
 const RECENTS_PANEL_CLASSES = `reference-recents min-[1181px]:!gap-[1.55rem] ${HOME_RECENTS_PANEL_CLASSES}`;
 
-const RECENTS_HEADING_ICON_CLASSES =
-  '[--md-icon-size:20px] min-[1181px]:[--md-icon-size:22px]';
+const RECENTS_HEADING_ICON_CLASSES = 'size-5 min-[1181px]:size-[1.375rem]';
 
 const RECENTS_HEADING_CLASSES =
   'm-0 text-[1.15rem] font-semibold text-[var(--cosci-recents-heading)] ' +
@@ -96,7 +94,7 @@ const RECENT_CHIP_CLASSES =
   'min-[1181px]:!whitespace-nowrap dark:min-[1181px]:!bg-[#0b8043] ' +
   'dark:min-[1181px]:!text-[#e6f4ea]';
 
-const RECENT_CHIP_ICON_CLASSES = '[--md-icon-size:16px]';
+const RECENT_CHIP_ICON_CLASSES = 'size-4';
 
 const ACTIVE_PROGRESS_CLASSES =
   'reference-active-progress min-[1181px]:!mt-[0.05rem] min-[1181px]:!flex ' +
@@ -165,9 +163,11 @@ export function HomeRecentsPanel({
   return (
     <aside className={panelClassName} aria-label="Recent runs">
       <div className={HOME_RECENTS_HEADING_ROW_CLASSES}>
-        <md-icon aria-hidden="true" className={RECENTS_HEADING_ICON_CLASSES}>
-          history
-        </md-icon>
+        <Icon
+          aria-hidden="true"
+          className={RECENTS_HEADING_ICON_CLASSES}
+          name="history"
+        />
         <h2 className={RECENTS_HEADING_CLASSES}>Recents</h2>
       </div>
       <ol className={listClassName}>
@@ -241,19 +241,20 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         ) : (
           <span className={RECENT_CHIPS_CLASSES}>
             <span className={RECENT_CHIP_CLASSES}>
-              <md-icon aria-hidden="true" className={RECENT_CHIP_ICON_CLASSES}>
-                emoji_events
-              </md-icon>
+              <Icon
+                aria-hidden="true"
+                className={RECENT_CHIP_ICON_CLASSES}
+                name="emoji_events"
+              />
               Winning ideas
             </span>
             {topScore !== null && (
               <span className={RECENT_CHIP_CLASSES}>
-                <md-icon
+                <Icon
                   aria-hidden="true"
                   className={RECENT_CHIP_ICON_CLASSES}
-                >
-                  stars
-                </md-icon>
+                  name="stars"
+                />
                 Top score: {topScore}
               </span>
             )}

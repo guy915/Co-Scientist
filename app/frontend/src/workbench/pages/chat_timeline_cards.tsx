@@ -1,7 +1,6 @@
-import '@material/web/icon/icon.js';
-
 import {type ReactNode, useLayoutEffect, useRef, useState} from 'react';
 import {type RunFocus, type RunTier} from '@/api/runs';
+import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {FOCUS_OPTIONS, type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
@@ -70,7 +69,7 @@ export interface StartedSession {
 }
 
 interface MessageAction {
-  icon: string;
+  icon: IconName;
   label: string;
   onClick: () => void;
 }
@@ -127,9 +126,11 @@ function MessageActionRow({
           data-tooltip={action.label}
           onClick={action.onClick}
         >
-          <md-icon aria-hidden="true" className={MESSAGE_ACTION_ICON_CLASSES}>
-            {action.icon}
-          </md-icon>
+          <Icon
+            aria-hidden="true"
+            className={MESSAGE_ACTION_ICON_CLASSES}
+            name={action.icon}
+          />
         </button>
       ))}
     </div>
@@ -195,9 +196,10 @@ export function ChatBubble({
             title={expanded ? 'Collapse request' : 'Expand request'}
             onClick={() => setExpanded(current => !current)}
           >
-            <md-icon aria-hidden="true">
-              {expanded ? 'expand_less' : 'expand_more'}
-            </md-icon>
+            <Icon
+              aria-hidden="true"
+              name={expanded ? 'expand_less' : 'expand_more'}
+            />
           </button>
         )}
       </div>
@@ -285,9 +287,11 @@ export function RunSpecCard({
           data-tooltip="Edit research plan"
           onClick={onEdit}
         >
-          <md-icon aria-hidden="true" className={PLAN_EDIT_ICON_CLASSES}>
-            edit
-          </md-icon>
+          <Icon
+            aria-hidden="true"
+            className={PLAN_EDIT_ICON_CLASSES}
+            name="edit"
+          />
         </button>
       </div>
       <p className={PLAN_SUBHEADING_CLASSES}>

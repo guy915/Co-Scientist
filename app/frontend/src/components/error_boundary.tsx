@@ -1,7 +1,7 @@
-import '@material/web/icon/icon.js';
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {Component} from 'react';
+import {Icon} from './icon';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -73,7 +73,7 @@ export class ErrorBoundary extends Component<
             <header className="p-6">
               <h1 className={FALLBACK_TITLE_CLASSES}>
                 <span aria-hidden="true">
-                  <md-icon>warning</md-icon>
+                  <Icon name="warning" />
                 </span>
                 Something went wrong
               </h1>

@@ -1,5 +1,3 @@
-import '@material/web/icon/icon.js';
-
 import {
   Fragment,
   type FormEvent,

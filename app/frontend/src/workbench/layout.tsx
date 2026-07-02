@@ -1,7 +1,7 @@
-import '@material/web/icon/icon.js';
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {listDemoRuns, listRuns, type Run} from '@/api/runs';
+import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {DiagnosticsControl} from './layout_diagnostics';
@@ -11,7 +11,7 @@ import {tooltipClassNames} from './tooltip';
 type ShellPanel = 'settings' | 'logs';
 type ThemeMode = 'system' | 'light' | 'dark';
 
-const THEME_MODES: Array<{mode: ThemeMode; icon: string; label: string}> = [
+const THEME_MODES: Array<{mode: ThemeMode; icon: IconName; label: string}> = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
@@ -493,7 +493,7 @@ function NavActionButton({
   onClick,
 }: {
   label: string;
-  icon: string;
+  icon: IconName;
   className: string;
   labelClassName: string;
   expanded?: boolean;
@@ -510,9 +510,7 @@ function NavActionButton({
       aria-controls={controls}
       onClick={onClick}
     >
-      <md-icon aria-hidden="true" className={NAV_ICON_CLASSES}>
-        {icon}
-      </md-icon>
+      <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name={icon} />
       <span className={labelClassName}>{label}</span>
     </button>
   );
@@ -527,7 +525,7 @@ function ThemeModeButton({
 }: {
   mode: 'system' | 'light' | 'dark';
   active: boolean;
-  icon: string;
+  icon: IconName;
   label: string;
   onModeChange: (mode: ThemeMode) => void;
 }) {
@@ -542,9 +540,11 @@ function ThemeModeButton({
       aria-pressed={active}
       onClick={() => onModeChange(mode)}
     >
-      <md-icon aria-hidden="true" className={THEME_BUTTON_ICON_CLASSES}>
-        {icon}
-      </md-icon>
+      <Icon
+        aria-hidden="true"
+        className={THEME_BUTTON_ICON_CLASSES}
+        name={icon}
+      />
       <span>{label}</span>
     </button>
   );

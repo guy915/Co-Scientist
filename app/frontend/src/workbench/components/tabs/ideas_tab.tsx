@@ -1,7 +1,7 @@
-import '@material/web/icon/icon.js';
 import type {MouseEvent, ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import type {CitationRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
 const IDEA_SPLIT_SHELL_CLASSES =
@@ -205,7 +205,7 @@ function HypothesisDetail({
   if (!hypothesis) {
     return (
       <section className={IDEA_DETAIL_EMPTY_CLASSES}>
-        <md-icon aria-hidden="true">format_list_numbered</md-icon>
+        <Icon aria-hidden="true" name="format_list_numbered" />
         <p>Select a hypothesis to inspect the review and tournament details.</p>
       </section>
     );

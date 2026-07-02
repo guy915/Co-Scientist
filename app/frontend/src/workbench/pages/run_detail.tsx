@@ -1,4 +1,3 @@
-import '@material/web/icon/icon.js';
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
@@ -18,6 +17,7 @@ import {
   type RunSetupConfig,
   type RunWithSummary,
 } from '@/api/runs';
+import {Icon, type IconName} from '@/components/icon';
 import {useRunStream} from '@/hooks/use_run_stream';
 import {conciseTitle} from '@/lib/text';
 import {IdeasTab} from '../components/tabs/ideas_tab';
@@ -36,7 +36,7 @@ import {LearningView} from './run_detail_learning';
 const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 type TabName = (typeof TABS)[number];
 
-const TAB_ICON_NAMES: Record<TabName, string> = {
+const TAB_ICON_NAMES: Record<TabName, IconName> = {
   details: 'menu_book',
   learning: 'menu_book',
   overview: 'view_list',
@@ -223,7 +223,7 @@ export function RunDetail() {
       <header className={REPORT_TITLEBAR_CLASSES}>
         <div className={REPORT_TITLE_LEFT_CLASSES}>
           <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
-            <md-icon aria-hidden="true">arrow_back</md-icon>
+            <Icon aria-hidden="true" name="arrow_back" />
           </Link>
           <h1 className={REPORT_TITLE_CLASSES}>{title}</h1>
         </div>
@@ -245,9 +245,11 @@ export function RunDetail() {
             aria-current={index === activeTabIndex ? 'page' : undefined}
             onClick={() => onTabChange(tabName)}
           >
-            <md-icon className={REPORT_TAB_ICON_CLASSES} aria-hidden="true">
-              {TAB_ICON_NAMES[tabName]}
-            </md-icon>
+            <Icon
+              className={REPORT_TAB_ICON_CLASSES}
+              aria-hidden="true"
+              name={TAB_ICON_NAMES[tabName]}
+            />
             <span className={REPORT_TAB_LABEL_CLASSES}>
               {TAB_LABELS[tabName]}
             </span>

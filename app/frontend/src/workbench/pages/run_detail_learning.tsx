@@ -1,7 +1,6 @@
-import '@material/web/icon/icon.js';
-
 import {useState} from 'react';
 import {type Evidence} from '@/api/runs';
+import {Icon} from '@/components/icon';
 import {splitAbstractSections} from '@/lib/format_abstract';
 import {renderInlineHtml} from '@/lib/sanitize_html';
 import {
@@ -95,12 +94,11 @@ export function LearningView({
               onClick={() => toggleSection(section.id)}
             >
               <span>{expanded ? 'Show less' : 'Show more'}</span>
-              <md-icon
+              <Icon
                 className={REPORT_INLINE_ACTION_ICON_CLASSES}
                 aria-hidden="true"
-              >
-                {expanded ? 'expand_less' : 'expand_more'}
-              </md-icon>
+                name={expanded ? 'expand_less' : 'expand_more'}
+              />
             </button>
           </section>
         );
@@ -144,9 +142,11 @@ function ReferencesBlock({
     <section className={`${REPORT_SECTION_CLASSES} cosci-reference-list`}>
       <h3 className={REPORT_H3_CLASSES}>References</h3>
       <label className={REFERENCE_SEARCH_CLASSES}>
-        <md-icon className={REFERENCE_SEARCH_ICON_CLASSES} aria-hidden="true">
-          search
-        </md-icon>
+        <Icon
+          className={REFERENCE_SEARCH_ICON_CLASSES}
+          aria-hidden="true"
+          name="search"
+        />
         <input
           className={REFERENCE_SEARCH_INPUT_CLASSES}
           value={query}
@@ -173,12 +173,11 @@ function ReferencesBlock({
                   target="_blank"
                   rel="noopener noreferrer"
                 >
-                  <md-icon
+                  <Icon
                     className={REFERENCE_LIST_LINK_ICON_CLASSES}
                     aria-hidden="true"
-                  >
-                    open_in_new
-                  </md-icon>
+                    name="open_in_new"
+                  />
                   Open
                 </a>
               ) : null}

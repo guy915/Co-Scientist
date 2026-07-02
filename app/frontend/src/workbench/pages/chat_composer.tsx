@@ -1,5 +1,3 @@
-import '@material/web/icon/icon.js';
-
 import {
   type ChangeEvent,
   type FormEvent,
@@ -8,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import {Icon} from '@/components/icon';
 import {tooltipClassNames} from '../tooltip';
 import {
   COMPOSER_ACTIONS_CLASSES,
@@ -215,12 +214,11 @@ export function Composer({
                   data-tooltip={`Remove ${attachment.name}`}
                   onClick={() => removeAttachment(attachment.id)}
                 >
-                  <md-icon
+                  <Icon
                     aria-hidden="true"
                     className={ATTACHMENT_REMOVE_ICON_CLASSES}
-                  >
-                    close
-                  </md-icon>
+                    name="close"
+                  />
                 </button>
               </div>
             ) : (
@@ -254,12 +252,11 @@ export function Composer({
                   data-tooltip={`Remove ${attachment.name}`}
                   onClick={() => removeAttachment(attachment.id)}
                 >
-                  <md-icon
+                  <Icon
                     aria-hidden="true"
                     className={ATTACHMENT_REMOVE_ICON_CLASSES}
-                  >
-                    close
-                  </md-icon>
+                    name="close"
+                  />
                 </button>
               </div>
             ),
@@ -275,9 +272,11 @@ export function Composer({
             .filter(Boolean)
             .join(' ')}
         >
-          <md-icon aria-hidden="true" className={COMPOSER_LABEL_ICON_CLASSES}>
-            shield
-          </md-icon>
+          <Icon
+            aria-hidden="true"
+            className={COMPOSER_LABEL_ICON_CLASSES}
+            name="shield"
+          />
           {referenceLabel}
         </span>
         <textarea
@@ -319,12 +318,11 @@ export function Composer({
             disabled={disabled}
             onClick={() => fileInputRef.current?.click()}
           >
-            <md-icon
+            <Icon
               aria-hidden="true"
               className={COMPOSER_SOURCE_ICON_CLASSES}
-            >
-              add
-            </md-icon>
+              name="add"
+            />
           </button>
           <button
             type="button"
@@ -338,12 +336,11 @@ export function Composer({
             disabled={disabled}
             onClick={() => setConnectorsOpen(open => !open)}
           >
-            <md-icon
+            <Icon
               aria-hidden="true"
               className={COMPOSER_SOURCE_ICON_CLASSES}
-            >
-              database
-            </md-icon>
+              name="database"
+            />
           </button>
           {connectorsOpen ? (
             <div
@@ -363,12 +360,11 @@ export function Composer({
                   key={name}
                   onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
                 >
-                  <md-icon
+                  <Icon
                     className={CONNECTOR_ICON_CLASSES}
                     aria-hidden="true"
-                  >
-                    article
-                  </md-icon>
+                    name="article"
+                  />
                   <span>{name}</span>
                   <span
                     className={[
@@ -394,7 +390,7 @@ export function Composer({
           data-tooltip="Submit"
           disabled={!input.trim() || disabled}
         >
-          <md-icon aria-hidden="true">send</md-icon>
+          <Icon aria-hidden="true" name="send" />
         </button>
       </div>
     </form>
