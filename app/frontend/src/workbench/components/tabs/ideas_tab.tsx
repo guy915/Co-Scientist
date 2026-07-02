@@ -5,7 +5,7 @@ import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
 const IDEA_SPLIT_SHELL_CLASSES =
-  'idea-split-shell h-full overflow-hidden rounded-none border-0 bg-[var(--cosci-bg)]';
+  'idea-split-shell h-full overflow-hidden rounded-none border-0 bg-cosci-bg';
 
 const IDEA_SPLIT_GRID_CLASSES =
   'idea-split-grid reference grid h-full min-h-0 min-w-0 ' +
@@ -78,12 +78,12 @@ const IDEA_DETAIL_SECTION_CLASSES =
 
 const IDEA_SECTIONS_RAIL_CLASSES =
   'idea-sections-rail mt-5 mr-5 ml-2 grid min-w-0 self-start gap-[1.1rem] ' +
-  'rounded-[0.45rem] bg-[var(--cosci-panel)] p-4 max-[720px]:hidden';
+  'rounded-[0.45rem] bg-cosci-panel p-4 max-[720px]:hidden';
 
-const IDEA_SECTIONS_LABEL_CLASSES = 'text-[0.78rem] text-[var(--cosci-muted)]';
+const IDEA_SECTIONS_LABEL_CLASSES = 'text-[0.78rem] text-cosci-muted';
 
 const IDEA_SECTION_LINK_CLASSES =
-  'text-[0.9rem] leading-[1.35] font-semibold text-[var(--cosci-blue)] ' +
+  'text-[0.9rem] leading-[1.35] font-semibold text-cosci-blue ' +
   'no-underline';
 
 /**

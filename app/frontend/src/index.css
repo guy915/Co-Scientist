@@ -77,6 +77,36 @@
   --color-th-phase2: hsl(32 95% 50%);
   --color-th-phase3: hsl(0 72% 51%);
   --color-th-phase4: hsl(188 64% 35%);
+
+  /* Gemini product palette as named utilities (e.g. text-cosci-fg,
+     bg-cosci-panel). Each mirrors a --cosci-* token from reference_surface.css
+     so the shell/home avoid arbitrary [var(--cosci-*)] classes and match the
+     th-* utility convention. Values stay themed via the referenced token. */
+  --color-cosci-fg: var(--cosci-text);
+  --color-cosci-bg: var(--cosci-bg);
+  --color-cosci-border: var(--cosci-border);
+  --color-cosci-muted: var(--cosci-muted);
+  --color-cosci-panel: var(--cosci-panel);
+  --color-cosci-hover: var(--cosci-hover);
+  --color-cosci-blue: var(--cosci-blue);
+  --color-cosci-blue-strong: var(--cosci-blue-strong);
+  --color-cosci-teal-dark: var(--cosci-teal-dark);
+  --color-cosci-teal-bg: var(--cosci-teal-bg);
+  --color-cosci-composer-bg: var(--cosci-composer-bg);
+  --color-cosci-composer-border: var(--cosci-composer-border);
+  --color-cosci-composer-label: var(--cosci-composer-label);
+  --color-cosci-composer-text: var(--cosci-composer-text);
+  --color-cosci-composer-submit: var(--cosci-composer-submit);
+  --color-cosci-composer-submit-disabled: var(--cosci-composer-submit-disabled);
+  --color-cosci-source-button: var(--cosci-source-button);
+  --color-cosci-source-button-hover: var(--cosci-source-button-hover);
+  --color-cosci-source-button-hover-bg: var(--cosci-source-button-hover-bg);
+  --color-cosci-menu-bg: var(--cosci-menu-bg);
+  --color-cosci-menu-border: var(--cosci-menu-border);
+  --color-cosci-menu-divider: var(--cosci-menu-divider);
+  --color-cosci-menu-icon: var(--cosci-menu-icon);
+  --color-cosci-menu-text: var(--cosci-menu-text);
+
   --radius: 0.5rem;
 }
 

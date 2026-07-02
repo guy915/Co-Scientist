@@ -29,9 +29,9 @@ const LOGS_POPOVER_CLASSES = [
 
 const LOGS_BUTTON_CLASSES =
   'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +
-  'items-center gap-[0.45rem] rounded-full border-0 bg-[var(--cosci-teal-bg)] ' +
+  'items-center gap-[0.45rem] rounded-full border-0 bg-cosci-teal-bg ' +
   'px-[0.62rem] py-0 pl-[0.72rem] font-[inherit] text-[0.88rem] font-semibold ' +
-  'whitespace-nowrap text-[var(--cosci-teal-dark)] hover:bg-[#d4ece7] ' +
+  'whitespace-nowrap text-cosci-teal-dark hover:bg-[#d4ece7] ' +
   '[&[aria-expanded=true]]:bg-[#d4ece7] dark:bg-[#173b3b] dark:text-[#7fd7bf] ' +
   'dark:hover:bg-[#1f4b4b] dark:[&[aria-expanded=true]]:bg-[#1f4b4b]';
 

@@ -51,31 +51,31 @@ const TAB_LABELS: Record<TabName, string> = {
 };
 
 const REPORT_PAGE_CLASSES =
-  'cosci-report-page grid h-full min-h-0 grid-rows-[4.75rem_5.5rem_minmax(0,1fr)] bg-[var(--cosci-bg)] text-[var(--cosci-text)] max-[720px]:min-w-0 max-[720px]:overflow-hidden';
+  'cosci-report-page grid h-full min-h-0 grid-rows-[4.75rem_5.5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg max-[720px]:min-w-0 max-[720px]:overflow-hidden';
 
 const REPORT_TITLEBAR_CLASSES =
-  'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-[var(--cosci-border)] px-9 max-[720px]:gap-[0.35rem] max-[720px]:px-[0.7rem]';
+  'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 max-[720px]:gap-[0.35rem] max-[720px]:px-[0.7rem]';
 
 const REPORT_TITLE_LEFT_CLASSES =
   'cosci-report-title-left flex min-w-0 items-center gap-4 max-[720px]:gap-[0.45rem]';
 
 const REPORT_BACK_CLASSES =
-  'cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-[var(--cosci-muted)] no-underline hover:bg-[var(--cosci-hover)]';
+  'cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-cosci-muted no-underline hover:bg-cosci-hover';
 
 const REPORT_TITLE_CLASSES =
   'm-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[720px]:text-[0.9rem]';
 
 const SESSION_DETAILS_CLASSES =
-  'cosci-session-details cursor-pointer border-0 bg-transparent px-0 py-[0.45rem] font-[inherit] text-sm font-medium text-[var(--cosci-blue)] max-[720px]:hidden';
+  'cosci-session-details cursor-pointer border-0 bg-transparent px-0 py-[0.45rem] font-[inherit] text-sm font-medium text-cosci-blue max-[720px]:hidden';
 
 const REPORT_TABS_CLASSES =
-  'cosci-report-tabs grid grid-cols-4 border-b border-[var(--cosci-border)] max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
+  'cosci-report-tabs grid grid-cols-4 border-b border-cosci-border max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
 
 const REPORT_TAB_BUTTON_BASE_CLASSES =
   'relative grid min-w-0 cursor-pointer content-center justify-items-center gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm max-[720px]:gap-[0.2rem] max-[720px]:text-[0.68rem]';
 
 const REPORT_TAB_SELECTED_CLASSES =
-  "text-[var(--cosci-blue)] after:absolute after:right-[1.1rem] after:bottom-0 after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full after:bg-[var(--cosci-blue-strong)] after:content-['']";
+  "text-cosci-blue after:absolute after:right-[1.1rem] after:bottom-0 after:left-[1.1rem] after:h-[0.18rem] after:rounded-t-full after:bg-cosci-blue-strong after:content-['']";
 
 const REPORT_TAB_ICON_CLASSES = 'text-[1.35rem] max-[720px]:text-[1.12rem]';
 
@@ -301,7 +301,7 @@ export function RunDetail() {
 
 function reportTabButtonClass(selected: boolean): string {
   return `${REPORT_TAB_BUTTON_BASE_CLASSES} ${
-    selected ? REPORT_TAB_SELECTED_CLASSES : 'text-[var(--cosci-muted)]'
+    selected ? REPORT_TAB_SELECTED_CLASSES : 'text-cosci-muted'
   }`;
 }
 

@@ -4,7 +4,7 @@ export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] text-base leading-[1.7] max-[720px]:mt-5 max-[720px]:mb-12 max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
 
 export const REPORT_GENERATED_CHIP_CLASSES =
-  'cosci-generated-chip inline-flex items-center gap-[0.45rem] rounded-lg bg-[var(--cosci-panel)] px-[0.65rem] py-[0.45rem] text-[0.82rem] leading-[1.2] text-[var(--cosci-muted)]';
+  'cosci-generated-chip inline-flex items-center gap-[0.45rem] rounded-lg bg-cosci-panel px-[0.65rem] py-[0.45rem] text-[0.82rem] leading-[1.2] text-cosci-muted';
 
 export const REPORT_H2_CLASSES =
   'mt-9 mb-5 text-[clamp(2.15rem,3.2vw,2.75rem)] leading-[1.12] font-normal tracking-normal max-[720px]:text-[clamp(1.65rem,8vw,2.15rem)]';
@@ -21,7 +21,7 @@ export const REPORT_SECTION_LIST_ITEM_CLASSES =
   'my-[0.6rem] grid gap-[0.15rem]';
 
 export const REPORT_SECTION_LIST_META_CLASSES =
-  'text-[0.88rem] text-[var(--cosci-muted)]';
+  'text-[0.88rem] text-cosci-muted';
 
 export function ReportDocument({
   title,

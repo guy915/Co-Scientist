@@ -68,14 +68,14 @@ export const HOME_TOAST_CLASSES =
 
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[1.7rem] border ' +
-  'border-[var(--cosci-composer-border)] bg-[var(--cosci-composer-bg)] ' +
+  'border-cosci-composer-border bg-cosci-composer-bg ' +
   'p-[1.25rem_1.5rem_0.8rem]';
 
 export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem]';
 
 export const COMPOSER_LABEL_TEXT_CLASSES =
   'absolute top-0 left-0 z-[1] flex h-6 items-center gap-[0.45rem] ' +
-  'pointer-events-none text-base text-[var(--cosci-composer-label)]';
+  'pointer-events-none text-base text-cosci-composer-label';
 
 export const COMPOSER_LABEL_TEXT_HIDDEN_CLASSES = 'hidden';
 
@@ -84,7 +84,7 @@ export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 export const COMPOSER_TEXTAREA_CLASSES =
   'relative z-[2] block h-[3.6rem] max-h-[3.6rem] min-h-[3.6rem] w-full ' +
   'resize-none border-0 bg-transparent pt-0 font-[inherit] leading-6 ' +
-  'text-[var(--cosci-composer-text)] outline-none';
+  'text-cosci-composer-text outline-none';
 
 export const COMPOSER_ACTIONS_CLASSES =
   'reference-composer-actions pointer-events-none absolute right-5 bottom-3 ' +
@@ -101,31 +101,31 @@ export const COMPOSER_FILE_INPUT_CLASSES =
 export const COMPOSER_SOURCE_BUTTON_CLASSES =
   'reference-composer-source-button pointer-events-auto inline-flex size-8 ' +
   'cursor-pointer items-center justify-center rounded-full border-0 ' +
-  'bg-transparent p-0 text-[var(--cosci-source-button)] ' +
-  'hover:bg-[var(--cosci-source-button-hover-bg)] ' +
-  'hover:text-[var(--cosci-source-button-hover)] ' +
-  'focus-visible:bg-[var(--cosci-source-button-hover-bg)] ' +
-  'focus-visible:text-[var(--cosci-source-button-hover)] ' +
-  'aria-expanded:bg-[var(--cosci-source-button-hover-bg)] ' +
-  'aria-expanded:text-[var(--cosci-source-button-hover)]';
+  'bg-transparent p-0 text-cosci-source-button ' +
+  'hover:bg-cosci-source-button-hover-bg ' +
+  'hover:text-cosci-source-button-hover ' +
+  'focus-visible:bg-cosci-source-button-hover-bg ' +
+  'focus-visible:text-cosci-source-button-hover ' +
+  'aria-expanded:bg-cosci-source-button-hover-bg ' +
+  'aria-expanded:text-cosci-source-button-hover';
 
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 
 export const COMPOSER_SUBMIT_BUTTON_CLASSES =
   'pointer-events-auto grid size-10 cursor-pointer place-items-center ' +
-  'rounded-full border-0 bg-transparent p-0 text-[var(--cosci-composer-submit)] ' +
-  'disabled:cursor-default disabled:text-[var(--cosci-composer-submit-disabled)]';
+  'rounded-full border-0 bg-transparent p-0 text-cosci-composer-submit ' +
+  'disabled:cursor-default disabled:text-cosci-composer-submit-disabled';
 
 export const CONNECTORS_MENU_CLASSES =
   'reference-connectors-menu pointer-events-auto absolute bottom-[2.45rem] ' +
   'left-[2.35rem] z-10 w-56 overflow-hidden rounded-[0.9rem] border ' +
-  'border-[var(--cosci-menu-border)] bg-[var(--cosci-menu-bg)] py-[0.45rem] ' +
-  'text-[var(--cosci-menu-text)]';
+  'border-cosci-menu-border bg-cosci-menu-bg py-[0.45rem] ' +
+  'text-cosci-menu-text';
 
 export const CONNECTORS_MENU_HEADER_CLASSES =
   'reference-connectors-menu-row reference-connectors-menu-row--top grid ' +
   'min-h-[2.6rem] w-full grid-cols-[1fr] items-center border-0 border-b ' +
-  'border-[var(--cosci-menu-divider)] bg-transparent px-[0.9rem] py-[0.45rem] ' +
+  'border-cosci-menu-divider bg-transparent px-[0.9rem] py-[0.45rem] ' +
   'font-medium text-inherit';
 
 export const CONNECTORS_MENU_ROW_CLASSES =
@@ -135,7 +135,7 @@ export const CONNECTORS_MENU_ROW_CLASSES =
   'text-[0.9rem] text-inherit focus-visible:outline-none';
 
 export const CONNECTOR_ICON_CLASSES =
-  'reference-connector-icon text-[1.15rem] text-[var(--cosci-menu-icon)]';
+  'reference-connector-icon text-[1.15rem] text-cosci-menu-icon';
 
 export const CONNECTOR_TOGGLE_BASE_CLASSES =
   'reference-toggle relative h-[0.95rem] w-[1.6rem] rounded-full ' +

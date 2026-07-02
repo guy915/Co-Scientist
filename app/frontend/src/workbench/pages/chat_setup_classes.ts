@@ -16,7 +16,7 @@ export const CHAT_BUBBLE_USER_ROW_CLASSES =
 export const USER_BUBBLE_CLASSES =
   'reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-2xl ' +
   'bg-[#e9eefb] py-3 pr-[0.9rem] pl-4 text-base leading-[1.45] ' +
-  'text-[#202124] dark:bg-[#303134] dark:text-[var(--cosci-text)]';
+  'text-[#202124] dark:bg-[#303134] dark:text-cosci-fg';
 
 export const USER_BUBBLE_TEXT_CLASSES =
   'reference-user-bubble-text min-w-0 whitespace-pre-wrap break-words';
@@ -32,7 +32,7 @@ export const USER_COLLAPSE_BUTTON_CLASSES =
 
 export const MODEL_BUBBLE_CLASSES =
   'reference-model-bubble max-w-[50.75rem] text-base leading-[1.45] ' +
-  'text-[#202124] dark:text-[var(--cosci-text)]';
+  'text-[#202124] dark:text-cosci-fg';
 
 export const MESSAGE_ACTIONS_CLASSES =
   'reference-message-actions flex items-center gap-[0.2rem] px-[0.2rem]';
@@ -59,7 +59,7 @@ export const MESSAGE_ACTION_ICON_CLASSES = 'text-[1.12rem]';
 
 export const SETUP_MESSAGE_CLASSES =
   'reference-setup-message grid gap-[1.15rem] text-[#202124] ' +
-  'dark:text-[var(--cosci-text)]';
+  'dark:text-cosci-fg';
 
 export const SETUP_PARAGRAPH_CLASSES = 'm-0 text-base leading-6';
 
@@ -68,7 +68,7 @@ export const PLAN_HEADING_CLASSES =
 
 export const PLAN_TITLE_CLASSES =
   'm-0 text-[2rem] leading-[1.2] font-normal tracking-normal ' +
-  'text-[#202124] dark:text-[var(--cosci-text)]';
+  'text-[#202124] dark:text-cosci-fg';
 
 export const PLAN_EDIT_BUTTON_CLASSES =
   'reference-plan-edit grid size-[2.1rem] cursor-pointer place-items-center ' +
@@ -82,7 +82,7 @@ export const PLAN_EDIT_ICON_CLASSES = 'text-[1.55rem] text-current';
 
 export const PLAN_SUBHEADING_CLASSES =
   'reference-plan-subheading -mt-[0.35rem] m-0 text-[#3c4043] ' +
-  'dark:text-[var(--cosci-text)]';
+  'dark:text-cosci-fg';
 
 export const SETUP_DOCUMENT_CLASSES =
   'reference-setup-document grid gap-[1.15rem] rounded-2xl ' +
@@ -97,10 +97,10 @@ export const SPEC_ROW_CLASSES = 'google-spec-row block text-base';
 
 export const SPEC_TERM_CLASSES =
   'mb-[0.85rem] text-[1.18rem] font-bold text-[#202124] ' +
-  'dark:text-[var(--cosci-text)]';
+  'dark:text-cosci-fg';
 
 export const SPEC_DETAIL_CLASSES =
-  'm-0 leading-[1.45] text-[#202124] dark:text-[var(--cosci-text)]';
+  'm-0 leading-[1.45] text-[#202124] dark:text-cosci-fg';
 
 export const SPEC_LIST_CLASSES =
   'google-spec-list m-0 grid list-disc gap-[0.8rem] pl-[1.35rem]';
@@ -109,7 +109,7 @@ export const OPTION_GROUP_CLASSES =
   'reference-option-group m-0 grid min-w-0 gap-[0.9rem] border-0 p-0';
 
 export const OPTION_GROUP_LEGEND_CLASSES =
-  'text-[1.18rem] font-bold text-[#202124] dark:text-[var(--cosci-text)]';
+  'text-[1.18rem] font-bold text-[#202124] dark:text-cosci-fg';
 
 export const OPTION_GRID_CLASSES = 'grid grid-cols-2 gap-[0.85rem]';
 
@@ -118,7 +118,7 @@ export const OPTION_CARD_BASE_CLASSES =
   'content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent ' +
   'bg-white px-[0.95rem] py-[0.85rem] text-[#202124] ' +
   'hover:border-[#d4dbe6] hover:bg-[#e8eef6] focus-within:border-[#d4dbe6] ' +
-  'focus-within:bg-[#e8eef6] dark:bg-[#202427] dark:text-[var(--cosci-text)] ' +
+  'focus-within:bg-[#e8eef6] dark:bg-[#202427] dark:text-cosci-fg ' +
   'dark:hover:border-[#3c4043] dark:hover:bg-[#252a2d] ' +
   'dark:focus-within:border-[#3c4043] dark:focus-within:bg-[#252a2d]';
 
@@ -129,11 +129,11 @@ export const OPTION_INPUT_CLASSES = 'absolute pointer-events-none opacity-0';
 
 export const OPTION_MARKER_CLASSES =
   'mt-[0.08rem] size-[1.28rem] rounded-full border-2 border-[#5f6368] ' +
-  'dark:border-[var(--cosci-blue)]';
+  'dark:border-cosci-blue';
 
 export const OPTION_MARKER_SELECTED_CLASSES =
   'selected border-[#8ab4f8] bg-[#8ab4f8] ' +
-  'dark:border-[var(--cosci-blue)] dark:bg-[var(--cosci-blue)]';
+  'dark:border-cosci-blue dark:bg-cosci-blue';
 
 export const OPTION_LABEL_CLASSES = 'min-w-0 text-base leading-[1.2] font-bold';
 
@@ -148,7 +148,7 @@ export const SETUP_SECONDARY_BUTTON_CLASSES =
   'min-h-[2.6rem] cursor-pointer rounded-full border border-[#9aa0a6] ' +
   'bg-transparent px-[1.45rem] font-medium text-[#3c4043] disabled:cursor-default ' +
   'disabled:border-[#dadce0] disabled:bg-[#f1f3f4] disabled:text-[#9aa0a6] ' +
-  'dark:border-[var(--cosci-border)] dark:text-[var(--cosci-text)] ' +
+  'dark:border-cosci-border dark:text-cosci-fg ' +
   'dark:disabled:border-[#3c4043] dark:disabled:bg-[#202124] ' +
   'dark:disabled:text-[#5f6368]';
 
@@ -157,7 +157,7 @@ export const SETUP_PRIMARY_BUTTON_CLASSES =
   'bg-[var(--idea-ref-blue)] px-[1.45rem] font-medium text-white ' +
   'hover:bg-[#0842a0] focus-visible:bg-[#0842a0] disabled:cursor-default ' +
   'disabled:border-[#dadce0] disabled:bg-[#f1f3f4] disabled:text-[#9aa0a6] ' +
-  'dark:border-[#1d3354] dark:bg-[#1d3354] dark:text-[var(--cosci-blue)] ' +
+  'dark:border-[#1d3354] dark:bg-[#1d3354] dark:text-cosci-blue ' +
   'dark:hover:bg-[rgba(127,215,191,0.14)] ' +
   'dark:focus-visible:bg-[rgba(127,215,191,0.14)] ' +
   'dark:disabled:border-[#3c4043] dark:disabled:bg-[#202124] ' +
@@ -165,7 +165,7 @@ export const SETUP_PRIMARY_BUTTON_CLASSES =
 
 export const STARTED_MESSAGE_CLASSES =
   'reference-started-message grid gap-[1.15rem] text-[#202124] ' +
-  'dark:text-[var(--cosci-text)]';
+  'dark:text-cosci-fg';
 
 export const STARTED_COPY_CLASSES = 'reference-started-copy grid gap-[0.1rem]';
 
