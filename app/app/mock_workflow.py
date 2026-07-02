@@ -37,7 +37,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
-from app.citations import CitationRecord, classify_citation
+from app.citations import ALL_STATES, CitationRecord, classify_citation
 from app.elo import INITIAL_ELO, update_pair
 from app.run_modes import normalize_run_mode, resolved_run_config
 from app.safety import screen_final, screen_intake
@@ -48,17 +48,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-
-def normalize_profile(profile: str | None = None) -> str:
-    """Compatibility wrapper for former profile labels."""
-    return normalize_run_mode(profile)
-
-
-def resolved_config(profile: str,
-                    overrides: dict[str, int] | None = None) -> dict[str, int]:
-    """Compatibility wrapper for resolving canonical run config."""
-    return resolved_run_config(profile, overrides)
 
 
 def _seeded_rng(*parts: str) -> random.Random:
@@ -662,12 +651,7 @@ async def run_mock_workflow(
     })
 
     # ---- 11. Citation audit ----
-    cit_summary = {
-        "verified": 0,
-        "partial": 0,
-        "unsupported": 0,
-        "unavailable": 0
-    }
+    cit_summary = {state.value: 0 for state in ALL_STATES}
     for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
         # Link first 2 evidence items to each hypothesis as supporting citations
         for ev in evidence_payload[:2]:

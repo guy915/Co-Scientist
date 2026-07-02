@@ -82,6 +82,89 @@ _active_tasks: dict[str, dict[str, Any]] = {}
 _active_tasks_lock = asyncio.Lock()
 
 
+def _build_generator(
+    model_name: str | None = None,
+    supervisor_model_name: str | None = None,
+    max_iterations: int | None = None,
+    initial_hypotheses_count: int | None = None,
+    evolution_max_count: int | None = None,
+) -> "HypothesisGenerator":
+    """Builds a HypothesisGenerator, filling unset values from settings.
+
+    Args:
+        model_name: Optional model override.
+        supervisor_model_name: Optional supervisor model override.
+        max_iterations: Optional iteration-count override.
+        initial_hypotheses_count: Optional initial-hypotheses override.
+        evolution_max_count: Optional evolution-count override.
+
+    Returns:
+        A generator configured from the overrides merged with settings.
+    """
+    return HypothesisGenerator(
+        model_name=model_name or settings.model_name,
+        supervisor_model_name=(supervisor_model_name or
+                               settings.supervisor_model_name),
+        max_iterations=(max_iterations if max_iterations is not None else
+                        settings.max_iterations),
+        initial_hypotheses_count=(initial_hypotheses_count
+                                  if initial_hypotheses_count is not None else
+                                  settings.initial_hypotheses_count),
+        evolution_max_count=(evolution_max_count if evolution_max_count
+                             is not None else settings.evolution_max_count),
+        enable_cache=settings.coscientist_cache_enabled,
+        cache_dir=(settings.coscientist_cache_dir
+                   if settings.coscientist_cache_dir else None),
+        tools_config=settings.tools_config,
+    )
+
+
+def _generator_for_request(request: "GenerateRequest",
+                           context: str) -> "HypothesisGenerator":
+    """Returns the generator to use for a legacy generate request.
+
+    Reuses the shared server generator unless the request carries any override,
+    in which case a per-request generator is built from the overrides with
+    settings-based fallbacks.
+
+    Args:
+        request: Incoming generate request.
+        context: Short label for logging (e.g. "streaming").
+
+    Returns:
+        The shared generator, or a new one configured from request overrides.
+    """
+    if _generator is None:
+        raise HTTPException(status_code=503, detail="Generator not initialized")
+
+    if not any([
+            request.model_name,
+            request.supervisor_model_name,
+            request.max_iterations is not None,
+            request.initial_hypotheses_count is not None,
+            request.evolution_max_count is not None,
+    ]):
+        return _generator
+
+    generator = _build_generator(
+        model_name=request.model_name,
+        supervisor_model_name=request.supervisor_model_name,
+        max_iterations=request.max_iterations,
+        initial_hypotheses_count=request.initial_hypotheses_count,
+        evolution_max_count=request.evolution_max_count,
+    )
+    logger.info("Creating HypothesisGenerator (%s) with parameters:", context)
+    logger.info("  model_name: %s", generator.model_name)
+    logger.info("  supervisor_model_name: %s", generator.supervisor_model_name)
+    logger.info("  max_iterations: %s", generator.max_iterations)
+    logger.info("  initial_hypotheses_count: %s",
+                generator.initial_hypotheses_count)
+    logger.info("  evolution_max_count: %s", generator.evolution_max_count)
+    logger.info("  enable_cache: %s", settings.coscientist_cache_enabled)
+    logger.info("  cache_dir: %s", settings.coscientist_cache_dir or None)
+    return generator
+
+
 @asynccontextmanager
 async def lifespan(
     app: FastAPI,  # pylint: disable=redefined-outer-name,unused-argument
@@ -105,17 +188,7 @@ async def lifespan(
     logger.info("Workflow provider: %s", provider)
 
     if HypothesisGenerator is not None and provider == "engine":
-        _generator = HypothesisGenerator(
-            model_name=settings.model_name,
-            supervisor_model_name=settings.supervisor_model_name,
-            max_iterations=settings.max_iterations,
-            initial_hypotheses_count=settings.initial_hypotheses_count,
-            evolution_max_count=settings.evolution_max_count,
-            enable_cache=settings.coscientist_cache_enabled,
-            cache_dir=settings.coscientist_cache_dir
-            if settings.coscientist_cache_dir else None,
-            tools_config=settings.tools_config,
-        )
+        _generator = _build_generator()
     else:
         logger.info(
             "Engine generator not initialised; mock workflow will be used.")
@@ -124,20 +197,19 @@ async def lifespan(
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
     # interrupted by a crash or restart and would otherwise be stuck forever.
-    interrupted = store.reconcile_interrupted_runs(
-        db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
+    interrupted = store.reconcile_interrupted_runs()
     if interrupted:
         logger.info("Reconciled %s interrupted run(s) to failed: %s",
                     len(interrupted), ", ".join(r[:8] for r in interrupted))
 
-    await seed_demo_runs(db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
+    await seed_demo_runs()
 
     yield
 
     # Shutdown
     logger.info("Shutting down Co-Scientist server...")
     # Merge the WAL into the main DB so a clean stop leaves no -wal sidecar.
-    store.checkpoint_wal(db_path=os.getenv("COSCIENTIST_DB_PATH") or None)
+    store.checkpoint_wal()
 
 
 app = FastAPI(
@@ -506,54 +578,7 @@ async def generate_hypotheses(request: GenerateRequest) -> GenerateResponse:
 
     try:
         # Use request overrides or fall back to settings/defaults
-        generator = _generator
-        if any([
-                request.model_name,
-                request.supervisor_model_name,
-                request.max_iterations is not None,
-                request.initial_hypotheses_count is not None,
-                request.evolution_max_count is not None,
-        ]):
-            # Capture values with default fallbacks
-            model_name = request.model_name or settings.model_name
-            supervisor_model_name = request.supervisor_model_name or settings.supervisor_model_name
-            max_iterations = (request.max_iterations if request.max_iterations
-                              is not None else settings.max_iterations)
-            initial_hypotheses_count = (request.initial_hypotheses_count
-                                        if request.initial_hypotheses_count
-                                        is not None else
-                                        settings.initial_hypotheses_count)
-            evolution_max_count = (request.evolution_max_count
-                                   if request.evolution_max_count is not None
-                                   else settings.evolution_max_count)
-            enable_cache = settings.coscientist_cache_enabled
-            cache_dir = (settings.coscientist_cache_dir
-                         if settings.coscientist_cache_dir else None)
-
-            # Log all values being used
-            logger.info(
-                "Creating HypothesisGenerator (no streaming) with parameters:")
-            logger.info("  model_name: %s", model_name)
-            logger.info("  supervisor_model_name: %s", supervisor_model_name or
-                        model_name)
-            logger.info("  max_iterations: %s", max_iterations)
-            logger.info("  initial_hypotheses_count: %s",
-                        initial_hypotheses_count)
-            logger.info("  evolution_max_count: %s", evolution_max_count)
-            logger.info("  enable_cache: %s", enable_cache)
-            logger.info("  cache_dir: %s", cache_dir)
-
-            # Create a new generator with overrides
-            generator = HypothesisGenerator(
-                model_name=model_name,
-                supervisor_model_name=supervisor_model_name,
-                max_iterations=max_iterations,
-                initial_hypotheses_count=initial_hypotheses_count,
-                evolution_max_count=evolution_max_count,
-                enable_cache=enable_cache,
-                cache_dir=cache_dir,
-                tools_config=settings.tools_config,
-            )
+        generator = _generator_for_request(request, "no streaming")
 
         # Generate run_id for non-streaming endpoint
         import uuid  # pylint: disable=import-outside-toplevel
@@ -731,57 +756,7 @@ async def start_generation(request: GenerateRequest) -> dict[str, str]:
                         parsed_goal.enable_literature_review_node)
 
         # Use request overrides or fall back to settings/defaults
-        generator = _generator
-        if any([
-                request.model_name,
-                request.supervisor_model_name,
-                request.max_iterations is not None,
-                request.initial_hypotheses_count is not None,
-                request.evolution_max_count is not None,
-        ]):
-            # Capture values with default fallbacks
-            model_name = request.model_name or settings.model_name
-            supervisor_model_name = request.supervisor_model_name or settings.supervisor_model_name
-            max_iterations = (request.max_iterations if request.max_iterations
-                              is not None else settings.max_iterations)
-            initial_hypotheses_count = (request.initial_hypotheses_count
-                                        if request.initial_hypotheses_count
-                                        is not None else
-                                        settings.initial_hypotheses_count)
-            evolution_max_count = (request.evolution_max_count
-                                   if request.evolution_max_count is not None
-                                   else settings.evolution_max_count)
-            enable_cache = settings.coscientist_cache_enabled
-            cache_dir = (settings.coscientist_cache_dir
-                         if settings.coscientist_cache_dir else None)
-
-            # Log all values being used
-            logger.info(
-                "Creating HypothesisGenerator (streaming) with parameters:")
-            logger.info("  model_name: %s", model_name)
-            logger.info("  supervisor_model_name: %s", supervisor_model_name or
-                        model_name)
-            logger.info("  max_iterations: %s", max_iterations)
-            logger.info("  initial_hypotheses_count: %s",
-                        initial_hypotheses_count)
-            logger.info("  evolution_max_count: %s", evolution_max_count)
-            logger.info("  enable_cache: %s", enable_cache)
-            logger.info("  cache_dir: %s", cache_dir)
-
-            logger.info("Parsed goal details: '%s'",
-                        parsed_goal.model_dump_json(indent=2))
-
-            # Create a new generator with overrides
-            generator = HypothesisGenerator(
-                model_name=model_name,
-                supervisor_model_name=supervisor_model_name,
-                max_iterations=max_iterations,
-                initial_hypotheses_count=initial_hypotheses_count,
-                evolution_max_count=evolution_max_count,
-                enable_cache=enable_cache,
-                cache_dir=cache_dir,
-                tools_config=settings.tools_config,
-            )
+        generator = _generator_for_request(request, "streaming")
 
         # Create cancellation event for this task
         cancelled_event = asyncio.Event()
