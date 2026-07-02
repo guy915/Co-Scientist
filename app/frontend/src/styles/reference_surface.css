@@ -35,7 +35,6 @@
   --cosci-suggestion-active-bg: #edf2f7;
   --cosci-composer-border: #e0e0e0;
   --cosci-composer-bg: #fff;
-  --cosci-composer-shadow: 0 2px 8px rgb(60 64 67 / 12%);
   --cosci-composer-label: #5f6368;
   --cosci-composer-text: #202124;
   --cosci-composer-submit: var(--cosci-teal);
@@ -45,9 +44,6 @@
   --cosci-source-button-hover: #3c4043;
   --cosci-menu-border: #dadce0;
   --cosci-menu-bg: #fff;
-  --cosci-menu-shadow:
-    0 1px 2px rgb(60 64 67 / 16%),
-    0 8px 24px rgb(60 64 67 / 18%);
   --cosci-menu-text: #202124;
   --cosci-menu-row-hover: #f1f3f4;
   --cosci-menu-divider: #e8eaed;
@@ -55,7 +51,6 @@
   --cosci-recents-heading: #202124;
   --cosci-recent-card-border: #e0e0e0;
   --cosci-recent-card-bg: #fff;
-  --cosci-recent-card-shadow: 0 2px 8px rgb(60 64 67 / 16%);
   --cosci-recent-card-text: #202124;
   --cosci-recent-card-copy: #3c4043;
   --cosci-recent-meta-bg: #f1f3f4;
@@ -113,7 +108,6 @@
   --cosci-suggestion-active-bg: #173b3b;
   --cosci-composer-border: var(--cosci-border);
   --cosci-composer-bg: var(--cosci-panel);
-  --cosci-composer-shadow: none;
   --cosci-composer-label: var(--cosci-muted);
   --cosci-composer-text: var(--cosci-text);
   --cosci-composer-submit: var(--cosci-green);
@@ -123,9 +117,6 @@
   --cosci-source-button-hover: #e8eaed;
   --cosci-menu-border: #3c4043;
   --cosci-menu-bg: #2b2d2f;
-  --cosci-menu-shadow:
-    0 1px 2px rgb(0 0 0 / 24%),
-    0 8px 24px rgb(0 0 0 / 32%);
   --cosci-menu-text: #e8eaed;
   --cosci-menu-row-hover: #35383a;
   --cosci-menu-divider: #3c4043;
@@ -133,7 +124,6 @@
   --cosci-recents-heading: var(--cosci-text);
   --cosci-recent-card-border: #3c4043;
   --cosci-recent-card-bg: #202124;
-  --cosci-recent-card-shadow: none;
   --cosci-recent-card-text: var(--cosci-text);
   --cosci-recent-card-copy: var(--cosci-muted);
   --cosci-recent-meta-bg: #2b2c2f;
@@ -163,50 +153,6 @@
 
 body {
   background: var(--cosci-bg, var(--color-th-bg));
-}
-
-.ucs-popover {
-  box-shadow:
-    0 1px 3px rgb(60 64 67 / 30%),
-    0 4px 8px 3px rgb(60 64 67 / 15%);
-}
-
-:root[data-theme="dark"] .ucs-popover {
-  box-shadow: 0 8px 24px rgb(0 0 0 / 36%);
-}
-
-.reference-message-actions.end {
-  box-shadow: 0 1px 3px rgb(60 64 67 / 18%);
-}
-
-:root[data-theme="dark"] .reference-message-actions.end {
-  box-shadow: 0 1px 4px rgb(0 0 0 / 34%);
-}
-
-.reference-option-card .selected {
-  box-shadow: inset 0 0 0 0.25rem #e5eefc;
-}
-
-:root[data-theme="dark"] .reference-option-card .selected {
-  box-shadow: inset 0 0 0 0.25rem #1f2224;
-}
-
-.reference-toast {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 18%),
-    0 4px 10px rgb(0 0 0 / 22%);
-}
-
-.reference-composer {
-  box-shadow: var(--cosci-composer-shadow);
-}
-
-.reference-connectors-menu {
-  box-shadow: var(--cosci-menu-shadow);
-}
-
-.reference-recent-card {
-  box-shadow: var(--cosci-recent-card-shadow);
 }
 
 .reference-started-session-card {
