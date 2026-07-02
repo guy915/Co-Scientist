@@ -13,123 +13,55 @@ import {
 
 const BASELINE_ELO_RATING = 1200;
 
-const RECENTS_PANEL_CLASSES = `reference-recents min-[1181px]:!gap-[1.55rem] ${HOME_RECENTS_PANEL_CLASSES}`;
+const RECENTS_PANEL_CLASSES = `reference-recents ${HOME_RECENTS_PANEL_CLASSES}`;
 
-const RECENTS_HEADING_ICON_CLASSES = 'size-5 min-[1181px]:size-[1.375rem]';
+const RECENTS_HEADING_ICON_CLASSES = 'reference-recents-heading-icon';
 
-const RECENTS_HEADING_CLASSES =
-  'm-0 text-[1.15rem] font-semibold text-[var(--cosci-recents-heading)] ' +
-  'min-[1181px]:!text-[1.22rem] min-[1181px]:!font-medium ' +
-  'min-[1181px]:!leading-[1.2]';
+const RECENTS_HEADING_CLASSES = 'reference-recents-heading-title';
 
-const RECENTS_LIST_CLASSES = `min-[1181px]:!gap-[2.65rem] ${HOME_RECENTS_LIST_CLASSES}`;
+const RECENTS_LIST_CLASSES = HOME_RECENTS_LIST_CLASSES;
 
-const EMPTY_RECENTS_PANEL_CLASSES = `${RECENTS_PANEL_CLASSES} grid-rows-[auto_1fr] self-stretch pb-8`;
+const EMPTY_RECENTS_PANEL_CLASSES = `${RECENTS_PANEL_CLASSES} reference-recents--empty`;
 
-const EMPTY_RECENTS_LIST_CLASSES = `${RECENTS_LIST_CLASSES} h-full !max-h-none !overflow-hidden !p-0`;
+const EMPTY_RECENTS_LIST_CLASSES = `${RECENTS_LIST_CLASSES} reference-recents-list--empty`;
 
-const EMPTY_RECENTS_ITEM_CLASSES = 'h-full min-h-0';
+const EMPTY_RECENTS_ITEM_CLASSES = 'reference-recents-empty-item';
 
-const EMPTY_RECENTS_CLASSES =
-  'reference-recents-empty box-border grid h-full min-h-[25rem] w-full ' +
-  'place-items-center content-center gap-4 rounded-[1.35rem] border-[1.5px] ' +
-  'border-dashed border-[#c7c9cc] bg-transparent p-6 text-center ' +
-  'text-[#5f6368] dark:border-[#53565a] dark:text-[#bdc1c6]';
+const EMPTY_RECENTS_CLASSES = 'reference-recents-empty-state';
 
-const EMPTY_RECENTS_ICON_CLASSES =
-  'reference-recents-empty-icon block h-[1.95rem] w-[2.1rem] ' +
-  'text-[var(--cosci-teal)] dark:text-[#7fd7bf]';
+const EMPTY_RECENTS_ICON_CLASSES = 'reference-recents-empty-icon';
 
-const EMPTY_RECENTS_COPY_CLASSES =
-  'max-w-[17rem] text-base leading-[1.35] font-[650] text-inherit';
+const EMPTY_RECENTS_COPY_CLASSES = 'reference-recents-empty-copy';
 
-const RECENT_CARD_CLASSES =
-  'reference-recent-card grid min-h-[15.75rem] w-full content-start gap-[0.7rem] ' +
-  'rounded-[0.8rem] border border-[var(--cosci-recent-card-border)] ' +
-  'bg-[var(--cosci-recent-card-bg)] p-[1.05rem_1.2rem] text-left ' +
-  'text-[var(--cosci-recent-card-text)] no-underline ' +
-  'cursor-pointer min-[1181px]:!min-h-0 min-[1181px]:!rounded-2xl ' +
-  'min-[1181px]:!border-[#eef1f4] min-[1181px]:!px-[1.15rem] ' +
-  'min-[1181px]:!pt-[1.05rem] min-[1181px]:!pb-[1.12rem] ' +
-  'min-[1181px]:hover:!border-[#dadce0] min-[1181px]:hover:!bg-[#f8fafd] ' +
-  'min-[1181px]:focus-visible:!border-[#dadce0] ' +
-  'min-[1181px]:focus-visible:!bg-[#f8fafd] ' +
-  'dark:min-[1181px]:!border-transparent dark:min-[1181px]:!bg-[#17191c] ' +
-  'dark:min-[1181px]:hover:!border-[#3c4043] ' +
-  'dark:min-[1181px]:hover:!bg-[#202124] ' +
-  'dark:min-[1181px]:focus-visible:!border-[#3c4043] ' +
-  'dark:min-[1181px]:focus-visible:!bg-[#202124]';
+const RECENT_CARD_CLASSES = 'reference-recent-card';
 
 const ACTIVE_RECENT_CARD_CLASSES = `${RECENT_CARD_CLASSES} is-active-run`;
 
-const RECENT_META_CLASSES =
-  'reference-recent-meta flex flex-wrap gap-[0.35rem]';
+const RECENT_META_CLASSES = 'reference-recent-meta';
 
-const RECENT_META_CHIP_CLASSES =
-  'rounded-[0.35rem] bg-[var(--cosci-recent-meta-bg)] px-[0.48rem] ' +
-  'py-[0.32rem] text-[0.75rem] font-semibold text-[var(--cosci-recent-meta-text)] ' +
-  'min-[1181px]:!bg-[#f1f4f7] min-[1181px]:!px-[0.62rem] ' +
-  'min-[1181px]:!py-[0.38rem] min-[1181px]:!text-[0.78rem] ' +
-  'min-[1181px]:!leading-[1.1] min-[1181px]:!text-[#3c4043] ' +
-  'dark:min-[1181px]:!bg-[#303335] dark:min-[1181px]:!text-[#f1f3f4]';
+const RECENT_META_CHIP_CLASSES = 'reference-recent-meta-chip';
 
-const RECENT_TITLE_CLASSES =
-  'text-[1.02rem] leading-[1.35] min-[1181px]:!text-[1.08rem]';
+const RECENT_TITLE_CLASSES = 'reference-recent-title';
 
-const RECENT_DESCRIPTION_CLASSES =
-  'line-clamp-4 overflow-hidden text-[0.9rem] leading-[1.35] ' +
-  'text-[var(--cosci-recent-card-copy)] min-[1181px]:!text-[0.94rem] ' +
-  'min-[1181px]:!leading-[1.34] min-[1181px]:!line-clamp-3';
+const RECENT_DESCRIPTION_CLASSES = 'reference-recent-description';
 
-const RECENT_CHIPS_CLASSES =
-  'reference-recent-chips flex flex-nowrap items-center gap-[0.35rem]';
+const RECENT_CHIPS_CLASSES = 'reference-recent-chips';
 
-const RECENT_CHIP_CLASSES =
-  'inline-flex items-center gap-1 rounded-[0.35rem] bg-[var(--cosci-recent-chip-bg)] ' +
-  'px-[0.48rem] py-[0.32rem] text-[0.75rem] font-semibold ' +
-  'text-[var(--cosci-recent-chip-text)] min-[1181px]:!flex-none ' +
-  'min-[1181px]:!min-h-[1.62rem] ' +
-  'min-[1181px]:!px-[0.42rem] min-[1181px]:!py-[0.26rem] ' +
-  'min-[1181px]:!text-[0.68rem] min-[1181px]:!leading-none ' +
-  'min-[1181px]:!whitespace-nowrap dark:min-[1181px]:!bg-[#0b8043] ' +
-  'dark:min-[1181px]:!text-[#e6f4ea]';
+const RECENT_CHIP_CLASSES = 'reference-recent-chip';
 
-const RECENT_CHIP_ICON_CLASSES = 'size-4';
+const RECENT_CHIP_ICON_CLASSES = 'reference-recent-chip-icon';
 
-const ACTIVE_PROGRESS_CLASSES =
-  'reference-active-progress min-[1181px]:!mt-[0.05rem] min-[1181px]:!flex ' +
-  'min-[1181px]:!items-center min-[1181px]:!gap-[0.65rem] ' +
-  'min-[1181px]:!text-[0.92rem] min-[1181px]:!font-medium ' +
-  'min-[1181px]:!leading-[1.25] min-[1181px]:!text-[#1967d2] ' +
-  'dark:min-[1181px]:!text-[#8fd8c7]';
+const ACTIVE_PROGRESS_CLASSES = 'reference-active-progress';
 
-const ACTIVE_PROGRESS_DOT_CLASSES =
-  'min-[1181px]:!block min-[1181px]:!size-[0.7rem] ' +
-  'min-[1181px]:!shrink-0 min-[1181px]:!rounded-full ' +
-  'min-[1181px]:!bg-current';
+const ACTIVE_PROGRESS_DOT_CLASSES = 'reference-active-progress-dot';
 
-const WINNER_LIST_CLASSES =
-  'reference-winner-list m-[0.15rem_0_0] grid list-none gap-[0.65rem] p-0 ' +
-  'text-[0.78rem] leading-[1.35] text-[var(--cosci-recent-card-text)] ' +
-  'min-[1181px]:!gap-2 min-[1181px]:!text-[0.84rem] ' +
-  'min-[1181px]:!leading-[1.25] min-[1181px]:!text-[#202124] ' +
-  'dark:min-[1181px]:!text-[#f1f3f4]';
+const WINNER_LIST_CLASSES = 'reference-winner-list';
 
-const WINNER_LIST_ITEM_CLASSES =
-  'min-[1181px]:!grid min-[1181px]:!grid-cols-[1.4rem_minmax(0,1fr)] ' +
-  'min-[1181px]:!gap-[0.2rem]';
+const WINNER_LIST_ITEM_CLASSES = 'reference-winner-list-item';
 
-const GENERATING_ROW_CLASSES =
-  'reference-generating-row min-[1181px]:!grid ' +
-  'min-[1181px]:!grid-cols-[0.75rem_minmax(0,1fr)] ' +
-  'min-[1181px]:!items-center min-[1181px]:!gap-[0.65rem] ' +
-  'min-[1181px]:!font-medium min-[1181px]:!text-[#137333] ' +
-  'dark:min-[1181px]:!text-[#8fd8c7]';
+const GENERATING_ROW_CLASSES = 'reference-generating-row';
 
-const GENERATING_DOT_CLASSES =
-  'min-[1181px]:!block min-[1181px]:!size-[0.6rem] ' +
-  'min-[1181px]:!shrink-0 min-[1181px]:!rounded-full ' +
-  'min-[1181px]:!bg-current min-[1181px]:!opacity-70';
+const GENERATING_DOT_CLASSES = 'reference-generating-dot';
 
 export function topEloFromHypotheses(hypotheses: Hypothesis[]): number {
   const ratings = hypotheses
