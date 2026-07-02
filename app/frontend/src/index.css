@@ -1,4 +1,5 @@
-@import "tailwindcss" source(none);
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities) source(none);
 
 @source "./components";
 @source "./public";
@@ -104,11 +105,20 @@
   font-family: "Google Sans", system-ui, sans-serif;
 }
 
+*,
+::before,
+::after {
+  box-sizing: border-box;
+}
+
 html {
   background-color: var(--color-th-bg);
   color: var(--color-th-fg);
+  line-height: 1.5;
   /* Prevent any child from creating horizontal scroll on mobile */
   overflow-x: hidden;
+  tab-size: 4;
+  -webkit-text-size-adjust: 100%;
 }
 
 /* Apply theme to body */
@@ -116,6 +126,14 @@ body {
   background-color: var(--color-th-bg);
   color: var(--color-th-fg);
   margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
 }
 
 /* Default border color */

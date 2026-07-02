@@ -47,7 +47,7 @@ const RECENT_CARD_CLASSES =
   'reference-recent-card grid min-h-[15.75rem] w-full content-start gap-[0.7rem] ' +
   'rounded-[0.8rem] border border-[var(--cosci-recent-card-border)] ' +
   'bg-[var(--cosci-recent-card-bg)] p-[1.05rem_1.2rem] text-left ' +
-  'text-[var(--cosci-recent-card-text)] no-underline shadow-[var(--cosci-recent-card-shadow)] ' +
+  'text-[var(--cosci-recent-card-text)] no-underline ' +
   'cursor-pointer min-[1181px]:!min-h-0 min-[1181px]:!rounded-2xl ' +
   'min-[1181px]:!border-[#eef1f4] min-[1181px]:!px-[1.15rem] ' +
   'min-[1181px]:!pt-[1.05rem] min-[1181px]:!pb-[1.12rem] ' +

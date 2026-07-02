@@ -5,7 +5,7 @@ import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
 const IDEA_SPLIT_SHELL_CLASSES =
-  'idea-split-shell h-full overflow-hidden rounded-none border-0 bg-[var(--cosci-bg)] shadow-none';
+  'idea-split-shell h-full overflow-hidden rounded-none border-0 bg-[var(--cosci-bg)]';
 
 const IDEA_SPLIT_GRID_CLASSES =
   'idea-split-grid reference grid h-full min-h-0 min-w-0 ' +
@@ -27,7 +27,7 @@ const IDEA_RANK_ROW_CLASSES =
 
 const IDEA_RANK_SELECTED_CLASSES =
   'selected !border-[var(--idea-row-selected-border)] ' +
-  '!bg-[var(--idea-row-selected-bg)] shadow-none ' +
+  '!bg-[var(--idea-row-selected-bg)] ' +
   'hover:!border-[var(--idea-row-selected-border)] ' +
   'hover:!bg-[var(--idea-row-selected-hover-bg)]';
 

@@ -139,7 +139,7 @@ const NAV_LABEL_COLLAPSED_CLASSES = `nav-label w-0 max-w-0 ${HIDDEN_ON_MOBILE_CL
 const HEADER_CLASSES =
   'ucs-header-action-bar sticky top-0 z-20 flex min-h-[4.5rem] items-center ' +
   'justify-between gap-4 border-b-0 bg-[var(--cosci-surface-bg)] ' +
-  'px-[1.625rem] backdrop-blur-none max-[700px]:!min-w-0 ' +
+  'px-[1.625rem] max-[700px]:!min-w-0 ' +
   'max-[700px]:!px-[0.85rem]';
 
 const PRODUCT_LOCKUP_CLASSES =
@@ -160,9 +160,7 @@ const HEADER_ACTIONS_CLASSES =
 const SHELL_POPOVER_CLASSES =
   'ucs-popover absolute z-[35] grid w-80 gap-[0.35rem] rounded-2xl border ' +
   'border-[#dadce0] bg-white p-3 text-[#202124] ' +
-  'shadow-[0_1px_3px_rgb(60_64_67_/_30%),0_4px_8px_3px_rgb(60_64_67_/_15%)] ' +
-  'dark:border-[#3c4043] dark:bg-[#202124] dark:text-[#e8eaed] ' +
-  'dark:shadow-[0_8px_24px_rgb(0_0_0_/_36%)]';
+  'dark:border-[#3c4043] dark:bg-[#202124] dark:text-[#e8eaed]';
 
 const RAIL_POPOVER_CLASSES =
   'ucs-popover--rail bottom-[0.15rem] left-12 !w-[min(18.25rem,calc(100vw-4rem))] !p-[0.8rem]';

@@ -41,13 +41,11 @@ export const MESSAGE_ACTIONS_END_CLASSES =
   'reference-message-actions end pointer-events-none absolute top-1/2 ' +
   'z-[2] flex -translate-y-1/2 scale-[0.98] items-center gap-[0.2rem] ' +
   'rounded-full border border-[#dadce0] bg-white p-[0.1rem] opacity-0 ' +
-  'shadow-[0_1px_3px_rgba(60,64,67,0.18)] ' +
   '[right:calc(min(31rem,72vw)+0.4rem)] ' +
   'group-hover/user:pointer-events-auto group-hover/user:scale-100 ' +
   'group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto ' +
   'group-focus-within/user:scale-100 group-focus-within/user:opacity-100 ' +
-  'dark:border-[#3c4043] dark:bg-[#202124] ' +
-  'dark:shadow-[0_1px_4px_rgba(0,0,0,0.34)]';
+  'dark:border-[#3c4043] dark:bg-[#202124]';
 
 export const MESSAGE_ACTION_BUTTON_CLASSES =
   'grid size-8 cursor-pointer place-items-center rounded-full border-0 ' +
@@ -134,9 +132,8 @@ export const OPTION_MARKER_CLASSES =
   'dark:border-[var(--cosci-blue)]';
 
 export const OPTION_MARKER_SELECTED_CLASSES =
-  'border-[#8ab4f8] bg-[#8ab4f8] shadow-[inset_0_0_0_0.25rem_#e5eefc] ' +
-  'dark:border-[var(--cosci-blue)] dark:bg-[var(--cosci-blue)] ' +
-  'dark:shadow-[inset_0_0_0_0.25rem_#1f2224]';
+  'selected border-[#8ab4f8] bg-[#8ab4f8] ' +
+  'dark:border-[var(--cosci-blue)] dark:bg-[var(--cosci-blue)]';
 
 export const OPTION_LABEL_CLASSES = 'min-w-0 text-base leading-[1.2] font-bold';
 
@@ -177,9 +174,7 @@ export const STARTED_COPY_PARAGRAPH_CLASSES = 'm-0 text-base leading-[1.45]';
 export const STARTED_SESSION_CARD_CLASSES =
   'reference-started-session-card grid min-h-[5.3rem] cursor-pointer ' +
   'grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl ' +
-  'border-0 bg-[linear-gradient(100deg,rgba(16,92,92,0.95),rgba(42,117,95,0.94)),#145d5d] ' +
-  'p-[1rem_1rem_1rem_1.35rem] text-left text-white ' +
-  'dark:bg-[linear-gradient(100deg,rgba(21,76,76,0.98),rgba(26,92,70,0.96)),#123a3a]';
+  'border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-white';
 
 export const STARTED_SESSION_TITLE_CLASSES =
   'line-clamp-1 text-[1.18rem] leading-[1.25]';

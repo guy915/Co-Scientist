@@ -184,13 +184,13 @@ export const HOME_LOAD_MORE_BUTTON_CLASSES =
 export const HOME_TOAST_CLASSES =
   'reference-toast fixed top-1/2 left-1/2 z-[60] -translate-x-1/2 ' +
   '-translate-y-1/2 rounded bg-[#303134] px-5 py-[0.82rem] text-[0.92rem] ' +
-  'font-medium text-[#f1f3f4] shadow-[0_1px_2px_rgba(0,0,0,0.18),0_4px_10px_rgba(0,0,0,0.22)] ' +
+  'font-medium text-[#f1f3f4] ' +
   'dark:bg-[#f1f3f4] dark:text-[#202124]';
 
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[1.7rem] border ' +
   'border-[var(--cosci-composer-border)] bg-[var(--cosci-composer-bg)] ' +
-  'p-[1.25rem_1.5rem_0.8rem] shadow-[var(--cosci-composer-shadow)]';
+  'p-[1.25rem_1.5rem_0.8rem]';
 
 export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem]';
 
@@ -241,7 +241,7 @@ export const CONNECTORS_MENU_CLASSES =
   'reference-connectors-menu pointer-events-auto absolute bottom-[2.45rem] ' +
   'left-[2.35rem] z-10 w-56 overflow-hidden rounded-[0.9rem] border ' +
   'border-[var(--cosci-menu-border)] bg-[var(--cosci-menu-bg)] py-[0.45rem] ' +
-  'text-[var(--cosci-menu-text)] shadow-[var(--cosci-menu-shadow)]';
+  'text-[var(--cosci-menu-text)]';
 
 export const CONNECTORS_MENU_HEADER_CLASSES =
   'reference-connectors-menu-row reference-connectors-menu-row--top grid ' +
