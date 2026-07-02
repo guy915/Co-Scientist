@@ -5,27 +5,13 @@ import {ChatWorkspace} from './chat_workspace';
 
 const apiMock = vi.hoisted(() => ({
   createRun: vi.fn(),
-  getCitations: vi.fn(),
-  getEvidence: vi.fn(),
   getHypotheses: vi.fn(),
-  getMatches: vi.fn(),
-  getReport: vi.fn(),
-  getReviews: vi.fn(),
-  getRun: vi.fn(),
-  askQuestionUrl: vi.fn(),
   listDemoRuns: vi.fn(),
-  listMessages: vi.fn(),
   listRuns: vi.fn(),
-  sendMessage: vi.fn(),
   startRun: vi.fn(),
 }));
 
-const streamMock = vi.hoisted(() => ({
-  useRunStream: vi.fn(),
-}));
-
 vi.mock('@/api/runs', () => apiMock);
-vi.mock('@/hooks/use_run_stream', () => streamMock);
 
 function renderWorkspace() {
   return render(
@@ -84,72 +70,8 @@ const hypothesis = {
 beforeEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
-  apiMock.askQuestionUrl.mockImplementation(
-    (runId: string) => `/api/runs/${runId}/messages/ask`,
-  );
   apiMock.createRun.mockResolvedValue(minimalRun({status: 'draft'}));
-  apiMock.getCitations.mockResolvedValue([
-    {
-      id: 1,
-      hypothesis_id: 'hyp-1',
-      evidence_id: 'ev-1',
-      claim: 'Mechanistic claim',
-      state: 'verified',
-    },
-  ]);
-  apiMock.getEvidence.mockResolvedValue([
-    {
-      id: 'ev-1',
-      title: 'Glucose homeostasis study',
-      source: 'mock',
-      url: '',
-      authors: [],
-      year: 2025,
-      abstract: 'abstract',
-      available: true,
-    },
-  ]);
   apiMock.getHypotheses.mockResolvedValue([hypothesis]);
-  apiMock.getMatches.mockResolvedValue([
-    {
-      id: 1,
-      iteration: 1,
-      winner_id: 'hyp-1',
-      loser_id: 'hyp-2',
-      winner_elo_before: 1200,
-      winner_elo_after: 1240,
-      loser_elo_before: 1200,
-      loser_elo_after: 1160,
-      rationale: 'Stronger mechanistic specificity.',
-      created_at: 1,
-    },
-  ]);
-  apiMock.getReport.mockResolvedValue({
-    id: 'report-1',
-    run_id: 'run-1',
-    payload: {
-      research_goal: 'Investigate glucose homeostasis.',
-      profile: 'standard',
-      provider: 'mock',
-      leaderboard: [{id: 'hyp-1', title: hypothesis.title, elo: 1240}],
-    },
-    markdown_path: '/tmp/report.md',
-    created_at: 4,
-  });
-  apiMock.getReviews.mockResolvedValue([
-    {
-      id: 1,
-      hypothesis_id: 'hyp-1',
-      reviewer_agent: 'reflection',
-      summary: 'High testability and clear mechanism.',
-      critique: 'critique',
-      novelty: 0.7,
-      plausibility: 0.8,
-      testability: 0.9,
-      overall: 0.8,
-    },
-  ]);
-  apiMock.getRun.mockResolvedValue(minimalRun());
   apiMock.listDemoRuns.mockResolvedValue([
     minimalRun({
       id: 'demo-ferroptosis',
@@ -158,29 +80,8 @@ beforeEach(() => {
         'What are the key molecular regulators of ferroptosis in pancreatic cancer cells, and how might their modulation enhance chemotherapy sensitivity?',
     }),
   ]);
-  apiMock.listMessages.mockResolvedValue([]);
   apiMock.listRuns.mockResolvedValue([]);
-  apiMock.sendMessage.mockImplementation(
-    (runId: string, content: string, kind = 'steering') =>
-      Promise.resolve({
-        id: 1,
-        run_id: runId,
-        sender: 'user',
-        content,
-        kind,
-        created_at: Date.now() / 1000,
-        applied: false,
-        status: 'queued',
-      }),
-  );
   apiMock.startRun.mockResolvedValue({id: 'run-1', status: 'queued'});
-  streamMock.useRunStream.mockReturnValue({
-    events: [],
-    lastSeq: 0,
-    isOpen: false,
-    error: null,
-    terminal: true,
-  });
 });
 
 describe('ChatWorkspace', () => {

@@ -13,8 +13,7 @@ export const HOME_STAGE_CLASSES =
   'gap-[clamp(2.5rem,7vw,7.5rem)] overflow-hidden ' +
   'p-[1.15rem_1.5rem_clamp(1.6rem,4vh,2.6rem)] ' +
   'min-[1181px]:[--home-recents-width:clamp(20.75rem,20vw,22rem)] ' +
-  'min-[1181px]:!grid min-[1181px]:!h-full min-[1181px]:!min-h-0 ' +
-  'min-[1181px]:!items-start min-[1181px]:!overflow-hidden ' +
+  'min-[1181px]:!items-start ' +
   'min-[1181px]:!py-0 min-[1181px]:!grid-cols-[minmax(0,1fr)_minmax(20.75rem,var(--home-recents-width))] ' +
   'min-[1181px]:!justify-stretch min-[1181px]:!gap-[clamp(2.25rem,3.1vw,3.35rem)] ' +
   'min-[1181px]:!pl-[clamp(2rem,3vw,4rem)] ' +
@@ -33,7 +32,7 @@ export const HOME_STAGE_CLASSES =
 export const HOME_MAIN_CLASSES =
   'reference-home-main grid content-start pt-[clamp(2.4rem,7vh,3.5rem)] ' +
   'min-[1181px]:!h-full min-[1181px]:!min-w-0 ' +
-  'min-[1181px]:!max-h-[calc(100vh-4.5rem)] min-[1181px]:!content-start ' +
+  'min-[1181px]:!max-h-[calc(100vh-4.5rem)] ' +
   'min-[1181px]:!grid-rows-[auto_auto_minmax(2rem,1fr)_auto] ' +
   'min-[1181px]:!pt-[clamp(4.85rem,8.8vh,6.4rem)] ' +
   'min-[1181px]:!pb-[clamp(1.35rem,3.2vh,2.25rem)] ' +
@@ -57,7 +56,6 @@ export const HOME_STEP_TIMELINE_CLASSES =
   'list-none grid-cols-[repeat(3,minmax(0,1fr))] gap-[3.9rem] p-0 ' +
   'before:absolute before:top-4 before:right-4 before:left-4 before:h-px ' +
   'before:bg-[var(--cosci-step-line)] before:[content:""] ' +
-  'min-[1181px]:!grid-cols-[repeat(3,minmax(0,1fr))] ' +
   'min-[1181px]:!gap-x-0 min-[1181px]:!mt-[clamp(3.85rem,7.6vh,5.8rem)] ' +
   'min-[701px]:max-[1180px]:!grid-cols-[repeat(3,minmax(0,1fr))] ' +
   'min-[701px]:max-[1180px]:!gap-0 ' +

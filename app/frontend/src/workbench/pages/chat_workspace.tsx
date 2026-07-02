@@ -245,6 +245,25 @@ export function ChatWorkspace() {
     return createdAt;
   }
 
+  function clearSessionState() {
+    setDraftSpec(null);
+    setDraftSpecCreatedAt(null);
+    setConfirmedSpec(null);
+    setConfirmedSpecCreatedAt(null);
+    setStartedSession(null);
+  }
+
+  function stageDraftSpec(
+    spec: InferredRunSpec,
+    createdAt = Date.now() / 1000,
+  ) {
+    setDraftSpec(spec);
+    setDraftSpecCreatedAt(createdAt);
+    setConfirmedSpec(null);
+    setConfirmedSpecCreatedAt(null);
+    setStartedSession(null);
+  }
+
   function handleRetryMessage(message: ChatEntry) {
     appendAssistant(message.content);
   }
@@ -258,11 +277,7 @@ export function ChatWorkspace() {
     await copyText(message.content);
     const copiedSpec = inferRunSpec(message.content);
     const createdAt = Date.now() / 1000;
-    setDraftSpec(copiedSpec);
-    setDraftSpecCreatedAt(createdAt);
-    setConfirmedSpec(null);
-    setConfirmedSpecCreatedAt(null);
-    setStartedSession(null);
+    stageDraftSpec(copiedSpec, createdAt);
     setToast(null);
     emitDiagnosticEvent({
       stage: 'CHAT',
@@ -273,18 +288,13 @@ export function ChatWorkspace() {
 
   function handleRetryDraftSpec() {
     if (!draftSpec) return;
-    setDraftSpec(inferRunSpec(draftSpec.goal));
-    setDraftSpecCreatedAt(Date.now() / 1000);
+    stageDraftSpec(inferRunSpec(draftSpec.goal));
   }
 
   function handleCancelDraftSpec() {
     const title = draftSpec ? referenceSetupTitle(draftSpec.goal) : undefined;
     setInput('');
-    setDraftSpec(null);
-    setDraftSpecCreatedAt(null);
-    setConfirmedSpec(null);
-    setConfirmedSpecCreatedAt(null);
-    setStartedSession(null);
+    clearSessionState();
     setMessages([]);
     setError(null);
     setToast('The session was canceled');
@@ -296,11 +306,7 @@ export function ChatWorkspace() {
   }
 
   function handleEditPlan(spec: InferredRunSpec) {
-    setDraftSpec(spec);
-    setDraftSpecCreatedAt(Date.now() / 1000);
-    setConfirmedSpec(null);
-    setConfirmedSpecCreatedAt(null);
-    setStartedSession(null);
+    stageDraftSpec(spec);
     focusComposer();
     emitDiagnosticEvent({
       stage: 'CHAT',
@@ -320,10 +326,7 @@ export function ChatWorkspace() {
     if (draftSpec) {
       const sentAt = appendUser(text);
       const next = reviseRunSpec(draftSpec, text);
-      setDraftSpec(next);
-      setDraftSpecCreatedAt(sentAt + 0.001);
-      setConfirmedSpec(null);
-      setConfirmedSpecCreatedAt(null);
+      stageDraftSpec(next, sentAt + 0.001);
       appendAssistant(
         'I updated the run setup. Start it when the spec looks right.',
         sentAt + 0.002,
@@ -338,10 +341,7 @@ export function ChatWorkspace() {
 
     const sentAt = appendUser(text);
     const next = inferRunSpec(text);
-    setDraftSpec(next);
-    setDraftSpecCreatedAt(sentAt + 0.001);
-    setConfirmedSpec(null);
-    setConfirmedSpecCreatedAt(null);
+    stageDraftSpec(next, sentAt + 0.001);
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
       run: referenceSetupTitle(next.goal),
@@ -466,10 +466,7 @@ export function ChatWorkspace() {
           onCancel={() => undefined}
           onEdit={() => handleEditPlan(confirmedSpec)}
           onRetry={() => {
-            setDraftSpec(confirmedSpec);
-            setDraftSpecCreatedAt(Date.now() / 1000);
-            setConfirmedSpec(null);
-            setConfirmedSpecCreatedAt(null);
+            stageDraftSpec(confirmedSpec);
           }}
           onStart={() => undefined}
         />
