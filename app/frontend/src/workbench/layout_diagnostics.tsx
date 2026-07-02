@@ -30,18 +30,19 @@ const LOGS_POPOVER_CLASSES = [
 
 const LOGS_BUTTON_CLASSES =
   'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +
-  'items-center gap-[0.45rem] rounded-full border-0 bg-cosci-teal-bg ' +
+  'items-center gap-[0.45rem] rounded-full border-0 bg-[#173b3b] ' +
   'px-[0.62rem] py-0 pl-[0.72rem] font-[inherit] text-[0.88rem] font-semibold ' +
-  'whitespace-nowrap text-cosci-teal-dark hover:bg-[#d4ece7] ' +
-  '[&[aria-expanded=true]]:bg-[#d4ece7] dark:bg-[#173b3b] dark:text-[#7fd7bf] ' +
-  'dark:hover:bg-[#1f4b4b] dark:[&[aria-expanded=true]]:bg-[#1f4b4b]';
+  'whitespace-nowrap text-[#7fd7bf] hover:bg-[#1f4b4b] ' +
+  '[&[aria-expanded=true]]:bg-[#1f4b4b] dark:bg-cosci-teal-bg ' +
+  'dark:text-cosci-teal-dark dark:hover:bg-[#d4ece7] ' +
+  'dark:[&[aria-expanded=true]]:bg-[#d4ece7]';
 
 const LOGS_BUTTON_ICON_CLASSES = 'text-[1.05rem]';
 
 const LOGS_COUNT_CLASSES =
   'ucs-logs-count grid h-[1.38rem] min-w-[1.35rem] place-items-center ' +
-  'rounded-full bg-[rgb(26_107_107_/_18%)] px-[0.42rem] text-[0.72rem] ' +
-  'leading-none whitespace-nowrap dark:bg-[rgb(127_215_191_/_22%)]';
+  'rounded-full bg-[rgb(127_215_191_/_22%)] px-[0.42rem] text-[0.72rem] ' +
+  'leading-none whitespace-nowrap dark:bg-[rgb(26_107_107_/_18%)]';
 
 const DIAGNOSTIC_HEADER_CLASSES =
   'ucs-diagnostic-header flex items-center justify-between gap-3 border-b ' +

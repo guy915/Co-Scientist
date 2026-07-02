@@ -244,7 +244,7 @@ describe('Layout', () => {
     expect(document.documentElement).toHaveClass('dark');
 
     const logsButton = screen.getByRole('button', {name: /Logs 0/i});
-    expect(logsButton.className).toContain('dark:bg-[#173b3b]');
+    expect(logsButton.className).toContain('dark:bg-cosci-teal-bg');
 
     fireEvent.click(logsButton);
 
