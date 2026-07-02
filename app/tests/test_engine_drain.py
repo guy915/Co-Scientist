@@ -28,6 +28,8 @@ def _final_state_with_features() -> dict[str, Any]:
     return {
         "hypotheses": [
             {
+                "id":
+                    "eng-hyp-a",
                 "text":
                     "Reparixin inhibits CXCR1 to suppress breast cancer "
                     "stem cells.",
@@ -72,6 +74,7 @@ def _final_state_with_features() -> dict[str, Any]:
                     "weakened",
             },
             {
+                "id": "eng-hyp-b",
                 "text": "A control hypothesis with no probes.",
                 "explanation": "",
                 "literature_grounding": "",
@@ -87,7 +90,22 @@ def _final_state_with_features() -> dict[str, Any]:
             },
         ],
         "articles": [],
-        "tournament_matchups": [],
+        "tournament_matchups": [{
+            "hypothesis_a":
+                "Reparixin inhibits CXCR1 to suppress breast cancer "
+                "stem cells.",
+            "hypothesis_b": "A control hypothesis with no probes.",
+            "hypothesis_a_id": "eng-hyp-a",
+            "hypothesis_b_id": "eng-hyp-b",
+            "winner_id": "eng-hyp-a",
+            "winner": "a",
+            "reasoning": "A is better grounded.",
+            "confidence": "High",
+            "winner_elo_before": 1300,
+            "winner_elo_after": 1320,
+            "loser_elo_before": 1200,
+            "loser_elo_after": 1180,
+        },],
         "meta_review": {},
         "evolution_details": [],
         "research_overview": {
@@ -153,6 +171,7 @@ def _engine_streaming_state() -> dict[str, Any]:
     return {
         "hypotheses": [
             {
+                "id": "eng-h1",
                 "text": "H1: a mechanistic claim about the pathway.",
                 "elo_rating": 1300,
                 "win_count": 2,
@@ -160,6 +179,7 @@ def _engine_streaming_state() -> dict[str, Any]:
                 "evolution_history": [],
             },
             {
+                "id": "eng-h2",
                 "text": "H2: an evolved variant of the leading claim.",
                 "elo_rating": 1250,
                 "win_count": 1,
@@ -176,6 +196,9 @@ def _engine_streaming_state() -> dict[str, Any]:
         "tournament_matchups": [{
             "hypothesis_a": "H1: a mechanistic claim about the pathway.",
             "hypothesis_b": "H2: an evolved variant of the leading claim.",
+            "hypothesis_a_id": "eng-h1",
+            "hypothesis_b_id": "eng-h2",
+            "winner_id": "eng-h1",
             "winner": "a",
         }],
         "meta_review": {},
@@ -344,6 +367,79 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     # Score columns are not produced by deep verification.
     assert deep[0]["novelty"] is None
     assert deep[0]["overall"] is None
+
+
+def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
+    """Hypothesis rows carry the engine's stable id (id pass-through)."""
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        final_state=_final_state_with_features(),
+        execution_time=1.0,
+        db_path=isolated_db,
+    )
+
+    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    ids = {h["id"] for h in hyps}
+    assert ids == {"eng-hyp-a", "eng-hyp-b"}
+
+
+def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
+    """Tournament matches resolve by id even when the matchup text has drifted.
+
+    The matchup's ``hypothesis_a``/``hypothesis_b`` display text is deliberately
+    made to NOT match the persisted hypothesis statements (as happens when
+    evolve mutates a hypothesis's text after ranking recorded the matchup). The
+    old text-prefix matching would drop such a match; id-based resolution must
+    still find it.
+    """
+    state = _final_state_with_features()
+    state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
+    state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        final_state=state,
+        execution_time=1.0,
+        db_path=isolated_db,
+    )
+
+    matches = store.list_matches(run.id, db_path=isolated_db)
+    assert len(matches) == 1
+    match = matches[0]
+    # Ids flow straight through: the persisted match points at the engine ids.
+    assert match["winner_id"] == "eng-hyp-a"
+    assert match["loser_id"] == "eng-hyp-b"
+    # And those ids are real hypothesis rows for the run.
+    assert store.get_hypothesis("eng-hyp-a", db_path=isolated_db) is not None
+    assert store.get_hypothesis("eng-hyp-b", db_path=isolated_db) is not None
+
+
+def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
+    """A matchup referencing a dropped hypothesis id is skipped, not persisted.
+
+    Evolution discards lower-ranked hypotheses, so a final matchup can reference
+    an id absent from the final set. Such a matchup must be skipped rather than
+    persisted with a bad reference.
+    """
+    state = _final_state_with_features()
+    state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
+    state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        final_state=state,
+        execution_time=1.0,
+        db_path=isolated_db,
+    )
+
+    assert store.list_matches(run.id, db_path=isolated_db) == []
 
 
 def test_persist_handles_missing_research_overview(isolated_db: str) -> None:

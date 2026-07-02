@@ -329,6 +329,14 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
             "hypothesis_b":
                 hyp_b.text[:200] +
                 "..." if len(hyp_b.text) > 200 else hyp_b.text,
+            # Stable ids alongside the truncated text so downstream consumers can
+            # resolve identity exactly instead of by text-prefix matching.
+            "hypothesis_a_id":
+                hyp_a.id,
+            "hypothesis_b_id":
+                hyp_b.id,
+            "winner_id":
+                winner_hyp.id,
             "winner":
                 winner,
             "reasoning":

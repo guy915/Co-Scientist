@@ -128,6 +128,36 @@ async def test_deterministic_winner_updates_elo_and_counts(
         assert matchup["confidence"] == "High"
 
 
+async def test_matchups_carry_hypothesis_ids(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each matchup records the two hypotheses' stable ids and the winner's id.
+
+    The id fields sit alongside the truncated-text fields and must resolve to
+    the actual hypotheses in the pairing (and the winner id must equal the id
+    of whichever slot won).
+    """
+    winner = make_hypothesis(text="winner pathway TXT alpha")
+    loser = make_hypothesis(text="loser pathway TXT beta")
+    state = make_state(hypotheses=[winner, loser])
+    _stub_winner_by_text(monkeypatch, "winner pathway TXT alpha")
+
+    result = await ranking_node(state)
+
+    matchups = result["tournament_matchups"]
+    assert len(matchups) == 2
+    valid_ids = {winner.id, loser.id}
+    for matchup in matchups:
+        assert matchup["hypothesis_a_id"] in valid_ids
+        assert matchup["hypothesis_b_id"] in valid_ids
+        assert matchup["hypothesis_a_id"] != matchup["hypothesis_b_id"]
+        # The stubbed winner wins every round, so the recorded winner_id is its
+        # id and it matches whichever slot the pairing placed it in.
+        assert matchup["winner_id"] == winner.id
+        winner_slot = matchup["winner"]
+        slot_id_key = f"hypothesis_{winner_slot}_id"
+        assert matchup[slot_id_key] == winner.id
+
+
 async def test_malformed_judge_response_defaults_to_slot_a(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """An empty judge response defaults the winner to slot 'a' with fallbacks."""

@@ -6,6 +6,7 @@ while providing clean type safety for LangGraph.
 
 import dataclasses
 import enum
+import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -35,6 +36,9 @@ class Hypothesis:
 
     Attributes:
         text: The dense technical hypothesis formulation
+        id: Stable unique identifier (uuid4) that survives serialization and
+            evolution. Excluded from equality/hashing (``compare=False``) so the
+            text-based dedup heuristics are unaffected.
         explanation: Step-by-step layman explanation of the hypothesis
         literature_grounding: Explicit grounding in literature review with
             [P1]/[KG1]-style citation keys
@@ -64,6 +68,7 @@ class Hypothesis:
     """
 
     text: str
+    id: str = field(default_factory=lambda: str(uuid.uuid4()), compare=False)
     explanation: str | None = None
     literature_grounding: str | None = None
     experiment: str | None = None
@@ -103,6 +108,7 @@ class Hypothesis:
         generation_method = (self.generation_method.value
                              if self.generation_method else None)
         return {
+            "id": self.id,
             "text":
                 self.text,  # Also referred to as "hypothesis" in other contexts
             "explanation": self.explanation,
@@ -134,6 +140,37 @@ class Hypothesis:
             "total_matches": self.total_matches,
             "win_rate": self.win_rate,
         }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Hypothesis":
+        """Reconstruct a Hypothesis from a ``to_dict`` payload.
+
+        Preserves a provided ``id`` and only mints a fresh one when absent, so
+        round-tripped and pre-id (legacy) payloads both reconstruct correctly.
+        The computed-only ``total_matches``/``win_rate`` keys are dropped, the
+        ``generation_method`` string is restored to its enum, and nested review
+        dicts are rebuilt into ``HypothesisReview`` instances.
+
+        Args:
+            data: A dict shaped like the output of ``to_dict``.
+
+        Returns:
+            A ``Hypothesis`` reconstructed from ``data``.
+        """
+        payload = {
+            k: v
+            for k, v in data.items()
+            if k not in ("total_matches", "win_rate")
+        }
+        generation_method = payload.get("generation_method")
+        if generation_method is not None:
+            payload["generation_method"] = GenerationMethod(generation_method)
+        reviews = payload.get("reviews")
+        if reviews:
+            payload["reviews"] = [
+                HypothesisReview(**review) for review in reviews
+            ]
+        return cls(**payload)
 
 
 @dataclass

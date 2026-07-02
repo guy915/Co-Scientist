@@ -422,8 +422,11 @@ def _persist_final_state(
         )
         ev_id_by_title[art.get("title", "")] = ev_id
 
-    # 2. Hypotheses: persist in generation order; mark evolved ones.
-    hyp_id_by_text: dict[str, str] = {}
+    # 2. Hypotheses: persist in generation order; mark evolved ones. The
+    # engine's stable hypothesis id is passed straight through as the store row
+    # id, so identity holds end-to-end (engine -> DB -> API -> UI) and matchups
+    # resolve by id rather than by fragile text-prefix matching.
+    store_id_by_engine_id: dict[str, str] = {}
     for h in hyps:
         is_evolved = bool(h.get("evolution_history"))
         generation = 1 if is_evolved else 0
@@ -431,10 +434,12 @@ def _persist_final_state(
         # Derive a short title from the first sentence / 120 chars.
         text = h.get("text", "")
         title = text.split(".")[0][:120] or text[:120]
+        engine_id = h.get("id") or None
         hyp_id = store.add_hypothesis(
             run_id=run_id,
             title=title,
             statement=text,
+            hypothesis_id=engine_id,
             mechanism=h.get("literature_grounding") or "",
             expected_effect=h.get("explanation") or "",
             experimental_context=h.get("experiment") or "",
@@ -442,10 +447,8 @@ def _persist_final_state(
             created_by_agent=agent,
             db_path=db_path,
         )
-        hyp_id_by_text[text[:200]] = hyp_id  # exact 200-char truncation
-        hyp_id_by_text[text[:200] +
-                       "..."] = hyp_id  # engine appends "..." when truncated
-        hyp_id_by_text[text] = hyp_id
+        if engine_id:
+            store_id_by_engine_id[engine_id] = hyp_id
 
         # Update mutable state: Elo, wins, losses, scores.
         store.update_hypothesis_state(
@@ -516,19 +519,26 @@ def _persist_final_state(
                                CitationState.VERIFIED,
                                db_path=db_path)
 
-    # 3. Tournament matches: match by hypothesis text prefix (engine truncates at 200).  # pylint: disable=line-too-long
+    # 3. Tournament matches: resolve each side by the engine's stable
+    # hypothesis id. Matchups may legitimately reference hypotheses that were
+    # dropped from the final set (evolve discards lower-ranked ones), so an
+    # unresolved id is expected rather than an error — log it and skip.
     for m in matchups:
-        h_a_text = m.get("hypothesis_a", "")
-        h_b_text = m.get("hypothesis_b", "")
-        winner_label = m.get("winner", "a")
+        a_engine_id = m.get("hypothesis_a_id")
+        b_engine_id = m.get("hypothesis_b_id")
+        winner_engine_id = m.get("winner_id")
 
-        winner_text = h_a_text if winner_label == "a" else h_b_text
-        loser_text = h_b_text if winner_label == "a" else h_a_text
+        loser_engine_id = (b_engine_id
+                           if winner_engine_id == a_engine_id else a_engine_id)
 
-        winner_id = hyp_id_by_text.get(winner_text)
-        loser_id = hyp_id_by_text.get(loser_text)
+        winner_id = store_id_by_engine_id.get(winner_engine_id or "")
+        loser_id = store_id_by_engine_id.get(loser_engine_id or "")
         if not winner_id or not loser_id:
-            continue  # can't match — skip rather than persist bad data
+            logger.warning(
+                "skipping matchup: unresolved hypothesis id "
+                "(winner=%s, loser=%s) — likely a hypothesis dropped during "
+                "evolution", winner_engine_id, loser_engine_id)
+            continue
 
         store.add_match(
             run_id=run_id,

@@ -657,6 +657,7 @@ def add_hypothesis(
     title: str,
     statement: str,
     *,
+    hypothesis_id: str | None = None,
     parent_id: str | None = None,
     generation: int = 0,
     mechanism: str = "",
@@ -671,6 +672,10 @@ def add_hypothesis(
         run_id: Identifier of the run the hypothesis belongs to.
         title: Short title of the hypothesis.
         statement: Full hypothesis statement.
+        hypothesis_id: Explicit row id to use. When omitted a fresh uuid4 is
+            generated. The engine adapter passes the engine's stable hypothesis
+            id here so ids stay consistent end-to-end (engine -> DB -> API ->
+            UI); the mock path leaves it unset and gets a generated id.
         parent_id: Identifier of the parent hypothesis, set when evolving.
         generation: Generation number, 0 for originally generated hypotheses.
         mechanism: Proposed mechanism underlying the hypothesis.
@@ -682,7 +687,7 @@ def add_hypothesis(
     Returns:
         The identifier of the newly inserted hypothesis.
     """
-    hyp_id = str(uuid.uuid4())
+    hyp_id = hypothesis_id or str(uuid.uuid4())
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
