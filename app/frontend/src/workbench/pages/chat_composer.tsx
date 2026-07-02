@@ -54,7 +54,7 @@ const ATTACHMENT_IMAGE_CARD_CLASSES =
   'dark:text-[#f1f3f4]';
 
 const ATTACHMENT_PREVIEW_IMAGE_CLASSES =
-  'block size-full rounded-2xl object-cover';
+  'absolute inset-0 size-full rounded-2xl object-cover';
 
 const ATTACHMENT_TEXT_CLASSES =
   'reference-attachment-text grid min-w-0 gap-[0.48rem]';
