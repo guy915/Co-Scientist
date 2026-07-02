@@ -257,8 +257,7 @@ export const CONNECTORS_MENU_ROW_CLASSES =
   'focus-visible:bg-[var(--cosci-menu-row-hover)] focus-visible:outline-none';
 
 export const CONNECTOR_ICON_CLASSES =
-  'reference-connector-icon font-["Material_Symbols_Outlined"] text-[1.15rem] ' +
-  'text-[var(--cosci-menu-icon)] [font-variation-settings:"FILL"_0,"wght"_400,"GRAD"_0,"opsz"_24]';
+  'reference-connector-icon text-[1.15rem] text-[var(--cosci-menu-icon)]';
 
 export const CONNECTOR_TOGGLE_BASE_CLASSES =
   'reference-toggle relative h-[0.95rem] w-[1.6rem] rounded-full ' +

@@ -1,7 +1,37 @@
-@import "@fontsource/google-sans/latin-400.css";
-@import "@fontsource/google-sans/latin-500.css";
-@import "@fontsource/google-sans/latin-700.css";
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+
+@source "./components";
+@source "./public";
+@source "./workbench";
+@source not "./**/*.test.ts";
+@source not "./**/*.test.tsx";
+
+@font-face {
+  font-family: "Google Sans";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url("../node_modules/@fontsource/google-sans/files/google-sans-latin-400-normal.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Google Sans";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 500;
+  src: url("../node_modules/@fontsource/google-sans/files/google-sans-latin-500-normal.woff2")
+    format("woff2");
+}
+
+@font-face {
+  font-family: "Google Sans";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url("../node_modules/@fontsource/google-sans/files/google-sans-latin-700-normal.woff2")
+    format("woff2");
+}
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
