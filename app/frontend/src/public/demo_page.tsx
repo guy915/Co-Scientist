@@ -20,7 +20,7 @@ export function DemoPage() {
     void listDemoRuns()
       .then(runs => {
         const matchingRun = runs.find(
-          run => run.research_goal === demo.relatedRunGoal,
+          run => run.research_goal === demo.researchGoal,
         );
         if (!cancelled) setRunId(matchingRun?.id ?? null);
       })

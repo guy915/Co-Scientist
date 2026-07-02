@@ -2,6 +2,7 @@ import '@material/web/button/text-button.js';
 import {useMemo} from 'react';
 import type {CitationRow, Evidence, Hypothesis, Review} from '@/api/runs';
 import {MdDialog} from '@/md3/md_dialog';
+import {citationStateStyle} from '@/workbench/lib/citation_styles';
 
 const VERDICT_COLORS: Record<string, {bg: string; fg: string}> = {
   holds: {
@@ -203,28 +204,12 @@ export function IdeaModal({
             <ul className="space-y-1.5">
               {citations.map(c => {
                 const ev = evidenceById[c.evidence_id];
+                const style = citationStateStyle(c.state);
                 return (
                   <li key={c.id} className="text-xs flex items-start gap-2">
                     <span
                       className="px-1.5 py-0.5 rounded text-[10px] uppercase shrink-0"
-                      style={{
-                        backgroundColor:
-                          c.state === 'verified'
-                            ? 'var(--md-sys-color-primary-container)'
-                            : c.state === 'partial'
-                              ? 'var(--md-sys-color-tertiary-container)'
-                              : c.state === 'unsupported'
-                                ? 'var(--md-sys-color-error-container)'
-                                : 'var(--md-sys-color-surface-variant)',
-                        color:
-                          c.state === 'verified'
-                            ? 'var(--md-sys-color-on-primary-container)'
-                            : c.state === 'partial'
-                              ? 'var(--md-sys-color-on-tertiary-container)'
-                              : c.state === 'unsupported'
-                                ? 'var(--md-sys-color-on-error-container)'
-                                : 'var(--md-sys-color-on-surface-variant)',
-                      }}
+                      style={{backgroundColor: style.bg, color: style.fg}}
                     >
                       {c.state}
                     </span>

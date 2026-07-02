@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react';
+import {useEffect, useState} from 'react';
 import {eventsStreamUrl} from '@/api/runs';
 
 /** A single event streamed from a run's SSE timeline. */
@@ -12,7 +12,6 @@ export interface StreamEvent {
 /** State returned by {@link useRunStream}. */
 export interface UseRunStreamResult {
   events: StreamEvent[];
-  lastSeq: number;
   isOpen: boolean;
   error: string | null;
   terminal: boolean;
@@ -27,21 +26,17 @@ export function useRunStream(
   after = 0,
 ): UseRunStreamResult {
   const [events, setEvents] = useState<StreamEvent[]>([]);
-  const [lastSeq, setLastSeq] = useState(after);
   const [isOpen, setIsOpen] = useState(false);
   const [terminal, setTerminal] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const sourceRef = useRef<EventSource | null>(null);
 
   useEffect(() => {
     if (!runId) return;
     setEvents([]);
-    setLastSeq(after);
     setTerminal(false);
     setError(null);
 
     const es = new EventSource(eventsStreamUrl(runId, after));
-    sourceRef.current = es;
 
     es.onopen = () => setIsOpen(true);
     es.onerror = () => {
@@ -60,7 +55,6 @@ export function useRunStream(
           return;
         }
         setEvents(prev => [...prev, ev]);
-        setLastSeq(prev => Math.max(prev, ev.seq));
       } catch (e) {
         console.error('[useRunStream] parse failed', e);
       }
@@ -68,11 +62,10 @@ export function useRunStream(
 
     return () => {
       es.close();
-      sourceRef.current = null;
       setIsOpen(false);
     };
     // Re-subscribe only when runId changes; other referenced setters are stable.
   }, [runId]);
 
-  return {events, lastSeq, isOpen, error, terminal};
+  return {events, isOpen, error, terminal};
 }

@@ -9,6 +9,7 @@ import {Link, useNavigate} from 'react-router-dom';
 import {
   getRun,
   getSystemStatus,
+  isActiveStatus,
   listDemoRuns,
   listRuns,
   type Run,
@@ -16,6 +17,7 @@ import {
   type RunSummary,
   type SystemStatus,
 } from '@/api/runs';
+import {EmptyState} from '../components/empty_state';
 import {RunStatusPill} from '../components/run_status_pill';
 
 function fmtDate(ts: number) {
@@ -52,6 +54,26 @@ function formatModelName(rawName: string): string {
     .join(' ');
 }
 
+/**
+ * Fan-out the per-run summary fetches into one id→summary map, tolerating
+ * individual failures.
+ */
+async function fetchSummaries(
+  runs: Run[],
+): Promise<Record<string, RunSummary>> {
+  const entries = await Promise.allSettled(
+    runs.map(async run => {
+      const detail = await getRun(run.id);
+      return [run.id, detail.summary] as const;
+    }),
+  );
+  const map: Record<string, RunSummary> = {};
+  for (const e of entries) {
+    if (e.status === 'fulfilled') map[e.value[0]] = e.value[1];
+  }
+  return map;
+}
+
 type Filter = 'all' | RunStatus;
 
 const FILTER_LABELS: Record<Filter, string> = {
@@ -74,9 +96,6 @@ export function Dashboard() {
   const [runs, setRuns] = useState<Run[] | null>(null);
   const [summaries, setSummaries] = useState<Record<string, RunSummary>>({});
   const [demoRuns, setDemoRuns] = useState<Run[]>([]);
-  const [demoSummaries, setDemoSummaries] = useState<
-    Record<string, RunSummary>
-  >({});
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
@@ -95,35 +114,16 @@ export function Dashboard() {
         const r = await listRuns();
         if (cancelled) return;
         setRuns(r);
-        // Fan-out the per-run summary fetches; tolerate failures.
-        const entries = await Promise.allSettled(
-          r.slice(0, 30).map(async run => {
-            const detail = await getRun(run.id);
-            return [run.id, detail.summary] as const;
-          }),
-        );
+        const map = await fetchSummaries(r.slice(0, 30));
         if (cancelled) return;
-        const map: Record<string, RunSummary> = {};
-        for (const e of entries) {
-          if (e.status === 'fulfilled') map[e.value[0]] = e.value[1];
-        }
         setSummaries(map);
 
         const demos = await listDemoRuns();
         if (cancelled) return;
         setDemoRuns(demos);
-        const demoEntries = await Promise.allSettled(
-          demos.map(async run => {
-            const detail = await getRun(run.id);
-            return [run.id, detail.summary] as const;
-          }),
-        );
+        const demoMap = await fetchSummaries(demos);
         if (cancelled) return;
-        const demoMap: Record<string, RunSummary> = {};
-        for (const e of demoEntries) {
-          if (e.status === 'fulfilled') demoMap[e.value[0]] = e.value[1];
-        }
-        setDemoSummaries(demoMap);
+        setSummaries(prev => ({...prev, ...demoMap}));
       } catch (e: unknown) {
         if (!cancelled) setError(e instanceof Error ? e.message : String(e));
       }
@@ -148,9 +148,7 @@ export function Dashboard() {
     return {
       total: runs.length,
       completed: runs.filter(r => r.status === 'completed').length,
-      running: runs.filter(r =>
-        ['running', 'queued', 'synthesizing'].includes(r.status),
-      ).length,
+      running: runs.filter(r => isActiveStatus(r.status)).length,
       mock: runs.filter(r => r.provider === 'mock').length,
       hypotheses: Object.values(summaries).reduce(
         (acc, s) => acc + (s?.hypotheses ?? 0),
@@ -295,15 +293,7 @@ export function Dashboard() {
       )}
 
       {filtered && filtered.length === 0 && runs && (
-        <div
-          className="rounded border p-8 text-center text-sm"
-          style={{
-            borderColor: 'var(--md-sys-color-outline-variant)',
-            color: 'var(--md-sys-color-on-surface-variant)',
-          }}
-        >
-          No runs match your filter.
-        </div>
+        <EmptyState className="p-8">No runs match your filter.</EmptyState>
       )}
 
       {filtered && filtered.length > 0 && (
@@ -313,11 +303,11 @@ export function Dashboard() {
               <RunCard
                 key={r.id}
                 run={r}
-                summary={r.is_demo ? demoSummaries[r.id] : summaries[r.id]}
+                summary={summaries[r.id]}
                 secondaryLabel={r.is_demo ? 'Matches' : 'Created'}
                 secondaryValue={
                   r.is_demo
-                    ? (demoSummaries[r.id]?.matches ?? '—')
+                    ? (summaries[r.id]?.matches ?? '—')
                     : fmtRelative(r.created_at)
                 }
                 secondaryTitle={r.is_demo ? undefined : fmtDate(r.created_at)}
@@ -389,8 +379,7 @@ export function Dashboard() {
                       className="px-4 py-2 hidden sm:table-cell"
                       style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                     >
-                      {(r.is_demo ? demoSummaries[r.id] : summaries[r.id])
-                        ?.hypotheses ?? '—'}
+                      {summaries[r.id]?.hypotheses ?? '—'}
                     </td>
                     <td
                       className="px-4 py-2"

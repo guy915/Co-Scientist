@@ -5,6 +5,8 @@ import {useEffect, useState} from 'react';
 import ReactMarkdown from 'react-markdown';
 import type {Report, SafetyDecision} from '@/api/runs';
 import {reportMarkdownUrl} from '@/api/runs';
+import {triggerDownload} from '@/lib/download';
+import {EmptyState} from '../empty_state';
 
 /**
  * Renders the synthesized report markdown with export and print actions.
@@ -47,15 +49,7 @@ export function ReportTab({
 
   if (!report) {
     return (
-      <div
-        className="rounded border p-6 text-sm text-center"
-        style={{
-          borderColor: 'var(--md-sys-color-outline-variant)',
-          color: 'var(--md-sys-color-on-surface-variant)',
-        }}
-      >
-        The report appears once the workflow finishes.
-      </div>
+      <EmptyState>The report appears once the workflow finishes.</EmptyState>
     );
   }
 
@@ -85,12 +79,11 @@ export function ReportTab({
       <aside className="grid grid-cols-2 gap-2 sm:gap-3 lg:flex lg:flex-col wb-print-hide">
         <md-filled-button
           onclick={
-            (() => {
-              const a = document.createElement('a');
-              a.href = reportMarkdownUrl(runId);
-              a.download = 'report.md';
-              a.click();
-            }) as EventListener
+            (() =>
+              triggerDownload(
+                reportMarkdownUrl(runId),
+                'report.md',
+              )) as EventListener
           }
         >
           <md-icon slot="icon" aria-hidden="true">
@@ -100,12 +93,11 @@ export function ReportTab({
         </md-filled-button>
         <md-outlined-button
           onclick={
-            (() => {
-              const a = document.createElement('a');
-              a.href = `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(report.payload, null, 2))}`;
-              a.download = `${runId}.json`;
-              a.click();
-            }) as EventListener
+            (() =>
+              triggerDownload(
+                `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(report.payload, null, 2))}`,
+                `${runId}.json`,
+              )) as EventListener
           }
         >
           <md-icon slot="icon" aria-hidden="true">

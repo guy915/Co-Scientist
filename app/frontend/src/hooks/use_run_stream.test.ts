@@ -68,10 +68,9 @@ describe('useRunStream', () => {
       'node_start',
       'node_end',
     ]);
-    expect(result.current.lastSeq).toBe(2);
   });
 
-  it('keeps the max seq even when events arrive out of order', () => {
+  it('appends events in arrival order', () => {
     const {result} = renderHook(() => useRunStream('run-1'));
     const es = FakeEventSource.last();
 
@@ -79,7 +78,7 @@ describe('useRunStream', () => {
     emit(es, {seq: 3, type: 'b', payload: {}});
 
     expect(result.current.events).toHaveLength(2);
-    expect(result.current.lastSeq).toBe(5);
+    expect(result.current.events.map(e => e.seq)).toEqual([5, 3]);
   });
 
   it('marks terminal and closes the stream on a _terminal event', () => {
@@ -143,7 +142,6 @@ describe('useRunStream', () => {
     rerender({id: 'run-2'});
     expect(first.close).toHaveBeenCalledOnce();
     expect(result.current.events).toEqual([]);
-    expect(result.current.lastSeq).toBe(0);
 
     const second = FakeEventSource.last();
     expect(second).not.toBe(first);

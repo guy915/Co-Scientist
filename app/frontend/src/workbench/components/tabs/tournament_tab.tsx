@@ -2,6 +2,7 @@ import '@material/web/icon/icon.js';
 import {useMemo} from 'react';
 import type {Hypothesis, MatchRow} from '@/api/runs';
 import {EloTrajectoryChart} from '../elo_trajectory_chart';
+import {EmptyState} from '../empty_state';
 
 /**
  * Renders the Elo leaderboard, trajectory chart, and pairwise matchups.
@@ -28,15 +29,9 @@ export function TournamentTab({
 
   if (!matches.length) {
     return (
-      <div
-        className="rounded border p-6 text-sm text-center"
-        style={{
-          borderColor: 'var(--md-sys-color-outline-variant)',
-          color: 'var(--md-sys-color-on-surface-variant)',
-        }}
-      >
+      <EmptyState>
         Tournament matchups appear here after the ranking node runs.
-      </div>
+      </EmptyState>
     );
   }
 

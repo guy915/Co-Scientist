@@ -43,7 +43,7 @@ export function useMessages(
         localSteeringRef.current.delete(id);
       }
       const localMessages = [...localSteeringRef.current.values()].filter(
-        message => message.run_id === runId && !fetchedIds.has(message.id),
+        message => message.run_id === runId,
       );
       setMessages(
         [...msgs, ...localMessages].sort(

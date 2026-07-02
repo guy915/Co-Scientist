@@ -16,6 +16,7 @@ import {
   getRun,
   getSafety,
   type Hypothesis,
+  isActiveStatus,
   type MatchRow,
   type Report,
   type Review,
@@ -24,6 +25,7 @@ import {
   type SafetyDecision,
 } from '@/api/runs';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
+import {triggerDownload} from '@/lib/download';
 import {MdSecondaryTabs} from '@/md3/md_tabs';
 import {IdeaModal} from '../components/idea_modal';
 import {RunStatusPill} from '../components/run_status_pill';
@@ -254,7 +256,7 @@ export function RunDetail() {
               </md-icon>
               Refresh
             </md-outlined-button>
-            {run?.status === 'running' || run?.status === 'queued' ? (
+            {isActiveStatus(run?.status) ? (
               <md-outlined-button
                 onclick={(() => void onCancel()) as EventListener}
                 style={
@@ -283,12 +285,11 @@ export function RunDetail() {
             {report && (
               <md-outlined-button
                 onclick={
-                  (() => {
-                    const a = document.createElement('a');
-                    a.href = reportMarkdownUrl(id);
-                    a.download = 'report.md';
-                    a.click();
-                  }) as EventListener
+                  (() =>
+                    triggerDownload(
+                      reportMarkdownUrl(id),
+                      'report.md',
+                    )) as EventListener
                 }
               >
                 <md-icon slot="icon" aria-hidden="true">

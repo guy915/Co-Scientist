@@ -3,6 +3,7 @@ import '@material/web/chips/chip-set.js';
 import '@material/web/chips/filter-chip.js';
 import {useMemo, useState} from 'react';
 import type {CitationRow, Hypothesis, Review} from '@/api/runs';
+import {EmptyState} from '../empty_state';
 
 type SortKey = 'elo' | 'title' | 'generation';
 
@@ -48,7 +49,9 @@ export function IdeasTab({
 
   if (!hypotheses.length) {
     return (
-      <Empty msg="Hypotheses appear here once the generation node runs." />
+      <EmptyState>
+        Hypotheses appear here once the generation node runs.
+      </EmptyState>
     );
   }
 
@@ -251,19 +254,5 @@ function IdeaRow({
         </div>
       )}
     </li>
-  );
-}
-
-function Empty({msg}: {msg: string}) {
-  return (
-    <div
-      className="rounded border p-6 text-sm text-center"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        color: 'var(--md-sys-color-on-surface-variant)',
-      }}
-    >
-      {msg}
-    </div>
   );
 }

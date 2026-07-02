@@ -9,7 +9,6 @@ export interface PublicDemo {
     statement: string;
   }[];
   evidenceSummary: string;
-  relatedRunGoal: string;
   pageTitle: string;
   pageDescription: string;
   socialImage: string;
@@ -43,8 +42,6 @@ export const publicDemos: PublicDemo[] = [
     ],
     evidenceSummary:
       'The seeded demonstration reviews mock literature records and ranks ten generated hypotheses through deterministic pairwise debate. It is intended to demonstrate the workflow, not provide clinical guidance.',
-    relatedRunGoal:
-      'What are the key molecular regulators of ferroptosis in pancreatic cancer cells, and how might their modulation enhance chemotherapy sensitivity?',
     pageTitle: 'Ferroptosis in Pancreatic Cancer Demo - Co-Scientist',
     pageDescription:
       'Explore a completed Co-Scientist demonstration on ferroptosis regulation and chemotherapy sensitivity in pancreatic cancer.',
@@ -76,8 +73,6 @@ export const publicDemos: PublicDemo[] = [
     ],
     evidenceSummary:
       'The seeded demonstration uses deterministic mock evidence and a full generate, reflect, rank, evolve, and synthesize workflow. Its outputs are illustrative research hypotheses.',
-    relatedRunGoal:
-      'How does synaptic pruning in the prefrontal cortex contribute to cognitive flexibility during adolescent development?',
     pageTitle: 'Synaptic Pruning and Cognitive Flexibility Demo - Co-Scientist',
     pageDescription:
       'Explore a completed Co-Scientist demonstration on adolescent synaptic pruning and cognitive flexibility.',
@@ -109,8 +104,6 @@ export const publicDemos: PublicDemo[] = [
     ],
     evidenceSummary:
       'The seeded demonstration ranks ten mock-generated hypotheses against deterministic evidence and review signals. It is a product example rather than a validated treatment recommendation.',
-    relatedRunGoal:
-      'What mechanisms drive antibiotic resistance in Staphylococcus aureus biofilms, and which metabolic pathways could be targeted to restore susceptibility?',
     pageTitle: 'Biofilm Antibiotic Resistance Demo - Co-Scientist',
     pageDescription:
       'Explore a completed Co-Scientist demonstration on metabolic pathways and antibiotic resistance in Staphylococcus aureus biofilms.',

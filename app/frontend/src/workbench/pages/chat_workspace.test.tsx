@@ -24,7 +24,10 @@ const streamMock = vi.hoisted(() => ({
   useRunStream: vi.fn(),
 }));
 
-vi.mock('@/api/runs', () => apiMock);
+vi.mock('@/api/runs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/api/runs')>()),
+  ...apiMock,
+}));
 vi.mock('@/hooks/use_run_stream', () => streamMock);
 
 function renderWorkspace() {
@@ -172,7 +175,6 @@ beforeEach(() => {
   apiMock.startRun.mockResolvedValue({id: 'run-1', status: 'queued'});
   streamMock.useRunStream.mockReturnValue({
     events: [],
-    lastSeq: 0,
     isOpen: false,
     error: null,
     terminal: true,
@@ -230,7 +232,6 @@ describe('ChatWorkspace', () => {
     apiMock.getRun.mockResolvedValue(minimalRun({status: 'running'}));
     streamMock.useRunStream.mockReturnValue({
       events: [],
-      lastSeq: 0,
       isOpen: true,
       error: null,
       terminal: false,
@@ -302,7 +303,6 @@ describe('ChatWorkspace', () => {
     apiMock.getRun.mockResolvedValue(minimalRun({status: 'running'}));
     streamMock.useRunStream.mockReturnValue({
       events: [],
-      lastSeq: 0,
       isOpen: true,
       error: null,
       terminal: false,
@@ -364,7 +364,6 @@ describe('ChatWorkspace', () => {
           created_at: Date.now() / 1000 + 60,
         },
       ],
-      lastSeq: 12,
       isOpen: true,
       error: null,
       terminal: false,

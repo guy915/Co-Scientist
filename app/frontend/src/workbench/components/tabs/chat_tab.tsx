@@ -6,8 +6,10 @@ import {
   useState,
 } from 'react';
 import type {Run, SourceRef} from '@/api/runs';
+import {isActiveStatus} from '@/api/runs';
 import {useMessages} from '@/hooks/use_messages';
 import {citationStateStyle} from '@/workbench/lib/citation_styles';
+import {inferMessageMode} from '@/workbench/lib/message_mode';
 
 interface Props {
   run: Run | null;
@@ -185,7 +187,7 @@ function AnswerBubble({
  * @param props The run whose messages and live state are shown.
  */
 export function ChatTab({run}: Props) {
-  const isActive = run?.status === 'running' || run?.status === 'queued';
+  const isActive = isActiveStatus(run?.status);
   const {messages, isAnswering, error, sendSteering, sendQuestion} =
     useMessages(run?.id ?? null, isActive);
 
@@ -201,15 +203,7 @@ export function ChatTab({run}: Props) {
     }
   });
 
-  const effectiveMode =
-    mode === 'auto'
-      ? input.trim().endsWith('?') ||
-        /^(why|what|how|when|who|which|explain|tell me|can you)\b/i.test(
-          input.trim(),
-        )
-        ? 'qa'
-        : 'steering'
-      : mode;
+  const effectiveMode = mode === 'auto' ? inferMessageMode(input) : mode;
 
   const handleSend = async () => {
     const text = input.trim();

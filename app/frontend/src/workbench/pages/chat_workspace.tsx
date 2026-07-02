@@ -32,6 +32,8 @@ import {
   getRun,
   getSystemStatus,
   type Hypothesis,
+  isActiveStatus,
+  isTerminal,
   listRuns,
   type MatchRow,
   type Message,
@@ -46,6 +48,7 @@ import {
 import {useMessages} from '@/hooks/use_messages';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {conciseTitle} from '@/lib/text';
+import {inferMessageMode} from '@/workbench/lib/message_mode';
 import {ThemeToggle} from '../components/theme_toggle';
 import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
 import {RunStatusPill} from '../components/run_status_pill';
@@ -96,13 +99,6 @@ const SESSION_STEPS: ReadonlyArray<{
   },
 ];
 
-const TERMINAL_STATUSES: RunStatus[] = [
-  'completed',
-  'failed',
-  'blocked',
-  'cancelled',
-];
-
 type ActiveMessageMode = 'qa' | 'steering';
 
 const PROGRESS_STAGES = [
@@ -127,23 +123,6 @@ const PROGRESS_STAGES = [
 
 function id(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function isTerminal(status: RunStatus | undefined): boolean {
-  return Boolean(status && TERMINAL_STATUSES.includes(status));
-}
-
-function inferActiveMessageMode(text: string): ActiveMessageMode {
-  const trimmed = text.trim();
-  if (
-    trimmed.endsWith('?') ||
-    /^(why|what|how|when|who|which|explain|tell me|can you|could you)\b/i.test(
-      trimmed,
-    )
-  ) {
-    return 'qa';
-  }
-  return 'steering';
 }
 
 function latestTime(values: Array<number | null | undefined>, fallback = 0) {
@@ -194,10 +173,7 @@ export function ChatWorkspace() {
   const isActiveRun =
     Boolean(activeRunId) &&
     !isTerminal(run?.status) &&
-    (isOpen ||
-      run?.status === 'queued' ||
-      run?.status === 'running' ||
-      run?.status === 'synthesizing');
+    (isOpen || isActiveStatus(run?.status));
   const {
     messages: runMessages,
     isAnswering,
@@ -348,7 +324,7 @@ export function ChatWorkspace() {
       return;
     }
 
-    if (inferActiveMessageMode(text) === 'qa') {
+    if (inferMessageMode(text) === 'qa') {
       try {
         await sendQuestion(text);
       } catch (err) {
@@ -685,7 +661,7 @@ export function ChatWorkspace() {
                   setInput={setInput}
                   isEditingSpec={isEditingSpec}
                   activeRunId={activeRunId}
-                  activeMessageMode={inferActiveMessageMode(input)}
+                  activeMessageMode={inferMessageMode(input)}
                   canSteerActiveRun={isActiveRun}
                   isAnswering={isAnswering}
                   disabled={isStarting || isAnswering}
