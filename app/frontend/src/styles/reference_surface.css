@@ -282,6 +282,6 @@ body {
 
 :root[data-theme="dark"] .reference-started-session-card {
   background:
-    linear-gradient(100deg, rgb(21 76 76 / 98%), rgb(26 92 70 / 96%)),
-    #123a3a;
+    linear-gradient(100deg, rgb(26 110 98 / 98%), rgb(38 138 108 / 96%)),
+    #1a6b5e;
 }
