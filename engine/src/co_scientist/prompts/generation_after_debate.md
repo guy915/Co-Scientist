@@ -12,6 +12,8 @@ Criteria for a high-quality hypothesis:
 Instructions:
 {{supervisor_guidance}}
 
+{{run_guidance}}
+
 {{domain_generation_guidance}}
 
 ## Each Hypothesis Should:

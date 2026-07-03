@@ -19,7 +19,7 @@ describe('NotFoundPage', () => {
     ).toBeInTheDocument();
   });
 
-  it('renders the home and workbench call-to-action links', () => {
+  it('renders the home call-to-action link', () => {
     render(
       <MemoryRouter>
         <NotFoundPage />
@@ -29,8 +29,6 @@ describe('NotFoundPage', () => {
       'href',
       '/',
     );
-    expect(
-      screen.getByRole('link', {name: 'Open the workbench'}),
-    ).toHaveAttribute('href', '/');
+    expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 });

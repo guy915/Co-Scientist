@@ -98,6 +98,8 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         supervisor_guidance=supervisor_guidance,
         instructions=None,  # for the future
         tool_registry=state.get("tool_registry"),
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
     )
 
     response = await call_llm_json(

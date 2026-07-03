@@ -54,6 +54,8 @@ focus on producing a synthesized meta-analysis.
 **Hypotheses Process Supervisor Guidance**
 {{supervisor_guidance}}
 
+{{run_guidance}}
+
 **Additional instructions**:
 {{instructions}}
 

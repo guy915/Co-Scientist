@@ -1,0 +1,127 @@
+<!--
+  WIP — NOT REFERENCED.
+  WorkflowState data-flow diagram. Visual layout needs fixing: writer arrows
+  converge messily on the hypotheses group, the "every node also emits metrics"
+  note floats loose, and several group boxes overflow. See docs/explainer.md
+  section 5 for the field/reducer table (authoritative while this is pending).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 480" fill="none">
+  <style>
+    .node { fill: #E0F2F2; stroke: #00696C; stroke-width: 1.5; }
+    .state-box { fill: #F5FAFA; stroke: #BEC9C9; stroke-width: 1.5; }
+    .group { fill: #ffffff; stroke: #BEC9C9; stroke-width: 1.2; }
+    .group-reducer { fill: #FFF8E1; stroke: #F59E0B; stroke-width: 1.5; }
+    .label { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 11px; font-weight: 600; fill: #002021; text-anchor: middle; dominant-baseline: central; }
+    .label-sm { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 600; fill: #002021; text-anchor: middle; dominant-baseline: central; }
+    .label-xs { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; font-weight: 400; fill: #6F7979; text-anchor: middle; dominant-baseline: central; }
+    .label-left { text-anchor: start; }
+    .label-badge { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 9px; font-weight: 700; fill: #7C4700; text-anchor: middle; dominant-baseline: central; }
+    .arrow { stroke: #00696C; stroke-width: 1.4; fill: none; marker-end: url(#ah2); }
+    .title { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; font-weight: 600; fill: #171D1D; text-anchor: middle; }
+    .subtitle { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 10px; font-weight: 400; fill: #6F7979; text-anchor: middle; }
+    .badge-d { fill: #F59E0B; }
+  </style>
+  <defs>
+    <marker id="ah2" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#00696C"/>
+    </marker>
+  </defs>
+
+  <text x="470" y="22" class="title">WorkflowState — Data Flow &amp; Custom Reducers</text>
+  <text x="470" y="38" class="subtitle">Nodes return deltas; two annotated fields use reducers, all other fields overwrite</text>
+
+  <!-- WorkflowState container -->
+  <rect x="220" y="60" width="500" height="360" rx="12" class="state-box"/>
+  <text x="470" y="78" class="label-sm">WorkflowState (TypedDict)  ·  state.py:118</text>
+
+  <!-- inputs group -->
+  <rect x="240" y="92" width="200" height="52" rx="8" class="group"/>
+  <text x="340" y="108" class="label-sm">inputs</text>
+  <text x="340" y="124" class="label-xs">research_goal · preferences</text>
+  <text x="340" y="136" class="label-xs">attributes · constraints · criteria</text>
+
+  <!-- literature group -->
+  <rect x="480" y="92" width="220" height="52" rx="8" class="group"/>
+  <text x="590" y="108" class="label-sm">literature</text>
+  <text x="590" y="124" class="label-xs">articles_with_reasoning · articles</text>
+  <text x="590" y="136" class="label-xs">context_enrichment_sources</text>
+
+  <!-- metrics group (reducer) -->
+  <rect x="240" y="156" width="200" height="64" rx="8" class="group-reducer"/>
+  <text x="340" y="174" class="label-sm">metrics</text>
+  <polygon points="412,168 422,174 412,180 402,174" class="badge-d"/>
+  <text x="340" y="192" class="label-xs">merge_metrics  (state.py:78)</text>
+  <text x="340" y="204" class="label-xs">fresh ExecutionMetrics; counts</text>
+  <text x="340" y="214" class="label-xs">additive; total_time = max</text>
+
+  <!-- hypotheses group (reducer) -->
+  <rect x="480" y="156" width="220" height="64" rx="8" class="group-reducer"/>
+  <text x="590" y="174" class="label-sm">hypotheses</text>
+  <polygon points="672,168 682,174 672,180 662,174" class="badge-d"/>
+  <text x="590" y="192" class="label-xs">deduplicate_hypotheses  (state.py:18)</text>
+  <text x="590" y="204" class="label-xs">&gt;50% text overlap → replace;</text>
+  <text x="590" y="214" class="label-xs">else merge; then dedup by text key</text>
+
+  <!-- guidance group -->
+  <rect x="240" y="232" width="200" height="52" rx="8" class="group"/>
+  <text x="340" y="248" class="label-sm">guidance</text>
+  <text x="340" y="264" class="label-xs">supervisor_guidance</text>
+  <text x="340" y="276" class="label-xs">meta_review</text>
+
+  <!-- outputs group -->
+  <rect x="480" y="232" width="220" height="100" rx="8" class="group"/>
+  <text x="590" y="248" class="label-sm">outputs / bookkeeping</text>
+  <text x="590" y="266" class="label-xs">research_overview</text>
+  <text x="590" y="280" class="label-xs">removed_duplicates · evolution_details</text>
+  <text x="590" y="294" class="label-xs">tournament_matchups · debate_transcripts</text>
+  <text x="590" y="308" class="label-xs">similarity_clusters</text>
+  <text x="590" y="322" class="label-xs">current_iteration (proximity++)</text>
+
+  <!-- config row -->
+  <rect x="240" y="346" width="460" height="56" rx="8" class="group"/>
+  <text x="470" y="362" class="label-sm">config / system flags</text>
+  <text x="470" y="378" class="label-xs">model_name · supervisor_model_name · max_iterations · initial_hypotheses_count</text>
+  <text x="470" y="392" class="label-xs">evolution_max_count · tournament_pairs · mcp_available · tool_registry · run_id</text>
+
+  <!-- Left node pills -->
+  <rect x="30" y="92" width="130" height="26" rx="13" class="node"/>
+  <text x="95" y="105" class="label-sm">supervisor</text>
+  <rect x="30" y="128" width="130" height="26" rx="13" class="node"/>
+  <text x="95" y="141" class="label-sm">literature_review</text>
+  <rect x="30" y="164" width="130" height="26" rx="13" class="node"/>
+  <text x="95" y="177" class="label-sm">generate</text>
+  <rect x="30" y="200" width="130" height="26" rx="13" class="node"/>
+  <text x="95" y="213" class="label-sm">reflection</text>
+  <rect x="30" y="236" width="130" height="26" rx="13" class="node"/>
+  <text x="95" y="249" class="label-sm">review</text>
+
+  <!-- Right node pills -->
+  <rect x="780" y="92" width="130" height="26" rx="13" class="node"/>
+  <text x="845" y="105" class="label-sm">ranking</text>
+  <rect x="780" y="128" width="130" height="26" rx="13" class="node"/>
+  <text x="845" y="141" class="label-sm">deep_verification</text>
+  <rect x="780" y="164" width="130" height="26" rx="13" class="node"/>
+  <text x="845" y="177" class="label-sm">meta_review</text>
+  <rect x="780" y="200" width="130" height="26" rx="13" class="node"/>
+  <text x="845" y="213" class="label-sm">evolve</text>
+  <rect x="780" y="236" width="130" height="26" rx="13" class="node"/>
+  <text x="845" y="249" class="label-sm">proximity</text>
+  <rect x="780" y="272" width="130" height="26" rx="13" class="node"/>
+  <text x="845" y="285" class="label-sm">research_overview</text>
+
+  <!-- Arrows: writers -> primary field group -->
+  <path d="M160,105 H240" class="arrow"/>
+  <path d="M160,141 H480" class="arrow"/>
+  <path d="M160,177 H480" class="arrow"/>
+  <path d="M160,213 H480" class="arrow"/>
+  <path d="M160,249 H480" class="arrow"/>
+  <path d="M780,105 H700" class="arrow"/>
+  <path d="M780,141 H700" class="arrow"/>
+  <path d="M780,177 H440" class="arrow"/>
+  <path d="M780,213 H700" class="arrow"/>
+  <path d="M780,249 H700" class="arrow"/>
+  <path d="M780,285 H700" class="arrow"/>
+
+  <!-- metrics note -->
+  <text x="340" y="432" class="label-xs">Every node also emits a metrics delta via create_metrics_update() (models.py:151) → metrics.</text>
+</svg>

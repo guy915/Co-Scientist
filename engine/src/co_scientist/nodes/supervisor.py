@@ -40,6 +40,7 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     preferences = state.get("preferences")
     attributes = state.get("attributes")
     constraints = state.get("constraints")
+    criteria = state.get("criteria")
     user_hypotheses = state.get("starting_hypotheses")
     user_literature = state.get("literature")
 
@@ -69,6 +70,9 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         mcp_available=mcp_available,
         pubmed_available=pubmed_available,
         tool_registry=state.get("tool_registry"),
+        criteria=criteria,
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
     )
 
     response = await call_llm_json(

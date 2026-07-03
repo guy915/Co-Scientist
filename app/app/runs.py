@@ -37,7 +37,16 @@ from pydantic import BaseModel, Field
 
 from app import engine_adapter, store
 from app.citations import STATE_RANK
-from app.run_modes import RUN_MODE_PATTERN, normalize_run_mode, resolved_run_config
+from app.run_modes import (
+    RUN_FOCUS_PATTERN,
+    RUN_MODE_PATTERN,
+    RUN_TIER_PATTERN,
+    normalize_run_focus,
+    normalize_run_mode,
+    normalize_run_tier,
+    resolved_run_config,
+    setup_config,
+)
 from app.store import RunRow, RunStatus, TERMINAL_STATUSES
 
 logger = logging.getLogger(__name__)
@@ -69,10 +78,16 @@ class CreateRunRequest(BaseModel):
     research_goal: str = Field(..., min_length=1)
     run_mode: str | None = Field(None, pattern=RUN_MODE_PATTERN)
     profile: str | None = Field(None, pattern=RUN_MODE_PATTERN)
+    requirements: list[str] | None = None
+    attributes: list[str] | None = None
+    criteria: list[str] | None = None
+    focus: str | None = Field(None, pattern=RUN_FOCUS_PATTERN)
+    tier: str | None = Field(None, pattern=RUN_TIER_PATTERN)
     initial_hypotheses_count: int | None = None
     max_iterations: int | None = None
     evolution_max_count: int | None = None
     k_factor: int | None = None
+    enable_literature_review: bool | None = None
     notes: str | None = None
 
 
@@ -126,7 +141,21 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
     """
     provider = engine_adapter.select_provider()
     run_mode = normalize_run_mode(req.run_mode or req.profile)
-    overrides: dict[str, int] = {}
+    focus = normalize_run_focus(req.focus)
+    tier = normalize_run_tier(req.tier)
+    setup = setup_config(
+        research_goal=req.research_goal,
+        requirements=req.requirements,
+        attributes=req.attributes,
+        criteria=req.criteria,
+        focus=focus,
+        tier=tier,
+    )
+    overrides: dict[str, Any] = {
+        "tier": tier,
+        "focus": focus,
+        "setup": setup,
+    }
     if req.initial_hypotheses_count is not None:
         overrides["initial_hypotheses_count"] = req.initial_hypotheses_count
     if req.max_iterations is not None:
@@ -135,6 +164,8 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         overrides["evolution_max_count"] = req.evolution_max_count
     if req.k_factor is not None:
         overrides["k_factor"] = req.k_factor
+    if req.enable_literature_review is not None:
+        overrides["enable_literature_review"] = req.enable_literature_review
     config = resolved_run_config(run_mode, overrides)
     run = store.create_run(
         research_goal=req.research_goal,
@@ -150,7 +181,9 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
             "event": "created",
             "run_mode": run_mode,
             "profile": run_mode,
-            "provider": provider
+            "provider": provider,
+            "focus": focus,
+            "tier": tier,
         },
     )
     return run.to_dict()

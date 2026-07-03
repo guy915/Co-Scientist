@@ -1,27 +1,27 @@
 ---
 version: alpha
-name: Co-Scientist
-description: A focused scientific research workbench for AI-assisted hypothesis generation. Built on Material Design 3 semantics with Google Sans typography. The palette is generated at runtime from a single seed color using @material/material-color-utilities.
+name: Gemini Enterprise Idea Generation
+description: A focused multi-agent idea generation workspace. Built on Material Design 3 semantics with Google Sans typography and the Gemini Enterprise product shell.
 colors:
   # Seed — the single source of truth for the MD3 palette.
   # The full palette (primary, secondary, tertiary, surface, …) is computed
   # at runtime by applyMd3Theme() in src/lib/theme.ts.
   seed: "#1A6B6B"
 
-  # Core MD3 roles (approximate light-mode values from the teal seed).
+  # Core MD3 roles (approximate light-mode values from the Co-Scientist green seed).
   # Dark-mode inversions are handled automatically by applyMd3Theme(true).
-  primary: "#00696C"
+  primary: "#1A6B6B"
   on-primary: "#ffffff"
-  primary-container: "#9CF1F3"
-  on-primary-container: "#002021"
-  secondary: "#4A6364"
+  primary-container: "#BFECE3"
+  on-primary-container: "#00201F"
+  secondary: "#625B71"
   on-secondary: "#ffffff"
-  secondary-container: "#CCE8E9"
-  on-secondary-container: "#051F20"
-  tertiary: "#4B607C"
+  secondary-container: "#CCE8E4"
+  on-secondary-container: "#051F1D"
+  tertiary: "#1967D2"
   on-tertiary: "#ffffff"
-  tertiary-container: "#D3E4FF"
-  on-tertiary-container: "#041C35"
+  tertiary-container: "#C2E7FF"
+  on-tertiary-container: "#001D35"
   surface: "#F5FAFA"
   surface-container-low: "#EFF4F4"
   surface-container: "#E9EEEE"
@@ -46,10 +46,10 @@ colors:
 
   # Agent-pipeline phase colors (one per stage, shown as progress steps).
   phase-0: "hsl(142 71% 45%)"   # Supervisor / plan
-  phase-1: "hsl(271 69% 55%)"   # Generate
+  phase-1: "hsl(174 54% 36%)"   # Generate
   phase-2: "hsl(32 95% 50%)"    # Reflect / review
   phase-3: "hsl(0 72% 51%)"     # Tournament / rank
-  phase-4: "hsl(248 53% 58%)"   # Evolve / meta-review
+  phase-4: "hsl(188 64% 35%)"   # Evolve / meta-review
 
 typography:
   # Landing / marketing headings
@@ -67,7 +67,7 @@ typography:
     lineHeight: 1.05
     letterSpacing: -0.045em
 
-  # Workbench page titles ("Research runs", "New research run")
+  # Workbench page titles ("Idea sessions", "New idea session")
   headline-md:
     fontFamily: Google Sans
     fontSize: 24px
@@ -143,7 +143,7 @@ spacing:
   page-max-width: 1280px
 
 components:
-  # Filled primary action button (md-filled-button)
+  # Filled primary action button (MD3 filled button)
   button-primary:
     backgroundColor: "{colors.primary}"
     textColor: "{colors.on-primary}"
@@ -156,7 +156,7 @@ components:
     backgroundColor: "{colors.primary-container}"
     textColor: "{colors.on-primary-container}"
 
-  # Outlined secondary button (md-outlined-button)
+  # Outlined secondary button (MD3 outlined button)
   button-outlined:
     backgroundColor: transparent
     textColor: "{colors.on-surface}"
@@ -167,7 +167,7 @@ components:
   button-outlined-active:
     textColor: "{colors.primary}"
 
-  # Text-only button (md-text-button)
+  # Text-only button (MD3 text button)
   button-text:
     backgroundColor: transparent
     textColor: "{colors.primary}"
@@ -175,7 +175,7 @@ components:
     height: 40px
     padding: 0 12px
 
-  # Filter chip (md-filter-chip inside md-chip-set)
+  # Filter chip (MD3 filter chip)
   chip-filter:
     backgroundColor: "{colors.surface-container}"
     textColor: "{colors.on-surface-variant}"
@@ -224,7 +224,7 @@ components:
     backgroundColor: "{colors.surface-container}"
     textColor: "{colors.on-surface-variant}"
 
-  # Outlined text field / textarea (md-outlined-text-field)
+  # Outlined text field / textarea (MD3 outlined text field)
   input-field:
     backgroundColor: "{colors.surface}"
     textColor: "{colors.on-surface}"
@@ -255,22 +255,27 @@ components:
     padding: 0 22px
 ---
 
-# Co-Scientist Workbench
+# Gemini Enterprise Idea Generation
 
 ## Overview
 
-Co-Scientist is a workbench for AI-driven scientific hypothesis generation. The UI serves two distinct audiences: scientists who use the workbench to launch and monitor research runs, and visitors who land on the public landing page.
+Idea Generation is a Gemini Enterprise-style workbench for multi-agent idea development. The UI serves users who launch and monitor idea sessions plus visitors who land on support/demo pages.
 
-The visual language is **precise, neutral, and data-forward** — more laboratory instrument than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: teal for primary actions, tonal containers for states, status colors for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
+The visual language is **precise, neutral, and data-forward** — more Google product workspace than consumer app. Whitespace is generous but purposeful. Color is used sparingly and always semantically: Co-Scientist green/blue for primary actions, tonal containers for states, status colors for run outcomes. The palette adapts fluidly between light and dark modes through Material Design 3 dynamic color, not manual dark-mode overrides.
 
 The design personality is calm competence. Typography is tight and confident. Rounded corners are present but not playful. Animation is brief and functional — fade-ins on load, a live dot pulse on active runs, shimmer on skeleton loaders.
 
 ## Colors
 
-The palette is derived at runtime from a single teal seed (`#1A6B6B`) using the MD3 `themeFromSourceColor` algorithm. This means exact hex values shift slightly between builds but the semantic relationships — primary/on-primary, container/on-container — are always correct and WCAG-compliant.
+The UI runs **two deliberately separate palettes**, and knowing which is which is essential before changing any color:
 
-- **Primary (#00696C):** Mid-teal used for the single most important action per screen, active states, links, and the app logo mark. Never used decoratively.
-- **Secondary container (CCE8E9):** The de-facto "hover" and "selected" surface. Table rows hover to secondary-container. Active filter chips use secondary-container. Secondary navigation context uses it. Applied with restraint so it stays meaningful.
+1. **MD3 dynamic palette** (`--md-sys-color-*`, bridged to `--color-th-*`) — derived at runtime from the `#1A6B6B` seed via `themeFromSourceColor`. Used for **data and semantic UI**: run status, Elo/tournament visuals, error/success states, primary actions. Its neutrals are intentionally *tinted toward the seed* by the MD3 tonal algorithm.
+2. **Gemini product palette** (`--cosci-*`, in `reference_surface.css`) — the **exact Google/Gemini product colors** (`#5f6368` gray text, `#dadce0` borders, `#f1f3f4` surfaces, `#202124` ink). Used for the **shell and home** (rail, composer, recents, step timeline). These are hand-picked to match Gemini 1:1 and are **neutral, not seed-tinted** — do not "consolidate" them onto the MD3 tokens, which would swap Google's true grays for teal-tinted approximations and make the UI *less* Google-accurate. Each `--cosci-*` token has its own light/dark value (many share a light value but diverge in dark), so they cannot be collapsed by light-mode hex.
+
+The MD3-palette semantics below apply to the data/semantic surfaces:
+
+- **Primary:** Co-Scientist green used for the single most important action per screen, active states, links, and the app logo mark. Never used decoratively.
+- **Secondary container:** The de-facto "hover" and "selected" surface. Table rows hover to secondary-container. Active filter chips use secondary-container. Secondary navigation context uses it. Applied with restraint so it stays meaningful.
 - **Surface / surface-container-low (EFF4F4):** The card background. All data cards and form containers sit one tone above the base surface. Never pure white; always tinted by the seed.
 - **On-surface-variant (#3F4949):** Used for all secondary/helper text — stat card labels, metadata columns, column headers, placeholder text, and the `section-label` caps-uppercase style.
 - **Outline-variant (#BEC9C9):** The default 1px border for every card, table, section divider, and input. Borders never use a raw color — always this token.
@@ -286,14 +291,14 @@ A single typeface — **Google Sans** — covers every typographic role. No fall
 
 - **Display (64px / weight 500):** Landing page H1 only. Tight letter-spacing (−0.055em), line-height near 1. Used at fluid `clamp()` sizes.
 - **Headline-lg (40px / 500):** Landing section headings and demo page H1.
-- **Headline-md (24px / 600):** Workbench page titles — "Research runs", "New research run". Always `font-semibold tracking-tight`.
+- **Headline-md (24px / 600):** Workbench page titles — "Idea sessions", "New idea session". Always `font-semibold tracking-tight`.
 - **Body-md (16px / 400):** Default readable copy. Page description lines below page titles.
 - **Body-sm (14px / 400):** Table rows, card metadata, helper text on form fields.
 - **Label-lg (14px / 600):** Button labels and primary navigation links.
 - **Label-md (12px / 600):** Status pill text, badge text, chip labels.
 - **Label-caps (12px / 600, +0.07em tracking, uppercase):** Section labels ("HOW IT WORKS"), stat card row headers ("PROFILE", "IDEAS"), table column headers. Implemented with the `.section-label` and `uppercase tracking-wide` utility classes.
 
-**Icons:** Material Symbols Outlined exclusively. Icon size defaults to 24px and is adjusted via `--md-icon-size` CSS variable when embedded in components. Never use filled or rounded icon variants.
+**Icons:** Material Symbols Outlined exclusively, delivered through the first-party `<Icon name="…">` component (`src/components/icon.tsx`). The glyph outlines are the authentic Material Symbols weight-400 paths, inlined as SVG (generated by `scripts/generate_icons.mjs` from `@material-symbols/svg-400`) so the set stays tree-shakeable, prerender-safe, and free of font FOUT. Icons inherit `currentColor` and size to `1em`, so set the icon's color and `font-size` on the element. Never use filled or rounded icon variants, and never hand-author glyph paths — add the icon to the generator and re-run it.
 
 ## Layout & Spacing
 
@@ -308,15 +313,15 @@ The layout follows an **8px base grid**. All spacing values are multiples of 8px
 
 ## Elevation & Depth
 
-Depth is achieved through **tonal layers** — no drop shadows anywhere in the workbench.
+Depth is achieved primarily through **tonal layers** — page content (cards, tables, inputs) never uses drop shadows.
 
 - **Background (Level 0):** `surface` — the lightest tint, used as the page body.
 - **Cards / containers (Level 1):** `surface-container-low` with a 1px `outline-variant` border. Stat cards, run table, form containers.
 - **Hover / selected (Level 2):** `secondary-container` applied via `transition-colors hover:bg-[secondary-container]`. No border change on hover.
 - **Header (Level 3):** `color-mix(in srgb, surface-container 70%, transparent)` + `backdrop-blur-xl`. Creates a frosted-glass separation from page content on scroll without a heavy shadow.
-- **Modals / dialogs:** `md-dialog` web component handles elevation internally per MD3 spec.
+- **Floating overlays:** menus, popovers, and toasts *do* carry MD3 elevation, applied with the `--md-elevation-1/2/3` shadow tokens (defined in `index.css`, with lifted opacities in dark mode). Menus/popovers use level 2; toasts use level 3. This is the one place shadow is correct — a menu detached from its trigger needs to read as floating.
 
-Never add `box-shadow` to cards, tables, or inputs. The outline-variant border provides all the separation needed.
+Never add `box-shadow` to cards, tables, or inputs. The outline-variant border and tonal layers provide all the separation those need. Reserve the `--md-elevation-*` tokens strictly for surfaces that float above the page.
 
 ## Shapes
 
@@ -330,24 +335,28 @@ Never mix `rounded-xl` and `rounded-full` on the same element. Do not use `round
 
 ## Components
 
+> **Architecture note.** Components are first-party React elements styled to the Material Design 3 spec — not the `@material/web` custom-element library. MD3 is followed as a *design language* (dynamic color via `material-color-utilities`, the type/shape/elevation scales, and state layers), which is how Google's own flagship products are built. Keep components as semantic HTML (`<button>`, `<nav>`, `role="menu"`) styled with the shared tokens below; do not reintroduce `md-*` custom elements.
+
+### Interaction states
+
+Every interactive element gets an MD3 **state layer** — a translucent `currentColor` overlay that fades in on hover (8%), focus (10%), and press (10%) over ~120ms. Use the reusable `.md-state` utility (`index.css`), which paints the layer beneath the element's content via a `::before`-safe `::after` at `z-index:-1`. Elements that already use `::after` (e.g. the run-detail tabs, which use it for the selected underline) get an equivalent `::before` state layer. Respect `prefers-reduced-motion`.
+
 ### Buttons
 
-All buttons use Material Web custom elements. Never substitute plain `<button>` elements styled to look like MD3 buttons.
+Buttons are pill-shaped (`rounded-full`) semantic `<button>` elements following MD3 button roles. One filled primary action per screen; secondary actions are outlined or text.
 
-- `md-filled-button` — primary CTA only (one per screen: "New run", "Create first run", "Start"). Pill-shaped, primary background.
-- `md-outlined-button` — secondary navigation or context-switch actions ("Workbench", "Dashboard"). Pill-shaped, no fill.
-- `md-text-button` — tertiary inline actions (e.g. "Advanced settings" toggle, cancel flows).
-- `md-icon-button` / `md-filled-icon-button` — icon-only actions. Used for the ThemeToggle and log console open/close.
-
-Buttons that open inline toggle content (like Advanced settings) use `md-text-button` with a trailing `expand_more` / `expand_less` icon.
+- **Filled** — primary CTA only (one per screen: "Start research", "Send"). Primary background, `on-primary` label, state layer on hover/press.
+- **Outlined** — secondary/context actions. `outline-variant` border, no fill.
+- **Text** — tertiary inline actions and toggles (e.g. "Advanced settings"), often with a trailing `expand_more` / `expand_less` icon.
+- **Icon** — icon-only actions (theme toggle, log console, composer source buttons). Circular, transparent, state layer on hover/press.
 
 ### Filter Chips
 
-`md-chip-set` containing `md-filter-chip` elements. Used on the Dashboard to filter runs by status. Selected chips apply `secondary-container` background. Never use more than 5–6 chips in a row; wrap gracefully on mobile.
+Pill-shaped (`rounded-full`) `<button>` chips. Selected chips apply `secondary-container` background; unselected use `surface-container`. Never use more than 5–6 chips in a row; wrap gracefully on mobile.
 
 ### Inputs
 
-`md-outlined-text-field` handles all text input and textarea. Always set `width: 100%` and let the parent grid/flex control the actual width. The search field on Dashboard uses `type="search"`. The research goal textarea uses `type="textarea"` with `rows={4}`.
+Text inputs and textareas are semantic `<input>` / `<textarea>` styled as MD3 outlined fields — `outline-variant` border, `rounded-md`, no shadow. Always set `width: 100%` and let the parent grid/flex control the actual width. The research goal composer is a growing textarea with inline source/send controls.
 
 ### Cards
 
@@ -366,7 +375,7 @@ Two card patterns:
 
 ### Navigation
 
-The header contains: logo mark (teal SVG flask), app name ("Co-Scientist"), optional public nav links, ThemeToggle icon button, and a context-sensitive `md-outlined-button`. The button reads "Workbench" on public routes and "Dashboard" on workbench routes. On workbench routes, a LogConsole trigger also appears (hidden on mobile).
+The shell header follows the Gemini Enterprise reference: left rail, `Gemini Enterprise` product lockup, optional `Plus` chip, compact action icons, and a context-sensitive centered page title.
 
 ### Tables
 
@@ -374,14 +383,12 @@ Run list table on Dashboard uses `sm:block hidden`. Structure: `thead` with `sec
 
 ### Progress & Loading
 
-- **Skeleton loaders:** `.wb-skeleton` — shimmer animation over `secondary` → `accent` → `secondary` gradient. Used while API calls resolve.
-- **Live dot:** `.wb-live-dot` — pulsing green circle indicating an active run. Appears inline next to "Running" status.
-- `md-linear-progress` — used inside run detail header to show iteration progress.
-- `md-circular-progress` — used for stream-loading states within tabs.
+- **Skeleton loaders:** `.wb-skeleton` — neutral gray shimmer animation. Used while API calls resolve.
+- **Linear / circular progress** — first-party progress indicators using the `primary` token, shown in the run detail header (iteration progress) and while tab streams load.
 
 ### Tabs (Run Detail)
 
-`md-tabs` containing `md-primary-tab` elements for the five run views: Overview, Ideas, Evidence, Tournament, Report. Tab labels are single words. The active tab uses MD3 primary underline indicator automatically. Tab content panels are full-width below the tab bar.
+A first-party `<nav>` of `<button>` tabs (`.cosci-report-tabs`) for the run views: Goal Details, Learning, Research Overview, All Ideas. The active tab is `primary`-colored with a bottom underline drawn via `::after`; hover/focus paints an MD3 state layer via `::before` (see Interaction states). Tab content panels are full-width below the tab bar.
 
 ### Log Console
 
@@ -393,7 +400,7 @@ A collapsible side-drawer (desktop) or sheet (mobile) showing live SSE events fr
 - **Do** apply `outline-variant` for all borders. Never use raw hex colors for borders.
 - **Do** use `on-surface-variant` for all secondary/helper text. Never use `opacity: 0.5` on foreground text.
 - **Do** let `applyMd3Theme()` generate color tokens. Never hardcode MD3 palette values like `--md-sys-color-primary`.
-- **Do** use Material Symbols Outlined. Size via `--md-icon-size`, not `font-size` on the element.
+- **Do** use Material Symbols Outlined via the `<Icon>` component. Size it with `font-size` (icons render at `1em`) and color it with `color` (icons use `currentColor`).
 - **Do** use `wb-fade-in` (180ms ease-out) on content that appears after data loads. Keep animations under 200ms.
 - **Don't** add `box-shadow` to cards or inputs. Tonal elevation is sufficient.
 - **Don't** use `rounded-2xl` or larger. The three-size system (md / xl / full) covers all cases.

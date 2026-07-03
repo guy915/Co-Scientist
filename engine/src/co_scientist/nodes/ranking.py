@@ -115,6 +115,8 @@ async def judge_matchup(
     matchup_index: int | None = None,
     tool_registry: Any | None = None,
     meta_review: dict[str, Any] | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any]]:
     """Has an LLM judge which hypothesis is superior.
 
@@ -162,6 +164,8 @@ async def judge_matchup(
         deep_verification_b=deep_verification_b,
         meta_review=meta_review,
         tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
     )
 
     if reflection_notes_a or reflection_notes_b:
@@ -255,14 +259,17 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         state, "tournament_start",
         f"Running tournament with {len(hypotheses)} hypotheses...", 65)
 
-    # Calculate number of tournament rounds
-    tournament_rounds = len(hypotheses) * 1
+    # Calculate number of tier-configured tournament rounds.
+    tournament_rounds = max(
+        1, int(state.get("tournament_pairs") or len(hypotheses)))
     logger.info("Running %s tournament rounds", tournament_rounds)
 
     # Get supervisor guidance and tool registry from state
     supervisor_guidance = state.get("supervisor_guidance")
     tool_registry = state.get("tool_registry")
     meta_review = state.get("meta_review")
+    run_setup_guidance = state.get("run_setup_guidance")
+    run_focus_guidance = state.get("run_focus_guidance")
 
     # Set deterministic random seed based on research goal and iteration
     # this ensures same inputs produce same tournament pairings for cache
@@ -289,6 +296,8 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
             matchup_index=i,
             tool_registry=tool_registry,
             meta_review=meta_review,
+            run_setup_guidance=run_setup_guidance,
+            run_focus_guidance=run_focus_guidance,
         ) for i, (a, b) in enumerate(pairings)
     ])
 

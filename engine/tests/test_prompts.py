@@ -164,6 +164,23 @@ def test_supervisor_prompt_pubmed_availability_branch() -> None:
     assert "not available" in unavailable.lower()
 
 
+def test_prompt_builders_include_run_setup_guidance() -> None:
+    """Durable setup guidance is embedded in node prompts."""
+    setup_guidance = "Run setup:\n- Requirements:\n  - Focus on primary data"
+    focus_guidance = "Prefer novelty while preserving testability."
+    prompt, _ = get_supervisor_prompt(
+        research_goal="g",
+        run_setup_guidance=setup_guidance,
+        run_focus_guidance=focus_guidance,
+        criteria=["Causal clarity"],
+    )
+    assert "Run Setup Guidance" in prompt
+    assert "Run Focus Guidance" in prompt
+    assert "Focus on primary data" in prompt
+    assert "Prefer novelty" in prompt
+    assert "Causal clarity" in prompt
+
+
 # --- get_review_prompt / get_review_batch_prompt ---------------------------
 
 

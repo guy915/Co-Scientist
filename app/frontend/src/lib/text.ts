@@ -1,6 +1,6 @@
 /**
  * Shorten a research goal into a concise, single-line session title for run
- * lists and the history sidebar — mirroring Gemini Enterprise's "Chats" list,
+ * lists and the history sidebar, mirroring Google's compact "Chats" list,
  * which shows short titles rather than the full prompt.
  *
  * Heuristic (no LLM): take the first clause, cap to a readable length on a word

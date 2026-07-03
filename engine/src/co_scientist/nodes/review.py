@@ -44,6 +44,8 @@ async def review_single_hypothesis(
     run_id: str | None = None,
     hypothesis_index: int | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> HypothesisReview:
     """Reviews a single hypothesis.
 
@@ -68,6 +70,8 @@ async def review_single_hypothesis(
         supervisor_guidance=supervisor_guidance,
         meta_review=meta_review,
         tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
     )
 
     prompt_name = (f"review_individual_{hypothesis_index}"
@@ -112,6 +116,8 @@ async def review_parallel_individual(
     meta_review: dict[str, Any] | None = None,
     run_id: str | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> list[HypothesisReview]:
     """Reviews hypotheses in parallel (original approach).
 
@@ -140,6 +146,8 @@ async def review_parallel_individual(
             run_id=run_id,
             hypothesis_index=i,
             tool_registry=tool_registry,
+            run_setup_guidance=run_setup_guidance,
+            run_focus_guidance=run_focus_guidance,
         ) for i, hyp in enumerate(hypotheses)
     ]
 
@@ -154,6 +162,8 @@ async def review_comparative_batch(
     meta_review: dict[str, Any] | None = None,
     run_id: str | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> list[HypothesisReview]:
     """Reviews hypotheses in a single comparative batch.
 
@@ -184,6 +194,8 @@ async def review_comparative_batch(
         supervisor_guidance=supervisor_guidance,
         meta_review=meta_review,
         tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
     )
 
     # Scale max_tokens based on hypothesis count in batch (base budget covers
@@ -316,6 +328,8 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     # Get supervisor guidance and meta_review from state
     supervisor_guidance = state.get("supervisor_guidance")
     meta_review = state.get("meta_review")
+    run_setup_guidance = state.get("run_setup_guidance")
+    run_focus_guidance = state.get("run_focus_guidance")
 
     # Execute chosen strategy
     tool_registry = state.get("tool_registry")
@@ -329,6 +343,8 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
             meta_review=meta_review,
             run_id=state.get("run_id"),
             tool_registry=tool_registry,
+            run_setup_guidance=run_setup_guidance,
+            run_focus_guidance=run_focus_guidance,
         )
         llm_calls = 1  # Single batch call
     else:
@@ -340,6 +356,8 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
             meta_review=meta_review,
             run_id=state.get("run_id"),
             tool_registry=tool_registry,
+            run_setup_guidance=run_setup_guidance,
+            run_focus_guidance=run_focus_guidance,
         )
         llm_calls = num_hypotheses  # One call per hypothesis
 

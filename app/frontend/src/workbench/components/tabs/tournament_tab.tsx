@@ -1,6 +1,6 @@
-import '@material/web/icon/icon.js';
 import {useMemo} from 'react';
 import type {Hypothesis, MatchRow} from '@/api/runs';
+import {Icon} from '@/components/icon';
 import {EloTrajectoryChart} from '../elo_trajectory_chart';
 import {EmptyState} from '../empty_state';
 
@@ -45,7 +45,7 @@ export function TournamentTab({
             Leaderboard
           </h2>
           <ol
-            className="rounded border divide-y wb-fade-in"
+            className="rounded border divide-y"
             style={{
               borderColor: 'var(--md-sys-color-outline-variant)',
               backgroundColor: 'var(--md-sys-color-surface-container-low)',
@@ -67,9 +67,11 @@ export function TournamentTab({
                     style={{color: 'var(--md-sys-color-on-surface-variant)'}}
                   >
                     {i === 0 ? (
-                      <md-icon style={{fontSize: '14px'}} aria-hidden="true">
-                        emoji_events
-                      </md-icon>
+                      <Icon
+                        style={{fontSize: '14px'}}
+                        aria-hidden="true"
+                        name="emoji_events"
+                      />
                     ) : (
                       i + 1
                     )}
@@ -229,11 +231,10 @@ export function TournamentTab({
                       style={{color: 'var(--md-sys-color-primary)'}}
                     >
                       {m.winner_elo_before}{' '}
-                      <md-icon
+                      <Icon
                         style={{fontSize: '12px', verticalAlign: 'middle'}}
-                      >
-                        arrow_forward
-                      </md-icon>{' '}
+                        name="arrow_forward"
+                      />{' '}
                       {m.winner_elo_after}
                     </span>
                     <span
@@ -253,11 +254,10 @@ export function TournamentTab({
                       style={{color: 'var(--md-sys-color-error)'}}
                     >
                       {m.loser_elo_before}{' '}
-                      <md-icon
+                      <Icon
                         style={{fontSize: '12px', verticalAlign: 'middle'}}
-                      >
-                        arrow_forward
-                      </md-icon>{' '}
+                        name="arrow_forward"
+                      />{' '}
                       {m.loser_elo_after}
                     </span>
                   </div>

@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {
+  answerOfflineQuestion,
   askQuestionUrl,
+  canUseOfflineRun,
   listMessages,
   type Message,
   type SourceRef,
@@ -176,7 +178,22 @@ export function useMessages(
           }
         }
       } catch (e) {
-        setError(e instanceof Error ? e.message : String(e));
+        if (canUseOfflineRun(runId)) {
+          const answer = answerOfflineQuestion(runId, question);
+          setMessages(prev =>
+            prev.map(m =>
+              m.id === answerMsg.id
+                ? {
+                    ...answer,
+                    id: answerMsg.id,
+                    created_at: answerMsg.created_at,
+                  }
+                : m,
+            ),
+          );
+        } else {
+          setError(e instanceof Error ? e.message : String(e));
+        }
       } finally {
         setIsAnswering(false);
         void fetchMessages();

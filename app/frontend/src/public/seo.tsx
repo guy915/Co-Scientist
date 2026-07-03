@@ -64,7 +64,7 @@ export function Seo({
       'meta[property="og:site_name"]',
       'property',
       'og:site_name',
-      'Co-Scientist',
+      'AI Co-Scientist',
     );
     upsertMeta('meta[property="og:url"]', 'property', 'og:url', canonicalUrl);
     upsertMeta(

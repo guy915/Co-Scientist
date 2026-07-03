@@ -14,6 +14,7 @@ Consider current scientific literature and knowledge in the domain.
 
 {{supervisor_guidance}}
 {{meta_review_context}}
+{{run_guidance}}
 ## User-Provided Starting Hypotheses (if any; else this section will be empty)
 
 {{user_hypotheses}}

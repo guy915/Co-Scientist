@@ -332,9 +332,104 @@ async def test_progress_callback_receives_events(
     assert "literature_review_complete" in events
 
 
+async def test_no_papers_with_search_error_emits_error_event(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """A failed search surfaces a distinct error event, not a silent empty run.
+
+    When every search call raises, the node reports ``literature_review_error``
+    with a non-zero ``search_errors_count`` and a sample of the causes, so a
+    connection/transport failure is distinguishable from a search that
+    legitimately found nothing.
+    """
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    async def callback(event: str, payload: dict[str, Any]) -> None:
+        events.append((event, payload))
+
+    # Reuse the standard stubs, then replace the client with one that raises on
+    # every search call (query generation uses the stubbed LLM, not call_tool).
+    _stub_node(monkeypatch,
+               source_available=True,
+               search_payload={},
+               queries=["q"])
+
+    class _RaisingClient:
+
+        async def call_tool(self, _tool_name: str, **_: Any) -> Any:
+            raise ConnectionError("All connection attempts failed")
+
+        def has_tool(self, _tool_name: str) -> bool:
+            return False
+
+    async def fake_get_client(**_: Any) -> _RaisingClient:
+        return _RaisingClient()
+
+    monkeypatch.setattr(lr, "get_mcp_client", fake_get_client)
+
+    state = make_state(research_goal="connection blip goal",
+                       progress_callback=callback)
+    await literature_review_node(state)
+
+    error_payloads = [p for e, p in events if e == "literature_review_error"]
+    assert error_payloads, "expected a literature_review_error event"
+    assert error_payloads[0]["search_errors_count"] >= 1
+    assert any("ConnectionError" in sample
+               for sample in error_payloads[0]["search_error_sample"])
+
+
+async def test_no_papers_without_error_emits_empty_event(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """A search that returns nothing without errors emits the empty event.
+
+    Distinct from the error path: ``literature_review_empty`` with
+    ``search_errors_count == 0``.
+    """
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    async def callback(event: str, payload: dict[str, Any]) -> None:
+        events.append((event, payload))
+
+    _stub_node(monkeypatch,
+               source_available=True,
+               search_payload={},
+               queries=["q"])
+    state = make_state(research_goal="genuinely empty goal",
+                       progress_callback=callback)
+    await literature_review_node(state)
+
+    empty_payloads = [p for e, p in events if e == "literature_review_empty"]
+    assert empty_payloads, "expected a literature_review_empty event"
+    assert empty_payloads[0]["search_errors_count"] == 0
+
+
 # =============================================================================
 # In-file pure helpers
 # =============================================================================
+
+
+class _FakeExceptionGroup(Exception):
+    """Duck-typed stand-in for ``ExceptionGroup`` (portable to Python 3.10).
+
+    Exposes the ``exceptions`` tuple that ``_describe_exc`` unwraps, mirroring
+    the real ``ExceptionGroup`` the anyio-based MCP transport raises.
+    """
+
+    def __init__(self, message: str, exceptions: list[BaseException]) -> None:
+        super().__init__(message)
+        self.exceptions = tuple(exceptions)
+
+
+def test_describe_exc_plain_exception() -> None:
+    """A plain exception is rendered as ``Type: message``."""
+    assert lr._describe_exc(ValueError("bad input")) == "ValueError: bad input"
+
+
+def test_describe_exc_unwraps_exception_group() -> None:
+    """A grouped exception is unwrapped to its underlying leaf cause."""
+    leaf = ConnectionError("All connection attempts failed")
+    group = _FakeExceptionGroup("unhandled errors in a TaskGroup", [leaf])
+    assert lr._describe_exc(
+        group) == "ConnectionError: All connection attempts failed"
 
 
 def test_get_search_config_defaults_single_source() -> None:
@@ -346,6 +441,15 @@ def test_get_search_config_defaults_single_source() -> None:
     assert config.search_tool_config is None
     assert config.tool_registry is None
     assert config.papers_to_read_count > 0
+
+
+def test_get_search_config_honors_run_paper_count(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Per-run literature count overrides the default outside dev mode."""
+    monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
+    config = lr._get_search_config(  # pylint: disable=protected-access
+        make_state(literature_review_papers_count=12))
+    assert config.papers_to_read_count == 12
 
 
 def test_format_kg_section_empty_returns_empty_string() -> None:
@@ -380,8 +484,12 @@ def test_parse_enrichment_indra_statements_formatted() -> None:
     """INDRA statements format as 'subj -> obj [type] (belief: ..)' lines."""
     raw = {
         "statements": [{
-            "subj": {"name": "KRAS"},
-            "obj": {"name": "MAPK1"},
+            "subj": {
+                "name": "KRAS"
+            },
+            "obj": {
+                "name": "MAPK1"
+            },
             "type": "Activation",
             "belief": 0.97,
         }]

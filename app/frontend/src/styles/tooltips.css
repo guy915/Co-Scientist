@@ -1,0 +1,159 @@
+/* Sidebar tooltip stacking fix: keep nav popups above the workspace. */
+.ucs-nav-panel {
+  position: relative;
+  z-index: 70;
+}
+
+.ucs-workspace {
+  position: relative;
+  z-index: 1;
+}
+
+.ucs-nav-items,
+.ucs-nav-item,
+.gemini-chat-list a,
+.gemini-side-content,
+.gemini-chat-list {
+  overflow: visible;
+}
+
+.ucs-nav-item,
+.gemini-chat-list a {
+  position: relative;
+}
+
+/* Canonical tooltip system. New tooltip affordances must use
+   data-tooltip plus these ucs-tooltip-* modifiers. */
+[data-tooltip].ucs-tooltip-anchor {
+  position: relative;
+  overflow: visible !important;
+  --ucs-tooltip-x: -50%;
+  --ucs-tooltip-y: -0.25rem;
+  --ucs-tooltip-open-x: -50%;
+  --ucs-tooltip-open-y: 0;
+  --ucs-tooltip-scale: 0.98;
+  --ucs-tooltip-open-scale: 1;
+}
+
+.reference-attachment-card > button.ucs-tooltip-anchor,
+.reference-attachment-card--image > button.ucs-tooltip-anchor {
+  position: absolute;
+}
+
+[data-tooltip].ucs-tooltip-anchor::after {
+  position: absolute !important;
+  z-index: 1000 !important;
+  display: block !important;
+  width: max-content !important;
+  max-width: min(20rem, calc(100vw - 2rem)) !important;
+  border: 1px solid #3c4043 !important;
+  border-radius: 0.45rem !important;
+  background: #303134 !important;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 22%),
+    0 3px 8px rgb(0 0 0 / 24%) !important;
+  color: #f1f3f4 !important;
+  content: attr(data-tooltip) !important;
+  font-size: 0.78rem !important;
+  font-weight: 500 !important;
+  line-height: 1.15 !important;
+  opacity: 0 !important;
+  padding: 0.34rem 0.52rem !important;
+  pointer-events: none !important;
+  text-align: left !important;
+  transform: translate(var(--ucs-tooltip-x), var(--ucs-tooltip-y))
+    scale(var(--ucs-tooltip-scale)) !important;
+  visibility: hidden !important;
+  white-space: nowrap !important;
+}
+
+[data-tooltip].ucs-tooltip-wrap::after {
+  line-height: 1.22 !important;
+  max-width: min(18rem, calc(100vw - 2rem)) !important;
+  overflow-wrap: break-word !important;
+  white-space: normal !important;
+}
+
+.gemini-chat-list [data-tooltip].ucs-tooltip-wrap::after {
+  max-width: min(16.5rem, calc(100vw - 2rem)) !important;
+}
+
+[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor::after {
+  border-color: #dadce0 !important;
+  background: #f1f3f4 !important;
+  box-shadow:
+    0 1px 2px rgb(60 64 67 / 18%),
+    0 2px 6px rgb(60 64 67 / 16%) !important;
+  color: #202124 !important;
+}
+
+[data-tooltip].ucs-tooltip-top::after {
+  top: auto !important;
+  right: auto !important;
+  bottom: calc(100% + 0.45rem) !important;
+  left: 50% !important;
+}
+
+[data-tooltip].ucs-tooltip-bottom::after {
+  top: calc(100% + 0.45rem) !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: 50% !important;
+}
+
+[data-tooltip].ucs-tooltip-right {
+  --ucs-tooltip-x: -0.2rem;
+  --ucs-tooltip-y: -50%;
+  --ucs-tooltip-open-x: 0;
+  --ucs-tooltip-open-y: -50%;
+}
+
+[data-tooltip].ucs-tooltip-right::after {
+  top: 50% !important;
+  right: auto !important;
+  bottom: auto !important;
+  left: calc(100% + 0.55rem) !important;
+}
+
+[data-tooltip].ucs-tooltip-left {
+  --ucs-tooltip-x: 0.2rem;
+  --ucs-tooltip-y: -50%;
+  --ucs-tooltip-open-x: 0;
+  --ucs-tooltip-open-y: -50%;
+}
+
+[data-tooltip].ucs-tooltip-left::after {
+  top: 50% !important;
+  right: calc(100% + 0.55rem) !important;
+  bottom: auto !important;
+  left: auto !important;
+}
+
+[data-tooltip].ucs-tooltip-align-end::after {
+  right: 0 !important;
+  left: auto !important;
+  --ucs-tooltip-x: 0;
+  --ucs-tooltip-open-x: 0;
+}
+
+[data-tooltip].ucs-tooltip-align-start::after {
+  right: auto !important;
+  left: 0 !important;
+  --ucs-tooltip-x: 0;
+  --ucs-tooltip-open-x: 0;
+}
+
+[data-tooltip].ucs-tooltip-anchor:hover::after,
+[data-tooltip].ucs-tooltip-anchor:focus-visible::after {
+  opacity: 1 !important;
+  transform: translate(
+      var(--ucs-tooltip-open-x),
+      var(--ucs-tooltip-open-y)
+    )
+    scale(var(--ucs-tooltip-open-scale)) !important;
+  visibility: visible !important;
+}
+
+.ucs-nav-item .nav-label {
+  white-space: nowrap;
+}

@@ -8,19 +8,20 @@ describe('inferRunSpec', () => {
     );
 
     expect(spec.goal).toBe('Identify a novel mechanism in cancer signalling.');
-    expect(spec.mode).toBe('Hypothesis tournament');
-    expect(spec.output).toContain('Ranked hypotheses with Elo');
-    expect(spec.constraints.join(' ')).toContain('biomedical safety');
-    expect(spec.constraints.join(' ')).toContain('causal mechanism');
+    expect(spec.focus).toBe('balance');
+    expect(spec.tier).toBe('standard');
+    expect(spec.requirements.join(' ')).toContain('biomedical safety');
+    expect(spec.requirements.join(' ')).toContain('causal mechanism');
+    expect(spec.attributes.join(' ')).toContain('Translationally plausible');
   });
 
-  it('uses constraints for tournament ranking and evolution', () => {
+  it('uses requirements for tournament ranking and evolution', () => {
     const spec = inferRunSpec(
       'Investigate cold-stress control of glucose homeostasis.',
     );
 
-    expect(spec.mode).toBe('Hypothesis tournament');
-    expect(spec.constraints.join(' ')).toContain('tournament ranking');
+    expect(spec.criteria.join(' ')).toContain('Measurable biological readout');
+    expect(spec.requirements.join(' ')).toContain('tournament ranking');
   });
 });
 
@@ -32,8 +33,9 @@ describe('reviseRunSpec', () => {
       'Focus on clinically testable mechanisms.',
     );
 
-    expect(revised.mode).toBe('Hypothesis tournament');
-    expect(revised.constraints.at(-1)).toContain('Apply steering note');
+    expect(revised.focus).toBe('balance');
+    expect(revised.tier).toBe('standard');
+    expect(revised.requirements.at(-1)).toContain('Apply steering note');
   });
 
   it('can update the goal through a chat instruction', () => {

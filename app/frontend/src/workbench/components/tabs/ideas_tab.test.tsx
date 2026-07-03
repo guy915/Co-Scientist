@@ -1,6 +1,5 @@
-import {describe, it, expect, vi} from 'vitest';
+import {describe, it, expect} from 'vitest';
 import {render, screen} from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
 import {IdeasTab} from './ideas_tab';
 import type {CitationRow, Hypothesis, Review} from '@/api/runs';
 
@@ -32,20 +31,13 @@ function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
 
 describe('IdeasTab', () => {
   it('shows the empty state when there are no hypotheses', () => {
-    render(
-      <IdeasTab
-        hypotheses={[]}
-        citations={[]}
-        reviews={[]}
-        onFocus={() => {}}
-      />,
-    );
+    render(<IdeasTab hypotheses={[]} citations={[]} reviews={[]} />);
     expect(
       screen.getByText('Hypotheses appear here once the generation node runs.'),
     ).toBeInTheDocument();
   });
 
-  it('renders hypothesis rows sorted by Elo with their scores', () => {
+  it('renders idea rows sorted by Elo with their scores', () => {
     const hypotheses: Hypothesis[] = [
       makeHypothesis({
         id: 'low',
@@ -62,27 +54,19 @@ describe('IdeasTab', () => {
         loss_count: 1,
       }),
     ];
-    render(
-      <IdeasTab
-        hypotheses={hypotheses}
-        citations={[]}
-        reviews={[]}
-        onFocus={() => {}}
-      />,
-    );
-    expect(screen.getByText('High-ranked idea')).toBeInTheDocument();
+    render(<IdeasTab hypotheses={hypotheses} citations={[]} reviews={[]} />);
+    expect(screen.getAllByText('High-ranked idea')[0]).toBeInTheDocument();
     expect(screen.getByText('Low-ranked idea')).toBeInTheDocument();
     // Default sort is by Elo descending; the higher Elo badge is rendered.
-    expect(screen.getByText('Elo 1300')).toBeInTheDocument();
-    // Win rate badge: 4 / (4+1) = 80%.
-    expect(screen.getByText('80%')).toBeInTheDocument();
+    expect(screen.getByText('Elo rating: 1300')).toBeInTheDocument();
+    expect(screen.queryByText('80% wins')).not.toBeInTheDocument();
 
     const rows = screen.getAllByRole('listitem');
     expect(rows[0]).toHaveTextContent('High-ranked idea');
     expect(rows[1]).toHaveTextContent('Low-ranked idea');
   });
 
-  it('surfaces verified-citation counts on a row', () => {
+  it('keeps citation counters out of the reference row layout', () => {
     const hypotheses = [makeHypothesis({id: 'h1', title: 'Cited idea'})];
     const citations: CitationRow[] = [
       {
@@ -101,19 +85,13 @@ describe('IdeasTab', () => {
       },
     ];
     render(
-      <IdeasTab
-        hypotheses={hypotheses}
-        citations={citations}
-        reviews={[]}
-        onFocus={() => {}}
-      />,
+      <IdeasTab hypotheses={hypotheses} citations={citations} reviews={[]} />,
     );
-    // One of two citations is verified.
-    expect(screen.getByText('1/2 Verified')).toBeInTheDocument();
+    expect(screen.getAllByText('Cited idea').length).toBeGreaterThan(0);
+    expect(screen.queryByText('1/2 verified')).not.toBeInTheDocument();
   });
 
-  it('invokes onFocus with the hypothesis id from the detail link', async () => {
-    const onFocus = vi.fn();
+  it('renders reference detail sections without the legacy detail link', () => {
     const reviews: Review[] = [
       {
         id: 1,
@@ -132,13 +110,12 @@ describe('IdeasTab', () => {
         hypotheses={[makeHypothesis({id: 'h1', title: 'Focusable idea'})]}
         citations={[]}
         reviews={reviews}
-        onFocus={onFocus}
       />,
     );
-    const user = userEvent.setup();
-    // Expand the row to reveal the "Open detail" action.
-    await user.click(screen.getByText('Focusable idea'));
-    await user.click(screen.getByText('Open detail'));
-    expect(onFocus).toHaveBeenCalledWith('h1');
+    expect(screen.getByText('Review summary')).toBeInTheDocument();
+    expect(screen.getByText('Full review')).toBeInTheDocument();
+    expect(screen.getByText('Reasonable.')).toBeInTheDocument();
+    expect(screen.getByText('Needs a control arm.')).toBeInTheDocument();
+    expect(screen.queryByText('Full legacy detail')).not.toBeInTheDocument();
   });
 });

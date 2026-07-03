@@ -1,23 +1,82 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
 import {getClientId} from '@/lib/client_id';
+import {
+  isOfflineRunId,
+  offlineAnswer,
+  offlineCancelRun,
+  offlineCitations,
+  offlineCreateRun,
+  offlineEvents,
+  offlineEvidence,
+  offlineGetRun,
+  offlineHypotheses,
+  offlineListDemoRuns,
+  offlineListMessages,
+  offlineListRuns,
+  offlineMatches,
+  offlineReport,
+  offlineReviews,
+  offlineSafety,
+  offlineSendMessage,
+  offlineStartRun,
+  offlineStatus,
+} from './offline_runs';
+import type {
+  CitationRow,
+  Evidence,
+  Hypothesis,
+  LegacyRunProfile,
+  MatchRow,
+  Message,
+  Report,
+  Review,
+  Run,
+  RunEvent,
+  RunFocus,
+  RunMode,
+  RunStatus,
+  RunTier,
+  RunWithSummary,
+  SafetyDecision,
+  SystemStatus,
+} from './run_types';
+export type {
+  CitationRow,
+  Evidence,
+  Hypothesis,
+  JsonPrimitive,
+  JsonValue,
+  LegacyRunProfile,
+  MatchRow,
+  Message,
+  MessageMeta,
+  Report,
+  ReportPayload,
+  ResearchOverview,
+  Review,
+  Run,
+  RunConfig,
+  RunEvent,
+  RunFocus,
+  RunMode,
+  RunSetupConfig,
+  RunStatus,
+  RunSummary,
+  RunTier,
+  RunWithSummary,
+  SafetyDecision,
+  SourceRef,
+  SystemStatus,
+} from './run_types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
+const OFFLINE_FALLBACK_ENABLED =
+  (import.meta.env.VITE_ENABLE_OFFLINE_FALLBACK as string) === 'true';
 
 function clientHeaders(): Record<string, string> {
   return {'X-Client-ID': getClientId()};
 }
-
-/** Lifecycle state of a run as reported by the backend. */
-export type RunStatus =
-  | 'draft'
-  | 'queued'
-  | 'running'
-  | 'synthesizing'
-  | 'completed'
-  | 'failed'
-  | 'blocked'
-  | 'cancelled';
 
 /** Statuses for a run whose workflow is still in progress. */
 const ACTIVE_STATUSES: readonly RunStatus[] = [
@@ -54,196 +113,90 @@ export function isTerminal(status: RunStatus | undefined): boolean {
   return Boolean(status && TERMINAL_STATUSES.includes(status));
 }
 
-/** Canonical run mode for the single clone workflow. */
-export type RunMode = 'default';
-
-/** Former generation profile labels still accepted by the backend. */
-export type LegacyRunProfile = RunMode | 'standard' | 'advanced';
-
-/** A hypothesis-generation run with its goal, config, and current status. */
-export interface Run {
-  id: string;
-  research_goal: string;
-  run_mode?: RunMode;
-  profile: LegacyRunProfile;
-  status: RunStatus;
-  provider: 'mock' | 'engine';
-  config: Record<string, number | string>;
-  is_demo?: boolean;
-  created_at: number;
-  updated_at: number;
-  completed_at: number | null;
-  error: string | null;
+class ApiUnavailableError extends Error {
+  constructor() {
+    super('API unavailable');
+  }
 }
 
-/** Aggregate counts of the artifacts a run has produced. */
-export interface RunSummary {
-  events: number;
-  hypotheses: number;
-  evidence: number;
-  matches: number;
-  reviews: number;
-}
-
-/** A run enriched with its aggregate artifact counts. */
-export interface RunWithSummary extends Run {
-  summary: RunSummary;
-}
-
-/** A generated hypothesis with its scores, lineage, and tournament record. */
-export interface Hypothesis {
-  id: string;
-  run_id: string;
-  parent_id: string | null;
-  generation: number;
-  title: string;
-  statement: string;
-  mechanism: string | null;
-  expected_effect: string | null;
-  experimental_context: string | null;
-  created_by_agent: string;
-  created_at: number;
-  elo_rating: number;
-  win_count: number;
-  loss_count: number;
-  novelty_score: number | null;
-  plausibility_score: number | null;
-  testability_score: number | null;
-  safety_status: string | null;
-  status: string | null;
-  cluster_id: string | null;
-}
-
-/** A literature record cited as supporting or contextual evidence. */
-export interface Evidence {
-  id: string;
-  title: string;
-  source: string;
-  url: string;
-  authors: string[];
-  year: number | null;
-  abstract: string;
-  available: boolean;
-}
-
-/** One pairwise tournament match and the Elo changes it produced. */
-export interface MatchRow {
-  id: number;
-  iteration: number;
-  winner_id: string;
-  loser_id: string;
-  winner_elo_before: number;
-  winner_elo_after: number;
-  loser_elo_before: number;
-  loser_elo_after: number;
-  rationale: string;
-  created_at: number;
-}
-
-/** A reviewer agent's critique and per-axis scores for a hypothesis. */
-export interface Review {
-  id: number;
-  hypothesis_id: string;
-  reviewer_agent: string;
-  summary: string;
-  critique: string;
-  novelty: number | null;
-  plausibility: number | null;
-  testability: number | null;
-  overall: number | null;
-}
-
-/** A safety-gate decision recorded at a given stage of the pipeline. */
-export interface SafetyDecision {
-  stage: 'intake' | 'final';
-  decision: 'allow' | 'redact' | 'block';
-  reason: string;
-  matches: string[];
-  created_at: number;
-}
-
-/** A link between a hypothesis claim and the evidence verifying it. */
-export interface CitationRow {
-  id: number;
-  hypothesis_id: string;
-  evidence_id: string;
-  claim: string;
-  state: 'verified' | 'partial' | 'unsupported' | 'unavailable';
-}
-
-/** Structured contents of a run's final synthesis report. */
-export interface ReportPayload {
-  research_goal: string;
-  run_mode?: RunMode;
-  profile?: LegacyRunProfile;
-  provider: string;
-  leaderboard: {id: string; title: string; elo: number}[];
-  citation_summary?: Record<string, number>;
-  evidence_count?: number;
-  matches_count?: number;
-  research_overview?: ResearchOverview;
-}
-
-/** Synthesized roadmap and NIH Specific Aims for a run's top hypotheses. */
-export interface ResearchOverview {
-  overview?: {
-    summary?: string;
-    research_directions?: {
-      title: string;
-      importance: string;
-      suggested_experiments: string[];
-    }[];
-  };
-  nih_specific_aims?: {
-    introduction?: string;
-    aims?: {aim: string; rationale: string; approach: string}[];
-    impact?: string;
-  };
-}
-
-/** A persisted run report with its structured payload and markdown path. */
-export interface Report {
-  id: string;
-  run_id: string;
-  payload: ReportPayload;
-  markdown_path: string;
-  created_at: number;
-}
-
-/** A chat message exchanged with a run (steering, Q&A, or milestone). */
-/** A cited source attached to a grounded Q&A answer (the `[n]` references). */
-export interface SourceRef {
-  n: number;
-  evidence_id: string;
-  title: string;
-  url?: string | null;
-  source?: string | null;
-  year?: number | null;
-  state: string;
-}
-
-export interface MessageMeta {
-  sources?: SourceRef[];
-}
-
-export interface Message {
-  id: number;
-  run_id: string;
-  sender: 'user' | 'system';
-  content: string;
-  kind: 'steering' | 'qa' | 'milestone';
-  created_at: number;
-  applied: boolean;
-  status?: string;
-  meta?: MessageMeta | null;
-}
-
-async function jsonOrThrow<T>(res: Response): Promise<T> {
+async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    if (res.status === 500 && !text.trim()) throw new ApiUnavailableError();
+    if (errorPrefix) throw new Error(`${errorPrefix} ${res.status}`);
     throw new Error(`${res.status} ${text || res.statusText}`);
   }
   return (await res.json()) as T;
+}
+
+async function fetchJson<T>(
+  path: string,
+  init?: RequestInit,
+  errorPrefix?: string,
+): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, init);
+  return parseJson<T>(res, errorPrefix);
+}
+
+function isApiUnavailable(err: unknown): boolean {
+  return (
+    err instanceof ApiUnavailableError ||
+    (err instanceof TypeError &&
+      /fetch|network|load failed|failed to fetch/i.test(err.message))
+  );
+}
+
+function shouldUseOfflineFallback(err: unknown): boolean {
+  return OFFLINE_FALLBACK_ENABLED && isApiUnavailable(err);
+}
+
+async function withOfflineFallback<T>(
+  request: () => Promise<T>,
+  fallback: () => T | Promise<T>,
+): Promise<T> {
+  try {
+    return await request();
+  } catch (err) {
+    if (shouldUseOfflineFallback(err)) return await fallback();
+    throw err;
+  }
+}
+
+async function fetchWithFallback<T>(
+  path: string,
+  fallback: () => T | Promise<T>,
+  init?: RequestInit,
+  errorPrefix?: string,
+): Promise<T> {
+  return withOfflineFallback(
+    () => fetchJson<T>(path, init, errorPrefix),
+    fallback,
+  );
+}
+
+async function fetchFieldWithFallback<K extends string, T>(
+  path: string,
+  field: K,
+  fallback: () => T | Promise<T>,
+  init?: RequestInit,
+  errorPrefix?: string,
+): Promise<T> {
+  const data = await withOfflineFallback(
+    () => fetchJson<Record<K, T>>(path, init, errorPrefix),
+    async () => ({[field]: await fallback()}) as Record<K, T>,
+  );
+  return data[field];
+}
+
+function jsonRequest(body: unknown, includeClientId = false): RequestInit {
+  return {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(includeClientId ? clientHeaders() : {}),
+    },
+    body: JSON.stringify(body),
+  };
 }
 
 /**
@@ -256,18 +209,23 @@ export async function createRun(input: {
   research_goal: string;
   run_mode?: RunMode;
   profile?: LegacyRunProfile;
+  requirements?: string[];
+  attributes?: string[];
+  criteria?: string[];
+  focus?: RunFocus;
+  tier?: RunTier;
   initial_hypotheses_count?: number;
   max_iterations?: number;
   evolution_max_count?: number;
   k_factor?: number;
+  enable_literature_review?: boolean;
   notes?: string;
 }): Promise<Run> {
-  const res = await fetch(`${API_BASE_URL}/api/runs`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', ...clientHeaders()},
-    body: JSON.stringify(input),
-  });
-  return jsonOrThrow<Run>(res);
+  return fetchWithFallback(
+    '/api/runs',
+    () => offlineCreateRun(input),
+    jsonRequest(input, true),
+  );
 }
 
 /**
@@ -278,11 +236,15 @@ export async function createRun(input: {
  */
 export async function listRuns(limit?: number): Promise<Run[]> {
   const query = limit === undefined ? '' : `?limit=${limit}`;
-  const res = await fetch(`${API_BASE_URL}/api/runs${query}`, {
-    headers: clientHeaders(),
-  });
-  const data = await jsonOrThrow<{runs: Run[]}>(res);
-  return data.runs;
+  return fetchFieldWithFallback(
+    `/api/runs${query}`,
+    'runs',
+    () => {
+      const runs = offlineListRuns();
+      return limit === undefined ? runs : runs.slice(0, limit);
+    },
+    {headers: clientHeaders()},
+  );
 }
 
 /**
@@ -291,9 +253,7 @@ export async function listRuns(limit?: number): Promise<Run[]> {
  * @returns The seeded demo runs.
  */
 export async function listDemoRuns(): Promise<Run[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/demo`);
-  const data = await jsonOrThrow<{runs: Run[]}>(res);
-  return data.runs;
+  return fetchFieldWithFallback('/api/runs/demo', 'runs', offlineListDemoRuns);
 }
 
 /**
@@ -303,8 +263,7 @@ export async function listDemoRuns(): Promise<Run[]> {
  * @returns The run and its aggregate counts.
  */
 export async function getRun(id: string): Promise<RunWithSummary> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}`);
-  return jsonOrThrow<RunWithSummary>(res);
+  return fetchWithFallback(`/api/runs/${id}`, () => offlineGetRun(id));
 }
 
 /**
@@ -318,12 +277,11 @@ export async function startRun(
   id: string,
   body: {force_provider?: 'mock' | 'engine'} = {},
 ): Promise<{id: string; status: string}> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/start`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(body),
-  });
-  return jsonOrThrow(res);
+  return fetchWithFallback(
+    `/api/runs/${id}/start`,
+    () => offlineStartRun(id),
+    jsonRequest(body),
+  );
 }
 
 /**
@@ -335,29 +293,38 @@ export async function startRun(
 export async function cancelRun(
   id: string,
 ): Promise<{id: string; status: string}> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/cancel`, {
-    method: 'POST',
-  });
-  return jsonOrThrow(res);
+  return fetchWithFallback(
+    `/api/runs/${id}/cancel`,
+    () => offlineCancelRun(id),
+    {method: 'POST'},
+  );
 }
 
 /**
  * Fetches a run sub-resource `/api/runs/{id}/{key}` that the API returns
- * wrapped as `{[key]: T[]}`.
+ * wrapped as `{[key]: T[]}`, with an offline fallback.
  *
  * @param id Run identifier.
  * @param key Sub-resource path segment, doubling as the response key.
+ * @param fallback Offline fallback producing the list.
  * @param init Optional fetch options (e.g. client headers).
+ * @param errorPrefix Optional prefix for error messages.
  * @returns The unwrapped array.
  */
 async function getRunList<T>(
   id: string,
   key: string,
+  fallback: () => T[] | Promise<T[]>,
   init?: RequestInit,
+  errorPrefix?: string,
 ): Promise<T[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/${key}`, init);
-  const data = await jsonOrThrow<Record<string, T[]>>(res);
-  return data[key];
+  return fetchFieldWithFallback(
+    `/api/runs/${id}/${key}`,
+    key,
+    fallback,
+    init,
+    errorPrefix,
+  );
 }
 
 /**
@@ -367,7 +334,7 @@ async function getRunList<T>(
  * @returns The run's hypotheses.
  */
 export function getHypotheses(id: string): Promise<Hypothesis[]> {
-  return getRunList<Hypothesis>(id, 'hypotheses');
+  return getRunList<Hypothesis>(id, 'hypotheses', () => offlineHypotheses(id));
 }
 
 /**
@@ -377,7 +344,7 @@ export function getHypotheses(id: string): Promise<Hypothesis[]> {
  * @returns The run's evidence records.
  */
 export function getEvidence(id: string): Promise<Evidence[]> {
-  return getRunList<Evidence>(id, 'evidence');
+  return getRunList<Evidence>(id, 'evidence', () => offlineEvidence(id));
 }
 
 /**
@@ -387,7 +354,7 @@ export function getEvidence(id: string): Promise<Evidence[]> {
  * @returns The run's match rows.
  */
 export function getMatches(id: string): Promise<MatchRow[]> {
-  return getRunList<MatchRow>(id, 'matches');
+  return getRunList<MatchRow>(id, 'matches', () => offlineMatches(id));
 }
 
 /**
@@ -397,7 +364,7 @@ export function getMatches(id: string): Promise<MatchRow[]> {
  * @returns The run's reviews.
  */
 export function getReviews(id: string): Promise<Review[]> {
-  return getRunList<Review>(id, 'reviews');
+  return getRunList<Review>(id, 'reviews', () => offlineReviews(id));
 }
 
 /**
@@ -407,7 +374,7 @@ export function getReviews(id: string): Promise<Review[]> {
  * @returns The run's safety decisions.
  */
 export function getSafety(id: string): Promise<SafetyDecision[]> {
-  return getRunList<SafetyDecision>(id, 'safety');
+  return getRunList<SafetyDecision>(id, 'safety', () => offlineSafety(id));
 }
 
 /**
@@ -417,7 +384,7 @@ export function getSafety(id: string): Promise<SafetyDecision[]> {
  * @returns The run's citation rows.
  */
 export function getCitations(id: string): Promise<CitationRow[]> {
-  return getRunList<CitationRow>(id, 'citations');
+  return getRunList<CitationRow>(id, 'citations', () => offlineCitations(id));
 }
 
 /**
@@ -427,9 +394,14 @@ export function getCitations(id: string): Promise<CitationRow[]> {
  * @returns The report, or null when not yet generated.
  */
 export async function getReport(id: string): Promise<Report | null> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
-  if (res.status === 404) return null;
-  return jsonOrThrow<Report>(res);
+  return withOfflineFallback(
+    async () => {
+      const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
+      if (res.status === 404) return null;
+      return parseJson<Report>(res);
+    },
+    () => offlineReport(id),
+  );
 }
 
 /**
@@ -453,14 +425,6 @@ export function eventsStreamUrl(id: string, after = 0): string {
   return `${API_BASE_URL}/api/runs/${id}/events?after=${after}`;
 }
 
-/** A single timeline event emitted by the engine during a run. */
-export interface RunEvent {
-  seq: number;
-  type: string;
-  payload: Record<string, unknown>;
-  created_at: number;
-}
-
 /**
  * Fetches the full persisted event log for a run.
  *
@@ -468,21 +432,9 @@ export interface RunEvent {
  * @returns The run's events in sequence order.
  */
 export async function getRunEventsLog(id: string): Promise<RunEvent[]> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/events/log`);
-  return jsonOrThrow<RunEvent[]>(res);
-}
-
-/** Backend diagnostics describing provider and tool availability. */
-export interface SystemStatus {
-  mcp_available: boolean;
-  pubmed_available: boolean;
-  literature_review_available: boolean;
-  mcp_server_url: string;
-  provider: 'mock' | 'engine';
-  mock_mode: boolean;
-  has_provider_key: boolean;
-  engine_importable: boolean;
-  model_name: string;
+  return fetchWithFallback(`/api/runs/${id}/events/log`, () =>
+    offlineEvents(id),
+  );
 }
 
 /**
@@ -491,8 +443,7 @@ export interface SystemStatus {
  * @returns The current system status.
  */
 export async function getSystemStatus(): Promise<SystemStatus> {
-  const res = await fetch(`${API_BASE_URL}/status`);
-  return jsonOrThrow<SystemStatus>(res);
+  return fetchWithFallback('/status', offlineStatus);
 }
 
 /**
@@ -502,7 +453,13 @@ export async function getSystemStatus(): Promise<SystemStatus> {
  * @returns The run's messages.
  */
 export function listMessages(runId: string): Promise<Message[]> {
-  return getRunList<Message>(runId, 'messages', {headers: clientHeaders()});
+  return getRunList<Message>(
+    runId,
+    'messages',
+    () => offlineListMessages(runId),
+    {headers: clientHeaders()},
+    'listMessages',
+  );
 }
 
 /**
@@ -518,13 +475,12 @@ export async function sendMessage(
   content: string,
   kind?: 'steering' | 'qa',
 ): Promise<Message> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${runId}/messages`, {
-    method: 'POST',
-    headers: {'Content-Type': 'application/json', ...clientHeaders()},
-    body: JSON.stringify({content, ...(kind ? {kind} : {})}),
-  });
-  if (!res.ok) throw new Error(`sendMessage ${res.status}`);
-  return (await res.json()) as Message;
+  return fetchWithFallback(
+    `/api/runs/${runId}/messages`,
+    () => offlineSendMessage(runId, content, kind),
+    jsonRequest({content, ...(kind ? {kind} : {})}, true),
+    'sendMessage',
+  );
 }
 
 /**
@@ -535,4 +491,15 @@ export async function sendMessage(
  */
 export function askQuestionUrl(runId: string): string {
   return `${API_BASE_URL}/api/runs/${runId}/messages/ask`;
+}
+
+export function canUseOfflineRun(runId: string): boolean {
+  return OFFLINE_FALLBACK_ENABLED && isOfflineRunId(runId);
+}
+
+export function answerOfflineQuestion(
+  runId: string,
+  question: string,
+): Message {
+  return offlineAnswer(runId, question);
 }
