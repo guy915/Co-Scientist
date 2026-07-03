@@ -12,7 +12,13 @@ the store. These tests exercise the two canonical-fidelity additions:
 """
 from __future__ import annotations
 
+import asyncio
+import sys
+import types
+from collections.abc import AsyncIterator
 from typing import Any
+
+import pytest
 
 from app import engine_adapter, store
 
@@ -22,6 +28,8 @@ def _final_state_with_features() -> dict[str, Any]:
     return {
         "hypotheses": [
             {
+                "id":
+                    "eng-hyp-a",
                 "text":
                     "Reparixin inhibits CXCR1 to suppress breast cancer "
                     "stem cells.",
@@ -66,6 +74,7 @@ def _final_state_with_features() -> dict[str, Any]:
                     "weakened",
             },
             {
+                "id": "eng-hyp-b",
                 "text": "A control hypothesis with no probes.",
                 "explanation": "",
                 "literature_grounding": "",
@@ -81,7 +90,22 @@ def _final_state_with_features() -> dict[str, Any]:
             },
         ],
         "articles": [],
-        "tournament_matchups": [],
+        "tournament_matchups": [{
+            "hypothesis_a":
+                "Reparixin inhibits CXCR1 to suppress breast cancer "
+                "stem cells.",
+            "hypothesis_b": "A control hypothesis with no probes.",
+            "hypothesis_a_id": "eng-hyp-a",
+            "hypothesis_b_id": "eng-hyp-b",
+            "winner_id": "eng-hyp-a",
+            "winner": "a",
+            "reasoning": "A is better grounded.",
+            "confidence": "High",
+            "winner_elo_before": 1300,
+            "winner_elo_after": 1320,
+            "loser_elo_before": 1200,
+            "loser_elo_after": 1180,
+        },],
         "meta_review": {},
         "evolution_details": [],
         "research_overview": {
@@ -110,6 +134,185 @@ def _final_state_with_features() -> dict[str, Any]:
             },
         },
     }
+
+
+# Node names streamed by the real engine (generator.py ``add_node`` calls) and
+# the canonical event type each must be normalized to by the adapter.
+_ENGINE_NODES = [
+    "supervisor",
+    "literature_review",
+    "generate",
+    "reflection",
+    "review",
+    "ranking",
+    "deep_verification",
+    "meta_review",
+    "evolve",
+    "proximity",
+    "research_overview",
+]
+_EXPECTED_TYPES = {
+    "supervisor": "supervisor.plan",
+    "literature_review": "literature_review",
+    "generate": "generate",
+    "reflection": "reflection",
+    "review": "review",  # no mock counterpart — keeps its node name
+    "ranking": "ranking",
+    "deep_verification": "deep_verification",
+    "meta_review": "meta_review",
+    "evolve": "evolve",
+    "proximity": "proximity",
+    "research_overview": "research_overview",
+}
+
+
+def _engine_streaming_state() -> dict[str, Any]:
+    """A plain-dict engine snapshot the fake generator yields for every node."""
+    return {
+        "hypotheses": [
+            {
+                "id": "eng-h1",
+                "text": "H1: a mechanistic claim about the pathway.",
+                "elo_rating": 1300,
+                "win_count": 2,
+                "loss_count": 0,
+                "evolution_history": [],
+            },
+            {
+                "id": "eng-h2",
+                "text": "H2: an evolved variant of the leading claim.",
+                "elo_rating": 1250,
+                "win_count": 1,
+                "loss_count": 1,
+                "evolution_history": [{
+                    "round": 1
+                }],
+            },
+        ],
+        "articles": [{
+            "title": "A1",
+            "url": "https://example.org/a1"
+        }],
+        "tournament_matchups": [{
+            "hypothesis_a": "H1: a mechanistic claim about the pathway.",
+            "hypothesis_b": "H2: an evolved variant of the leading claim.",
+            "hypothesis_a_id": "eng-h1",
+            "hypothesis_b_id": "eng-h2",
+            "winner_id": "eng-h1",
+            "winner": "a",
+        }],
+        "meta_review": {},
+        "evolution_details": [],
+        "research_overview": {},
+        "current_iteration": 1,
+    }
+
+
+class _FakeGenerator:
+    """Stand-in for the engine's HypothesisGenerator, no LLM required."""
+
+    def __init__(self, **_kwargs: Any) -> None:
+        pass
+
+    async def generate_hypotheses(  # noqa: D401 - fake
+        self,
+        *,
+        research_goal: str,
+        stream: bool,
+        run_id: str,
+        opts: dict[str, Any] | None = None,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        _ = (research_goal, stream, run_id, opts)
+        state = _engine_streaming_state()
+        for node in _ENGINE_NODES:
+            yield node, state
+
+
+def _drain(gen: AsyncIterator[Any]) -> list[Any]:
+
+    async def _run() -> list[Any]:
+        return [e async for e in gen]
+
+    return asyncio.run(_run())
+
+
+def test_engine_adapter_emits_canonical_event_types(
+        isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The real-engine branch emits the canonical vocabulary, never engine.*.
+
+    CI only exercises the mock path, so this fake-driven test is the sole guard
+    on the node→type mapping and the frontend-facing payload shape.
+    """
+    # Resolve the lazy ``from co_scientist import HypothesisGenerator`` to the
+    # fake regardless of whether the real engine is installed.
+    fake_module = types.SimpleNamespace(HypothesisGenerator=_FakeGenerator)
+    monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
+
+    run = store.create_run("Canonical vocab goal", "standard", "engine", {})
+    events = _drain(
+        engine_adapter.run_workflow(
+            run.id,
+            run.research_goal,
+            "standard",
+            run.config,
+            force_provider="engine",
+            sleep_seconds=0,
+        ))
+
+    types_emitted = [e["type"] for e in events]
+
+    # No legacy engine.* types leak out of the adapter.
+    assert not any(t.startswith("engine.") for t in types_emitted)
+
+    # Every engine node maps to its canonical type.
+    for node, expected in _EXPECTED_TYPES.items():
+        assert expected in types_emitted, f"{node} -> {expected} missing"
+
+    # Lifecycle + report events remain canonical too.
+    assert types_emitted[0] == "status"  # running
+    assert "report" in types_emitted
+    assert types_emitted[-1] == "status"  # completed
+
+    by_type = {e["type"]: e["payload"] for e in events}
+
+    # Payload keys are normalized to the mock's shape the frontend reads.
+    generate = by_type["generate"]
+    assert generate["count"] == 2
+    assert len(generate["hypotheses"]) == 2
+    assert isinstance(by_type["ranking"]["matches"], list)
+    assert len(by_type["ranking"]["matches"]) == 1
+    assert len(by_type["evolve"]["children"]) == 1  # only the evolved variant
+    assert by_type["literature_review"]["count"] == 1
+    assert len(by_type["literature_review"]["evidence"]) == 1
+    assert by_type["supervisor.plan"]["agents"]
+
+    # Live standings ride node events for the leaderboard reader.
+    assert by_type["ranking"]["leaderboard"]
+
+
+def test_engine_adapter_generates_canonical_milestones(
+        isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Milestone messages are produced from the canonical payload shape."""
+    fake_module = types.SimpleNamespace(HypothesisGenerator=_FakeGenerator)
+    monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
+
+    run = store.create_run("Milestone goal", "standard", "engine", {})
+    _drain(
+        engine_adapter.run_workflow(
+            run.id,
+            run.research_goal,
+            "standard",
+            run.config,
+            force_provider="engine",
+            sleep_seconds=0,
+        ))
+
+    msgs = store.list_messages(run.id, db_path=isolated_db)
+    milestones = [m for m in msgs if m.kind == "milestone"]
+    text = " | ".join(m.content for m in milestones)
+    assert "Research plan ready" in text
+    assert "2 hypotheses generated" in text
+    assert "1 matches" in text  # ranking milestone counts len(matches)
 
 
 def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
@@ -164,6 +367,79 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     # Score columns are not produced by deep verification.
     assert deep[0]["novelty"] is None
     assert deep[0]["overall"] is None
+
+
+def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
+    """Hypothesis rows carry the engine's stable id (id pass-through)."""
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        final_state=_final_state_with_features(),
+        execution_time=1.0,
+        db_path=isolated_db,
+    )
+
+    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    ids = {h["id"] for h in hyps}
+    assert ids == {"eng-hyp-a", "eng-hyp-b"}
+
+
+def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
+    """Tournament matches resolve by id even when the matchup text has drifted.
+
+    The matchup's ``hypothesis_a``/``hypothesis_b`` display text is deliberately
+    made to NOT match the persisted hypothesis statements (as happens when
+    evolve mutates a hypothesis's text after ranking recorded the matchup). The
+    old text-prefix matching would drop such a match; id-based resolution must
+    still find it.
+    """
+    state = _final_state_with_features()
+    state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
+    state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        final_state=state,
+        execution_time=1.0,
+        db_path=isolated_db,
+    )
+
+    matches = store.list_matches(run.id, db_path=isolated_db)
+    assert len(matches) == 1
+    match = matches[0]
+    # Ids flow straight through: the persisted match points at the engine ids.
+    assert match["winner_id"] == "eng-hyp-a"
+    assert match["loser_id"] == "eng-hyp-b"
+    # And those ids are real hypothesis rows for the run.
+    assert store.get_hypothesis("eng-hyp-a", db_path=isolated_db) is not None
+    assert store.get_hypothesis("eng-hyp-b", db_path=isolated_db) is not None
+
+
+def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
+    """A matchup referencing a dropped hypothesis id is skipped, not persisted.
+
+    Evolution discards lower-ranked hypotheses, so a final matchup can reference
+    an id absent from the final set. Such a matchup must be skipped rather than
+    persisted with a bad reference.
+    """
+    state = _final_state_with_features()
+    state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
+    state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        final_state=state,
+        execution_time=1.0,
+        db_path=isolated_db,
+    )
+
+    assert store.list_matches(run.id, db_path=isolated_db) == []
 
 
 def test_persist_handles_missing_research_overview(isolated_db: str) -> None:

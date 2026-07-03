@@ -9,15 +9,17 @@ import logging
 from typing import Any, Optional, TYPE_CHECKING
 
 from co_scientist.constants import (
+    DRAFT_MAX_TOKENS_CAP,
+    DRAFT_TOKENS_PER_HYPOTHESIS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     get_draft_max_iterations,
+    scaled_max_tokens,
 )
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.llm import call_llm_with_tools, attempt_json_repair
 from co_scientist.prompts import get_draft_prompt_with_tools
 from co_scientist.state import WorkflowState
-from co_scientist.tools.literature import literature_tools
 from co_scientist.tools.provider import HybridToolProvider
 
 if TYPE_CHECKING:
@@ -82,8 +84,7 @@ async def draft_hypotheses(
                        " - agent will examine papers directly")
 
     # Initialize hybrid tool provider with draft-specific whitelist
-    provider = HybridToolProvider(mcp_client=mcp_client,
-                                  python_registry=literature_tools)
+    provider = HybridToolProvider(mcp_client=mcp_client)
 
     # Get tool whitelist from registry or try global registry
     if tool_registry is None:
@@ -104,10 +105,7 @@ async def draft_hypotheses(
         mcp_whitelist = None
         logger.warning("No tool registry - using all available MCP tools")
 
-    python_whitelist: list[str] = []
-
-    tools_dict, openai_tools = provider.get_tools(
-        mcp_whitelist=mcp_whitelist, python_whitelist=python_whitelist)
+    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
 
     logger.info("Initialized draft provider with %s tools", len(tools_dict))
 
@@ -135,20 +133,6 @@ async def draft_hypotheses(
         run_focus_guidance=state.get("run_focus_guidance"),
     )
 
-    # Save prompt to disk
-    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-    save_prompt_to_disk(
-        run_id=state.get("run_id", "unknown"),
-        prompt_name="generate_draft_with_tools",
-        content=prompt,
-        metadata={
-            "hypotheses_count": count,
-            "max_iterations": max_iterations,
-            "prompt_length_chars": len(prompt),
-        },
-    )
-
     # Track tool calls in draft phase
     tool_call_counts: dict[str, int] = {}
 
@@ -167,7 +151,12 @@ async def draft_hypotheses(
 
     # Call LLM with tools for drafting
     # scale token budget based on hypotheses count (~200 tokens per hypothesis)
-    draft_max_tokens = min(EXTENDED_MAX_TOKENS + (count * 200), 16000)
+    draft_max_tokens = scaled_max_tokens(
+        EXTENDED_MAX_TOKENS,
+        count,
+        per_item=DRAFT_TOKENS_PER_HYPOTHESIS,
+        cap=DRAFT_MAX_TOKENS_CAP,
+    )
     logger.info("Calling draft agent: %s iterations, %s max tokens",
                 max_iterations, draft_max_tokens)
 
@@ -183,6 +172,13 @@ async def draft_hypotheses(
             # Stochastic, diversity-critical generation: keep drafts fresh per
             # run rather than serving a frozen cached draft.
             use_cache=False,
+            run_id=state.get("run_id"),
+            prompt_name="generate_draft_with_tools",
+            prompt_metadata={
+                "hypotheses_count": count,
+                "max_iterations": max_iterations,
+                "prompt_length_chars": len(prompt),
+            },
         )
     except Exception as e:
         logger.error("Draft phase failed: %s", e)

@@ -89,24 +89,162 @@ def system_status() -> dict[str, Any]:
     }
 
 
+# Maps each real-engine graph node name (from generator.py's ``add_node``
+# calls) to the canonical, unprefixed event type that the mock workflow emits.
+# Only ``supervisor`` differs from its node name (it emits ``supervisor.plan``);
+# every other node maps to itself. ``review`` has no mock counterpart, so it is
+# absent here and keeps its unprefixed node name via ``_canonical_event_type``.
+_NODE_TO_EVENT_TYPE: dict[str, str] = {
+    "supervisor": "supervisor.plan",
+    "literature_review": "literature_review",
+    "generate": "generate",
+    "reflection": "reflection",
+    "ranking": "ranking",
+    "deep_verification": "deep_verification",
+    "meta_review": "meta_review",
+    "evolve": "evolve",
+    "proximity": "proximity",
+    "research_overview": "research_overview",
+}
+
+
+def _canonical_event_type(node_name: str) -> str:
+    """Map an engine node name to the canonical mock event vocabulary.
+
+    Any node with no mock counterpart (e.g. ``review``) keeps its unprefixed
+    node name, so it renders via the frontend's prettify fallback rather than
+    a legacy ``engine.`` prefix.
+
+    Args:
+        node_name: The engine graph node name streamed by the generator.
+
+    Returns:
+        The canonical event type used across the mock, adapter, and frontend.
+    """
+    return _NODE_TO_EVENT_TYPE.get(node_name, node_name)
+
+
+# Canonical pipeline stages the real engine runs, surfaced in the
+# ``supervisor.plan`` payload's ``agents`` key so the frontend summary matches
+# the mock's shape. Derived from the engine's actual graph nodes rather than
+# copying the mock's list (which carries stages the engine never emits).
+_ENGINE_PIPELINE_AGENTS: list[str] = [
+    "supervisor",
+    "literature_review",
+    "generate",
+    "reflection",
+    "review",
+    "ranking",
+    "proximity",
+    "evolve",
+    "meta_review",
+    "deep_verification",
+    "research_overview",
+]
+
+
+def _hypothesis_stub(h: dict[str, Any]) -> dict[str, str]:
+    """Project a hypothesis to a minimal JSON-safe stub for event payloads."""
+    return {
+        "id": str(h.get("id") or h.get("hypothesis_id") or ""),
+        "title": str(h.get("title") or h.get("text") or "Untitled")[:140],
+    }
+
+
+def _article_stub(a: dict[str, Any]) -> dict[str, str]:
+    """Project an article to a minimal JSON-safe stub for event payloads."""
+    return {
+        "title": str(a.get("title") or "Untitled"),
+        "url": str(a.get("url") or ""),
+    }
+
+
+def _match_stub(m: dict[str, Any]) -> dict[str, str]:
+    """Project a tournament matchup to a minimal JSON-safe stub."""
+    return {"winner": str(m.get("winner") or "")}
+
+
+def _canonical_engine_payload(node_name: str, node_type: str,
+                              state: dict[str, Any]) -> dict[str, Any]:
+    """Build a canonical event payload for a streamed engine node.
+
+    The generic fields (``node``, ``iteration``, counts, ``leaderboard``) are
+    kept as-is. On top of them, per-stage keys are added to match the mock's
+    payload shape (``count``, ``hypotheses``, ``evidence``, ``matches``,
+    ``children``, ``agents``) so a single vocabulary drives both
+    ``_format_milestone`` and the frontend's ``summarizeEventPayload`` /
+    ``selectLiveLeaderboard`` readers.
+
+    The list-shaped keys are projected to minimal stubs rather than carrying
+    raw engine-state objects: every consumer reads only their ``length``, and
+    ``store.append_event`` JSON-serializes the payload with no fallback
+    handler, so raw hypothesis/article dicts (which may carry non-serializable
+    fields such as embeddings) must never be embedded whole. This mirrors the
+    projection discipline in ``_persist_final_state``.
+
+    Args:
+        node_name: The engine graph node name.
+        node_type: The canonical event type for ``node_name``.
+        state: The cumulative engine state snapshot for this node.
+
+    Returns:
+        The event payload dict (JSON-serializable; only plain dicts/lists).
+    """
+    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
+    matchups: list[dict[str, Any]] = state.get("tournament_matchups") or []
+    articles: list[dict[str, Any]] = state.get("articles") or []
+    iteration = state.get("current_iteration", 0)
+
+    payload: dict[str, Any] = {
+        "node": node_name,
+        "iteration": iteration,
+        "hypothesis_count": len(hyps),
+        "matches_count": len(matchups),
+        "articles_count": len(articles),
+        "leaderboard": _live_leaderboard(hyps),
+    }
+
+    if node_type == "generate":
+        payload["count"] = len(hyps)
+        payload["hypotheses"] = [_hypothesis_stub(h) for h in hyps]
+    elif node_type == "literature_review":
+        payload["count"] = len(articles)
+        payload["evidence"] = [_article_stub(a) for a in articles]
+    elif node_type == "ranking":
+        payload["matches"] = [_match_stub(m) for m in matchups]
+    elif node_type == "evolve":
+        payload["children"] = [
+            _hypothesis_stub(h) for h in hyps if h.get("evolution_history")
+        ]
+    elif node_type == "supervisor.plan":
+        payload["agents"] = list(_ENGINE_PIPELINE_AGENTS)
+
+    return payload
+
+
 def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
-    """Return a human-readable milestone string for key node events, or None."""
-    if node_type in ("supervisor", "supervisor.plan"):
+    """Return a human-readable milestone string for key node events, or None.
+
+    Reads the single canonical (mock-shaped) payload vocabulary. Unknown or
+    legacy types (e.g. old persisted ``engine.*`` events) fall through to
+    ``None``, so no milestone is generated — the same behaviour today's code
+    has for unmatched types.
+    """
+    if node_type == "supervisor.plan":
         return "Research plan ready — supervisor complete"
     if node_type == "generate":
-        count = payload.get("count") or payload.get("hypothesis_count", 0)
+        count = payload.get("count", 0)
         itr = payload.get("iteration", 0)
         label = f"iteration {itr}" if itr else "initial"
         return f"{count} hypotheses generated ({label})"
     if node_type == "ranking":
-        count = payload.get("hypothesis_count") or payload.get(
-            "matches_count", 0)
+        count = len(payload.get("matches") or [])
         itr = payload.get("iteration", 0)
         return f"Tournament complete (iteration {itr}, {count} matches)"
     if node_type == "meta_review":
         return "Meta-review complete"
     if node_type == "evolve":
-        count = payload.get("count") or payload.get("hypothesis_count", 0)
+        count = len(payload.get("children") or [])
         itr = payload.get("iteration", 0)
         return f"{count} hypotheses evolved (iteration {itr})"
     return None
@@ -292,8 +430,11 @@ def _persist_final_state(
         )
         ev_id_by_title[art.get("title", "")] = ev_id
 
-    # 2. Hypotheses: persist in generation order; mark evolved ones.
-    hyp_id_by_text: dict[str, str] = {}
+    # 2. Hypotheses: persist in generation order; mark evolved ones. The
+    # engine's stable hypothesis id is passed straight through as the store row
+    # id, so identity holds end-to-end (engine -> DB -> API -> UI) and matchups
+    # resolve by id rather than by fragile text-prefix matching.
+    store_id_by_engine_id: dict[str, str] = {}
     for h in hyps:
         is_evolved = bool(h.get("evolution_history"))
         generation = 1 if is_evolved else 0
@@ -301,10 +442,12 @@ def _persist_final_state(
         # Derive a short title from the first sentence / 120 chars.
         text = h.get("text", "")
         title = text.split(".")[0][:120] or text[:120]
+        engine_id = h.get("id") or None
         hyp_id = store.add_hypothesis(
             run_id=run_id,
             title=title,
             statement=text,
+            hypothesis_id=engine_id,
             mechanism=h.get("literature_grounding") or "",
             expected_effect=h.get("explanation") or "",
             experimental_context=h.get("experiment") or "",
@@ -312,10 +455,8 @@ def _persist_final_state(
             created_by_agent=agent,
             db_path=db_path,
         )
-        hyp_id_by_text[text[:200]] = hyp_id  # exact 200-char truncation
-        hyp_id_by_text[text[:200] +
-                       "..."] = hyp_id  # engine appends "..." when truncated
-        hyp_id_by_text[text] = hyp_id
+        if engine_id:
+            store_id_by_engine_id[engine_id] = hyp_id
 
         # Update mutable state: Elo, wins, losses, scores.
         store.update_hypothesis_state(
@@ -386,19 +527,26 @@ def _persist_final_state(
                                CitationState.VERIFIED,
                                db_path=db_path)
 
-    # 3. Tournament matches: match by hypothesis text prefix (engine truncates at 200).  # pylint: disable=line-too-long
+    # 3. Tournament matches: resolve each side by the engine's stable
+    # hypothesis id. Matchups may legitimately reference hypotheses that were
+    # dropped from the final set (evolve discards lower-ranked ones), so an
+    # unresolved id is expected rather than an error — log it and skip.
     for m in matchups:
-        h_a_text = m.get("hypothesis_a", "")
-        h_b_text = m.get("hypothesis_b", "")
-        winner_label = m.get("winner", "a")
+        a_engine_id = m.get("hypothesis_a_id")
+        b_engine_id = m.get("hypothesis_b_id")
+        winner_engine_id = m.get("winner_id")
 
-        winner_text = h_a_text if winner_label == "a" else h_b_text
-        loser_text = h_b_text if winner_label == "a" else h_a_text
+        loser_engine_id = (b_engine_id
+                           if winner_engine_id == a_engine_id else a_engine_id)
 
-        winner_id = hyp_id_by_text.get(winner_text)
-        loser_id = hyp_id_by_text.get(loser_text)
+        winner_id = store_id_by_engine_id.get(winner_engine_id or "")
+        loser_id = store_id_by_engine_id.get(loser_engine_id or "")
         if not winner_id or not loser_id:
-            continue  # can't match — skip rather than persist bad data
+            logger.warning(
+                "skipping matchup: unresolved hypothesis id "
+                "(winner=%s, loser=%s) — likely a hypothesis dropped during "
+                "evolution", winner_engine_id, loser_engine_id)
+            continue
 
         store.add_match(
             run_id=run_id,
@@ -546,87 +694,6 @@ async def run_workflow(
             yield event
         return
 
-    # DeepSeek doesn't support response_format=json_schema. Two patches are needed:  # pylint: disable=line-too-long
-    # 1. acompletion: downgrade json_schema → json_object and inject schema as prompt text.  # pylint: disable=line-too-long
-    # 2. validate_json_schema: fill in default values for any fields DeepSeek still omits,  # pylint: disable=line-too-long
-    #    so schema validation doesn't abort the run over missing nested keys like
-    #    performance_assessment.agent_performance.reflection_agent.
-    model_name_env = os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash")
-    if "deepseek" in model_name_env.lower():
-        try:
-            import json as _json  # pylint: disable=import-outside-toplevel
-
-            import litellm as _litellm  # pylint: disable=import-outside-toplevel
-            import co_scientist.llm as _oc_llm  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
-
-            # --- patch 1: acompletion ---
-            _orig_acompletion = _litellm.acompletion  # pylint: disable=invalid-name
-
-            async def _patched_acompletion(**kwargs: Any) -> Any:
-                rf = kwargs.get("response_format")
-                if isinstance(rf, dict) and rf.get("type") == "json_schema":
-                    schema_def = rf.get("json_schema", {})
-                    actual_schema = schema_def.get("schema", schema_def)
-                    schema_str = _json.dumps(actual_schema, indent=2)
-                    messages = kwargs.get("messages") or []
-                    new_messages = [dict(m) for m in messages]
-                    for i in range(len(new_messages) - 1, -1, -1):
-                        if new_messages[i].get("role") == "user":
-                            new_messages[i] = dict(new_messages[i])
-                            new_messages[i]["content"] = (
-                                str(new_messages[i].get("content", "")) +
-                                "\n\n---\nRESPOND WITH VALID JSON ONLY. "
-                                "Your output MUST strictly match this JSON schema "
-                                "(all required fields must be present):\n" +
-                                schema_str)
-                            break
-                    kwargs = dict(kwargs)
-                    kwargs["messages"] = new_messages
-                    kwargs["response_format"] = {"type": "json_object"}
-                return await _orig_acompletion(**kwargs)
-
-            _litellm.acompletion = _patched_acompletion
-
-            # --- patch 2: validate_json_schema — fill defaults before validation ---  # pylint: disable=line-too-long
-            _orig_validate = _oc_llm.validate_json_schema  # pylint: disable=invalid-name
-
-            def _fill_schema_defaults(obj: Any, schema: dict[str, Any]) -> None:
-                """Recursively fill missing required fields with empty defaults."""
-                if not isinstance(obj, dict) or not isinstance(schema, dict):
-                    return
-                props = schema.get("properties", {})
-                for field in schema.get("required", []):
-                    if field not in obj and field in props:
-                        fs = props[field]
-                        t = fs.get("type")
-                        if t == "string":
-                            obj[field] = fs.get("enum",
-                                                [""])[0] if "enum" in fs else ""
-                        elif t == "object":
-                            obj[field] = {}
-                        elif t == "array":
-                            obj[field] = []
-                        elif t in ("integer", "number"):
-                            obj[field] = 0
-                        else:
-                            obj[field] = ""
-                for key, val in obj.items():
-                    if key in props:
-                        _fill_schema_defaults(val, props[key])
-
-            def _patched_validate(result: Any, json_schema: Any) -> None:
-                if json_schema is not None and isinstance(result, dict):
-                    actual = json_schema.get("schema", json_schema)
-                    _fill_schema_defaults(result, actual)
-                _orig_validate(result, json_schema)
-
-            _oc_llm.validate_json_schema = _patched_validate
-
-        except Exception as _patch_err:  # pylint: disable=broad-exception-caught,invalid-name
-            logger.warning(
-                "could not patch litellm/validate for deepseek compat: %s",
-                _patch_err)
-
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         seq = store.append_event(run_id, type_, payload, db_path=db_path)
         return {"seq": seq, "type": type_, "payload": payload}
@@ -719,22 +786,18 @@ async def run_workflow(
                 if state.get(key) is not None:
                     final_state[key] = state[key]
 
-            payload = {
-                "node": node_name,
-                "iteration": state.get("current_iteration", 0),
-                "hypothesis_count": len(state.get("hypotheses") or []),
-                "matches_count": len(state.get("tournament_matchups") or []),
-                "articles_count": len(state.get("articles") or []),
-                "leaderboard": _live_leaderboard(state.get("hypotheses") or []),
-            }
-            milestone = _format_milestone(node_name, payload)
+            # Normalize the engine node to the canonical mock event vocabulary
+            # so every downstream consumer reads one shape (no engine.* types).
+            node_type = _canonical_event_type(node_name)
+            payload = _canonical_engine_payload(node_name, node_type, state)
+            milestone = _format_milestone(node_type, payload)
             if milestone:
                 store.append_message(run_id,
                                      "system",
                                      milestone,
                                      "milestone",
                                      db_path=db_path)
-            yield await _emit(f"engine.{node_name}", payload)
+            yield await _emit(node_type, payload)
 
         # ---- Drain final state into the store ----
         report_payload = _persist_final_state(

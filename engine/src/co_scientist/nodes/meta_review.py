@@ -13,6 +13,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_meta_review_prompt
 from co_scientist.state import WorkflowState
 
@@ -38,15 +39,9 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Synthesizing meta-review from %s hypotheses", len(hypotheses))
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "meta_review_start",
-            {
-                "message": "Synthesizing insights from all reviews...",
-                "progress": PROGRESS_META_REVIEW_START,
-            },
-        )
+    await emit_progress(state, "meta_review_start",
+                        "Synthesizing insights from all reviews...",
+                        PROGRESS_META_REVIEW_START)
 
     # Collect all reviews
     all_reviews = []
@@ -107,26 +102,19 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         run_focus_guidance=state.get("run_focus_guidance"),
     )
 
-    # Save prompt to disk for debugging
-    from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-    save_prompt_to_disk(
-        run_id=state.get("run_id", "unknown"),
-        prompt_name="meta_review",
-        content=prompt,
-        metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": len(hypotheses),
-            "reviews_count": len(all_reviews),
-        },
-    )
-
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
         max_tokens=THINKING_MAX_TOKENS,  # more space to aggregate all reviews
         temperature=MEDIUM_TEMPERATURE,
         json_schema=schema,
+        run_id=state.get("run_id"),
+        prompt_name="meta_review",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+            "hypotheses_count": len(hypotheses),
+            "reviews_count": len(all_reviews),
+        },
     )
 
     # Schema returns recurring_themes as objects {theme, description,
@@ -164,21 +152,13 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
                 len(meta_review['strategic_recommendations']))
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "meta_review_complete",
-            {
-                "message":
-                    "Meta-review synthesis complete",
-                "progress":
-                    PROGRESS_META_REVIEW_COMPLETE,
-                "strengths_count":
-                    len(meta_review["common_strengths"]),
-                "recommendations_count":
-                    len(meta_review["strategic_recommendations"]),
-            },
-        )
+    await emit_progress(state,
+                        "meta_review_complete",
+                        "Meta-review synthesis complete",
+                        PROGRESS_META_REVIEW_COMPLETE,
+                        strengths_count=len(meta_review["common_strengths"]),
+                        recommendations_count=len(
+                            meta_review["strategic_recommendations"]))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(llm_calls_delta=1)

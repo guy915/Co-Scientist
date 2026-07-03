@@ -10,6 +10,7 @@ from co_scientist.constants import RESEARCH_OVERVIEW_TOP_K
 from co_scientist.constants import THINKING_MAX_TOKENS
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_research_overview_prompt
 from co_scientist.state import WorkflowState
 
@@ -34,13 +35,9 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     summary = "\n".join(
         f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top))
 
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "research_overview_start", {
-                "message": "Synthesizing research overview...",
-                "progress": PROGRESS_RESEARCH_OVERVIEW_START,
-            })
+    await emit_progress(state, "research_overview_start",
+                        "Synthesizing research overview...",
+                        PROGRESS_RESEARCH_OVERVIEW_START)
 
     prompt, schema = get_research_overview_prompt(
         research_goal=state["research_goal"],
@@ -63,12 +60,9 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         "nih_specific_aims": response.get("nih_specific_aims", {}),
     }
 
-    if progress_callback is not None:
-        await progress_callback(
-            "research_overview_complete", {
-                "message": "Research overview ready",
-                "progress": PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
-            })
+    await emit_progress(state, "research_overview_complete",
+                        "Research overview ready",
+                        PROGRESS_RESEARCH_OVERVIEW_COMPLETE)
 
     logger.info("Research overview complete")
     metrics = create_metrics_update(llm_calls_delta=1)

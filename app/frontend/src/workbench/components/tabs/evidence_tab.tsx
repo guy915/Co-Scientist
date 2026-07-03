@@ -5,6 +5,7 @@ import {
   type CitationState,
   citationStateStyle,
 } from '@/workbench/lib/citation_styles';
+import {EmptyState} from '../empty_state';
 
 type CitState = CitationState;
 
@@ -68,19 +69,13 @@ export function EvidenceTab({
 
   if (!evidence.length) {
     return (
-      <div
-        className="rounded border p-6 text-sm text-center space-y-1"
-        style={{
-          borderColor: 'var(--md-sys-color-outline-variant)',
-          color: 'var(--md-sys-color-on-surface-variant)',
-        }}
-      >
+      <EmptyState className="space-y-1">
         <p>No evidence retrieved for this run.</p>
         <p className="text-xs opacity-75">
           Context review requires a connected data source. Without one the
           agents generate hypotheses from model context only.
         </p>
-      </div>
+      </EmptyState>
     );
   }
 

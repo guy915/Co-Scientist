@@ -8,27 +8,30 @@ warning message.
 # pylint: disable=inconsistent-quotes
 
 import asyncio
-import json
 import logging
 from dataclasses import dataclass
 from typing import Any
 from collections.abc import Coroutine
 
+from co_scientist.config.schema import EnrichmentConfig, ToolConfig
 from co_scientist.constants import (
     PROGRESS_GENERATE_START,
     PROGRESS_GENERATE_COMPLETE,
     LITERATURE_REVIEW_FAILED,
+    MAX_CONCURRENT_LLM_CALLS,
 )
 from co_scientist.exceptions import GenerationError
 from co_scientist.mcp_client import get_mcp_client
 from co_scientist.models import Hypothesis
 from co_scientist.state import WorkflowState
+from co_scientist.tools.response_parser import parse_mcp_result
 from co_scientist.nodes.generation.citations import (
     ReferenceIndex,
     build_reference_index,
 )
 from co_scientist.nodes.generation.debate import generate_with_debate
 from co_scientist.nodes.generation.literature_tools import generate_with_tools
+from co_scientist.nodes.progress import emit_progress
 
 logger = logging.getLogger(__name__)
 
@@ -136,51 +139,31 @@ def _log_generation_strategy(counts: GenerationCounts,
 async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts,
                                total_count: int) -> None:
     """Emit progress callback for generation start."""
-    progress_callback = state.get("progress_callback")
-    if not progress_callback:
+    extra: dict[str, Any] = {}
+    if counts.is_dev_isolation:
+        message = (f"Generating {total_count} hypotheses with lit"
+                   " tools only (dev isolation mode)...")
+        extra = {"dev_isolation_mode": True}
+    elif counts.tools_count > 0 and counts.debate_with_lit_count > 0:
+        message = (f"Generating {total_count} hypotheses"
+                   f" ({counts.tools_count} tool-based"
+                   f" + {counts.debate_with_lit_count}"
+                   " debate-with-literature)...")
+    elif counts.debate_with_lit_count > 0:
+        message = (f"Generating {total_count} hypotheses with"
+                   " debate-with-literature...")
+    elif counts.is_degraded_mode:
+        message = (f"Generating {counts.debate_only_count} hypotheses"
+                   " without literature review...")
+        extra = {
+            "literature_review_available": False,
+            "degraded_mode": True,
+        }
+    else:
         return
 
-    if counts.is_dev_isolation:
-        await progress_callback(
-            "generation_start",
-            {
-                "message": (f"Generating {total_count} hypotheses with lit"
-                            " tools only (dev isolation mode)..."),
-                "progress": PROGRESS_GENERATE_START,
-                "dev_isolation_mode": True,
-            },
-        )
-    elif counts.tools_count > 0 and counts.debate_with_lit_count > 0:
-        await progress_callback(
-            "generation_start",
-            {
-                "message": (f"Generating {total_count} hypotheses"
-                            f" ({counts.tools_count} tool-based"
-                            f" + {counts.debate_with_lit_count}"
-                            " debate-with-literature)..."),
-                "progress": PROGRESS_GENERATE_START,
-            },
-        )
-    elif counts.debate_with_lit_count > 0:
-        await progress_callback(
-            "generation_start",
-            {
-                "message": (f"Generating {total_count} hypotheses with"
-                            " debate-with-literature..."),
-                "progress": PROGRESS_GENERATE_START,
-            },
-        )
-    elif counts.is_degraded_mode:
-        await progress_callback(
-            "generation_start",
-            {
-                "message": (f"Generating {counts.debate_only_count} hypotheses"
-                            " without literature review..."),
-                "progress": PROGRESS_GENERATE_START,
-                "literature_review_available": False,
-                "degraded_mode": True,
-            },
-        )
+    await emit_progress(state, "generation_start", message,
+                        PROGRESS_GENERATE_START, **extra)
 
 
 async def _execute_generation_tasks(
@@ -315,10 +298,6 @@ async def _emit_complete_progress(state: WorkflowState,
                                   results: GenerationResults,
                                   counts: GenerationCounts) -> None:
     """Emit progress callback for generation complete."""
-    progress_callback = state.get("progress_callback")
-    if not progress_callback:
-        return
-
     parts = _build_summary_message_parts(results, counts)
     all_hypotheses = (results.tools_hypotheses +
                       results.debate_with_lit_hypotheses +
@@ -326,14 +305,11 @@ async def _emit_complete_progress(state: WorkflowState,
 
     message = f"Generated {len(all_hypotheses)} hypotheses ({', '.join(parts)})"
 
-    await progress_callback(
-        "generation_complete",
-        {
-            "message": message,
-            "progress": PROGRESS_GENERATE_COMPLETE,
-            "hypotheses_count": len(all_hypotheses),
-        },
-    )
+    await emit_progress(state,
+                        "generation_complete",
+                        message,
+                        PROGRESS_GENERATE_COMPLETE,
+                        hypotheses_count=len(all_hypotheses))
 
 
 # Enrichment
@@ -358,6 +334,28 @@ async def _enrich_hypotheses(
         return
 
     mcp_client = await get_mcp_client(tool_registry=tool_registry)
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
+
+    async def enrich_one(hyp: Hypothesis, enrichment: EnrichmentConfig,
+                         tool_config: ToolConfig, output_key: str) -> None:
+        input_value = getattr(hyp, enrichment.input_field, hyp.text)
+        try:
+            async with semaphore:
+                result = await mcp_client.call_tool(
+                    tool_config.mcp_tool_name,
+                    topic=input_value,
+                    max_results=enrichment.max_results,
+                )
+            parsed = parse_mcp_result(result)
+            # Extract nested array via results_path (e.g., "results" for
+            # NvdSearchResponse)
+            if enrichment.results_path and isinstance(parsed, dict):
+                parsed = parsed.get(enrichment.results_path, parsed)
+            hyp.enrichments[output_key] = parsed
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning("enrichment '%s' failed for hypothesis: %s",
+                           output_key, e)
+            hyp.enrichments[output_key] = {"error": str(e)}
 
     for enrichment in enrichment_configs:
         tool_config = tool_registry.get_tool(enrichment.tool)
@@ -370,25 +368,8 @@ async def _enrich_hypotheses(
         logger.info("running enrichment '%s' via %s for %s hypotheses",
                     output_key, tool_config.mcp_tool_name, len(hypotheses))
 
-        for hyp in hypotheses:
-            input_value = getattr(hyp, enrichment.input_field, hyp.text)
-            try:
-                result = await mcp_client.call_tool(
-                    tool_config.mcp_tool_name,
-                    topic=input_value,
-                    max_results=enrichment.max_results,
-                )
-                parsed = json.loads(result) if isinstance(result,
-                                                          str) else result
-                # Extract nested array via results_path (e.g., "results" for
-                # NvdSearchResponse)
-                if enrichment.results_path and isinstance(parsed, dict):
-                    parsed = parsed.get(enrichment.results_path, parsed)
-                hyp.enrichments[output_key] = parsed
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.warning("enrichment '%s' failed for hypothesis: %s",
-                               output_key, e)
-                hyp.enrichments[output_key] = {"error": str(e)}
+        await asyncio.gather(*(enrich_one(hyp, enrichment, tool_config,
+                                          output_key) for hyp in hypotheses))
 
 
 # Main coordinator function

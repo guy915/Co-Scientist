@@ -17,6 +17,7 @@ Design choices:
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import enum
 import json
 import logging
@@ -31,6 +32,7 @@ from pathlib import Path
 from typing import Any
 
 from app.citations import CitationState
+from app.elo import INITIAL_ELO
 
 logger = logging.getLogger(__name__)
 
@@ -68,9 +70,21 @@ def _now() -> float:
     return time.time()
 
 
+def default_db_path() -> str | None:
+    """Return the DB path from the environment, or None for the store default.
+
+    Single home for the ``COSCIENTIST_DB_PATH`` environment-variable
+    knowledge. A None result means "use the store default".
+
+    Returns:
+        The configured database path, or None when unset.
+    """
+    return os.getenv("COSCIENTIST_DB_PATH") or None
+
+
 def _resolved_db_path(path: str | None = None) -> str:
     # Read env on every call so test fixtures and runtime overrides are picked up.  # pylint: disable=line-too-long
-    return path or os.getenv("COSCIENTIST_DB_PATH") or "./coscientist.db"
+    return path or default_db_path() or "./coscientist.db"
 
 
 def _reports_dir() -> Path:
@@ -251,6 +265,7 @@ CREATE TABLE IF NOT EXISTS reviews (
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_rv_hyp ON reviews(hypothesis_id);
+CREATE INDEX IF NOT EXISTS idx_rv_run ON reviews(run_id);
 
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -356,16 +371,7 @@ class MessageRow:
     meta: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
-            "id": self.id,
-            "run_id": self.run_id,
-            "sender": self.sender,
-            "content": self.content,
-            "kind": self.kind,
-            "created_at": self.created_at,
-            "applied": self.applied,
-            "meta": self.meta,
-        }
+        return dataclasses.asdict(self)
 
 
 def _row_to_run(row: sqlite3.Row) -> RunRow:
@@ -612,6 +618,35 @@ def list_events(
         return out
 
 
+def summary_counts(run_id: str,
+                   db_path: str | None = None) -> dict[str, int]:
+    """Return per-table row counts for a run in a single connection.
+
+    Uses COUNT(*) per table rather than materializing and parsing whole tables.
+
+    Args:
+        run_id: Identifier of the run to summarize.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        Mapping of summary field name to row count.
+    """
+    tables = {
+        "events": "run_events",
+        "hypotheses": "hypotheses",
+        "evidence": "evidence",
+        "matches": "matches",
+        "reviews": "reviews",
+    }
+    with connect(db_path) as conn:
+        return {
+            field: conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE run_id=?",
+                (run_id,),
+            ).fetchone()[0] for field, table in tables.items()
+        }
+
+
 # ---------------------------------------------------------------------------
 # Hypotheses (append-only)
 # ---------------------------------------------------------------------------
@@ -622,6 +657,7 @@ def add_hypothesis(
     title: str,
     statement: str,
     *,
+    hypothesis_id: str | None = None,
     parent_id: str | None = None,
     generation: int = 0,
     mechanism: str = "",
@@ -636,6 +672,10 @@ def add_hypothesis(
         run_id: Identifier of the run the hypothesis belongs to.
         title: Short title of the hypothesis.
         statement: Full hypothesis statement.
+        hypothesis_id: Explicit row id to use. When omitted a fresh uuid4 is
+            generated. The engine adapter passes the engine's stable hypothesis
+            id here so ids stay consistent end-to-end (engine -> DB -> API ->
+            UI); the mock path leaves it unset and gets a generated id.
         parent_id: Identifier of the parent hypothesis, set when evolving.
         generation: Generation number, 0 for originally generated hypotheses.
         mechanism: Proposed mechanism underlying the hypothesis.
@@ -647,7 +687,7 @@ def add_hypothesis(
     Returns:
         The identifier of the newly inserted hypothesis.
     """
-    hyp_id = str(uuid.uuid4())
+    hyp_id = hypothesis_id or str(uuid.uuid4())
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
@@ -670,7 +710,7 @@ def add_hypothesis(
         )
         conn.execute(
             "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, updated_at) VALUES (?,?,?)",  # pylint: disable=line-too-long
-            (hyp_id, int(os.getenv("ELO_INITIAL", "1200")), now),
+            (hyp_id, INITIAL_ELO, now),
         )
     return hyp_id
 
@@ -1190,46 +1230,43 @@ def _parse_message_meta(row: sqlite3.Row) -> dict[str, Any] | None:
     return parsed if isinstance(parsed, dict) else None
 
 
+def _row_to_message(row: sqlite3.Row) -> MessageRow:
+    """Build a MessageRow from a messages table row."""
+    return MessageRow(
+        id=row["id"],
+        run_id=row["run_id"],
+        sender=row["sender"],
+        content=row["content"],
+        kind=row["kind"],
+        created_at=row["created_at"],
+        applied=bool(row["applied"]),
+        meta=_parse_message_meta(row),
+    )
+
+
+_MESSAGE_COLUMNS = ("id, run_id, sender, content, kind, created_at, applied, "
+                    "meta_json")
+
+
 def list_messages(run_id: str, db_path: str | None = None) -> list[MessageRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, run_id, sender, content, kind, created_at, applied, meta_json FROM messages "  # pylint: disable=line-too-long
+            f"SELECT {_MESSAGE_COLUMNS} FROM messages "
             "WHERE run_id=? ORDER BY id ASC",
             (run_id,),
         ).fetchall()
-        return [
-            MessageRow(
-                id=r["id"],
-                run_id=r["run_id"],
-                sender=r["sender"],
-                content=r["content"],
-                kind=r["kind"],
-                created_at=r["created_at"],
-                applied=bool(r["applied"]),
-                meta=_parse_message_meta(r),
-            ) for r in rows
-        ]
+        return [_row_to_message(r) for r in rows]
 
 
 def get_pending_steering(run_id: str,
                          db_path: str | None = None) -> list[MessageRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT id, run_id, sender, content, kind, created_at, applied FROM messages "  # pylint: disable=line-too-long
-            "WHERE run_id=? AND kind='steering' AND applied=0 ORDER BY id ASC",  # pylint: disable=line-too-long
+            f"SELECT {_MESSAGE_COLUMNS} FROM messages "
+            "WHERE run_id=? AND kind='steering' AND applied=0 ORDER BY id ASC",
             (run_id,),
         ).fetchall()
-        return [
-            MessageRow(
-                id=r["id"],
-                run_id=r["run_id"],
-                sender=r["sender"],
-                content=r["content"],
-                kind=r["kind"],
-                created_at=r["created_at"],
-                applied=bool(r["applied"]),
-            ) for r in rows
-        ]
+        return [_row_to_message(r) for r in rows]
 
 
 def mark_steering_applied(ids: list[int], db_path: str | None = None) -> None:

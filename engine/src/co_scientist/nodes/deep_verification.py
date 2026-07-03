@@ -13,6 +13,7 @@ from co_scientist.constants import PROGRESS_DEEP_VERIFICATION_START
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
 from co_scientist.models import Hypothesis
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.state import WorkflowState
 
@@ -84,13 +85,9 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
                     DEEP_VERIFICATION_TOP_K)
         return {}
 
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "deep_verification_start", {
-                "message": f"Deep-verifying top {len(to_verify)} hypotheses...",
-                "progress": PROGRESS_DEEP_VERIFICATION_START,
-            })
+    await emit_progress(state, "deep_verification_start",
+                        f"Deep-verifying top {len(to_verify)} hypotheses...",
+                        PROGRESS_DEEP_VERIFICATION_START)
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
     tool_registry = state.get("tool_registry")
@@ -106,12 +103,9 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
             hypothesis.deep_verification_verdict = result.get("verdict")
             verified_count += 1
 
-    if progress_callback is not None:
-        await progress_callback(
-            "deep_verification_complete", {
-                "message": f"Deep-verified {verified_count} hypotheses",
-                "progress": PROGRESS_DEEP_VERIFICATION_COMPLETE,
-            })
+    await emit_progress(state, "deep_verification_complete",
+                        f"Deep-verified {verified_count} hypotheses",
+                        PROGRESS_DEEP_VERIFICATION_COMPLETE)
 
     logger.info("Deep verification complete: %s hypotheses", verified_count)
     metrics = create_metrics_update(llm_calls_delta=verified_count)

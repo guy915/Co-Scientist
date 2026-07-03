@@ -11,11 +11,15 @@ from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     DUPLICATE_SIMILARITY_THRESHOLD,
+    EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
+    EVOLVE_MAX_TOKENS_CAP,
     PROGRESS_EVOLVE_START,
     PROGRESS_EVOLVE_COMPLETE,
+    scaled_max_tokens,
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.state import WorkflowState
 
@@ -270,40 +274,37 @@ DO:
 
     full_prompt = prompt + diversity_instruction
 
-    # Save prompt to disk for debugging
-    if run_id:
-        from co_scientist.prompts import save_prompt_to_disk  # pylint: disable=import-outside-toplevel
-
-        filename = (f"evolve_{hypothesis_index}"
-                    if hypothesis_index is not None else "evolve")
-        save_prompt_to_disk(
-            run_id=run_id,
-            prompt_name=filename,
-            content=full_prompt,
-            metadata={
-                "hypothesis_index": hypothesis_index,
-                "prompt_length_chars": len(full_prompt),
-                "context_hypotheses_count": len(other_hypotheses_texts),
-            },
-        )
-
-    # Fixed token budget since we strategically sample max 15 context hypotheses
-    # base: 8000, add 800 per context hypothesis (max 15 × 800 = 12,000)
-    # total: 8000 + 12,000 = 20,000 tokens (fixed budget for any pool size)
-    scaled_max_tokens = min(
-        EXTENDED_MAX_TOKENS + (len(other_hypotheses_texts) * 800), 20000)
+    # Fixed token budget since we strategically sample max 15 context
+    # hypotheses: 8000 base + 15 * 800 = 20,000 tokens at the cap, so the
+    # budget is bounded for any pool size.
+    evolve_max_tokens = scaled_max_tokens(
+        EXTENDED_MAX_TOKENS,
+        len(other_hypotheses_texts),
+        per_item=EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
+        cap=EVOLVE_MAX_TOKENS_CAP,
+    )
 
     logger.debug("evolution token budget: %s (%s context hypotheses)",
-                 scaled_max_tokens, len(other_hypotheses_texts))
+                 evolve_max_tokens, len(other_hypotheses_texts))
+
+    prompt_name = (f"evolve_{hypothesis_index}"
+                   if hypothesis_index is not None else "evolve")
 
     # Call LLM to evolve hypothesis
     response = await call_llm_json(
         prompt=full_prompt,
         model_name=model_name,
-        max_tokens=scaled_max_tokens,
+        max_tokens=evolve_max_tokens,
         temperature=HIGH_TEMPERATURE,
         json_schema=schema,
         max_attempts=7,  # increase retries for evolution (critical node)
+        run_id=run_id,
+        prompt_name=prompt_name,
+        prompt_metadata={
+            "hypothesis_index": hypothesis_index,
+            "prompt_length_chars": len(full_prompt),
+            "context_hypotheses_count": len(other_hypotheses_texts),
+        },
     )
 
     # Extract fields from response (match evolution.md prompt format)
@@ -391,15 +392,9 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Evolving top %s hypotheses", actual_count)
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "evolve_start",
-            {
-                "message": f"Evolving top {actual_count} hypotheses...",
-                "progress": PROGRESS_EVOLVE_START,
-            },
-        )
+    await emit_progress(state, "evolve_start",
+                        f"Evolving top {actual_count} hypotheses...",
+                        PROGRESS_EVOLVE_START)
 
     # Get top-k hypotheses
     top_k = hypotheses[:evolution_max_count]
@@ -464,16 +459,11 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
                 len(evolved_hypotheses), len(evolution_details))
 
     # Emit progress
-    progress_callback = state.get("progress_callback")
-    if progress_callback is not None:
-        await progress_callback(
-            "evolve_complete",
-            {
-                "message": f"Evolved {len(evolved_hypotheses)} hypotheses",
-                "progress": PROGRESS_EVOLVE_COMPLETE,
-                "evolved_count": len(evolved_hypotheses),
-            },
-        )
+    await emit_progress(state,
+                        "evolve_complete",
+                        f"Evolved {len(evolved_hypotheses)} hypotheses",
+                        PROGRESS_EVOLVE_COMPLETE,
+                        evolved_count=len(evolved_hypotheses))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(

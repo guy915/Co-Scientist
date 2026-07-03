@@ -84,7 +84,6 @@ def test_parallel_debates_stay_distinct_with_warm_cache(
     """
     monkeypatch.setattr(debate, "get_debate_generation_prompt",
                         lambda **_: ("prompt", {"name": "x"}))
-    monkeypatch.setattr(debate, "save_prompt_to_disk", lambda **_: None)
     monkeypatch.setattr(debate, "resolve_citation_keys", lambda *a, **k: {})
 
     async def fake_call_llm(*_a: Any, use_cache: bool = True,

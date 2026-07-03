@@ -261,11 +261,12 @@ class HypothesisGenerator:
         (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
-    ) -> tuple[WorkflowState, float, str]:
+    ) -> WorkflowState:
         """Prepare generation: set up state, check MCP, build graph.
 
         Returns:
-            Tuple of (initial_state, start_time, run_id)
+            The prepared initial workflow state (including "start_time" and
+            "run_id" keys).
         """
         start_time = time.time()
 
@@ -454,7 +455,7 @@ class HypothesisGenerator:
                 None,
         }
 
-        return initial_state, start_time, run_id
+        return initial_state
 
     @overload
     def generate_hypotheses(
@@ -566,12 +567,13 @@ class HypothesisGenerator:
         Returns final result dictionary.
         """
         # Prepare generation (shared setup logic)
-        initial_state, start_time, run_id = await self._prepare_generation(
+        initial_state = await self._prepare_generation(
             research_goal=research_goal,
             progress_callback=progress_callback,
             opts=opts,
             run_id=run_id,
         )
+        start_time = initial_state["start_time"]
 
         assert self._graph is not None  # built by _prepare_generation
         try:
@@ -634,7 +636,7 @@ class HypothesisGenerator:
         Yields (node_name, state_dict) tuples after each node completes.
         """
         # Prepare generation (shared setup logic)
-        initial_state, start_time, run_id = await self._prepare_generation(
+        initial_state = await self._prepare_generation(
             research_goal=research_goal,
             progress_callback=progress_callback,
             opts=opts,
@@ -643,19 +645,17 @@ class HypothesisGenerator:
 
         # Delegate to streaming implementation
         async for node_name, state_dict in self._handle_streaming(
-            initial_state, start_time):
+            initial_state):
             yield node_name, state_dict
 
     async def _handle_streaming(
         self,
         initial_state: WorkflowState,
-        start_time: float,  # pylint: disable=unused-argument
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         """Internal method to handle streaming generation.
 
         Args:
             initial_state: Prepared workflow state
-            start_time: Start time for execution timing
 
         Yields:
             Tuple of (node_name, state_dict) after each node completes
@@ -728,7 +728,7 @@ class HypothesisGenerator:
                     if "metrics" in node_state:
                         # Import merge_metrics to properly combine metrics
                         # (don't just replace!)
-                        from co_scientist.state import merge_metrics  # pylint: disable=import-outside-toplevel
+                        from co_scientist.models import merge_metrics  # pylint: disable=import-outside-toplevel
 
                         cumulative_state["metrics"] = merge_metrics(
                             cumulative_state["metrics"], node_state["metrics"])

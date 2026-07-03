@@ -1,5 +1,5 @@
 import {Link} from 'react-router-dom';
-import {type Hypothesis, type Run} from '@/api/runs';
+import {type Hypothesis, isActiveStatus, type Run} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
@@ -237,7 +237,7 @@ function formatHomeRunDuration(run: Run): string {
   if (run.status === 'completed') {
     return formatDurationLabel(60);
   }
-  if (['running', 'queued', 'synthesizing'].includes(run.status)) {
+  if (isActiveStatus(run.status)) {
     return 'In progress';
   }
   return formatHomeRunStatus(run);
@@ -256,7 +256,7 @@ function formatHomeRunTimeChip(run: Run): string {
   if (run.status === 'completed') {
     return `Total time: ${formatHomeRunDuration(run)}`;
   }
-  if (['running', 'queued', 'synthesizing'].includes(run.status)) {
+  if (isActiveStatus(run.status)) {
     return `Time elapsed: ${formatHomeRunElapsed(run)}`;
   }
   return `Status: ${formatHomeRunStatus(run)}`;
@@ -292,7 +292,7 @@ function homeRunProgress(run: Run): number {
 }
 
 function isActiveHomeRun(run: Run): boolean {
-  return ['running', 'queued', 'synthesizing'].includes(run.status);
+  return isActiveStatus(run.status);
 }
 
 function homeRunIdeaTitles(goal: string): string[] {

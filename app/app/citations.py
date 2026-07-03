@@ -17,7 +17,6 @@ stable labels for tests and screenshots.
 from __future__ import annotations
 
 import enum
-from collections.abc import Iterable
 from dataclasses import dataclass
 
 
@@ -36,6 +35,12 @@ ALL_STATES: tuple[CitationState, ...] = (
     CitationState.UNSUPPORTED,
     CitationState.UNAVAILABLE,
 )
+
+# Strength rank per state (higher = stronger support), derived from the
+# strongest-to-weakest ordering of ALL_STATES.
+STATE_RANK: dict[str, int] = {
+    state.value: len(ALL_STATES) - 1 - i for i, state in enumerate(ALL_STATES)
+}
 
 
 @dataclass
@@ -77,7 +82,3 @@ def classify_citation(record: CitationRecord) -> CitationState:
     if overlap >= 0.10:
         return CitationState.PARTIAL
     return CitationState.UNSUPPORTED
-
-
-def classify_many(records: Iterable[CitationRecord]) -> list[CitationState]:
-    return [classify_citation(r) for r in records]

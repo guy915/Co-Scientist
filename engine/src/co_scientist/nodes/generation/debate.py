@@ -13,18 +13,18 @@ from co_scientist.nodes.generation.citations import (
     resolve_citation_keys,
 )
 from co_scientist.constants import (
+    DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
+    DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
     DEBATE_MAX_TURNS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
     INITIAL_ELO_RATING,
+    scaled_max_tokens,
 )
 from co_scientist.exceptions import GenerationError
 from co_scientist.llm import call_llm, call_llm_json
-from co_scientist.models import Article, GenerationMethod, Hypothesis
-from co_scientist.prompts import (
-    get_debate_generation_prompt,
-    save_prompt_to_disk,
-)
+from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.prompts import get_debate_generation_prompt
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -63,23 +63,6 @@ def _append_diversity_instruction(preferences: str | None,
     if preferences:
         return f"{preferences}\n\n{instruction}"
     return instruction
-
-
-def _match_papers_to_grounding(
-    articles: list[Article],
-    literature_grounding: str | None,
-) -> list[dict[str, str]]:
-    """Match lit review articles against a hypothesis's literature_grounding.
-
-    Uses author last name + year matching against citation patterns like
-    "(Roepert et al., 2020; Erba et al., 2021)" in the grounding text.
-
-    Returns empty list if no grounding text or no matches.
-    """
-    from co_scientist.nodes.generation.papers import articles_to_candidates, filter_papers_by_grounding  # pylint: disable=import-outside-toplevel
-
-    candidates = articles_to_candidates(articles)
-    return filter_papers_by_grounding(candidates, literature_grounding)
 
 
 async def _run_single_debate(
@@ -138,30 +121,32 @@ async def _run_single_debate(
         )
 
         if is_final:
-            save_prompt_to_disk(
-                run_id=state.get("run_id", "unknown"),
-                prompt_name=f"generate_debate_{debate_id}_final",
-                content=prompt,
-                metadata={
-                    "debate_id": debate_id,
-                    "turn": turn,
-                    "has_literature": articles_with_reasoning is not None,
-                    "reference_keys": list(ref_idx.sources.keys()),
-                    "prompt_length_chars": len(prompt),
-                },
+            final_max_tokens = scaled_max_tokens(
+                EXTENDED_MAX_TOKENS,
+                count,
+                per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
+                cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
             )
-            scaled_max_tokens = min(EXTENDED_MAX_TOKENS + 4000, 20000)
 
             response = await call_llm_json(
                 prompt=prompt,
                 model_name=state["model_name"],
-                max_tokens=scaled_max_tokens,
+                max_tokens=final_max_tokens,
                 temperature=HIGH_TEMPERATURE,
                 json_schema=schema,
                 # Generation is stochastic and diversity-critical: never cache
                 # it, so parallel debates and re-runs stay diverse regardless of
                 # cache state.
                 use_cache=False,
+                run_id=state.get("run_id"),
+                prompt_name=f"generate_debate_{debate_id}_final",
+                prompt_metadata={
+                    "debate_id": debate_id,
+                    "turn": turn,
+                    "has_literature": articles_with_reasoning is not None,
+                    "reference_keys": list(ref_idx.sources.keys()),
+                    "prompt_length_chars": len(prompt),
+                },
             )
 
             hypotheses_data = response.get("hypotheses", [])

@@ -3,6 +3,7 @@ import {useMemo, useState} from 'react';
 import type {CitationRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {EmptyState} from '../empty_state';
 
 const IDEA_SPLIT_SHELL_CLASSES =
   'idea-split-shell h-full overflow-hidden rounded-none border-0 bg-cosci-bg';
@@ -120,7 +121,9 @@ export function IdeasTab({
 
   if (!hypotheses.length) {
     return (
-      <Empty msg="Hypotheses appear here once the generation node runs." />
+      <EmptyState>
+        Hypotheses appear here once the generation node runs.
+      </EmptyState>
     );
   }
 
@@ -329,18 +332,4 @@ function smoothSectionClick(
   const didScroll = smoothScrollToSection(sectionId, 16);
   if (!didScroll) return;
   event.preventDefault();
-}
-
-function Empty({msg}: {msg: string}) {
-  return (
-    <div
-      className="rounded border p-6 text-sm text-center"
-      style={{
-        borderColor: 'var(--md-sys-color-outline-variant)',
-        color: 'var(--md-sys-color-on-surface-variant)',
-      }}
-    >
-      {msg}
-    </div>
-  );
 }

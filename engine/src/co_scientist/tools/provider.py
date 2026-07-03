@@ -23,7 +23,7 @@ class HybridToolProvider:
     example usage:
         provider = HybridToolProvider(
             mcp_client=mcp_client,
-            python_registry=literature_tools
+            python_registry=my_python_registry,  # optional
         )
 
         tools_dict, openai_tools = provider.get_tools(

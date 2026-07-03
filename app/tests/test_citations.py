@@ -5,7 +5,6 @@ from app.citations import (
     ALL_STATES,
     CitationRecord,
     classify_citation,
-    classify_many,
 )
 
 
@@ -74,15 +73,3 @@ def test_unsupported_when_no_overlap() -> None:
         claim="protein folding kinetics in chaperonin complexes",
     )
     assert classify_citation(r) == "unsupported"
-
-
-def test_classify_many_returns_correct_length() -> None:
-    recs = [
-        CitationRecord(url="", abstract="x", claim="x", available=False),
-        CitationRecord(
-            url="u",
-            abstract="biogenesis thermogenesis mitochondrial cellular",
-            claim="biogenesis thermogenesis mitochondrial cellular"),
-    ]
-    out = classify_many(recs)
-    assert out == ["unavailable", "verified"]
