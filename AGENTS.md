@@ -55,9 +55,9 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Evolve | `nodes/evolve.py` |
 | Proximity (dedup) | `nodes/proximity.py` |
 
-Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/` (also bundled via `package-data`). YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/etc.).
+Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/` (also bundled via `package-data`). YAML tool/domain configs live in `src/co_scientist/config/` with a bundled example config in `config/examples/` (`indra_cancer.yaml`).
 
-Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas.py` (JSON schemas for structured LLM output), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `console.py` (Rich-based terminal reporter), `tools/` (tool registry subpackage for YAML-based tool configuration).
+Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas.py` (JSON schemas for structured LLM output), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `tools/` (tool registry subpackage for YAML-based tool configuration).
 
 LLM calls go through LiteLLM (`llm.py`); literature-review tools are pulled from an external MCP server via `mcp_client.py` using `langchain-mcp-adapters`. The graph auto-detects MCP availability — without a server, the literature/reflection nodes fall back to LLM-only mode.
 
@@ -96,7 +96,7 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 
 | Module | Purpose |
 |---|---|
-| `main.py` | App setup, lifespan, legacy `/generate` endpoints |
+| `main.py` | App setup, lifespan, diagnostics endpoints (`/health`, `/config`, `/status`) |
 | `config.py` | Pydantic settings (model names, API keys, DB path, Elo tuning, safety mode) |
 | `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group) |
 | `store.py` | SQLite persistence layer (WAL mode, append-only event log) |
@@ -110,11 +110,8 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 
 **Key endpoints**:
 
-Legacy (in `main.py`):
+Diagnostics (in `main.py`):
 - `GET /health`, `/config`, `/status` — diagnostics; `/status` reports MCP/PubMed availability.
-- `POST /generate` — synchronous, blocking generation (uses server-default config).
-- `POST /generate/start` → returns `task_id`; `GET /generate/stream/{task_id}` — SSE stream of node events.
-- `POST /cancel_hypothesis_generation` — sets the cancellation event for a `task_id`.
 
 Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by the frontend**:
 - `POST /api/runs` — create a draft run; `GET /api/runs` — list runs.

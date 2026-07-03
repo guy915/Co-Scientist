@@ -312,9 +312,7 @@ flowchart TD
   reference index.
 - **Domain configs** in `config/examples/` override `prompts`, `tools`,
   `workflows`, `servers`, and `enrichments` — making the engine
-  domain-agnostic: `indra_cancer.yaml`, `indra_alzheimers.yaml`,
-  `cybersecurity_hydra.yaml` (arXiv + Google Scholar + NVD CVE enrichment),
-  multi-source academic configs, etc.
+  domain-agnostic (e.g. `indra_cancer.yaml`).
 
 The reference MCP server (`mcp_server/`) is a separately installable FastMCP
 package. Run with

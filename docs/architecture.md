@@ -139,7 +139,7 @@ produce the same view.
     `engine_adapter.run_workflow` calls the engine when a key is available, only
     translating event names.
 -   FastAPI single-file app is preserved; the new router is mounted alongside
-    the existing `/generate` endpoints.
+    the diagnostics endpoints (`/health`, `/config`, `/status`).
 -   Frontend stack is preserved: React 19 + Vite 7 + Tailwind v4 + Bun + gts.
     The workbench lives under `src/workbench/`, with public landing and demo
     pages under `src/public/`.

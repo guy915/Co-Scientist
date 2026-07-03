@@ -45,7 +45,7 @@ engine/
 │           ├── review.md
 │           └── ...
 ├── examples/
-│   └── run.py                  # CLI example with Console Reporter
+│   └── run.py                  # CLI example
 ├── mcp_server/                 # Reference MCP server implementation
 └── docs/                       # Documentation
 ```

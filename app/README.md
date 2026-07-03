@@ -7,7 +7,7 @@ A web workbench for running and monitoring the multi-agent hypothesis-generation
 ```
 app/
 ├── app/            FastAPI backend (Python)
-│   ├── main.py     App setup, diagnostics, and legacy /generate endpoints
+│   ├── main.py     App setup and diagnostics endpoints (/health, /config, /status)
 │   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
 │   ├── store.py    SQLite persistence layer (WAL, append-only event log)
 │   ├── engine_adapter.py  Bridges to engine or mock workflow
@@ -183,10 +183,6 @@ The backend exposes two groups of endpoints.
 | `GET` | `/health` | Health check |
 | `GET` | `/config` | Server-default config values |
 | `GET` | `/status` | MCP/PubMed availability, provider, API key presence |
-| `POST` | `/generate` | Deprecated synchronous blocking generation |
-| `POST` | `/generate/start` | Deprecated streaming generation start |
-| `GET` | `/generate/stream/{task_id}` | Deprecated streaming generation SSE |
-| `POST` | `/cancel_hypothesis_generation` | Deprecated legacy task cancellation |
 
 Interactive docs are available when the server is running:
 - Swagger UI: http://localhost:8008/docs
