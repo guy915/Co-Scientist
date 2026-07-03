@@ -18,9 +18,44 @@ import jsonschema
 from jsonschema.exceptions import ValidationError
 import litellm
 
+from co_scientist import prompts
 from co_scientist.cache import LLMCache, NullCache, get_cache
 
 logger = logging.getLogger(__name__)
+
+
+def _save_prompt_if_named(
+    prompt: str,
+    run_id: str | None,
+    prompt_name: str | None,
+    prompt_metadata: dict[str, Any] | None,
+) -> None:
+    """Saves the filled-in prompt to disk when a prompt name is given.
+
+    Unified save policy for every LLM call site: the prompt is saved
+    whenever ``prompt_name`` is provided, under ``run_id or "unknown"``.
+    Every write is still globally gated by the ``COSCIENTIST_SAVE_PROMPTS``
+    env check inside ``prompts.save_prompt_to_disk`` (which also emits the
+    canonical debug log for each saved prompt).
+
+    ``save_prompt_to_disk`` is resolved through the ``prompts`` module at
+    call time so tests can monkeypatch it there.
+
+    Args:
+        prompt: The filled-in prompt content to save.
+        run_id: Optional run identifier; ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name; ``None`` disables saving.
+        prompt_metadata: Optional metadata appended to the saved file.
+    """
+    if prompt_name is None:
+        return
+    prompts.save_prompt_to_disk(
+        run_id=run_id or "unknown",
+        prompt_name=prompt_name,
+        content=prompt,
+        metadata=prompt_metadata,
+    )
+
 
 # Suppress Pydantic serialization warnings from LiteLLM globally
 # these occur when LiteLLM response objects (Pydantic models) are serialized
@@ -277,6 +312,124 @@ def get_fallback_response(
     return None
 
 
+def _clamp_temperature(model_name: str, temperature: float) -> float:
+    """Clamps temperature to model-specific minimums.
+
+    Gemini 3 models require temperature >= 1.0 to avoid degraded performance.
+
+    Args:
+        model_name: LLM model identifier.
+        temperature: Requested sampling temperature.
+
+    Returns:
+        The temperature to actually use for the call.
+    """
+    if "gemini-3" in model_name.lower() and temperature < 1.0:
+        logger.debug(
+            "clamping temperature %s -> 1.0 for gemini 3 model "
+            "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
+            temperature)
+        return 1.0
+    return temperature
+
+
+# Provider-capability shim: some providers reject
+# response_format={"type": "json_schema", ...} outright (DeepSeek returns an
+# invalid-request error). For those models every schema'd call is downgraded,
+# per call, to {"type": "json_object"} with the schema restated as prompt
+# text, and missing required fields are back-filled with empty defaults
+# before schema validation (json_object mode has no server-side schema
+# enforcement, so nested required fields are routinely omitted). Models that
+# support json_schema are untouched.
+#
+# Families listed here are checked BEFORE litellm's capability registry:
+# litellm's cost map marks deepseek/* as supporting response schema, but the
+# DeepSeek API only accepts json_object, so the registry alone cannot be
+# trusted for these providers.
+_JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
+
+
+def _supports_json_schema_response_format(model_name: str) -> bool:
+    """Checks whether a model accepts the json_schema response format.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        False when the model belongs to a known json_object-only family or
+        when litellm's capability registry reports no json_schema support.
+        True otherwise, including when the registry lookup itself raises, so
+        the default json_schema path is preserved for unknown models.
+    """
+    lowered = model_name.lower()
+    if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+        return False
+    try:
+        return bool(litellm.supports_response_schema(model=model_name))
+    except Exception:  # pylint: disable=broad-exception-caught
+        return True
+
+
+def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
+    """Appends the JSON schema to the prompt for json_object-only models.
+
+    Downgrading to the json_object response format loses the server-side
+    schema constraint, so the schema is restated as prompt text to keep the
+    model aware of the required structure.
+
+    Args:
+        prompt: The original user prompt.
+        json_schema: JSON schema dict (may have a nested "schema" key).
+
+    Returns:
+        The prompt with the schema instruction block appended.
+    """
+    actual_schema = json_schema.get("schema", json_schema)
+    schema_str = json.dumps(actual_schema, indent=2)
+    return (prompt + "\n\n---\nRESPOND WITH VALID JSON ONLY. "
+            "Your output MUST strictly match this JSON schema "
+            "(all required fields must be present):\n" + schema_str)
+
+
+def _backfill_required_fields(obj: Any, schema: Any) -> None:
+    """Recursively fills missing required fields with empty defaults.
+
+    Provider-capability shim for json_object-only models (see
+    ``_supports_json_schema_response_format``): without server-side schema
+    enforcement those models routinely omit nested required fields (e.g.
+    ``performance_assessment.agent_performance.reflection_agent``), which
+    would otherwise abort the run in schema validation. Missing required
+    fields are filled in place with neutral empty values (empty string or
+    first enum value, ``{}``, ``[]``, ``0``); fields that are present are
+    never modified.
+
+    Args:
+        obj: Parsed JSON value to back-fill (non-dicts are ignored).
+        schema: JSON schema node describing ``obj``.
+    """
+    if not isinstance(obj, dict) or not isinstance(schema, dict):
+        return
+    props = schema.get("properties", {})
+    for field in schema.get("required", []):
+        if field not in obj and field in props:
+            field_schema = props[field]
+            field_type = field_schema.get("type")
+            if field_type == "string":
+                obj[field] = (field_schema["enum"][0]
+                              if "enum" in field_schema else "")
+            elif field_type == "object":
+                obj[field] = {}
+            elif field_type == "array":
+                obj[field] = []
+            elif field_type in ("integer", "number"):
+                obj[field] = 0
+            else:
+                obj[field] = ""
+    for key, value in obj.items():
+        if key in props:
+            _backfill_required_fields(value, props[key])
+
+
 async def call_llm(
     prompt: str,
     model_name: str,
@@ -285,6 +438,9 @@ async def call_llm(
     force_json: bool = False,
     json_schema: dict[str, Any] | None = None,
     use_cache: bool = True,
+    run_id: str | None = None,
+    prompt_name: str | None = None,
+    prompt_metadata: dict[str, Any] | None = None,
 ) -> str:
     """Call an LLM via litellm and return the response.
 
@@ -297,6 +453,12 @@ async def call_llm(
         force_json: If True, try to force JSON mode (model support varies)
         json_schema: Optional JSON schema to constrain the response format
         use_cache: When False, bypass the LLM cache so the call is always fresh.
+        run_id: Optional run identifier for the saved prompt's directory;
+            ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name. When provided, the prompt
+            is saved to disk before the call — always, regardless of
+            ``run_id`` (globally gated by ``COSCIENTIST_SAVE_PROMPTS``).
+        prompt_metadata: Optional metadata appended to the saved prompt file.
 
     Returns:
         String response from the LLM
@@ -304,14 +466,9 @@ async def call_llm(
     Raises:
         Exception: If the LLM call fails
     """
-    # Clamp temperature for gemini 3 models (requires temp >= 1.0)
-    if "gemini-3" in model_name.lower() and temperature < 1.0:
-        original_temp = temperature
-        temperature = 1.0
-        logger.debug(
-            "clamping temperature %s -> 1.0 for gemini 3 model "
-            "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
-            original_temp)
+    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+
+    temperature = _clamp_temperature(model_name, temperature)
 
     # Check cache first (NullCache when caching is bypassed for this call).
     cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
@@ -343,23 +500,25 @@ async def call_llm(
 
         # Try to add response_format based on schema or force_json
         if json_schema:
-            try:
+            if _supports_json_schema_response_format(model_name):
                 completion_args["response_format"] = {
                     "type": "json_schema",
                     "json_schema": json_schema,
                 }
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                # Some models/providers don't support json_schema, fall back to
-                # json_object
-                logger.warning(
-                    "JSON schema not supported, falling back to"
-                    " json_object: %s", e)
-                try:
-                    completion_args["response_format"] = {"type": "json_object"}
-                except Exception:  # pylint: disable=broad-exception-caught
-                    # Some models/providers don't support this either, silently
-                    # continue
-                    pass
+            else:
+                # Provider-capability shim: this model rejects the
+                # json_schema response format, so downgrade this call to
+                # json_object and restate the schema in the prompt. The
+                # cache keys above stay on the original prompt.
+                logger.debug(
+                    "model %s does not support json_schema response format;"
+                    " downgrading to json_object with schema in prompt",
+                    model_name)
+                completion_args["messages"] = [{
+                    "role": "user",
+                    "content": _inject_schema_into_prompt(prompt, json_schema),
+                }]
+                completion_args["response_format"] = {"type": "json_object"}
         elif force_json:
             try:
                 completion_args["response_format"] = {"type": "json_object"}
@@ -396,6 +555,25 @@ async def call_llm(
         raise
 
 
+def _validation_feedback(error: ValidationError) -> str:
+    """Builds the retry-prompt suffix describing a schema validation error.
+
+    Args:
+        error: The validation error from the previous attempt.
+
+    Returns:
+        Feedback text to append to the original prompt for the retry.
+    """
+    error_path = ".".join(str(p) for p in error.path) if error.path else "root"
+    return ("\n\n--- VALIDATION ERROR FROM PREVIOUS"
+            " ATTEMPT ---\n"
+            f"Error: {error.message}\n"
+            f"Location: {error_path}\n"
+            "Please ensure your JSON output strictly"
+            " matches the required schema structure.\n"
+            "---")
+
+
 async def call_llm_json(
     prompt: str,
     model_name: str,
@@ -404,6 +582,9 @@ async def call_llm_json(
     json_schema: dict[str, Any] | None = None,
     max_attempts: int = 5,
     use_cache: bool = True,
+    run_id: str | None = None,
+    prompt_name: str | None = None,
+    prompt_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Call LLM and parse response as JSON with validation and retry logic.
 
@@ -416,6 +597,14 @@ async def call_llm_json(
         max_attempts: Maximum number of retry attempts (default 5)
         use_cache: When False, bypass the LLM cache so the call is always fresh
             (used for stochastic, diversity-critical generation).
+        run_id: Optional run identifier for the saved prompt's directory;
+            ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name. When provided, the
+            original prompt is saved to disk once, before the first attempt —
+            always, regardless of ``run_id`` (globally gated by
+            ``COSCIENTIST_SAVE_PROMPTS``). Retry prompts carrying validation
+            feedback are not re-saved.
+        prompt_metadata: Optional metadata appended to the saved prompt file.
 
     Returns:
         Parsed JSON response as a dictionary
@@ -427,6 +616,13 @@ async def call_llm_json(
             (for critical nodes)
         Exception: If the LLM call fails or returns empty response
     """
+    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+
+    # Clamp before the cache key is built so requested temperatures that
+    # execute identically share one cache entry (matches call_llm and
+    # call_llm_with_tools, which clamp before their own cache lookups).
+    temperature = _clamp_temperature(model_name, temperature)
+
     # Check cache first (NullCache when caching is bypassed for this call).
     cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
     cached_response = cache.get(prompt,
@@ -452,14 +648,19 @@ async def call_llm_json(
                          max_attempts)
 
         try:
-            # Call LLM
+            # Call LLM. Caching is disabled on the inner call: call_llm_json
+            # keeps its own cache of the validated dict and returns from it
+            # before ever reaching this point, so a raw-text entry would only
+            # duplicate every cached payload on disk (and could replay an
+            # invalid response into the retry loop).
             response_text = await call_llm(
                 prompt,
                 model_name,
                 max_tokens,
                 temperature,
-                force_json=True if not json_schema else False,
+                force_json=not json_schema,
                 json_schema=json_schema,
+                use_cache=False,
             )
 
             # Check for None or empty response
@@ -493,121 +694,60 @@ async def call_llm_json(
                 parse_error = e
                 result = None
 
-            # Step 2: If parsing succeeded, validate schema
-            if result is not None:
-                if json_schema is not None:
-                    try:
-                        validate_json_schema(result, json_schema)
-                        # Success! Cache and return
-                        cache.set(
-                            prompt,
-                            model_name,
-                            temperature,
-                            max_tokens,
-                            result,
-                            json_schema=json_schema,
-                        )
-                        return result
-                    except ValidationError as e:
-                        last_error = e
-                        logger.warning(
-                            "Schema validation failed on attempt %s: %s",
-                            attempt, e.message)
-
-                        # Add validation feedback to prompt for next retry
-                        if not is_final_attempt:
-                            error_path = ".".join(
-                                str(p) for p in e.path) if e.path else "root"
-                            validation_feedback = (
-                                "\n\n--- VALIDATION ERROR FROM PREVIOUS"
-                                " ATTEMPT ---\n"
-                                f"Error: {e.message}\n"
-                                f"Location: {error_path}\n"
-                                "Please ensure your JSON output strictly"
-                                " matches the required schema structure.\n"
-                                "---")
-                            prompt = original_prompt + validation_feedback
-                            logger.debug(
-                                "added validation feedback to retry prompt")
-
-                        # Retry on validation failure
-                        continue
-                else:
-                    # No schema, parsing succeeded - we're done
-                    cache.set(prompt,
-                              model_name,
-                              temperature,
-                              max_tokens,
-                              result,
-                              json_schema=json_schema)
-                    return result
-
-            # Step 3: Parsing failed, attempt repairs
+            # Step 2: If parsing failed, attempt repairs (minor only unless
+            # final attempt)
             was_major_repair = False
-            if parse_error is not None:
-                # Attempt repairs (minor only unless final attempt)
+            repaired = False
+            if result is None:
                 result, was_major_repair = attempt_json_repair(
                     response_text, allow_major_repairs=is_final_attempt)
+                repaired = result is not None
 
-                if result is not None:
-                    # Repair succeeded, validate schema if provided
+            # Step 3: Validate against the schema (when given), cache, return
+            if result is not None:
+                try:
                     if json_schema is not None:
-                        try:
-                            validate_json_schema(result, json_schema)
-                            # Success! Cache and return
-                            cache.set(
-                                prompt,
-                                model_name,
-                                temperature,
-                                max_tokens,
-                                result,
-                                json_schema=json_schema,
-                            )
-                            return result
-                        except ValidationError as e:
-                            last_error = e
-                            logger.warning(
-                                "Schema validation failed after repair"
-                                " on attempt %s: %s", attempt, e.message)
+                        # Provider-capability shim: calls downgraded to
+                        # json_object have no server-side schema enforcement,
+                        # so back-fill missing required fields with empty
+                        # defaults before validating. Keyed on the same
+                        # condition as the downgrade in call_llm.
+                        if not _supports_json_schema_response_format(
+                                model_name):
+                            _backfill_required_fields(
+                                result, json_schema.get("schema", json_schema))
+                        validate_json_schema(result, json_schema)
+                    cache.set(
+                        prompt,
+                        model_name,
+                        temperature,
+                        max_tokens,
+                        result,
+                        json_schema=json_schema,
+                    )
+                    return result
+                except ValidationError as e:
+                    last_error = e
+                    logger.warning("Schema validation failed%s on attempt"
+                                   " %s: %s",
+                                   " after repair" if repaired else "", attempt,
+                                   e.message)
 
-                            # Add validation feedback to prompt for next retry
-                            if not is_final_attempt:
-                                error_path = ".".join(
-                                    str(p)
-                                    for p in e.path) if e.path else "root"
-                                validation_feedback = (
-                                    "\n\n--- VALIDATION ERROR FROM PREVIOUS"
-                                    " ATTEMPT ---\n"
-                                    f"Error: {e.message}\n"
-                                    f"Location: {error_path}\n"
-                                    "Please ensure your JSON output strictly"
-                                    " matches the required schema structure.\n"
-                                    "---")
-                                prompt = original_prompt + validation_feedback
-                                logger.debug(
-                                    "added validation feedback to retry"
-                                    " prompt after repair")
+                    # Add validation feedback to prompt for next retry
+                    if not is_final_attempt:
+                        prompt = original_prompt + _validation_feedback(e)
+                        logger.debug("added validation feedback to retry"
+                                     " prompt")
 
-                            # Retry on validation failure
-                            continue
-                    else:
-                        # No schema, repair succeeded - we're done
-                        cache.set(
-                            prompt,
-                            model_name,
-                            temperature,
-                            max_tokens,
-                            result,
-                            json_schema=json_schema,
-                        )
-                        return result
-
-                # If major repair was needed but we're not on final attempt,
-                # retry immediately
-                if was_major_repair and not is_final_attempt:
-                    logger.info("Major repair needed (truncation detected),"
-                                " retrying immediately")
+                    # Retry on validation failure
                     continue
+
+            # If major repair was needed but we're not on final attempt,
+            # retry immediately
+            if was_major_repair and not is_final_attempt:
+                logger.info("Major repair needed (truncation detected),"
+                            " retrying immediately")
+                continue
 
             # All repairs exhausted for this attempt
             last_error = parse_error or ValueError(
@@ -700,6 +840,9 @@ async def call_llm_with_tools(
     temperature: float = 0.7,
     max_iterations: int = 10,
     use_cache: bool = True,
+    run_id: str | None = None,
+    prompt_name: str | None = None,
+    prompt_metadata: dict[str, Any] | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
     """Call an LLM with tool access and handle tool execution loop.
 
@@ -717,6 +860,12 @@ async def call_llm_with_tools(
         max_iterations: Maximum number of LLM calls (prevents infinite loops)
         use_cache: When False, bypass the LLM cache so the call is always fresh
             (used for stochastic, diversity-critical generation).
+        run_id: Optional run identifier for the saved prompt's directory;
+            ``None`` falls back to "unknown".
+        prompt_name: Optional debug-artifact name. When provided, the prompt
+            is saved to disk before the call — always, regardless of
+            ``run_id`` (globally gated by ``COSCIENTIST_SAVE_PROMPTS``).
+        prompt_metadata: Optional metadata appended to the saved prompt file.
 
     Returns:
         Tuple of (final_response_text, complete_message_history)
@@ -724,14 +873,9 @@ async def call_llm_with_tools(
     Raises:
         Exception: If the LLM call fails or max iterations reached
     """
-    # Clamp temperature for gemini 3 models (requires temp >= 1.0)
-    if "gemini-3" in model_name.lower() and temperature < 1.0:
-        original_temp = temperature
-        temperature = 1.0
-        logger.debug(
-            "clamping temperature %s -> 1.0 for gemini 3 model "
-            "(gemini 3 requires temp >= 1.0 to avoid degraded performance)",
-            original_temp)
+    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+
+    temperature = _clamp_temperature(model_name, temperature)
 
     # Check cache first (NullCache when caching is bypassed for this call).
     cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()

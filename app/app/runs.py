@@ -36,6 +36,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app import engine_adapter, store
+from app.citations import STATE_RANK
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
     RUN_MODE_PATTERN,
@@ -66,10 +67,6 @@ class _RunHandle:
 
 _active: dict[str, _RunHandle] = {}
 _active_lock = asyncio.Lock()
-
-
-def _db_path() -> str | None:
-    return os.getenv("COSCIENTIST_DB_PATH") or None
 
 
 # ---------------------------------------------------------------------------
@@ -112,17 +109,11 @@ class AskRequest(BaseModel):
 
 
 def _summary_counts(run_id: str) -> dict[str, int]:
-    return {
-        "events": len(store.list_events(run_id, db_path=_db_path())),
-        "hypotheses": len(store.list_hypotheses(run_id, db_path=_db_path())),
-        "evidence": len(store.list_evidence(run_id, db_path=_db_path())),
-        "matches": len(store.list_matches(run_id, db_path=_db_path())),
-        "reviews": len(store.list_reviews(run_id, db_path=_db_path())),
-    }
+    return store.summary_counts(run_id)
 
 
 def _run_or_404(run_id: str) -> RunRow:
-    run = store.get_run(run_id, db_path=_db_path())
+    run = store.get_run(run_id)
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
     return run
@@ -182,7 +173,6 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         provider=provider,
         config=config,
         client_id=_client_id(request),
-        db_path=_db_path(),
     )
     store.append_event(
         run.id,
@@ -195,7 +185,6 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
             "focus": focus,
             "tier": tier,
         },
-        db_path=_db_path(),
     )
     return run.to_dict()
 
@@ -206,14 +195,13 @@ async def list_runs(
         limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
     runs = store.list_runs(client_id=_client_id(request),
-                           limit=limit,
-                           db_path=_db_path())
+                           limit=limit)
     return {"runs": [r.to_dict() for r in runs]}
 
 
 @router.get("/demo")
 async def list_demo_runs() -> dict[str, Any]:
-    runs = store.list_runs(client_id="__demo__", db_path=_db_path())
+    runs = store.list_runs(client_id="__demo__")
     return {"runs": [r.to_dict() for r in runs]}
 
 
@@ -252,10 +240,9 @@ async def start_run(run_id: str, req: StartRunRequest,
         handle = _RunHandle()
         _active[run_id] = handle
 
-    store.update_run_status(run_id, RunStatus.QUEUED, db_path=_db_path())
+    store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(run_id,
-                       "lifecycle", {"event": "queued"},
-                       db_path=_db_path())
+                       "lifecycle", {"event": "queued"})
 
     async def runner() -> None:
         try:
@@ -264,7 +251,6 @@ async def start_run(run_id: str, req: StartRunRequest,
                     research_goal=run.research_goal,
                     profile=normalize_run_mode(run.profile),
                     config=run.config,
-                    db_path=_db_path(),
                     cancelled=handle.cancelled,
                     force_provider=req.force_provider,
             ):
@@ -273,14 +259,12 @@ async def start_run(run_id: str, req: StartRunRequest,
             logger.exception("workflow failed: %s", e)
             store.update_run_status(run_id,
                                     RunStatus.FAILED,
-                                    error=str(e),
-                                    db_path=_db_path())
+                                    error=str(e))
             store.append_event(run_id,
                                "status", {
                                    "status": "failed",
                                    "error": str(e)
-                               },
-                               db_path=_db_path())
+                               })
             handle.new_event.set()
         finally:
             async with _active_lock:
@@ -299,8 +283,7 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="run is not active")
     handle.cancelled.set()
     store.append_event(run_id,
-                       "lifecycle", {"event": "cancel_requested"},
-                       db_path=_db_path())
+                       "lifecycle", {"event": "cancel_requested"})
     return {"id": run_id, "status": "cancelling"}
 
 
@@ -332,8 +315,7 @@ async def stream_events(
 
         # Replay historical events first.
         history = store.list_events(run_id,
-                                    after_seq=last_seq,
-                                    db_path=_db_path())
+                                    after_seq=last_seq)
         for ev in history:
             last_seq = ev["seq"]
             yield _sse(ev)
@@ -370,14 +352,13 @@ async def stream_events(
                 await asyncio.sleep(0.5)
 
             new_events = store.list_events(run_id,
-                                           after_seq=last_seq,
-                                           db_path=_db_path())
+                                           after_seq=last_seq)
             for ev in new_events:
                 last_seq = ev["seq"]
                 yield _sse(ev)
 
             # Re-check run status; exit on terminal.
-            current = store.get_run(run_id, db_path=_db_path())
+            current = store.get_run(run_id)
             if current and current.status in TERMINAL_STATUSES:
                 yield _sse({
                     "type": "_terminal",
@@ -407,7 +388,7 @@ def _sse(event: dict[str, Any]) -> str:
 async def get_events_log(run_id: str) -> list[dict[str, Any]]:
     """Return all stored events for a run as JSON (for the log console)."""
     _run_or_404(run_id)
-    return store.list_events(run_id, after_seq=0, db_path=_db_path())
+    return store.list_events(run_id, after_seq=0)
 
 
 # ---------------------------------------------------------------------------
@@ -418,43 +399,43 @@ async def get_events_log(run_id: str) -> list[dict[str, Any]]:
 @router.get("/{run_id}/hypotheses")
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
     _run_or_404(run_id)
-    return {"hypotheses": store.list_hypotheses(run_id, db_path=_db_path())}
+    return {"hypotheses": store.list_hypotheses(run_id)}
 
 
 @router.get("/{run_id}/evidence")
 async def get_evidence(run_id: str) -> dict[str, Any]:
     _run_or_404(run_id)
-    return {"evidence": store.list_evidence(run_id, db_path=_db_path())}
+    return {"evidence": store.list_evidence(run_id)}
 
 
 @router.get("/{run_id}/matches")
 async def get_matches(run_id: str) -> dict[str, Any]:
     _run_or_404(run_id)
-    return {"matches": store.list_matches(run_id, db_path=_db_path())}
+    return {"matches": store.list_matches(run_id)}
 
 
 @router.get("/{run_id}/reviews")
 async def get_reviews(run_id: str) -> dict[str, Any]:
     _run_or_404(run_id)
-    return {"reviews": store.list_reviews(run_id, db_path=_db_path())}
+    return {"reviews": store.list_reviews(run_id)}
 
 
 @router.get("/{run_id}/safety")
 async def get_safety(run_id: str) -> dict[str, Any]:
     _run_or_404(run_id)
-    return {"safety": store.list_safety_decisions(run_id, db_path=_db_path())}
+    return {"safety": store.list_safety_decisions(run_id)}
 
 
 @router.get("/{run_id}/citations")
 async def get_citations(run_id: str) -> dict[str, Any]:
     _run_or_404(run_id)
-    return {"citations": store.list_citations(run_id, db_path=_db_path())}
+    return {"citations": store.list_citations(run_id)}
 
 
 @router.get("/{run_id}/report")
 async def get_report(run_id: str) -> dict[str, Any]:
     _run_or_404(run_id)
-    report = store.get_latest_report(run_id, db_path=_db_path())
+    report = store.get_latest_report(run_id)
     if not report:
         raise HTTPException(status_code=404, detail="no report yet")
     return report
@@ -463,7 +444,7 @@ async def get_report(run_id: str) -> dict[str, Any]:
 @router.get("/{run_id}/report.md", response_class=PlainTextResponse)
 async def get_report_markdown(run_id: str) -> PlainTextResponse:
     _run_or_404(run_id)
-    md = store.read_report_markdown(run_id, db_path=_db_path())
+    md = store.read_report_markdown(run_id)
     if md is None:
         raise HTTPException(status_code=404, detail="no report yet")
     return PlainTextResponse(
@@ -486,8 +467,7 @@ async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     msg = store.append_message(run_id,
                                "user",
                                req.content,
-                               "steering",
-                               db_path=_db_path())
+                               "steering")
     return {**msg.to_dict(), "status": "queued"}
 
 
@@ -495,16 +475,8 @@ async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
 async def list_messages(run_id: str) -> dict[str, Any]:
     """Return all messages for a run in chronological order."""
     _run_or_404(run_id)
-    msgs = store.list_messages(run_id, db_path=_db_path())
+    msgs = store.list_messages(run_id)
     return {"messages": [m.to_dict() for m in msgs]}
-
-
-_CITATION_STATE_RANK = {
-    "verified": 3,
-    "partial": 2,
-    "unsupported": 1,
-    "unavailable": 0,
-}
 
 
 def _build_evidence_manifest(
@@ -543,8 +515,7 @@ def _build_evidence_manifest(
         if eid not in cited_state:
             cited_order.append(eid)
             cited_state[eid] = state
-        elif _CITATION_STATE_RANK.get(state, -1) > _CITATION_STATE_RANK.get(
-                cited_state[eid], -1):
+        elif STATE_RANK.get(state, -1) > STATE_RANK.get(cited_state[eid], -1):
             cited_state[eid] = state
     ordered_ids = cited_order + [eid for eid in by_id if eid not in cited_state]
     manifest: list[dict[str, Any]] = []
@@ -588,15 +559,14 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     question_msg = store.append_message(run_id,
                                         "user",
                                         req.question,
-                                        "qa",
-                                        db_path=_db_path())
+                                        "qa")
 
-    hypotheses = store.list_hypotheses(run_id, db_path=_db_path())
-    reviews = store.list_reviews(run_id, db_path=_db_path())
-    matches = store.list_matches(run_id, db_path=_db_path())
-    history = store.list_messages(run_id, db_path=_db_path())[:-1]
-    evidence = store.list_evidence(run_id, db_path=_db_path())
-    citations = store.list_citations(run_id, db_path=_db_path())
+    hypotheses = store.list_hypotheses(run_id)
+    reviews = store.list_reviews(run_id)
+    matches = store.list_matches(run_id)
+    history = store.list_messages(run_id)[:-1]
+    evidence = store.list_evidence(run_id)
+    citations = store.list_citations(run_id)
     manifest = _build_evidence_manifest(evidence, citations)
     evidence_lines = _format_manifest_for_prompt(manifest)
 
@@ -669,7 +639,6 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
                 "system",
                 answer,
                 "qa",
-                db_path=_db_path(),
                 meta={"sources": manifest} if manifest else None)
             yield f"data: {json.dumps({'type': 'done', 'question_id': question_msg.id})}\n\n"  # pylint: disable=line-too-long
         except Exception as exc:  # pylint: disable=broad-exception-caught
@@ -678,8 +647,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
             store.append_message(run_id,
                                  "system",
                                  fallback,
-                                 "qa",
-                                 db_path=_db_path())
+                                 "qa")
             yield f"data: {json.dumps({'type': 'error', 'message': fallback})}\n\n"  # pylint: disable=line-too-long
 
     return StreamingResponse(_stream(), media_type="text/event-stream")

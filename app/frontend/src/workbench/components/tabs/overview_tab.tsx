@@ -5,32 +5,10 @@ import type {
   RunWithSummary,
   SafetyDecision,
 } from '@/api/runs';
+import {isActiveStatus} from '@/api/runs';
 import type {StreamEvent} from '@/hooks/use_run_stream';
+import {formatEventLabel} from '@/workbench/lib/event_labels';
 import {selectLiveLeaderboard} from '@/workbench/lib/live_state';
-
-const AGENT_LABELS: Record<string, string> = {
-  'supervisor.plan': 'Supervisor',
-  'intake.scope': 'Intake',
-  'safety.intake': 'Safety (intake)',
-  literature_review: 'Literature retrieval',
-  generate: 'Generation',
-  reflection: 'Reflection',
-  proximity: 'Proximity',
-  ranking: 'Ranking',
-  evolve: 'Evolution',
-  meta_review: 'Meta-review',
-  deep_verification: 'Deep verification',
-  citation_audit: 'Citation audit',
-  research_overview: 'Research overview',
-  'safety.final': 'Safety (final)',
-  report: 'Report synthesis',
-  status: 'Status',
-  lifecycle: 'Lifecycle',
-};
-
-function fmtAgent(t: string) {
-  return AGENT_LABELS[t] ?? t.replace(/[._]/g, ' ');
-}
 
 /**
  * Renders the run summary: pipeline timeline, safety decisions, and stats.
@@ -59,34 +37,35 @@ export function OverviewTab({
   const evolvedCount = hypotheses.filter(h => h.parent_id).length;
   const topElo = hypotheses[0]?.elo_rating ?? 1200;
   const liveLeaderboard = selectLiveLeaderboard(events);
-  const isActive = run
-    ? ['running', 'queued', 'synthesizing'].includes(run.status)
-    : false;
+  const isActive = isActiveStatus(run?.status);
+
+  const stats: Array<{label: string; value: number | string; sub?: string}> = [
+    {
+      label: 'Hypotheses',
+      value: hypotheses.length,
+      sub: `${initialCount} initial · ${evolvedCount} evolved`,
+    },
+    {
+      label: 'Top Elo',
+      value: topElo,
+      sub: `from ${matches.length} matches`,
+    },
+    {label: 'Evidence sources', value: evidence.length},
+    {
+      label: 'Pipeline events',
+      value: events.length,
+      sub: run
+        ? `${run.summary?.events ?? events.length} persisted`
+        : undefined,
+    },
+  ];
+  const statCards = stats.map(s => (
+    <Stat key={s.label} label={s.label} value={s.value} sub={s.sub} />
+  ));
 
   return (
     <div className="grid lg:grid-cols-3 gap-4">
-      <aside className="grid grid-cols-2 gap-2 lg:hidden">
-        <Stat
-          label="Hypotheses"
-          value={hypotheses.length}
-          sub={`${initialCount} initial · ${evolvedCount} evolved`}
-        />
-        <Stat
-          label="Top Elo"
-          value={topElo}
-          sub={`from ${matches.length} matches`}
-        />
-        <Stat label="Evidence sources" value={evidence.length} />
-        <Stat
-          label="Pipeline events"
-          value={events.length}
-          sub={
-            run
-              ? `${run.summary?.events ?? events.length} persisted`
-              : undefined
-          }
-        />
-      </aside>
+      <aside className="grid grid-cols-2 gap-2 lg:hidden">{statCards}</aside>
 
       <div className="space-y-4 lg:col-span-2">
         {isActive && liveLeaderboard.length > 0 && (
@@ -138,7 +117,7 @@ export function OverviewTab({
                     {e.seq}
                   </span>
                   <span className="min-w-0 font-medium sm:w-44 sm:shrink-0">
-                    {fmtAgent(e.type)}
+                    {formatEventLabel(e.type)}
                   </span>
                   <span
                     style={{color: 'var(--color-th-muted-fg)'}}
@@ -185,28 +164,7 @@ export function OverviewTab({
         )}
       </div>
 
-      <aside className="hidden lg:block lg:space-y-3">
-        <Stat
-          label="Hypotheses"
-          value={hypotheses.length}
-          sub={`${initialCount} initial · ${evolvedCount} evolved`}
-        />
-        <Stat
-          label="Top Elo"
-          value={topElo}
-          sub={`from ${matches.length} matches`}
-        />
-        <Stat label="Evidence sources" value={evidence.length} />
-        <Stat
-          label="Pipeline events"
-          value={events.length}
-          sub={
-            run
-              ? `${run.summary?.events ?? events.length} persisted`
-              : undefined
-          }
-        />
-      </aside>
+      <aside className="hidden lg:block lg:space-y-3">{statCards}</aside>
     </div>
   );
 }

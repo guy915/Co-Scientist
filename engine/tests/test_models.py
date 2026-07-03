@@ -122,6 +122,7 @@ def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
     assert "similarity_degree" not in d
     # Exact key set is part of the contract this regression net pins.
     expected_keys = {
+        "id",
         "text",
         "explanation",
         "literature_grounding",
@@ -175,6 +176,78 @@ def test_hypothesis_is_unhashable() -> None:
     """The dataclass is unhashable (eq=True, not frozen): ``hash`` raises."""
     with pytest.raises(TypeError):
         hash(Hypothesis(text="x"))
+
+
+# --- Hypothesis: stable id --------------------------------------------------
+
+
+def test_hypothesis_id_present_and_unique() -> None:
+    """Each hypothesis gets a distinct, non-empty id on construction."""
+    a = Hypothesis(text="x")
+    b = Hypothesis(text="x")
+    assert a.id
+    assert b.id
+    assert a.id != b.id
+
+
+def test_hypothesis_id_excluded_from_equality() -> None:
+    """``id`` is ``compare=False`` so it never affects dataclass equality.
+
+    Two hypotheses with identical content but distinct ids remain equal, which
+    keeps the text-based dedup heuristics unperturbed.
+    """
+    a = Hypothesis(text="same", score=5.0)
+    b = Hypothesis(text="same", score=5.0)
+    assert a.id != b.id
+    assert a == b
+
+
+def test_hypothesis_to_dict_includes_id() -> None:
+    """``to_dict`` serializes the stable id."""
+    hyp = Hypothesis(text="x")
+    assert hyp.to_dict()["id"] == hyp.id
+
+
+def test_hypothesis_from_dict_preserves_id() -> None:
+    """``from_dict`` round-trips a provided id verbatim.
+
+    Equality ignores id (``compare=False``), so the round-trip is asserted on
+    the id value directly rather than via ``==``.
+    """
+    original = Hypothesis(text="x", win_count=2, loss_count=1)
+    restored = Hypothesis.from_dict(original.to_dict())
+    assert restored.id == original.id
+    assert restored.text == original.text
+    assert restored.win_count == 2
+    assert restored.loss_count == 1
+
+
+def test_hypothesis_from_dict_generates_id_when_absent() -> None:
+    """A pre-id payload (no ``id`` key) reconstructs with a fresh id."""
+    payload = Hypothesis(text="legacy").to_dict()
+    del payload["id"]
+    restored = Hypothesis.from_dict(payload)
+    assert restored.id
+    assert restored.text == "legacy"
+
+
+def test_hypothesis_from_dict_restores_enum_and_reviews() -> None:
+    """``from_dict`` rebuilds the enum and nested reviews so to_dict re-runs.
+
+    A naive ``cls(**data)`` would leave ``generation_method`` as a str and
+    ``reviews`` as dicts, crashing a subsequent ``to_dict``. This pins the
+    round-trip through ``to_dict -> from_dict -> to_dict``.
+    """
+    hyp = Hypothesis(
+        text="x",
+        generation_method=GenerationMethod.DEBATE,
+        reviews=[_make_review()],
+    )
+    restored = Hypothesis.from_dict(hyp.to_dict())
+    assert restored.generation_method == GenerationMethod.DEBATE
+    assert isinstance(restored.reviews[0], HypothesisReview)
+    # to_dict must not raise on the reconstructed object.
+    assert restored.to_dict()["generation_method"] == "debate"
 
 
 # --- HypothesisReview -------------------------------------------------------

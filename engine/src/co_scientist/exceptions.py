@@ -26,9 +26,5 @@ class ToolError(CoScientistError):
     """A tool provider or tool execution failed (MCP or Python tools)."""
 
 
-class LiteratureReviewError(CoScientistError):
-    """A literature-review or MCP query failed."""
-
-
 class LLMError(CoScientistError):
     """An LLM call failed."""

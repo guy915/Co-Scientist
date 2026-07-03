@@ -5,6 +5,7 @@ search + fulltext download + text extraction as a single MCP tool.
 """
 # pylint: disable=inconsistent-quotes
 
+import asyncio
 import os
 import logging
 from pathlib import Path
@@ -75,28 +76,36 @@ async def pubmed_search_with_fulltext(
     base_dir = lit_review_dir / "pubmed" / slug
     run_dir = base_dir / "runs" / run_id if run_id else base_dir
 
-    papers_with_fulltext = 0
-    for _, metadata in results.items():
-        pmc_id = metadata.get('pmc_full_text_id')
-        if pmc_id:
-            try:  # pylint: disable=broad-exception-caught
-                # Read HTML from cache
-                html_file = run_dir / f"{pmc_id}.fulltext.html"
-                if html_file.exists():
-                    with open(html_file, encoding='utf-8') as f:
-                        html_content = f.read()
+    def read_and_extract(html_file: Path) -> str:
+        """Reads cached fulltext HTML and extracts clean text (blocking)."""
+        with open(html_file, encoding='utf-8') as f:
+            html_content = f.read()
+        return extract_text_from_pmc_html(html_content)
 
-                    # Extract clean text/markdown
-                    text = extract_text_from_pmc_html(html_content)
-                    metadata['fulltext'] = text
-                    papers_with_fulltext += 1
-                    logger.debug("extracted %s chars from %s", len(text),
-                                 pmc_id)
-                else:
-                    logger.warning("Fulltext file not found for %s at %s",
-                                   pmc_id, html_file)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.error("Failed to extract text from %s: %s", pmc_id, e)
+    async def extract_fulltext(pmc_id: str, metadata: dict[str, Any]) -> bool:
+        """Attaches extracted fulltext to one paper's metadata."""
+        try:
+            html_file = run_dir / f"{pmc_id}.fulltext.html"
+            if not html_file.exists():
+                logger.warning("Fulltext file not found for %s at %s", pmc_id,
+                               html_file)
+                return False
+            # bs4/lxml parsing of full articles is CPU-heavy; run it off the
+            # event loop so concurrent MCP requests are not stalled.
+            text = await asyncio.to_thread(read_and_extract, html_file)
+            metadata['fulltext'] = text
+            logger.debug("extracted %s chars from %s", len(text), pmc_id)
+            return True
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.error("Failed to extract text from %s: %s", pmc_id, e)
+            return False
+
+    extractions = [
+        extract_fulltext(pmc_id, metadata)
+        for metadata in results.values()
+        if (pmc_id := metadata.get('pmc_full_text_id'))
+    ]
+    papers_with_fulltext = sum(await asyncio.gather(*extractions))
 
     logger.info("Extracted fulltext for %s/%s papers", papers_with_fulltext,
                 len(results))

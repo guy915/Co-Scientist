@@ -288,15 +288,19 @@ class ResponseParser:
         Returns:
             Transformed value
         """
+        # Default transform - applies only when value is None; non-None
+        # values pass through unchanged
+        if transform.startswith("default:"):
+            if value is not None:
+                return value
+            default_value = transform[8:]
+            # Try to parse as int
+            try:
+                return int(default_value)
+            except ValueError:
+                return default_value
+
         if value is None:
-            # Check for default transform
-            if transform.startswith("default:"):
-                default_value = transform[8:]
-                # Try to parse as int
-                try:
-                    return int(default_value)
-                except ValueError:
-                    return default_value
             return None
 
         # Split transform
@@ -327,16 +331,6 @@ class ResponseParser:
             except (ValueError, TypeError):
                 return None
 
-        # Default transform
-        if transform.startswith("default:"):
-            if value is None:
-                default_value = transform[8:]
-                try:
-                    return int(default_value)
-                except ValueError:
-                    return default_value
-            return value
-
         # wrap_list transform - wrap single value in a list
         if transform == "wrap_list":
             if value is None:
@@ -347,6 +341,27 @@ class ResponseParser:
 
         logger.warning("unknown transform: %s", transform)
         return value
+
+
+def parse_mcp_result(result: Any) -> Any:
+    """Decodes a raw MCP tool result that may arrive as a JSON string.
+
+    MCP tools return either already-decoded Python data or a JSON-encoded
+    string depending on transport. This is the canonical decode step; callers
+    keep their own handling of malformed JSON.
+
+    Args:
+        result: Raw MCP tool result.
+
+    Returns:
+        The decoded object for JSON strings, otherwise the value unchanged.
+
+    Raises:
+        json.JSONDecodeError: If result is a string that is not valid JSON.
+    """
+    if isinstance(result, str):
+        return json.loads(result)
+    return result
 
 
 def parse_tool_response(response: Any,

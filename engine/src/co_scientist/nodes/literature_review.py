@@ -27,6 +27,7 @@ from co_scientist.constants import (
     LITERATURE_REVIEW_FAILED,
 )
 from co_scientist.cache import get_node_cache
+from co_scientist.config.registry import parse_bool_env
 from co_scientist.llm import call_llm, call_llm_json
 from co_scientist.mcp_client import (
     get_mcp_client,
@@ -37,13 +38,13 @@ from co_scientist.prompts import (
     get_literature_review_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_synthesis_prompt,
-    save_prompt_to_disk,
 )
 from co_scientist.schemas import (
     LITERATURE_QUERY_SCHEMA,
     LITERATURE_PAPER_ANALYSIS_SCHEMA,
 )
 from co_scientist.state import WorkflowState
+from co_scientist.tools.response_parser import parse_mcp_result
 
 from co_scientist.nodes.reflection_helpers import extract_entity_names
 from co_scientist.nodes.literature_review_helpers import (
@@ -56,7 +57,6 @@ from co_scientist.nodes.literature_review_helpers import (
     get_papers_with_content,
     make_failure_result,
     make_success_result,
-    emit_progress,
     parse_mcp_query_result,
     determine_query_source_type,
     calculate_papers_per_query,
@@ -69,6 +69,7 @@ from co_scientist.nodes.literature_review_helpers import (
     parse_content_result,
     get_paper_content_for_analysis,
 )
+from co_scientist.nodes.progress import emit_progress
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry, ToolConfig, SearchSourceConfig
@@ -131,8 +132,7 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
                         source_name)
 
     # Dev mode detection
-    is_dev_mode = os.getenv("COSCIENTIST_DEV_MODE",
-                            "false").lower() in ("true", "1", "yes")
+    is_dev_mode = parse_bool_env(os.getenv("COSCIENTIST_DEV_MODE", "false"))
     run_papers_count = state.get("literature_review_papers_count")
     papers_to_read_count = (LITERATURE_REVIEW_PAPERS_COUNT_DEV if is_dev_mode
                             else int(run_papers_count or
@@ -302,8 +302,7 @@ async def _search_single_source(
             }
 
             result = await mcp_client.call_tool(mcp_tool_name, **tool_params)
-            result_data = json.loads(result) if isinstance(result,
-                                                           str) else result
+            result_data = parse_mcp_result(result)
             normalized = normalize_search_response(result_data, tool_config)
 
             for _, meta in normalized.items():
@@ -354,7 +353,7 @@ async def _search_single_query(
             tool_params = canonical_params
 
         result = await mcp_client.call_tool(search_tool_name, **tool_params)
-        result_data = json.loads(result) if isinstance(result, str) else result
+        result_data = parse_mcp_result(result)
         normalized = normalize_search_response(result_data, search_tool_config)
 
         logger.debug("Query %s: found %s papers", index, len(normalized))
@@ -990,16 +989,6 @@ async def _phase4_synthesize(
             background_context=background_context,
         )
 
-        save_prompt_to_disk(
-            run_id=state.get("run_id", "unknown"),
-            prompt_name="literature_review_synthesis",
-            content=prompt,
-            metadata={
-                "prompt_length_chars": len(prompt),
-                "papers_analyzed": len(paper_analyses),
-            },
-        )
-
         logger.info("Calling synthesis LLM with %s chars, %s papers",
                     len(prompt), len(paper_analyses))
 
@@ -1008,6 +997,12 @@ async def _phase4_synthesize(
             model_name=state["model_name"],
             max_tokens=EXTENDED_MAX_TOKENS,
             temperature=HIGH_TEMPERATURE,
+            run_id=state.get("run_id"),
+            prompt_name="literature_review_synthesis",
+            prompt_metadata={
+                "prompt_length_chars": len(prompt),
+                "papers_analyzed": len(paper_analyses),
+            },
         )
 
         logger.info("Synthesis complete - length: %s chars", len(synthesis))
@@ -1167,9 +1162,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
             0.2,
         )
         articles = build_articles_from_metadata(all_paper_metadata,
-                                                paper_source_map,
-                                                config.source_name,
-                                                config.tool_registry)
+                                                config.source_name)
         return make_failure_result(
             f"{n} papers found but none have fulltexts for analysis",
             queries=queries,
@@ -1197,9 +1190,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     # Phase 5: create articles
     logger.info("Phase 5: creating article objects")
     articles = build_articles_from_metadata(all_paper_metadata,
-                                            paper_source_map,
-                                            config.source_name,
-                                            config.tool_registry)
+                                            config.source_name)
     logger.info("Created %s article objects", len(articles))
 
     # Append knowledge graph evidence with [C*] keys aligned to the reference

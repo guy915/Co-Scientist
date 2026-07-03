@@ -10,7 +10,8 @@ from collections.abc import Awaitable, Callable
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
 
-from co_scientist.models import Article, ExecutionMetrics, Hypothesis
+from co_scientist.models import (Article, ExecutionMetrics, Hypothesis,
+                                 merge_metrics)
 
 logger = logging.getLogger(__name__)
 
@@ -36,23 +37,16 @@ def deduplicate_hypotheses(existing: list[Hypothesis],
 
     # Check if this is a replacement (same count or updating existing
     # hypotheses) vs. adding new hypotheses
-    if len(new) > 0:
-        # If first hypothesis in new has same id characteristics as existing,
-        # this is a replacement operation, not addition
-        existing_texts = {hyp.text.strip().lower() for hyp in existing}
-        new_texts = {hyp.text.strip().lower() for hyp in new}
+    existing_texts = {hyp.text.strip().lower() for hyp in existing}
+    new_texts = {hyp.text.strip().lower() for hyp in new}
 
-        # If substantial overlap, this is a replacement (e.g., updating
-        # metadata)
-        overlap = existing_texts & new_texts
-        if len(overlap) > len(new) * 0.5:  # More than 50% overlap
-            # Replacement operation - use new list as-is but deduplicate within
-            # it
-            all_hyps = new
-        else:
-            # Addition operation - merge and deduplicate
-            all_hyps = existing + new
+    # If substantial overlap, this is a replacement (e.g., updating metadata)
+    overlap = existing_texts & new_texts
+    if len(overlap) > len(new) * 0.5:  # More than 50% overlap
+        # Replacement operation - use new list as-is but deduplicate within it
+        all_hyps = new
     else:
+        # Addition operation - merge and deduplicate
         all_hyps = existing + new
 
     # Deduplicate
@@ -73,46 +67,6 @@ def deduplicate_hypotheses(existing: list[Hypothesis],
                     hyp.text[:80])
 
     return deduplicated
-
-
-def merge_metrics(existing: ExecutionMetrics,
-                  new: ExecutionMetrics) -> ExecutionMetrics:
-    """State reducer that merges metrics from multiple nodes.
-
-    When multiple nodes update metrics concurrently, this combines them.
-
-    Args:
-        existing: Existing metrics in state
-        new: New metrics being added (should contain only deltas)
-
-    Returns:
-        Merged metrics (new object, does not mutate inputs)
-    """
-    # Create a NEW metrics object (don't mutate existing!)
-    merged_phase_times = {}
-
-    # Merge phase times from both existing and new
-    for phase, time_val in existing.phase_times.items():
-        merged_phase_times[phase] = time_val
-
-    for phase, time_val in new.phase_times.items():
-        if phase in merged_phase_times:
-            merged_phase_times[phase] += time_val
-        else:
-            merged_phase_times[phase] = time_val
-
-    merged = ExecutionMetrics(
-        hypothesis_count=max(existing.hypothesis_count, new.hypothesis_count),
-        reviews_count=existing.reviews_count + new.reviews_count,
-        tournaments_count=existing.tournaments_count + new.tournaments_count,
-        evolutions_count=existing.evolutions_count + new.evolutions_count,
-        llm_calls=existing.llm_calls + new.llm_calls,
-        total_time=new.total_time
-        if new.total_time > 0 else existing.total_time,
-        phase_times=merged_phase_times,
-    )
-
-    return merged
 
 
 class WorkflowState(TypedDict):

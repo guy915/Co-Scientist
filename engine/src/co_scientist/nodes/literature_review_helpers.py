@@ -18,7 +18,6 @@ from co_scientist.models import Article
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolConfig, WorkflowConfig, ToolRegistry
-    from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -166,10 +165,8 @@ def _build_article_url(paper_id: str, metadata: dict[str, Any],
 
 
 def build_articles_from_metadata(
-        all_paper_metadata: dict[str, dict[str, Any]],
-        paper_source_map: dict[str, str],  # pylint: disable=unused-argument
-        default_source_name: str,
-        tool_registry: Optional["ToolRegistry"] = None,  # pylint: disable=unused-argument
+    all_paper_metadata: dict[str, dict[str, Any]],
+    default_source_name: str,
 ) -> list[Article]:
     """Build Article objects from collected paper metadata."""
     articles = []
@@ -284,28 +281,6 @@ def make_success_result(
             },
         }],
     }
-
-
-# =============================================================================
-# Progress helpers
-# =============================================================================
-
-
-async def emit_progress(
-    state: "WorkflowState",
-    event: str,
-    message: str,
-    progress: float,
-    **extra: Any,
-) -> None:
-    """Emit progress callback if configured."""
-    callback = state.get("progress_callback")
-    if callback:
-        await callback(event, {
-            "message": message,
-            "progress": progress,
-            **extra
-        })
 
 
 # =============================================================================

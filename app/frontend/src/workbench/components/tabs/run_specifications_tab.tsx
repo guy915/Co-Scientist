@@ -7,6 +7,7 @@ import type {
   SafetyDecision,
 } from '@/api/runs';
 import {Icon} from '@/components/icon';
+import {EmptyState} from '../empty_state';
 
 function fmtNumber(value: number | null | undefined): string {
   return typeof value === 'number' ? String(value) : '0';
@@ -37,15 +38,9 @@ export function RunSpecificationsTab({
 }) {
   if (!run) {
     return (
-      <div
-        className="rounded border p-6 text-sm text-center"
-        style={{
-          borderColor: 'var(--md-sys-color-outline-variant)',
-          color: 'var(--md-sys-color-on-surface-variant)',
-        }}
-      >
+      <EmptyState>
         Run specifications will appear once the run loads.
-      </div>
+      </EmptyState>
     );
   }
 

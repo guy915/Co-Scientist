@@ -9,6 +9,12 @@ const PALETTE = [
   'var(--color-th-phase4)',
 ];
 
+/** How many top-rated hypotheses to chart. */
+const TOP_K = 5;
+
+/** The Elo rating every hypothesis starts from. */
+const INITIAL_ELO = 1200;
+
 interface Series {
   hypothesisId: string;
   title: string;
@@ -24,13 +30,9 @@ interface Series {
 export function EloTrajectoryChart({
   matches,
   hypotheses,
-  topK = 5,
-  initialElo = 1200,
 }: {
   matches: MatchRow[];
   hypotheses: Hypothesis[];
-  topK?: number;
-  initialElo?: number;
 }) {
   const series = useMemo<Series[]>(() => {
     if (!matches.length) return [];
@@ -39,7 +41,7 @@ export function EloTrajectoryChart({
     // Build per-hypothesis Elo trajectory by scanning match history.
     const trajectories = new Map<string, number[]>();
     const setTrack = (id: string, val: number) => {
-      const arr = trajectories.get(id) ?? [initialElo];
+      const arr = trajectories.get(id) ?? [INITIAL_ELO];
       arr.push(val);
       trajectories.set(id, arr);
     };
@@ -49,7 +51,7 @@ export function EloTrajectoryChart({
       seenIds.add(m.winner_id);
       seenIds.add(m.loser_id);
     }
-    for (const id of seenIds) trajectories.set(id, [initialElo]);
+    for (const id of seenIds) trajectories.set(id, [INITIAL_ELO]);
 
     for (const m of ordered) {
       setTrack(m.winner_id, m.winner_elo_after);
@@ -64,11 +66,11 @@ export function EloTrajectoryChart({
         hypothesisId: id,
         title: titleFor(id),
         trajectory,
-        finalElo: trajectory[trajectory.length - 1] ?? initialElo,
+        finalElo: trajectory[trajectory.length - 1] ?? INITIAL_ELO,
       }))
       .sort((a, b) => b.finalElo - a.finalElo)
-      .slice(0, topK);
-  }, [matches, hypotheses, topK, initialElo]);
+      .slice(0, TOP_K);
+  }, [matches, hypotheses]);
 
   if (series.length === 0) {
     return null;
@@ -77,8 +79,8 @@ export function EloTrajectoryChart({
   // Domain: max trajectory length across all series.
   const maxLen = Math.max(...series.map(s => s.trajectory.length));
   const allElos = series.flatMap(s => s.trajectory);
-  const minElo = Math.min(initialElo - 20, ...allElos);
-  const maxElo = Math.max(initialElo + 20, ...allElos);
+  const minElo = Math.min(INITIAL_ELO - 20, ...allElos);
+  const maxElo = Math.max(INITIAL_ELO + 20, ...allElos);
 
   const width = 640;
   const height = 220;
@@ -149,8 +151,8 @@ export function EloTrajectoryChart({
           <line
             x1={padding.left}
             x2={width - padding.right}
-            y1={y(initialElo)}
-            y2={y(initialElo)}
+            y1={y(INITIAL_ELO)}
+            y2={y(INITIAL_ELO)}
             stroke="var(--color-th-muted-fg)"
             strokeWidth={0.5}
             opacity={0.4}

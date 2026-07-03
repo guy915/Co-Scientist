@@ -5,8 +5,37 @@ Uses dataclasses to match existing codebase patterns.
 # pylint: disable=inconsistent-quotes
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
+
+
+def _declared_field_kwargs(
+        cls: type[Any],
+        data: dict[str, Any],
+        *,
+        exclude: tuple[str, ...] = (),
+) -> dict[str, Any]:
+    """Build constructor kwargs from keys in data that are declared fields.
+
+    Keys absent from ``data`` are omitted so the dataclass declaration
+    remains the single source of truth for defaults. Keys not matching a
+    declared field are ignored (unknown YAML keys are tolerated). A key
+    present with an explicit ``null`` value is forwarded as ``None``,
+    matching the legacy ``data.get(key, default)`` semantics where presence
+    wins over the default.
+
+    Args:
+        cls: Dataclass whose declared fields define the accepted keys.
+        data: Raw configuration dictionary (typically parsed YAML).
+        exclude: Field names the caller handles explicitly (nested
+            parsing, renamed keys, or defaults that differ from the
+            dataclass declaration).
+
+    Returns:
+        Mapping of field name to raw value, suitable for ``cls(**kwargs)``.
+    """
+    names = {f.name for f in fields(cls)} - set(exclude)
+    return {key: value for key, value in data.items() if key in names}
 
 
 def resolve_content_params(params: dict[str, Any],
@@ -85,11 +114,9 @@ class ServerConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ServerConfig":
         """Create ServerConfig from dictionary."""
-        return cls(
-            url=data.get("url", ""),
-            transport=data.get("transport", "streamable_http"),
-            enabled=data.get("enabled", True),
-        )
+        # url is required on the dataclass but tolerated as missing in YAML.
+        return cls(url=data.get("url", ""),
+                   **_declared_field_kwargs(cls, data, exclude=("url",)))
 
 
 @dataclass
@@ -115,12 +142,7 @@ class ResponseFormat:
         """Create ResponseFormat from dictionary."""
         if not data:
             return cls()
-        return cls(
-            type=data.get("type", "json"),
-            results_path=data.get("results_path", "."),
-            is_dict=data.get("is_dict", False),
-            field_mapping=data.get("field_mapping", {}),
-        )
+        return cls(**_declared_field_kwargs(cls, data))
 
 
 @dataclass
@@ -137,12 +159,7 @@ class ParameterConfig:
         """Create ParameterConfig from dictionary."""
         if not data:
             return cls()
-        return cls(
-            type=data.get("type", "string"),
-            default=data.get("default"),
-            required=data.get("required", False),
-            description=data.get("description", ""),
-        )
+        return cls(**_declared_field_kwargs(cls, data))
 
 
 @dataclass
@@ -193,21 +210,28 @@ class ToolConfig:
                 # Simple value (just a default)
                 parameters[param_name] = ParameterConfig(default=param_data)
 
-        return cls(
-            server=data.get("server", "default"),
-            mcp_tool_name=data.get("mcp_tool_name", tool_id),
-            display_name=data.get("display_name", tool_id),
-            description=data.get("description", ""),
-            category=data.get("category", "utility"),
-            source_type=data.get("source_type", "academic"),
-            enabled=data.get("enabled", True),
-            response_format=ResponseFormat.from_dict(
-                data.get("response_format", {})),
-            prompt_snippet=data.get("prompt_snippet", ""),
-            parameters=parameters,
-            parameter_mapping=data.get("parameter_mapping", {}),
-            applies_to=data.get("applies_to", "all"),
-        )
+        # Explicitly handled fields: server is required on the dataclass but
+        # defaults to "default" in YAML; mcp_tool_name and display_name fall
+        # back to the YAML tool id (not the dataclass default); parameters and
+        # response_format are parsed into nested dataclasses; _yaml_tool_id is
+        # internal and never read from YAML.
+        kwargs = _declared_field_kwargs(cls,
+                                        data,
+                                        exclude=(
+                                            "server",
+                                            "mcp_tool_name",
+                                            "display_name",
+                                            "response_format",
+                                            "parameters",
+                                            "_yaml_tool_id",
+                                        ))
+        return cls(server=data.get("server", "default"),
+                   mcp_tool_name=data.get("mcp_tool_name", tool_id),
+                   display_name=data.get("display_name", tool_id),
+                   response_format=ResponseFormat.from_dict(
+                       data.get("response_format", {})),
+                   parameters=parameters,
+                   **kwargs)
 
     def map_parameters(self, canonical_params: dict[str,
                                                     Any]) -> dict[str, Any]:
@@ -283,21 +307,14 @@ class SearchSourceConfig:
     pdf_discovery_url_field: str | None = None  # e.g., "url" (landing page)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "SearchSourceConfig":
-        """Create SearchSourceConfig from dictionary."""
+    def from_dict(cls, data: dict[str, Any] | str) -> "SearchSourceConfig":
+        """Create SearchSourceConfig from a dictionary or bare tool name."""
         if isinstance(data, str):
             # Simple format: just tool name
             return cls(tool=data)
-        return cls(
-            tool=data.get("tool", ""),
-            papers_per_query=data.get("papers_per_query", 3),
-            enabled=data.get("enabled", True),
-            content_tool=data.get("content_tool"),
-            content_url_field=data.get("content_url_field"),
-            content_params=data.get("content_params", {}),
-            pdf_discovery_tool=data.get("pdf_discovery_tool"),
-            pdf_discovery_url_field=data.get("pdf_discovery_url_field"),
-        )
+        # tool is required on the dataclass but tolerated as missing in YAML.
+        return cls(tool=data.get("tool", ""),
+                   **_declared_field_kwargs(cls, data, exclude=("tool",)))
 
 
 @dataclass
@@ -354,31 +371,16 @@ class WorkflowConfig:
         if not data:
             return cls()
 
-        # Parse search_sources list
-        search_sources = []
-        for source_data in data.get("search_sources", []):
-            search_sources.append(SearchSourceConfig.from_dict(source_data))
+        # Parse search_sources into nested SearchSourceConfig objects.
+        search_sources = [
+            SearchSourceConfig.from_dict(source_data)
+            for source_data in data.get("search_sources", [])
+        ]
 
-        return cls(
-            primary_search=data.get("primary_search"),
-            fallback_search=data.get("fallback_search"),
-            availability_check=data.get("availability_check"),
-            search_sources=search_sources,
-            multi_source_strategy=data.get("multi_source_strategy", "parallel"),
-            deduplicate_across_sources=data.get("deduplicate_across_sources",
-                                                True),
-            search_tools=data.get("search_tools", []),
-            read_tools=data.get("read_tools", []),
-            utility_tools=data.get("utility_tools", []),
-            context_enrichment_tools=data.get("context_enrichment_tools", []),
-            query_generation_tool=data.get("query_generation_tool"),
-            query_format=data.get("query_format", "boolean"),
-            content_tool=data.get("content_tool"),
-            content_url_field=data.get("content_url_field", "pdf_url"),
-            content_params=data.get("content_params", {}),
-            pdf_discovery_tool=data.get("pdf_discovery_tool"),
-            pdf_discovery_url_field=data.get("pdf_discovery_url_field", "url"),
-        )
+        return cls(search_sources=search_sources,
+                   **_declared_field_kwargs(cls,
+                                            data,
+                                            exclude=("search_sources",)))
 
     def get_enabled_search_sources(self) -> list[SearchSourceConfig]:
         """Get list of enabled search sources."""
@@ -449,15 +451,9 @@ class EnrichmentConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "EnrichmentConfig":
         """Create EnrichmentConfig from dictionary."""
-        return cls(
-            tool=data.get("tool", ""),
-            input_field=data.get("input_field", "text"),
-            output_key=data.get("output_key", ""),
-            enabled=data.get("enabled", True),
-            max_results=data.get("max_results", 10),
-            results_path=data.get("results_path", ""),
-            workflow=data.get("workflow", "generation"),
-        )
+        # tool is required on the dataclass but tolerated as missing in YAML.
+        return cls(tool=data.get("tool", ""),
+                   **_declared_field_kwargs(cls, data, exclude=("tool",)))
 
 
 @dataclass
@@ -473,11 +469,7 @@ class Settings:
         """Create Settings from dictionary."""
         if not data:
             return cls()
-        return cls(
-            auto_discover=data.get("auto_discover", True),
-            merge_strategy=data.get("merge_strategy", "override"),
-            allow_disable_builtins=data.get("allow_disable_builtins", True),
-        )
+        return cls(**_declared_field_kwargs(cls, data))
 
 
 @dataclass
@@ -510,13 +502,7 @@ class PromptsConfig:
         """Create PromptsConfig from dictionary."""
         if not data:
             return cls()
-        return cls(
-            domain_context=data.get("domain_context", ""),
-            generation_guidance=data.get("generation_guidance", ""),
-            review_guidance=data.get("review_guidance", ""),
-            evolution_guidance=data.get("evolution_guidance", ""),
-            reflection_guidance=data.get("reflection_guidance", ""),
-        )
+        return cls(**_declared_field_kwargs(cls, data))
 
 
 @dataclass
@@ -567,15 +553,25 @@ class ToolsConfig:
             EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])
         ]
 
-        return cls(
-            version=data.get("version", "1.0"),
-            servers=servers,
-            tools=tools,
-            workflows=workflows,
-            settings=settings,
-            prompts=prompts,
-            enrichments=enrichments,
-        )
+        # Every section above is parsed into nested dataclasses; only plain
+        # scalar fields (currently just version) go through the generic path.
+        kwargs = _declared_field_kwargs(cls,
+                                        data,
+                                        exclude=(
+                                            "servers",
+                                            "tools",
+                                            "workflows",
+                                            "settings",
+                                            "prompts",
+                                            "enrichments",
+                                        ))
+        return cls(servers=servers,
+                   tools=tools,
+                   workflows=workflows,
+                   settings=settings,
+                   prompts=prompts,
+                   enrichments=enrichments,
+                   **kwargs)
 
     def get_tool(self, tool_id: str) -> ToolConfig | None:
         """Get a tool config by ID, searching all categories."""

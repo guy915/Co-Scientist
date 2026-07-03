@@ -11,7 +11,10 @@ const apiMock = vi.hoisted(() => ({
   startRun: vi.fn(),
 }));
 
-vi.mock('@/api/runs', () => apiMock);
+vi.mock('@/api/runs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/api/runs')>()),
+  ...apiMock,
+}));
 
 function renderWorkspace() {
   return render(
