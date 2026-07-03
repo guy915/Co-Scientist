@@ -42,6 +42,10 @@ def test_create_run_returns_draft_status() -> None:
     assert data["provider"] == "mock"
     assert data["run_mode"] == "default"
     assert data["profile"] == "default"
+    assert data["config"]["tier"] == "standard"
+    assert data["config"]["focus"] == "balance"
+    assert data["config"]["setup"]["goal"] == (
+        "Explore mitochondrial dynamics in neurons")
 
 
 def test_list_runs_honors_limit_query(isolated_db: str) -> None:
@@ -86,6 +90,38 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
     assert run["config"]["initial_hypotheses_count"] >= 8
     assert run["config"]["max_iterations"] >= 2
     assert run["config"]["evolution_max_count"] >= 8
+
+
+def test_create_run_persists_setup_and_exact_tier_defaults(
+        isolated_db: str) -> None:
+    client = _client()
+    res = client.post(
+        "/api/runs",
+        json={
+            "research_goal": "Discover selective autophagy mechanisms",
+            "requirements": ["Use primary literature", ""],
+            "attributes": ["Mechanistic"],
+            "criteria": ["Testability"],
+            "focus": "prefer_novelty",
+            "tier": "express",
+        },
+    )
+
+    assert res.status_code == 200
+    config = res.json()["config"]
+    assert config["initial_hypotheses_count"] == 4
+    assert config["max_iterations"] == 1
+    assert config["evolution_max_count"] == 4
+    assert config["tournament_pairs"] == 6
+    assert config["literature_review_papers_count"] == 4
+    assert config["setup"] == {
+        "goal": "Discover selective autophagy mechanisms",
+        "requirements": ["Use primary literature"],
+        "attributes": ["Mechanistic"],
+        "criteria": ["Testability"],
+        "focus": "prefer_novelty",
+        "tier": "express",
+    }
 
 
 def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:

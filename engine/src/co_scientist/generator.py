@@ -63,6 +63,8 @@ class HypothesisGenerator:
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         initial_hypotheses_count: int = DEFAULT_INITIAL_HYPOTHESES_COUNT,
         evolution_max_count: int = DEFAULT_EVOLUTION_MAX_COUNT,
+        tournament_pairs: int = 12,
+        literature_review_papers_count: int = 8,
         enable_cache: bool | None = None,
         cache_dir: str | None = None,
         tools_config: str | None = None,
@@ -75,6 +77,8 @@ class HypothesisGenerator:
             max_iterations: Number of refinement iterations
             initial_hypotheses_count: Number of initial hypotheses
             evolution_max_count: Number of top hypotheses to evolve
+            tournament_pairs: Number of Elo tournament comparisons per ranking
+            literature_review_papers_count: Number of papers to read/analyze
             enable_cache: Enable/disable LLM response caching
                 (None = use env var)
             cache_dir: Directory for cache files (None = use default)
@@ -88,6 +92,8 @@ class HypothesisGenerator:
         self.max_iterations = max_iterations
         self.initial_hypotheses_count = initial_hypotheses_count
         self.evolution_max_count = evolution_max_count
+        self.tournament_pairs = tournament_pairs
+        self.literature_review_papers_count = literature_review_papers_count
 
         # Configure cache if specified
         if enable_cache is not None:
@@ -365,45 +371,87 @@ class HypothesisGenerator:
 
         # Initialize state
         initial_state: WorkflowState = {
-            "research_goal": research_goal,
-            "model_name": self.model_name,
-            "supervisor_model_name": self.supervisor_model_name,
-            "max_iterations": self.max_iterations,
-            "initial_hypotheses_count": self.initial_hypotheses_count,
-            "evolution_max_count": self.evolution_max_count,
+            "research_goal":
+                research_goal,
+            "model_name":
+                self.model_name,
+            "supervisor_model_name":
+                self.supervisor_model_name,
+            "max_iterations":
+                self.max_iterations,
+            "initial_hypotheses_count":
+                self.initial_hypotheses_count,
+            "evolution_max_count":
+                self.evolution_max_count,
+            "tournament_pairs":
+                self.tournament_pairs,
+            "literature_review_papers_count":
+                self.literature_review_papers_count,
             "hypotheses": [],
-            "current_iteration": 0,
+            "current_iteration":
+                0,
             "supervisor_guidance": {},
             "meta_review": {},
-            "research_overview": None,
+            "research_overview":
+                None,
             "removed_duplicates": [],
             "tournament_matchups": [],
             "evolution_details": [],
-            "metrics": ExecutionMetrics(),
-            "start_time": start_time,
-            "run_id": run_id,
-            "progress_callback": progress_callback,
+            "metrics":
+                ExecutionMetrics(),
+            "start_time":
+                start_time,
+            "run_id":
+                run_id,
+            "progress_callback":
+                progress_callback,
             "messages": [],
             # System availability flags
-            "mcp_available": mcp_available,
-            "pubmed_available": pubmed_available,
-            "enable_tool_calling_generation": enable_tool_calling_generation,
-            "dev_test_lit_tools_isolation": dev_test_lit_tools_isolation,
+            "mcp_available":
+                mcp_available,
+            "pubmed_available":
+                pubmed_available,
+            "enable_tool_calling_generation":
+                enable_tool_calling_generation,
+            "dev_test_lit_tools_isolation":
+                dev_test_lit_tools_isolation,
             # Tool registry for config-driven tool selection
-            "tool_registry": self._tool_registry,
+            "tool_registry":
+                self._tool_registry,
             # Optional user preferences and inputs
-            "preferences": opts.get("preferences"),
-            "attributes": opts.get("attributes"),
-            "constraints": opts.get("constraints"),
-            "starting_hypotheses": user_inputs.get("starting_hypotheses"),
-            "literature": user_inputs.get("literature"),
+            "preferences":
+                opts.get("preferences"),
+            "attributes":
+                opts.get("attributes"),
+            "constraints":
+                opts.get("constraints"),
+            "criteria":
+                opts.get("criteria"),
+            "run_focus":
+                opts.get("run_focus"),
+            "run_tier":
+                opts.get("run_tier"),
+            "run_focus_guidance":
+                opts.get("run_focus_guidance"),
+            "run_setup_guidance":
+                opts.get("run_setup_guidance"),
+            "starting_hypotheses":
+                user_inputs.get("starting_hypotheses"),
+            "literature":
+                user_inputs.get("literature"),
             # Literature review outputs (populated by downstream nodes)
-            "articles_with_reasoning": None,
-            "literature_review_queries": None,
-            "articles": None,
-            "generation_corpus_slug": None,
-            "debate_transcripts": None,
-            "context_enrichment_sources": None,
+            "articles_with_reasoning":
+                None,
+            "literature_review_queries":
+                None,
+            "articles":
+                None,
+            "generation_corpus_slug":
+                None,
+            "debate_transcripts":
+                None,
+            "context_enrichment_sources":
+                None,
         }
 
         return initial_state, start_time, run_id

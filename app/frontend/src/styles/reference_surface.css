@@ -1,0 +1,288 @@
+/* Gemini product palette (--cosci-*).
+ *
+ * These are the exact Google/Gemini product colors (neutral grays such as
+ * #5f6368, #dadce0, #f1f3f4, #202124) used by the app shell and home surface
+ * — rail, composer, recents, step timeline. They are intentionally SEPARATE
+ * from the seed-derived MD3 palette (--md-sys-color-* / --color-th-*): MD3
+ * tints its neutrals toward the teal seed, whereas Gemini's product neutrals
+ * are true grays. Do not fold these onto the MD3 tokens; doing so would make
+ * the shell less 1:1 with Google. Each token carries its own light/dark value.
+ * See DESIGN.md > Colors.
+ */
+:root {
+  --idea-ref-blue: #0b57d0;
+  --idea-ref-card-bg: #f1f4fa;
+  --cosci-teal: #1a6b6b;
+  --cosci-teal-dark: #0f5454;
+  --cosci-teal-bg: #e0f2ef;
+  --cosci-green: #7fd7bf;
+  --cosci-bg: #fff;
+  --cosci-rail: #eef4ff;
+  --cosci-panel: #f1f3f4;
+  --cosci-border: #dadce0;
+  --cosci-text: #202124;
+  --cosci-muted: #5f6368;
+  --cosci-subtle: #9aa0a6;
+  --cosci-blue: #1967d2;
+  --cosci-blue-strong: #1a73e8;
+  --cosci-hover: #f1f3f4;
+  --cosci-shell-icon: #3c4043;
+  --cosci-shell-hover-bg: #dfeafc;
+  --cosci-shell-hover-text: #202124;
+  --cosci-workspace-bg: #fff;
+  --cosci-surface-bg: #fff;
+  --cosci-home-heading: #202124;
+  --cosci-step-line: color-mix(in srgb, var(--cosci-teal) 38%, #dadce0);
+  --cosci-step-dot-bg: var(--cosci-teal);
+  --cosci-step-dot-text: #fff;
+  --cosci-logo-color: var(--cosci-teal);
+  --cosci-step-heading: #3c4043;
+  --cosci-step-text: #202124;
+  --cosci-suggestion-border: #c4c7c5;
+  --cosci-suggestion-bg: #fff;
+  --cosci-suggestion-text: #202124;
+  --cosci-suggestion-hover-border: #d0d4d9;
+  --cosci-suggestion-active-bg: #edf2f7;
+  --cosci-composer-border: #e0e0e0;
+  --cosci-composer-bg: #fff;
+  --cosci-composer-label: #5f6368;
+  --cosci-composer-text: #202124;
+  --cosci-composer-submit: var(--cosci-teal);
+  --cosci-composer-submit-disabled: #dadce0;
+  --cosci-source-button: #5f6368;
+  --cosci-source-button-hover-bg: #f1f3f4;
+  --cosci-source-button-hover: #3c4043;
+  --cosci-menu-border: #dadce0;
+  --cosci-menu-bg: #fff;
+  --cosci-menu-text: #202124;
+  --cosci-menu-row-hover: #f1f3f4;
+  --cosci-menu-divider: #e8eaed;
+  --cosci-menu-icon: #5f6368;
+  --cosci-recents-heading: #202124;
+  --cosci-recent-card-border: #e0e0e0;
+  --cosci-recent-card-bg: #fff;
+  --cosci-recent-card-text: #202124;
+  --cosci-recent-card-copy: #3c4043;
+  --cosci-recent-meta-bg: #f1f3f4;
+  --cosci-recent-meta-text: #202124;
+  --cosci-recent-chip-bg: #d7f4d1;
+  --cosci-recent-chip-text: #174f2a;
+  --idea-list-border: #dadce0;
+  --idea-row-border: #dadce0;
+  --idea-row-bg: #fff;
+  --idea-row-text: var(--md-sys-color-on-surface);
+  --idea-row-hover-border: #dadce0;
+  --idea-row-hover-bg: #f1f3f4;
+  --idea-row-selected-border: #8ab4f8;
+  --idea-row-selected-bg: #f1f8fc;
+  --idea-row-selected-hover-bg: #e6eefb;
+  --idea-chip-bg: #e6f4ff;
+  --idea-chip-text: #202124;
+  --idea-title-text: #202124;
+  --idea-preview-text: var(--md-sys-color-on-surface);
+  --idea-breadcrumb-bg: #f1f3f4;
+  --idea-breadcrumb-text: #3c4043;
+  --idea-detail-text: var(--md-sys-color-on-surface);
+
+  /* ---- Semantic component tokens (dark values paired in the dark block) ----
+     Components reference these via [var(--cosci-*)] with NO dark: variant, so a
+     surface's light/dark appearance is defined once, here. */
+
+  /* Danger / alert (report alert + toast) */
+  --cosci-danger-bg: #fce8e6;
+  --cosci-danger-border: #b3261e;
+  --cosci-danger-fg: #b3261e;
+
+  /* Attachment cards */
+  --cosci-attach-bg: #eef2f8;
+  --cosci-attach-fg: #202124;
+  --cosci-attach-meta: #202124;
+
+  /* Center toast + raised action pill */
+  --cosci-toast-bg: #303134;
+  --cosci-toast-fg: #f1f3f4;
+  --cosci-surface-raised: #fff;
+
+  /* Diagnostics / Logs — every value aliases an existing baseline token, no
+     bespoke hex. The teal tonal is the app's one green; surface/border/text/
+     meta reuse the neutral scale. Because those tokens already re-theme, the
+     logs need no dark-mode overrides. */
+  --cosci-logs-accent-bg: var(--cosci-step-dot-bg);
+  --cosci-logs-accent-fg: var(--cosci-step-dot-text);
+  --cosci-logs-accent-hover: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 88%,
+    var(--cosci-step-dot-text)
+  );
+  --cosci-logs-count-bg: color-mix(
+    in srgb,
+    var(--cosci-step-dot-text) 16%,
+    transparent
+  );
+  --cosci-logs-action-border: var(--cosci-step-dot-bg);
+  --cosci-logs-action-bg: transparent;
+  --cosci-logs-action-fg: var(--cosci-step-dot-bg);
+  --cosci-logs-action-hover: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 10%,
+    transparent
+  );
+  --cosci-logs-surface: var(--cosci-surface-raised);
+  --cosci-logs-border: var(--cosci-border);
+  --cosci-logs-heading: var(--cosci-text);
+  --cosci-logs-meta: var(--cosci-muted);
+  --cosci-logs-panel-bg: var(--cosci-hover);
+  --cosci-logs-panel-fg: var(--cosci-muted);
+  --cosci-logs-code-fg: var(--cosci-text);
+  --cosci-logs-danger-bg: var(--cosci-danger-bg);
+  --cosci-logs-danger-fg: var(--cosci-danger-fg);
+
+  /* Radio option cards */
+  --cosci-option-bg: #fff;
+  --cosci-option-hover-bg: #e8eef6;
+  --cosci-option-hover-border: #d4dbe6;
+  --cosci-option-marker: #5f6368;
+  --cosci-option-marker-on: #8ab4f8;
+
+  /* Buttons — primary (filled), outline (blue in both modes), secondary */
+  --cosci-btn-primary-bg: #0b57d0;
+  --cosci-btn-primary-fg: #fff;
+  --cosci-btn-primary-hover: #0842a0;
+  --cosci-btn-outline-border: #1a73e8;
+  --cosci-btn-outline-fg: #1967d2;
+  --cosci-btn-outline-hover-bg: #e8f0fe;
+  --cosci-btn-secondary-border: #9aa0a6;
+  --cosci-btn-secondary-fg: #3c4043;
+  --cosci-btn-secondary-hover-bg: #f1f3f4;
+  --cosci-btn-disabled-border: #dadce0;
+  --cosci-btn-disabled-bg: #f1f3f4;
+  --cosci-btn-disabled-fg: #9aa0a6;
+
+  /* Chat bubbles + setup document */
+  --cosci-user-bubble-bg: #e9eefb;
+  --cosci-setup-doc-bg: #f1f4fa;
+}
+
+:root[data-theme="dark"] {
+  --cosci-bg: #131314;
+  --cosci-rail: #1e1f20;
+  --cosci-panel: #202124;
+  --cosci-border: #3c4043;
+  --cosci-text: #e8eaed;
+  --cosci-muted: #bdc1c6;
+  --cosci-subtle: #9aa0a6;
+  --cosci-blue: #a8c7fa;
+  --cosci-blue-strong: #8ab4f8;
+  --cosci-hover: #303134;
+  --cosci-green: #7fd7bf;
+  --cosci-shell-icon: var(--cosci-muted);
+  --cosci-shell-hover-bg: #303134;
+  --cosci-shell-hover-text: var(--cosci-text);
+  --cosci-workspace-bg: var(--cosci-bg);
+  --cosci-surface-bg: var(--cosci-bg);
+  --cosci-home-heading: #f1f3f4;
+  --cosci-step-line: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
+  --cosci-step-dot-bg: var(--cosci-green);
+  --cosci-step-dot-text: #202124;
+  --cosci-logo-color: var(--cosci-green);
+  --cosci-step-heading: var(--cosci-muted);
+  --cosci-step-text: var(--cosci-text);
+  --cosci-suggestion-border: var(--cosci-border);
+  --cosci-suggestion-bg: var(--cosci-bg);
+  --cosci-suggestion-text: var(--cosci-text);
+  --cosci-suggestion-hover-border: var(--cosci-border);
+  --cosci-suggestion-active-bg: #303134;
+  --cosci-composer-border: var(--cosci-border);
+  --cosci-composer-bg: var(--cosci-panel);
+  --cosci-composer-label: var(--cosci-muted);
+  --cosci-composer-text: var(--cosci-text);
+  --cosci-composer-submit: var(--cosci-green);
+  --cosci-composer-submit-disabled: var(--cosci-subtle);
+  --cosci-source-button: #bdc1c6;
+  --cosci-source-button-hover-bg: #303134;
+  --cosci-source-button-hover: #e8eaed;
+  --cosci-menu-border: #3c4043;
+  --cosci-menu-bg: #2b2d2f;
+  --cosci-menu-text: #e8eaed;
+  --cosci-menu-row-hover: #35383a;
+  --cosci-menu-divider: #3c4043;
+  --cosci-menu-icon: #c4c7c5;
+  --cosci-recents-heading: var(--cosci-text);
+  --cosci-recent-card-border: #3c4043;
+  --cosci-recent-card-bg: #202124;
+  --cosci-recent-card-text: var(--cosci-text);
+  --cosci-recent-card-copy: var(--cosci-muted);
+  --cosci-recent-meta-bg: #2b2c2f;
+  --cosci-recent-meta-text: #e8eaed;
+  --cosci-recent-chip-bg: #188038;
+  --cosci-recent-chip-text: #e6f4ea;
+  --idea-list-border: var(--cosci-border);
+  --idea-row-border: var(--cosci-border);
+  --idea-row-bg: transparent;
+  --idea-row-text: var(--cosci-text);
+  --idea-row-hover-border: #5f6368;
+  --idea-row-hover-bg: #303134;
+  --idea-row-selected-border: #4aa5d8;
+  --idea-row-selected-bg: #004b72;
+  --idea-row-selected-hover-bg: #075d8c;
+  --idea-chip-bg: #15384d;
+  --idea-chip-text: var(--cosci-text);
+  --idea-title-text: var(--cosci-text);
+  --idea-preview-text: var(--cosci-muted);
+  --idea-breadcrumb-bg: #282a2c;
+  --idea-breadcrumb-text: var(--cosci-muted);
+  --idea-detail-text: var(--cosci-muted);
+
+  /* ---- Semantic component tokens — dark values (paired with light above) ---- */
+  --cosci-danger-bg: #3c1715;
+  --cosci-danger-border: #5b2b2b;
+  --cosci-danger-fg: #ffb4aa;
+
+  --cosci-attach-bg: #303335;
+  --cosci-attach-fg: #f1f3f4;
+  --cosci-attach-meta: #e8eaed;
+
+  --cosci-toast-bg: #f1f3f4;
+  --cosci-toast-fg: #202124;
+  --cosci-surface-raised: #202124;
+
+  --cosci-option-bg: #202427;
+  --cosci-option-hover-bg: #252a2d;
+  --cosci-option-hover-border: #3c4043;
+  --cosci-option-marker: #9aa0a6;
+  --cosci-option-marker-on: #a8c7fa;
+
+  --cosci-btn-primary-bg: #1d3354;
+  --cosci-btn-primary-fg: #a8c7fa;
+  --cosci-btn-primary-hover: rgb(168 199 250 / 14%);
+  --cosci-btn-outline-border: #8ab4f8;
+  --cosci-btn-outline-fg: #8ab4f8;
+  --cosci-btn-outline-hover-bg: rgb(138 180 248 / 14%);
+  --cosci-btn-secondary-border: var(--cosci-border);
+  --cosci-btn-secondary-fg: var(--cosci-text);
+  --cosci-btn-secondary-hover-bg: #303134;
+  --cosci-btn-disabled-border: #3c4043;
+  --cosci-btn-disabled-bg: #202124;
+  --cosci-btn-disabled-fg: #5f6368;
+
+  --cosci-user-bubble-bg: #303134;
+  --cosci-setup-doc-bg: #25272d;
+
+  background: var(--cosci-bg);
+}
+
+body {
+  background: var(--cosci-bg, var(--color-th-bg));
+}
+
+.reference-started-session-card {
+  background:
+    linear-gradient(100deg, rgb(16 92 92 / 95%), rgb(42 117 95 / 94%)),
+    #145d5d;
+}
+
+:root[data-theme="dark"] .reference-started-session-card {
+  background:
+    linear-gradient(100deg, rgb(26 110 98 / 98%), rgb(38 138 108 / 96%)),
+    #1a6b5e;
+}

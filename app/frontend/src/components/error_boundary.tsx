@@ -1,15 +1,7 @@
-import '@material/web/icon/icon.js';
 import type React from 'react';
 import type {ReactNode} from 'react';
 import {Component} from 'react';
-import {Button} from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import {Icon} from './icon';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -21,6 +13,28 @@ interface ErrorBoundaryState {
   error: Error | null;
   errorInfo: React.ErrorInfo | null;
 }
+
+const FALLBACK_CARD_CLASSES =
+  'w-full max-w-2xl rounded-xl border border-th-border bg-th-card ' +
+  'text-th-card-fg';
+
+const FALLBACK_TITLE_CLASSES =
+  'flex items-center gap-2 text-lg font-semibold leading-none ' +
+  'text-th-destructive';
+
+const FALLBACK_DESCRIPTION_CLASSES = 'mt-2 text-sm text-muted-foreground';
+
+const FALLBACK_BUTTON_CLASSES =
+  'inline-flex min-h-10 cursor-pointer items-center justify-center ' +
+  'rounded-full border border-transparent bg-th-primary px-5 text-sm ' +
+  'font-medium text-th-primary-fg hover:opacity-90 focus-visible:outline-2 ' +
+  'focus-visible:outline-offset-2 focus-visible:outline-th-ring';
+
+const FALLBACK_OUTLINE_BUTTON_CLASSES =
+  'inline-flex min-h-10 cursor-pointer items-center justify-center ' +
+  'rounded-full border border-th-border bg-transparent px-5 text-sm ' +
+  'font-medium text-th-fg hover:bg-th-muted focus-visible:outline-2 ' +
+  'focus-visible:outline-offset-2 focus-visible:outline-th-ring';
 
 /**
  * Catches render-time errors in its subtree and shows a fallback UI.
@@ -54,46 +68,53 @@ export class ErrorBoundary extends Component<
       if (this.props.fallback) return this.props.fallback;
 
       return (
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <Card className="w-full max-w-2xl">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-th-destructive">
+        <div className="flex min-h-screen items-center justify-center p-4">
+          <section className={FALLBACK_CARD_CLASSES}>
+            <header className="p-6">
+              <h1 className={FALLBACK_TITLE_CLASSES}>
                 <span aria-hidden="true">
-                  <md-icon>warning</md-icon>
+                  <Icon name="warning" />
                 </span>
                 Something went wrong
-              </CardTitle>
-              <CardDescription>
+              </h1>
+              <p className={FALLBACK_DESCRIPTION_CLASSES}>
                 An error occurred while rendering this component
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 bg-th-muted rounded-lg border border-th-destructive">
+              </p>
+            </header>
+            <div className="space-y-4 p-6 pt-0">
+              <div className="rounded-lg border border-th-destructive bg-th-muted p-4">
                 <p className="font-mono text-sm text-th-destructive">
                   {this.state.error?.toString()}
                 </p>
               </div>
               {this.state.errorInfo && (
                 <details className="text-sm">
-                  <summary className="cursor-pointer font-medium mb-2">
+                  <summary className="mb-2 cursor-pointer font-medium">
                     Component Stack
                   </summary>
-                  <pre className="p-4 bg-th-muted rounded overflow-auto text-xs">
+                  <pre className="overflow-auto rounded bg-th-muted p-4 text-xs">
                     {this.state.errorInfo.componentStack}
                   </pre>
                 </details>
               )}
               <div className="flex gap-2">
-                <Button onClick={this.handleReset}>Try Again</Button>
-                <Button
-                  variant="outline"
+                <button
+                  type="button"
+                  className={FALLBACK_BUTTON_CLASSES}
+                  onClick={this.handleReset}
+                >
+                  Try Again
+                </button>
+                <button
+                  type="button"
+                  className={FALLBACK_OUTLINE_BUTTON_CLASSES}
                   onClick={() => window.location.reload()}
                 >
                   Reload Page
-                </Button>
+                </button>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </section>
         </div>
       );
     }

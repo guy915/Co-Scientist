@@ -1,9 +1,107 @@
-import '@material/web/icon/icon.js';
-import '@material/web/button/outlined-button.js';
-import type {ReactNode} from 'react';
+import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
-import {LogConsole} from './components/log_console';
-import {ThemeToggle} from './components/theme_toggle';
+import {listDemoRuns, listRuns, type Run} from '@/api/runs';
+import {Icon, type IconName} from '@/components/icon';
+import {conciseTitle} from '@/lib/text';
+import {GoogleLabsIcon} from './components/google_labs_icon';
+import {DiagnosticsControl} from './layout_diagnostics';
+import {useTheme} from './theme_context';
+import {tooltipClassNames} from './tooltip';
+
+type ShellPanel = 'settings' | 'logs';
+type ThemeMode = 'system' | 'light' | 'dark';
+
+const THEME_MODES: Array<{mode: ThemeMode; icon: IconName; label: string}> = [
+  {mode: 'system', icon: 'computer', label: 'System'},
+  {mode: 'light', icon: 'light_mode', label: 'Light'},
+  {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
+];
+
+const WORKSPACE_CLASSES = 'ucs-workspace';
+
+const WORKSPACE_RESPONSIVE_CLASSES = 'ucs-workspace--rounded-bottom';
+
+const REPORT_WORKSPACE_CLASSES = 'ucs-workspace ucs-workspace--report';
+
+const PAGE_CLASSES = 'ucs-page';
+
+const HOME_PAGE_CLASSES = 'ucs-page ucs-page--home';
+
+const REPORT_PAGE_CLASSES = 'ucs-page ucs-page--report';
+
+const SHELL_OPEN_GRID_CLASSES = 'nav-open';
+
+const SHELL_COLLAPSED_GRID_CLASSES = 'nav-collapsed';
+
+const NAV_PANEL_OPEN_CLASSES = 'ucs-nav-panel ucs-nav-panel--open';
+
+const NAV_PANEL_COLLAPSED_CLASSES = 'ucs-nav-panel ucs-nav-panel--collapsed';
+
+const NAV_GROUP_OPEN_CLASSES = 'ucs-nav-top ucs-nav-top--open';
+
+const NAV_GROUP_COLLAPSED_CLASSES = 'ucs-nav-top ucs-nav-top--collapsed';
+
+const NAV_ITEMS_OPEN_CLASSES = 'ucs-nav-items ucs-nav-items--open';
+
+const NAV_ITEMS_COLLAPSED_CLASSES = 'ucs-nav-items ucs-nav-items--collapsed';
+
+const NAV_BOTTOM_CLASSES = 'ucs-nav-bottom ucs-nav-bottom--open';
+
+const NAV_BOTTOM_COLLAPSED_CLASSES = 'ucs-nav-bottom ucs-nav-bottom--collapsed';
+
+const NAV_ITEM_OPEN_CLASSES = 'ucs-nav-item ucs-nav-item--open';
+
+const NAV_ITEM_COLLAPSED_CLASSES = 'ucs-nav-item ucs-nav-item--collapsed';
+
+const NAV_ICON_CLASSES = 'ucs-nav-icon';
+
+const NAV_LABEL_OPEN_CLASSES = 'nav-label nav-label--open';
+
+const NAV_LABEL_COLLAPSED_CLASSES = 'nav-label nav-label--collapsed';
+
+const HEADER_CLASSES = 'ucs-header-action-bar';
+
+const PRODUCT_LOCKUP_CLASSES = 'ucs-product-lockup';
+
+const HEADER_TITLE_CLASSES = 'ucs-header-title';
+
+const HEADER_ACTIONS_CLASSES = 'ucs-header-actions';
+
+const SHELL_POPOVER_CLASSES = 'ucs-popover';
+
+const RAIL_POPOVER_CLASSES = 'ucs-popover--rail';
+
+const SETTINGS_CONTROL_CLASSES = 'ucs-settings-control';
+
+const THEME_SEGMENT_CLASSES = 'ucs-theme-segment ucs-theme-segment--inline';
+
+const THEME_BUTTON_BASE_CLASSES = 'ucs-theme-button';
+
+const THEME_BUTTON_ACTIVE_CLASSES = 'selected';
+
+const THEME_BUTTON_ICON_CLASSES = 'ucs-theme-button-icon';
+
+const HOME_SIDE_CONTENT_CLASSES =
+  'gemini-side-content gemini-side-content--home';
+
+const REPORT_SIDE_CONTENT_CLASSES =
+  'gemini-side-content gemini-side-content--report';
+
+const SIDE_CONTENT_OPEN_CLASSES = 'gemini-side-content--open';
+
+const SIDE_CONTENT_COLLAPSED_CLASSES = 'gemini-side-content--collapsed';
+
+const SIDE_HEADING_CLASSES = 'gemini-side-heading';
+
+const HOME_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--home';
+
+const REPORT_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--report';
+
+const CHAT_HISTORY_LINK_CLASSES = 'gemini-chat-link';
+
+const CHAT_HISTORY_LABEL_CLASSES = 'gemini-chat-label';
+
+const CHAT_HISTORY_MORE_CLASSES = 'gemini-chat-more';
 
 /**
  * Renders the app shell with header navigation, main content, and footer.
@@ -13,145 +111,334 @@ import {ThemeToggle} from './components/theme_toggle';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isChatWorkspace =
-    location.pathname === '/' || location.pathname === '/runs/new';
-  const isPublicRoute =
-    !location.pathname.startsWith('/runs') && !isChatWorkspace;
+  const {mode, setMode} = useTheme();
+  const [overrideTitle, setOverrideTitle] = useState('');
+  const [history, setHistory] = useState<Run[]>([]);
+  const [navOpen, setNavOpen] = useState(true);
+  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  const [showAllChats, setShowAllChats] = useState(false);
+  const settingsControlRef = useRef<HTMLDivElement>(null);
+  const logsControlRef = useRef<HTMLDivElement>(null);
+  const isRunRoute = location.pathname.startsWith('/runs/');
+  const headerTitle = overrideTitle || '';
+  const visibleHistory = showAllChats ? history : history.slice(0, 10);
+  const hasExtraChats = history.length > 10;
+  const sideContentClasses = [
+    isRunRoute ? REPORT_SIDE_CONTENT_CLASSES : HOME_SIDE_CONTENT_CLASSES,
+    navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
+  ].join(' ');
+  const chatListClasses = isRunRoute
+    ? REPORT_CHAT_LIST_CLASSES
+    : HOME_CHAT_LIST_CLASSES;
+  const workspaceClasses = isRunRoute
+    ? REPORT_WORKSPACE_CLASSES
+    : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
+  const isHomeRoute = location.pathname === '/';
+  const pageClasses = isRunRoute
+    ? REPORT_PAGE_CLASSES
+    : isHomeRoute
+      ? HOME_PAGE_CLASSES
+      : PAGE_CLASSES;
+  const shellClass = [
+    'google-app-shell',
+    isRunRoute ? 'report-shell' : 'home-shell',
+    navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
+  ].join(' ');
+  const navPanelClasses = navOpen
+    ? NAV_PANEL_OPEN_CLASSES
+    : NAV_PANEL_COLLAPSED_CLASSES;
+  const navGroupClasses = navOpen
+    ? NAV_GROUP_OPEN_CLASSES
+    : NAV_GROUP_COLLAPSED_CLASSES;
+  const navItemsClasses = navOpen
+    ? NAV_ITEMS_OPEN_CLASSES
+    : NAV_ITEMS_COLLAPSED_CLASSES;
+  const navBottomClasses = navOpen
+    ? NAV_BOTTOM_CLASSES
+    : NAV_BOTTOM_COLLAPSED_CLASSES;
+  const navItemClasses = navOpen
+    ? NAV_ITEM_OPEN_CLASSES
+    : NAV_ITEM_COLLAPSED_CLASSES;
+  const navLabelClasses = navOpen
+    ? NAV_LABEL_OPEN_CLASSES
+    : NAV_LABEL_COLLAPSED_CLASSES;
 
-  if (isChatWorkspace) {
-    return (
-      <div
-        className="min-h-screen wb-fade-in"
-        style={{
-          backgroundColor: 'var(--color-th-bg)',
-          color: 'var(--color-th-fg)',
-        }}
-      >
-        <div className="fixed top-3 right-3 z-30">
-          <LogConsole />
-        </div>
-        {children}
-      </div>
-    );
+  function startNewChat() {
+    window.dispatchEvent(new Event('cosci-new-chat'));
+    void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
 
+  function focusComposer() {
+    window.dispatchEvent(new Event('cosci-focus-composer'));
+    void navigate('/', {state: {cosciAction: 'focus-composer'}});
+  }
+
+  function toggleNav() {
+    setNavOpen(open => !open);
+    setActivePanel(null);
+  }
+
+  function togglePanel(panel: ShellPanel) {
+    setActivePanel(current => (current === panel ? null : panel));
+  }
+
+  useEffect(() => {
+    setOverrideTitle('');
+    setActivePanel(null);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!activePanel) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      const settingsContains = settingsControlRef.current?.contains(target);
+      const logsContains = logsControlRef.current?.contains(target);
+      if (!settingsContains && !logsContains) setActivePanel(null);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [activePanel]);
+
+  useEffect(() => {
+    function onHeaderTitle(event: Event) {
+      const custom = event as CustomEvent<string>;
+      setOverrideTitle(custom.detail || '');
+    }
+    window.addEventListener('cosci-header-title', onHeaderTitle);
+    return () => {
+      window.removeEventListener('cosci-header-title', onHeaderTitle);
+    };
+  }, []);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadHistory() {
+      const [ownedRuns, demoRuns] = await Promise.all([
+        listRuns().catch(() => [] as Run[]),
+        listDemoRuns().catch(() => [] as Run[]),
+      ]);
+      if (ignore) return;
+      const byId = new Map<string, Run>();
+      for (const item of [...ownedRuns, ...demoRuns]) byId.set(item.id, item);
+      setHistory(
+        [...byId.values()].sort((a, b) => b.updated_at - a.updated_at),
+      );
+    }
+    void loadHistory();
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
   return (
-    <div
-      className="min-h-screen flex flex-col"
-      style={{
-        backgroundColor: 'var(--color-th-bg)',
-        color: 'var(--color-th-fg)',
-      }}
-    >
-      <header
-        className="border-b sticky top-0 z-30 backdrop-blur-xl"
-        style={{
-          backgroundColor:
-            'color-mix(in srgb, var(--md-sys-color-surface-container) 70%, transparent)',
-          borderColor: 'var(--color-th-border)',
-        }}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-2">
-          <Link
-            to={isPublicRoute ? '/about' : '/'}
-            className="flex items-center gap-2 font-semibold shrink-0"
-          >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 14 13"
-              className="w-5 h-5 shrink-0"
-              aria-hidden="true"
-              style={{color: 'var(--md-sys-color-primary)'}}
-            >
-              <path
-                d="M1.70627 12.6C1.23127 12.6 0.825025 12.4375 0.487525 12.1125C0.162524 11.7875 2.44677e-05 11.3938 2.44677e-05 10.9313C2.44677e-05 10.7563 0.0187744 10.6 0.0562744 10.4625C0.0937746 10.325 0.150025 10.2 0.225025 10.0875L4.36877 4.10625C4.48127 3.93125 4.56877 3.75 4.63127 3.5625C4.69377 3.3625 4.72503 3.1625 4.72503 2.9625V0.900002H4.27502C4.15002 0.900002 4.04377 0.856252 3.95627 0.768753C3.86877 0.681253 3.82502 0.575002 3.82502 0.450002C3.82502 0.325002 3.86877 0.218752 3.95627 0.131253C4.04377 0.0437527 4.15002 2.6226e-06 4.27502 2.6226e-06H8.77503C8.90003 2.6226e-06 9.00627 0.0437527 9.09377 0.131253C9.18128 0.218752 9.22503 0.325002 9.22503 0.450002C9.22503 0.575002 9.18128 0.681253 9.09377 0.768753C9.00627 0.856252 8.90003 0.900002 8.77503 0.900002H8.32502V2.9625C8.32502 3.1625 8.35627 3.3625 8.41877 3.5625C8.48127 3.75 8.56878 3.93125 8.68127 4.10625L12.825 10.0875C12.9 10.2 12.9563 10.325 12.9938 10.4625C13.0313 10.5875 13.05 10.7375 13.05 10.9125C13.05 11.3875 12.8875 11.7875 12.5625 12.1125C12.2375 12.4375 11.8375 12.6 11.3625 12.6H1.70627ZM5.62502 0.900002V2.9625C5.62502 3.25 5.58127 3.53125 5.49377 3.80625C5.41877 4.08125 5.30627 4.33125 5.15627 4.55625L2.71877 8.0625C2.66877 8.1375 2.63127 8.21875 2.60627 8.30625C2.58127 8.38125 2.56877 8.4625 2.56877 8.55C2.56877 8.8125 2.67502 9.0375 2.88752 9.225C3.10002 9.4 3.36252 9.4875 3.67502 9.4875C4.02503 9.4875 4.36877 9.4125 4.70627 9.2625C5.05627 9.1 5.57502 8.7875 6.26252 8.325C6.95002 7.875 7.51877 7.55 7.96877 7.35C8.41878 7.1375 8.86253 7 9.30002 6.9375C9.35002 6.925 9.38127 6.9 9.39377 6.8625C9.41877 6.8125 9.41877 6.76875 9.39377 6.73125L7.93128 4.6125C7.75628 4.375 7.62503 4.11875 7.53753 3.84375C7.46252 3.55625 7.42502 3.2625 7.42502 2.9625V0.900002H5.62502Z"
-                fill="currentColor"
-                stroke="currentColor"
-                strokeWidth="0.4"
-              />
-            </svg>
-            <span className="text-base tracking-tight">Co-Scientist</span>
-          </Link>
-          <nav className="flex items-center gap-2 sm:gap-3 text-sm">
-            {isPublicRoute && (
-              <div className="hidden md:flex items-center gap-6 mr-2">
-                <a className="public-nav-link" href="/about#workflow-title">
-                  How it works
-                </a>
-                <Link
-                  className="public-nav-link"
-                  to="/demos/ferroptosis-pancreatic-cancer"
-                >
-                  Demo
-                </Link>
-                <a className="public-nav-link" href="/about#research">
-                  Research
-                </a>
-              </div>
-            )}
-            <span className="inline-flex">
-              <ThemeToggle />
-            </span>
-            <md-outlined-button
-              onclick={
-                (() => navigate(isPublicRoute ? '/' : '/runs')) as EventListener
-              }
-              style={
-                location.pathname.startsWith('/runs')
-                  ? ({
-                      '--md-outlined-button-outline-width': '1px',
-                      '--md-outlined-button-outline-color':
-                        'var(--md-sys-color-primary)',
-                      '--md-outlined-button-label-text-color':
-                        'var(--md-sys-color-primary)',
-                    } as React.CSSProperties)
-                  : ({
-                      '--md-outlined-button-outline-width': '1px',
-                      '--md-outlined-button-outline-color':
-                        'var(--color-th-border)',
-                      '--md-outlined-button-label-text-color':
-                        'var(--color-th-muted-fg)',
-                    } as React.CSSProperties)
-              }
-            >
-              {isPublicRoute ? 'Workbench' : 'Dashboard'}
-            </md-outlined-button>
-            {!isPublicRoute && (
-              <span className="hidden sm:inline-flex">
-                <LogConsole />
-              </span>
-            )}
+    <div className={shellClass}>
+      <aside className={navPanelClasses} aria-label="Primary navigation">
+        <div className={navGroupClasses}>
+          <NavActionButton
+            label="Menu"
+            icon="menu"
+            className={navItemClasses}
+            labelClassName={navLabelClasses}
+            expanded={navOpen}
+            controls="primary-navigation"
+            onClick={toggleNav}
+          />
+          <nav id="primary-navigation" className={navItemsClasses}>
+            <NavActionButton
+              label="New chat"
+              icon="edit_square"
+              className={navItemClasses}
+              labelClassName={navLabelClasses}
+              onClick={startNewChat}
+            />
+            <NavActionButton
+              label="Search"
+              icon="search"
+              className={navItemClasses}
+              labelClassName={navLabelClasses}
+              onClick={focusComposer}
+            />
           </nav>
+          <div className={sideContentClasses}>
+            <p className={SIDE_HEADING_CLASSES}>Chats</p>
+            <div className={chatListClasses}>
+              {visibleHistory.map(run => (
+                <Link
+                  key={run.id}
+                  to={`/runs/${run.id}/details`}
+                  className={tooltipClassNames({
+                    className: CHAT_HISTORY_LINK_CLASSES,
+                    placement: 'right',
+                    wrap: true,
+                  })}
+                  data-tooltip={run.research_goal}
+                >
+                  <span className={CHAT_HISTORY_LABEL_CLASSES}>
+                    {conciseTitle(run.research_goal)}
+                  </span>
+                </Link>
+              ))}
+              {hasExtraChats && (
+                <button
+                  type="button"
+                  className={CHAT_HISTORY_MORE_CLASSES}
+                  onClick={() => setShowAllChats(current => !current)}
+                >
+                  {showAllChats ? 'Show less' : 'Show more'}
+                </button>
+              )}
+            </div>
+          </div>
         </div>
-      </header>
-      <main
-        className={
-          isPublicRoute
-            ? 'flex-1 w-full wb-fade-in'
-            : 'flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-4 sm:py-6 wb-fade-in'
-        }
-      >
-        {children}
-      </main>
-      <footer
-        className="text-sm py-4 border-t text-center"
-        style={{
-          borderColor: 'var(--color-th-border)',
-          color: 'var(--color-th-muted-fg)',
-          fontFamily: 'system-ui, -apple-system, sans-serif',
-        }}
-      >
-        &copy; 2026{' '}
-        <a
-          href="https://github.com/guy915/Co-Scientist"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
-          style={{color: 'inherit'}}
-        >
-          Co-Scientist
-        </a>
-      </footer>
+        <div className={navBottomClasses}>
+          <div
+            ref={settingsControlRef}
+            className={`${SETTINGS_CONTROL_CLASSES} ${
+              navOpen
+                ? 'ucs-settings-control--open'
+                : 'ucs-settings-control--collapsed'
+            }`}
+          >
+            <NavActionButton
+              label="Settings"
+              icon="settings"
+              className={navItemClasses}
+              labelClassName={navLabelClasses}
+              expanded={activePanel === 'settings'}
+              onClick={() => togglePanel('settings')}
+            />
+            {activePanel === 'settings' && (
+              <ShellPopover className={RAIL_POPOVER_CLASSES}>
+                <div
+                  className={THEME_SEGMENT_CLASSES}
+                  role="group"
+                  aria-label="Theme"
+                >
+                  {THEME_MODES.map(option => (
+                    <ThemeModeButton
+                      key={option.mode}
+                      {...option}
+                      active={mode === option.mode}
+                      onModeChange={setMode}
+                    />
+                  ))}
+                </div>
+              </ShellPopover>
+            )}
+          </div>
+        </div>
+      </aside>
+      <section className={workspaceClasses}>
+        <header className={HEADER_CLASSES}>
+          <button
+            type="button"
+            className={tooltipClassNames({
+              className: PRODUCT_LOCKUP_CLASSES,
+              placement: 'right',
+            })}
+            aria-label="Go to Co-Scientist home"
+            data-tooltip="Home"
+            onClick={startNewChat}
+          >
+            <GoogleLabsIcon aria-hidden="true" />
+            <span>Co-Scientist</span>
+          </button>
+          <div className={HEADER_TITLE_CLASSES}>{headerTitle}</div>
+          <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
+            <DiagnosticsControl
+              open={activePanel === 'logs'}
+              onToggle={() => togglePanel('logs')}
+              renderPopover={(children, className) => (
+                <ShellPopover className={className}>{children}</ShellPopover>
+              )}
+            />
+          </div>
+        </header>
+        <main className={pageClasses}>{children}</main>
+      </section>
+    </div>
+  );
+}
+
+function NavActionButton({
+  label,
+  icon,
+  className,
+  labelClassName,
+  expanded,
+  controls,
+  onClick,
+}: {
+  label: string;
+  icon: IconName;
+  className: string;
+  labelClassName: string;
+  expanded?: boolean;
+  controls?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({className, placement: 'right'})}
+      aria-label={label}
+      data-tooltip={label}
+      aria-expanded={expanded}
+      aria-controls={controls}
+      onClick={onClick}
+    >
+      <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name={icon} />
+      <span className={labelClassName}>{label}</span>
+    </button>
+  );
+}
+
+function ThemeModeButton({
+  mode,
+  active,
+  icon,
+  label,
+  onModeChange,
+}: {
+  mode: 'system' | 'light' | 'dark';
+  active: boolean;
+  icon: IconName;
+  label: string;
+  onModeChange: (mode: ThemeMode) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={
+        active
+          ? `${THEME_BUTTON_BASE_CLASSES} ${THEME_BUTTON_ACTIVE_CLASSES}`
+          : THEME_BUTTON_BASE_CLASSES
+      }
+      aria-pressed={active}
+      onClick={() => onModeChange(mode)}
+    >
+      <Icon
+        aria-hidden="true"
+        className={THEME_BUTTON_ICON_CLASSES}
+        name={icon}
+      />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function ShellPopover({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}) {
+  return (
+    <div className={`${SHELL_POPOVER_CLASSES} ${className}`} role="status">
+      {children}
     </div>
   );
 }

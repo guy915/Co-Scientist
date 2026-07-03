@@ -39,7 +39,7 @@ def _stub_winner_by_text(monkeypatch: pytest.MonkeyPatch,
         # The winner is in slot "a" when its text precedes the opponent's; the
         # opponent occupies whichever slot the winner does not.
         winner = "a" if winner_pos < _other_text_pos(prompt,
-                                                      winner_text) else "b"
+                                                     winner_text) else "b"
         return {
             "winner": winner,
             "decision_summary": "stub decision",
@@ -151,3 +151,27 @@ async def test_malformed_judge_response_defaults_to_slot_a(
         # ranking_node fills missing reasoning/confidence with placeholders.
         assert matchup["reasoning"] == "No reasoning provided"
         assert matchup["confidence"] == "Unknown"
+
+
+async def test_ranking_honors_tournament_pairs(
+        monkeypatch: pytest.MonkeyPatch) -> None:
+    """Per-run tournament depth controls the number of pairwise matches."""
+    hypotheses = [
+        make_hypothesis(text="first tournament TXT"),
+        make_hypothesis(text="second tournament TXT"),
+        make_hypothesis(text="third tournament TXT"),
+    ]
+
+    async def fake(**_: Any) -> dict[str, Any]:
+        return {
+            "winner": "a",
+            "decision_summary": "stub decision",
+            "confidence_level": "High",
+        }
+
+    monkeypatch.setattr(ranking, "call_llm_json", fake)
+
+    state = make_state(hypotheses=hypotheses, tournament_pairs=5)
+    result = await ranking_node(state)
+
+    assert len(result["tournament_matchups"]) == 5

@@ -103,6 +103,8 @@ async def evolve_single_hypothesis(
     run_id: str | None = None,
     hypothesis_index: int | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[Hypothesis, dict[str, Any] | None]:
     """Evolve a single hypothesis with strategically sampled context.
 
@@ -123,6 +125,8 @@ async def evolve_single_hypothesis(
         run_id: Optional run ID for saving prompts
         hypothesis_index: Optional index for naming saved prompts
         tool_registry: Optional ToolRegistry for dynamic tool instructions
+        run_setup_guidance: Optional durable setup guidance
+        run_focus_guidance: Optional selected focus guidance
 
     Returns:
         Updated hypothesis with evolved text
@@ -213,14 +217,21 @@ async def evolve_single_hypothesis(
             supervisor_guidance_text = "".join(guidance_sections)
 
     # Build context-aware evolution prompt with domain variables
-    from co_scientist.prompts import _get_domain_variables  # pylint: disable=import-outside-toplevel
+    from co_scientist.prompts import _format_run_guidance, _get_domain_variables  # pylint: disable=import-outside-toplevel,line-too-long
 
     variables = {
-        "original_hypothesis": hypothesis.text,
-        "review_feedback": review_feedback,
-        "meta_review_insights": meta_review_insights,
-        "supervisor_guidance": supervisor_guidance_text,
-        "articles_with_reasoning": articles_with_reasoning or "",
+        "original_hypothesis":
+            hypothesis.text,
+        "review_feedback":
+            review_feedback,
+        "meta_review_insights":
+            meta_review_insights,
+        "supervisor_guidance":
+            supervisor_guidance_text,
+        "run_guidance":
+            _format_run_guidance(run_setup_guidance, run_focus_guidance),
+        "articles_with_reasoning":
+            articles_with_reasoning or "",
     }
     variables.update(_get_domain_variables(tool_registry))
 
@@ -424,6 +435,8 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
             run_id=state.get("run_id"),
             hypothesis_index=i,
             tool_registry=state.get("tool_registry"),
+            run_setup_guidance=state.get("run_setup_guidance"),
+            run_focus_guidance=state.get("run_focus_guidance"),
         ) for i, hyp in enumerate(top_k)
     ]
 

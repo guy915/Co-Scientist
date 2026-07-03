@@ -1,11 +1,11 @@
 {
-  "name": "Co-Scientist",
+  "name": "AI Co-Scientist",
   "short_name": "Co-Scientist",
-  "description": "A multi-agent workbench for scientific hypothesis generation.",
+  "description": "A multi-agent workspace for generating, evaluating, and ranking research hypotheses.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fbfdfc",
-  "theme_color": "#1a6b6b",
+  "theme_color": "#7c4dff",
   "icons": [
     {
       "src": "/icon-192.png",

@@ -14,6 +14,7 @@
     "clean": "gts clean"
   },
   "devDependencies": {
+    "@material-symbols/svg-400": "^0.45.5",
     "@tailwindcss/vite": "^4.1.17",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
@@ -35,8 +36,6 @@
   "dependencies": {
     "@fontsource/google-sans": "^5.2.1",
     "@material/material-color-utilities": "^0.4.0",
-    "@material/web": "^2.4.1",
-    "material-symbols": "^0.44.12",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-markdown": "^10.1.0",
