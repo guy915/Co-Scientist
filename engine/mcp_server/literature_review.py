@@ -12,7 +12,13 @@ import json
 from abc import ABC, abstractmethod
 
 Entrez.email = os.environ.get("ENTREZ_EMAIL", "")
-Entrez.api_key = os.environ.get("NCBI_API_KEY", "")
+# Only assign a non-empty API key. Biopython appends whatever ``Entrez.api_key``
+# holds to every request URL, and NCBI rejects an empty ``api_key=`` with HTTP
+# 400 ("API key invalid") while accepting a request that omits it entirely.
+_ncbi_api_key = os.environ.get("NCBI_API_KEY") or os.environ.get(
+    "ENTREZ_API_KEY")
+if _ncbi_api_key:
+    Entrez.api_key = _ncbi_api_key
 
 logger = logging.getLogger(__name__)
 
