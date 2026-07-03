@@ -1,48 +1,44 @@
-"""Example for Co-Scientist with streaming output.
+"""Minimal interactive demo for the Co-Scientist hypothesis generator.
 
-This demonstrates hypothesis generation with literature review integration,
-showing real-time streaming of results as they're generated.
-"""
-from collections.abc import Sequence
+Prompts for a research goal, runs ``HypothesisGenerator`` with literature
+review and tool-calling generation enabled, then prints the ranked
+hypotheses and the synthesized research overview using plain ``print``.
 
-from absl import app
-from co_scientist import HypothesisGenerator
-from co_scientist.console import ConsoleReporter, default_progress_callback, run_console
-# install rich in your environment
-from rich.console import Console
-from rich.panel import Panel
-# pylint: disable=pointless-string-statement
-"""
 Prerequisites:
-- MCP server running (on http://localhost:8888/mcp)
-- Set OPEN_AI_KEY, ANTHROPIC_API_KEY, or GEMINI_API_KEY in your environment
-before running,
-which depends on the MODEL_NAME you set below.
+    - An MCP server running (default http://localhost:8888/mcp) for the
+      literature review and tool-calling generation steps. Without one
+      the engine falls back to LLM-only mode.
+    - The provider API key for ``MODEL_NAME`` set in the environment (for
+      example GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY).
 """
-# pylint: enable=pointless-string-statement
+import asyncio
+from typing import Any
+
+from co_scientist import HypothesisGenerator
 
 MODEL_NAME = "gemini/gemini-2.5-flash"
 
 
+async def _report_progress(phase: str, data: dict[str, Any]) -> None:
+    """Print a one-line progress update for a workflow phase.
+
+    Args:
+        phase: Name of the workflow phase emitting the update.
+        data: Payload dict; a human-readable string is read from
+            ``data['message']`` when present.
+    """
+    message = data.get("message", "")
+    if message:
+        print(f"  [{phase}] {message}")
+
+
 async def _run() -> None:
-    # Prompt user for research goal with rich formatting
-    console = Console()
-    console.print()
-    console.print(
-        Panel(
-            "[bold]Enter research goal[/bold]\n\n"
-            "[dim]For example:[/dim] Develop novel approaches for early"
-            " detection of Alzheimer's disease using non-invasive"
-            " biomarkers",
-            title="[cyan]Research Goal[/cyan]",
-            border_style="cyan",
-        ))
-    research_goal = console.input(
-        "\n[bold cyan]Research goal:[/bold cyan] ").strip()
+    """Prompt for a research goal, run the workflow, and print results."""
+    research_goal = input("Enter a research goal: ").strip()
     if not research_goal:
-        console.print(
-            "[bold red]Error:[/bold red] Research goal cannot be empty.")
+        print("Error: research goal cannot be empty.")
         return
+
     generator = HypothesisGenerator(
         model_name=MODEL_NAME,
         max_iterations=2,
@@ -50,31 +46,41 @@ async def _run() -> None:
         evolution_max_count=4,
     )
 
-    # for rich terminal output
-    reporter = ConsoleReporter()
-
-    # wrap with built-in console/terminal reporter
-    await reporter.run(
-        event_stream=generator.generate_hypotheses(
-            research_goal=research_goal,
-            progress_callback=default_progress_callback,
-            # explicitly enable literature review/generate with tool calling
-            opts={
-                "enable_literature_review_node": True,
-                "enable_tool_calling_generation": True,
-            },
-            stream=True,
-        ),
+    result = await generator.generate_hypotheses(
         research_goal=research_goal,
+        progress_callback=_report_progress,
+        opts={
+            "enable_literature_review_node": True,
+            "enable_tool_calling_generation": True,
+        },
     )
 
+    hypotheses = sorted(
+        result.get("hypotheses", []),
+        key=lambda h: h.get("elo_rating", 1200),
+        reverse=True,
+    )
 
-def main(argv: Sequence[str]) -> None:
-    del argv  # Unused.
-    # wrap with run_console for graceful shutdown on KeyboardInterrupt and hide
-    # internal warnings
-    run_console(_run())
+    print()
+    print("Ranked hypotheses")
+    print("=================")
+    for rank, hyp in enumerate(hypotheses, start=1):
+        elo = hyp.get("elo_rating", 1200)
+        print(f"\n{rank}. [Elo {elo}] {hyp.get('text', '')}")
+        explanation = hyp.get("explanation")
+        if explanation:
+            print(f"   Summary: {explanation}")
+
+    overview = result.get("research_overview", {}).get("overview", {})
+    summary = overview.get("summary")
+    if summary:
+        print()
+        print("Research overview")
+        print("=================")
+        print(summary)
+        for direction in overview.get("research_directions", []):
+            print(f"- {direction.get('title', '')}")
 
 
 if __name__ == "__main__":
-    app.run(main)
+    asyncio.run(_run())
