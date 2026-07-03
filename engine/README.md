@@ -186,9 +186,12 @@ export MCP_SERVER_URL=http://localhost:8888/mcp
 
 The engine uses a YAML-based tool registry that decouples literature sources from library code. This lets you bring your own MCP servers without modifying the engine.
 
-The default config (`src/co_scientist/config/tools.yaml`) targets the bundled PubMed server. A pre-built example in `src/co_scientist/config/examples/` covers:
+The default config (`src/co_scientist/config/tools.yaml`) targets the bundled PubMed server. Pre-built examples in `src/co_scientist/config/examples/` cover:
 
-- `indra_cancer.yaml` — biomedical config extending PubMed with INDRA CoGex knowledge-graph tools
+- `arxiv_only.yaml` — arXiv for AI/ML/CS/physics research
+- `multiple_sources.yaml` — PubMed + arXiv + Google Scholar in parallel
+- `google_scholar.yaml` — Google Scholar with two-step PDF retrieval
+- `indra_cancer.yaml` / `indra_alzheimers.yaml` / `indra_ibd.yaml` / `indra_hfpef.yaml` — domain-specific biomedical configs extending PubMed with INDRA CoGex knowledge-graph tools
 
 Pass a config at construction time:
 

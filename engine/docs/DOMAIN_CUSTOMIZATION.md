@@ -82,12 +82,51 @@ settings:
 
 The following example configurations are included in [`src/co_scientist/config/examples/`](../src/co_scientist/config/examples/):
 
+### Biomedical — Alzheimer's Drug Repurposing (`indra_alzheimers.yaml`)
+
+Extends the default PubMed config with INDRA CoGex knowledge graph tools. INDRA provides curated causal statements from literature (e.g., drug → pathway → target relationships), supplementing PubMed full-text search with structured mechanistic knowledge.
+
+**Sources:** PubMed (default) + INDRA CoGex (knowledge graph)
+**Enrichments:** INDRA pathway statements per hypothesis
+**Use case:** Drug repurposing, neuroinflammation, biomarker identification
+
+```yaml
+# Extends default config — PubMed still runs, INDRA adds mechanistic context
+settings:
+  merge_strategy: "extend"
+```
+
 ### Biomedical — Cancer (`indra_cancer.yaml`)
 
-Extends the default PubMed config with INDRA CoGex knowledge graph tools, adapted for oncology hypothesis generation with cancer-specific prompt guidance. INDRA provides curated causal statements from literature, supplementing PubMed full-text search with structured mechanistic knowledge.
+Similar to the Alzheimer's config, adapted for oncology hypothesis generation with cancer-specific prompt guidance and INDRA integration.
 
 **Sources:** PubMed + INDRA CoGex
 **Use case:** Cancer pathway hypotheses, drug combinations, resistance mechanisms
+
+### Cybersecurity (`cybersecurity_hydra.yaml`)
+
+Replaces the default PubMed config entirely. Uses arXiv for academic security research and Google Scholar for conference papers (USENIX Security, CCS, IEEE S&P, NDSS). NVD CVE search is added both as a literature source and as a post-generation enrichment that attaches related CVEs to each hypothesis.
+
+**Sources:** arXiv + Google Scholar + NVD CVE
+**Enrichments:** Related CVEs per hypothesis
+**Use case:** Threat hypothesis generation, vulnerability research, red team planning
+
+```yaml
+prompts:
+  domain_context: |
+    "Hypothesis" means a threat hypothesis: a novel attack technique,
+    exploitation method, or adversarial capability.
+  review_guidance: |
+    Prioritize: operational feasibility, novelty over existing TTPs, evasion
+    potential, and defensive value (purple team utility).
+```
+
+### Multi-source Academic (`multiple_sources.yaml`, `arxiv_and_google_scholar.yaml`)
+
+Configurations for cross-disciplinary research without domain-specific guidance. Useful for AI/ML, physics, mathematics, or broad academic topics where PubMed is not appropriate.
+
+**Sources:** arXiv + Google Scholar
+**Use case:** AI/ML research, computer science, interdisciplinary topics
 
 ---
 

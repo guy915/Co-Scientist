@@ -55,7 +55,7 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 | Evolve | `nodes/evolve.py` |
 | Proximity (dedup) | `nodes/proximity.py` |
 
-Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/` (also bundled via `package-data`). YAML tool/domain configs live in `src/co_scientist/config/` with a bundled example config in `config/examples/` (`indra_cancer.yaml`).
+Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/` (also bundled via `package-data`). YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/etc.).
 
 Key supporting modules: `models.py` (dataclasses: `Hypothesis`, `HypothesisReview`, `ExecutionMetrics`, `Article`), `schemas.py` (JSON schemas for structured LLM output), `constants.py` (Elo params, token limits, temperatures), `exceptions.py` (domain exception hierarchy), `tools/` (tool registry subpackage for YAML-based tool configuration).
 
