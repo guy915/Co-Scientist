@@ -102,6 +102,11 @@ describe('listRuns', () => {
     await expect(listRuns()).rejects.toThrow('403 denied');
   });
 
+  it('does not silently replace network failures with offline sample runs', async () => {
+    fetchMock().mockRejectedValue(new TypeError('Failed to fetch'));
+    await expect(listRuns()).rejects.toThrow('Failed to fetch');
+  });
+
   it('includes a limit query parameter when requested', async () => {
     fetchMock().mockResolvedValue(jsonResponse({runs: []}));
 

@@ -144,6 +144,12 @@ class WorkflowState(TypedDict):
     evolution_max_count: int
     """Number of top hypotheses to evolve each iteration."""
 
+    tournament_pairs: int
+    """Number of pairwise Elo comparisons to run in each ranking pass."""
+
+    literature_review_papers_count: int
+    """Number of papers to read/analyze during literature review."""
+
     # Workflow State
     hypotheses: Annotated[list[Hypothesis], deduplicate_hypotheses]
     """Current list of hypotheses being processed (auto-deduplicated)."""
@@ -197,6 +203,21 @@ class WorkflowState(TypedDict):
 
     constraints: list[str] | None
     """Optional: Requirements or boundaries for hypothesis generation."""
+
+    criteria: list[str] | None
+    """Optional: Explicit success criteria for judging hypotheses."""
+
+    run_focus: str | None
+    """Optional: Co-Scientist run focus identifier."""
+
+    run_tier: str | None
+    """Optional: Co-Scientist depth tier identifier."""
+
+    run_focus_guidance: str | None
+    """Prompt-ready guidance for the selected run focus."""
+
+    run_setup_guidance: str | None
+    """Prompt-ready summary of the durable run setup fields."""
 
     starting_hypotheses: list[str] | None
     """Optional: User-provided starting hypotheses to build upon."""

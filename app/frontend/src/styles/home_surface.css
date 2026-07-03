@@ -1,0 +1,790 @@
+/* Home workspace layout and responsive states. */
+.cosci-workspace {
+  display: grid;
+  height: 100%;
+  min-height: 100%;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.cosci-workspace-main {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  flex-direction: column;
+}
+
+.reference-home-stage {
+  box-sizing: border-box;
+  display: grid;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: minmax(40rem, 50.75rem) minmax(17rem, 21rem);
+  justify-content: center;
+  gap: clamp(2.5rem, 7vw, 7.5rem);
+  overflow: hidden;
+  padding: 1.15rem 1.5rem clamp(1.6rem, 4vh, 2.6rem);
+}
+
+.reference-home-main {
+  display: grid;
+  align-content: start;
+  padding-top: clamp(2.4rem, 7vh, 3.5rem);
+}
+
+.reference-home-title {
+  width: min(100%, 39rem);
+  margin-inline: auto;
+  color: var(--cosci-home-heading);
+  font-size: clamp(2.75rem, 4.2vw, 3.2rem);
+  font-weight: 400;
+  line-height: 1.13;
+  text-align: center;
+}
+
+.reference-step-timeline {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 3.9rem;
+  margin: clamp(3.7rem, 8.5vh, 5.2rem) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reference-step-timeline::before {
+  content: "";
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  left: 1rem;
+  height: 1px;
+  background: var(--cosci-step-line);
+}
+
+.reference-step-item {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 1rem;
+}
+
+.reference-step-body {
+  max-width: 16rem;
+  margin-top: 0.25rem;
+  color: var(--cosci-step-text);
+  font-size: 0.96rem;
+  line-height: 1.35;
+}
+
+.reference-step-number {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 9999px;
+  background: var(--cosci-step-dot-bg);
+  color: var(--cosci-step-dot-text);
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.reference-step-heading {
+  margin: 0;
+  color: var(--cosci-step-heading);
+  font-size: 0.92rem;
+  font-weight: 400;
+}
+
+.reference-suggestion-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-top: clamp(3.2rem, 7vh, 4.35rem);
+}
+
+.reference-suggestion-slot {
+  position: relative;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.reference-suggestion-button {
+  display: block;
+  width: 100%;
+  height: 4.4rem;
+  min-height: 4.4rem;
+  max-height: 4.4rem;
+  overflow: hidden;
+  border: 1px solid var(--cosci-suggestion-border);
+  border-radius: 1rem;
+  background: var(--cosci-suggestion-bg);
+  color: var(--cosci-suggestion-text);
+  cursor: pointer;
+  line-height: 1.35;
+  outline: 0;
+  padding: 0.9rem 1rem;
+  text-align: left;
+}
+
+.reference-suggestion-button:hover,
+.reference-suggestion-button:focus-visible,
+.reference-suggestion-button.is-previewed {
+  border-color: var(--cosci-suggestion-hover-border);
+  background: var(--cosci-suggestion-active-bg);
+}
+
+.reference-suggestion-preview {
+  position: absolute;
+  bottom: calc(100% + 0.5rem);
+  z-index: 5;
+  display: -webkit-box;
+  visibility: hidden;
+  width: max-content;
+  max-width: min(42rem, calc(100vw - 7rem));
+  margin: 0;
+  overflow: hidden;
+  color: #3c4043;
+  font-size: 0.84rem;
+  font-weight: 400;
+  line-height: 1.25rem;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(0.2rem);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+:root[data-theme="dark"] .reference-suggestion-preview {
+  color: #e8eaed;
+}
+
+.reference-suggestion-preview.visible {
+  visibility: visible;
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.reference-suggestion-preview--start {
+  left: 0;
+  text-align: left;
+}
+
+.reference-suggestion-preview--center {
+  left: 50%;
+  text-align: center;
+  transform: translateX(-50%) translateY(0.2rem);
+}
+
+.reference-suggestion-preview--center.visible {
+  transform: translateX(-50%) translateY(0);
+}
+
+.reference-suggestion-preview--end {
+  right: 0;
+  text-align: right;
+}
+
+.reference-suggestion-text {
+  display: -webkit-box;
+  overflow: hidden;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.reference-recents-panel {
+  display: grid;
+  min-height: 0;
+  align-content: start;
+  gap: 1.3rem;
+  overflow: hidden;
+  padding-top: 0.25rem;
+}
+
+.reference-recents-list {
+  display: grid;
+  min-height: 0;
+  max-height: calc(100vh - 12rem);
+  gap: 2.6rem;
+  margin: 0;
+  overflow-y: auto;
+  padding: 0 0.6rem 0 0;
+  list-style: none;
+}
+
+.google-recents-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--md-sys-color-on-surface-variant);
+}
+
+.reference-recents-heading-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.reference-recents-heading-title {
+  margin: 0;
+  color: var(--cosci-recents-heading);
+  font-size: 1.15rem;
+  font-weight: 600;
+}
+
+.reference-recents--empty {
+  grid-template-rows: auto 1fr;
+  align-self: stretch;
+  padding-bottom: 2rem;
+}
+
+.reference-recents-list.reference-recents-list--empty {
+  height: 100%;
+  max-height: none;
+  overflow: hidden;
+  padding: 0;
+}
+
+.reference-recents-empty-item {
+  height: 100%;
+  min-height: 0;
+}
+
+.reference-recents-empty-state {
+  box-sizing: border-box;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 25rem;
+  place-items: center;
+  align-content: center;
+  gap: 1rem;
+  border: 1.5px dashed #c7c9cc;
+  border-radius: 1.35rem;
+  background: transparent;
+  color: #5f6368;
+  padding: 1.5rem;
+  text-align: center;
+}
+
+:root[data-theme="dark"] .reference-recents-empty-state {
+  border-color: #53565a;
+  color: #bdc1c6;
+}
+
+.reference-recents-empty-icon {
+  display: block;
+  width: 2.1rem;
+  height: 1.95rem;
+  color: var(--cosci-teal);
+}
+
+:root[data-theme="dark"] .reference-recents-empty-icon {
+  color: #7fd7bf;
+}
+
+.reference-recents-empty-copy {
+  max-width: 17rem;
+  color: inherit;
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.reference-recent-card {
+  display: grid;
+  width: 100%;
+  min-height: 15.75rem;
+  align-content: start;
+  gap: 0.7rem;
+  border: 1px solid var(--cosci-recent-card-border);
+  border-radius: 0.8rem;
+  background: var(--cosci-recent-card-bg);
+  color: var(--cosci-recent-card-text);
+  cursor: pointer;
+  padding: 1.05rem 1.2rem;
+  text-align: left;
+  text-decoration: none;
+  box-shadow:
+    0 1px 3px rgb(60 64 67 / 12%),
+    0 6px 14px -2px rgb(60 64 67 / 8%);
+  transition:
+    box-shadow 160ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 160ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.reference-recent-card:hover,
+.reference-recent-card:focus-visible {
+  box-shadow:
+    0 1px 3px rgb(60 64 67 / 16%),
+    0 10px 22px -4px rgb(60 64 67 / 12%);
+}
+
+:root[data-theme="dark"] .reference-recent-card {
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 44%),
+    0 6px 14px -2px rgb(0 0 0 / 34%);
+}
+
+:root[data-theme="dark"] .reference-recent-card:hover,
+:root[data-theme="dark"] .reference-recent-card:focus-visible {
+  box-shadow:
+    0 1px 3px rgb(0 0 0 / 50%),
+    0 10px 22px -4px rgb(0 0 0 / 42%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-recent-card {
+    transition: none;
+  }
+}
+
+.reference-recent-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.reference-recent-meta-chip {
+  border-radius: 0.35rem;
+  background: var(--cosci-recent-meta-bg);
+  color: var(--cosci-recent-meta-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.32rem 0.48rem;
+}
+
+.reference-recent-title {
+  font-size: 1.02rem;
+  line-height: 1.35;
+}
+
+.reference-recent-description {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--cosci-recent-card-copy);
+  font-size: 0.9rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+}
+
+.reference-recent-chips {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.reference-recent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 0.35rem;
+  background: var(--cosci-recent-chip-bg);
+  color: var(--cosci-recent-chip-text);
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.32rem 0.48rem;
+}
+
+.reference-recent-chip-icon {
+  width: 1rem;
+  height: 1rem;
+}
+
+.reference-winner-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.15rem 0 0;
+  padding: 0;
+  color: var(--cosci-recent-card-text);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  list-style: none;
+}
+
+.reference-load-more-item {
+  display: flex;
+  justify-content: center;
+  padding-block: 0.25rem 0.5rem;
+}
+
+.reference-load-more {
+  justify-self: center;
+  border: 0;
+  background: transparent;
+  color: var(--idea-ref-blue);
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 500;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-load-more:hover,
+.reference-load-more:focus-visible {
+  text-decoration: underline;
+}
+
+:root[data-theme="dark"] .reference-load-more {
+  color: var(--cosci-blue);
+}
+
+@media (min-width: 1181px) {
+  .reference-home-stage {
+    --home-recents-width: clamp(20.75rem, 20vw, 22rem);
+
+    align-items: start;
+    grid-template-columns: minmax(0, 1fr) minmax(20.75rem, var(--home-recents-width));
+    justify-content: stretch;
+    gap: clamp(2.25rem, 3.1vw, 3.35rem);
+    padding-block: 0;
+    padding-left: clamp(2rem, 3vw, 4rem);
+    padding-right: clamp(0.7rem, 1.2vw, 1.3rem);
+  }
+
+  .reference-home-main {
+    height: 100%;
+    min-width: 0;
+    max-height: calc(100vh - 4.5rem);
+    grid-template-rows: auto auto minmax(2rem, 1fr) auto;
+    padding-top: clamp(4.85rem, 8.8vh, 6.4rem);
+    padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
+  }
+
+  .reference-home-title {
+    width: min(100%, 43.5rem);
+    font-size: clamp(2.35rem, 3vw, 3rem);
+    line-height: 1.14;
+  }
+
+  .reference-step-timeline {
+    column-gap: 0;
+    margin-top: clamp(3.85rem, 7.6vh, 5.8rem);
+  }
+
+  .reference-step-item {
+    width: min(100%, 15.8rem);
+  }
+
+  .reference-suggestion-row {
+    align-self: end;
+    margin-top: 0;
+  }
+
+  .reference-home-composer {
+    margin-top: clamp(1.25rem, 2.4vh, 1.9rem);
+  }
+
+  .reference-recents-panel {
+    width: 100%;
+    max-height: calc(100vh - 4.5rem);
+    justify-self: end;
+    overflow: visible;
+    padding-top: clamp(0.35rem, 1vh, 0.75rem);
+  }
+
+  .reference-recents.reference-recents-panel {
+    gap: 1.55rem;
+  }
+
+  .reference-recents-list {
+    max-height: calc(100vh - 10.1rem);
+    padding: 0.55rem 1.2rem 2.15rem 0.55rem;
+    scroll-padding: 0.55rem 1.2rem 2.15rem 0.55rem;
+  }
+
+  .reference-recents .reference-recents-list {
+    gap: 2.65rem;
+  }
+
+  .reference-recents-heading-icon {
+    width: 1.375rem;
+    height: 1.375rem;
+  }
+
+  .reference-recents-heading-title {
+    font-size: 1.22rem;
+    font-weight: 500;
+    line-height: 1.2;
+  }
+
+  .reference-recent-card {
+    min-height: 0;
+    border-color: #eef1f4;
+    border-radius: 1rem;
+    padding: 1.05rem 1.15rem 1.12rem;
+  }
+
+  .reference-recent-card:hover,
+  .reference-recent-card:focus-visible {
+    border-color: #dadce0;
+    background: #f8fafd;
+  }
+
+  :root[data-theme="dark"] .reference-recent-card {
+    border-color: transparent;
+    background: #17191c;
+  }
+
+  :root[data-theme="dark"] .reference-recent-card:hover,
+  :root[data-theme="dark"] .reference-recent-card:focus-visible {
+    border-color: #3c4043;
+    background: #202124;
+  }
+
+  .reference-recent-meta-chip {
+    background: #f1f4f7;
+    color: #3c4043;
+    font-size: 0.78rem;
+    line-height: 1.1;
+    padding: 0.38rem 0.62rem;
+  }
+
+  :root[data-theme="dark"] .reference-recent-meta-chip {
+    background: #303335;
+    color: #f1f3f4;
+  }
+
+  .reference-recent-title {
+    font-size: 1.08rem;
+  }
+
+  .reference-recent-description {
+    font-size: 0.94rem;
+    line-height: 1.34;
+    -webkit-line-clamp: 3;
+  }
+
+  .reference-recent-chip {
+    flex: none;
+    min-height: 1.62rem;
+    padding: 0.26rem 0.42rem;
+    font-size: 0.68rem;
+    line-height: 1;
+    white-space: nowrap;
+  }
+
+  :root[data-theme="dark"] .reference-recent-chip {
+    background: #0b8043;
+    color: #e6f4ea;
+  }
+
+  .reference-active-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-top: 0.05rem;
+    color: #1967d2;
+    font-size: 0.92rem;
+    font-weight: 500;
+    line-height: 1.25;
+  }
+
+  :root[data-theme="dark"] .reference-active-progress {
+    color: #8fd8c7;
+  }
+
+  .reference-active-progress-dot {
+    display: block;
+    width: 0.7rem;
+    height: 0.7rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: currentColor;
+  }
+
+  .reference-winner-list {
+    gap: 0.5rem;
+    color: #202124;
+    font-size: 0.84rem;
+    line-height: 1.25;
+  }
+
+  :root[data-theme="dark"] .reference-winner-list {
+    color: #f1f3f4;
+  }
+
+  .reference-winner-list-item {
+    display: grid;
+    grid-template-columns: 1.4rem minmax(0, 1fr);
+    gap: 0.2rem;
+  }
+
+  .reference-generating-row {
+    display: grid;
+    grid-template-columns: 0.75rem minmax(0, 1fr);
+    align-items: center;
+    gap: 0.65rem;
+    color: #137333;
+    font-weight: 500;
+  }
+
+  :root[data-theme="dark"] .reference-generating-row {
+    color: #8fd8c7;
+  }
+
+  .reference-generating-dot {
+    display: block;
+    width: 0.6rem;
+    height: 0.6rem;
+    flex-shrink: 0;
+    border-radius: 9999px;
+    background: currentColor;
+    opacity: 0.7;
+  }
+}
+
+@media (min-width: 701px) {
+  .reference-step-item--center {
+    justify-self: center;
+  }
+
+  .reference-step-item--end {
+    justify-self: end;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1180px) {
+  .reference-home-stage {
+    height: auto;
+    min-height: 100%;
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: clamp(1.5rem, 3.5vw, 2.5rem);
+    overflow: visible;
+    padding: clamp(1.5rem, 4vw, 2.25rem);
+  }
+
+  .reference-home-main,
+  .reference-recents-panel {
+    width: min(100%, 43rem);
+  }
+
+  .reference-step-timeline {
+    gap: 0;
+    margin-top: clamp(2.75rem, 6vh, 4rem);
+  }
+
+  .reference-step-item {
+    width: min(100%, 14rem);
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  .reference-suggestion-row {
+    margin-top: clamp(2.75rem, 7vh, 4.5rem);
+  }
+
+  .reference-recents-panel {
+    margin-top: 1rem;
+  }
+}
+
+@media (max-width: 700px) {
+  .cosci-workspace,
+  .cosci-workspace-main,
+  .reference-home-stage {
+    height: auto;
+    min-height: 100%;
+    overflow: visible;
+  }
+
+  .reference-home-stage {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+    padding: 1.1rem clamp(0.85rem, 4vw, 1.2rem) 1.5rem;
+  }
+
+  .reference-home-main,
+  .reference-recents-panel {
+    width: min(100%, 21rem);
+  }
+
+  .reference-home-main {
+    justify-items: stretch;
+    padding-top: 0;
+  }
+
+  .reference-home-title {
+    width: 100%;
+    font-size: clamp(2rem, 10vw, 2.45rem);
+    line-height: 1.12;
+  }
+
+  .reference-step-timeline {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.15rem;
+    margin-top: 2.2rem;
+  }
+
+  .reference-step-timeline::before {
+    top: 1rem;
+    right: auto;
+    bottom: 1rem;
+    left: 1rem;
+    width: 1px;
+    height: auto;
+  }
+
+  .reference-step-item {
+    width: 100%;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.85rem;
+  }
+
+  .reference-suggestion-row {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 1.7rem;
+  }
+
+  .reference-home-composer {
+    min-height: 6.6rem;
+  }
+
+  .reference-recents-list {
+    max-height: none;
+    overflow: visible;
+    margin-left: 0;
+    padding: 0;
+  }
+}
+
+@media (min-width: 1181px) and (max-height: 760px) {
+  .reference-home-main {
+    padding-top: 2rem;
+  }
+
+  .reference-home-title {
+    font-size: clamp(2.1rem, 2.8vw, 2.65rem);
+  }
+
+  .reference-step-timeline {
+    margin-top: clamp(2.35rem, 5.8vh, 3.2rem);
+  }
+
+  .reference-step-body {
+    font-size: 0.9rem;
+    line-height: 1.28;
+  }
+
+  .reference-suggestion-row {
+    margin-top: clamp(2.25rem, 5.4vh, 3.1rem);
+  }
+
+  .reference-suggestion-button {
+    min-height: 3.9rem;
+    max-height: 3.9rem;
+  }
+
+  .reference-home-composer {
+    min-height: 6.35rem;
+  }
+
+  .reference-home-composer-textarea {
+    height: 2.65rem;
+    min-height: 2.65rem;
+    max-height: 2.65rem;
+  }
+}

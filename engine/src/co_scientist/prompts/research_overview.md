@@ -3,6 +3,8 @@ into a coherent research overview and an NIH Specific Aims page.
 
 Research goal: {{research_goal}}
 
+{{run_guidance}}
+
 Top-ranked hypotheses (highest Elo first):
 {{hypotheses_summary}}
 

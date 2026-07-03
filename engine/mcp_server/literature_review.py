@@ -11,6 +11,9 @@ import traceback
 import json
 from abc import ABC, abstractmethod
 
+Entrez.email = os.environ.get("ENTREZ_EMAIL", "")
+Entrez.api_key = os.environ.get("NCBI_API_KEY", "")
+
 logger = logging.getLogger(__name__)
 
 

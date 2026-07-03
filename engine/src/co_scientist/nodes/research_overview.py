@@ -47,6 +47,8 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         hypotheses_summary=summary,
         meta_review=state.get("meta_review"),
         tool_registry=state.get("tool_registry"),
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
     )
     response = await call_llm_json(
         prompt=prompt,

@@ -208,6 +208,8 @@ def get_review_prompt(
     supervisor_guidance: dict[str, Any] | None = None,
     meta_review: dict[str, Any] | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the hypothesis review prompt and schema."""
     variables = {
@@ -221,6 +223,8 @@ def get_review_prompt(
 
     # Add meta-review context if available (for re-reviewing evolved hypotheses)
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
+    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
+                                                     run_focus_guidance)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -251,6 +255,8 @@ def get_review_batch_prompt(
     supervisor_guidance: dict[str, Any] | None = None,
     meta_review: dict[str, Any] | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the comparative batch hypothesis review prompt and schema."""
     variables = {
@@ -264,6 +270,8 @@ def get_review_batch_prompt(
 
     # Add meta-review context if available (for re-reviewing evolved hypotheses)
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
+    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
+                                                     run_focus_guidance)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -284,6 +292,8 @@ def get_ranking_prompt(
     deep_verification_b: dict[str, Any] | None = None,
     meta_review: dict[str, Any] | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the ranking (and tournament) comparison prompt and schema."""
     variables = {
@@ -318,6 +328,8 @@ def get_ranking_prompt(
 
     # Add meta-review context if available (blank on iteration 1).
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
+    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
+                                                     run_focus_guidance)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -331,6 +343,8 @@ def get_meta_review_prompt(
     supervisor_guidance: dict[str, Any] | None = None,
     instructions: str | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the meta-review synthesis prompt and schema."""
     variables = {
@@ -343,6 +357,8 @@ def get_meta_review_prompt(
     variables[
         "supervisor_guidance"] = _format_supervisor_guidance_for_meta_review(
             supervisor_guidance)
+    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
+                                                     run_focus_guidance)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -355,12 +371,19 @@ def get_research_overview_prompt(
     hypotheses_summary: str,
     meta_review: dict[str, Any] | None = None,
     tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the research-overview + NIH Specific Aims prompt and schema."""
     variables = {
-        "research_goal": research_goal,
-        "hypotheses_summary": hypotheses_summary,
-        "meta_review_context": _format_meta_review_context(meta_review),
+        "research_goal":
+            research_goal,
+        "hypotheses_summary":
+            hypotheses_summary,
+        "meta_review_context":
+            _format_meta_review_context(meta_review),
+        "run_guidance":
+            _format_run_guidance(run_setup_guidance, run_focus_guidance),
     }
 
     # Inject domain-specific prompt customizations.
@@ -404,6 +427,9 @@ def get_supervisor_prompt(
     mcp_available: bool = False,
     pubmed_available: bool = False,
     tool_registry: Any | None = None,
+    criteria: list[str] | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """get the supervisor research planning prompt and schema."""
 
@@ -418,19 +444,30 @@ def get_supervisor_prompt(
             "literature review is not available (no pubmed access)")
 
     variables = {
-        "research_goal": research_goal,
-        "preferences": preferences or "None provided",
-        "attributes": ", ".join(attributes) if attributes else "None provided",
+        "research_goal":
+            research_goal,
+        "preferences":
+            preferences or "None provided",
+        "attributes":
+            ", ".join(attributes) if attributes else "None provided",
         "constraints": ("\n".join(
             f"- {c}" for c in constraints) if constraints else "None provided"),
+        "criteria": ("\n".join(
+            f"- {c}" for c in criteria) if criteria else "None provided"),
+        "run_guidance":
+            _format_run_guidance(run_setup_guidance, run_focus_guidance),
         "user_hypotheses": ("\n".join(f"- {h}" for h in user_hypotheses)
                             if user_hypotheses else "None provided"),
         "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
                             if user_literature else "None provided"),
-        "initial_hypotheses_count": initial_hypotheses_count or "not specified",
-        "max_iterations": max_iterations or "not specified",
-        "evolution_max_count": evolution_max_count or "not specified",
-        "literature_review_description": lit_review_description,
+        "initial_hypotheses_count":
+            initial_hypotheses_count or "not specified",
+        "max_iterations":
+            max_iterations or "not specified",
+        "evolution_max_count":
+            evolution_max_count or "not specified",
+        "literature_review_description":
+            lit_review_description,
     }
 
     # Inject domain-specific prompt customizations
@@ -552,6 +589,21 @@ def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
         "Use these insights to provide more informed and consistent reviews.\n")
 
     return "".join(sections) if sections else ""
+
+
+def _format_run_guidance(run_setup_guidance: str | None = None,
+                         run_focus_guidance: str | None = None) -> str:
+    """Format durable run setup/focus guidance for downstream prompts."""
+    sections = []
+    if run_setup_guidance:
+        sections.append("## Run Setup Guidance\n")
+        sections.append(run_setup_guidance.strip())
+        sections.append("\n")
+    if run_focus_guidance:
+        sections.append("## Run Focus Guidance\n")
+        sections.append(run_focus_guidance.strip())
+        sections.append("\n")
+    return "\n".join(sections).strip()
 
 
 def _format_deep_verification_context(probes: list[dict[str, Any]] | None,
@@ -1078,6 +1130,8 @@ def get_debate_generation_prompt(
     tool_registry: Any | None = None,
     reference_list: str = "",
     meta_review: dict[str, Any] | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the debate-based hypothesis generation prompt.
 
@@ -1162,6 +1216,8 @@ def get_debate_generation_prompt(
 
     # Add meta-review context if available (blank on iteration 1).
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
+    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
+                                                     run_focus_guidance)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -1458,6 +1514,8 @@ def get_draft_prompt_with_tools(
     tool_registry: Any | None = None,
     reference_list: str = "",
     meta_review: dict[str, Any] | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get prompt for Phase 1: drafting hypotheses with tools.
 
@@ -1521,6 +1579,8 @@ def get_draft_prompt_with_tools(
 
     # Add meta-review context if available (blank on iteration 1).
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
+    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
+                                                     run_focus_guidance)
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))

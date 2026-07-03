@@ -133,6 +133,8 @@ async def _run_single_debate(
             tool_registry=state.get("tool_registry"),
             reference_list=ref_idx.text,
             meta_review=meta_review,
+            run_setup_guidance=state.get("run_setup_guidance"),
+            run_focus_guidance=state.get("run_focus_guidance"),
         )
 
         if is_final:

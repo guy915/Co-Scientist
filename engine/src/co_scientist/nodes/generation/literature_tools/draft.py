@@ -131,6 +131,8 @@ async def draft_hypotheses(
         tool_registry=tool_registry,
         reference_list=ref_text,
         meta_review=meta_review,
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
     )
 
     # Save prompt to disk

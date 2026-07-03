@@ -77,15 +77,15 @@ export function EvidenceTab({
       >
         <p>No evidence retrieved for this run.</p>
         <p className="text-xs opacity-75">
-          Literature review requires an MCP server (PubMed / INDRA). Without one
-          the engine generates hypotheses from the model's training data only.
+          Context review requires a connected data source. Without one the
+          agents generate hypotheses from model context only.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 wb-fade-in">
+    <div className="space-y-4">
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {ALL_STATES.map(state => {
           const s = citationStateStyle(state);

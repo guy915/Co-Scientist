@@ -3,19 +3,11 @@ import {useLocation, useNavigate} from 'react-router-dom';
 
 /**
  * Global keyboard shortcuts:
- *   g d  -> /runs
  *   g n  -> /
  *   ←/→  -> cycle tabs on /runs/:id
  * Inputs and textareas are ignored so typing doesn't trigger the bindings.
  */
-const TABS = [
-  'chat',
-  'overview',
-  'ideas',
-  'evidence',
-  'tournament',
-  'report',
-] as const;
+const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 
 function isTextEditingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
@@ -25,8 +17,8 @@ function isTextEditingTarget(t: EventTarget | null): boolean {
 }
 
 /**
- * Registers the app-wide keyboard shortcuts (g-d, g-n, and arrow-key tab
- * navigation) for the lifetime of the calling component.
+ * Registers the app-wide keyboard shortcuts for the lifetime of the calling
+ * component.
  */
 export function useGlobalShortcuts() {
   const navigate = useNavigate();
@@ -40,7 +32,7 @@ export function useGlobalShortcuts() {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const now = Date.now();
-      // Two-key "g d" / "g n" sequence (Vim-style).
+      // Two-key "g n" sequence (Vim-style).
       if (e.key === 'g') {
         lastG = now;
         return;
@@ -48,11 +40,6 @@ export function useGlobalShortcuts() {
       const wasG = now - lastG < 800;
       lastG = 0;
 
-      if (wasG && e.key === 'd') {
-        e.preventDefault();
-        void navigate('/runs');
-        return;
-      }
       if (wasG && e.key === 'n') {
         e.preventDefault();
         void navigate('/');
@@ -65,7 +52,7 @@ export function useGlobalShortcuts() {
         const id = m[1];
         if (id === 'new') return;
         const current = (
-          m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : 'chat'
+          m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : 'details'
         ) as (typeof TABS)[number];
         const idx = TABS.indexOf(current);
         const next =
@@ -75,7 +62,7 @@ export function useGlobalShortcuts() {
         if (next !== idx) {
           e.preventDefault();
           const nextTab = TABS[next];
-          void navigate(`/runs/${id}/${nextTab === 'chat' ? '' : nextTab}`);
+          void navigate(`/runs/${id}/${nextTab === 'details' ? '' : nextTab}`);
         }
       }
     }

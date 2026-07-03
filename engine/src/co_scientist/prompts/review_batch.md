@@ -25,6 +25,8 @@ Evaluate EACH hypothesis on these dimensions (score 1-10 for each):
 
 {{meta_review_context}}
 
+{{run_guidance}}
+
 ## Hypotheses to Review
 
 {{hypotheses_list}}

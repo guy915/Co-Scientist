@@ -12,6 +12,7 @@ These drafts will be validated in a separate phase - focus on creative ideation 
 
 {{supervisor_guidance}}
 {{meta_review_context}}
+{{run_guidance}}
 ## Criteria for Strong Hypotheses
 
 {{preferences}}

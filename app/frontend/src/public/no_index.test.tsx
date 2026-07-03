@@ -7,7 +7,9 @@ describe('NoIndex', () => {
   // Seo effect, so assert on the document rather than the DOM tree.
   it('sets the document title to the page name suffixed with the site', async () => {
     render(<NoIndex title="Settings" />);
-    await waitFor(() => expect(document.title).toBe('Settings - Co-Scientist'));
+    await waitFor(() =>
+      expect(document.title).toBe('Settings - AI Co-Scientist'),
+    );
   });
 
   it('marks the page as noindex via the robots meta tag', async () => {

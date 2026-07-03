@@ -39,7 +39,7 @@ from typing import Any
 from app import store
 from app.citations import CitationRecord, classify_citation
 from app.elo import INITIAL_ELO, update_pair
-from app.run_modes import normalize_run_mode, resolved_run_config
+from app.run_modes import normalize_run_mode, resolved_run_config, setup_guidance
 from app.safety import screen_final, screen_intake
 from app.store import RunStatus
 
@@ -374,6 +374,11 @@ async def run_mock_workflow(
             run_mode,
         "config":
             cfg,
+        "setup":
+            cfg.get("setup", {}),
+        "setup_guidance":
+            setup_guidance(cfg.get("setup")) if isinstance(
+                cfg.get("setup"), dict) else "",
         "narrative": (
             "Plan the canonical hypothesis-generation run for the research goal. Allocate compute across literature, "  # pylint: disable=line-too-long
             f"generation ({cfg['initial_hypotheses_count']} candidates), {cfg['max_iterations']} "  # pylint: disable=line-too-long
