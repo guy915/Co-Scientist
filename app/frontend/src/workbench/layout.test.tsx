@@ -57,14 +57,10 @@ describe('Layout', () => {
   it('toggles the Co-Scientist sidebar from the menu button', async () => {
     const {container} = renderLayout();
 
+    // Collapsed icon rail by default, matching the reference product.
     const menu = screen.getByRole('button', {name: 'Menu'});
-    expect(menu).toHaveAttribute('aria-expanded', 'true');
-    expect(menu).toHaveTextContent('Menu');
-    expect(container.querySelector('.ucs-app-shell')).toHaveClass('nav-open');
-
-    fireEvent.click(menu);
-
     expect(menu).toHaveAttribute('aria-expanded', 'false');
+    expect(menu).toHaveTextContent('Menu');
     expect(container.querySelector('.ucs-app-shell')).toHaveClass(
       'nav-collapsed',
     );
@@ -73,6 +69,13 @@ describe('Layout', () => {
 
     expect(menu).toHaveAttribute('aria-expanded', 'true');
     expect(container.querySelector('.ucs-app-shell')).toHaveClass('nav-open');
+
+    fireEvent.click(menu);
+
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    expect(container.querySelector('.ucs-app-shell')).toHaveClass(
+      'nav-collapsed',
+    );
   });
 
   it('keeps only Co-Scientist navigation and real chat history', async () => {

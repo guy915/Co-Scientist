@@ -112,7 +112,9 @@ export function Layout({children}: {children: ReactNode}) {
   const {mode, setMode} = useTheme();
   const [overrideTitle, setOverrideTitle] = useState('');
   const [history, setHistory] = useState<Run[]>([]);
-  const [navOpen, setNavOpen] = useState(true);
+  // Collapsed icon rail by default, matching the reference product; the
+  // hamburger expands it.
+  const [navOpen, setNavOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
   const [showAllChats, setShowAllChats] = useState(false);
   const settingsControlRef = useRef<HTMLDivElement>(null);

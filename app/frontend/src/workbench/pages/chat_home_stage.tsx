@@ -1,6 +1,9 @@
 import {type FormEvent, useState} from 'react';
 import {type Run} from '@/api/runs';
+import {Icon} from '@/components/icon';
 import {
+  HOME_AGENT_CHIP_AVATAR_CLASSES,
+  HOME_AGENT_CHIP_CLASSES,
   HOME_MAIN_CLASSES,
   HOME_STAGE_CLASSES,
   HOME_STEP_BODY_CLASSES,
@@ -90,6 +93,12 @@ export function HomeStage({
   return (
     <section className={HOME_STAGE_CLASSES}>
       <div className={HOME_MAIN_CLASSES}>
+        <div className={HOME_AGENT_CHIP_CLASSES}>
+          <span className={HOME_AGENT_CHIP_AVATAR_CLASSES}>
+            <Icon aria-hidden="true" name="emoji_objects" />
+          </span>
+          Co-Scientist
+        </div>
         <h1 className={HOME_TITLE_CLASSES}>
           What breakthrough should we make today?
         </h1>

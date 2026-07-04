@@ -12,6 +12,10 @@ export const HOME_STAGE_CLASSES = 'reference-home-stage';
 
 export const HOME_MAIN_CLASSES = 'reference-home-main';
 
+export const HOME_AGENT_CHIP_CLASSES = 'reference-agent-chip';
+
+export const HOME_AGENT_CHIP_AVATAR_CLASSES = 'reference-agent-chip-avatar';
+
 export const HOME_TITLE_CLASSES = 'reference-home-title';
 
 export const HOME_STEP_TIMELINE_CLASSES = 'reference-step-timeline';
