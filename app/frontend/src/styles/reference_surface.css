@@ -36,8 +36,12 @@
   --cosci-surface-bg: #fff;
   --cosci-home-heading: #1f1f1f;
   --cosci-step-line: color-mix(in srgb, var(--cosci-teal) 38%, #c4c7c5);
-  --cosci-step-dot-bg: var(--cosci-teal);
-  --cosci-step-dot-text: #fff;
+  /* Step dots mirror the reference's light-tint treatment (it uses purple70
+     #c597ff with a near-white number). This is the teal analog at the same
+     tonal step / white-text contrast — a light fill, not the heavy brand
+     teal, which stays reserved for real accents (logo, submit, stat value). */
+  --cosci-step-dot-bg: #34b3a0;
+  --cosci-step-dot-text: #f2f2f2;
   --cosci-logo-color: var(--cosci-teal);
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
