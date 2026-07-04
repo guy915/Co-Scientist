@@ -96,6 +96,12 @@ const REPORT_SKELETON_CLASSES =
 
 const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0';
 
+const REPORT_LEAD_STAT_CLASSES =
+  'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';
+
+const HOUR_SECONDS = 3600;
+const MINUTE_SECONDS = 60;
+
 const TAB_ALIASES: Record<string, TabName> = {
   specifications: 'details',
   specs: 'details',
@@ -107,7 +113,7 @@ const TAB_ALIASES: Record<string, TabName> = {
 };
 
 /**
- * Renders the AI Co-Scientist goal report surface from the reference footage.
+ * Renders the Co-Scientist goal report surface from the reference footage.
  */
 export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
@@ -290,6 +296,7 @@ export function RunDetail() {
           )}
           {activeTab === 'overview' && (
             <ResearchOverviewView
+              run={run}
               report={report}
               hypotheses={hypotheses}
               matches={matches}
@@ -302,6 +309,7 @@ export function RunDetail() {
                 citations={citations}
                 reviews={reviews}
                 matches={matches}
+                report={report}
               />
             </section>
           )}
@@ -340,19 +348,29 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
 }
 
 function ResearchOverviewView({
+  run,
   report,
   hypotheses,
   matches,
 }: {
+  run: RunWithSummary | null;
   report: Report | null;
   hypotheses: Hypothesis[];
   matches: MatchRow[];
 }) {
   const overview = report?.payload.research_overview;
   const leaderboard = report?.payload.leaderboard ?? [];
+  const leadStat = researchOverviewLeadStat({
+    run,
+    leaderboard,
+    hypotheses,
+    matches,
+  });
 
   return (
     <ReportDocument title="Research overview">
+      {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
+
       {overview?.overview?.summary ? (
         <p>{overview.overview.summary}</p>
       ) : (
@@ -402,7 +420,7 @@ function ResearchOverviewView({
 
       {leaderboard.length ? (
         <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Top ideas</h3>
+          <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
           <ol className={REPORT_LIST_CLASSES}>
             {leaderboard.slice(0, 5).map(item => (
               <li className={REPORT_SECTION_LIST_ITEM_CLASSES} key={item.id}>
@@ -416,7 +434,7 @@ function ResearchOverviewView({
         </section>
       ) : hypotheses.length ? (
         <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Top ideas</h3>
+          <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
           <ol className={REPORT_LIST_CLASSES}>
             {[...hypotheses]
               .sort((a, b) => b.elo_rating - a.elo_rating)
@@ -446,6 +464,65 @@ function ResearchOverviewView({
       </section>
     </ReportDocument>
   );
+}
+
+/**
+ * Builds the reference's lead stat sentence, e.g. "A total of 133 ideas were
+ * explored over 3 hours with the highest Elo rating of 1735 points and a total
+ * of 1360 matches were played." Clauses whose data is unknown are omitted, and
+ * an empty string is returned when there is nothing meaningful to report yet.
+ */
+function researchOverviewLeadStat({
+  run,
+  leaderboard,
+  hypotheses,
+  matches,
+}: {
+  run: RunWithSummary | null;
+  leaderboard: {elo: number}[];
+  hypotheses: Hypothesis[];
+  matches: MatchRow[];
+}): string {
+  const ideaCount = hypotheses.length;
+  if (!ideaCount) return '';
+
+  const duration = runDurationPhrase(run);
+  const highestElo = Math.max(
+    0,
+    ...leaderboard.map(item => item.elo),
+    ...hypotheses.map(hypothesis => hypothesis.elo_rating),
+  );
+  const matchCount = matches.length;
+
+  const ideaLabel = ideaCount === 1 ? 'idea was' : 'ideas were';
+  let sentence = `A total of ${ideaCount} ${ideaLabel} explored`;
+  if (duration) sentence += ` over ${duration}`;
+  if (highestElo > 0) {
+    sentence += ` with the highest Elo rating of ${highestElo} points`;
+  }
+  if (matchCount > 0) {
+    const matchLabel = matchCount === 1 ? 'match was' : 'matches were';
+    sentence += ` and a total of ${matchCount} ${matchLabel} played`;
+  }
+  return `${sentence}.`;
+}
+
+/**
+ * Formats a run's wall-clock duration (creation to completion) as a rounded
+ * human phrase, e.g. "3 hours" or "12 minutes". Returns an empty string when
+ * the run has not completed or the timestamps are unusable.
+ */
+function runDurationPhrase(run: RunWithSummary | null): string {
+  if (!run?.completed_at || !run.created_at) return '';
+  const seconds = run.completed_at - run.created_at;
+  if (!Number.isFinite(seconds) || seconds <= 0) return '';
+
+  if (seconds >= HOUR_SECONDS) {
+    const hours = Math.round(seconds / HOUR_SECONDS);
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  const minutes = Math.max(1, Math.round(seconds / MINUTE_SECONDS));
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }
 
 function goalReportTitle(goal: string, setup?: RunSetupConfig): string {
