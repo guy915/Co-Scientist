@@ -44,14 +44,14 @@ const ATTACHMENT_STRIP_CLASSES =
 const ATTACHMENT_CARD_CLASSES =
   'reference-attachment-card group relative box-border grid h-[4.85rem] ' +
   'w-[13.75rem] flex-none items-center rounded-2xl border-0 ' +
-  'bg-[var(--cosci-attach-bg)] py-[0.85rem] pr-[3.2rem] pl-4 ' +
-  'text-[var(--cosci-attach-fg)]';
+  'bg-cosci-attach-bg py-[0.85rem] pr-[3.2rem] pl-4 ' +
+  'text-cosci-attach-fg';
 
 const ATTACHMENT_IMAGE_CARD_CLASSES =
   'reference-attachment-card reference-attachment-card--image group relative ' +
   'box-border grid size-[4.85rem] flex-none items-center overflow-hidden ' +
-  'rounded-2xl border-0 bg-[var(--cosci-attach-bg)] p-0 ' +
-  'text-[var(--cosci-attach-fg)]';
+  'rounded-2xl border-0 bg-cosci-attach-bg p-0 ' +
+  'text-cosci-attach-fg';
 
 const ATTACHMENT_PREVIEW_IMAGE_CLASSES =
   'absolute inset-0 size-full rounded-2xl object-cover';
@@ -65,7 +65,7 @@ const ATTACHMENT_NAME_CLASSES =
 
 const ATTACHMENT_META_CLASSES =
   'flex min-w-0 items-center gap-[0.55rem] text-[0.9rem] leading-[1.2] ' +
-  'text-[var(--cosci-attach-meta)]';
+  'text-cosci-attach-meta';
 
 const ATTACHMENT_EXTENSION_CLASSES =
   'reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] ' +
@@ -75,7 +75,7 @@ const ATTACHMENT_EXTENSION_CLASSES =
 const ATTACHMENT_REMOVE_BUTTON_CLASSES =
   'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] ' +
   'cursor-pointer place-items-center rounded-full border-0 ' +
-  'bg-[var(--cosci-surface-raised)] p-0 text-cosci-fg opacity-0 ' +
+  'bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 ' +
   'group-hover:opacity-100 group-focus-within:opacity-100 ' +
   'hover:bg-cosci-hover focus-visible:bg-cosci-hover ' +
   'focus-visible:outline-none';

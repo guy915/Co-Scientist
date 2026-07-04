@@ -1,6 +1,12 @@
-export const HOME_WORKSPACE_CLASSES = 'cosci-workspace';
+// Class strings for the home surface, which reproduces the Gemini reference
+// 1:1. Any arbitrary rem values here are literal measurements copied from the
+// reference and do NOT follow the app's 8px grid — that grid governs MD3 data
+// surfaces only. See DESIGN.md > Layout & Spacing ("Reference-matched surfaces
+// do not use the 8px grid").
 
-export const HOME_WORKSPACE_MAIN_CLASSES = 'cosci-workspace-main';
+export const HOME_WORKSPACE_CLASSES = 'reference-workspace';
+
+export const HOME_WORKSPACE_MAIN_CLASSES = 'reference-workspace-main';
 
 export const HOME_STAGE_CLASSES = 'reference-home-stage';
 
@@ -54,7 +60,7 @@ export const HOME_RECENTS_PANEL_CLASSES = 'reference-recents-panel';
 
 export const HOME_RECENTS_LIST_CLASSES = 'reference-recents-list';
 
-export const HOME_RECENTS_HEADING_ROW_CLASSES = 'google-recents-heading';
+export const HOME_RECENTS_HEADING_ROW_CLASSES = 'reference-recents-heading';
 
 export const HOME_LOAD_MORE_ITEM_CLASSES = 'reference-load-more-item';
 
@@ -62,8 +68,8 @@ export const HOME_LOAD_MORE_BUTTON_CLASSES = 'reference-load-more';
 
 export const HOME_TOAST_CLASSES =
   'reference-toast fixed top-1/2 left-1/2 z-[60] -translate-x-1/2 ' +
-  '-translate-y-1/2 rounded bg-[var(--cosci-toast-bg)] px-5 py-[0.82rem] ' +
-  'text-[0.92rem] font-medium text-[var(--cosci-toast-fg)]';
+  '-translate-y-1/2 rounded bg-cosci-toast-bg px-5 py-[0.82rem] ' +
+  'text-[0.92rem] font-medium text-cosci-toast-fg';
 
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[1.7rem] border ' +

@@ -1,5 +1,5 @@
 /* Home workspace layout and responsive states. */
-.cosci-workspace {
+.reference-workspace {
   display: grid;
   height: 100%;
   min-height: 100%;
@@ -7,7 +7,7 @@
   gap: 1rem;
 }
 
-.cosci-workspace-main {
+.reference-workspace-main {
   display: flex;
   height: 100%;
   min-height: 0;
@@ -214,7 +214,7 @@
   list-style: none;
 }
 
-.google-recents-heading {
+.reference-recents-heading {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -415,7 +415,7 @@
   justify-self: center;
   border: 0;
   background: transparent;
-  color: var(--idea-ref-blue);
+  color: var(--cosci-idea-ref-blue);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 500;
@@ -683,8 +683,8 @@
 }
 
 @media (max-width: 700px) {
-  .cosci-workspace,
-  .cosci-workspace-main,
+  .reference-workspace,
+  .reference-workspace-main,
   .reference-home-stage {
     height: auto;
     min-height: 100%;

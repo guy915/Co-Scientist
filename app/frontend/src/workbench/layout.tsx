@@ -81,27 +81,25 @@ const THEME_BUTTON_ACTIVE_CLASSES = 'selected';
 
 const THEME_BUTTON_ICON_CLASSES = 'ucs-theme-button-icon';
 
-const HOME_SIDE_CONTENT_CLASSES =
-  'gemini-side-content gemini-side-content--home';
+const HOME_SIDE_CONTENT_CLASSES = 'ucs-side-content ucs-side-content--home';
 
-const REPORT_SIDE_CONTENT_CLASSES =
-  'gemini-side-content gemini-side-content--report';
+const REPORT_SIDE_CONTENT_CLASSES = 'ucs-side-content ucs-side-content--report';
 
-const SIDE_CONTENT_OPEN_CLASSES = 'gemini-side-content--open';
+const SIDE_CONTENT_OPEN_CLASSES = 'ucs-side-content--open';
 
-const SIDE_CONTENT_COLLAPSED_CLASSES = 'gemini-side-content--collapsed';
+const SIDE_CONTENT_COLLAPSED_CLASSES = 'ucs-side-content--collapsed';
 
-const SIDE_HEADING_CLASSES = 'gemini-side-heading';
+const SIDE_HEADING_CLASSES = 'ucs-side-heading';
 
-const HOME_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--home';
+const HOME_CHAT_LIST_CLASSES = 'ucs-chat-list ucs-chat-list--home';
 
-const REPORT_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--report';
+const REPORT_CHAT_LIST_CLASSES = 'ucs-chat-list ucs-chat-list--report';
 
-const CHAT_HISTORY_LINK_CLASSES = 'gemini-chat-link';
+const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
 
-const CHAT_HISTORY_LABEL_CLASSES = 'gemini-chat-label';
+const CHAT_HISTORY_LABEL_CLASSES = 'ucs-chat-label';
 
-const CHAT_HISTORY_MORE_CLASSES = 'gemini-chat-more';
+const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 
 /**
  * Renders the app shell with header navigation, main content, and footer.
@@ -140,7 +138,7 @@ export function Layout({children}: {children: ReactNode}) {
       ? HOME_PAGE_CLASSES
       : PAGE_CLASSES;
   const shellClass = [
-    'google-app-shell',
+    'ucs-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
     navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
   ].join(' ');

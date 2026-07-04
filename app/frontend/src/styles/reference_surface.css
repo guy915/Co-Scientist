@@ -10,8 +10,7 @@
  * See DESIGN.md > Colors.
  */
 :root {
-  --idea-ref-blue: #0b57d0;
-  --idea-ref-card-bg: #f1f4fa;
+  --cosci-idea-ref-blue: #0b57d0;
   --cosci-teal: #1a6b6b;
   --cosci-teal-dark: #0f5454;
   --cosci-teal-bg: #e0f2ef;
@@ -67,100 +66,22 @@
   --cosci-recent-meta-text: #202124;
   --cosci-recent-chip-bg: #d7f4d1;
   --cosci-recent-chip-text: #174f2a;
-  --idea-list-border: #dadce0;
-  --idea-row-border: #dadce0;
-  --idea-row-bg: #fff;
-  --idea-row-text: var(--md-sys-color-on-surface);
-  --idea-row-hover-border: #dadce0;
-  --idea-row-hover-bg: #f1f3f4;
-  --idea-row-selected-border: #8ab4f8;
-  --idea-row-selected-bg: #f1f8fc;
-  --idea-row-selected-hover-bg: #e6eefb;
-  --idea-chip-bg: #e6f4ff;
-  --idea-chip-text: #202124;
-  --idea-title-text: #202124;
-  --idea-preview-text: var(--md-sys-color-on-surface);
-  --idea-breadcrumb-bg: #f1f3f4;
-  --idea-breadcrumb-text: #3c4043;
-  --idea-detail-text: var(--md-sys-color-on-surface);
-
-  /* ---- Semantic component tokens (dark values paired in the dark block) ----
-     Components reference these via [var(--cosci-*)] with NO dark: variant, so a
-     surface's light/dark appearance is defined once, here. */
-
-  /* Danger / alert (report alert + toast) */
-  --cosci-danger-bg: #fce8e6;
-  --cosci-danger-border: #b3261e;
-  --cosci-danger-fg: #b3261e;
-
-  /* Attachment cards */
-  --cosci-attach-bg: #eef2f8;
-  --cosci-attach-fg: #202124;
-  --cosci-attach-meta: #202124;
-
-  /* Center toast + raised action pill */
-  --cosci-toast-bg: #303134;
-  --cosci-toast-fg: #f1f3f4;
-  --cosci-surface-raised: #fff;
-
-  /* Diagnostics / Logs — every value aliases an existing baseline token, no
-     bespoke hex. The teal tonal is the app's one green; surface/border/text/
-     meta reuse the neutral scale. Because those tokens already re-theme, the
-     logs need no dark-mode overrides. */
-  --cosci-logs-accent-bg: var(--cosci-step-dot-bg);
-  --cosci-logs-accent-fg: var(--cosci-step-dot-text);
-  --cosci-logs-accent-hover: color-mix(
-    in srgb,
-    var(--cosci-step-dot-bg) 88%,
-    var(--cosci-step-dot-text)
-  );
-  --cosci-logs-count-bg: color-mix(
-    in srgb,
-    var(--cosci-step-dot-text) 16%,
-    transparent
-  );
-  --cosci-logs-action-border: var(--cosci-step-dot-bg);
-  --cosci-logs-action-bg: transparent;
-  --cosci-logs-action-fg: var(--cosci-step-dot-bg);
-  --cosci-logs-action-hover: color-mix(
-    in srgb,
-    var(--cosci-step-dot-bg) 10%,
-    transparent
-  );
-  --cosci-logs-surface: var(--cosci-surface-raised);
-  --cosci-logs-border: var(--cosci-border);
-  --cosci-logs-heading: var(--cosci-text);
-  --cosci-logs-meta: var(--cosci-muted);
-  --cosci-logs-panel-bg: var(--cosci-hover);
-  --cosci-logs-panel-fg: var(--cosci-muted);
-  --cosci-logs-code-fg: var(--cosci-text);
-  --cosci-logs-danger-bg: var(--cosci-danger-bg);
-  --cosci-logs-danger-fg: var(--cosci-danger-fg);
-
-  /* Radio option cards */
-  --cosci-option-bg: #fff;
-  --cosci-option-hover-bg: #e8eef6;
-  --cosci-option-hover-border: #d4dbe6;
-  --cosci-option-marker: #5f6368;
-  --cosci-option-marker-on: #8ab4f8;
-
-  /* Buttons — primary (filled), outline (blue in both modes), secondary */
-  --cosci-btn-primary-bg: #0b57d0;
-  --cosci-btn-primary-fg: #fff;
-  --cosci-btn-primary-hover: #0842a0;
-  --cosci-btn-outline-border: #1a73e8;
-  --cosci-btn-outline-fg: #1967d2;
-  --cosci-btn-outline-hover-bg: #e8f0fe;
-  --cosci-btn-secondary-border: #9aa0a6;
-  --cosci-btn-secondary-fg: #3c4043;
-  --cosci-btn-secondary-hover-bg: #f1f3f4;
-  --cosci-btn-disabled-border: #dadce0;
-  --cosci-btn-disabled-bg: #f1f3f4;
-  --cosci-btn-disabled-fg: #9aa0a6;
-
-  /* Chat bubbles + setup document */
-  --cosci-user-bubble-bg: #e9eefb;
-  --cosci-setup-doc-bg: #f1f4fa;
+  --cosci-idea-list-border: #dadce0;
+  --cosci-idea-row-border: #dadce0;
+  --cosci-idea-row-bg: #fff;
+  --cosci-idea-row-text: var(--cosci-text);
+  --cosci-idea-row-hover-border: #dadce0;
+  --cosci-idea-row-hover-bg: #f1f3f4;
+  --cosci-idea-row-selected-border: #8ab4f8;
+  --cosci-idea-row-selected-bg: #f1f8fc;
+  --cosci-idea-row-selected-hover-bg: #e6eefb;
+  --cosci-idea-chip-bg: #e6f4ff;
+  --cosci-idea-chip-text: #202124;
+  --cosci-idea-title-text: #202124;
+  --cosci-idea-preview-text: var(--cosci-text);
+  --cosci-idea-breadcrumb-bg: #f1f3f4;
+  --cosci-idea-breadcrumb-text: #3c4043;
+  --cosci-idea-detail-text: var(--cosci-text);
 }
 
 :root[data-theme="dark"] {
@@ -216,57 +137,22 @@
   --cosci-recent-meta-text: #e8eaed;
   --cosci-recent-chip-bg: #188038;
   --cosci-recent-chip-text: #e6f4ea;
-  --idea-list-border: var(--cosci-border);
-  --idea-row-border: var(--cosci-border);
-  --idea-row-bg: transparent;
-  --idea-row-text: var(--cosci-text);
-  --idea-row-hover-border: #5f6368;
-  --idea-row-hover-bg: #303134;
-  --idea-row-selected-border: #4aa5d8;
-  --idea-row-selected-bg: #004b72;
-  --idea-row-selected-hover-bg: #075d8c;
-  --idea-chip-bg: #15384d;
-  --idea-chip-text: var(--cosci-text);
-  --idea-title-text: var(--cosci-text);
-  --idea-preview-text: var(--cosci-muted);
-  --idea-breadcrumb-bg: #282a2c;
-  --idea-breadcrumb-text: var(--cosci-muted);
-  --idea-detail-text: var(--cosci-muted);
-
-  /* ---- Semantic component tokens — dark values (paired with light above) ---- */
-  --cosci-danger-bg: #3c1715;
-  --cosci-danger-border: #5b2b2b;
-  --cosci-danger-fg: #ffb4aa;
-
-  --cosci-attach-bg: #303335;
-  --cosci-attach-fg: #f1f3f4;
-  --cosci-attach-meta: #e8eaed;
-
-  --cosci-toast-bg: #f1f3f4;
-  --cosci-toast-fg: #202124;
-  --cosci-surface-raised: #202124;
-
-  --cosci-option-bg: #202427;
-  --cosci-option-hover-bg: #252a2d;
-  --cosci-option-hover-border: #3c4043;
-  --cosci-option-marker: #9aa0a6;
-  --cosci-option-marker-on: #a8c7fa;
-
-  --cosci-btn-primary-bg: #1d3354;
-  --cosci-btn-primary-fg: #a8c7fa;
-  --cosci-btn-primary-hover: rgb(168 199 250 / 14%);
-  --cosci-btn-outline-border: #8ab4f8;
-  --cosci-btn-outline-fg: #8ab4f8;
-  --cosci-btn-outline-hover-bg: rgb(138 180 248 / 14%);
-  --cosci-btn-secondary-border: var(--cosci-border);
-  --cosci-btn-secondary-fg: var(--cosci-text);
-  --cosci-btn-secondary-hover-bg: #303134;
-  --cosci-btn-disabled-border: #3c4043;
-  --cosci-btn-disabled-bg: #202124;
-  --cosci-btn-disabled-fg: #5f6368;
-
-  --cosci-user-bubble-bg: #303134;
-  --cosci-setup-doc-bg: #25272d;
+  --cosci-idea-list-border: var(--cosci-border);
+  --cosci-idea-row-border: var(--cosci-border);
+  --cosci-idea-row-bg: transparent;
+  --cosci-idea-row-text: var(--cosci-text);
+  --cosci-idea-row-hover-border: #5f6368;
+  --cosci-idea-row-hover-bg: #303134;
+  --cosci-idea-row-selected-border: #4aa5d8;
+  --cosci-idea-row-selected-bg: #004b72;
+  --cosci-idea-row-selected-hover-bg: #075d8c;
+  --cosci-idea-chip-bg: #15384d;
+  --cosci-idea-chip-text: var(--cosci-text);
+  --cosci-idea-title-text: var(--cosci-text);
+  --cosci-idea-preview-text: var(--cosci-muted);
+  --cosci-idea-breadcrumb-bg: #282a2c;
+  --cosci-idea-breadcrumb-text: var(--cosci-muted);
+  --cosci-idea-detail-text: var(--cosci-muted);
 
   background: var(--cosci-bg);
 }

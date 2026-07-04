@@ -70,7 +70,7 @@ const SESSION_DETAILS_CLASSES =
   'cosci-session-details cursor-pointer border-0 bg-transparent px-0 py-[0.45rem] font-[inherit] text-sm font-medium text-cosci-blue max-[720px]:hidden';
 
 const REPORT_TABS_CLASSES =
-  'cosci-report-tabs grid grid-cols-4 border-b border-cosci-border max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
+  'reference-report-tabs grid grid-cols-4 border-b border-cosci-border max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
 
 const REPORT_TAB_BUTTON_BASE_CLASSES =
   'relative grid min-w-0 cursor-pointer content-center justify-items-center gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm max-[720px]:gap-[0.2rem] max-[720px]:text-[0.68rem]';
@@ -86,10 +86,10 @@ const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto max-[720px]:overflow-x-hidden';
 
 const REPORT_ALERT_CLASSES =
-  'cosci-report-alert mx-8 mt-4 rounded-xl border border-[var(--cosci-danger-border)] bg-[var(--cosci-danger-bg)] px-4 py-3 text-[var(--cosci-danger-fg)]';
+  'cosci-report-alert mx-8 mt-4 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg';
 
 const REPORT_TOAST_CLASSES =
-  'cosci-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-[var(--cosci-danger-border)] bg-[var(--cosci-danger-bg)] px-4 py-3 text-[var(--cosci-danger-fg)]';
+  'reference-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg';
 
 const REPORT_SKELETON_CLASSES =
   'cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 max-[720px]:mt-5 max-[720px]:mb-12 max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';

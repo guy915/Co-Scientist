@@ -1,3 +1,10 @@
+// Class strings for the chat/setup surface, which reproduces the Gemini
+// reference 1:1. The arbitrary rem values here ([0.92rem], [1.18rem],
+// [2.6rem], ...) are literal measurements copied from the reference and do
+// NOT follow the app's 8px grid — that grid governs MD3 data surfaces only.
+// Snapping these to the grid would break the pixel-match. See DESIGN.md >
+// Layout & Spacing ("Reference-matched surfaces do not use the 8px grid").
+
 export const CHAT_TIMELINE_CLASSES = 'flex-1 overflow-y-auto px-4 pt-5 pb-8';
 
 export const CHAT_COMPOSER_CLASSES = 'border-t-0 bg-transparent px-4 pb-8';
@@ -15,7 +22,7 @@ export const CHAT_BUBBLE_USER_ROW_CLASSES =
 
 export const USER_BUBBLE_CLASSES =
   'reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-2xl ' +
-  'bg-[var(--cosci-user-bubble-bg)] py-3 pr-[0.9rem] pl-4 text-base ' +
+  'bg-cosci-user-bubble-bg py-3 pr-[0.9rem] pl-4 text-base ' +
   'leading-[1.45] text-cosci-fg';
 
 export const USER_BUBBLE_TEXT_CLASSES =
@@ -77,14 +84,14 @@ export const PLAN_SUBHEADING_CLASSES =
 
 export const SETUP_DOCUMENT_CLASSES =
   'reference-setup-document grid gap-[1.15rem] rounded-2xl ' +
-  'bg-[var(--cosci-setup-doc-bg)] p-[1.5rem_1.45rem]';
+  'bg-cosci-setup-doc-bg p-[1.5rem_1.45rem]';
 
 export const SETUP_DOCUMENT_TITLE_CLASSES =
   'm-0 text-[1.45rem] leading-[1.25] font-semibold';
 
-export const SPEC_GRID_CLASSES = 'google-setup-grid m-0 grid gap-[1.55rem]';
+export const SPEC_GRID_CLASSES = 'reference-setup-grid m-0 grid gap-[1.55rem]';
 
-export const SPEC_ROW_CLASSES = 'google-spec-row block text-base';
+export const SPEC_ROW_CLASSES = 'reference-spec-row block text-base';
 
 export const SPEC_TERM_CLASSES =
   'mb-[0.85rem] text-[1.18rem] font-bold text-cosci-fg';
@@ -92,7 +99,7 @@ export const SPEC_TERM_CLASSES =
 export const SPEC_DETAIL_CLASSES = 'm-0 leading-[1.45] text-cosci-fg';
 
 export const SPEC_LIST_CLASSES =
-  'google-spec-list m-0 grid list-disc gap-[0.8rem] pl-[1.35rem]';
+  'reference-spec-list m-0 grid list-disc gap-[0.8rem] pl-[1.35rem]';
 
 export const OPTION_GROUP_CLASSES =
   'reference-option-group m-0 grid min-w-0 gap-[0.9rem] border-0 p-0';
@@ -105,20 +112,20 @@ export const OPTION_GRID_CLASSES = 'grid grid-cols-2 gap-[0.85rem]';
 export const OPTION_CARD_BASE_CLASSES =
   'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] ' +
   'content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent ' +
-  'bg-[var(--cosci-option-bg)] px-[0.95rem] py-[0.85rem] text-cosci-fg ' +
-  'hover:border-[var(--cosci-option-hover-border)] ' +
-  'hover:bg-[var(--cosci-option-hover-bg)] ' +
-  'focus-within:border-[var(--cosci-option-hover-border)] ' +
-  'focus-within:bg-[var(--cosci-option-hover-bg)]';
+  'bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg ' +
+  'hover:border-cosci-option-hover-border ' +
+  'hover:bg-cosci-option-hover-bg ' +
+  'focus-within:border-cosci-option-hover-border ' +
+  'focus-within:bg-cosci-option-hover-bg';
 
 export const OPTION_INPUT_CLASSES = 'absolute pointer-events-none opacity-0';
 
 export const OPTION_MARKER_CLASSES =
   'mt-[0.08rem] size-[1.28rem] rounded-full border-2 ' +
-  'border-[var(--cosci-option-marker)]';
+  'border-cosci-option-marker';
 
 export const OPTION_MARKER_SELECTED_CLASSES =
-  'border-[var(--cosci-option-marker-on)] ' +
+  'border-cosci-option-marker-on ' +
   'bg-[radial-gradient(circle,var(--cosci-option-marker-on)_0_42%,transparent_44%)]';
 
 export const OPTION_LABEL_CLASSES = 'min-w-0 text-base leading-[1.2] font-bold';
@@ -131,23 +138,23 @@ export const SETUP_ACTIONS_CLASSES =
 
 export const SETUP_SECONDARY_BUTTON_CLASSES =
   'min-h-[2.6rem] cursor-pointer rounded-full border ' +
-  'border-[var(--cosci-btn-secondary-border)] bg-transparent px-[1.45rem] ' +
-  'font-medium text-[var(--cosci-btn-secondary-fg)] ' +
-  'hover:bg-[var(--cosci-btn-secondary-hover-bg)] ' +
-  'focus-visible:bg-[var(--cosci-btn-secondary-hover-bg)] ' +
-  'disabled:cursor-default disabled:border-[var(--cosci-btn-disabled-border)] ' +
-  'disabled:bg-[var(--cosci-btn-disabled-bg)] ' +
-  'disabled:text-[var(--cosci-btn-disabled-fg)]';
+  'border-cosci-btn-secondary-border bg-transparent px-[1.45rem] ' +
+  'font-medium text-cosci-btn-secondary-fg ' +
+  'hover:bg-cosci-btn-secondary-hover-bg ' +
+  'focus-visible:bg-cosci-btn-secondary-hover-bg ' +
+  'disabled:cursor-default disabled:border-cosci-btn-disabled-border ' +
+  'disabled:bg-cosci-btn-disabled-bg ' +
+  'disabled:text-cosci-btn-disabled-fg';
 
 export const SETUP_PRIMARY_BUTTON_CLASSES =
   'min-h-[2.6rem] cursor-pointer rounded-full border ' +
-  'border-[var(--cosci-btn-primary-bg)] bg-[var(--cosci-btn-primary-bg)] ' +
-  'px-[1.45rem] font-medium text-[var(--cosci-btn-primary-fg)] ' +
-  'hover:bg-[var(--cosci-btn-primary-hover)] ' +
-  'focus-visible:bg-[var(--cosci-btn-primary-hover)] disabled:cursor-default ' +
-  'disabled:border-[var(--cosci-btn-disabled-border)] ' +
-  'disabled:bg-[var(--cosci-btn-disabled-bg)] ' +
-  'disabled:text-[var(--cosci-btn-disabled-fg)]';
+  'border-cosci-btn-primary-bg bg-cosci-btn-primary-bg ' +
+  'px-[1.45rem] font-medium text-cosci-btn-primary-fg ' +
+  'hover:bg-cosci-btn-primary-hover ' +
+  'focus-visible:bg-cosci-btn-primary-hover disabled:cursor-default ' +
+  'disabled:border-cosci-btn-disabled-border ' +
+  'disabled:bg-cosci-btn-disabled-bg ' +
+  'disabled:text-cosci-btn-disabled-fg';
 
 export const STARTED_MESSAGE_CLASSES =
   'reference-started-message grid gap-[1.15rem] text-cosci-fg';
@@ -180,7 +187,7 @@ export const STARTED_NEXT_COPY_CLASSES =
 
 export const STARTED_NEXT_BUTTON_CLASSES =
   'min-h-[2.6rem] cursor-pointer rounded-full border ' +
-  'border-[var(--cosci-btn-outline-border)] bg-transparent px-[1.2rem] ' +
-  'font-semibold text-[var(--cosci-btn-outline-fg)] ' +
-  'hover:bg-[var(--cosci-btn-outline-hover-bg)] ' +
-  'focus-visible:bg-[var(--cosci-btn-outline-hover-bg)]';
+  'border-cosci-btn-outline-border bg-transparent px-[1.2rem] ' +
+  'font-semibold text-cosci-btn-outline-fg ' +
+  'hover:bg-cosci-btn-outline-hover-bg ' +
+  'focus-visible:bg-cosci-btn-outline-hover-bg';

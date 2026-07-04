@@ -60,23 +60,19 @@ describe('Layout', () => {
     const menu = screen.getByRole('button', {name: 'Menu'});
     expect(menu).toHaveAttribute('aria-expanded', 'true');
     expect(menu).toHaveTextContent('Menu');
-    expect(container.querySelector('.google-app-shell')).toHaveClass(
-      'nav-open',
-    );
+    expect(container.querySelector('.ucs-app-shell')).toHaveClass('nav-open');
 
     fireEvent.click(menu);
 
     expect(menu).toHaveAttribute('aria-expanded', 'false');
-    expect(container.querySelector('.google-app-shell')).toHaveClass(
+    expect(container.querySelector('.ucs-app-shell')).toHaveClass(
       'nav-collapsed',
     );
 
     fireEvent.click(menu);
 
     expect(menu).toHaveAttribute('aria-expanded', 'true');
-    expect(container.querySelector('.google-app-shell')).toHaveClass(
-      'nav-open',
-    );
+    expect(container.querySelector('.ucs-app-shell')).toHaveClass('nav-open');
   });
 
   it('keeps only Co-Scientist navigation and real chat history', async () => {
@@ -244,12 +240,12 @@ describe('Layout', () => {
     expect(document.documentElement).toHaveClass('dark');
 
     const logsButton = screen.getByRole('button', {name: /Logs 0/i});
-    expect(logsButton.className).toContain('bg-[var(--cosci-logs-accent-bg)]');
+    expect(logsButton.className).toContain('bg-cosci-logs-accent-bg');
 
     fireEvent.click(logsButton);
 
     const logsPopover = container.querySelector('.ucs-popover--logs');
-    expect(logsPopover?.className).toContain('!bg-[var(--cosci-logs-surface)]');
+    expect(logsPopover?.className).toContain('!bg-cosci-logs-surface');
     expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
   });
 

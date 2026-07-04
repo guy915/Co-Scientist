@@ -1,0 +1,130 @@
+/* Semantic component tokens.
+ *
+ * Every themed component surface — alerts, attachments, toasts, logs, radio
+ * option cards, buttons, chat bubbles — is defined here ONCE PER MODE as a
+ * --cosci-* token pair: light values in :root, dark values in the
+ * :root[data-theme="dark"] block. Components reference the token with NO
+ * dark: variant, so a surface's light/dark appearance lives in one place.
+ *
+ * Two rules when adding tokens:
+ *  1. Alias baseline tokens (var()/color-mix() over the palette in
+ *     reference_surface.css) when the surface should match an existing color,
+ *     as the logs tokens do. Reserve new hex pairs for genuinely new surfaces.
+ *  2. Every new token needs BOTH a light and a dark value.
+ */
+:root {
+  /* Danger / alert (report alert + toast) */
+  --cosci-danger-bg: #fce8e6;
+  --cosci-danger-border: #b3261e;
+  --cosci-danger-fg: #b3261e;
+
+  /* Attachment cards */
+  --cosci-attach-bg: #eef2f8;
+  --cosci-attach-fg: #202124;
+  --cosci-attach-meta: #202124;
+
+  /* Center toast + raised action pill */
+  --cosci-toast-bg: #303134;
+  --cosci-toast-fg: #f1f3f4;
+  --cosci-surface-raised: #fff;
+
+  /* Skeleton loaders */
+  --cosci-skeleton-bg: #eceff1;
+
+  /* Diagnostics / Logs — every value aliases an existing baseline token, no
+     bespoke hex. The teal tonal is the app's one green; surface/border/text/
+     meta reuse the neutral scale. Because those tokens already re-theme, the
+     logs need no dark-mode overrides. */
+  --cosci-logs-accent-bg: var(--cosci-step-dot-bg);
+  --cosci-logs-accent-fg: var(--cosci-step-dot-text);
+  --cosci-logs-accent-hover: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 88%,
+    var(--cosci-step-dot-text)
+  );
+  --cosci-logs-count-bg: color-mix(
+    in srgb,
+    var(--cosci-step-dot-text) 16%,
+    transparent
+  );
+  --cosci-logs-action-border: var(--cosci-step-dot-bg);
+  --cosci-logs-action-bg: transparent;
+  --cosci-logs-action-fg: var(--cosci-step-dot-bg);
+  --cosci-logs-action-hover: color-mix(
+    in srgb,
+    var(--cosci-step-dot-bg) 10%,
+    transparent
+  );
+  --cosci-logs-surface: var(--cosci-surface-raised);
+  --cosci-logs-border: var(--cosci-border);
+  --cosci-logs-heading: var(--cosci-text);
+  --cosci-logs-meta: var(--cosci-muted);
+  --cosci-logs-panel-bg: var(--cosci-hover);
+  --cosci-logs-panel-fg: var(--cosci-muted);
+  --cosci-logs-code-fg: var(--cosci-text);
+  --cosci-logs-danger-bg: var(--cosci-danger-bg);
+  --cosci-logs-danger-fg: var(--cosci-danger-fg);
+
+  /* Radio option cards */
+  --cosci-option-bg: #fff;
+  --cosci-option-hover-bg: #e8eef6;
+  --cosci-option-hover-border: #d4dbe6;
+  --cosci-option-marker: #5f6368;
+  --cosci-option-marker-on: #8ab4f8;
+
+  /* Buttons — primary (filled), outline (blue in both modes), secondary */
+  --cosci-btn-primary-bg: #0b57d0;
+  --cosci-btn-primary-fg: #fff;
+  --cosci-btn-primary-hover: #0842a0;
+  --cosci-btn-outline-border: #1a73e8;
+  --cosci-btn-outline-fg: #1967d2;
+  --cosci-btn-outline-hover-bg: #e8f0fe;
+  --cosci-btn-secondary-border: #9aa0a6;
+  --cosci-btn-secondary-fg: #3c4043;
+  --cosci-btn-secondary-hover-bg: #f1f3f4;
+  --cosci-btn-disabled-border: #dadce0;
+  --cosci-btn-disabled-bg: #f1f3f4;
+  --cosci-btn-disabled-fg: #9aa0a6;
+
+  /* Chat bubbles + setup document */
+  --cosci-user-bubble-bg: #e9eefb;
+  --cosci-setup-doc-bg: #f1f4fa;
+}
+
+:root[data-theme="dark"] {
+  --cosci-danger-bg: #3c1715;
+  --cosci-danger-border: #5b2b2b;
+  --cosci-danger-fg: #ffb4aa;
+
+  --cosci-attach-bg: #303335;
+  --cosci-attach-fg: #f1f3f4;
+  --cosci-attach-meta: #e8eaed;
+
+  --cosci-toast-bg: #f1f3f4;
+  --cosci-toast-fg: #202124;
+  --cosci-surface-raised: #202124;
+
+  --cosci-skeleton-bg: #3a3f42;
+
+  --cosci-option-bg: #202427;
+  --cosci-option-hover-bg: #252a2d;
+  --cosci-option-hover-border: #3c4043;
+  --cosci-option-marker: #9aa0a6;
+  --cosci-option-marker-on: #a8c7fa;
+
+  --cosci-btn-primary-bg: #1d3354;
+  --cosci-btn-primary-fg: #a8c7fa;
+  --cosci-btn-primary-hover: rgb(168 199 250 / 14%);
+  --cosci-btn-outline-border: #8ab4f8;
+  --cosci-btn-outline-fg: #8ab4f8;
+  --cosci-btn-outline-hover-bg: rgb(138 180 248 / 14%);
+  --cosci-btn-secondary-border: var(--cosci-border);
+  --cosci-btn-secondary-fg: var(--cosci-text);
+  --cosci-btn-secondary-hover-bg: #303134;
+  --cosci-btn-disabled-border: #3c4043;
+  --cosci-btn-disabled-bg: #202124;
+  --cosci-btn-disabled-fg: #5f6368;
+
+  --cosci-user-bubble-bg: #303134;
+  --cosci-setup-doc-bg: #25272d;
+}
