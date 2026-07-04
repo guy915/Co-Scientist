@@ -139,9 +139,7 @@ This is particularly useful with the `analyze_pdf_for_research` tool, which gene
 
 ## INDRA CoGex Biomedical Domain Configurations
 
-These four configs extend the default PubMed config with INDRA knowledge graph tools
-(`merge_strategy: "extend"`). Each targets a distinct biomedical subdomain and audience,
-and intentionally foregrounds different INDRA tools to showcase the full tool set.
+These four configs extend the default PubMed config with INDRA knowledge graph tools (`merge_strategy: "extend"`). Each targets a distinct biomedical subdomain and audience, and intentionally foregrounds different INDRA tools to showcase the full tool set.
 
 **Requirements for all four:** PubMed MCP server on port 8888 with INDRA CoGex tools enabled.
 
@@ -155,33 +153,21 @@ and intentionally foregrounds different INDRA tools to showcase the full tool se
 ### `indra_ibd.yaml`
 **Purpose:** IBD/Crohn's disease — biologic resistance mechanisms and upstream regulator discovery
 **Audience:** Molecular biologists, pharmaceutical researchers in GI immunology
-**Key differentiator:** `run_enrichment_analysis` in signed mode to identify upstream
-transcriptional regulators from biologic responder/non-responder gene expression signatures.
-`query_causal_subnetwork` to find indirect paths between risk genes (IL23R, NOD2) and
-epithelial barrier disruption.
+**Key differentiator:** `run_enrichment_analysis` in signed mode to identify upstream transcriptional regulators from biologic responder/non-responder gene expression signatures. `query_causal_subnetwork` to find indirect paths between risk genes (IL23R, NOD2) and epithelial barrier disruption.
 
 **Example research goal:**
-> "What upstream transcriptional regulators explain the divergent immune gene expression
-> signatures between biologic responders and non-responders in Crohn's disease, and what
-> novel mechanistic targets do they suggest for next-generation IBD therapy?"
+> "What upstream transcriptional regulators explain the divergent immune gene expression signatures between biologic responders and non-responders in Crohn's disease, and what novel mechanistic targets do they suggest for next-generation IBD therapy?"
 
 ---
 
 ### `indra_hfpef.yaml`
-**Purpose:** Heart failure with preserved ejection fraction (HFpEF) — connecting
-cardiometabolic risk to cardiac remodeling
+**Purpose:** Heart failure with preserved ejection fraction (HFpEF) — connecting cardiometabolic risk to cardiac remodeling
 **Audience:** Cardiologists, heart failure specialists, clinical trialists
-**Key differentiator:** `query_causal_subnetwork` to find the indirect molecular mediators
-between cardiometabolic risk factors (obesity, T2D, hypertension) and adverse cardiac
-remodeling — the central unanswered question in HFpEF. `query_clinical_trials` to map the
-failed trial landscape. `query_drug_info` for cardiometabolic drug repurposing analysis.
+**Key differentiator:** `query_causal_subnetwork` to find the indirect molecular mediators between cardiometabolic risk factors (obesity, T2D, hypertension) and adverse cardiac remodeling — the central unanswered question in HFpEF. `query_clinical_trials` to map the failed trial landscape. `query_drug_info` for cardiometabolic drug repurposing analysis.
 
 **Example research goal:**
-> "What shared molecular mediators connect cardiometabolic risk factors (obesity,
-> hypertension, type 2 diabetes) to adverse cardiac remodeling in HFpEF, and which could
-> serve as targets for novel pharmacological intervention in this patient population with
-> no approved disease-modifying therapies?"
+> "What shared molecular mediators connect cardiometabolic risk factors (obesity, hypertension, type 2 diabetes) to adverse cardiac remodeling in HFpEF, and which could serve as targets for novel pharmacological intervention in this patient population with no approved disease-modifying therapies?"
 
 ---
 
-See the [literature review tools](../../../../docs/literature_review_tools_configuration.md) documentation for a guide and schemas on this topic.
+See the [literature review tools](../../../../docs/LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) documentation for a guide and schemas on this topic.

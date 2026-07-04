@@ -162,7 +162,7 @@ opts = {"enable_literature_review_node": True}
 ## MCP Server Setup
 
 
-See [MCP Integration](mcp-integration.md) documentation.
+See [MCP Integration](MCP_INTEGRATION.md) documentation.
 
 
 ## Examples

@@ -297,4 +297,4 @@ Add new tools to the MCP server for domain-specific needs:
 - Simulation runners
 - Data analysis tools
 
-See [MCP Integration](mcp-integration.md) for details.
+See [MCP Integration](MCP_INTEGRATION.md) for details.

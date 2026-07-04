@@ -1,7 +1,6 @@
 # Development Test-Run Scripts
 
-Meant for developers or contributors, although can be used by evaluators with coding skills.
-Quick scripts for running individual nodes in isolation during _development_ or evaluation.
+Meant for developers or contributors, although can be used by evaluators with coding skills. Quick scripts for running individual nodes in isolation during _development_ or evaluation.
 
 ## Purpose
 
@@ -45,9 +44,7 @@ cp .env.example .env
 Required keys:
 - `GEMINI_API_KEY` - for LLM calls- gemini/gemini-2.5-flash hardcoded on these by default (can be customized)
 - `MCP_SERVER_URL` - URL to your MCP server (default: http://localhost:8888/mcp)
-Can't run the literature review node script if an MCP with the url/pdf reading tools is not available.
-For now you'll have to see the source code to check what tools are expected or the LLM prompts used,
-in the future we'll provide a reference implementation of it.
+Can't run the literature review node script if an MCP with the url/pdf reading tools is not available. For now you'll have to see the source code to check what tools are expected or the LLM prompts used, in the future we'll provide a reference implementation of it.
 
 Optional keys:
 - `COSCIENTIST_DEV_MODE=true` - use reduced paper counts for faster testing
@@ -76,5 +73,4 @@ The MCP server provides tools for literature search (Google Scholar, PubMed, etc
 - `make_supervisor_state()` - base + supervisor output
 - `make_literature_state()` - base + literature review results
 
-These create MINIMAL state to run nodes - just enough to not error.
-They intentionally don't mock complex nested structures that would get out of sync.
+These create MINIMAL state to run nodes - just enough to not error. They intentionally don't mock complex nested structures that would get out of sync.

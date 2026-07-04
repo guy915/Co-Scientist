@@ -201,7 +201,7 @@ generator = HypothesisGenerator(
 )
 ```
 
-See `src/co_scientist/config/examples/README.md` and `docs/literature_review_tools_configuration.md` for the full schema.
+See `src/co_scientist/config/examples/README.md` and `docs/LITERATURE_REVIEW_TOOLS_CONFIGURATION.md` for the full schema.
 
 ## Caching
 
@@ -362,10 +362,10 @@ src/co_scientist/
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) — workflow diagram, node descriptions, state management
-- [MCP Integration](docs/mcp-integration.md) — literature review setup and configuration
-- [Generation Modes](docs/generation-modes.md) — three generate node modes explained
-- [Configuration](docs/configuration.md) — all parameters, caching, performance tuning
-- [Domain Customization](docs/domain-customization.md) — adapting to new domains via YAML config
-- [Literature Review Tools Configuration](docs/literature_review_tools_configuration.md) — YAML schema reference for custom MCP servers
-- [Logging](docs/logging.md) — file logging, rotating logs, log levels
+- [Architecture](docs/ARCHITECTURE.md) — workflow diagram, node descriptions, state management
+- [MCP Integration](docs/MCP_INTEGRATION.md) — literature review setup and configuration
+- [Generation Modes](docs/GENERATION_MODES.md) — three generate node modes explained
+- [Configuration](docs/CONFIGURATION.md) — all parameters, caching, performance tuning
+- [Domain Customization](docs/DOMAIN_CUSTOMIZATION.md) — adapting to new domains via YAML config
+- [Literature Review Tools Configuration](docs/LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) — YAML schema reference for custom MCP servers
+- [Logging](docs/LOGGING.md) — file logging, rotating logs, log levels

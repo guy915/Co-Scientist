@@ -8,7 +8,7 @@ A domain config controls:
 - **Prompt guidance** injected into hypothesis generation, review, and evolution
 - **Post-generation enrichments** that attach domain-specific data to each hypothesis (e.g., related CVEs, knowledge graph entries)
 
-See [Literature Review Tools Configuration](literature_review_tools_configuration.md) for the full YAML schema reference.
+See [Literature Review Tools Configuration](LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) for the full YAML schema reference.
 
 ---
 
@@ -168,4 +168,4 @@ Alternatively, place the config at `~/.coscientist/tools.yaml` and it will be lo
 3. **Consider enrichments** — is there structured domain data (CVEs, pathway databases, patent records) that should be attached per hypothesis?
 4. **Pick a merge strategy** — `replace` if you're fully replacing PubMed, `extend` if you want to add to it.
 
-Refer to the [Literature Review Tools Configuration](literature_review_tools_configuration.md) for the full YAML schema, and the [examples README](../src/co_scientist/config/examples/README.md) for annotated examples.
+Refer to the [Literature Review Tools Configuration](LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) for the full YAML schema, and the [examples README](../src/co_scientist/config/examples/README.md) for annotated examples.
