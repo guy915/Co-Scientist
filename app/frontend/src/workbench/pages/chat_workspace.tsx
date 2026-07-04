@@ -41,7 +41,7 @@ type ChatWorkspaceLocationState = {
 };
 
 /**
- * Renders the chat-first AI Co-Scientist workspace.
+ * Renders the chat-first Co-Scientist workspace.
  */
 export function ChatWorkspace() {
   const location = useLocation();

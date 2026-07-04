@@ -15,14 +15,14 @@ export type RunMode = 'default';
 /** Former generation profile labels still accepted by the backend. */
 export type LegacyRunProfile = RunMode | 'standard' | 'advanced';
 
-/** Research style selected in the AI Co-Scientist setup flow. */
+/** Research style selected in the Co-Scientist setup flow. */
 export type RunFocus =
   | 'prefer_evidence'
   | 'balance'
   | 'prefer_novelty'
   | 'breakthrough';
 
-/** Depth preset selected in the AI Co-Scientist setup flow. */
+/** Depth preset selected in the Co-Scientist setup flow. */
 export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
 
 /** Durable setup payload persisted inside `Run.config.setup`. */

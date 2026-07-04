@@ -1,4 +1,4 @@
-# Fidelity to Google DeepMind's AI Co-Scientist
+# Fidelity to Google's AI Co-Scientist
 
 The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 public demos, and the product captures in `media/`) describe the system at the

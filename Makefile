@@ -17,7 +17,7 @@ UI_URL  := http://localhost:5173
 DOCS_URL := http://localhost:8008/docs
 
 help:
-	@echo "AI Co-Scientist — root commands"
+	@echo "Co-Scientist — root commands"
 	@echo "  make setup        Create .venv, install engine (editable) + app (editable), install frontend"
 	@echo "  make dev          One command: install missing deps, free ports, run MCP + API + UI, open browser"
 	@echo "  make stop         Stop anything listening on the dev ports (8008/5173/8888)"
@@ -69,7 +69,7 @@ $(VENV)/bin/activate:
 # browser once both the API and the UI answer. Ctrl-C stops everything.
 dev: preflight
 	@echo ""
-	@echo "AI Co-Scientist — dev URLs"
+	@echo "Co-Scientist — dev URLs"
 	@echo "  API   : $(API_URL)"
 	@echo "  Docs  : $(DOCS_URL)"
 	@echo "  UI    : $(UI_URL)"

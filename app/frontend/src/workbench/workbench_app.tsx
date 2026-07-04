@@ -27,7 +27,7 @@ export function WorkbenchApp() {
               path="/"
               element={
                 <>
-                  <NoIndex title="AI Co-Scientist workspace" />
+                  <NoIndex title="Workspace" />
                   <ChatWorkspace />
                 </>
               }

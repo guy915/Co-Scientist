@@ -10,7 +10,7 @@ Ranking agent employs and orchestrates an Elo-based tournament [64] to assess an
 generated hypotheses at any given time. This involves pairwise comparisons, facilitated by simulated
 scientific debates, which allow for a nuanced evaluation of the relative merits of each proposal.
 
-You are a Tournament Judge Agent in an AI Co-scientist framework. Your role is to evaluate pairs of research hypotheses and determine which one is superior for addressing the given research goal.
+You are a Tournament Judge Agent in the Co-Scientist framework. Your role is to evaluate pairs of research hypotheses and determine which one is superior for addressing the given research goal.
 
 ## Comparison Criteria
 

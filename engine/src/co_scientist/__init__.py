@@ -1,6 +1,6 @@
-"""Co-Scientist: AI Co-Scientist framework reimplemented with LangGraph.
+"""Co-Scientist: a LangGraph reimplementation of Google's AI Co-Scientist framework.
 
-This package provides a clean, modular implementation of the AI Co-Scientist
+This package provides a clean, modular implementation of Google's AI Co-Scientist
 framework using LangGraph for workflow orchestration.
 
 Key features:

@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 ## Repository Layout
 
-This is a research/reference workspace organized around replicating Google DeepMind's AI Co-Scientist.
+This is a research/reference workspace organized around replicating Google's AI Co-Scientist.
 
 - `app/` — FastAPI + React workbench viewer
 - `engine/` — LangGraph-based multi-agent hypothesis-generation engine
@@ -147,11 +147,11 @@ bun run test         # vitest run (jsdom + React Testing Library)
 
 Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test-setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
 
-Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (chat workspace, dashboard, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/error_boundary.tsx`, `src/lib/utils.ts`.
+Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (chat workspace, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/error_boundary.tsx`, `src/lib/utils.ts`.
 
-**Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/about` (public landing page), `/demos/:slug` (public demo), `/runs` (dashboard), `/runs/new` (chat workspace for new run), `/runs/:id`, `/runs/:id/:tab`, `*` (404). Public-facing pages live in `src/public/` (`landing_page.tsx`, `demo_page.tsx`, `demo_manifest.ts`, `not_found_page.tsx`, `no_index.tsx`, `public_link_button.tsx`, `seo.tsx`).
+**Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/runs/:id`, `/runs/:id/:tab` (run detail), `*` (404). `/runs` and `/runs/new` redirect to `/`. The old public surface (`/about` landing page, `/demos/:slug` public demos, `/runs` dashboard) was deliberately removed. `src/public/` now holds only the residual helpers still in use (plus their colocated tests): `not_found_page.tsx`, `no_index.tsx`, `public_link_button.tsx`, `seo.tsx`.
 
-**Tabs** (`src/workbench/components/tabs/`): `overview_tab.tsx`, `ideas_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `report_tab.tsx`, `run_specifications_tab.tsx`, `chat_tab.tsx` (scientist-in-the-loop Q&A with auto-steering, manual steering, and Q&A modes).
+**Tabs** (`src/workbench/components/tabs/`): `ideas_tab.tsx` is the only live tab component; `run_detail.tsx` renders its other views (details, learning, research overview) inline. The earlier `overview_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `run_specifications_tab.tsx`, and `chat_tab.tsx` were retired and preserved under `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`.
 
 **MD3 wrappers** (`src/md3/`): `md_dialog.tsx`, `md_tabs.tsx` — thin wrappers around `@material/web` components.
 

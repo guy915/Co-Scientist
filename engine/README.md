@@ -1,6 +1,6 @@
 # co-scientist-engine
 
-LangGraph-based multi-agent framework for automated research hypothesis generation, adapted from Google DeepMind's AI Co-Scientist.
+LangGraph-based multi-agent framework for automated research hypothesis generation, adapted from Google's AI Co-Scientist.
 
 Given a research goal, the system runs a pipeline of specialized agents — literature review, hypothesis generation, peer review, Elo tournament ranking, meta-review, and iterative evolution — to produce a ranked list of novel, grounded hypotheses.
 

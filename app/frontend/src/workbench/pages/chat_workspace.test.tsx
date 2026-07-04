@@ -88,7 +88,7 @@ beforeEach(() => {
 });
 
 describe('ChatWorkspace', () => {
-  it('opens on the reference-style AI Co-Scientist home screen', async () => {
+  it('opens on the reference-style Co-Scientist home screen', async () => {
     renderWorkspace();
 
     expect(
