@@ -82,23 +82,6 @@ async for event in generator.generate_hypotheses(
     print(phase, data)
 ```
 
-For rich terminal output, use the built-in `ConsoleReporter`:
-
-```python
-from co_scientist import HypothesisGenerator
-from co_scientist.console import ConsoleReporter, default_progress_callback
-
-reporter = ConsoleReporter()
-await reporter.run(
-    event_stream=generator.generate_hypotheses(
-        research_goal="...",
-        progress_callback=default_progress_callback,
-        stream=True,
-    ),
-    research_goal="...",
-)
-```
-
 ## Constructor parameters
 
 | Parameter | Type | Default | Description |
@@ -206,7 +189,7 @@ The engine uses a YAML-based tool registry that decouples literature sources fro
 The default config (`src/co_scientist/config/tools.yaml`) targets the bundled PubMed server. Pre-built examples in `src/co_scientist/config/examples/` cover:
 
 - `arxiv_only.yaml` — arXiv for AI/ML/CS/physics research
-- `multi_source.yaml` — PubMed + arXiv + Google Scholar in parallel
+- `multiple_sources.yaml` — PubMed + arXiv + Google Scholar in parallel
 - `google_scholar.yaml` — Google Scholar with two-step PDF retrieval
 - `indra_cancer.yaml` / `indra_alzheimers.yaml` / `indra_ibd.yaml` / `indra_hfpef.yaml` — domain-specific biomedical configs extending PubMed with INDRA CoGex knowledge-graph tools
 

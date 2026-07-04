@@ -206,6 +206,58 @@ def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
     }
 
 
+def _build_prompt(
+    prompt_name: str,
+    base_variables: dict[str, Any],
+    *,
+    supervisor_guidance: str | None = None,
+    meta_review_context: str | None = None,
+    run_guidance: str | None = None,
+    tool_registry: Any | None = None,
+    include_domain: bool = True,
+) -> tuple[str, dict[str, Any] | None]:
+    """Assemble a prompt's variables and load it with its schema.
+
+    Reproduces the shared getter skeleton: a caller-provided base of
+    template-specific variables, plus the optional guidance/context blocks
+    and the domain-variable injection that most node prompts share. Each
+    optional block is added to the variables dict only when the caller
+    passes a non-``None`` value, so a template placeholder the caller
+    intentionally omits still renders as the ``{{MISSING:...}}`` sentinel
+    (matching pre-consolidation behavior) rather than an empty string.
+
+    Args:
+        prompt_name: Prompt file stem passed to ``load_prompt_with_schema``.
+        base_variables: Always-present, template-specific variables. Copied,
+            not mutated.
+        supervisor_guidance: Pre-formatted supervisor-guidance block (the
+            caller selects the correct ``_format_supervisor_guidance_for_*``
+            helper). Added under ``"supervisor_guidance"`` only when not
+            ``None``; an empty string still adds the key.
+        meta_review_context: Pre-formatted meta-review block. Added under
+            ``"meta_review_context"`` only when not ``None``.
+        run_guidance: Pre-formatted run setup/focus block. Added under
+            ``"run_guidance"`` only when not ``None``.
+        tool_registry: Tool registry forwarded to ``_get_domain_variables``
+            when ``include_domain`` is true.
+        include_domain: Whether to merge the five ``domain_*`` variables.
+            Set false for prompts that never inject them (e.g. proximity).
+
+    Returns:
+        Tuple of (rendered prompt string, JSON schema dict or ``None``).
+    """
+    variables: dict[str, Any] = dict(base_variables)
+    if supervisor_guidance is not None:
+        variables["supervisor_guidance"] = supervisor_guidance
+    if meta_review_context is not None:
+        variables["meta_review_context"] = meta_review_context
+    if run_guidance is not None:
+        variables["run_guidance"] = run_guidance
+    if include_domain:
+        variables.update(_get_domain_variables(tool_registry))
+    return load_prompt_with_schema(prompt_name, variables)
+
+
 # Convenience functions for common prompts
 
 
@@ -219,24 +271,19 @@ def get_review_prompt(
     run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the hypothesis review prompt and schema."""
-    variables = {
-        "research_goal": research_goal,
-        "hypothesis_text": hypothesis_text
-    }
-
-    # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_review(
-        supervisor_guidance)
-
-    # Add meta-review context if available (for re-reviewing evolved hypotheses)
-    variables["meta_review_context"] = _format_meta_review_context(meta_review)
-    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
-                                                     run_focus_guidance)
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("review", variables)
+    return _build_prompt(
+        "review",
+        {
+            "research_goal": research_goal,
+            "hypothesis_text": hypothesis_text
+        },
+        supervisor_guidance=_format_supervisor_guidance_for_review(
+            supervisor_guidance),
+        meta_review_context=_format_meta_review_context(meta_review),
+        run_guidance=_format_run_guidance(run_setup_guidance,
+                                          run_focus_guidance),
+        tool_registry=tool_registry,
+    )
 
 
 def get_deep_verification_prompt(
@@ -245,15 +292,14 @@ def get_deep_verification_prompt(
     tool_registry: Any | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the deep-verification (probing questions) prompt and schema."""
-    variables = {
-        "research_goal": research_goal,
-        "hypothesis_text": hypothesis_text,
-    }
-
-    # Inject domain-specific prompt customizations.
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("deep_verification", variables)
+    return _build_prompt(
+        "deep_verification",
+        {
+            "research_goal": research_goal,
+            "hypothesis_text": hypothesis_text,
+        },
+        tool_registry=tool_registry,
+    )
 
 
 def get_review_batch_prompt(
@@ -266,24 +312,19 @@ def get_review_batch_prompt(
     run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the comparative batch hypothesis review prompt and schema."""
-    variables = {
-        "research_goal": research_goal,
-        "hypotheses_list": hypotheses_list
-    }
-
-    # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_review(
-        supervisor_guidance)
-
-    # Add meta-review context if available (for re-reviewing evolved hypotheses)
-    variables["meta_review_context"] = _format_meta_review_context(meta_review)
-    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
-                                                     run_focus_guidance)
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("review_batch", variables)
+    return _build_prompt(
+        "review_batch",
+        {
+            "research_goal": research_goal,
+            "hypotheses_list": hypotheses_list
+        },
+        supervisor_guidance=_format_supervisor_guidance_for_review(
+            supervisor_guidance),
+        meta_review_context=_format_meta_review_context(meta_review),
+        run_guidance=_format_run_guidance(run_setup_guidance,
+                                          run_focus_guidance),
+        tool_registry=tool_registry,
+    )
 
 
 def get_ranking_prompt(
@@ -309,10 +350,6 @@ def get_ranking_prompt(
         "hypothesis_b": hypothesis_b,
     }
 
-    # Add supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_ranking(
-        supervisor_guidance)
-
     # Add review context if available
     variables["review_context"] = _format_review_context(review_a, review_b)
 
@@ -333,15 +370,16 @@ def get_ranking_prompt(
         _format_deep_verification_context(dv_b.get("probes"),
                                           dv_b.get("verdict"), "B"))
 
-    # Add meta-review context if available (blank on iteration 1).
-    variables["meta_review_context"] = _format_meta_review_context(meta_review)
-    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
-                                                     run_focus_guidance)
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("ranking", variables)
+    return _build_prompt(
+        "ranking",
+        variables,
+        supervisor_guidance=_format_supervisor_guidance_for_ranking(
+            supervisor_guidance),
+        meta_review_context=_format_meta_review_context(meta_review),
+        run_guidance=_format_run_guidance(run_setup_guidance,
+                                          run_focus_guidance),
+        tool_registry=tool_registry,
+    )
 
 
 def get_meta_review_prompt(
@@ -354,23 +392,19 @@ def get_meta_review_prompt(
     run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the meta-review synthesis prompt and schema."""
-    variables = {
-        "research_goal": research_goal,
-        "all_reviews": all_reviews,
-        "instructions": instructions or "",
-    }
-
-    # Add supervisor guidance if available
-    variables[
-        "supervisor_guidance"] = _format_supervisor_guidance_for_meta_review(
-            supervisor_guidance)
-    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
-                                                     run_focus_guidance)
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("meta_review", variables)
+    return _build_prompt(
+        "meta_review",
+        {
+            "research_goal": research_goal,
+            "all_reviews": all_reviews,
+            "instructions": instructions or "",
+        },
+        supervisor_guidance=_format_supervisor_guidance_for_meta_review(
+            supervisor_guidance),
+        run_guidance=_format_run_guidance(run_setup_guidance,
+                                          run_focus_guidance),
+        tool_registry=tool_registry,
+    )
 
 
 def get_research_overview_prompt(
@@ -382,21 +416,17 @@ def get_research_overview_prompt(
     run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the research-overview + NIH Specific Aims prompt and schema."""
-    variables = {
-        "research_goal":
-            research_goal,
-        "hypotheses_summary":
-            hypotheses_summary,
-        "meta_review_context":
-            _format_meta_review_context(meta_review),
-        "run_guidance":
-            _format_run_guidance(run_setup_guidance, run_focus_guidance),
-    }
-
-    # Inject domain-specific prompt customizations.
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("research_overview", variables)
+    return _build_prompt(
+        "research_overview",
+        {
+            "research_goal": research_goal,
+            "hypotheses_summary": hypotheses_summary,
+        },
+        meta_review_context=_format_meta_review_context(meta_review),
+        run_guidance=_format_run_guidance(run_setup_guidance,
+                                          run_focus_guidance),
+        tool_registry=tool_registry,
+    )
 
 
 def get_proximity_prompt(
@@ -406,19 +436,19 @@ def get_proximity_prompt(
     """Get the proximity/similarity analysis prompt and schema."""
     import json  # pylint: disable=import-outside-toplevel
 
-    variables = {
-        "hypotheses":
-            json.dumps(
-                [h["text"] if isinstance(h, dict) else h for h in hypotheses],
-                indent=2)
-    }
-
-    # Add supervisor guidance if available
-    variables[
-        "supervisor_guidance"] = _format_supervisor_guidance_for_proximity(
-            supervisor_guidance)
-
-    return load_prompt_with_schema("proximity", variables)
+    return _build_prompt(
+        "proximity",
+        {
+            "hypotheses":
+                json.dumps([
+                    h["text"] if isinstance(h, dict) else h for h in hypotheses
+                ],
+                           indent=2)
+        },
+        supervisor_guidance=_format_supervisor_guidance_for_proximity(
+            supervisor_guidance),
+        include_domain=False,
+    )
 
 
 def get_supervisor_prompt(
@@ -451,36 +481,30 @@ def get_supervisor_prompt(
             "literature review is not available (no pubmed access)")
 
     variables = {
-        "research_goal":
-            research_goal,
-        "preferences":
-            preferences or "None provided",
-        "attributes":
-            ", ".join(attributes) if attributes else "None provided",
+        "research_goal": research_goal,
+        "preferences": preferences or "None provided",
+        "attributes": ", ".join(attributes) if attributes else "None provided",
         "constraints": ("\n".join(
             f"- {c}" for c in constraints) if constraints else "None provided"),
         "criteria": ("\n".join(
             f"- {c}" for c in criteria) if criteria else "None provided"),
-        "run_guidance":
-            _format_run_guidance(run_setup_guidance, run_focus_guidance),
         "user_hypotheses": ("\n".join(f"- {h}" for h in user_hypotheses)
                             if user_hypotheses else "None provided"),
         "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
                             if user_literature else "None provided"),
-        "initial_hypotheses_count":
-            initial_hypotheses_count or "not specified",
-        "max_iterations":
-            max_iterations or "not specified",
-        "evolution_max_count":
-            evolution_max_count or "not specified",
-        "literature_review_description":
-            lit_review_description,
+        "initial_hypotheses_count": initial_hypotheses_count or "not specified",
+        "max_iterations": max_iterations or "not specified",
+        "evolution_max_count": evolution_max_count or "not specified",
+        "literature_review_description": lit_review_description,
     }
 
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("supervisor", variables)
+    return _build_prompt(
+        "supervisor",
+        variables,
+        run_guidance=_format_run_guidance(run_setup_guidance,
+                                          run_focus_guidance),
+        tool_registry=tool_registry,
+    )
 
 
 # Helper functions to format supervisor guidance for different contexts
@@ -737,19 +761,16 @@ def get_reflection_prompt(
     indra_evidence: str = "",
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the reflection observations prompt and schema."""
-    variables = {
-        "articles_with_reasoning": articles_with_reasoning,
-        "hypothesis": hypothesis_text,
-        "indra_evidence": indra_evidence,
-    }
-
-    # Add meta-review context if available (blank on iteration 1).
-    variables["meta_review_context"] = _format_meta_review_context(meta_review)
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("reflection_observations", variables)
+    return _build_prompt(
+        "reflection_observations",
+        {
+            "articles_with_reasoning": articles_with_reasoning,
+            "hypothesis": hypothesis_text,
+            "indra_evidence": indra_evidence,
+        },
+        meta_review_context=_format_meta_review_context(meta_review),
+        tool_registry=tool_registry,
+    )
 
 
 def get_literature_review_query_generation_pubmed_prompt(
@@ -1117,11 +1138,11 @@ def get_validation_synthesis_prompt_with_tools(
             _build_already_validated_context(already_validated_texts),
     }
 
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("hypothesis_validation_synthesis_with_tools",
-                                   variables)
+    return _build_prompt(
+        "hypothesis_validation_synthesis_with_tools",
+        variables,
+        tool_registry=tool_registry,
+    )
 
 
 def get_debate_generation_prompt(
@@ -1584,12 +1605,11 @@ def get_draft_prompt_with_tools(
             tool_instructions,
     }
 
-    # Add meta-review context if available (blank on iteration 1).
-    variables["meta_review_context"] = _format_meta_review_context(meta_review)
-    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
-                                                     run_focus_guidance)
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    return load_prompt_with_schema("generation_draft_with_tools", variables)
+    return _build_prompt(
+        "generation_draft_with_tools",
+        variables,
+        meta_review_context=_format_meta_review_context(meta_review),
+        run_guidance=_format_run_guidance(run_setup_guidance,
+                                          run_focus_guidance),
+        tool_registry=tool_registry,
+    )

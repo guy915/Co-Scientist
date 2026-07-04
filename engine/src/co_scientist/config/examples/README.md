@@ -28,7 +28,7 @@ The default configuration [../tools.yaml](../tools.yaml) provides a reference im
 
 ---
 
-### `multi_source.yaml`
+### `multiple_sources.yaml`
 **Purpose:** Multi-source literature review (PubMed + arXiv + Google Scholar)
 **Use case:** Comprehensive cross-disciplinary research
 **Requirements:**
