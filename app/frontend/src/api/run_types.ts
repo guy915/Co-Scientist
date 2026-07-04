@@ -93,6 +93,7 @@ export interface Hypothesis {
   run_id: string;
   parent_id: string | null;
   generation: number;
+  category: string | null;
   title: string;
   statement: string;
   mechanism: string | null;
@@ -134,6 +135,7 @@ export interface MatchRow {
   loser_elo_before: number;
   loser_elo_after: number;
   rationale: string;
+  tier: string | null;
   created_at: number;
 }
 

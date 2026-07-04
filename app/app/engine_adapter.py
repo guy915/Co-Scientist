@@ -448,6 +448,7 @@ def _persist_final_state(
             title=title,
             statement=text,
             hypothesis_id=engine_id,
+            category=h.get("category") or None,
             mechanism=h.get("literature_grounding") or "",
             expected_effect=h.get("explanation") or "",
             experimental_context=h.get("experiment") or "",
@@ -558,6 +559,7 @@ def _persist_final_state(
             loser_before=int(m.get("loser_elo_before", 1200)),
             loser_after=int(m.get("loser_elo_after", 1200)),
             rationale=m.get("reasoning", ""),
+            tier=m.get("tier") or None,
             db_path=db_path,
         )
 

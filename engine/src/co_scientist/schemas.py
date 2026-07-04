@@ -53,6 +53,16 @@ GENERATION_SCHEMA: dict[str, Any] = {
                                  " datasets, metrics, and validation"
                                  " criteria (4-6 sentences)"),
                         },
+                        "category": {
+                            "type":
+                                "string",
+                            "description":
+                                ("Short (2-4 word) classification label naming"
+                                 " the mechanism family or research sub-area"
+                                 " this hypothesis belongs to, e.g."
+                                 " 'Metabolic reprogramming' or 'Epitope"
+                                 " editing'. Used to group and label ideas."),
+                        },
                     },
                     "required": [
                         "hypothesis", "explanation", "literature_grounding",
@@ -186,6 +196,14 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                                 ("Concrete experiment design with models,"
                                  " datasets, metrics, and validation"
                                  " criteria (4-6 sentences)"),
+                        },
+                        "category": {
+                            "type":
+                                "string",
+                            "description":
+                                ("Short (2-4 word) classification label naming"
+                                 " the mechanism family or research sub-area"
+                                 " this hypothesis belongs to."),
                         },
                         "novelty_validation": {
                             "type": "object",

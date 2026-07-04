@@ -153,6 +153,22 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE messages ADD COLUMN meta_json TEXT")
         logger.info("migration: added meta_json column to messages")
 
+    hyp_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(hypotheses)").fetchall()
+    }
+    if "category" not in hyp_cols:
+        conn.execute("ALTER TABLE hypotheses ADD COLUMN category TEXT")
+        logger.info("migration: added category column to hypotheses")
+
+    match_cols = {
+        row[1]
+        for row in conn.execute("PRAGMA table_info(matches)").fetchall()
+    }
+    if "tier" not in match_cols:
+        conn.execute("ALTER TABLE matches ADD COLUMN tier TEXT")
+        logger.info("migration: added tier column to matches")
+
 
 # ---------------------------------------------------------------------------
 # Schema
@@ -191,6 +207,7 @@ CREATE TABLE IF NOT EXISTS hypotheses (
     run_id TEXT NOT NULL,
     parent_id TEXT,                  -- NULL for generation-0; set by evolve
     generation INTEGER NOT NULL DEFAULT 0,
+    category TEXT,                   -- short classification label (breadcrumb)
     title TEXT NOT NULL,
     statement TEXT NOT NULL,
     mechanism TEXT,
@@ -278,6 +295,7 @@ CREATE TABLE IF NOT EXISTS matches (
     loser_elo_before INTEGER NOT NULL,
     loser_elo_after INTEGER NOT NULL,
     rationale TEXT,
+    tier TEXT,                       -- decisiveness class: upset|decisive|clear|narrow
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
@@ -660,6 +678,7 @@ def add_hypothesis(
     hypothesis_id: str | None = None,
     parent_id: str | None = None,
     generation: int = 0,
+    category: str | None = None,
     mechanism: str = "",
     expected_effect: str = "",
     experimental_context: str = "",
@@ -678,6 +697,7 @@ def add_hypothesis(
             UI); the mock path leaves it unset and gets a generated id.
         parent_id: Identifier of the parent hypothesis, set when evolving.
         generation: Generation number, 0 for originally generated hypotheses.
+        category: Short classification label; drives the viewer breadcrumb.
         mechanism: Proposed mechanism underlying the hypothesis.
         expected_effect: Expected effect or outcome of the hypothesis.
         experimental_context: Context describing how to test the hypothesis.
@@ -691,14 +711,15 @@ def add_hypothesis(
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO hypotheses (id, run_id, parent_id, generation, title, statement, mechanism, "  # pylint: disable=line-too-long
+            "INSERT INTO hypotheses (id, run_id, parent_id, generation, category, title, statement, mechanism, "  # pylint: disable=line-too-long
             "expected_effect, experimental_context, created_by_agent, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 hyp_id,
                 run_id,
                 parent_id,
                 generation,
+                category,
                 title,
                 statement,
                 mechanism,
@@ -991,6 +1012,7 @@ def add_match(
     loser_before: int,
     loser_after: int,
     rationale: str,
+    tier: str | None = None,
     db_path: str | None = None,
 ) -> None:
     """Record the outcome of a pairwise tournament match.
@@ -1005,13 +1027,14 @@ def add_match(
         loser_before: Loser's Elo rating before the match.
         loser_after: Loser's Elo rating after the match.
         rationale: Explanation of why the winner prevailed.
+        tier: Decisiveness class of the match (upset|decisive|clear|narrow).
         db_path: Optional override for the SQLite database path.
     """
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO matches (run_id, iteration, winner_id, loser_id, winner_elo_before, "  # pylint: disable=line-too-long
-            "winner_elo_after, loser_elo_before, loser_elo_after, rationale, created_at) "  # pylint: disable=line-too-long
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "winner_elo_after, loser_elo_before, loser_elo_after, rationale, tier, created_at) "  # pylint: disable=line-too-long
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 iteration,
@@ -1022,6 +1045,7 @@ def add_match(
                 loser_before,
                 loser_after,
                 rationale,
+                tier,
                 _now(),
             ),
         )

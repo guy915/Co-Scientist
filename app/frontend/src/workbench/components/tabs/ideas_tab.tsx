@@ -411,7 +411,8 @@ function HypothesisDetail({
     >
       <div className={IDEA_BREADCRUMB_CLASSES}>
         <span className={IDEA_BREADCRUMB_TEXT_CLASSES}>
-          Co-Scientist &gt; Ranked hypothesis &gt; {hypothesis.title}
+          Co-Scientist &gt; {hypothesis.category || 'Ranked hypothesis'} &gt;{' '}
+          {hypothesis.title}
         </span>
       </div>
 
@@ -448,12 +449,22 @@ function HypothesisDetail({
       <DetailSection title="Tournament performance" level={2}>
         <p>
           {totalMatches
-            ? `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches.`
+            ? `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches (${Math.round(
+                (hypothesis.win_count / totalMatches) * 100,
+              )}% win rate).`
             : 'No tournament matches have been recorded yet.'}
         </p>
       </DetailSection>
 
       <DetailSection title="Match summary" level={2}>
+        {latestMatch?.tier && (
+          <p>
+            <strong>Outcome:</strong>{' '}
+            <span className={IDEA_BREADCRUMB_TEXT_CLASSES}>
+              {latestMatch.tier}
+            </span>
+          </p>
+        )}
         <p>
           {latestMatch?.rationale || 'No match rationale is available yet.'}
         </p>

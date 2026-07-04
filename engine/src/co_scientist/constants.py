@@ -21,6 +21,10 @@ INITIAL_ELO_RATING: Final = 1200
 ELO_K_FACTOR: Final = 24
 """K-factor for Elo rating updates (higher = more volatile ratings)."""
 
+ELO_UPSET_MARGIN: Final = 100
+"""Pre-match Elo lead by which the loser must have exceeded the winner for a
+judged matchup to be classified an "upset" (see ``ranking.match_tier``)."""
+
 # LLM API parameters
 DEFAULT_MAX_TOKENS: Final = 4000
 """Default max tokens for standard LLM calls."""

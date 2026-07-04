@@ -9,6 +9,7 @@ function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
     run_id: 'r1',
     parent_id: null,
     generation: 0,
+    category: null,
     title: 'Untitled hypothesis',
     statement: 'A statement.',
     mechanism: null,

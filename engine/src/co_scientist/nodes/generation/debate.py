@@ -167,6 +167,7 @@ async def _run_single_debate(
 
             hypothesis = Hypothesis(
                 text=hypothesis_text,
+                category=hyp_data.get("category"),
                 explanation=explanation,
                 literature_grounding=literature_grounding,
                 experiment=experiment,

@@ -8,6 +8,7 @@ from typing import Any
 
 from co_scientist.constants import (
     ELO_K_FACTOR,
+    ELO_UPSET_MARGIN,
     THINKING_MAX_TOKENS,
     LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
@@ -48,6 +49,33 @@ def calculate_elo_update(winner_elo: int,
     return int(new_winner_elo), int(new_loser_elo)
 
 
+def match_tier(winner_elo_before: int, loser_elo_before: int,
+               confidence: str) -> str:
+    """Classifies how decisive a judged matchup was.
+
+    Derived deterministically (no extra LLM call) from the pre-match Elo gap
+    and the judge's stated confidence, mirroring the reference product's
+    per-match ``tier`` label in "Performance against other ideas".
+
+    Args:
+        winner_elo_before: Winner's Elo rating before the match.
+        loser_elo_before: Loser's Elo rating before the match.
+        confidence: Judge confidence level ("High"/"Medium"/"Low").
+
+    Returns:
+        One of "upset" (a lower-rated hypothesis won), "decisive",
+        "clear", or "narrow".
+    """
+    if loser_elo_before - winner_elo_before >= ELO_UPSET_MARGIN:
+        return "upset"
+    normalized = confidence.strip().lower()
+    if normalized == "high":
+        return "decisive"
+    if normalized == "medium":
+        return "clear"
+    return "narrow"
+
+
 def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     """Extracts the latest review scores for a matchup prompt.
 
@@ -66,8 +94,7 @@ def _review_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     }
 
 
-def _deep_verification_summary(
-        hypothesis: Hypothesis) -> dict[str, Any] | None:
+def _deep_verification_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     """Extracts deep-verification probes for a matchup prompt.
 
     Args:
@@ -352,6 +379,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
                 reasoning,
             "confidence":
                 response.get("confidence_level", "Unknown"),
+            "tier":
+                match_tier(old_winner_elo, old_loser_elo,
+                           response.get("confidence_level", "")),
             "winner_elo_before":
                 old_winner_elo,
             "winner_elo_after":
