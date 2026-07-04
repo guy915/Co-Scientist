@@ -55,7 +55,7 @@ const IDEA_STAT_VALUE_CLASSES =
 
 const IDEA_SPLIT_GRID_CLASSES =
   'idea-split-grid reference grid min-h-0 min-w-0 flex-1 ' +
-  'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_15rem] ' +
+  'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_17rem] ' +
   'max-[720px]:grid-cols-1';
 
 const IDEA_RANK_LIST_CLASSES =
@@ -65,11 +65,12 @@ const IDEA_RANK_LIST_CLASSES =
 
 const IDEA_RANK_ROW_CLASSES =
   'idea-rank-row grid min-h-[8.9rem] w-full cursor-pointer ' +
-  'grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-[0.65rem] rounded-lg ' +
+  'grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-[0.65rem] rounded-[10px] ' +
   'border border-cosci-idea-row-border bg-cosci-idea-row-bg ' +
-  'p-[0.9rem] text-left text-cosci-idea-row-text ' +
+  'p-4 text-left text-cosci-idea-row-text transition-colors duration-150 ' +
   'hover:border-cosci-idea-row-hover-border ' +
-  'hover:bg-cosci-idea-row-hover-bg';
+  'hover:bg-cosci-idea-row-hover-bg ' +
+  'motion-reduce:transition-none';
 
 const IDEA_RANK_SELECTED_CLASSES =
   'selected !border-cosci-idea-row-selected-border ' +
@@ -79,7 +80,7 @@ const IDEA_RANK_SELECTED_CLASSES =
 
 const IDEA_CHIP_CLASSES =
   'inline-grid h-7 min-w-7 place-items-center rounded-full border-0 ' +
-  'bg-cosci-idea-chip-bg text-[0.78rem] font-medium ' +
+  'px-3 bg-cosci-idea-chip-bg text-[0.875rem] font-normal ' +
   'text-cosci-idea-chip-text';
 
 const IDEA_ELO_CHIP_CLASSES = `${IDEA_CHIP_CLASSES} idea-elo-chip mb-3 w-fit min-w-[6.35rem]`;
@@ -88,12 +89,12 @@ const IDEA_RANK_CONTENT_CLASSES = 'idea-rank-content min-w-0';
 
 const IDEA_RANK_TITLE_CLASSES =
   'idea-rank-title mt-[0.15rem] block overflow-hidden text-ellipsis ' +
-  'whitespace-nowrap text-[0.9rem] leading-[1.3] font-semibold ' +
+  'whitespace-nowrap text-base leading-6 font-medium ' +
   'text-cosci-idea-title-text';
 
 const IDEA_RANK_PREVIEW_CLASSES =
   'idea-rank-preview mt-[0.45rem] line-clamp-2 overflow-hidden ' +
-  'text-[0.72rem] leading-[1.35] text-cosci-idea-preview-text';
+  'text-[0.75rem] leading-4 tracking-[0.1px] text-cosci-idea-preview-text';
 
 const IDEA_DETAIL_PANE_CLASSES =
   'idea-detail-pane grid min-w-0 content-start gap-[1.35rem] overflow-x-hidden ' +
@@ -105,8 +106,8 @@ const IDEA_DETAIL_EMPTY_CLASSES =
 
 const IDEA_BREADCRUMB_CLASSES =
   'idea-breadcrumb inline-flex h-[1.65rem] min-h-[1.65rem] w-fit max-w-full ' +
-  'items-center overflow-hidden rounded bg-cosci-idea-breadcrumb-bg ' +
-  'px-[0.45rem] text-[0.78rem] leading-[1.65rem] font-semibold ' +
+  'items-center overflow-hidden rounded-[5px] bg-cosci-idea-breadcrumb-bg ' +
+  'px-2 text-[0.6875rem] leading-[1.65rem] font-medium tracking-[0.1px] ' +
   'text-ellipsis whitespace-nowrap text-cosci-idea-breadcrumb-text';
 
 const IDEA_BREADCRUMB_TEXT_CLASSES =
@@ -114,23 +115,23 @@ const IDEA_BREADCRUMB_TEXT_CLASSES =
 
 const IDEA_DETAIL_SECTION_CLASSES =
   'idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 ' +
-  '[&_h2]:m-0 [&_h2]:text-[clamp(1.5rem,2.2vw,1.9rem)] ' +
-  '[&_h2]:leading-[1.15] [&_h2]:font-normal ' +
+  '[&_h2]:m-0 [&_h2]:mb-2 [&_h2]:text-[2rem] ' +
+  '[&_h2]:leading-10 [&_h2]:font-normal ' +
   '[&_h2]:text-cosci-idea-title-text [&_h3]:m-0 ' +
   '[&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case ' +
   '[&_h3]:text-cosci-idea-title-text [&_p]:m-0 ' +
-  '[&_p]:[overflow-wrap:anywhere] [&_p]:text-[0.88rem] ' +
-  '[&_p]:leading-[1.5] [&_p]:text-cosci-idea-detail-text';
+  '[&_p]:[overflow-wrap:anywhere] [&_p]:text-base ' +
+  '[&_p]:leading-6 [&_p]:text-cosci-idea-detail-text';
 
 const IDEA_SECTIONS_RAIL_CLASSES =
-  'idea-sections-rail mt-5 mr-5 ml-2 grid min-w-0 self-start gap-[1.1rem] ' +
-  'rounded-[0.45rem] bg-cosci-panel p-4 max-[720px]:hidden';
+  'idea-sections-rail mt-5 mr-5 ml-2 grid min-w-0 self-start gap-5 ' +
+  'rounded-[10px] bg-cosci-panel p-5 max-[720px]:hidden';
 
-const IDEA_SECTIONS_LABEL_CLASSES = 'text-[0.78rem] text-cosci-muted';
+const IDEA_SECTIONS_LABEL_CLASSES =
+  'text-[0.75rem] tracking-[0.1px] text-cosci-idea-title-text';
 
 const IDEA_SECTION_LINK_CLASSES =
-  'text-[0.9rem] leading-[1.35] font-semibold text-cosci-blue ' +
-  'no-underline';
+  'text-base leading-6 font-medium text-cosci-blue ' + 'no-underline';
 
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
