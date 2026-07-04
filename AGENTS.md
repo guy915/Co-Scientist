@@ -222,3 +222,13 @@ feat/report-markdown-persistence
 fix/report-tab-empty-state
 docs/restructure-engine-docs
 ```
+
+Pull requests should follow Google's public CL-description conventions, adapted
+for a concise personal-project workflow:
+
+- PR titles are short, standalone, imperative summaries of the change. Do not
+  use Conventional Commit prefixes in PR titles. Prefer `Remove unused
+  generate endpoints` over `refactor: remove unused generate endpoints`.
+- PR bodies should briefly explain what changed, why it changed, and how it was
+  tested. Add implementation context or tradeoffs only when they help future
+  review or maintenance.
