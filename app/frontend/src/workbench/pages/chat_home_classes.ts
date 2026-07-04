@@ -14,7 +14,7 @@ export const HOME_MAIN_CLASSES = 'reference-home-main';
 
 export const HOME_AGENT_CHIP_CLASSES = 'reference-agent-chip';
 
-export const HOME_AGENT_CHIP_AVATAR_CLASSES = 'reference-agent-chip-avatar';
+export const HOME_AGENT_CHIP_ICON_CLASSES = 'reference-agent-chip-icon';
 
 export const HOME_TITLE_CLASSES = 'reference-home-title';
 

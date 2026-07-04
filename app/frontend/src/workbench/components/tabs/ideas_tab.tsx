@@ -124,14 +124,17 @@ const IDEA_DETAIL_SECTION_CLASSES =
   '[&_p]:leading-6 [&_p]:text-cosci-idea-detail-text';
 
 const IDEA_SECTIONS_RAIL_CLASSES =
-  'idea-sections-rail mt-5 mr-5 ml-2 grid min-w-0 self-start gap-5 ' +
+  'idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start ' +
   'rounded-[10px] bg-cosci-panel p-5 max-[720px]:hidden';
 
 const IDEA_SECTIONS_LABEL_CLASSES =
   'text-[0.75rem] tracking-[0.1px] text-cosci-idea-title-text';
 
+// Reference: ul with 20px above the first link, then li+li margin-top 24px.
+const IDEA_SECTIONS_LIST_CLASSES = 'mt-5 grid gap-6';
+
 const IDEA_SECTION_LINK_CLASSES =
-  'text-base leading-6 font-medium text-cosci-blue ' + 'no-underline';
+  'block text-base leading-6 font-medium text-cosci-blue no-underline';
 
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
@@ -484,24 +487,26 @@ function SectionsRail() {
   return (
     <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
       <span className={IDEA_SECTIONS_LABEL_CLASSES}>Sections</span>
-      {[
-        'Hypothesis overview',
-        'Description',
-        'Review summary',
-        'Full review',
-        'Tournament performance',
-      ].map(item => (
-        <a
-          key={item}
-          href={`#${item.toLowerCase().replaceAll(' ', '-')}`}
-          className={IDEA_SECTION_LINK_CLASSES}
-          onClick={event =>
-            smoothSectionClick(event, item.toLowerCase().replaceAll(' ', '-'))
-          }
-        >
-          {item} &gt;
-        </a>
-      ))}
+      <nav className={IDEA_SECTIONS_LIST_CLASSES}>
+        {[
+          'Hypothesis overview',
+          'Description',
+          'Review summary',
+          'Full review',
+          'Tournament performance',
+        ].map(item => (
+          <a
+            key={item}
+            href={`#${item.toLowerCase().replaceAll(' ', '-')}`}
+            className={IDEA_SECTION_LINK_CLASSES}
+            onClick={event =>
+              smoothSectionClick(event, item.toLowerCase().replaceAll(' ', '-'))
+            }
+          >
+            {item} &gt;
+          </a>
+        ))}
+      </nav>
     </aside>
   );
 }
