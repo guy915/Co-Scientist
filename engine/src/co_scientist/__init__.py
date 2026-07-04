@@ -46,7 +46,6 @@ from co_scientist.cache import (
     clear_node_cache,
     get_node_cache_stats,
 )
-from co_scientist.console import ConsoleReporter
 from co_scientist.config import ToolRegistry, get_tool_registry
 # pylint: enable=wrong-import-position
 
@@ -58,7 +57,6 @@ __all__ = [
     "ExecutionMetrics",
     "WorkflowState",
     "WorkflowConfig",
-    "ConsoleReporter",
     "clear_cache",
     "get_cache_stats",
     "clear_node_cache",

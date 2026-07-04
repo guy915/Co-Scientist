@@ -25,9 +25,13 @@ from co_scientist.prompts import format_articles_metadata
 from co_scientist.prompts import get_debate_generation_prompt
 from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.prompts import get_draft_prompt_with_tools
+from co_scientist.prompts import get_hypothesis_novelty_analysis_prompt
+from co_scientist.prompts import (get_hypothesis_validation_synthesis_prompt)
 from co_scientist.prompts import (get_literature_review_paper_analysis_prompt)
+from co_scientist.prompts import (get_literature_review_query_generation_prompt)
 from co_scientist.prompts import (
     get_literature_review_query_generation_pubmed_prompt)
+from co_scientist.prompts import (get_literature_review_synthesis_prompt)
 from co_scientist.prompts import get_meta_review_prompt
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.prompts import get_ranking_prompt
@@ -36,6 +40,7 @@ from co_scientist.prompts import get_research_overview_prompt
 from co_scientist.prompts import get_review_batch_prompt
 from co_scientist.prompts import get_review_prompt
 from co_scientist.prompts import get_supervisor_prompt
+from co_scientist.prompts import (get_validation_synthesis_prompt_with_tools)
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.prompts import substitute_variables
 from tests._state import make_article
@@ -488,3 +493,133 @@ def test_get_research_overview_prompt_substitutes_and_returns_schema() -> None:
     assert "Find liver-fibrosis targets" in prompt
     assert "HDAC inhibition" in prompt
     assert schema is not None
+
+
+# --- untested prompt getters (characterization) ----------------------------
+
+
+def test_source_aware_query_prompt_selects_template_by_source_type() -> None:
+    """The source-aware query builder embeds the goal for each source type."""
+    for source_type in ("knowledge_graph", "pubmed", "academic"):
+        prompt = get_literature_review_query_generation_prompt(
+            research_goal="find biomarkers for sepsis",
+            source_type=source_type,
+            user_literature=["Smith 2020 sepsis review"],
+        )
+        assert isinstance(prompt, str)
+        assert prompt
+        assert "find biomarkers for sepsis" in prompt
+        assert "{{MISSING" not in prompt
+
+
+def test_literature_synthesis_prompt_renders_paper_analyses() -> None:
+    """The synthesis builder embeds the goal and each paper's findings."""
+    prompt = get_literature_review_synthesis_prompt(
+        research_goal="explain insulin resistance",
+        paper_analyses=[{
+            "metadata": {
+                "title": "Hepatic glucose output revisited",
+                "authors": ["P. First"],
+                "year": 2019,
+            },
+            "analysis": {
+                "key_findings": "gluconeogenesis is upregulated",
+                "gaps_identified": "no in-vivo validation",
+            },
+        }],
+    )
+    assert isinstance(prompt, str)
+    assert "explain insulin resistance" in prompt
+    assert "Hepatic glucose output revisited" in prompt
+    assert "{{MISSING" not in prompt
+
+
+def test_novelty_analysis_prompt_interpolates_metadata() -> None:
+    """The novelty-analysis builder embeds the hypothesis and metadata."""
+    prompt = get_hypothesis_novelty_analysis_prompt(
+        hypothesis_text="APOE4 impairs astrocyte lipid transport",
+        title="Astrocyte lipid handling in AD",
+        authors=["A. One", "B. Two"],
+        year=2021,
+        fulltext="Full text discussing APOE isoforms.",
+    )
+    assert isinstance(prompt, str)
+    assert "APOE4 impairs astrocyte lipid transport" in prompt
+    assert "Astrocyte lipid handling in AD" in prompt
+    assert "2021" in prompt
+    # Every placeholder this builder owns is filled. (A blanket "{{MISSING"
+    # check is not used here: the template embeds a literal ``{{...}}`` JSON
+    # example block that ``substitute_variables`` mis-reads as a placeholder,
+    # which is a template-escaping quirk independent of the builder's inputs.)
+    for var in ("hypothesis_text", "title", "authors", "year", "fulltext"):
+        assert f"{{{{MISSING:{var}}}}}" not in prompt
+
+
+def test_validation_synthesis_prompt_renders_drafts_no_schema() -> None:
+    """The (no-tools) validation synthesis builder returns a filled str."""
+    prompt = get_hypothesis_validation_synthesis_prompt(
+        research_goal="reduce tumor metastasis",
+        hypotheses_with_analyses=[{
+            "draft": {
+                "text": "block CXCR4 signaling",
+                "gap_reasoning": "under-studied in metastasis",
+                "literature_sources": "[C1]",
+            },
+            "novelty_analyses": [{
+                "paper_metadata": {
+                    "title": "CXCR4 in cancer",
+                    "year": 2020
+                },
+                "analysis": {
+                    "novelty_assessment": "complementary"
+                },
+            }],
+        }],
+    )
+    assert isinstance(prompt, str)
+    assert "reduce tumor metastasis" in prompt
+    assert "block CXCR4 signaling" in prompt
+
+
+def test_validation_synthesis_with_tools_returns_schema() -> None:
+    """The tools variant embeds drafts and returns a non-None schema."""
+    prompt, schema = get_validation_synthesis_prompt_with_tools(
+        research_goal="reduce tumor metastasis",
+        hypotheses_with_analyses=[{
+            "draft": {
+                "text": "block CXCR4 signaling",
+                "gap_reasoning": "under-studied",
+                "literature_sources": "[C1]",
+            },
+            "novelty_analyses": [],
+        }],
+        max_iterations=5,
+    )
+    assert isinstance(prompt, str)
+    assert "reduce tumor metastasis" in prompt
+    assert "block CXCR4 signaling" in prompt
+    assert schema is not None
+
+
+def test_domain_injection_populates_domain_placeholders() -> None:
+    """A registry with prompts_config fills domain_* placeholders (review)."""
+
+    class _StubPromptsConfig:
+        domain_context = "ONCOLOGY-CONTEXT"
+        generation_guidance = "GEN-G"
+        review_guidance = "REVIEW-G"
+        evolution_guidance = "EVO-G"
+        reflection_guidance = "REFL-G"
+
+    class _StubRegistry:
+
+        def get_prompts_config(self) -> _StubPromptsConfig:
+            return _StubPromptsConfig()
+
+    prompt, _ = get_review_prompt(
+        research_goal="g",
+        hypothesis_text="h",
+        tool_registry=_StubRegistry(),
+    )
+    assert "ONCOLOGY-CONTEXT" in prompt
+    assert "REVIEW-G" in prompt
