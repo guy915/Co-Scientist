@@ -51,13 +51,13 @@
   display: block;
   width: max-content;
   max-width: min(20rem, calc(100vw - 2rem));
-  border: 1px solid #3c4043;
+  border: 1px solid #444746;
   border-radius: 0.45rem;
-  background: #303134;
+  background: #303030;
   box-shadow:
     0 1px 2px rgb(0 0 0 / 22%),
     0 3px 8px rgb(0 0 0 / 24%);
-  color: #f1f3f4;
+  color: #f2f2f2;
   content: attr(data-tooltip);
   font-size: 0.78rem;
   font-weight: 500;
@@ -84,12 +84,12 @@
 }
 
 [data-theme="dark"] [data-tooltip].ucs-tooltip-anchor::after {
-  border-color: #dadce0;
-  background: #f1f3f4;
+  border-color: #c4c7c5;
+  background: #e3e3e3;
   box-shadow:
     0 1px 2px rgb(60 64 67 / 18%),
     0 2px 6px rgb(60 64 67 / 16%);
-  color: #202124;
+  color: #303030;
 }
 
 [data-tooltip].ucs-tooltip-top::after {

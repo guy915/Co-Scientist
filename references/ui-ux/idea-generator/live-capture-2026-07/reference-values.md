@@ -175,6 +175,46 @@ Layout: left idea list (452px incl. 20px side padding), center document
   become a grid `repeat(auto-fill, 300px)` gap 40px below the main panel.
 - `max-width: 1250px` (chat view): tournament overview side panel hidden.
 
+## Dark theme (from the saved dark captures + screenshots)
+
+Extracted from the `:host([dark-theme])` blocks in the saved dark HTML
+(`home-page/…_dark.html`, `ideas-results/…dark.html`,
+`session-setup/…dark.html`) and pixel-verified against the dark screenshots.
+Caution: the JPGs carry a P3→sRGB shift on saturated colors, so CSS tokens are
+ground truth where available; pixels are authoritative only where no rule was
+found.
+
+Sys ramp (dark): background/surface paints `#131314`; **on-surface is
+overridden to pure `#fff`** (not the stock `#e3e3e3`); on-surface-variant
+`#c4c7c5`; outline `#8e918f`; outline-variant `#444746`; primary `#a8c7fa`;
+primary-container `#0842a0`; secondary-container `#004a77`;
+surface-container-low `#1b1b1b`, -container `#1e1f20`, -high `#282a2c`,
+-highest `#333537`; inverse-on-surface `#303030`.
+
+Ref-palette dark overrides (the accents get dark-specific values):
+`green90 → #006c35` (winning chip), `blue-variant95 → #133043` (idea rank/Elo
+chips), `blue-variant98 → #003d64` (selected idea row), **`purple70 stays
+#c597ff`** (step dots keep the same purple in dark).
+
+| Element | Dark values |
+|---|---|
+| Nav rail | surface-container `#1e1f20` (light rail is surface-container-high `#e9eef6`, pixel-measured) |
+| Recents `.card` | bg surface-container `#1e1f20`; **same** black elevation shadow as light (dark rule swaps only the fill); hover → surface-container-low `#1b1b1b` |
+| Card chips (date/total-time) | bg surface-container-highest `#333537`, text on-surface `#fff` |
+| Winning chip | bg green90 `#006c35`, text on-surface `#fff` |
+| Step dot (`.step-indicator`) | bg purple70 `#c597ff` (unchanged), number `inverse-on-surface` `#303030`; light number is `#f2f2f2` |
+| Progress line | opaque `#b9a9d7` in BOTH themes (pixel-measured; no CSS background rule found) |
+| Composer (`form .form-elements`, next-gen) | light: bg surface `#fff` + `box-shadow: 0 2px 12px -2px surface-container-high`; **dark: bg surface-container `#1e1f20`, `box-shadow: none`, no border** |
+| Suggestion `.sample-card` | bg background, border 1px outline-variant `#444746`, radius 16px; hover surface-container-high `#282a2c` |
+| Idea row selected | bg blue-variant98 `#003d64`, border primary `#a8c7fa`; hover excluded from the hover rule (no change) |
+| Idea rank/Elo chips | bg blue-variant95 `#133043`, text on-surface |
+| Breadcrumb / summary chips | bg surface-container `#1e1f20`, text on-surface |
+| Sections rail (`.navigation-block`) | bg surface-container `#1e1f20`, title on-surface, links primary `#a8c7fa` |
+| User bubble | surface-container-high `#282a2c` |
+| Setup card (`.plan-details`) | dark override → surface-container-highest `#333537` (light is surface-container `#f0f4f9`) |
+| Agent chip avatar | `#d9d8ff` light / `#32307b` dark (squircle bg, pixel-measured) |
+| Hero blob | same SVG both themes, no dark override, no CSS opacity (internal group opacity only); fills `#FF8DD2` / `#CCA5EB` / `#F6A6FD` |
+
 ## Open items
 
 - Purple decorative gradient blob on home hero: not a DOM background/canvas

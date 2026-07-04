@@ -57,16 +57,17 @@ colors:
   # live-capture-2026-07/). Faintly warm neutrals, NOT the classic blue-grey
   # Google ramp. Light values shown; every token carries its own dark value in
   # the :root[data-theme="dark"] block. Exposed to Tailwind as cosci-* utilities.
-  cosci-text: "#1f1f1f"       # MD3 on-surface
-  cosci-muted: "#747775"      # MD3 outline
+  cosci-text: "#1f1f1f"       # MD3 on-surface (dark: pure #fff, as the product overrides)
+  cosci-muted: "#747775"      # MD3 outline (dark: on-surface-variant #c4c7c5)
   cosci-subtle: "#9aa0a6"
   cosci-border: "#c4c7c5"     # MD3 outline-variant
   cosci-panel: "#f0f4f9"      # MD3 surface-container
   cosci-bg: "#ffffff"
-  cosci-rail: "#eef4ff"
-  cosci-teal: "#1A6B6B"       # light-mode accent (logo, step dots, composer submit)
+  cosci-rail: "#e9eef6"       # MD3 surface-container-high (dark: surface-container #1e1f20)
+  cosci-teal: "#1A6B6B"       # light-mode accent (logo, composer submit)
   cosci-green: "#7FD7BF"      # dark-mode accent (same roles)
-  cosci-blue: "#1967d2"
+  cosci-step-dot-bg: "#00caca" # step dots + timeline accents, BOTH themes (see Colors)
+  cosci-blue: "#0b57d0"
   cosci-btn-primary-bg: "#0b57d0"   # Google-blue filled button (setup surface)
 
 typography:
@@ -273,12 +274,15 @@ components:
     padding: 0 22px
 
   # Home recents card — the one card family that carries a real shadow
+  # (reference .card values; the shadow is identical in both themes and does
+  # NOT change on hover — hover swaps the fill to surface-container-low)
   recent-card:
     backgroundColor: "var(--cosci-recent-card-bg)"
+    hoverBackgroundColor: "var(--cosci-recent-card-hover-bg)"
     textColor: "var(--cosci-recent-card-text)"
-    rounded: 0.8rem
-    padding: "1.05rem 1.2rem"
-    shadow: "0 1px 3px rgb(60 64 67 / 12%), 0 6px 14px -2px rgb(60 64 67 / 8%)"
+    rounded: 0.75rem
+    padding: 1rem
+    shadow: "0 1px 2px rgb(0 0 0 / 15%), 0 2px 10px rgb(0 0 0 / 10%)"
 
   # Setup-surface filled button (Google blue, --cosci-btn-primary-*)
   setup-button-primary:
@@ -328,7 +332,9 @@ Where possible, semantic tokens **alias baseline tokens** rather than introducin
 
 The three raw-color/palette files split by role: `reference_surface.css` holds the Gemini product palette and the ideas-surface (`--cosci-idea-*`) tokens; `component_tokens.css` holds the semantic component tokens above; `shell_surface.css` / `home_surface.css` hold the shell and home *layout* rules that consume them. The import order in `styles/index.css` is `reference_surface → component_tokens → shell → home → tooltips`, so component tokens can alias palette tokens defined before them.
 
-The mode-dependent **accent** is worth internalizing: light mode accents in the Co-Scientist teal (`--cosci-teal`, `#1A6B6B`); dark mode swaps the same roles (logo, step dots, composer submit, Logs pill) to mint green (`--cosci-green`, `#7FD7BF`). Components get this for free by using the role tokens (`--cosci-step-dot-bg`, `--cosci-composer-submit`, `--cosci-logo-color`), never the raw teal/green.
+The mode-dependent **accent** is worth internalizing: light mode accents in the Co-Scientist teal (`--cosci-teal`, `#1A6B6B`); dark mode swaps the same roles (logo, composer submit, Logs pill) to mint green (`--cosci-green`, `#7FD7BF`). Components get this for free by using the role tokens (`--cosci-composer-submit`, `--cosci-logo-color`), never the raw teal/green.
+
+The **step-timeline accents are the exception — they do not swap per theme**, because the reference doesn't: the product paints its step dots ref-palette purple70 `#c597ff` and the connecting line `#b9a9d7` in *both* themes, flipping only the number color (inverse-on-surface: `#f2f2f2` light / `#303030` dark). Ours are those exact colors OKLCH hue-rotated onto the brand-teal hue (195°) with lightness/chroma preserved: dot `#00caca`, line `#7fc0bd` (both themes), plus the agent-chip avatar (`#b8e9dc` light / `#004740` dark from the reference's `#d9d8ff`/`#32307b`) and the hero blob fills (`#00CFF1`/`#56CCD4`/`#00E1F4` from `#FF8DD2`/`#CCA5EB`/`#F6A6FD`).
 
 ### Tailwind utilities
 
@@ -384,7 +390,8 @@ Depth is achieved primarily through **tonal layers** — page content (cards, ta
 - **Hover / selected (Level 2):** `secondary-container` applied via `transition-colors hover:bg-[secondary-container]`. No border change on hover.
 - **Header (Level 3):** `color-mix(in srgb, surface-container 70%, transparent)` + `backdrop-blur-xl`. Creates a frosted-glass separation from page content on scroll without a heavy shadow.
 - **Floating overlays:** menus, popovers, and toasts *do* carry MD3 elevation, applied with the `--md-elevation-1/2/3` shadow tokens (defined in `index.css`, with lifted opacities in dark mode). Menus/popovers use level 2; toasts use level 3. This is the one place shadow is correct — a menu detached from its trigger needs to read as floating.
-- **Recents cards (the one in-page exception):** `.reference-recent-card` on the home surface carries a **soft two-layer Google-style shadow** (`0 1px 3px` + `0 6px 14px`, low opacity) that deepens slightly on hover/focus, with heavier opacities in dark mode. This matches the Gemini reference, where recents read as raised, clickable objects. Do not extend this treatment to other cards — it is a deliberate reference-matching exception, not a precedent.
+- **Recents cards (the one card exception):** `.reference-recent-card` on the home surface carries the reference's exact two-layer `.card` shadow — `0 1px 2px rgb(0 0 0 / 15%), 0 2px 10px rgb(0 0 0 / 10%)` — **identical in both themes and constant on hover** (hover swaps the fill to `--cosci-recent-card-hover-bg`, surface-container-low, instead of raising elevation). Do not extend this treatment to other cards — it is a deliberate reference-matching exception, not a precedent.
+- **Home composer (the one input exception):** the reference casts `0 2px 12px -2px` in surface-container-high under the composer in light mode and **no shadow in dark**; this lives on the `--cosci-composer-shadow` token (light: the shadow; dark: `none`), applied by `.reference-composer`. The dark composer is also borderless (`--cosci-composer-border: transparent`).
 
 Never add `box-shadow` to any other card, table, or input. The outline-variant border and tonal layers provide all the separation those need. Reserve the `--md-elevation-*` tokens strictly for surfaces that float above the page.
 
@@ -448,8 +455,8 @@ Buttons are pill-shaped (`rounded-full`) semantic `<button>` elements following 
 
 **Setup/chat-surface buttons** (`--cosci-btn-*` tokens) — the Gemini setup flow uses Google's own button colors, not the MD3 teal:
 
-- **Primary (filled)** — Google blue `#0b57d0` with white label in light mode; in dark mode a muted blue container (`#1d3354`) with light-blue label. Used for "Start" on the setup document.
-- **Outline** — blue border and blue label in both modes (`#1a73e8`/`#1967d2` light, `#8ab4f8` dark), transparent fill, tinted hover wash. Used for follow-up actions ("View session details").
+- **Primary (filled)** — MD3 `md-filled-button`: Google blue `#0b57d0` with white label in light mode; in dark mode the MD3 inversion — primary `#a8c7fa` fill with on-primary `#062e6f` label. Used for "Start" on the setup document.
+- **Outline** — MD3 `md-outlined-button`: outline-colored border (`#747775` light / `#8e918f` dark) with a primary-colored label (`#0b57d0` light / `#a8c7fa` dark), transparent fill, primary-tinted 8% hover wash. Used for follow-up actions ("View session details").
 - **Secondary** — neutral gray border and ink label, gray hover. Used for "Cancel"-grade actions.
 - All three share a **disabled trio** (`--cosci-btn-disabled-border/bg/fg`) and are pill-shaped like every other button.
 
@@ -488,7 +495,7 @@ Run list table on Dashboard uses `sm:block hidden`. Structure: `thead` with `sec
 
 ### Progress & Loading
 
-- **Skeleton loaders:** `.wb-skeleton` — neutral gray shimmer animation, colored by the `--cosci-skeleton-bg` token pair (light `#eceff1` / dark `#3a3f42`) so it themes like everything else rather than via a hardcoded hex. Used while API calls resolve.
+- **Skeleton loaders:** `.wb-skeleton` — neutral gray shimmer animation, colored by the `--cosci-skeleton-bg` token pair (light `#f0f4f9` / dark `#282a2c`) so it themes like everything else rather than via a hardcoded hex. Used while API calls resolve.
 - **Linear / circular progress** — first-party progress indicators using the `primary` token, shown in the run detail header (iteration progress) and while tab streams load.
 
 ### Tabs (Run Detail)
@@ -511,13 +518,13 @@ A header **Logs pill** (filled with the mode accent — teal in light, mint in d
 
 ### Tooltips
 
-One canonical tooltip system: set `data-tooltip="…"` plus the `.ucs-tooltip-anchor` class — build the class list with `tooltipClassNames()` in `tooltip.ts` rather than hand-assembling modifiers. The tooltip is an **inverted surface** — dark chip (`#303134`) in light mode, light chip (`#f1f3f4`) in dark mode — with a small shadow, 0.78rem medium text, and a subtle scale/translate entrance on hover/focus-visible. Placement modifiers: `.ucs-tooltip-top/bottom/left/right`, alignment `.ucs-tooltip-align-start/end`, and `.ucs-tooltip-wrap` for multi-line content. Never hand-roll a bespoke tooltip; new affordances must use this system.
+One canonical tooltip system: set `data-tooltip="…"` plus the `.ucs-tooltip-anchor` class — build the class list with `tooltipClassNames()` in `tooltip.ts` rather than hand-assembling modifiers. The tooltip is an **inverted surface** — dark chip (`#303030`, MD3 inverse-surface) in light mode, light chip (`#e3e3e3`) in dark mode — with a small shadow, 0.78rem medium text, and a subtle scale/translate entrance on hover/focus-visible. Placement modifiers: `.ucs-tooltip-top/bottom/left/right`, alignment `.ucs-tooltip-align-start/end`, and `.ucs-tooltip-wrap` for multi-line content. Never hand-roll a bespoke tooltip; new affordances must use this system.
 
 **Cascade, not `!important`.** `tooltips.css` is **unlayered author CSS imported last** (after Tailwind's `@layer utilities`), so its rules already outrank utility classes — an `overflow-hidden` utility on an anchor can't clip the tooltip, and no declaration needs `!important`. This is deliberate and load-bearing: keep the file unlayered and imported last rather than reaching for `!important` to win a specificity fight. The placement/alignment modifiers share the base selector's specificity and rely on source order (they appear after the base rule).
 
 ### Scrollbars
 
-Scrollbars are themed globally (`index.css`) as a **trackless floating thumb**, Google style: no channel behind the thumb, just a rounded gray pill (`#bdc1c6` light / `#5f6368` dark, darkening on hover) inset by a 3px transparent border inside a 14px hit area. Implementation note: the styling deliberately uses the `::-webkit-scrollbar` pseudos and does **not** set the standard `scrollbar-width` / `scrollbar-color` properties — in Chromium those suppress the webkit pseudos.
+Scrollbars are themed globally (`index.css`) as a **trackless floating thumb**, Google style: no channel behind the thumb, just a rounded gray pill (`#bdc1c6` light / `#444746` dark, darkening on hover) inset by a 3px transparent border inside a 14px hit area. Implementation note: the styling deliberately uses the `::-webkit-scrollbar` pseudos and does **not** set the standard `scrollbar-width` / `scrollbar-color` properties — in Chromium those suppress the webkit pseudos.
 
 ### Radio option cards
 

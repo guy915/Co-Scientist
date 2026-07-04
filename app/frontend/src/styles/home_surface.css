@@ -48,7 +48,6 @@
   width: 800px;
   height: 416px;
   background: url("../assets/home-hero-blob.svg") no-repeat center / contain;
-  opacity: 0.85;
   pointer-events: none;
 }
 
@@ -56,10 +55,6 @@
   .reference-home-main::before {
     display: none;
   }
-}
-
-:root[data-theme="dark"] .reference-home-main::before {
-  opacity: 0.5;
 }
 
 /* Entrance animation copied from the reference: content fades up 16px over
@@ -94,13 +89,14 @@
   text-align: left;
 }
 
-/* Agent chip row above the greeting. The reference renders it borderless —
-   just an inline agent icon + name (14px/24 w500), no filled avatar. Brand
-   accent teal stands in for the reference's purple. */
+/* Agent chip row above the greeting: a small tinted squircle avatar + the
+   agent name (14px/24 w500). The reference avatar is its lavender product
+   squircle (#d9d8ff light / #32307b dark); ours is the flask on the same
+   tones hue-rotated to our teal family. */
 .reference-agent-chip {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: 0.625rem;
   align-self: flex-start;
   margin-bottom: 2.25rem;
   color: var(--cosci-teal-dark);
@@ -110,9 +106,15 @@
 }
 
 .reference-agent-chip-icon {
+  display: grid;
+  width: 1.5rem;
+  height: 1.5rem;
   flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.4375rem;
+  background: var(--cosci-agent-avatar-bg);
   color: var(--cosci-teal);
-  font-size: 1.25rem;
+  font-size: 1rem;
 }
 
 :root[data-theme="dark"] .reference-agent-chip {
@@ -235,7 +237,7 @@
   max-width: min(42rem, calc(100vw - 7rem));
   margin: 0;
   overflow: hidden;
-  color: #3c4043;
+  color: var(--cosci-shell-icon);
   font-size: 0.84rem;
   font-weight: 400;
   line-height: 1.25rem;
@@ -244,10 +246,6 @@
   transform: translateY(0.2rem);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
-}
-
-:root[data-theme="dark"] .reference-suggestion-preview {
-  color: #e8eaed;
 }
 
 .reference-suggestion-preview.visible {
@@ -282,6 +280,12 @@
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+/* Composer chrome shadow lives on a token because the reference only casts
+   it in light mode (dark zeroes it). */
+.reference-composer {
+  box-shadow: var(--cosci-composer-shadow);
 }
 
 .reference-recents-panel {
@@ -350,28 +354,19 @@
   place-items: center;
   align-content: center;
   gap: 1rem;
-  border: 1.5px dashed #c7c9cc;
+  border: 1.5px dashed var(--cosci-border);
   border-radius: 1.35rem;
   background: transparent;
-  color: #5f6368;
+  color: var(--cosci-muted);
   padding: 1.5rem;
   text-align: center;
-}
-
-:root[data-theme="dark"] .reference-recents-empty-state {
-  border-color: #53565a;
-  color: #bdc1c6;
 }
 
 .reference-recents-empty-icon {
   display: block;
   width: 2.1rem;
   height: 1.95rem;
-  color: var(--cosci-teal);
-}
-
-:root[data-theme="dark"] .reference-recents-empty-icon {
-  color: #7fd7bf;
+  color: var(--cosci-logo-color);
 }
 
 .reference-recents-empty-copy {
@@ -399,29 +394,15 @@
   box-shadow:
     0 1px 2px rgb(0 0 0 / 15%),
     0 2px 10px rgb(0 0 0 / 10%);
-  transition:
-    box-shadow 160ms cubic-bezier(0.2, 0, 0, 1),
-    border-color 160ms cubic-bezier(0.2, 0, 0, 1);
+  transition: background-color 160ms cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Reference hover: fill shifts to surface-container-low; the elevation shadow
+   stays constant (and identical in both themes — the dark .card rule only
+   swaps the fill, never the shadow). */
 .reference-recent-card:hover,
 .reference-recent-card:focus-visible {
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 18%),
-    0 4px 16px rgb(0 0 0 / 14%);
-}
-
-:root[data-theme="dark"] .reference-recent-card {
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 44%),
-    0 6px 14px -2px rgb(0 0 0 / 34%);
-}
-
-:root[data-theme="dark"] .reference-recent-card:hover,
-:root[data-theme="dark"] .reference-recent-card:focus-visible {
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 50%),
-    0 10px 22px -4px rgb(0 0 0 / 42%);
+  background: var(--cosci-recent-card-hover-bg);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -614,18 +595,7 @@
   .reference-recent-card:hover,
   .reference-recent-card:focus-visible {
     border-color: transparent;
-    background: var(--cosci-recent-card-bg);
-  }
-
-  :root[data-theme="dark"] .reference-recent-card {
-    border-color: transparent;
-    background: #17191c;
-  }
-
-  :root[data-theme="dark"] .reference-recent-card:hover,
-  :root[data-theme="dark"] .reference-recent-card:focus-visible {
-    border-color: #3c4043;
-    background: #202124;
+    background: var(--cosci-recent-card-hover-bg);
   }
 
   .reference-recent-meta-chip {
@@ -634,11 +604,6 @@
     font-size: 0.6875rem;
     line-height: 1.45;
     padding: 0.25rem 0.5rem;
-  }
-
-  :root[data-theme="dark"] .reference-recent-meta-chip {
-    background: #303335;
-    color: #f1f3f4;
   }
 
   .reference-recent-title {
@@ -660,24 +625,19 @@
     white-space: nowrap;
   }
 
-  :root[data-theme="dark"] .reference-recent-chip {
-    background: #0b8043;
-    color: #e6f4ea;
-  }
-
   .reference-active-progress {
     display: flex;
     align-items: center;
     gap: 0.65rem;
     margin-top: 0.05rem;
-    color: #1967d2;
+    color: var(--cosci-blue);
     font-size: 0.92rem;
     font-weight: 500;
     line-height: 1.25;
   }
 
   :root[data-theme="dark"] .reference-active-progress {
-    color: #8fd8c7;
+    color: var(--cosci-green);
   }
 
   .reference-active-progress-dot {
@@ -691,14 +651,10 @@
 
   .reference-winner-list {
     gap: 0.5rem;
-    color: #1f1f1f;
+    color: var(--cosci-recent-card-text);
     font-size: 0.75rem;
     letter-spacing: 0.1px;
     line-height: 1.33;
-  }
-
-  :root[data-theme="dark"] .reference-winner-list {
-    color: #f1f3f4;
   }
 
   .reference-winner-list-item {
@@ -712,12 +668,12 @@
     grid-template-columns: 0.75rem minmax(0, 1fr);
     align-items: center;
     gap: 0.65rem;
-    color: #137333;
+    color: #1e8e3e;
     font-weight: 500;
   }
 
   :root[data-theme="dark"] .reference-generating-row {
-    color: #8fd8c7;
+    color: var(--cosci-green);
   }
 
   .reference-generating-dot {

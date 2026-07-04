@@ -20,7 +20,7 @@
   --cosci-teal-bg: #e0f2ef;
   --cosci-green: #7fd7bf;
   --cosci-bg: #fff;
-  --cosci-rail: #eef4ff;
+  --cosci-rail: #e9eef6;
   --cosci-panel: #f0f4f9;
   --cosci-border: #c4c7c5;
   --cosci-text: #1f1f1f;
@@ -35,14 +35,21 @@
   --cosci-workspace-bg: #fff;
   --cosci-surface-bg: #fff;
   --cosci-home-heading: #1f1f1f;
-  --cosci-step-line: color-mix(in srgb, var(--cosci-teal) 38%, #c4c7c5);
-  /* Step dots mirror the reference's light-tint treatment (it uses purple70
-     #c597ff with a near-white number). This is the teal analog at the same
-     tonal step / white-text contrast — a light fill, not the heavy brand
-     teal, which stays reserved for real accents (logo, submit, stat value). */
-  --cosci-step-dot-bg: #34b3a0;
+
+  /* Step timeline. The reference paints the dots ref-palette purple70
+     (#c597ff) in BOTH themes and the connecting line an opaque #b9a9d7 in
+     both themes (measured from the light+dark captures). These are the OKLCH
+     hue-rotated analogs: same lightness/chroma, hue moved from purple (303°)
+     to our brand-teal hue (195°), gamut-mapped. Only the number color flips
+     per theme (inverse-on-surface: #f2f2f2 light / #303030 dark). */
+  --cosci-step-line: #7fc0bd;
+  --cosci-step-dot-bg: #00caca;
   --cosci-step-dot-text: #f2f2f2;
   --cosci-logo-color: var(--cosci-teal);
+
+  /* Agent chip avatar squircle (reference: #d9d8ff light / #32307b dark,
+     same OKLCH hue-rotation to our teal family). */
+  --cosci-agent-avatar-bg: #b8e9dc;
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
   --cosci-suggestion-border: #c4c7c5;
@@ -53,6 +60,10 @@
   --cosci-suggestion-active-bg: #e9eef6;
   --cosci-composer-border: #e9eef6;
   --cosci-composer-bg: #fff;
+
+  /* Reference: box-shadow 0 2px 12px -2px surface-container-high in light,
+     NO shadow in dark (form .form-elements next-gen rules). */
+  --cosci-composer-shadow: 0 2px 12px -2px #e9eef6;
   --cosci-composer-label: #747775;
   --cosci-composer-text: #1f1f1f;
   --cosci-composer-submit: var(--cosci-teal);
@@ -64,11 +75,12 @@
   --cosci-menu-bg: #fff;
   --cosci-menu-text: #1f1f1f;
   --cosci-menu-row-hover: #f0f4f9;
-  --cosci-menu-divider: #e8eaed;
+  --cosci-menu-divider: #e9eef6;
   --cosci-menu-icon: #747775;
   --cosci-recents-heading: #1f1f1f;
   --cosci-recent-card-border: transparent;
   --cosci-recent-card-bg: #fff;
+  --cosci-recent-card-hover-bg: #f8fafd;
   --cosci-recent-card-text: #1f1f1f;
   --cosci-recent-card-copy: #444746;
   --cosci-recent-meta-bg: #f0f4f9;
@@ -83,7 +95,8 @@
   --cosci-idea-row-hover-bg: #f0f4f9;
   --cosci-idea-row-selected-border: #0b57d0;
   --cosci-idea-row-selected-bg: #f4faff;
-  --cosci-idea-row-selected-hover-bg: #e9f1ff;
+  /* The reference excludes selected rows from the hover rule — no change. */
+  --cosci-idea-row-selected-hover-bg: #f4faff;
   --cosci-idea-chip-bg: #e0f4ff;
   --cosci-idea-chip-text: #1f1f1f;
   --cosci-idea-title-text: #1f1f1f;
@@ -107,11 +120,16 @@
   --cosci-rail: #1e1f20;
   --cosci-panel: #1e1f20;
   --cosci-border: #444746;
-  --cosci-text: #e3e3e3;
+
+  /* The reference's dark shell overrides on-surface to pure #fff (not the
+     stock MD3 #e3e3e3) — measured from the dark capture's :host([dark-theme])
+     block and confirmed against the screenshots (greeting/body text render
+     255-white). Secondary text is on-surface-variant #c4c7c5. */
+  --cosci-text: #fff;
   --cosci-muted: #c4c7c5;
   --cosci-subtle: #8e918f;
   --cosci-blue: #a8c7fa;
-  --cosci-blue-strong: #8ab4f8;
+  --cosci-blue-strong: #a8c7fa;
   --cosci-hover: #282a2c;
   --cosci-green: #7fd7bf;
   --cosci-shell-icon: var(--cosci-muted);
@@ -119,11 +137,15 @@
   --cosci-shell-hover-text: var(--cosci-text);
   --cosci-workspace-bg: var(--cosci-bg);
   --cosci-surface-bg: var(--cosci-bg);
-  --cosci-home-heading: #f1f3f4;
-  --cosci-step-line: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
-  --cosci-step-dot-bg: var(--cosci-green);
-  --cosci-step-dot-text: #131314;
+  --cosci-home-heading: #fff;
+
+  /* Reference keeps the SAME dot (purple70) and line colors in dark; only
+     the number flips to dark inverse-on-surface (#303030). */
+  --cosci-step-line: #7fc0bd;
+  --cosci-step-dot-bg: #00caca;
+  --cosci-step-dot-text: #303030;
   --cosci-logo-color: var(--cosci-green);
+  --cosci-agent-avatar-bg: #004740;
   --cosci-step-heading: var(--cosci-muted);
   --cosci-step-text: var(--cosci-text);
   --cosci-suggestion-border: var(--cosci-border);
@@ -132,8 +154,11 @@
   --cosci-suggestion-hover-border: var(--cosci-border);
   --cosci-suggestion-hover-bg: #282a2c;
   --cosci-suggestion-active-bg: #282a2c;
-  --cosci-composer-border: var(--cosci-border);
+  /* Dark composer: surface-container fill, no border, NO shadow (the
+     reference's dark next-gen form zeroes the box-shadow). */
+  --cosci-composer-border: transparent;
   --cosci-composer-bg: var(--cosci-panel);
+  --cosci-composer-shadow: none;
   --cosci-composer-label: var(--cosci-muted);
   --cosci-composer-text: var(--cosci-text);
   --cosci-composer-submit: var(--cosci-green);
@@ -148,30 +173,38 @@
   --cosci-menu-divider: #444746;
   --cosci-menu-icon: var(--cosci-muted);
   --cosci-recents-heading: var(--cosci-text);
+
+  /* Recents card dark: surface-container fill on the #131314 canvas, hover →
+     surface-container-low, chips surface-container-highest, winning chip
+     green90's dark value #006c35 with on-surface text (all measured). */
   --cosci-recent-card-border: transparent;
   --cosci-recent-card-bg: #1e1f20;
+  --cosci-recent-card-hover-bg: #1b1b1b;
   --cosci-recent-card-text: var(--cosci-text);
   --cosci-recent-card-copy: var(--cosci-muted);
-  --cosci-recent-meta-bg: #282a2c;
+  --cosci-recent-meta-bg: #333537;
   --cosci-recent-meta-text: var(--cosci-text);
-  --cosci-recent-chip-bg: #188038;
-  --cosci-recent-chip-text: #e6f4ea;
+  --cosci-recent-chip-bg: #006c35;
+  --cosci-recent-chip-text: var(--cosci-text);
   --cosci-idea-list-border: var(--cosci-border);
   --cosci-idea-row-border: var(--cosci-border);
   --cosci-idea-row-bg: transparent;
   --cosci-idea-row-text: var(--cosci-text);
   --cosci-idea-row-hover-border: var(--cosci-border);
   --cosci-idea-row-hover-bg: #1e1f20;
+  /* Ideas list dark: selected row = blue-variant98's dark value #003d64 with
+     primary #a8c7fa border; rank/Elo chips = blue-variant95's dark value
+     #133043; breadcrumb chips = surface-container; all text on-surface. */
   --cosci-idea-row-selected-border: #a8c7fa;
-  --cosci-idea-row-selected-bg: #004b72;
-  --cosci-idea-row-selected-hover-bg: #075d8c;
-  --cosci-idea-chip-bg: #15384d;
+  --cosci-idea-row-selected-bg: #003d64;
+  --cosci-idea-row-selected-hover-bg: #003d64;
+  --cosci-idea-chip-bg: #133043;
   --cosci-idea-chip-text: var(--cosci-text);
   --cosci-idea-title-text: var(--cosci-text);
-  --cosci-idea-preview-text: var(--cosci-muted);
-  --cosci-idea-breadcrumb-bg: #282a2c;
-  --cosci-idea-breadcrumb-text: var(--cosci-muted);
-  --cosci-idea-detail-text: var(--cosci-muted);
+  --cosci-idea-preview-text: var(--cosci-text);
+  --cosci-idea-breadcrumb-bg: #1e1f20;
+  --cosci-idea-breadcrumb-text: var(--cosci-text);
+  --cosci-idea-detail-text: var(--cosci-text);
   --cosci-idea-insight-card-border: var(--cosci-border);
   --cosci-idea-insight-card-bg: #1e1f20;
   --cosci-idea-insight-title: var(--cosci-text);

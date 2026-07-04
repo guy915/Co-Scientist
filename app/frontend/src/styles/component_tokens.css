@@ -19,17 +19,17 @@
   --cosci-danger-fg: #b3261e;
 
   /* Attachment cards */
-  --cosci-attach-bg: #eef2f8;
-  --cosci-attach-fg: #202124;
-  --cosci-attach-meta: #202124;
+  --cosci-attach-bg: #f0f4f9;
+  --cosci-attach-fg: #1f1f1f;
+  --cosci-attach-meta: #444746;
 
-  /* Center toast + raised action pill */
-  --cosci-toast-bg: #303134;
-  --cosci-toast-fg: #f1f3f4;
+  /* Center toast + raised action pill (toast = MD3 inverse surface pair) */
+  --cosci-toast-bg: #303030;
+  --cosci-toast-fg: #f2f2f2;
   --cosci-surface-raised: #fff;
 
   /* Skeleton loaders */
-  --cosci-skeleton-bg: #eceff1;
+  --cosci-skeleton-bg: #f0f4f9;
 
   /* Diagnostics / Logs — every value aliases an existing baseline token, no
      bespoke hex. The teal tonal is the app's one green; surface/border/text/
@@ -67,26 +67,36 @@
 
   /* Radio option cards */
   --cosci-option-bg: #fff;
-  --cosci-option-hover-bg: #e8eef6;
-  --cosci-option-hover-border: #d4dbe6;
+  --cosci-option-hover-bg: #e9eef6;
+  --cosci-option-hover-border: #c4c7c5;
   --cosci-option-marker: #747775;
-  --cosci-option-marker-on: #8ab4f8;
+  --cosci-option-marker-on: #0b57d0;
 
-  /* Buttons — primary (filled), outline (blue in both modes), secondary */
+  /* Buttons. Filled = md-filled-button (primary fill); outlined =
+     md-outlined-button (outline-colored border, primary label) per the
+     reference's Cancel/Start-session pair. */
   --cosci-btn-primary-bg: #0b57d0;
   --cosci-btn-primary-fg: #fff;
   --cosci-btn-primary-hover: #0842a0;
-  --cosci-btn-outline-border: #0b57d0;
+  --cosci-btn-outline-border: #747775;
   --cosci-btn-outline-fg: #0b57d0;
-  --cosci-btn-outline-hover-bg: #e8f0fe;
+  --cosci-btn-outline-hover-bg: rgb(11 87 208 / 8%);
   --cosci-btn-secondary-border: #747775;
   --cosci-btn-secondary-fg: #444746;
   --cosci-btn-secondary-hover-bg: #f0f4f9;
   --cosci-btn-disabled-border: #c4c7c5;
   --cosci-btn-disabled-bg: #f0f4f9;
-  --cosci-btn-disabled-fg: #9aa0a6;
+  --cosci-btn-disabled-fg: #747775;
 
-  /* Chat bubbles + setup document */
+  /* Composer source-menu toggles */
+  --cosci-toggle-on-track: #d3e3fd;
+  --cosci-toggle-on-knob: #0b57d0;
+  --cosci-toggle-off-track: #e1e3e1;
+  --cosci-toggle-off-knob: #747775;
+
+  /* Chat bubbles + setup document (reference: user bubble =
+     surface-container-high; setup .plan-details = surface-container light,
+     surface-container-highest dark) */
   --cosci-user-bubble-bg: #e9eef6;
   --cosci-setup-doc-bg: #f0f4f9;
 
@@ -104,35 +114,42 @@
   --cosci-danger-border: #5b2b2b;
   --cosci-danger-fg: #ffb4aa;
 
-  --cosci-attach-bg: #303335;
-  --cosci-attach-fg: #f1f3f4;
-  --cosci-attach-meta: #e8eaed;
+  --cosci-attach-bg: #333537;
+  --cosci-attach-fg: #fff;
+  --cosci-attach-meta: #c4c7c5;
 
-  --cosci-toast-bg: #f1f3f4;
-  --cosci-toast-fg: #202124;
-  --cosci-surface-raised: #202124;
+  --cosci-toast-bg: #e3e3e3;
+  --cosci-toast-fg: #303030;
+  --cosci-surface-raised: #1e1f20;
 
-  --cosci-skeleton-bg: #3a3f42;
+  --cosci-skeleton-bg: #282a2c;
 
-  --cosci-option-bg: #202427;
-  --cosci-option-hover-bg: #252a2d;
-  --cosci-option-hover-border: #3c4043;
-  --cosci-option-marker: #9aa0a6;
+  --cosci-option-bg: #1e1f20;
+  --cosci-option-hover-bg: #282a2c;
+  --cosci-option-hover-border: #444746;
+  --cosci-option-marker: #8e918f;
   --cosci-option-marker-on: #a8c7fa;
 
-  --cosci-btn-primary-bg: #1d3354;
-  --cosci-btn-primary-fg: #a8c7fa;
-  --cosci-btn-primary-hover: rgb(168 199 250 / 14%);
-  --cosci-btn-outline-border: #8ab4f8;
-  --cosci-btn-outline-fg: #8ab4f8;
-  --cosci-btn-outline-hover-bg: rgb(138 180 248 / 14%);
+  /* MD3 dark filled buttons invert: primary #a8c7fa fill, on-primary #062e6f
+     label. Outlined keeps the outline-colored border with a primary label. */
+  --cosci-btn-primary-bg: #a8c7fa;
+  --cosci-btn-primary-fg: #062e6f;
+  --cosci-btn-primary-hover: #9bbbef;
+  --cosci-btn-outline-border: #8e918f;
+  --cosci-btn-outline-fg: #a8c7fa;
+  --cosci-btn-outline-hover-bg: rgb(168 199 250 / 8%);
   --cosci-btn-secondary-border: var(--cosci-border);
   --cosci-btn-secondary-fg: var(--cosci-text);
-  --cosci-btn-secondary-hover-bg: #303134;
-  --cosci-btn-disabled-border: #3c4043;
-  --cosci-btn-disabled-bg: #202124;
-  --cosci-btn-disabled-fg: #5f6368;
+  --cosci-btn-secondary-hover-bg: #282a2c;
+  --cosci-btn-disabled-border: #444746;
+  --cosci-btn-disabled-bg: #282a2c;
+  --cosci-btn-disabled-fg: #8e918f;
 
-  --cosci-user-bubble-bg: #303134;
-  --cosci-setup-doc-bg: #25272d;
+  --cosci-toggle-on-track: #0842a0;
+  --cosci-toggle-on-knob: #a8c7fa;
+  --cosci-toggle-off-track: #444746;
+  --cosci-toggle-off-knob: #8e918f;
+
+  --cosci-user-bubble-bg: #282a2c;
+  --cosci-setup-doc-bg: #333537;
 }

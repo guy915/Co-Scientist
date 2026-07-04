@@ -165,6 +165,10 @@
   --color-cosci-btn-disabled-border: var(--cosci-btn-disabled-border);
   --color-cosci-btn-disabled-bg: var(--cosci-btn-disabled-bg);
   --color-cosci-btn-disabled-fg: var(--cosci-btn-disabled-fg);
+  --color-cosci-toggle-on-track: var(--cosci-toggle-on-track);
+  --color-cosci-toggle-on-knob: var(--cosci-toggle-on-knob);
+  --color-cosci-toggle-off-track: var(--cosci-toggle-off-track);
+  --color-cosci-toggle-off-knob: var(--cosci-toggle-off-knob);
   --color-cosci-logs-accent-bg: var(--cosci-logs-accent-bg);
   --color-cosci-logs-accent-fg: var(--cosci-logs-accent-fg);
   --color-cosci-logs-accent-hover: var(--cosci-logs-accent-hover);
@@ -422,17 +426,17 @@ body {
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #9aa0a6;
+  background: #747775;
   background-clip: padding-box;
 }
 
 :root[data-theme="dark"] *::-webkit-scrollbar-thumb {
-  background: #5f6368;
+  background: #444746;
   background-clip: padding-box;
 }
 
 :root[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
-  background: #80868b;
+  background: #8e918f;
   background-clip: padding-box;
 }
 
@@ -482,7 +486,7 @@ textarea {
 }
 
 .wb-skeleton {
-  background: var(--cosci-skeleton-bg, #eceff1);
+  background: var(--cosci-skeleton-bg, #f0f4f9);
   border-radius: 0.375rem;
 }
 

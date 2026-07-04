@@ -78,7 +78,6 @@ export const HOME_TOAST_CLASSES =
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border ' +
   'border-cosci-composer-border bg-cosci-composer-bg ' +
-  'shadow-[0_2px_12px_-2px_rgb(233_238_246)] ' +
   'p-[1.25rem_1.5rem_0.8rem]';
 
 export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem]';
@@ -153,7 +152,9 @@ export const CONNECTOR_TOGGLE_BASE_CLASSES =
   'after:rounded-full after:[content:""]';
 
 export const CONNECTOR_TOGGLE_ON_CLASSES =
-  'bg-[#d2e3fc] after:right-[0.18rem] after:bg-[#1a73e8]';
+  'bg-cosci-toggle-on-track after:right-[0.18rem] ' +
+  'after:bg-cosci-toggle-on-knob';
 
 export const CONNECTOR_TOGGLE_OFF_CLASSES =
-  'bg-[#dadce0] after:left-[0.18rem] after:bg-[#80868b]';
+  'bg-cosci-toggle-off-track after:left-[0.18rem] ' +
+  'after:bg-cosci-toggle-off-knob';
