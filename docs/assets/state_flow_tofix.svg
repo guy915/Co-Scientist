@@ -2,7 +2,7 @@
   WIP — NOT REFERENCED.
   WorkflowState data-flow diagram. Visual layout needs fixing: writer arrows
   converge messily on the hypotheses group, the "every node also emits metrics"
-  note floats loose, and several group boxes overflow. See docs/explainer.md
+  note floats loose, and several group boxes overflow. See docs/EXPLAINER.md
   section 5 for the field/reducer table (authoritative while this is pending).
 -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 480" fill="none">

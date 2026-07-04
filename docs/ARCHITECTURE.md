@@ -1,7 +1,6 @@
 # Architecture
 
-This document describes the current runtime shape of the Co-Scientist
-workspace.
+This document describes the current runtime shape of the Co-Scientist workspace.
 
 ## Layers
 
@@ -55,8 +54,7 @@ workspace.
 
 ## Pipeline events (canonical timeline)
 
-The mock workflow and the engine adapter both emit events into the same
-event-log table. The mock workflow guarantees the full sequence:
+The mock workflow and the engine adapter both emit events into the same event-log table. The mock workflow guarantees the full sequence:
 
 ```
 1.  lifecycle      (created)
@@ -80,10 +78,7 @@ event-log table. The mock workflow guarantees the full sequence:
 19. status            (completed)
 ```
 
-The frontend's Progress tab renders this verbatim. The SSE endpoint at
-`GET /api/runs/{id}/events?after=<seq>` always replays history starting at the
-requested sequence, then tails live. This is what makes "reopen after restart"
-work: the client never depends on in-memory event state.
+The frontend's Progress tab renders this verbatim. The SSE endpoint at `GET /api/runs/{id}/events?after=<seq>` always replays history starting at the requested sequence, then tails live. This is what makes "reopen after restart" work: the client never depends on in-memory event state.
 
 ## Persistence model
 
@@ -103,9 +98,7 @@ Tables (SQLite, WAL):
 | `reports` | append-only | structured JSON + path to `reports/<run>.md` |
 | `messages` | append-only | steering, milestone, and Q&A chat messages |
 
-`hypothesis_state` is the critical decoupling: it holds the values that *must*
-change as the run progresses (Elo, win counts) without violating the rule that
-an original hypothesis row is the historical record of what was generated.
+`hypothesis_state` is the critical decoupling: it holds the values that *must* change as the run progresses (Elo, win counts) without violating the rule that an original hypothesis row is the historical record of what was generated.
 
 ## Provider selection
 
@@ -115,23 +108,18 @@ an original hypothesis row is the historical record of what was generated.
 2. at least one supported provider key is set, AND
 3. `co_scientist` is importable.
 
-Otherwise it returns `"mock"`. The chosen value is persisted on the run row so a
-re-opened run remembers which engine produced it.
+Otherwise it returns `"mock"`. The chosen value is persisted on the run row so a re-opened run remembers which engine produced it.
 
 ## Frontend state
 
 The workbench holds no durable state in the browser. On mount it:
 
 1. Calls `getRun(id)` for status + summary counts.
-2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getSafety /
-   getCitations / getReport` in parallel.
-3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every
-   event since the run started, then tails live.
-4. The Chat tab polls `/api/runs/{id}/messages` while a run is active and uses
-   the streaming `/messages/ask` endpoint for Q&A responses.
+2. Calls `getHypotheses / getEvidence / getMatches / getReviews / getSafety / getCitations / getReport` in parallel.
+3. Opens an `EventSource` on `/api/runs/{id}/events?after=0` which replays every event since the run started, then tails live.
+4. The Chat tab polls `/api/runs/{id}/messages` while a run is active and uses the streaming `/messages/ask` endpoint for Q&A responses.
 
-This means a hard refresh, a backend restart, or a new browser session all
-produce the same view.
+This means a hard refresh, a backend restart, or a new browser session all produce the same view.
 
 ## Why this shape
 

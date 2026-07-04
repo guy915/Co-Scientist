@@ -12,7 +12,7 @@ This is a research/reference workspace organized around replicating Google DeepM
   - `core/google-co-scientist/` — long-form architecture/spec markdown analyzing the original system (incl. `media/` UX captures and `research/` papers)
   - `peripheral/` — secondary reference projects (`antigravity-science-skills/`, `notebooklm/`, `coding-agent-harness/`, `ai-chatbot-interface/`)
   - `ui-ux/` — UX captures and product references (`gemini/`, `gemini-enterprise/`, `idea-generator/`)
-- `docs/` — live project docs (`architecture.md`, `fidelity.md`, `decisions/`, `assets/` (screenshots + SVG diagrams))
+- `docs/` — live project docs (`ARCHITECTURE.md`, `FIDELITY.md`, `decisions/`, `assets/` (screenshots + SVG diagrams))
 - `.remember/` — session handoff notes (`remember.md` is the live handoff file; also `now.md`, `recent.md`, daily logs, `logs/`, `tmp/`)
 - `Makefile` — root-level build orchestration (`setup`, `dev`, `dev-api`, `dev-ui`, `dev-mcp`, `test`, `test-app`, `test-engine`, `test-all`, `lint`, `typecheck`, `build`, `clean`, `stop`, `reset-db`)
 - `CLAUDE.md` — symlink to this file

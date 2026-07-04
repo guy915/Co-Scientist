@@ -642,7 +642,7 @@ git commit -m "refactor(engine): consolidate prompt getters behind builder"
 Update every doc that referenced a deleted endpoint, config, or `console.py`. `CLAUDE.md` is a symlink to `AGENTS.md` — edit `AGENTS.md`. All line numbers are approximate; match on the quoted text.
 
 **Files:**
-- Modify: `AGENTS.md`, `app/README.md`, `docs/architecture.md`, `docs/explainer.md`, `engine/README.md`, `engine/docs/DEVELOPMENT.md`, `engine/docs/DOMAIN_CUSTOMIZATION.md`, `engine/src/co_scientist/config/examples/README.md`
+- Modify: `AGENTS.md`, `app/README.md`, `docs/ARCHITECTURE.md`, `docs/EXPLAINER.md`, `engine/README.md`, `engine/docs/DEVELOPMENT.md`, `engine/docs/DOMAIN_CUSTOMIZATION.md`, `engine/src/co_scientist/config/examples/README.md`
 
 **Interfaces:**
 - Consumes: the deletions from Tasks 1–3.
@@ -658,10 +658,10 @@ Update every doc that referenced a deleted endpoint, config, or `console.py`. `C
   - Change the `main.py` file-tree comment to: `App setup and diagnostics endpoints (/health, /config, /status)`.
   - Delete the four `/generate*` + `/cancel_hypothesis_generation` rows from the endpoints table. Keep `/health`, `/config`, `/status`.
 
-- [ ] **Step 3: `docs/architecture.md`**
+- [ ] **Step 3: `docs/ARCHITECTURE.md`**
   - Change "the new router is mounted alongside the existing `/generate` endpoints." to "…alongside the diagnostics endpoints (`/health`, `/config`, `/status`)."
 
-- [ ] **Step 4: `docs/explainer.md`**
+- [ ] **Step 4: `docs/EXPLAINER.md`**
   - In the "Domain configs" bullet, reduce the config list to: "making the engine domain-agnostic (e.g. `indra_cancer.yaml`)." — drop `indra_alzheimers.yaml`, `cybersecurity_hydra.yaml`, and the multi-source mention.
 
 - [ ] **Step 5: `engine/README.md`**
@@ -693,7 +693,7 @@ Expected: no matches (exit 1). (The design spec under `docs/superpowers/specs/` 
 - [ ] **Step 10: Commit**
 
 ```bash
-git add AGENTS.md app/README.md docs/architecture.md docs/explainer.md engine/README.md engine/docs/DEVELOPMENT.md engine/docs/DOMAIN_CUSTOMIZATION.md engine/src/co_scientist/config/examples/README.md
+git add AGENTS.md app/README.md docs/ARCHITECTURE.md docs/EXPLAINER.md engine/README.md engine/docs/DEVELOPMENT.md engine/docs/DOMAIN_CUSTOMIZATION.md engine/src/co_scientist/config/examples/README.md
 git commit -m "docs: reconcile docs with trimmed code"
 ```
 

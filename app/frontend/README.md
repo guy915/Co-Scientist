@@ -14,8 +14,7 @@ React + Vite + TypeScript workbench for the Co-Scientist API server.
 - gts for linting and formatting
 - Vitest + React Testing Library for unit tests
 
-Read `DESIGN.md` before visual changes. It is the source of truth for theme
-tokens, typography, spacing, radii, and component conventions.
+Read `DESIGN.md` before visual changes. It is the source of truth for theme tokens, typography, spacing, radii, and component conventions.
 
 ## Commands
 
@@ -67,9 +66,7 @@ VITE_DOMAIN=scientific
 
 ## API Integration
 
-The frontend talks to the FastAPI backend through `src/api/runs.ts`.
-Run detail data is loaded through REST endpoints, and live progress is streamed
-from `/api/runs/{id}/events` with browser `EventSource`.
+The frontend talks to the FastAPI backend through `src/api/runs.ts`. Run detail data is loaded through REST endpoints, and live progress is streamed from `/api/runs/{id}/events` with browser `EventSource`.
 
 The Chat tab uses:
 
@@ -79,5 +76,4 @@ The Chat tab uses:
 
 ## Testing
 
-Tests are colocated with the files they cover as `*.test.ts` and
-`*.test.tsx`. The Vitest setup file is `src/test-setup.ts`.
+Tests are colocated with the files they cover as `*.test.ts` and `*.test.tsx`. The Vitest setup file is `src/test-setup.ts`.

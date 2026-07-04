@@ -30,7 +30,7 @@ See constants.py for other defaults.
 | `evolution_max_count` | `3` | Number of top hypotheses to evolve in each iteration |
 | `enable_cache` | `True` | Enable LLM response caching for faster iteration |
 | `cache_dir` | `".coscientist_cache"` | Cache directory (relative or absolute path) |
-| `tools_config` | `None` | Path to a custom YAML tools configuration file; see [Literature Review Tools Configuration](literature_review_tools_configuration.md) |
+| `tools_config` | `None` | Path to a custom YAML tools configuration file; see [Literature Review Tools Configuration](LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) |
 
 ## Model Selection
 
@@ -103,7 +103,7 @@ async for node_name, state in generator.generate_hypotheses(
 | `enable_tool_calling_generation` | `False` | Allow Generate node to use MCP tools (requires literature review) |
 | `dev_test_lit_tools_isolation` | `False` | Forces all hypotheses through tool-calling generation (no debate) and forces literature review node caching. Development/testing only. |
 
-See [MCP Integration](mcp-integration.md) for details on literature review modes.
+See [MCP Integration](MCP_INTEGRATION.md) for details on literature review modes.
 
 ## Caching
 
