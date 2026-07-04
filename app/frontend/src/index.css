@@ -38,6 +38,34 @@
     format("woff2");
 }
 
+/* Google Sans Text — the UI/body face the live Gemini Enterprise product uses
+   for nearly all running text; Google Sans proper is reserved for display
+   (greeting, document headings, wordmark, button labels). Vendored woff2s
+   (latin, 400/500/700), same pattern as the @fontsource Google Sans above. */
+@font-face {
+  font-family: "Google Sans Text";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url("./assets/fonts/google-sans-text-latin-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Google Sans Text";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 500;
+  src: url("./assets/fonts/google-sans-text-latin-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Google Sans Text";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url("./assets/fonts/google-sans-text-latin-700.woff2") format("woff2");
+}
+
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
@@ -188,6 +216,13 @@
   --color-cosci-idea-stat-label: var(--cosci-idea-stat-label);
   --color-cosci-idea-stat-value: var(--cosci-idea-stat-value);
 
+  /* Typefaces: font-gsans = display face (greeting, doc headings, wordmark);
+     font-gsans-text = UI/body face (the :root default — utility exists for
+     opting descendants back in under a display-font parent). */
+  --font-gsans: "Google Sans", system-ui, sans-serif;
+  --font-gsans-text:
+    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
+
   --radius: 0.5rem;
 }
 
@@ -218,9 +253,13 @@
 }
 
 :root {
+  /* Matches the live product: Google Sans Text for running UI text (plain),
+     Google Sans proper for display — greeting, document headings, wordmark. */
   --md-ref-typeface-brand: "Google Sans", system-ui, sans-serif;
-  --md-ref-typeface-plain: "Google Sans", system-ui, sans-serif;
-  font-family: "Google Sans", system-ui, sans-serif;
+  --md-ref-typeface-plain:
+    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
+  font-family:
+    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
 
   /* MD3 elevation levels (light). Reserved for overlays that float above the
      page — menus, popovers, dialogs, toasts. Cards, inputs, and tables stay

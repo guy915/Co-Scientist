@@ -198,8 +198,10 @@
   background: transparent;
   color: var(--cosci-home-heading);
   cursor: pointer;
-  font-size: 1.375rem;
+  font-family: "Google Sans", system-ui, sans-serif;
+  font-size: 1.25rem;
   font-weight: 500;
+  letter-spacing: -0.6px;
   padding: 0;
   text-decoration: none;
 }

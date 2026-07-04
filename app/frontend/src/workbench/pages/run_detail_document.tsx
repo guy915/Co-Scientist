@@ -4,10 +4,10 @@ export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] text-base leading-[1.5] max-[720px]:mt-5 max-[720px]:mb-12 max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
 
 export const REPORT_H2_CLASSES =
-  'mt-9 mb-6 text-[2rem] leading-10 font-normal tracking-normal max-[720px]:text-[clamp(1.6rem,8vw,2rem)]';
+  'font-gsans mt-9 mb-6 text-[2rem] leading-10 font-normal tracking-normal max-[720px]:text-[clamp(1.6rem,8vw,2rem)]';
 
 export const REPORT_H3_CLASSES =
-  'mt-[1.4rem] mb-3 text-[1.75rem] leading-9 font-normal';
+  'font-gsans mt-[1.4rem] mb-3 text-[1.75rem] leading-9 font-normal';
 
 export const REPORT_H4_CLASSES = 'mt-4 mb-[0.35rem] text-base font-medium';
 

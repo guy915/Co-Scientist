@@ -115,7 +115,7 @@ const IDEA_BREADCRUMB_TEXT_CLASSES =
 
 const IDEA_DETAIL_SECTION_CLASSES =
   'idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 ' +
-  '[&_h2]:m-0 [&_h2]:mb-2 [&_h2]:text-[2rem] ' +
+  '[&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] ' +
   '[&_h2]:leading-10 [&_h2]:font-normal ' +
   '[&_h2]:text-cosci-idea-title-text [&_h3]:m-0 ' +
   '[&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case ' +
