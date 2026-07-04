@@ -5,6 +5,26 @@
 // Snapping these to the grid would break the pixel-match. See DESIGN.md >
 // Layout & Spacing ("Reference-matched surfaces do not use the 8px grid").
 
+// Shared recipe bases. The setup surface has two button families that recur;
+// each variant composes from a base so the recipe lives in one place.
+
+// Muted, transparent, round icon button. Variants add a size and an optional
+// reference-* marker class.
+const MUTED_ICON_BUTTON =
+  'grid cursor-pointer place-items-center rounded-full border-0 ' +
+  'bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover ' +
+  'hover:text-cosci-fg focus-visible:bg-cosci-hover ' +
+  'focus-visible:text-cosci-fg';
+
+// Pill-shaped action button. Variants add colors, horizontal padding, and
+// font weight.
+const PILL_BUTTON = 'min-h-[2.6rem] cursor-pointer rounded-full border';
+
+// Disabled state shared by the setup document's primary/secondary buttons.
+const PILL_BUTTON_DISABLED =
+  'disabled:cursor-default disabled:border-cosci-btn-disabled-border ' +
+  'disabled:bg-cosci-btn-disabled-bg disabled:text-cosci-btn-disabled-fg';
+
 export const CHAT_TIMELINE_CLASSES = 'flex-1 overflow-y-auto px-4 pt-5 pb-8';
 
 export const CHAT_COMPOSER_CLASSES = 'border-t-0 bg-transparent px-4 pb-8';
@@ -30,11 +50,7 @@ export const USER_BUBBLE_TEXT_CLASSES =
 
 export const USER_BUBBLE_TEXT_COLLAPSED_CLASSES = `${USER_BUBBLE_TEXT_CLASSES} line-clamp-3`;
 
-export const USER_COLLAPSE_BUTTON_CLASSES =
-  'reference-user-collapse ml-1 grid size-6 shrink-0 cursor-pointer ' +
-  'place-items-center rounded-full border-0 bg-transparent p-0 ' +
-  'text-cosci-muted hover:bg-cosci-hover hover:text-cosci-fg ' +
-  'focus-visible:bg-cosci-hover focus-visible:text-cosci-fg';
+export const USER_COLLAPSE_BUTTON_CLASSES = `reference-user-collapse ml-1 size-6 shrink-0 ${MUTED_ICON_BUTTON}`;
 
 export const MODEL_BUBBLE_CLASSES =
   'reference-model-bubble max-w-[50.75rem] text-base leading-[1.45] ' +
@@ -52,11 +68,7 @@ export const MESSAGE_ACTIONS_END_CLASSES =
   'group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto ' +
   'group-focus-within/user:scale-100 group-focus-within/user:opacity-100';
 
-export const MESSAGE_ACTION_BUTTON_CLASSES =
-  'grid size-8 cursor-pointer place-items-center rounded-full border-0 ' +
-  'bg-transparent p-0 text-cosci-muted hover:bg-cosci-hover ' +
-  'hover:text-cosci-fg focus-visible:bg-cosci-hover ' +
-  'focus-visible:text-cosci-fg';
+export const MESSAGE_ACTION_BUTTON_CLASSES = `size-8 ${MUTED_ICON_BUTTON}`;
 
 export const MESSAGE_ACTION_ICON_CLASSES = 'text-[1.12rem]';
 
@@ -71,11 +83,7 @@ export const PLAN_HEADING_CLASSES =
 export const PLAN_TITLE_CLASSES =
   'm-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg';
 
-export const PLAN_EDIT_BUTTON_CLASSES =
-  'reference-plan-edit grid size-[2.1rem] cursor-pointer place-items-center ' +
-  'rounded-full border-0 bg-transparent p-0 text-cosci-muted ' +
-  'hover:bg-cosci-hover hover:text-cosci-fg focus-visible:bg-cosci-hover ' +
-  'focus-visible:text-cosci-fg';
+export const PLAN_EDIT_BUTTON_CLASSES = `reference-plan-edit size-[2.1rem] ${MUTED_ICON_BUTTON}`;
 
 export const PLAN_EDIT_ICON_CLASSES = 'text-[1.55rem] text-current';
 
@@ -137,24 +145,16 @@ export const SETUP_ACTIONS_CLASSES =
   'reference-setup-actions flex justify-end gap-[0.7rem] pt-[0.3rem]';
 
 export const SETUP_SECONDARY_BUTTON_CLASSES =
-  'min-h-[2.6rem] cursor-pointer rounded-full border ' +
-  'border-cosci-btn-secondary-border bg-transparent px-[1.45rem] ' +
-  'font-medium text-cosci-btn-secondary-fg ' +
+  `${PILL_BUTTON} border-cosci-btn-secondary-border bg-transparent ` +
+  'px-[1.45rem] font-medium text-cosci-btn-secondary-fg ' +
   'hover:bg-cosci-btn-secondary-hover-bg ' +
-  'focus-visible:bg-cosci-btn-secondary-hover-bg ' +
-  'disabled:cursor-default disabled:border-cosci-btn-disabled-border ' +
-  'disabled:bg-cosci-btn-disabled-bg ' +
-  'disabled:text-cosci-btn-disabled-fg';
+  `focus-visible:bg-cosci-btn-secondary-hover-bg ${PILL_BUTTON_DISABLED}`;
 
 export const SETUP_PRIMARY_BUTTON_CLASSES =
-  'min-h-[2.6rem] cursor-pointer rounded-full border ' +
-  'border-cosci-btn-primary-bg bg-cosci-btn-primary-bg ' +
+  `${PILL_BUTTON} border-cosci-btn-primary-bg bg-cosci-btn-primary-bg ` +
   'px-[1.45rem] font-medium text-cosci-btn-primary-fg ' +
   'hover:bg-cosci-btn-primary-hover ' +
-  'focus-visible:bg-cosci-btn-primary-hover disabled:cursor-default ' +
-  'disabled:border-cosci-btn-disabled-border ' +
-  'disabled:bg-cosci-btn-disabled-bg ' +
-  'disabled:text-cosci-btn-disabled-fg';
+  `focus-visible:bg-cosci-btn-primary-hover ${PILL_BUTTON_DISABLED}`;
 
 export const STARTED_MESSAGE_CLASSES =
   'reference-started-message grid gap-[1.15rem] text-cosci-fg';
@@ -186,8 +186,7 @@ export const STARTED_NEXT_COPY_CLASSES =
   'basis-full m-0 mb-[0.1rem] text-[0.95rem] font-semibold text-cosci-muted';
 
 export const STARTED_NEXT_BUTTON_CLASSES =
-  'min-h-[2.6rem] cursor-pointer rounded-full border ' +
-  'border-cosci-btn-outline-border bg-transparent px-[1.2rem] ' +
-  'font-semibold text-cosci-btn-outline-fg ' +
+  `${PILL_BUTTON} border-cosci-btn-outline-border bg-transparent ` +
+  'px-[1.2rem] font-semibold text-cosci-btn-outline-fg ' +
   'hover:bg-cosci-btn-outline-hover-bg ' +
   'focus-visible:bg-cosci-btn-outline-hover-bg';
