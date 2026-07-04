@@ -66,7 +66,7 @@ colors:
   cosci-rail: "#e9eef6"       # MD3 surface-container-high (dark: surface-container #1e1f20)
   cosci-teal: "#1A6B6B"       # light-mode accent (logo, composer submit)
   cosci-green: "#7FD7BF"      # dark-mode accent (same roles)
-  cosci-step-dot-bg: "#00caca" # step dots + timeline accents, BOTH themes (see Colors)
+  cosci-step-dot-bg: "#34b3a0" # step dots (dark swaps to mint #7FD7BF; see Colors)
   cosci-blue: "#0b57d0"
   cosci-btn-primary-bg: "#0b57d0"   # Google-blue filled button (setup surface)
 
@@ -332,9 +332,9 @@ Where possible, semantic tokens **alias baseline tokens** rather than introducin
 
 The three raw-color/palette files split by role: `reference_surface.css` holds the Gemini product palette and the ideas-surface (`--cosci-idea-*`) tokens; `component_tokens.css` holds the semantic component tokens above; `shell_surface.css` / `home_surface.css` hold the shell and home *layout* rules that consume them. The import order in `styles/index.css` is `reference_surface → component_tokens → shell → home → tooltips`, so component tokens can alias palette tokens defined before them.
 
-The mode-dependent **accent** is worth internalizing: light mode accents in the Co-Scientist teal (`--cosci-teal`, `#1A6B6B`); dark mode swaps the same roles (logo, composer submit, Logs pill) to mint green (`--cosci-green`, `#7FD7BF`). Components get this for free by using the role tokens (`--cosci-composer-submit`, `--cosci-logo-color`), never the raw teal/green.
+The mode-dependent **accent** is worth internalizing: light mode accents in the Co-Scientist teal (`--cosci-teal`, `#1A6B6B`); dark mode swaps the same roles (logo, step dots, composer submit, Logs pill) to mint green (`--cosci-green`, `#7FD7BF`). Components get this for free by using the role tokens (`--cosci-step-dot-bg`, `--cosci-composer-submit`, `--cosci-logo-color`), never the raw teal/green.
 
-The **step-timeline accents are the exception — they do not swap per theme**, because the reference doesn't: the product paints its step dots ref-palette purple70 `#c597ff` and the connecting line `#b9a9d7` in *both* themes, flipping only the number color (inverse-on-surface: `#f2f2f2` light / `#303030` dark). Ours are those exact colors OKLCH hue-rotated onto the brand-teal hue (195°) with lightness/chroma preserved: dot `#00caca`, line `#7fc0bd` (both themes), plus the agent-chip avatar (`#b8e9dc` light / `#004740` dark from the reference's `#d9d8ff`/`#32307b`) and the hero blob fills (`#00CFF1`/`#56CCD4`/`#00E1F4` from `#FF8DD2`/`#CCA5EB`/`#F6A6FD`).
+The **step timeline and home decoration are a deliberate green divergence** from the reference (whose step dots are purple70 `#c597ff`, line `#b9a9d7`): we use our own brand greens — light dot `#34b3a0` on a near-white number, dark dot mint `#7FD7BF` on a near-black number; the line blends the accent with the neutral outline. The agent-chip avatar squircle carries a soft green tint (`#d3ede6` light / `#123f38` dark), and the hero blob fills are the brand greens `#7FD7BF`/`#8FD9C9`/`#A7E8D5` (recolored from the reference's pink/lavender `#FF8DD2`/`#CCA5EB`/`#F6A6FD`). An earlier pass OKLCH-hue-rotated the reference's exact purples onto our hue; that was reverted in favor of the softer brand greens.
 
 ### Tailwind utilities
 

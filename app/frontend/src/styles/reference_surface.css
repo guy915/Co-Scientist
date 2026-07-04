@@ -36,20 +36,18 @@
   --cosci-surface-bg: #fff;
   --cosci-home-heading: #1f1f1f;
 
-  /* Step timeline. The reference paints the dots ref-palette purple70
-     (#c597ff) in BOTH themes and the connecting line an opaque #b9a9d7 in
-     both themes (measured from the light+dark captures). These are the OKLCH
-     hue-rotated analogs: same lightness/chroma, hue moved from purple (303°)
-     to our brand-teal hue (195°), gamut-mapped. Only the number color flips
-     per theme (inverse-on-surface: #f2f2f2 light / #303030 dark). */
-  --cosci-step-line: #7fc0bd;
-  --cosci-step-dot-bg: #00caca;
+  /* Step timeline. Our own brand greens (the reference's dots are purple70
+     #c597ff / line #b9a9d7, but we prefer green here): a teal-green dot with
+     a near-white number, and a line blending the brand teal with the neutral
+     outline. Unlike the reference these DO swap per theme — mint green in
+     dark, matching our logo/submit accent. */
+  --cosci-step-line: color-mix(in srgb, var(--cosci-teal) 38%, #c4c7c5);
+  --cosci-step-dot-bg: #34b3a0;
   --cosci-step-dot-text: #f2f2f2;
   --cosci-logo-color: var(--cosci-teal);
 
-  /* Agent chip avatar squircle (reference: #d9d8ff light / #32307b dark,
-     same OKLCH hue-rotation to our teal family). */
-  --cosci-agent-avatar-bg: #b8e9dc;
+  /* Agent chip avatar squircle — soft brand-green tint behind the icon. */
+  --cosci-agent-avatar-bg: #d3ede6;
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
   --cosci-suggestion-border: #c4c7c5;
@@ -139,13 +137,13 @@
   --cosci-surface-bg: var(--cosci-bg);
   --cosci-home-heading: #fff;
 
-  /* Reference keeps the SAME dot (purple70) and line colors in dark; only
-     the number flips to dark inverse-on-surface (#303030). */
-  --cosci-step-line: #7fc0bd;
-  --cosci-step-dot-bg: #00caca;
-  --cosci-step-dot-text: #303030;
+  /* Dark: same brand greens as the logo/submit accent (mint green dot on a
+     near-black number, line blends mint with the dark outline). */
+  --cosci-step-line: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
+  --cosci-step-dot-bg: var(--cosci-green);
+  --cosci-step-dot-text: #131314;
   --cosci-logo-color: var(--cosci-green);
-  --cosci-agent-avatar-bg: #004740;
+  --cosci-agent-avatar-bg: #123f38;
   --cosci-step-heading: var(--cosci-muted);
   --cosci-step-text: var(--cosci-text);
   --cosci-suggestion-border: var(--cosci-border);
