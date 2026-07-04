@@ -51,15 +51,17 @@ colors:
   phase-3: "hsl(0 72% 51%)"     # Tournament / rank
   phase-4: "hsl(188 64% 35%)"   # Evolve / meta-review
 
-  # Gemini product palette (--cosci-*, reference_surface.css) — exact Google
-  # product colors for the shell/home surfaces. Neutral, NOT seed-tinted.
-  # Light values shown; every token carries its own dark value in the
-  # :root[data-theme="dark"] block. Exposed to Tailwind as cosci-* utilities.
-  cosci-text: "#202124"
-  cosci-muted: "#5f6368"
+  # Gemini product palette (--cosci-*, reference_surface.css) — the MD3 sys
+  # neutrals + primary the live Gemini Enterprise product actually uses for the
+  # shell/home surfaces (measured 2026-07, see references/ui-ux/idea-generator/
+  # live-capture-2026-07/). Faintly warm neutrals, NOT the classic blue-grey
+  # Google ramp. Light values shown; every token carries its own dark value in
+  # the :root[data-theme="dark"] block. Exposed to Tailwind as cosci-* utilities.
+  cosci-text: "#1f1f1f"       # MD3 on-surface
+  cosci-muted: "#747775"      # MD3 outline
   cosci-subtle: "#9aa0a6"
-  cosci-border: "#dadce0"
-  cosci-panel: "#f1f3f4"
+  cosci-border: "#c4c7c5"     # MD3 outline-variant
+  cosci-panel: "#f0f4f9"      # MD3 surface-container
   cosci-bg: "#ffffff"
   cosci-rail: "#eef4ff"
   cosci-teal: "#1A6B6B"       # light-mode accent (logo, step dots, composer submit)
@@ -316,7 +318,7 @@ The design personality is calm competence. Typography is tight and confident. Ro
 The UI runs **two deliberately separate palettes**, and knowing which is which is essential before changing any color:
 
 1. **MD3 dynamic palette** (`--md-sys-color-*`, bridged to `--color-th-*`) — derived at runtime from the `#1A6B6B` seed via `themeFromSourceColor`. Used for **data and semantic UI**: run status, Elo/tournament visuals, error/success states, primary actions. Its neutrals are intentionally *tinted toward the seed* by the MD3 tonal algorithm.
-2. **Gemini product palette** (`--cosci-*`, in `reference_surface.css`) — the **exact Google/Gemini product colors** (`#5f6368` gray text, `#dadce0` borders, `#f1f3f4` surfaces, `#202124` ink). Used for the **shell, home, and chat/setup surfaces** (rail, composer, recents, step timeline, setup document, buttons). These are hand-picked to match Gemini 1:1 and are **neutral, not seed-tinted** — do not "consolidate" them onto the MD3 tokens, which would swap Google's true grays for teal-tinted approximations and make the UI *less* Google-accurate. Each `--cosci-*` token has its own light/dark value (many share a light value but diverge in dark), so they cannot be collapsed by light-mode hex.
+2. **Gemini product palette** (`--cosci-*`, in `reference_surface.css`) — the **MD3 sys colors the live Gemini Enterprise product actually uses** (`#1f1f1f` on-surface ink, `#444746` on-surface-variant, `#747775` outline text, `#c4c7c5` outline-variant borders, `#f0f4f9` surface-container, `#0b57d0` primary blue), measured from the running product (`references/ui-ux/idea-generator/live-capture-2026-07/`). Used for the **shell, home, and chat/setup surfaces** (rail, composer, recents, step timeline, setup document, buttons). These neutrals carry a *faint warm/green cast* — the product tints its neutrals toward its own seed, exactly like an MD3 neutral-variant ramp. (An earlier iteration used the classic blue-grey Google ramp — `#5f6368`/`#dadce0`/`#202124` — believing it was "more 1:1 with Google"; the live product disproved that.) They stay **separate** from our own `--md-sys-color-*` tokens so the data surfaces (teal seed) and the shell (product blue) can diverge on hue, not so the shell can use a different grey family. Each `--cosci-*` token has its own light/dark value (many share a light value but diverge in dark), so they cannot be collapsed by light-mode hex.
 
 ### Semantic component tokens
 

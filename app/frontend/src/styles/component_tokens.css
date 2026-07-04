@@ -69,26 +69,26 @@
   --cosci-option-bg: #fff;
   --cosci-option-hover-bg: #e8eef6;
   --cosci-option-hover-border: #d4dbe6;
-  --cosci-option-marker: #5f6368;
+  --cosci-option-marker: #747775;
   --cosci-option-marker-on: #8ab4f8;
 
   /* Buttons — primary (filled), outline (blue in both modes), secondary */
   --cosci-btn-primary-bg: #0b57d0;
   --cosci-btn-primary-fg: #fff;
   --cosci-btn-primary-hover: #0842a0;
-  --cosci-btn-outline-border: #1a73e8;
-  --cosci-btn-outline-fg: #1967d2;
+  --cosci-btn-outline-border: #0b57d0;
+  --cosci-btn-outline-fg: #0b57d0;
   --cosci-btn-outline-hover-bg: #e8f0fe;
-  --cosci-btn-secondary-border: #9aa0a6;
-  --cosci-btn-secondary-fg: #3c4043;
-  --cosci-btn-secondary-hover-bg: #f1f3f4;
-  --cosci-btn-disabled-border: #dadce0;
-  --cosci-btn-disabled-bg: #f1f3f4;
+  --cosci-btn-secondary-border: #747775;
+  --cosci-btn-secondary-fg: #444746;
+  --cosci-btn-secondary-hover-bg: #f0f4f9;
+  --cosci-btn-disabled-border: #c4c7c5;
+  --cosci-btn-disabled-bg: #f0f4f9;
   --cosci-btn-disabled-fg: #9aa0a6;
 
   /* Chat bubbles + setup document */
-  --cosci-user-bubble-bg: #e9eefb;
-  --cosci-setup-doc-bg: #f1f4fa;
+  --cosci-user-bubble-bg: #e9eef6;
+  --cosci-setup-doc-bg: #f0f4f9;
 
   /* References "Open" pill — neutral outlined pill (external-link icon) that
      matches the report/knowledge-base reference rows in the captures. Aliases
