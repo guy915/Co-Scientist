@@ -72,8 +72,9 @@ export const HOME_TOAST_CLASSES =
   'text-[0.92rem] font-medium text-cosci-toast-fg';
 
 export const COMPOSER_BASE_CLASSES =
-  'reference-composer relative mt-4 min-h-[7.9rem] rounded-[1.7rem] border ' +
+  'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border ' +
   'border-cosci-composer-border bg-cosci-composer-bg ' +
+  'shadow-[0_2px_12px_-2px_rgb(233_238_246)] ' +
   'p-[1.25rem_1.5rem_0.8rem]';
 
 export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem]';
