@@ -9,19 +9,28 @@ Gemini Enterprise "Idea Generation" turns a user goal into a run and what its
 data model looks like, so our engine (`engine/src/co_scientist/`) can be checked
 against it.
 
-**Implemented so far** (commit `feat(engine): add hypothesis category and
-per-match tier`): the two idea-model fields called out in §3 below —
-`ideaForgeIdea.category` (now a real `Hypothesis.category`, driving the doc
-breadcrumb) and the per-match `tier` (a deterministic upset/decisive/clear/
-narrow class on tournament matches) — plus surfacing `win_rate`. The rest
-below (the `Config` textproto config-generation contract in §1, distinct
-`reviews[].type` — our `reviewer_agent` already covers review kinds) remains a
-map, not yet built.
+**Implemented so far:**
+- The two idea-model fields in §3 — `ideaForgeIdea.category` (a real
+  `Hypothesis.category`, driving the doc breadcrumb) and the per-match `tier`
+  (a deterministic upset/decisive/clear/narrow class), plus surfacing
+  `win_rate`.
+- The §1 config-generation contract: the **supervisor now emits a
+  `config_synthesis`** block — `preferences` (scope + quality, shared by
+  generation and review), `review_instructions` (reviewer-only comparative
+  guidance, kept distinct from preferences), and up to 3 stratification
+  `attributes` each with a 1-5 rubric — carried in `supervisor_guidance` and
+  surfaced to the reviewer via `_format_supervisor_guidance_for_review`.
+
+Still a map: the full `Config` textproto's mode-specific writer instruction
+sets (self_play/prompt/text) and structured safety flags (§1); distinct
+`reviews[].type` — our `reviewer_agent` already covers review kinds.
 
 ## 1. Config generation (`system-prompt.md`)
 
 The first turn converts free-text user input into a `Config` textproto. Notable
-because it's exactly what our **supervisor** node does when planning a run.
+because it's exactly what our **supervisor** node does when planning a run — and
+now the supervisor mirrors the key parts (preferences / review_instructions /
+attributes-with-rubrics) in its `config_synthesis` output, see the note above.
 
 ```proto
 message Config {

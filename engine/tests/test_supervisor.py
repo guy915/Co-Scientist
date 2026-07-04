@@ -16,8 +16,8 @@ from co_scientist.nodes.supervisor import supervisor_node
 from tests._state import make_state
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch,
-              response: dict[str, Any]) -> None:
+def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
+                                                              Any]) -> None:
     """Patch supervisor's call_llm_json to return a fixed JSON response."""
 
     async def fake(**_: Any) -> dict[str, Any]:
@@ -37,6 +37,14 @@ async def test_guidance_carries_response_subobjects(
         "workflow_plan": {
             "iterations": 3
         },
+        "config_synthesis": {
+            "preferences": ["testable within 2 years"],
+            "review_instructions": ["check the assay measures the claim"],
+            "attributes": [{
+                "name": "Feasibility",
+                "rubric": "1 impossible .. 5 routine"
+            }],
+        },
         "performance_assessment": {
             "status": "on track"
         },
@@ -53,6 +61,7 @@ async def test_guidance_carries_response_subobjects(
     assert guidance["research_goal_analysis"] == response[
         "research_goal_analysis"]
     assert guidance["workflow_plan"] == response["workflow_plan"]
+    assert guidance["config_synthesis"] == response["config_synthesis"]
     assert guidance["performance_assessment"] == response[
         "performance_assessment"]
     assert guidance["adjustment_recommendations"] == response[
@@ -73,6 +82,7 @@ async def test_missing_response_fields_default_to_empty(
     guidance = result["supervisor_guidance"]
     assert guidance["research_goal_analysis"] == {}
     assert guidance["workflow_plan"] == {}
+    assert guidance["config_synthesis"] == {}
     assert guidance["performance_assessment"] == {}
     assert guidance["adjustment_recommendations"] == []
     assert guidance["output_preparation"] == {}

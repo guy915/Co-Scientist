@@ -529,6 +529,31 @@ def _format_supervisor_guidance_for_review(
             sections.append(
                 f"**Review Depth Required:** {review_phase['review_depth']}\n")
 
+    # Synthesized config: preferences constrain what a good idea is (shared with
+    # generation); review_instructions are reviewer-only comparative guidance.
+    config = supervisor_guidance.get("config_synthesis", {})
+    if isinstance(config, dict):
+        preferences = config.get("preferences") or []
+        review_instructions = config.get("review_instructions") or []
+        attributes = config.get("attributes") or []
+        if not sections and (preferences or review_instructions or attributes):
+            sections.append("## Supervisor Guidance for Review\n")
+        if preferences:
+            sections.append("**Preferences (a good idea should satisfy):**\n")
+            sections.extend(f"- {p}\n" for p in preferences)
+        if review_instructions:
+            sections.append(
+                "\n**Review instructions (validate, do not restate the"
+                " preferences):**\n")
+            sections.extend(f"- {r}\n" for r in review_instructions)
+        if attributes:
+            sections.append("\n**Stratification attributes (score each 1-5):**"
+                            "\n")
+            for attr in attributes:
+                if isinstance(attr, dict) and attr.get("name"):
+                    sections.append(
+                        f"- {attr['name']}: {attr.get('rubric', '')}\n")
+
     return "".join(sections) if sections else ""
 
 

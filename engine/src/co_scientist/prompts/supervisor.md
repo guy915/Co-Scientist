@@ -123,6 +123,12 @@ Provide guidance for each phase. Use the ACTUAL configuration values ({{initial_
 - **refinement_priorities**: list of priorities for refining hypotheses in this domain
 - **iteration_strategy**: describe refinement strategy across the {{max_iterations}} configured iteration(s)
 
+### config_synthesis
+Synthesize a normalized run configuration from the goal (and any user preferences/attributes above). Keep the three lists STRICTLY separate — do not repeat an item across them:
+- **preferences**: the hard scope constraints AND the soft "what makes a good idea" qualities. These guide BOTH generation and review. (e.g. "must be experimentally testable within 2 years", "prefer mechanisms with a clear intervention point")
+- **review_instructions**: comparative critique guidance for REVIEWERS ONLY — how to validate soundness and distinguish strong ideas from weak ones. Do NOT restate the preferences here; focus on what to scrutinize and how to compare. (e.g. "check that the proposed assay actually measures the claimed effect", "penalize ideas that only restate known biology")
+- **attributes**: UP TO 3 axes used to stratify and compare ideas, each with a 1-5 scoring rubric. Each attribute: **name** (short) and **rubric** (how to score it from 1=worst to 5=best).
+
 ### performance_assessment
 - **current_status**: brief status (typically "initial planning phase" since you run first)
 - **bottlenecks_identified**: list any potential bottlenecks you foresee (can be empty list)
