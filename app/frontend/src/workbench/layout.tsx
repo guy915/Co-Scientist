@@ -166,11 +166,6 @@ export function Layout({children}: {children: ReactNode}) {
     void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
 
-  function focusComposer() {
-    window.dispatchEvent(new Event('cosci-focus-composer'));
-    void navigate('/', {state: {cosciAction: 'focus-composer'}});
-  }
-
   function toggleNav() {
     setNavOpen(open => !open);
     setActivePanel(null);
@@ -250,13 +245,6 @@ export function Layout({children}: {children: ReactNode}) {
               className={navItemClasses}
               labelClassName={navLabelClasses}
               onClick={startNewChat}
-            />
-            <NavActionButton
-              label="Search"
-              icon="search"
-              className={navItemClasses}
-              labelClassName={navLabelClasses}
-              onClick={focusComposer}
             />
           </nav>
           <div className={sideContentClasses}>

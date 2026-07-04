@@ -99,10 +99,8 @@ describe('Layout', () => {
     expect(newChat).toHaveClass('ucs-tooltip-anchor');
     expect(newChat).toHaveClass('ucs-tooltip-right');
 
-    const search = screen.getByRole('button', {name: 'Search'});
-    expect(search).toHaveAttribute('data-tooltip', 'Search');
-    expect(search).toHaveClass('ucs-tooltip-anchor');
-    expect(search).toHaveClass('ucs-tooltip-right');
+    // The non-functional "Search" nav item was removed.
+    expect(screen.queryByRole('button', {name: 'Search'})).toBeNull();
 
     const chat = screen.getByRole('link', {name: /ferroptosis/i});
     expect(chat).not.toHaveAttribute('title');
