@@ -76,11 +76,6 @@
   --color-th-info-fg: hsl(0 0% 100%);
   --color-th-link: hsl(221 83% 53%);
   --color-th-link-hover: hsl(221 83% 43%);
-  --color-th-phase0: hsl(142 71% 45%);
-  --color-th-phase1: hsl(174 54% 36%);
-  --color-th-phase2: hsl(32 95% 50%);
-  --color-th-phase3: hsl(0 72% 51%);
-  --color-th-phase4: hsl(188 64% 35%);
 
   /* Gemini product palette as named utilities (e.g. text-cosci-fg,
      bg-cosci-panel). Each mirrors a --cosci-* token from reference_surface.css
@@ -159,6 +154,12 @@
   --color-cosci-logs-code-fg: var(--cosci-logs-code-fg);
   --color-cosci-logs-danger-bg: var(--cosci-logs-danger-bg);
   --color-cosci-logs-danger-fg: var(--cosci-logs-danger-fg);
+  --color-cosci-reference-open-border: var(--cosci-reference-open-border);
+  --color-cosci-reference-open-fg: var(--cosci-reference-open-fg);
+  --color-cosci-reference-open-hover-bg: var(--cosci-reference-open-hover-bg);
+  --color-cosci-reference-open-hover-border: var(
+    --cosci-reference-open-hover-border
+  );
 
   /* Ideas-surface tokens (reference_surface.css) as named utilities. */
   --color-cosci-idea-list-border: var(--cosci-idea-list-border);
@@ -177,6 +178,15 @@
   --color-cosci-idea-breadcrumb-bg: var(--cosci-idea-breadcrumb-bg);
   --color-cosci-idea-breadcrumb-text: var(--cosci-idea-breadcrumb-text);
   --color-cosci-idea-detail-text: var(--cosci-idea-detail-text);
+  --color-cosci-idea-insight-card-border: var(--cosci-idea-insight-card-border);
+  --color-cosci-idea-insight-card-bg: var(--cosci-idea-insight-card-bg);
+  --color-cosci-idea-insight-title: var(--cosci-idea-insight-title);
+  --color-cosci-idea-insight-icon: var(--cosci-idea-insight-icon);
+  --color-cosci-idea-insight-body: var(--cosci-idea-insight-body);
+  --color-cosci-idea-stat-border: var(--cosci-idea-stat-border);
+  --color-cosci-idea-stat-bg: var(--cosci-idea-stat-bg);
+  --color-cosci-idea-stat-label: var(--cosci-idea-stat-label);
+  --color-cosci-idea-stat-value: var(--cosci-idea-stat-value);
 
   --radius: 0.5rem;
 }

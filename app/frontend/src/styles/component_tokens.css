@@ -89,6 +89,14 @@
   /* Chat bubbles + setup document */
   --cosci-user-bubble-bg: #e9eefb;
   --cosci-setup-doc-bg: #f1f4fa;
+
+  /* References "Open" pill — neutral outlined pill (external-link icon) that
+     matches the report/knowledge-base reference rows in the captures. Aliases
+     the neutral scale so it re-themes without bespoke dark values. */
+  --cosci-reference-open-border: var(--cosci-border);
+  --cosci-reference-open-fg: var(--cosci-text);
+  --cosci-reference-open-hover-bg: var(--cosci-hover);
+  --cosci-reference-open-hover-border: var(--cosci-muted);
 }
 
 :root[data-theme="dark"] {

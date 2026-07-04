@@ -1,15 +1,60 @@
 import type {MouseEvent, ReactNode} from 'react';
 import {useMemo, useState} from 'react';
-import type {CitationRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {
+  CitationRow,
+  Hypothesis,
+  MatchRow,
+  Report,
+  Review,
+} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 import {EmptyState} from '../empty_state';
 
+// Elo every hypothesis starts at; ideas above it held or gained ground in the
+// tournament and read as "high potential", those below it lost ground.
+const BASELINE_ELO = 1200;
+
 const IDEA_SPLIT_SHELL_CLASSES =
-  'idea-split-shell h-full overflow-hidden rounded-none border-0 bg-cosci-bg';
+  'idea-split-shell flex h-full min-h-0 flex-col overflow-hidden ' +
+  'rounded-none border-0 bg-cosci-bg';
+
+const IDEA_INSIGHTS_BAND_CLASSES =
+  'idea-insights-band shrink-0 grid gap-4 border-b border-cosci-idea-list-border ' +
+  'px-6 pt-5 pb-5 max-[720px]:px-4';
+
+const IDEA_INSIGHTS_CARD_CLASSES =
+  'idea-insights-card rounded-xl border border-cosci-idea-insight-card-border ' +
+  'bg-cosci-idea-insight-card-bg px-5 py-4';
+
+const IDEA_INSIGHTS_HEADER_CLASSES =
+  'idea-insights-header flex w-full items-center gap-2 border-0 bg-transparent ' +
+  'p-0 text-left';
+
+const IDEA_INSIGHTS_TITLE_CLASSES =
+  'idea-insights-title text-[0.95rem] font-semibold ' +
+  'text-cosci-idea-insight-title';
+
+const IDEA_INSIGHTS_BODY_CLASSES =
+  'idea-insights-body mt-3 text-[0.88rem] leading-[1.55] ' +
+  'text-cosci-idea-insight-body [overflow-wrap:anywhere]';
+
+const IDEA_STAT_ROW_CLASSES =
+  'idea-stat-row grid grid-cols-4 gap-4 max-[720px]:grid-cols-2';
+
+const IDEA_STAT_CARD_CLASSES =
+  'idea-stat-card grid gap-2 rounded-xl border border-cosci-idea-stat-border ' +
+  'bg-cosci-idea-stat-bg px-4 py-[0.9rem]';
+
+const IDEA_STAT_LABEL_CLASSES =
+  'idea-stat-label text-[0.78rem] leading-[1.3] text-cosci-idea-stat-label';
+
+const IDEA_STAT_VALUE_CLASSES =
+  'idea-stat-value text-[1.5rem] leading-none font-medium ' +
+  'text-cosci-idea-stat-value';
 
 const IDEA_SPLIT_GRID_CLASSES =
-  'idea-split-grid reference grid h-full min-h-0 min-w-0 ' +
+  'idea-split-grid reference grid min-h-0 min-w-0 flex-1 ' +
   'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_15rem] ' +
   'max-[720px]:grid-cols-1';
 
@@ -97,16 +142,20 @@ export function IdeasTab({
   citations,
   reviews,
   matches = [],
+  report = null,
 }: {
   hypotheses: Hypothesis[];
   citations: CitationRow[];
   reviews: Review[];
   matches?: MatchRow[];
+  report?: Report | null;
 }) {
-  // Kept in the API contract for other tabs/tests; the reference list view does
-  // not render citation counters.
-  void citations;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const insights = useMemo(
+    () => deriveInsights(hypotheses, citations, report),
+    [hypotheses, citations, report],
+  );
 
   const sorted = useMemo(() => {
     const arr = [...hypotheses];
@@ -129,6 +178,7 @@ export function IdeasTab({
 
   return (
     <div className={IDEA_SPLIT_SHELL_CLASSES}>
+      <AgentInsights insights={insights} />
       <div className={IDEA_SPLIT_GRID_CLASSES}>
         <ol
           className={IDEA_RANK_LIST_CLASSES}
@@ -154,6 +204,136 @@ export function IdeasTab({
           )}
         />
         <SectionsRail />
+      </div>
+    </div>
+  );
+}
+
+/** Synthesized counts and summary shown in the Agent Insights band. */
+interface IdeaInsights {
+  summary: string;
+  highPotential: number;
+  nonViable: number;
+  verified: number;
+  sourcesAnalyzed: number;
+}
+
+/**
+ * Derives the Agent Insights band data from our own run artifacts.
+ *
+ * Mapping (documented for owner review):
+ * - High potential: hypotheses strictly above the baseline Elo (gained ground
+ *   in the tournament).
+ * - Non-viable: hypotheses strictly below the baseline Elo (lost ground).
+ * - Verified: distinct hypotheses backed by at least one 'verified' citation.
+ * - Sources analyzed: distinct evidence sources referenced by any citation.
+ *
+ * @param hypotheses The run's hypotheses with Elo ratings.
+ * @param citations The claim-to-evidence citations with their verify state.
+ * @param report The run report, reused for the synthesized summary line.
+ * @returns The counts and summary for the band.
+ */
+function deriveInsights(
+  hypotheses: Hypothesis[],
+  citations: CitationRow[],
+  report: Report | null,
+): IdeaInsights {
+  // The two buckets are deliberately extremes, not a partition (per the
+  // reference stat cards): high potential counts hypotheses strictly above the
+  // tournament baseline and non-viable counts those strictly below. Ideas at
+  // exactly the baseline — and any with a null/undefined Elo — fall into
+  // neither bucket, so the counts need not sum to the total.
+  let highPotential = 0;
+  let nonViable = 0;
+  for (const h of hypotheses) {
+    if (h.elo_rating > BASELINE_ELO) highPotential += 1;
+    else if (h.elo_rating < BASELINE_ELO) nonViable += 1;
+  }
+
+  const verifiedHypotheses = new Set<string>();
+  const sources = new Set<string>();
+  for (const c of citations) {
+    sources.add(c.evidence_id);
+    if (c.state === 'verified') verifiedHypotheses.add(c.hypothesis_id);
+  }
+
+  return {
+    summary: buildSummary(report, hypotheses.length, highPotential),
+    highPotential,
+    nonViable,
+    verified: verifiedHypotheses.size,
+    sourcesAnalyzed: sources.size,
+  };
+}
+
+/**
+ * Reuses the research-overview summary when present, else derives a sentence.
+ *
+ * @param report The run report (may be null before synthesis completes).
+ * @param total The total hypothesis count.
+ * @param highPotential The count of above-baseline hypotheses.
+ * @returns A synthesized summary paragraph for the band.
+ */
+function buildSummary(
+  report: Report | null,
+  total: number,
+  highPotential: number,
+): string {
+  const overview = report?.payload.research_overview?.overview?.summary;
+  if (overview && overview.trim()) return overview.trim();
+  if (!total) {
+    return 'Agent insights will appear here once the generation and ranking nodes have run.';
+  }
+  return (
+    `The agents generated ${total} ${total === 1 ? 'hypothesis' : 'hypotheses'} and ranked them ` +
+    `through pairwise tournaments, with ${highPotential} rising above the baseline as the ` +
+    'most promising directions. Select any hypothesis to inspect its review and tournament record.'
+  );
+}
+
+function AgentInsights({insights}: {insights: IdeaInsights}) {
+  const [open, setOpen] = useState(true);
+  const stats: {label: string; value: number}[] = [
+    {label: 'High potential ideas', value: insights.highPotential},
+    {label: 'Non-viable ideas', value: insights.nonViable},
+    {label: 'Number of verified ideas', value: insights.verified},
+    {label: 'Sources analyzed', value: insights.sourcesAnalyzed},
+  ];
+  return (
+    <div className={IDEA_INSIGHTS_BAND_CLASSES}>
+      <section
+        className={IDEA_INSIGHTS_CARD_CLASSES}
+        aria-label="Agent insights"
+      >
+        <button
+          type="button"
+          className={IDEA_INSIGHTS_HEADER_CLASSES}
+          aria-expanded={open}
+          onClick={() => setOpen(prev => !prev)}
+        >
+          <Icon
+            name="stars"
+            aria-hidden="true"
+            className="h-5 w-5 shrink-0 text-cosci-idea-insight-icon"
+          />
+          <span className={IDEA_INSIGHTS_TITLE_CLASSES}>Agent Insights</span>
+          <Icon
+            name={open ? 'expand_less' : 'expand_more'}
+            aria-hidden="true"
+            className="ml-auto h-5 w-5 shrink-0 text-cosci-idea-insight-body"
+          />
+        </button>
+        {open && (
+          <p className={IDEA_INSIGHTS_BODY_CLASSES}>{insights.summary}</p>
+        )}
+      </section>
+      <div className={IDEA_STAT_ROW_CLASSES}>
+        {stats.map(stat => (
+          <div key={stat.label} className={IDEA_STAT_CARD_CLASSES}>
+            <span className={IDEA_STAT_LABEL_CLASSES}>{stat.label}</span>
+            <span className={IDEA_STAT_VALUE_CLASSES}>{stat.value}</span>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -227,7 +407,7 @@ function HypothesisDetail({
     >
       <div className={IDEA_BREADCRUMB_CLASSES}>
         <span className={IDEA_BREADCRUMB_TEXT_CLASSES}>
-          AI Co-Scientist &gt; Ranked hypothesis &gt; {hypothesis.title}
+          Co-Scientist &gt; Ranked hypothesis &gt; {hypothesis.title}
         </span>
       </div>
 
