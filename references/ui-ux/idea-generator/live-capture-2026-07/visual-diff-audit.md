@@ -82,6 +82,51 @@ light teal tint. Flagged for the owner; left as a size/weight fix only for now
 - Suggestion + idea rows: background-color transition on hover (~.14–.2s).
 - Focus-visible: `outline 2px auto secondary; offset -1px`.
 
+## Extracted from the saved DOM (`../home-page`, `../ideas-results`, `../session-setup`)
+
+Read directly out of the saved `<style>` blocks (declared values, exact):
+
+- **Greeting** (redesign `.header.header-subtitle`): `2.8125rem`/`3.25rem`
+  line-height, w400, `text-align:start`, `align-self:flex-start`,
+  `max-width:550px` — confirms our 45px/52 left-aligned choice to the pixel.
+- **Agent chip** (redesign variant): borderless, `color:on-surface-variant`,
+  16px, `align-self:flex-start`, `padding:0` — an inline icon + name, *no*
+  filled avatar. Fixed ours accordingly.
+- **Sections rail** (`.navigation-block`): `min-width:200px`, `margin:20px`,
+  `padding:20px`, `border-radius:10px`; `ul { margin:20px 0 0 }`;
+  `li+li { margin-top:24px }`; `li { color:primary; 16px; w500 }`;
+  `li.active { text-shadow:0 0 1px primary }`; title `0.75rem` w400 ls
+  `.00625rem`. Matched (rhythm now 48px per item).
+- **Idea card** (`.left-panel li`): `border:1px outline-variant`, radius 10px,
+  padding 16px, **width 400px**; `:hover:not(.selected){bg:surface-container}`;
+  `.selected{bg:blue-variant98;border:primary}`; `li+li{margin-top:8px}`.
+  Loading state: 3 skeleton lines (50/90/80% width) + shimmer.
+- **Recents card** (`.card`): radius 12px, padding 16px, gap 8px,
+  `box-shadow:0 1px 2px rgba(0,0,0,.15),0 2px 10px rgba(0,0,0,.1)`;
+  `.top-bar{gap:6px;margin-bottom:8px}`; winning chip `bg:green90`; winning
+  list `12px w400 ls .00625rem`, `li+li{margin-top:16px}`. All matched.
+- **fadeIn keyframe**: `0%{opacity:0;translate:0 16px} to{opacity:1}`,
+  `0.3s ease-in-out forwards`, gated on `prefers-reduced-motion:no-preference`,
+  on landing content + tournaments section. Added.
+- **Landing metrics**: `.landing-content{max-width:760px;margin:24px auto 0}`,
+  `.tournaments-section{width:350px}`.
+- **Full light + dark MD3 ramps** (`--gm3-sys-color-*` fallback pairs): light
+  and dark values captured in `reference-values.md`; the dark shell neutrals
+  were retuned to match (`#1e1f20`/`#282a2c`/`#333537`/`#e3e3e3`/`#c4c7c5`/
+  `#8e918f`/`#444746`).
+
+## Not extracted / deferred
+
+- **Decorative gradient blob** on the home hero — an inline animated SVG
+  (`.overview-blocks .background`), too costly to lift exactly; left out
+  rather than approximated.
+- **Step-circle treatment** — reference uses a *light pastel* purple70 circle;
+  we render a dark-filled teal one (green-not-purple is deliberate; the
+  fill-vs-tint is the open judgment call).
+- **`system-prompt.md`** (the agent's textproto `Config` spec) and the
+  **network HAR** are engine/API references, not UI — noted, out of scope for
+  the visual pass.
+
 ## Deliberate (leave as-is)
 
 Teal/green accent for brand elements (logo, composer submit, stat value),
