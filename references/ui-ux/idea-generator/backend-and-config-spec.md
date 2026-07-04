@@ -7,7 +7,16 @@ Extracted from the saved reference material in this folder:
 This is an **engine/data-model** reference (not UI). It documents how Google's
 Gemini Enterprise "Idea Generation" turns a user goal into a run and what its
 data model looks like, so our engine (`engine/src/co_scientist/`) can be checked
-against it. Nothing here has been implemented — it's a map.
+against it.
+
+**Implemented so far** (commit `feat(engine): add hypothesis category and
+per-match tier`): the two idea-model fields called out in §3 below —
+`ideaForgeIdea.category` (now a real `Hypothesis.category`, driving the doc
+breadcrumb) and the per-match `tier` (a deterministic upset/decisive/clear/
+narrow class on tournament matches) — plus surfacing `win_rate`. The rest
+below (the `Config` textproto config-generation contract in §1, distinct
+`reviews[].type` — our `reviewer_agent` already covers review kinds) remains a
+map, not yet built.
 
 ## 1. Config generation (`system-prompt.md`)
 
@@ -114,14 +123,17 @@ session {
 
 This maps almost 1:1 to our `Hypothesis` / `HypothesisReview` / `MatchRow` /
 Elo model. Fields the reference surfaces that we could lean into:
-- **`category`** — drives the doc breadcrumb (we synthesize one; theirs is a
-  first-class field).
-- **`matchResult.winRate` + `matchDetails[].{reasonings, tier}`** — the
-  "Tournament performance → Performance against other ideas" section is a
-  per-match narrative with before/after Elo & rank and a `tier`. Our tournament
-  data has the ratings; the per-match `reasonings` + `tier` are what make their
-  section readable.
-- **`reviews[].type`** — distinct review kinds, not one blob.
+- **`category`** — ✅ implemented as a first-class `Hypothesis.category`
+  (nullable), driving the doc breadcrumb.
+- **`matchResult.winRate` + `matchDetails[].{reasonings, tier}`** — ✅ partial:
+  `win_rate` is surfaced in "Tournament performance", and each match now
+  carries a deterministic `tier` (upset/decisive/clear/narrow) derived from the
+  pre-match Elo gap + judge confidence, shown in the match summary. We keep a
+  single `reasoning` string per match (their `reasonings` is a list; our one
+  string already fills the same slot).
+- **`reviews[].type`** — not added: our `reviews.reviewer_agent` column already
+  distinguishes review kinds (review / reflection / meta_review /
+  deep_verification), so a separate `type` would duplicate it.
 
 ## Not applicable to our UI
 
