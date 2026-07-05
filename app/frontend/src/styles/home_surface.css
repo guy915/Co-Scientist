@@ -16,6 +16,16 @@
   flex-direction: column;
 }
 
+/* The chat timeline scrolls under the overlaid composer. Reserve the scrollbar
+   gutter on both edges so its centered column stays symmetric (and thus aligned
+   with the full-width composer's column) regardless of the scrollbar, and let
+   its bottom padding track the composer's measured height so the last item
+   always clears the composer at max scroll. */
+.reference-chat-timeline {
+  scrollbar-gutter: stable both-edges;
+  padding-bottom: var(--chat-composer-h, 12rem);
+}
+
 /* Chat composer overlays the scrolling timeline (matching the reference): it is
    pinned to the bottom with a gradient that fades the surface bg upward, so
    content scrolls UNDER it with no gap and a soft shadow-overlay edge instead

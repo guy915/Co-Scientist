@@ -25,11 +25,13 @@ const PILL_BUTTON_DISABLED =
   'disabled:cursor-default disabled:border-cosci-btn-disabled-border ' +
   'disabled:bg-cosci-btn-disabled-bg disabled:text-cosci-btn-disabled-fg';
 
-// The timeline fills the column and scrolls under the overlaid composer; its
-// bottom padding reserves room for the composer so the last item can scroll
-// clear of it.
+// The timeline fills the column and scrolls under the overlaid composer.
+// reference-chat-timeline (see home_surface.css) reserves the scrollbar gutter
+// on both edges — so the centered column stays aligned with the composer's
+// despite the scrollbar — and its bottom padding tracks the composer's measured
+// height (--chat-composer-h) so the last item always scrolls fully clear of it.
 export const CHAT_TIMELINE_CLASSES =
-  'flex-1 overflow-y-auto px-4 pt-5 pb-[10rem]';
+  'reference-chat-timeline flex-1 overflow-y-auto px-4 pt-5';
 
 export const CHAT_COMPOSER_CLASSES = 'reference-chat-composer px-4 pb-8';
 

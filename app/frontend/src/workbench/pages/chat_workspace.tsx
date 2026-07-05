@@ -51,6 +51,7 @@ export function ChatWorkspace() {
   const [showAllRecents, setShowAllRecents] = useState(false);
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLDivElement>(null);
   const previousTimelineSignature = useRef('');
 
   const {toast, setToast} = useToast();
@@ -260,6 +261,26 @@ export function ChatWorkspace() {
     return () => window.clearTimeout(timeout);
   }, [startedSession]);
 
+  // The composer overlays the timeline, so reserve exactly its height as the
+  // timeline's bottom padding — otherwise the last item is trapped under the
+  // composer (padding too small) or floats above it (too large). Tracks the
+  // composer as it auto-grows.
+  useEffect(() => {
+    const composer = composerRef.current;
+    const scroller = scrollRef.current;
+    if (!hasConversation || !composer || !scroller) return;
+    const sync = () => {
+      scroller.style.setProperty(
+        '--chat-composer-h',
+        `${composer.offsetHeight}px`,
+      );
+    };
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(composer);
+    return () => observer.disconnect();
+  }, [hasConversation]);
+
   return (
     <div className={HOME_WORKSPACE_CLASSES}>
       <main className={HOME_WORKSPACE_MAIN_CLASSES}>
@@ -297,7 +318,7 @@ export function ChatWorkspace() {
                 )}
               </div>
             </section>
-            <div className={CHAT_COMPOSER_CLASSES}>
+            <div ref={composerRef} className={CHAT_COMPOSER_CLASSES}>
               <div className={CHAT_COLUMN_CLASSES}>
                 <Composer
                   input={input}
