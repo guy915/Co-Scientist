@@ -74,28 +74,6 @@
   padding-top: clamp(2.4rem, 7vh, 3.5rem);
 }
 
-/* Decorative hero glow — the reference's blurred multi-ellipse "shadow-ellipse"
-   (800x416), recolored from its pink/lavender to our teal brand family. Sits
-   behind the step timeline, bleeding off the right edge. Hidden from a11y and
-   pointer events; sits at z-index -1 behind the transparent main column. */
-.reference-home-main::before {
-  content: "";
-  position: absolute;
-  top: 6.5rem;
-  right: -6rem;
-  z-index: -1;
-  width: 800px;
-  height: 416px;
-  background: url("../assets/home-hero-blob.svg") no-repeat center / contain;
-  pointer-events: none;
-}
-
-@media (max-width: 1180px) {
-  .reference-home-main::before {
-    display: none;
-  }
-}
-
 /* Entrance animation copied from the reference: content fades up 16px over
    0.3s. Gated on no-preference so reduced-motion users get an instant paint. */
 @keyframes reference-fade-in {
