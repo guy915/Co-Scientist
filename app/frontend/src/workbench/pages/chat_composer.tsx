@@ -302,7 +302,10 @@ export function Composer({
         </span>
         <textarea
           ref={textareaRef}
-          rows={large ? 4 : 3}
+          // One row; the empty height comes from the textarea's min-height and
+          // growth is driven by the auto-grow effect. A larger rows value would
+          // force the empty box several lines tall.
+          rows={1}
           value={input}
           disabled={disabled}
           className={[

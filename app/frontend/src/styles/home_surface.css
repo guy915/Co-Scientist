@@ -530,8 +530,13 @@
 
   .reference-recents-list {
     max-height: calc(100vh - 10.1rem);
-    padding: 0.55rem 1.2rem 2.15rem 0.55rem;
-    scroll-padding: 0.55rem 1.2rem 2.15rem 0.55rem;
+    /* Symmetric horizontal padding: the old asymmetric 1.2rem right inset was
+       sized for a wider column and, together with the vertical scrollbar,
+       pushed the cards a few px past the viewport (a grid/scrollbar rounding
+       mismatch) once the column was narrowed — surfacing as a horizontal
+       scrollbar. Equal insets leave slack for the scrollbar on both sides. */
+    padding: 0.55rem 0.55rem 2.15rem 0.55rem;
+    scroll-padding: 0.55rem 0.55rem 2.15rem 0.55rem;
   }
 
   .reference-recents .reference-recents-list {
