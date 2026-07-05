@@ -29,7 +29,10 @@ const ICONS = {
   arrow_forward: 'arrow_forward',
   article: 'article',
   assignment: 'assignment',
+  check: 'check',
   check_circle: 'check_circle',
+  // Chessboard glyph — the reference's "Playing tournament" progress step.
+  chess: 'chess',
   close: 'close',
   computer: 'computer',
   content_copy: 'content_copy',
@@ -58,7 +61,11 @@ const ICONS = {
   menu: 'menu',
   menu_book: 'menu_book',
   open_in_new: 'open_in_new',
+  // "Generating ideas" progress step — a speech bubble with a pencil.
+  rate_review: 'rate_review',
   refresh: 'refresh',
+  // "Reviewing ideas" progress step — a starred review badge.
+  reviews: 'reviews',
   search: 'search',
   send: 'send-fill',
   settings: 'settings',

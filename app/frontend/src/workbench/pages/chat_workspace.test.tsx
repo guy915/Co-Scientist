@@ -180,7 +180,7 @@ describe('ChatWorkspace', () => {
     expect(screen.queryByText('Top score: 1240')).toBeNull();
   });
 
-  it('shows active recents with in-progress percentage and generation state', async () => {
+  it('shows active recents with the run step flow', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue([
       minimalRun({
@@ -201,8 +201,11 @@ describe('ChatWorkspace', () => {
 
     renderWorkspace();
 
-    expect(await screen.findByText(/In Progress: \d+%/)).toBeInTheDocument();
-    expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
+    expect(await screen.findByText(/Step \d of 4/)).toBeInTheDocument();
+    expect(screen.getByText('Exploring focus areas')).toBeInTheDocument();
+    expect(screen.getByText('Generating ideas')).toBeInTheDocument();
+    expect(screen.getByText('Reviewing ideas')).toBeInTheDocument();
+    expect(screen.getByText('Playing tournament')).toBeInTheDocument();
   });
 
   it('shows the reference empty recents placeholder', async () => {
