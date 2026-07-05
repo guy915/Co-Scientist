@@ -518,10 +518,17 @@
 
   .reference-recents-panel {
     width: 100%;
+    /* Full-height column (like the main column) with the list on a flexible
+       row, and the SAME bottom padding as .reference-home-main, so the recents
+       list bottom lines up with the composer bottom instead of being pinned to
+       a viewport-relative max-height. */
+    height: 100%;
     max-height: calc(100vh - 4.5rem);
+    grid-template-rows: auto minmax(0, 1fr);
     justify-self: end;
     overflow: visible;
     padding-top: clamp(0.35rem, 1vh, 0.75rem);
+    padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
   }
 
   .reference-recents.reference-recents-panel {
@@ -529,7 +536,10 @@
   }
 
   .reference-recents-list {
-    max-height: calc(100vh - 10.1rem);
+    /* Fill the panel's flexible row (min-height:0 from base enables scrolling)
+       so the list ends at the panel's bottom padding — level with the composer
+       — rather than at a viewport-relative cap. */
+    max-height: none;
     /* Symmetric horizontal padding: the old asymmetric 1.2rem right inset was
        sized for a wider column and, together with the vertical scrollbar,
        pushed the cards a few px past the viewport (a grid/scrollbar rounding
