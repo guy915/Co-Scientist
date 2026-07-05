@@ -81,9 +81,7 @@ const THEME_BUTTON_ACTIVE_CLASSES = 'selected';
 
 const THEME_BUTTON_ICON_CLASSES = 'ucs-theme-button-icon';
 
-const HOME_SIDE_CONTENT_CLASSES = 'ucs-side-content ucs-side-content--home';
-
-const REPORT_SIDE_CONTENT_CLASSES = 'ucs-side-content ucs-side-content--report';
+const SIDE_CONTENT_CLASSES = 'ucs-side-content';
 
 const SIDE_CONTENT_OPEN_CLASSES = 'ucs-side-content--open';
 
@@ -91,9 +89,7 @@ const SIDE_CONTENT_COLLAPSED_CLASSES = 'ucs-side-content--collapsed';
 
 const SIDE_HEADING_CLASSES = 'ucs-side-heading';
 
-const HOME_CHAT_LIST_CLASSES = 'ucs-chat-list ucs-chat-list--home';
-
-const REPORT_CHAT_LIST_CLASSES = 'ucs-chat-list ucs-chat-list--report';
+const CHAT_LIST_CLASSES = 'ucs-chat-list';
 
 const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
 
@@ -129,12 +125,10 @@ export function Layout({children}: {children: ReactNode}) {
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
   const sideContentClasses = [
-    isRunRoute ? REPORT_SIDE_CONTENT_CLASSES : HOME_SIDE_CONTENT_CLASSES,
+    SIDE_CONTENT_CLASSES,
     navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
   ].join(' ');
-  const chatListClasses = isRunRoute
-    ? REPORT_CHAT_LIST_CLASSES
-    : HOME_CHAT_LIST_CLASSES;
+  const chatListClasses = CHAT_LIST_CLASSES;
   const workspaceClasses = isRunRoute
     ? REPORT_WORKSPACE_CLASSES
     : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;

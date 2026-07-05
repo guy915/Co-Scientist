@@ -326,47 +326,32 @@
   font-size: 1rem;
 }
 
+/* One sidebar treatment for every route — the chat rail must look identical on
+   the home surface and inside a run (no home/report variants). */
 .ucs-side-content {
   display: grid;
   min-width: 0;
   gap: 0.35rem;
+  margin-top: 1rem;
+  max-height: 22rem;
   overflow: hidden;
   opacity: 1;
   visibility: visible;
 }
 
-.ucs-side-content--home {
-  max-height: 18rem;
-  margin-top: 0.85rem;
-}
-
-.ucs-side-content--report {
-  max-height: 20rem;
-  margin-top: 1.5rem;
-}
-
+/* "Chats" / "Agents" section heading: on-surface (dark in light, white in
+   dark), matching the reference's section labels rather than a muted caption. */
 .ucs-side-heading {
-  margin: 1rem 0 0.4rem;
-  color: var(--cosci-muted);
-  font-size: 0.78rem;
+  margin: 1.15rem 0 0.55rem;
+  color: var(--cosci-text);
+  font-size: 1rem;
   font-weight: 500;
-}
-
-:root[data-theme="dark"] .ucs-side-heading {
-  color: var(--cosci-subtle);
 }
 
 .ucs-chat-list {
   display: grid;
   min-width: 0;
-}
-
-.ucs-chat-list--home {
   gap: 0.35rem;
-}
-
-.ucs-chat-list--report {
-  gap: 0.1rem;
 }
 
 .ucs-chat-link {
@@ -378,7 +363,7 @@
   overflow: visible;
   border-radius: 9999px;
   color: var(--cosci-shell-icon);
-  font-size: 0.86rem;
+  font-size: 0.95rem;
   line-height: 2.35rem;
   padding-inline: 0.75rem;
   text-decoration: none;
