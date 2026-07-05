@@ -237,13 +237,17 @@
   display: -webkit-box;
   visibility: hidden;
   width: max-content;
-  max-width: min(42rem, calc(100vw - 7rem));
+  /* Cap narrow enough that the box hugs its wrapped lines instead of pinning
+     to a wide max-content, and balance the lines so the last one is not left a
+     lonely orphan word (which reads like a hard break). */
+  max-width: min(28rem, calc(100vw - 7rem));
   margin: 0;
   overflow: hidden;
   color: var(--cosci-shell-icon);
   font-size: 0.84rem;
   font-weight: 400;
   line-height: 1.25rem;
+  text-wrap: balance;
   opacity: 0;
   pointer-events: none;
   transform: translateY(0.2rem);
