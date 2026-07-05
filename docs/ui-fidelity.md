@@ -229,6 +229,12 @@ high on facts; severity DECISION (era-conditional on D1).*
   and unwired surface).
 - **Verifier note:** present-in-ESN, absent-in-ours. A real content gap **iff the
   ESN era is in scope**; otherwise out of scope. Gated by Q1. → **Question Q1.**
+- **Resolution (owner decision):** the panel + stat cards were built for a time
+  and then **removed as out of scope** — the derived metrics (Elo-bucket
+  "high potential/non-viable", verified-citation counts) were an interpretation
+  the ESN reference doesn't actually specify. `ideas_tab.tsx` again renders only
+  the 3-column rank/detail/sections layout. Do not re-add as a fidelity gap
+  without an explicit scope decision.
 
 **D3 — Research Overview summary richness (F9).** *Confidence: high on facts;
 severity DECISION.*

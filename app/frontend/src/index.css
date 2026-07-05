@@ -210,15 +210,6 @@
   --color-cosci-idea-breadcrumb-bg: var(--cosci-idea-breadcrumb-bg);
   --color-cosci-idea-breadcrumb-text: var(--cosci-idea-breadcrumb-text);
   --color-cosci-idea-detail-text: var(--cosci-idea-detail-text);
-  --color-cosci-idea-insight-card-border: var(--cosci-idea-insight-card-border);
-  --color-cosci-idea-insight-card-bg: var(--cosci-idea-insight-card-bg);
-  --color-cosci-idea-insight-title: var(--cosci-idea-insight-title);
-  --color-cosci-idea-insight-icon: var(--cosci-idea-insight-icon);
-  --color-cosci-idea-insight-body: var(--cosci-idea-insight-body);
-  --color-cosci-idea-stat-border: var(--cosci-idea-stat-border);
-  --color-cosci-idea-stat-bg: var(--cosci-idea-stat-bg);
-  --color-cosci-idea-stat-label: var(--cosci-idea-stat-label);
-  --color-cosci-idea-stat-value: var(--cosci-idea-stat-value);
 
   /* Typefaces: font-gsans = display face (greeting, doc headings, wordmark);
      font-gsans-text = UI/body face (the :root default — utility exists for

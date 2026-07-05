@@ -1,9 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
-  type CitationRow,
   type Evidence,
-  getCitations,
   getEvidence,
   getHypotheses,
   getMatches,
@@ -125,7 +123,6 @@ export function RunDetail() {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [citations, setCitations] = useState<CitationRow[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -139,13 +136,12 @@ export function RunDetail() {
   const refresh = useCallback(async () => {
     if (!id) return;
     try {
-      const [r, h, e, m, rv, c, rep] = await Promise.all([
+      const [r, h, e, m, rv, rep] = await Promise.all([
         getRun(id),
         getHypotheses(id),
         getEvidence(id),
         getMatches(id),
         getReviews(id),
-        getCitations(id),
         getReport(id),
       ]);
       setRun(r);
@@ -153,7 +149,6 @@ export function RunDetail() {
       setEvidence(e);
       setMatches(m);
       setReviews(rv);
-      setCitations(c);
       setReport(rep);
       setLoaded(true);
       setError(null);
@@ -306,10 +301,8 @@ export function RunDetail() {
             <section className={ALL_IDEAS_CLASSES}>
               <IdeasTab
                 hypotheses={hypotheses}
-                citations={citations}
                 reviews={reviews}
                 matches={matches}
-                report={report}
               />
             </section>
           )}
