@@ -48,7 +48,9 @@
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
   --cosci-suggestion-border: #c4c7c5;
-  --cosci-suggestion-bg: #fff;
+  /* Suggestion chips read as outlined pills — transparent at rest so they sit on
+     the page rather than as filled cards; hover paints a subtle state layer. */
+  --cosci-suggestion-bg: transparent;
   --cosci-suggestion-text: #1f1f1f;
   --cosci-suggestion-hover-border: #c4c7c5;
   --cosci-suggestion-hover-bg: #e9eef6;
@@ -136,7 +138,7 @@
   --cosci-step-heading: var(--cosci-muted);
   --cosci-step-text: var(--cosci-text);
   --cosci-suggestion-border: var(--cosci-border);
-  --cosci-suggestion-bg: var(--cosci-bg);
+  --cosci-suggestion-bg: transparent;
   --cosci-suggestion-text: var(--cosci-text);
   --cosci-suggestion-hover-border: var(--cosci-border);
   --cosci-suggestion-hover-bg: #282a2c;
