@@ -57,10 +57,6 @@ const ICONS = {
   menu: 'menu',
   menu_book: 'menu_book',
   open_in_new: 'open_in_new',
-  // Research-overview glyph (a page of content lines under an analytical lens).
-  // The reference product's own overview glyph is not in the saved capture, so
-  // this is the closest Material Symbols match.
-  overview: 'overview',
   refresh: 'refresh',
   search: 'search',
   send: 'send-fill',

@@ -38,7 +38,7 @@ type TabName = (typeof TABS)[number];
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
   details: 'menu_book',
   learning: 'menu_book',
-  overview: 'overview',
+  overview: 'article',
   ideas: 'lightbulb',
 };
 
