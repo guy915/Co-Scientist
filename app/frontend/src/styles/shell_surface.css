@@ -339,12 +339,16 @@
   visibility: visible;
 }
 
-/* "Chats" / "Agents" section heading: on-surface (dark in light, white in
-   dark), matching the reference's section labels rather than a muted caption. */
+/* "Chats" section heading: on-surface (dark in light, white in dark), matching
+   the reference's section labels. The sidebar uses a single font size (the nav
+   labels' 0.875rem); the heading is only distinguished by weight and color. Its
+   text is indented to the shared 0.75rem gutter so it lines up with the nav
+   icons and the chat item labels rather than sitting flush-left. */
 .ucs-side-heading {
   margin: 1.15rem 0 0.55rem;
+  padding-inline: 0.75rem;
   color: var(--cosci-text);
-  font-size: 1rem;
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
@@ -363,7 +367,7 @@
   overflow: visible;
   border-radius: 9999px;
   color: var(--cosci-shell-icon);
-  font-size: 0.95rem;
+  font-size: 0.875rem;
   line-height: 2.35rem;
   padding-inline: 0.75rem;
   text-decoration: none;
@@ -399,6 +403,10 @@
 }
 
 .ucs-chat-label {
+  /* Fill the link's width regardless of content so word-boundary truncation
+     measures against the full available width (flex-basis:0 grow), not the
+     truncated text — otherwise the label collapses to its own clipped content. */
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

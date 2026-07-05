@@ -86,10 +86,12 @@ export const COMPOSER_LABEL_TEXT_HIDDEN_CLASSES = 'hidden';
 
 export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 
+// Height is driven imperatively by the composer's auto-grow effect (min-height
+// floor here, JS caps the max and toggles scrolling), so no fixed height.
 export const COMPOSER_TEXTAREA_CLASSES =
-  'relative z-[2] block h-[3.6rem] max-h-[3.6rem] min-h-[3.6rem] w-full ' +
-  'resize-none border-0 bg-transparent pt-0 font-[inherit] leading-6 ' +
-  'text-cosci-composer-text outline-none';
+  'relative z-[2] block min-h-[3.6rem] w-full ' +
+  'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
+  'leading-6 text-cosci-composer-text outline-none';
 
 export const COMPOSER_ACTIONS_CLASSES =
   'reference-composer-actions pointer-events-none absolute right-5 bottom-3 ' +

@@ -3,6 +3,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -33,6 +34,11 @@ import {
 } from './chat_home_classes';
 
 const COMPOSER_CONNECTORS = ['PubMed'];
+
+// Auto-grow caps (px) before the textarea starts scrolling: the roomier home
+// composer grows taller than the compact in-run/setup composer.
+const COMPOSER_MAX_HEIGHT = 120;
+const COMPOSER_MAX_HEIGHT_LARGE = 146;
 
 const REFERENCE_COMPOSER_ATTACHED_CLASSES =
   'has-attachments !min-h-[13.5rem] !pt-4';
@@ -111,10 +117,24 @@ export function Composer({
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sourceControlsRef = useRef<HTMLDivElement>(null);
   const attachmentRef = useRef<ComposerAttachment[]>([]);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
+
+  // Grow the textarea with its content up to a cap, then let it scroll — the
+  // reference composer expands as you type before it becomes scrollable. Runs
+  // on every input change (including programmatic fills from suggestions) so the
+  // height always tracks the current value; clearing the input snaps it back to
+  // the CSS min-height floor.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const maxHeight = large ? COMPOSER_MAX_HEIGHT_LARGE : COMPOSER_MAX_HEIGHT;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  }, [input, large]);
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -281,6 +301,7 @@ export function Composer({
           {referenceLabel}
         </span>
         <textarea
+          ref={textareaRef}
           rows={large ? 4 : 3}
           value={input}
           disabled={disabled}

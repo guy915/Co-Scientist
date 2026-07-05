@@ -4,6 +4,7 @@ import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
+import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
 import {useTheme} from './theme_context';
 import {tooltipClassNames} from './tooltip';
@@ -267,9 +268,10 @@ export function Layout({children}: {children: ReactNode}) {
                     aria-current={isActive ? 'page' : undefined}
                     data-tooltip={run.research_goal}
                   >
-                    <span className={CHAT_HISTORY_LABEL_CLASSES}>
-                      {conciseTitle(run.research_goal)}
-                    </span>
+                    <TruncatedLabel
+                      className={CHAT_HISTORY_LABEL_CLASSES}
+                      text={conciseTitle(run.research_goal)}
+                    />
                   </Link>
                 );
               })}
