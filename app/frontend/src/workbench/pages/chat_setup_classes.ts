@@ -25,9 +25,13 @@ const PILL_BUTTON_DISABLED =
   'disabled:cursor-default disabled:border-cosci-btn-disabled-border ' +
   'disabled:bg-cosci-btn-disabled-bg disabled:text-cosci-btn-disabled-fg';
 
-export const CHAT_TIMELINE_CLASSES = 'flex-1 overflow-y-auto px-4 pt-5 pb-8';
+// The timeline fills the column and scrolls under the overlaid composer; its
+// bottom padding reserves room for the composer so the last item can scroll
+// clear of it.
+export const CHAT_TIMELINE_CLASSES =
+  'flex-1 overflow-y-auto px-4 pt-5 pb-[10rem]';
 
-export const CHAT_COMPOSER_CLASSES = 'border-t-0 bg-transparent px-4 pb-8';
+export const CHAT_COMPOSER_CLASSES = 'reference-chat-composer px-4 pb-8';
 
 export const CHAT_COLUMN_CLASSES =
   'reference-chat-column mx-auto grid w-[min(100%,50.75rem)] gap-[1.15rem]';

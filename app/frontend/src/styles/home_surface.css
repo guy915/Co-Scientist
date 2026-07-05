@@ -8,11 +8,40 @@
 }
 
 .reference-workspace-main {
+  position: relative;
   display: flex;
   height: 100%;
   min-height: 0;
   min-width: 0;
   flex-direction: column;
+}
+
+/* Chat composer overlays the scrolling timeline (matching the reference): it is
+   pinned to the bottom with a gradient that fades the surface bg upward, so
+   content scrolls UNDER it with no gap and a soft shadow-overlay edge instead
+   of sitting in a separate row below a gap. The transparent fade zone stays
+   click-through; only the composer itself is interactive. */
+.reference-chat-composer {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding-top: 2.75rem;
+  background: linear-gradient(
+    to top,
+    var(--cosci-surface-bg) 62%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.reference-chat-composer > * {
+  pointer-events: auto;
+}
+
+/* The composer's default top margin is for the home layout; the overlay owns
+   its own top spacing via the fade zone. */
+.reference-chat-composer .reference-composer {
+  margin-top: 0;
 }
 
 .reference-home-stage {
