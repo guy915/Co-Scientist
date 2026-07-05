@@ -317,13 +317,14 @@ describe('ChatWorkspace', () => {
       ?.getBoundingClientRect().top;
 
     const suggestion = screen.getByRole('button', {
-      name: 'Find new therapeutic targets for M.tuberculosis by combining...',
+      name: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
     });
 
     fireEvent.pointerEnter(suggestion);
 
     const preview = screen.getByText(
       'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+      {selector: '.reference-suggestion-preview'},
     );
     expect(preview).toBeInTheDocument();
     expect(preview).toHaveClass('visible');
@@ -531,30 +532,31 @@ describe('ChatWorkspace', () => {
   it('fills the composer from a suggested prompt', () => {
     renderWorkspace();
 
-    const suggestion = screen.getByText(
-      'Find new therapeutic targets for M.tuberculosis by combining...',
-    );
+    const suggestion = screen.getByRole('button', {
+      name: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+    });
 
     fireEvent.click(suggestion);
 
     expect(screen.getByRole('textbox')).toHaveValue(
       'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
     );
-    expect(suggestion.closest('button')).not.toHaveClass('selected');
-    expect(suggestion.closest('button')).not.toHaveClass('is-previewed');
+    expect(suggestion).not.toHaveClass('selected');
+    expect(suggestion).not.toHaveClass('is-previewed');
   });
 
   it('hides the suggestion preview after selecting a suggested prompt', () => {
     renderWorkspace();
 
     const suggestion = screen.getByRole('button', {
-      name: 'Generate novel hypotheses for the link between...',
+      name: 'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
     });
 
     fireEvent.pointerEnter(suggestion);
 
     const preview = screen.getByText(
       'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
+      {selector: '.reference-suggestion-preview'},
     );
     expect(preview).toHaveClass('visible');
 
