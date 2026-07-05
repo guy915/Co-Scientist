@@ -221,6 +221,12 @@
 .ucs-header-title {
   position: absolute;
   left: 50%;
+  /* Grow with the content up to a viewport-scaled cap (kept clear of the logo
+     and Logs control), so the title uses the available space and only
+     word-truncates when it genuinely overflows — not at a fixed char count. */
+  width: max-content;
+  max-width: min(52rem, 44vw);
+  overflow: hidden;
   color: var(--cosci-text);
   font-size: 1rem;
   font-weight: 500;

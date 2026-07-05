@@ -12,13 +12,11 @@ import {
   type MatchRow,
   type Report,
   type Review,
-  type RunSetupConfig,
   type RunWithSummary,
 } from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {useRunStream} from '@/hooks/use_run_stream';
-import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from '../components/truncated_label';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {
@@ -196,16 +194,10 @@ export function RunDetail() {
     }
   }, [terminal, run]);
 
-  // Short title for the shell header (narrow, center-aligned).
+  // Full display title (curated domain override, else the goal). Shared by the
+  // shell-header dispatch and the titlebar; each host truncates to its own
+  // available width via TruncatedLabel rather than being pre-shortened.
   const title = useMemo(() => {
-    if (!run) return 'Goal report';
-    return goalReportTitle(run.research_goal, run.config.setup);
-  }, [run]);
-
-  // The titlebar has room, so show the full goal there and let CSS ellipsis
-  // truncate only when it actually overflows — rather than the pre-shortened
-  // header title.
-  const titlebarTitle = useMemo(() => {
     if (!run) return 'Goal report';
     return (
       domainTitleOverride(run.research_goal) ??
@@ -226,7 +218,9 @@ export function RunDetail() {
   const onTabChange = useCallback(
     (nextTab: TabName) => {
       if (!id) return;
-      void navigate(`/runs/${id}${nextTab === 'details' ? '' : `/${nextTab}`}`);
+      // Always include the tab (details included) so every tab is the same
+      // required-param route — switching tabs never remounts RunDetail.
+      void navigate(`/runs/${id}/${nextTab}`);
     },
     [id, navigate],
   );
@@ -245,7 +239,7 @@ export function RunDetail() {
           <h1 className={REPORT_TITLE_CLASSES}>
             <TruncatedLabel
               className={REPORT_TITLE_TEXT_CLASSES}
-              text={titlebarTitle}
+              text={title}
             />
           </h1>
         </div>
@@ -329,7 +323,7 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
       title="Research goal details"
       className="cosci-goal-details"
     >
-      <h3 className={REPORT_H3_CLASSES}>{goalReportTitle(goal, setup)}</h3>
+      <h3 className={REPORT_H3_CLASSES}>{domainTitleOverride(goal) ?? goal}</h3>
       <p>
         <strong>Goal:</strong> {goal}
       </p>
@@ -524,10 +518,6 @@ function domainTitleOverride(goal: string): string | null {
     return 'Epigenetic and stromal reversal strategies for MASH-associated liver fibrosis';
   }
   return null;
-}
-
-function goalReportTitle(goal: string, setup?: RunSetupConfig): string {
-  return domainTitleOverride(goal) ?? conciseTitle(setup?.goal ?? goal);
 }
 
 function RunToast({toast}: {toast: {type: 'info' | 'error'; message: string}}) {

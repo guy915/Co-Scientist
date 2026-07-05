@@ -177,10 +177,19 @@ export function Layout({children}: {children: ReactNode}) {
     setActivePanel(current => (current === panel ? null : panel));
   }
 
+  // Close any open popover on navigation.
   useEffect(() => {
-    setOverrideTitle('');
     setActivePanel(null);
   }, [location.pathname]);
+
+  // Clear the shell title only when the title-owning context changes: the run
+  // id for run routes, else the pathname. Switching tabs within one run keeps
+  // the same id, so the run's dispatched title survives (RunDetail stays
+  // mounted across tabs and does not re-dispatch on a tab change).
+  const titleContextKey = isRunRoute ? `run:${activeRunId}` : location.pathname;
+  useEffect(() => {
+    setOverrideTitle('');
+  }, [titleContextKey]);
 
   useEffect(() => {
     if (!activePanel) return;
@@ -340,7 +349,14 @@ export function Layout({children}: {children: ReactNode}) {
             <GoogleLabsIcon aria-hidden="true" />
             <span>Co-Scientist</span>
           </button>
-          <div className={HEADER_TITLE_CLASSES}>{headerTitle}</div>
+          <div className={HEADER_TITLE_CLASSES}>
+            {headerTitle && (
+              <TruncatedLabel
+                className="block min-w-0 overflow-hidden whitespace-nowrap"
+                text={headerTitle}
+              />
+            )}
+          </div>
           <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
             <DiagnosticsControl
               open={activePanel === 'logs'}
