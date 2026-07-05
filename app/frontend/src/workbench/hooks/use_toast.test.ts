@@ -20,10 +20,10 @@ describe('useToast', () => {
     const {result} = renderHook(() => useToast(3000));
 
     await act(async () => result.current.setToast('Saved'));
-    expect(result.current.toast).toBe('Saved');
+    expect(result.current.toast).toEqual({message: 'Saved'});
 
     await act(async () => vi.advanceTimersByTime(2999));
-    expect(result.current.toast).toBe('Saved');
+    expect(result.current.toast).toEqual({message: 'Saved'});
 
     await act(async () => vi.advanceTimersByTime(1));
     expect(result.current.toast).toBeNull();
@@ -38,10 +38,25 @@ describe('useToast', () => {
 
     // The original 3s window would have elapsed here, but the timer restarted.
     await act(async () => vi.advanceTimersByTime(2000));
-    expect(result.current.toast).toBe('second');
+    expect(result.current.toast).toEqual({message: 'second'});
 
     await act(async () => vi.advanceTimersByTime(1000));
     expect(result.current.toast).toBeNull();
+  });
+
+  it('preserves an action passed as a toast object', async () => {
+    const {result} = renderHook(() => useToast(3000));
+    const onClick = vi.fn();
+    await act(async () =>
+      result.current.setToast({
+        message: 'Prompt copied',
+        action: {label: 'Start new chat', onClick},
+      }),
+    );
+    expect(result.current.toast).toEqual({
+      message: 'Prompt copied',
+      action: {label: 'Start new chat', onClick},
+    });
   });
 
   it('respects a custom duration', async () => {

@@ -7,6 +7,7 @@ import {
   referenceSetupTitle,
   type StartedSession,
 } from '../pages/chat_timeline_cards';
+import {type ToastState} from './use_toast';
 
 function id(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
@@ -34,7 +35,7 @@ function emitDiagnosticEvent({
 interface ChatSessionDeps {
   reloadHistory: () => Promise<void>;
   focusComposer: () => void;
-  setToast: (value: string | null) => void;
+  setToast: (value: string | ToastState | null) => void;
   pubmedEnabled: boolean;
 }
 
@@ -132,14 +133,28 @@ export function useChatSession({
 
   async function handleCopyRequest(message: ChatEntry) {
     await copyText(message.content);
-    const copiedSpec = inferRunSpec(message.content);
-    const createdAt = Date.now() / 1000;
-    stageDraftSpec(copiedSpec, createdAt);
-    setToast(null);
+    const promptText = message.content;
+    // Copy is a pure utility (matching the reference): it does not stage a
+    // draft. The toast offers "Start new chat", which clears the session and
+    // prefills the composer with the copied prompt.
+    setToast({
+      message: 'Prompt copied',
+      action: {
+        label: 'Start new chat',
+        onClick: () => {
+          clearSessionState();
+          setMessages([]);
+          setError(null);
+          setToast(null);
+          setInput(promptText);
+          focusComposer();
+        },
+      },
+    });
     emitDiagnosticEvent({
       stage: 'CHAT',
-      run: referenceSetupTitle(copiedSpec.goal),
-      payload: {event: 'prompt_copied_to_plan'},
+      run: referenceSetupTitle(promptText),
+      payload: {event: 'prompt_copied'},
     });
   }
 

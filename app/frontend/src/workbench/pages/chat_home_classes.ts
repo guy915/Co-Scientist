@@ -66,10 +66,16 @@ export const HOME_LOAD_MORE_ITEM_CLASSES = 'reference-load-more-item';
 
 export const HOME_LOAD_MORE_BUTTON_CLASSES = 'reference-load-more';
 
+// Bottom-left snackbar (matching the reference): a message with an optional
+// action button, anchored to the corner rather than floating mid-screen.
 export const HOME_TOAST_CLASSES =
-  'reference-toast fixed top-1/2 left-1/2 z-[60] -translate-x-1/2 ' +
-  '-translate-y-1/2 rounded bg-cosci-toast-bg px-5 py-[0.82rem] ' +
-  'text-[0.92rem] font-medium text-cosci-toast-fg';
+  'reference-toast fixed bottom-4 left-4 z-[60] flex items-center gap-4 ' +
+  'rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] ' +
+  'font-medium text-cosci-toast-fg';
+
+export const HOME_TOAST_ACTION_CLASSES =
+  'cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] ' +
+  'font-medium text-cosci-blue focus-visible:outline-none focus-visible:underline';
 
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border ' +

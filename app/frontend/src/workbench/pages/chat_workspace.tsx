@@ -12,6 +12,7 @@ import {useToast} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
 import {useChatSession} from '../hooks/use_chat_session';
 import {
+  HOME_TOAST_ACTION_CLASSES,
   HOME_TOAST_CLASSES,
   HOME_WORKSPACE_CLASSES,
   HOME_WORKSPACE_MAIN_CLASSES,
@@ -312,7 +313,16 @@ export function ChatWorkspace() {
         )}
         {toast && (
           <div className={HOME_TOAST_CLASSES} role="status">
-            {toast}
+            <span>{toast.message}</span>
+            {toast.action && (
+              <button
+                type="button"
+                className={HOME_TOAST_ACTION_CLASSES}
+                onClick={toast.action.onClick}
+              >
+                {toast.action.label}
+              </button>
+            )}
           </div>
         )}
       </main>

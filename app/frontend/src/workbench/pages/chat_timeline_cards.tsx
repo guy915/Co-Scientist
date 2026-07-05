@@ -74,8 +74,14 @@ interface MessageAction {
 }
 
 export async function copyText(text: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
+  // Best-effort: the Clipboard API rejects in insecure/unfocused contexts, and
+  // a failed copy must not abort the caller (e.g. the copy-prompt toast).
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    }
+  } catch {
+    // Clipboard unavailable; ignore.
   }
 }
 
