@@ -19,6 +19,7 @@ import {Icon, type IconName} from '@/components/icon';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {useRunStream} from '@/hooks/use_run_stream';
 import {conciseTitle} from '@/lib/text';
+import {TruncatedLabel} from '../components/truncated_label';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {
   REPORT_H3_CLASSES,
@@ -62,7 +63,10 @@ const REPORT_BACK_CLASSES =
   'cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-cosci-muted no-underline hover:bg-cosci-hover';
 
 const REPORT_TITLE_CLASSES =
-  'm-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[720px]:text-[0.9rem]';
+  'm-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[720px]:text-[0.9rem]';
+
+const REPORT_TITLE_TEXT_CLASSES =
+  'block min-w-0 overflow-hidden whitespace-nowrap';
 
 const REPORT_TABS_CLASSES =
   'reference-report-tabs grid grid-cols-4 border-b border-cosci-border max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
@@ -238,7 +242,12 @@ export function RunDetail() {
           <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
             <Icon aria-hidden="true" name="arrow_back" />
           </Link>
-          <h1 className={REPORT_TITLE_CLASSES}>{titlebarTitle}</h1>
+          <h1 className={REPORT_TITLE_CLASSES}>
+            <TruncatedLabel
+              className={REPORT_TITLE_TEXT_CLASSES}
+              text={titlebarTitle}
+            />
+          </h1>
         </div>
       </header>
 

@@ -175,7 +175,7 @@ export const STARTED_SESSION_CARD_CLASSES =
   'border-0 p-[1rem_1rem_1rem_1.35rem] text-left text-white';
 
 export const STARTED_SESSION_TITLE_CLASSES =
-  'line-clamp-1 text-[1.18rem] leading-[1.25]';
+  'block min-w-0 text-[1.18rem] leading-[1.25]';
 
 export const STARTED_SESSION_META_CLASSES =
   'mt-[0.3rem] block text-[0.9rem] text-white/80';

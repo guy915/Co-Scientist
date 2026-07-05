@@ -3,6 +3,7 @@ import {useMemo, useState} from 'react';
 import type {Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {TruncatedLabel} from '../truncated_label';
 import {EmptyState} from '../empty_state';
 
 const IDEA_SPLIT_SHELL_CLASSES =
@@ -47,7 +48,7 @@ const IDEA_CHIP_CLASSES =
 const IDEA_ELO_CHIP_CLASSES = `${IDEA_CHIP_CLASSES} idea-elo-chip w-fit min-w-[6.35rem]`;
 
 const IDEA_RANK_TITLE_CLASSES =
-  'idea-rank-title mt-[0.35rem] block overflow-hidden text-ellipsis ' +
+  'idea-rank-title mt-[0.35rem] block min-w-0 overflow-hidden ' +
   'whitespace-nowrap text-base leading-6 font-medium ' +
   'text-cosci-idea-title-text';
 
@@ -186,10 +187,15 @@ function IdeaListItem({
             Elo rating: {hypothesis.elo_rating}
           </span>
         </span>
-        <span className={IDEA_RANK_TITLE_CLASSES}>{hypothesis.title}</span>
-        <span className={IDEA_RANK_PREVIEW_CLASSES}>
-          {hypothesis.statement}
-        </span>
+        <TruncatedLabel
+          className={IDEA_RANK_TITLE_CLASSES}
+          text={hypothesis.title}
+        />
+        <TruncatedLabel
+          className={IDEA_RANK_PREVIEW_CLASSES}
+          text={hypothesis.statement}
+          lines={2}
+        />
       </button>
     </li>
   );
