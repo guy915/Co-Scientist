@@ -61,8 +61,8 @@ const WINNER_LIST_ITEM_CLASSES = 'reference-winner-list-item';
 // loading flow (glyph, label, and the stage boundaries it advances through).
 const RUN_STEPS: {icon: IconName; label: string}[] = [
   {icon: 'summarize', label: 'Exploring focus areas'},
-  {icon: 'rate_review', label: 'Generating ideas'},
-  {icon: 'reviews', label: 'Reviewing ideas'},
+  {icon: 'rate_review', label: 'Generating hypotheses'},
+  {icon: 'reviews', label: 'Reviewing hypotheses'},
   {icon: 'chess', label: 'Playing tournament'},
 ];
 

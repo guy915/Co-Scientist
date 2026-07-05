@@ -203,8 +203,8 @@ describe('ChatWorkspace', () => {
 
     expect(await screen.findByText(/Step \d of 4/)).toBeInTheDocument();
     expect(screen.getByText('Exploring focus areas')).toBeInTheDocument();
-    expect(screen.getByText('Generating ideas')).toBeInTheDocument();
-    expect(screen.getByText('Reviewing ideas')).toBeInTheDocument();
+    expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
+    expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
     expect(screen.getByText('Playing tournament')).toBeInTheDocument();
   });
 

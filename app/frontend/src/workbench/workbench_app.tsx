@@ -38,7 +38,7 @@ export function WorkbenchApp() {
               path="/runs/:id"
               element={
                 <>
-                  <NoIndex title="Goal report" />
+                  <NoIndex title="Goal Report" />
                   <RunDetail />
                 </>
               }
@@ -47,7 +47,7 @@ export function WorkbenchApp() {
               path="/runs/:id/:tab"
               element={
                 <>
-                  <NoIndex title="Goal report" />
+                  <NoIndex title="Goal Report" />
                   <RunDetail />
                 </>
               }
