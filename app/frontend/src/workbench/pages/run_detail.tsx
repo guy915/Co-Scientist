@@ -50,7 +50,7 @@ const TAB_LABELS: Record<TabName, string> = {
 };
 
 const REPORT_PAGE_CLASSES =
-  'cosci-report-page grid h-full min-h-0 grid-rows-[4.75rem_5.5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg max-[720px]:min-w-0 max-[720px]:overflow-hidden';
+  'cosci-report-page grid h-full min-h-0 grid-rows-[3.75rem_5.5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg max-[720px]:min-w-0 max-[720px]:overflow-hidden';
 
 const REPORT_TITLEBAR_CLASSES =
   'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 max-[720px]:gap-[0.35rem] max-[720px]:px-[0.7rem]';
@@ -192,9 +192,22 @@ export function RunDetail() {
     }
   }, [terminal, run]);
 
+  // Short title for the shell header (narrow, center-aligned).
   const title = useMemo(() => {
     if (!run) return 'Goal report';
     return goalReportTitle(run.research_goal, run.config.setup);
+  }, [run]);
+
+  // The titlebar has room, so show the full goal there and let CSS ellipsis
+  // truncate only when it actually overflows — rather than the pre-shortened
+  // header title.
+  const titlebarTitle = useMemo(() => {
+    if (!run) return 'Goal report';
+    return (
+      domainTitleOverride(run.research_goal) ??
+      run.config.setup?.goal ??
+      run.research_goal
+    );
   }, [run]);
 
   useEffect(() => {
@@ -225,7 +238,7 @@ export function RunDetail() {
           <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
             <Icon aria-hidden="true" name="arrow_back" />
           </Link>
-          <h1 className={REPORT_TITLE_CLASSES}>{title}</h1>
+          <h1 className={REPORT_TITLE_CLASSES}>{titlebarTitle}</h1>
         </div>
       </header>
 
@@ -496,11 +509,16 @@ function runDurationPhrase(run: RunWithSummary | null): string {
   return `${minutes} minute${minutes === 1 ? '' : 's'}`;
 }
 
-function goalReportTitle(goal: string, setup?: RunSetupConfig): string {
+/** Curated display title for known domains, or null to fall back to the goal. */
+function domainTitleOverride(goal: string): string | null {
   if (/MASH|MASLD|liver fibrosis/i.test(goal)) {
     return 'Epigenetic and stromal reversal strategies for MASH-associated liver fibrosis';
   }
-  return conciseTitle(setup?.goal ?? goal);
+  return null;
+}
+
+function goalReportTitle(goal: string, setup?: RunSetupConfig): string {
+  return domainTitleOverride(goal) ?? conciseTitle(setup?.goal ?? goal);
 }
 
 function RunToast({toast}: {toast: {type: 'info' | 'error'; message: string}}) {
