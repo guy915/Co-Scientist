@@ -67,9 +67,11 @@ export const HOME_LOAD_MORE_ITEM_CLASSES = 'reference-load-more-item';
 export const HOME_LOAD_MORE_BUTTON_CLASSES = 'reference-load-more';
 
 // Bottom-left snackbar (matching the reference): a message with an optional
-// action button, anchored to the corner rather than floating mid-screen.
+// action button, anchored to the corner rather than floating mid-screen. z is
+// above the nav rail (z-70) so the snackbar sits over it, and it is portaled to
+// <body> so no ancestor stacking context can trap it.
 export const HOME_TOAST_CLASSES =
-  'reference-toast fixed bottom-4 left-4 z-[60] flex items-center gap-4 ' +
+  'reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 ' +
   'rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] ' +
   'font-medium text-cosci-toast-fg';
 

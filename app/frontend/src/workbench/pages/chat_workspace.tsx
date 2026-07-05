@@ -6,6 +6,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import {createPortal} from 'react-dom';
 import {useLocation, useNavigate} from 'react-router-dom';
 import {conciseTitle} from '@/lib/text';
 import {useToast} from '../hooks/use_toast';
@@ -311,20 +312,22 @@ export function ChatWorkspace() {
             </div>
           </>
         )}
-        {toast && (
-          <div className={HOME_TOAST_CLASSES} role="status">
-            <span>{toast.message}</span>
-            {toast.action && (
-              <button
-                type="button"
-                className={HOME_TOAST_ACTION_CLASSES}
-                onClick={toast.action.onClick}
-              >
-                {toast.action.label}
-              </button>
-            )}
-          </div>
-        )}
+        {toast &&
+          createPortal(
+            <div className={HOME_TOAST_CLASSES} role="status">
+              <span>{toast.message}</span>
+              {toast.action && (
+                <button
+                  type="button"
+                  className={HOME_TOAST_ACTION_CLASSES}
+                  onClick={toast.action.onClick}
+                >
+                  {toast.action.label}
+                </button>
+              )}
+            </div>,
+            document.body,
+          )}
       </main>
     </div>
   );
