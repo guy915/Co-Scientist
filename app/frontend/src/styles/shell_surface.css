@@ -181,7 +181,7 @@
   top: 0;
   z-index: 20;
   display: flex;
-  min-height: 4.5rem;
+  min-height: 4rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;

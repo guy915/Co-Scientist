@@ -39,7 +39,7 @@ type TabName = (typeof TABS)[number];
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
   details: 'assignment',
   learning: 'menu_book',
-  overview: 'article',
+  overview: 'summarize',
   ideas: 'lightbulb',
 };
 
@@ -51,7 +51,7 @@ const TAB_LABELS: Record<TabName, string> = {
 };
 
 const REPORT_PAGE_CLASSES =
-  'cosci-report-page grid h-full min-h-0 grid-rows-[3.75rem_5.5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg max-[720px]:min-w-0 max-[720px]:overflow-hidden';
+  'cosci-report-page grid h-full min-h-0 grid-rows-[3.75rem_5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg max-[720px]:min-w-0 max-[720px]:overflow-hidden';
 
 const REPORT_TITLEBAR_CLASSES =
   'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 max-[720px]:gap-[0.35rem] max-[720px]:px-[0.7rem]';

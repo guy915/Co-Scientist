@@ -63,6 +63,7 @@ const ICONS = {
   send: 'send-fill',
   settings: 'settings',
   stars: 'stars',
+  summarize: 'summarize',
   warning: 'warning',
 };
 
