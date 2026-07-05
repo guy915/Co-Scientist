@@ -390,12 +390,25 @@
   color: var(--cosci-shell-hover-text);
 }
 
+/* Active conversation: a persistent filled pill in the shell-hover tone, so the
+   chat the user is viewing stays highlighted in the rail (matches the
+   reference's selected conversation). */
+.ucs-chat-link--active,
+.ucs-chat-link--active:hover,
+.ucs-chat-link--active:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
+}
+
 :root[data-theme="dark"] .ucs-chat-link {
   color: var(--cosci-muted);
 }
 
 :root[data-theme="dark"] .ucs-chat-link:hover,
-:root[data-theme="dark"] .ucs-chat-link:focus-visible {
+:root[data-theme="dark"] .ucs-chat-link:focus-visible,
+:root[data-theme="dark"] .ucs-chat-link--active,
+:root[data-theme="dark"] .ucs-chat-link--active:hover,
+:root[data-theme="dark"] .ucs-chat-link--active:focus-visible {
   background: var(--cosci-shell-hover-bg);
   color: var(--cosci-shell-hover-text);
 }

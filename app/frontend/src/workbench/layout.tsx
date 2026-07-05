@@ -97,6 +97,8 @@ const REPORT_CHAT_LIST_CLASSES = 'ucs-chat-list ucs-chat-list--report';
 
 const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
 
+const CHAT_HISTORY_LINK_ACTIVE_CLASSES = 'ucs-chat-link--active';
+
 const CHAT_HISTORY_LABEL_CLASSES = 'ucs-chat-label';
 
 const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
@@ -120,6 +122,9 @@ export function Layout({children}: {children: ReactNode}) {
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
+  // The run id embedded in /runs/:id[/:tab], used to persistently highlight the
+  // active conversation in the sidebar chat list.
+  const activeRunId = isRunRoute ? location.pathname.split('/')[2] : undefined;
   const headerTitle = overrideTitle || '';
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
@@ -252,22 +257,28 @@ export function Layout({children}: {children: ReactNode}) {
           <div className={sideContentClasses}>
             <p className={SIDE_HEADING_CLASSES}>Chats</p>
             <div className={chatListClasses}>
-              {visibleHistory.map(run => (
-                <Link
-                  key={run.id}
-                  to={`/runs/${run.id}/details`}
-                  className={tooltipClassNames({
-                    className: CHAT_HISTORY_LINK_CLASSES,
-                    placement: 'right',
-                    wrap: true,
-                  })}
-                  data-tooltip={run.research_goal}
-                >
-                  <span className={CHAT_HISTORY_LABEL_CLASSES}>
-                    {conciseTitle(run.research_goal)}
-                  </span>
-                </Link>
-              ))}
+              {visibleHistory.map(run => {
+                const isActive = run.id === activeRunId;
+                return (
+                  <Link
+                    key={run.id}
+                    to={`/runs/${run.id}/details`}
+                    className={tooltipClassNames({
+                      className: isActive
+                        ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
+                        : CHAT_HISTORY_LINK_CLASSES,
+                      placement: 'right',
+                      wrap: true,
+                    })}
+                    aria-current={isActive ? 'page' : undefined}
+                    data-tooltip={run.research_goal}
+                  >
+                    <span className={CHAT_HISTORY_LABEL_CLASSES}>
+                      {conciseTitle(run.research_goal)}
+                    </span>
+                  </Link>
+                );
+              })}
               {hasExtraChats && (
                 <button
                   type="button"

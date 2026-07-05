@@ -38,7 +38,6 @@ const ICONS = {
   edit: 'edit',
   edit_square: 'edit_square',
   emoji_events: 'trophy',
-  emoji_objects: 'emoji_objects',
   // Shield-with-a-keyhole. The reference product renders the Google-internal
   // 'android_security_privacy_safe' ligature (not in the public set); of the
   // public Material Symbols, 'encrypted' is the true shield-with-keyhole
@@ -51,15 +50,22 @@ const ICONS = {
   // the plain 'schedule' clock.
   history: 'history',
   light_mode: 'light_mode',
+  // The plain outline light bulb (bulb body + base bars, no rays) the Idea
+  // Generation product renders in its agent glyph — not 'emoji_objects', which
+  // adds a filament and radiating rays.
+  lightbulb: 'lightbulb',
   menu: 'menu',
   menu_book: 'menu_book',
   open_in_new: 'open_in_new',
+  // Research-overview glyph (a page of content lines under an analytical lens).
+  // The reference product's own overview glyph is not in the saved capture, so
+  // this is the closest Material Symbols match.
+  overview: 'overview',
   refresh: 'refresh',
   search: 'search',
   send: 'send-fill',
   settings: 'settings',
   stars: 'stars',
-  view_list: 'view_list',
   warning: 'warning',
 };
 

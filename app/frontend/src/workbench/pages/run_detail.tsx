@@ -38,8 +38,8 @@ type TabName = (typeof TABS)[number];
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
   details: 'menu_book',
   learning: 'menu_book',
-  overview: 'view_list',
-  ideas: 'emoji_objects',
+  overview: 'overview',
+  ideas: 'lightbulb',
 };
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -63,9 +63,6 @@ const REPORT_BACK_CLASSES =
 
 const REPORT_TITLE_CLASSES =
   'm-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[720px]:text-[0.9rem]';
-
-const SESSION_DETAILS_CLASSES =
-  'cosci-session-details cursor-pointer border-0 bg-transparent px-0 py-[0.45rem] font-[inherit] text-sm font-medium text-cosci-blue max-[720px]:hidden';
 
 const REPORT_TABS_CLASSES =
   'reference-report-tabs grid grid-cols-4 border-b border-cosci-border max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
@@ -217,18 +214,6 @@ export function RunDetail() {
     [id, navigate],
   );
 
-  const onSessionDetails = useCallback(() => {
-    if (!id) return;
-    if (activeTab !== 'details') {
-      void navigate(`/runs/${id}`);
-      return;
-    }
-    document.querySelector('.cosci-report-scroll')?.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
-  }, [activeTab, id, navigate]);
-
   if (!id) return null;
 
   const activeTabIndex = TABS.indexOf(activeTab);
@@ -242,13 +227,6 @@ export function RunDetail() {
           </Link>
           <h1 className={REPORT_TITLE_CLASSES}>{title}</h1>
         </div>
-        <button
-          type="button"
-          className={SESSION_DETAILS_CLASSES}
-          onClick={onSessionDetails}
-        >
-          Session details
-        </button>
       </header>
 
       <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
