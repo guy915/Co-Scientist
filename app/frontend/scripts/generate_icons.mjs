@@ -28,6 +28,7 @@ const ICONS = {
   arrow_back: 'arrow_back',
   arrow_forward: 'arrow_forward',
   article: 'article',
+  assignment: 'assignment',
   check_circle: 'check_circle',
   close: 'close',
   computer: 'computer',

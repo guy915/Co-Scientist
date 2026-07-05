@@ -36,7 +36,7 @@ const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 type TabName = (typeof TABS)[number];
 
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
-  details: 'menu_book',
+  details: 'assignment',
   learning: 'menu_book',
   overview: 'article',
   ideas: 'lightbulb',
