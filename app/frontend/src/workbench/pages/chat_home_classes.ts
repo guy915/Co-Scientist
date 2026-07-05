@@ -76,7 +76,10 @@ export const COMPOSER_BASE_CLASSES =
   'border-cosci-composer-border bg-cosci-composer-bg ' +
   'p-[1.25rem_1.5rem_0.8rem]';
 
-export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem]';
+// pb reserves room for the absolutely-positioned action row (send + source
+// buttons) below the textarea, so the textarea can grow without its last lines
+// sliding under the actions.
+export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem] pb-[3rem]';
 
 export const COMPOSER_LABEL_TEXT_CLASSES =
   'absolute top-0 left-0 z-[1] flex h-6 items-center gap-[0.45rem] ' +

@@ -472,10 +472,10 @@
 
 @media (min-width: 1181px) {
   .reference-home-stage {
-    --home-recents-width: clamp(20.75rem, 20vw, 22rem);
+    --home-recents-width: clamp(19rem, 18vw, 20.5rem);
 
     align-items: start;
-    grid-template-columns: minmax(0, 1fr) minmax(20.75rem, var(--home-recents-width));
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, var(--home-recents-width));
     justify-content: stretch;
     gap: clamp(2.25rem, 3.1vw, 3.35rem);
     padding-block: 0;

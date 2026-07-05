@@ -3,6 +3,7 @@ import {type Hypothesis, isActiveStatus, type Run} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
+import {TruncatedLabel} from '../components/truncated_label';
 import {
   HOME_LOAD_MORE_BUTTON_CLASSES,
   HOME_LOAD_MORE_ITEM_CLASSES,
@@ -164,7 +165,11 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         <strong className={RECENT_TITLE_CLASSES}>
           {conciseTitle(run.research_goal)}
         </strong>
-        <span className={RECENT_DESCRIPTION_CLASSES}>{run.research_goal}</span>
+        <TruncatedLabel
+          className={RECENT_DESCRIPTION_CLASSES}
+          text={run.research_goal}
+          lines={4}
+        />
         {isActiveRun ? (
           <div className={ACTIVE_PROGRESS_CLASSES}>
             <span aria-hidden="true" className={ACTIVE_PROGRESS_DOT_CLASSES} />

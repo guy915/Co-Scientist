@@ -24,6 +24,7 @@ import {
 } from './chat_home_classes';
 import {Composer} from './chat_composer';
 import {HomeRecentsPanel} from './home_recents';
+import {TruncatedLabel} from '../components/truncated_label';
 
 const SUGGESTIONS = [
   {
@@ -160,9 +161,11 @@ export function HomeStage({
                     setHoveredSuggestion(null);
                   }}
                 >
-                  <span className={HOME_SUGGESTION_TEXT_CLASSES}>
-                    {suggestion.short}
-                  </span>
+                  <TruncatedLabel
+                    className={HOME_SUGGESTION_TEXT_CLASSES}
+                    text={suggestion.short}
+                    lines={2}
+                  />
                 </button>
               </div>
             );

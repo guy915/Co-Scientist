@@ -13,12 +13,24 @@
 export function conciseTitle(goal: string, maxChars = 52): string {
   const trimmed = (goal ?? '').trim();
   if (!trimmed) return 'Untitled session';
-  const firstClause = (trimmed.split(/[.?!;]/)[0] || trimmed).trim();
+  // First sentence only, but split on sentence-ending punctuation followed by
+  // whitespace/end — so an abbreviation like "M.tuberculosis" (period mid-word)
+  // is not mistaken for a clause boundary and truncated to "...for M".
+  const sentenceEnd = trimmed.search(/[.?!;](\s|$)/);
+  const firstClause = (
+    sentenceEnd >= 0 ? trimmed.slice(0, sentenceEnd) : trimmed
+  ).trim();
   if (firstClause.length <= maxChars) return firstClause;
+  // Truncate on a word boundary and always end in a bare ellipsis ("word…"):
+  // drop the partial trailing word and any dangling very short word, and never
+  // leave a trailing space or separator before the ellipsis.
   const cut = firstClause.slice(0, maxChars);
   const lastSpace = cut.lastIndexOf(' ');
-  const onBoundary = lastSpace > 20 ? cut.slice(0, lastSpace) : cut;
+  const onBoundary = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
   const base = onBoundary.replace(/[\s,;:]+$/, '');
-  const trimmedTail = base.replace(/\s+\S{1,3}$/, '');
-  return `${trimmedTail || base}…`;
+  const trimmedTail = (base.replace(/\s+\S{1,3}$/, '') || base).replace(
+    /[\s,;:]+$/,
+    '',
+  );
+  return `${trimmedTail}…`;
 }
