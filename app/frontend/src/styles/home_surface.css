@@ -80,49 +80,13 @@
 
 .reference-home-title {
   width: min(100%, 34.375rem);
-  margin: 0 0 0.5rem;
+  margin: 0 auto 0.5rem;
   color: var(--cosci-home-heading);
   font-family: "Google Sans", system-ui, sans-serif;
   font-size: clamp(2.25rem, 3.4vw, 2.8125rem);
   font-weight: 400;
   line-height: 1.156;
-  text-align: left;
-}
-
-/* Agent chip row above the greeting: a small tinted squircle avatar + the
-   agent name (14px/24 w500). The reference avatar is its lavender product
-   squircle (#d9d8ff light / #32307b dark); ours is the flask on the same
-   tones hue-rotated to our teal family. */
-.reference-agent-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  align-self: flex-start;
-  margin-bottom: 2.25rem;
-  color: var(--cosci-teal-dark);
-  font-size: 0.875rem;
-  font-weight: 500;
-  line-height: 1.5rem;
-}
-
-.reference-agent-chip-icon {
-  display: grid;
-  width: 1.5rem;
-  height: 1.5rem;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 0.4375rem;
-  background: var(--cosci-agent-avatar-bg);
-  color: var(--cosci-teal);
-  font-size: 1rem;
-}
-
-:root[data-theme="dark"] .reference-agent-chip {
-  color: var(--cosci-green);
-}
-
-:root[data-theme="dark"] .reference-agent-chip-icon {
-  color: var(--cosci-green);
+  text-align: center;
 }
 
 .reference-step-timeline {

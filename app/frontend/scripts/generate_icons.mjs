@@ -39,10 +39,17 @@ const ICONS = {
   edit_square: 'edit_square',
   emoji_events: 'trophy',
   emoji_objects: 'emoji_objects',
+  // Shield-with-a-keyhole. The reference product renders the Google-internal
+  // 'android_security_privacy_safe' ligature (not in the public set); of the
+  // public Material Symbols, 'encrypted' is the true shield-with-keyhole
+  // (plain 'shield' is an empty shield, 'security' is quartered).
+  encrypted: 'encrypted',
   expand_less: 'keyboard_arrow_up',
   expand_more: 'keyboard_arrow_down',
   format_list_numbered: 'format_list_numbered',
-  history: 'schedule',
+  // The recents clock-rewind glyph (clock face + counterclockwise arrow), not
+  // the plain 'schedule' clock.
+  history: 'history',
   light_mode: 'light_mode',
   menu: 'menu',
   menu_book: 'menu_book',
@@ -51,7 +58,6 @@ const ICONS = {
   search: 'search',
   send: 'send-fill',
   settings: 'settings',
-  shield: 'shield',
   stars: 'stars',
   view_list: 'view_list',
   warning: 'warning',

@@ -12,10 +12,6 @@ export const HOME_STAGE_CLASSES = 'reference-home-stage';
 
 export const HOME_MAIN_CLASSES = 'reference-home-main';
 
-export const HOME_AGENT_CHIP_CLASSES = 'reference-agent-chip';
-
-export const HOME_AGENT_CHIP_ICON_CLASSES = 'reference-agent-chip-icon';
-
 export const HOME_TITLE_CLASSES = 'reference-home-title';
 
 export const HOME_STEP_TIMELINE_CLASSES = 'reference-step-timeline';
@@ -107,23 +103,32 @@ export const COMPOSER_FILE_INPUT_CLASSES =
   'reference-file-input absolute size-px overflow-hidden whitespace-nowrap ' +
   '[clip-path:inset(50%)] [clip:rect(0_0_0_0)]';
 
+// Shared round icon-button treatment: transparent by default with a circular
+// hover/focus "state layer" that appears ONLY while the button is enabled, so
+// every round icon button (composer source controls, submit) gets the same
+// affordance and disabled buttons stay flat. Compose new round icon buttons
+// from this rather than re-declaring the hover circle per button.
+export const ICON_BUTTON_CLASSES =
+  'pointer-events-auto inline-flex cursor-pointer items-center ' +
+  'justify-center rounded-full border-0 bg-transparent p-0 transition-colors ' +
+  'enabled:hover:bg-cosci-icon-button-hover-bg ' +
+  'enabled:focus-visible:bg-cosci-icon-button-hover-bg ' +
+  'focus-visible:outline-none disabled:cursor-default';
+
 export const COMPOSER_SOURCE_BUTTON_CLASSES =
-  'reference-composer-source-button pointer-events-auto inline-flex size-8 ' +
-  'cursor-pointer items-center justify-center rounded-full border-0 ' +
-  'bg-transparent p-0 text-cosci-source-button ' +
-  'hover:bg-cosci-source-button-hover-bg ' +
-  'hover:text-cosci-source-button-hover ' +
-  'focus-visible:bg-cosci-source-button-hover-bg ' +
-  'focus-visible:text-cosci-source-button-hover ' +
-  'aria-expanded:bg-cosci-source-button-hover-bg ' +
+  ICON_BUTTON_CLASSES +
+  ' reference-composer-source-button size-8 text-cosci-source-button ' +
+  'enabled:hover:text-cosci-source-button-hover ' +
+  'enabled:focus-visible:text-cosci-source-button-hover ' +
+  'aria-expanded:bg-cosci-icon-button-hover-bg ' +
   'aria-expanded:text-cosci-source-button-hover';
 
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 
 export const COMPOSER_SUBMIT_BUTTON_CLASSES =
-  'pointer-events-auto grid size-10 cursor-pointer place-items-center ' +
-  'rounded-full border-0 bg-transparent p-0 text-cosci-composer-submit ' +
-  'disabled:cursor-default disabled:text-cosci-composer-submit-disabled';
+  ICON_BUTTON_CLASSES +
+  ' size-10 text-cosci-composer-submit ' +
+  'disabled:text-cosci-composer-submit-disabled';
 
 export const CONNECTORS_MENU_CLASSES =
   'reference-connectors-menu pointer-events-auto absolute bottom-[2.45rem] ' +

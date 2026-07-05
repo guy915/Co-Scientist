@@ -276,7 +276,7 @@ export function Composer({
           <Icon
             aria-hidden="true"
             className={COMPOSER_LABEL_ICON_CLASSES}
-            name="shield"
+            name="encrypted"
           />
           {referenceLabel}
         </span>

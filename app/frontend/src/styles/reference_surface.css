@@ -45,9 +45,6 @@
   --cosci-step-dot-bg: #34b3a0;
   --cosci-step-dot-text: #f2f2f2;
   --cosci-logo-color: var(--cosci-teal);
-
-  /* Agent chip avatar squircle — soft brand-green tint behind the icon. */
-  --cosci-agent-avatar-bg: #d3ede6;
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
   --cosci-suggestion-border: #c4c7c5;
@@ -67,8 +64,10 @@
   --cosci-composer-submit: var(--cosci-teal);
   --cosci-composer-submit-disabled: #c4c7c5;
   --cosci-source-button: #747775;
-  --cosci-source-button-hover-bg: #f0f4f9;
   --cosci-source-button-hover: #444746;
+
+  /* Shared state-layer fill for round icon buttons (see ICON_BUTTON_CLASSES). */
+  --cosci-icon-button-hover-bg: #f0f4f9;
   --cosci-menu-border: #c4c7c5;
   --cosci-menu-bg: #fff;
   --cosci-menu-text: #1f1f1f;
@@ -134,7 +133,6 @@
   --cosci-step-dot-bg: var(--cosci-green);
   --cosci-step-dot-text: #131314;
   --cosci-logo-color: var(--cosci-green);
-  --cosci-agent-avatar-bg: #123f38;
   --cosci-step-heading: var(--cosci-muted);
   --cosci-step-text: var(--cosci-text);
   --cosci-suggestion-border: var(--cosci-border);
@@ -153,8 +151,8 @@
   --cosci-composer-submit: var(--cosci-green);
   --cosci-composer-submit-disabled: var(--cosci-subtle);
   --cosci-source-button: var(--cosci-muted);
-  --cosci-source-button-hover-bg: #282a2c;
   --cosci-source-button-hover: var(--cosci-text);
+  --cosci-icon-button-hover-bg: #282a2c;
   --cosci-menu-border: #444746;
   --cosci-menu-bg: #282a2c;
   --cosci-menu-text: var(--cosci-text);
