@@ -460,7 +460,10 @@
   }
 
   .ucs-app-shell.nav-collapsed {
-    grid-template-columns: 4.75rem minmax(0, 1fr);
+    /* 4.5rem so a centered 2.5rem nav item lands its icon on the same 24px
+       gutter the open rail uses (12px panel + 12px item padding) — the nav
+       icons then don't shift when the rail collapses/expands. */
+    grid-template-columns: 4.5rem minmax(0, 1fr);
   }
 
   .ucs-nav-panel--open {
