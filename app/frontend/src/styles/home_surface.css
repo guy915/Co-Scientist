@@ -788,71 +788,125 @@
 }
 
 @media (max-width: 700px) {
+  /* The phone home is a single fixed screen: a flex column that fills the page
+     so the composer anchors to the bottom and the suggestions sit just above
+     it, with the title at the top and the flexible space between. Nothing
+     scrolls and there is no dead gap under the composer. */
+  .ucs-page--home {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
   .reference-workspace,
   .reference-workspace-main,
-  .reference-home-stage {
-    height: auto;
-    min-height: 100%;
-    overflow: visible;
+  .reference-home-stage,
+  .reference-home-main {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
   }
 
   .reference-home-stage {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.5rem;
-    padding: 1.1rem clamp(0.85rem, 4vw, 1.2rem) 1.5rem;
-  }
-
-  .reference-home-main,
-  .reference-recents-panel {
-    width: min(100%, 21rem);
+    gap: 0;
+    overflow: hidden;
+    padding: 0.75rem clamp(0.9rem, 4vw, 1.25rem) clamp(0.8rem, 2.2vh, 1.15rem);
   }
 
   .reference-home-main {
-    justify-items: stretch;
-    padding-top: 0;
+    width: 100%;
+    padding-top: 0.5rem;
+  }
+
+  /* Flask mark centered above the title (Gemini-style greeting). Its auto top
+     margin pairs with the suggestion row's auto margin to split the free space,
+     centering the logo+title group in the area above the prompts. */
+  .reference-home-logo {
+    display: block;
+    width: 2.5rem;
+    height: auto;
+    align-self: center;
+    margin: auto auto 1rem;
+    color: var(--cosci-logo-color);
+  }
+
+  .reference-home-logo path {
+    fill: currentColor;
+    stroke: currentColor;
   }
 
   .reference-home-title {
     width: 100%;
-    font-size: clamp(2rem, 10vw, 2.45rem);
-    line-height: 1.12;
+    /* The logo now carries the group's top auto-margin. */
+    margin: 0;
+    font-size: clamp(1.85rem, 7.6vw, 2.35rem);
+    line-height: 1.16;
   }
 
-  .reference-step-timeline {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 1.15rem;
-    margin-top: 2.2rem;
-  }
-
-  .reference-step-timeline::before {
-    top: 1rem;
-    right: auto;
-    bottom: 1rem;
-    left: 1rem;
-    width: 1px;
-    height: auto;
-  }
-
-  .reference-step-item {
-    width: 100%;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 0.85rem;
-  }
-
+  /* Push the suggestions — and the composer that follows — to the bottom of the
+     column; the flexible space lands between the title and this row. */
   .reference-suggestion-row {
     grid-template-columns: minmax(0, 1fr);
-    margin-top: 1.7rem;
+    gap: 0.15rem;
+    margin-top: auto;
   }
 
-  .reference-home-composer {
-    min-height: 6.6rem;
-  }
-
-  .reference-recents-list {
+  /* Suggestions render as a compact glyph list (one row per prompt), each with
+     a leading icon instead of a bullet. Tapping still fills the composer with
+     the full prompt text. */
+  .reference-suggestion-button {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    height: auto;
+    min-height: 0;
     max-height: none;
-    overflow: visible;
-    margin-left: 0;
-    padding: 0;
+    border: 0;
+    /* Fully rounded, matching the sidebar chat pills — the 12px xl radius read
+       as square-ish on a short, wide row. */
+    border-radius: 9999px;
+    background: transparent;
+    padding: 0.6rem 0.85rem;
+  }
+
+  .reference-suggestion-button:hover,
+  .reference-suggestion-button:focus-visible,
+  .reference-suggestion-button.is-previewed {
+    border-color: transparent;
+    background: var(--cosci-hover);
+  }
+
+  .reference-suggestion-icon {
+    width: 1.4rem;
+    height: 1.4rem;
+    flex: 0 0 auto;
+    font-size: 1.4rem;
+    color: var(--cosci-shell-icon);
+  }
+
+  /* Single-line, word-level truncation is done by TruncatedLabel (lines=1); the
+     container only clips — deliberately NO text-overflow: ellipsis, which would
+     cut mid-word (letter-level) and violate the app-wide truncation rule. */
+  .reference-suggestion-text {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
+  /* No hover preview on touch — the row already reads as a single line. */
+  .reference-suggestion-preview {
+    display: none;
+  }
+
+  .reference-home-main .reference-home-composer {
+    min-height: 0;
+    margin-top: 0.9rem;
+    padding-top: 0.9rem;
+    padding-bottom: 0.65rem;
   }
 }
 

@@ -14,6 +14,10 @@ export const HOME_MAIN_CLASSES = 'reference-home-main';
 
 export const HOME_TITLE_CLASSES = 'reference-home-title';
 
+// Flask mark shown above the title on the phone home (relocated from the
+// header); hidden on desktop, where the header lockup carries it.
+export const HOME_LOGO_CLASSES = 'reference-home-logo';
+
 export const HOME_STEP_TIMELINE_CLASSES = 'reference-step-timeline';
 
 export const HOME_STEP_ITEM_CLASSES = 'reference-step-item';
@@ -50,6 +54,10 @@ export const HOME_SUGGESTION_PREVIEW_END_CLASSES =
   'reference-suggestion-preview--end';
 
 export const HOME_SUGGESTION_TEXT_CLASSES = 'reference-suggestion-text';
+
+// Leading glyph shown on the mobile suggestion list (hidden on the desktop
+// card layout). Distinct per prompt, in the spirit of the reference home.
+export const HOME_SUGGESTION_ICON_CLASSES = 'reference-suggestion-icon';
 
 export const HOME_COMPOSER_CLASSES = 'reference-home-composer';
 

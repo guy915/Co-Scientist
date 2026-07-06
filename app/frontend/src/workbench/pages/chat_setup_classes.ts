@@ -87,7 +87,8 @@ export const PLAN_HEADING_CLASSES =
   'reference-plan-heading mt-7 flex items-center gap-[0.45rem]';
 
 export const PLAN_TITLE_CLASSES =
-  'm-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg';
+  'm-0 text-[2rem] leading-[1.2] font-normal tracking-normal text-cosci-fg ' +
+  'max-[720px]:text-[clamp(1.5rem,6.8vw,2rem)]';
 
 export const PLAN_EDIT_BUTTON_CLASSES = `reference-plan-edit size-[2.1rem] ${MUTED_ICON_BUTTON}`;
 
@@ -121,7 +122,8 @@ export const OPTION_GROUP_CLASSES =
 export const OPTION_GROUP_LEGEND_CLASSES =
   'text-[1.18rem] font-bold text-cosci-fg';
 
-export const OPTION_GRID_CLASSES = 'grid grid-cols-2 gap-[0.85rem]';
+export const OPTION_GRID_CLASSES =
+  'grid grid-cols-2 gap-[0.85rem] max-[720px]:grid-cols-1';
 
 export const OPTION_CARD_BASE_CLASSES =
   'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] ' +

@@ -125,6 +125,9 @@ export function RunDetail() {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
+  // mobile master-detail selection back to the list.
+  const [ideasViewKey, setIdeasViewKey] = useState(0);
   const [toast, setToast] = useState<{
     type: 'info' | 'error';
     message: string;
@@ -218,11 +221,17 @@ export function RunDetail() {
   const onTabChange = useCallback(
     (nextTab: TabName) => {
       if (!id) return;
+      // Tapping "All Ideas" while already on it resets the mobile master-detail
+      // back to the list: the detail view has no back button, so re-tapping the
+      // tab (which remounts the ideas view via ideasViewKey) is the way back.
+      if (nextTab === 'ideas' && activeTab === 'ideas') {
+        setIdeasViewKey(key => key + 1);
+      }
       // Always include the tab (details included) so every tab is the same
       // required-param route — switching tabs never remounts RunDetail.
       void navigate(`/runs/${id}/${nextTab}`);
     },
-    [id, navigate],
+    [id, navigate, activeTab],
   );
 
   if (!id) return null;
@@ -294,6 +303,7 @@ export function RunDetail() {
           {activeTab === 'ideas' && (
             <section className={ALL_IDEAS_CLASSES}>
               <IdeasTab
+                key={ideasViewKey}
                 hypotheses={hypotheses}
                 reviews={reviews}
                 matches={matches}

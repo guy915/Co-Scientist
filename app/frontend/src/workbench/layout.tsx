@@ -6,6 +6,7 @@ import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
 import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
+import {isMobileViewport} from './hooks/use_is_mobile';
 import {useTheme} from './theme_context';
 import {tooltipClassNames} from './tooltip';
 
@@ -164,6 +165,7 @@ export function Layout({children}: {children: ReactNode}) {
     : NAV_LABEL_COLLAPSED_CLASSES;
 
   function startNewChat() {
+    setNavOpen(false);
     window.dispatchEvent(new Event('cosci-new-chat'));
     void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
@@ -177,10 +179,27 @@ export function Layout({children}: {children: ReactNode}) {
     setActivePanel(current => (current === panel ? null : panel));
   }
 
-  // Close any open popover on navigation.
+  // Close any open popover on navigation, and dismiss the mobile drawer so a
+  // chat tap doesn't leave the overlay covering the run it just opened. On the
+  // desktop rail the open/collapsed state is a user preference, so it is left
+  // untouched.
   useEffect(() => {
     setActivePanel(null);
+    if (isMobileViewport()) setNavOpen(false);
   }, [location.pathname]);
+
+  // Escape closes the mobile drawer (a standard dismiss affordance for an
+  // overlay); the desktop rail is unaffected.
+  useEffect(() => {
+    if (!navOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && isMobileViewport()) setNavOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [navOpen]);
 
   // Clear the shell title only when the title-owning context changes: the run
   // id for run routes, else the pathname. Switching tabs within one run keeps
@@ -334,8 +353,25 @@ export function Layout({children}: {children: ReactNode}) {
           </div>
         </div>
       </aside>
+      {navOpen && (
+        <div
+          className="ucs-scrim"
+          aria-hidden="true"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
       <section className={workspaceClasses}>
         <header className={HEADER_CLASSES}>
+          <button
+            type="button"
+            className="ucs-nav-hamburger"
+            aria-label="Open navigation"
+            aria-expanded={navOpen}
+            aria-controls="primary-navigation"
+            onClick={toggleNav}
+          >
+            <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name="menu" />
+          </button>
           <button
             type="button"
             className={tooltipClassNames({

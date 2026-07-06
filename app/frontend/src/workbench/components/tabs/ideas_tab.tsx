@@ -3,6 +3,7 @@ import {useMemo, useState} from 'react';
 import type {Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
 import {EmptyState} from '../empty_state';
 
@@ -57,8 +58,19 @@ const IDEA_RANK_PREVIEW_CLASSES =
   'text-[0.75rem] leading-4 tracking-[0.1px] text-cosci-idea-preview-text';
 
 const IDEA_DETAIL_PANE_CLASSES =
-  'idea-detail-pane grid min-w-0 content-start gap-[1.35rem] overflow-x-hidden ' +
-  'overflow-y-auto border-r-0 bg-transparent px-7 pt-[1.45rem] pb-14';
+  'idea-detail-pane grid min-h-0 min-w-0 flex-1 content-start gap-[1.35rem] ' +
+  'overflow-x-hidden overflow-y-auto border-r-0 bg-transparent px-7 ' +
+  'pt-[1.45rem] pb-14';
+
+// Mobile master-detail: the ideas tab is a plain list that swaps to a single
+// idea's detail on tap (rather than the desktop split view), with a back
+// affordance to return to the list.
+const IDEA_MOBILE_VIEW_CLASSES =
+  'idea-mobile-view flex h-full min-h-0 flex-col overflow-hidden bg-cosci-bg';
+
+const IDEA_MOBILE_LIST_CLASSES =
+  'idea-mobile-list m-0 grid min-h-0 flex-1 content-start gap-[0.7rem] ' +
+  'overflow-y-auto bg-transparent p-4 list-none';
 
 const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +
@@ -68,6 +80,8 @@ const IDEA_DETAIL_SECTION_CLASSES =
   'idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 ' +
   '[&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] ' +
   '[&_h2]:leading-10 [&_h2]:font-normal ' +
+  'max-[720px]:[&_h2]:text-[clamp(1.5rem,6.8vw,2rem)] ' +
+  'max-[720px]:[&_h2]:leading-[1.2] ' +
   '[&_h2]:text-cosci-idea-title-text [&_h3]:m-0 ' +
   '[&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case ' +
   '[&_h3]:text-cosci-idea-title-text [&_p]:m-0 ' +
@@ -105,6 +119,7 @@ export function IdeasTab({
   matches?: MatchRow[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const sorted = useMemo(() => {
     const arr = [...hypotheses];
@@ -114,14 +129,49 @@ export function IdeasTab({
 
   const selected = useMemo(() => {
     if (!sorted.length) return null;
-    return sorted.find(h => h.id === selectedId) ?? sorted[0];
-  }, [sorted, selectedId]);
+    if (selectedId) return sorted.find(h => h.id === selectedId) ?? sorted[0];
+    // Desktop pre-selects the top idea in the split view; mobile opens on the
+    // list with nothing selected until the user taps an idea.
+    return isMobile ? null : sorted[0];
+  }, [sorted, selectedId, isMobile]);
 
   if (!hypotheses.length) {
     return (
       <EmptyState>
         Hypotheses appear here once the generation node runs.
       </EmptyState>
+    );
+  }
+
+  if (isMobile) {
+    // Master-detail: the list swaps to a single idea on tap. There is no back
+    // affordance here — the user returns to the list by tapping the "All Ideas"
+    // tab, which remounts this view (see RunDetail's tab handler).
+    return (
+      <div className={IDEA_MOBILE_VIEW_CLASSES}>
+        {selected ? (
+          <HypothesisDetail
+            hypothesis={selected}
+            reviews={reviews}
+            matches={matches}
+          />
+        ) : (
+          <ol
+            className={IDEA_MOBILE_LIST_CLASSES}
+            aria-label="Ranked hypothesis list"
+          >
+            {sorted.map((h, index) => (
+              <IdeaListItem
+                key={h.id}
+                rank={index + 1}
+                hypothesis={h}
+                selected={false}
+                onSelect={() => setSelectedId(h.id)}
+              />
+            ))}
+          </ol>
+        )}
+      </div>
     );
   }
 
@@ -144,12 +194,8 @@ export function IdeasTab({
         </ol>
         <HypothesisDetail
           hypothesis={selected}
-          reviews={reviews.filter(r => r.hypothesis_id === selected?.id)}
-          matches={matches.filter(
-            match =>
-              match.winner_id === selected?.id ||
-              match.loser_id === selected?.id,
-          )}
+          reviews={reviews}
+          matches={matches}
         />
         <SectionsRail />
       </div>
@@ -207,6 +253,8 @@ function HypothesisDetail({
   matches,
 }: {
   hypothesis: Hypothesis | null;
+  // The run's full review/match sets; the detail filters them down to the
+  // hypothesis itself, so call sites just forward what they have.
   reviews: Review[];
   matches: MatchRow[];
 }) {
@@ -219,10 +267,10 @@ function HypothesisDetail({
     );
   }
 
-  const review = reviews[0] ?? null;
-  const latestMatch = [...matches].sort(
-    (a, b) => b.created_at - a.created_at,
-  )[0];
+  const review = reviews.find(r => r.hypothesis_id === hypothesis.id) ?? null;
+  const latestMatch = matches
+    .filter(m => m.winner_id === hypothesis.id || m.loser_id === hypothesis.id)
+    .sort((a, b) => b.created_at - a.created_at)[0];
   const totalMatches = hypothesis.win_count + hypothesis.loss_count;
 
   return (

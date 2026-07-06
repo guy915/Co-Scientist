@@ -47,13 +47,27 @@ export function TruncatedLabel({
       if (!node) return;
       node.textContent = text;
       if (!overflows(node)) return;
+      // Binary-search the longest word prefix that fits. Every probe forces a
+      // synchronous reflow (write textContent, read scroll size), so the
+      // search must be O(log words), not one word at a time — long labels in
+      // long lists (the ideas rank list) otherwise stack hundreds of reflows
+      // into a single commit and stall tab switches for ~a second.
       const words = text.split(/\s+/).filter(Boolean);
-      for (let n = words.length - 1; n >= 1; n--) {
-        node.textContent = `${words.slice(0, n).join(' ')}…`;
-        if (!overflows(node)) return;
+      let lo = 1;
+      let hi = words.length - 1;
+      let best = 0;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        node.textContent = `${words.slice(0, mid).join(' ')}…`;
+        if (overflows(node)) {
+          hi = mid - 1;
+        } else {
+          best = mid;
+          lo = mid + 1;
+        }
       }
-      // A single word too wide to fit: clip it with an ellipsis.
-      node.textContent = `${words[0] ?? ''}…`;
+      // best === 0: even the first word alone is too wide — clip it.
+      node.textContent = `${words.slice(0, Math.max(best, 1)).join(' ')}…`;
     }
 
     // Fit synchronously, again on the next frame (the first paint can measure
