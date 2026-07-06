@@ -87,9 +87,14 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
         "Allosteric switching",
         "Cross-pathway interference",
     ]
-    angle = rng.choice(angles)
+    # angles and categories are parallel lists: pick one index and use it for
+    # both so the pairing stays explicit (no value-based lookup that could
+    # mis-map if an angle were ever duplicated or reordered). randrange consumes
+    # the RNG identically to choice, so the deterministic output is unchanged.
+    angle_index = rng.randrange(len(angles))
+    angle = angles[angle_index]
     target = rng.choice(targets)
-    category = categories[angles.index(angle)]
+    category = categories[angle_index]
     title = f"H{idx + 1}: {angle.capitalize()} {target}".strip()
     statement = (
         f"In the context of '{goal[:120]}', we hypothesise that {angle} {target} will "  # pylint: disable=line-too-long

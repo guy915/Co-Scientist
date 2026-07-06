@@ -343,8 +343,10 @@ function homeRunScore(
 function homeRunStepIndex(run: Run): number {
   if (run.status === 'queued') return 1;
   if (run.status === 'synthesizing') return 4;
-  const elapsedMinutes =
-    ((run.updated_at || Date.now() / 1000) - run.created_at) / 60;
+  const elapsedMinutes = Math.max(
+    0,
+    ((run.updated_at || Date.now() / 1000) - run.created_at) / 60,
+  );
   if (elapsedMinutes < 1) return 2;
   if (elapsedMinutes < 2) return 3;
   return 4;
