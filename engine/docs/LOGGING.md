@@ -19,8 +19,7 @@ logging.basicConfig(
 logging.getLogger("co_scientist").setLevel(logging.DEBUG) # example, INFO or DEBUG
 ```
 
-This is helpful and often times better that global logging config on the app in some instances.
-For example, setting DEBUG level logging to all dependencies can become very verbose (other libs, say httpx, will also log at DEBUG level).
+This is helpful and often times better that global logging config on the app in some instances. For example, setting DEBUG level logging to all dependencies can become very verbose (other libs, say httpx, will also log at DEBUG level).
 
 ## Logging to Files
 

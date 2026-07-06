@@ -13,8 +13,7 @@ Instructions:
     c. Start with: "would we see this observation if the hypothesis was true, and not otherwise:".
     d. If established mechanisms already account for it, or if a simpler/better-supported explanation exists, state: "not a missing piece."
 3. Causal analysis (summary): on balance, does the hypothesis provide a novel causal explanation that existing mechanisms from the literature cannot adequately account for? Include explicit reasoning about what established mechanisms do and do not explain. Start with: "taken as a whole, does the hypothesis explain observations that known mechanisms cannot:".
-4. Disproof analysis: determine if any observations contradict the hypothesis.
-Start with: "does some observations disprove the hypothesis:".
+4. Disproof analysis: determine if any observations contradict the hypothesis. Start with: "does some observations disprove the hypothesis:".
 5. Conclusion: state: "hypothesis: <already explained, other explanations more likely, missing piece, neutral, or disproved>".
 
 Scoring:

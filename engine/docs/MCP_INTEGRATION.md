@@ -4,7 +4,7 @@ The MCP (Model Context Protocol) server integration is **recommended** for best 
 
 ## Reference Implementation
 
-The bundled MCP server in `mcp_server/` provides PubMed integration and serves as a starting point. The core engine is domain-agnostic: literature sources, prompt guidance, and post-generation enrichments are controlled by a YAML configuration — no code changes needed. See [Domain Customization](domain-customization.md) for working examples (biomedical, cybersecurity, multi-source academic).
+The bundled MCP server in `mcp_server/` provides PubMed integration and serves as a starting point. The core engine is domain-agnostic: literature sources, prompt guidance, and post-generation enrichments are controlled by a YAML configuration — no code changes needed. See [Domain Customization](DOMAIN_CUSTOMIZATION.md) for working examples (biomedical, cybersecurity, multi-source academic).
 
 ## With MCP Server
 
@@ -81,7 +81,7 @@ Co-Scientist supports three generation modes with different levels of literature
 2. **Literature-Informed Generation** - Pre-processes literature, then generates
 3. **Tool-Calling Generation** - Generate node queries literature in real-time
 
-**For detailed information on each mode, configuration examples, and when to use each, see [Generation Modes Documentation](generation-modes.md).**
+**For detailed information on each mode, configuration examples, and when to use each, see [Generation Modes Documentation](GENERATION_MODES.md).**
 
 
 ## Bringing Your Own MCP Tools
@@ -95,6 +95,6 @@ Co-Scientist supports any MCP-compatible server via the YAML configuration syste
 
 Supported literature source types: `pubmed`, `academic`, `preprint`, `knowledge_graph`, `vulnerability_database`.
 
-See [Literature Review Tools Configuration](literature_review_tools_configuration.md) for the full YAML schema reference, and [Domain Customization](domain-customization.md) for complete worked examples.
+See [Literature Review Tools Configuration](LITERATURE_REVIEW_TOOLS_CONFIGURATION.md) for the full YAML schema reference, and [Domain Customization](DOMAIN_CUSTOMIZATION.md) for complete worked examples.
 
 For implementing custom MCP tools, refer to the [Model Context Protocol specification](https://modelcontextprotocol.io).

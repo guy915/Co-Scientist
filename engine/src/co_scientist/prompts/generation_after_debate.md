@@ -50,10 +50,7 @@ General guidelines:
 * Prioritize the generation of a high-quality {{attributes}} hypothesis.
 
 Termination condition:
-When sufficient discussion has transpired (typically 3-5 conversational turns,
-with a maximum of 10 turns) and all relevant questions and points have been
-thoroughly addressed and clarified, conclude the process by writing "HYPOTHESIS"
-(in all capital letters) followed by a concise and self-contained exposition of the finalized idea.
+When sufficient discussion has transpired (typically 3-5 conversational turns, with a maximum of 10 turns) and all relevant questions and points have been thoroughly addressed and clarified, conclude the process by writing "HYPOTHESIS" (in all capital letters) followed by a concise and self-contained exposition of the finalized idea.
 
 #BEGIN TRANSCRIPT#
 {{transcript}}

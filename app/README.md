@@ -34,8 +34,7 @@ The backend stores every run and its event log in a local SQLite database (`cosc
 
 - Python 3.10+
 - Node.js / [Bun](https://bun.sh) (frontend)
-- Optional LLM provider API key. With no key set, the app runs deterministic
-  mock mode.
+- Optional LLM provider API key. With no key set, the app runs deterministic mock mode.
 
 ### Local development (no Docker)
 
@@ -101,10 +100,7 @@ This starts three containers:
 | `ui` | 5173 | Vite dev server |
 | `mcp` | 8888 | Reference MCP server (PubMed + INDRA) |
 
-The `api` container mounts the engine from `../engine`. Override
-`COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere; set
-`COSCIENTIST_ENGINE_REPO` only when you want the entrypoint to clone a checkout
-instead of using a local mount.
+The `api` container mounts the engine from `../engine`. Override `COSCIENTIST_ENGINE_PATH` in `.env` if the engine checkout is elsewhere; set `COSCIENTIST_ENGINE_REPO` only when you want the entrypoint to clone a checkout instead of using a local mount.
 
 ## Configuration
 
@@ -224,10 +220,7 @@ bun run fix      # gts fix (format + autofix)
 
 ## Mock mode
 
-If the engine is not installed or no LLM API key is set, the server falls back
-to a deterministic mock workflow that returns pre-built hypotheses and evidence.
-The `/status` endpoint reports `mock_mode: true`. This is useful for frontend
-development and CI.
+If the engine is not installed or no LLM API key is set, the server falls back to a deterministic mock workflow that returns pre-built hypotheses and evidence. The `/status` endpoint reports `mock_mode: true`. This is useful for frontend development and CI.
 
 ## Literature review (MCP)
 

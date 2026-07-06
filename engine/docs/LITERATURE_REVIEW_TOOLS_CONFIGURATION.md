@@ -12,7 +12,7 @@ Co-Scientist uses a **YAML-based configuration system** to decouple literature r
 
 The default configuration (`src/co_scientist/config/tools.yaml`) provides a reference implementation using the bundled PubMed MCP server (see `mcp_server/` at the top level of this repo).
 
-For how to use these configs to adapt the system to a specific domain, see [Domain Customization](domain-customization.md).
+For how to use these configs to adapt the system to a specific domain, see [Domain Customization](DOMAIN_CUSTOMIZATION.md).
 
 ## Example Configurations
 

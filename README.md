@@ -26,7 +26,7 @@ with a LangGraph multi-agent pipeline and streams every step into a web
 workbench. The implementation preserves the core invariants of the published
 system: a supervised multi-agent workflow, Elo-1200 starting scores,
 append-only evolution lineage, four-state citation classification, and dual
-safety gates. See [`fidelity.md`](docs/fidelity.md) for the full
+safety gates. See [`FIDELITY.md`](docs/FIDELITY.md) for the full
 invariant list with paper sources.
 
 The system is deliberately not a chat wrapper over papers, an autonomous
@@ -168,7 +168,7 @@ tuning, MCP, cache).
 </p>
 
 Full diagrams and module map in
-[`architecture.md`](docs/architecture.md).
+[`ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Acknowledgements
 

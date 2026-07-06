@@ -4,9 +4,7 @@
 
 {{domain_evolution_guidance}}
 
-You are an expert in scientific research and meta-analysis.
-Synthesize a comprehensive meta-review, ie insights, of provided reviews of the research hypotheses,
-pertaining to the following:
+You are an expert in scientific research and meta-analysis. Synthesize a comprehensive meta-review, ie insights, of provided reviews of the research hypotheses, pertaining to the following:
 
 ### 1. Identify recurring patterns, themes, and trends
 
@@ -43,8 +41,7 @@ pertaining to the following:
 - ️ **WARNING**: Avoid recommending synthesis that would make hypotheses too similar or identical
 - Preserve distinct methodologies and biomarker types across hypotheses
 
-Refrain from evaluating individual proposals or reviews;
-focus on producing a synthesized meta-analysis.
+Refrain from evaluating individual proposals or reviews; focus on producing a synthesized meta-analysis.
 
 ## Input
 
