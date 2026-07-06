@@ -39,6 +39,10 @@ class Hypothesis:
         id: Stable unique identifier (uuid4) that survives serialization and
             evolution. Excluded from equality/hashing (``compare=False``) so the
             text-based dedup heuristics are unaffected.
+        category: Short classification label for the hypothesis (e.g. the
+            mechanism family or research sub-area it belongs to). Optional;
+            when set it drives the document breadcrumb in the viewer, mirroring
+            the reference product's first-class ``category`` field.
         explanation: Step-by-step layman explanation of the hypothesis
         literature_grounding: Explicit grounding in literature review with
             [P1]/[KG1]-style citation keys
@@ -69,6 +73,7 @@ class Hypothesis:
 
     text: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()), compare=False)
+    category: str | None = None
     explanation: str | None = None
     literature_grounding: str | None = None
     experiment: str | None = None
@@ -111,6 +116,7 @@ class Hypothesis:
             "id": self.id,
             "text":
                 self.text,  # Also referred to as "hypothesis" in other contexts
+            "category": self.category,
             "explanation": self.explanation,
             "literature_grounding": self.literature_grounding,
             "experiment": self.experiment,

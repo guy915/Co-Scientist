@@ -1,6 +1,12 @@
-export const HOME_WORKSPACE_CLASSES = 'cosci-workspace';
+// Class strings for the home surface, which reproduces the Gemini reference
+// 1:1. Any arbitrary rem values here are literal measurements copied from the
+// reference and do NOT follow the app's 8px grid — that grid governs MD3 data
+// surfaces only. See DESIGN.md > Layout & Spacing ("Reference-matched surfaces
+// do not use the 8px grid").
 
-export const HOME_WORKSPACE_MAIN_CLASSES = 'cosci-workspace-main';
+export const HOME_WORKSPACE_CLASSES = 'reference-workspace';
+
+export const HOME_WORKSPACE_MAIN_CLASSES = 'reference-workspace-main';
 
 export const HOME_STAGE_CLASSES = 'reference-home-stage';
 
@@ -54,23 +60,34 @@ export const HOME_RECENTS_PANEL_CLASSES = 'reference-recents-panel';
 
 export const HOME_RECENTS_LIST_CLASSES = 'reference-recents-list';
 
-export const HOME_RECENTS_HEADING_ROW_CLASSES = 'google-recents-heading';
+export const HOME_RECENTS_HEADING_ROW_CLASSES = 'reference-recents-heading';
 
 export const HOME_LOAD_MORE_ITEM_CLASSES = 'reference-load-more-item';
 
 export const HOME_LOAD_MORE_BUTTON_CLASSES = 'reference-load-more';
 
+// Bottom-left snackbar (matching the reference): a message with an optional
+// action button, anchored to the corner rather than floating mid-screen. z is
+// above the nav rail (z-70) so the snackbar sits over it, and it is portaled to
+// <body> so no ancestor stacking context can trap it.
 export const HOME_TOAST_CLASSES =
-  'reference-toast fixed top-1/2 left-1/2 z-[60] -translate-x-1/2 ' +
-  '-translate-y-1/2 rounded bg-[var(--cosci-toast-bg)] px-5 py-[0.82rem] ' +
-  'text-[0.92rem] font-medium text-[var(--cosci-toast-fg)]';
+  'reference-toast fixed bottom-4 left-4 z-[80] flex items-center gap-4 ' +
+  'rounded-xl bg-cosci-toast-bg px-4 py-[0.7rem] text-[0.92rem] ' +
+  'font-medium text-cosci-toast-fg';
+
+export const HOME_TOAST_ACTION_CLASSES =
+  'cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] ' +
+  'font-medium text-cosci-blue focus-visible:outline-none focus-visible:underline';
 
 export const COMPOSER_BASE_CLASSES =
-  'reference-composer relative mt-4 min-h-[7.9rem] rounded-[1.7rem] border ' +
+  'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border ' +
   'border-cosci-composer-border bg-cosci-composer-bg ' +
   'p-[1.25rem_1.5rem_0.8rem]';
 
-export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem]';
+// pb reserves room for the absolutely-positioned action row (send + source
+// buttons) below the textarea, so the textarea can grow without its last lines
+// sliding under the actions.
+export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem] pb-[3rem]';
 
 export const COMPOSER_LABEL_TEXT_CLASSES =
   'absolute top-0 left-0 z-[1] flex h-6 items-center gap-[0.45rem] ' +
@@ -80,10 +97,15 @@ export const COMPOSER_LABEL_TEXT_HIDDEN_CLASSES = 'hidden';
 
 export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 
+// Height is driven imperatively by the composer's auto-grow effect (min-height
+// floor here, JS caps the max and toggles scrolling), so no fixed height. The
+// floor is sized so that (empty textarea + the reserved action-row space below
+// it, see COMPOSER_LABEL_CLASSES) lands at the composer's resting height rather
+// than stacking on top of it and making the empty box too tall.
 export const COMPOSER_TEXTAREA_CLASSES =
-  'relative z-[2] block h-[3.6rem] max-h-[3.6rem] min-h-[3.6rem] w-full ' +
-  'resize-none border-0 bg-transparent pt-0 font-[inherit] leading-6 ' +
-  'text-cosci-composer-text outline-none';
+  'relative z-[2] block min-h-[2.85rem] w-full ' +
+  'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
+  'leading-6 text-cosci-composer-text outline-none';
 
 export const COMPOSER_ACTIONS_CLASSES =
   'reference-composer-actions pointer-events-none absolute right-5 bottom-3 ' +
@@ -97,23 +119,32 @@ export const COMPOSER_FILE_INPUT_CLASSES =
   'reference-file-input absolute size-px overflow-hidden whitespace-nowrap ' +
   '[clip-path:inset(50%)] [clip:rect(0_0_0_0)]';
 
+// Shared round icon-button treatment: transparent by default with a circular
+// hover/focus "state layer" that appears ONLY while the button is enabled, so
+// every round icon button (composer source controls, submit) gets the same
+// affordance and disabled buttons stay flat. Compose new round icon buttons
+// from this rather than re-declaring the hover circle per button.
+export const ICON_BUTTON_CLASSES =
+  'pointer-events-auto inline-flex cursor-pointer items-center ' +
+  'justify-center rounded-full border-0 bg-transparent p-0 transition-colors ' +
+  'enabled:hover:bg-cosci-icon-button-hover-bg ' +
+  'enabled:focus-visible:bg-cosci-icon-button-hover-bg ' +
+  'focus-visible:outline-none disabled:cursor-default';
+
 export const COMPOSER_SOURCE_BUTTON_CLASSES =
-  'reference-composer-source-button pointer-events-auto inline-flex size-8 ' +
-  'cursor-pointer items-center justify-center rounded-full border-0 ' +
-  'bg-transparent p-0 text-cosci-source-button ' +
-  'hover:bg-cosci-source-button-hover-bg ' +
-  'hover:text-cosci-source-button-hover ' +
-  'focus-visible:bg-cosci-source-button-hover-bg ' +
-  'focus-visible:text-cosci-source-button-hover ' +
-  'aria-expanded:bg-cosci-source-button-hover-bg ' +
+  ICON_BUTTON_CLASSES +
+  ' reference-composer-source-button size-8 text-cosci-source-button ' +
+  'enabled:hover:text-cosci-source-button-hover ' +
+  'enabled:focus-visible:text-cosci-source-button-hover ' +
+  'aria-expanded:bg-cosci-icon-button-hover-bg ' +
   'aria-expanded:text-cosci-source-button-hover';
 
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 
 export const COMPOSER_SUBMIT_BUTTON_CLASSES =
-  'pointer-events-auto grid size-10 cursor-pointer place-items-center ' +
-  'rounded-full border-0 bg-transparent p-0 text-cosci-composer-submit ' +
-  'disabled:cursor-default disabled:text-cosci-composer-submit-disabled';
+  ICON_BUTTON_CLASSES +
+  ' size-10 text-cosci-composer-submit ' +
+  'disabled:text-cosci-composer-submit-disabled';
 
 export const CONNECTORS_MENU_CLASSES =
   'reference-connectors-menu pointer-events-auto absolute bottom-[2.45rem] ' +
@@ -142,7 +173,9 @@ export const CONNECTOR_TOGGLE_BASE_CLASSES =
   'after:rounded-full after:[content:""]';
 
 export const CONNECTOR_TOGGLE_ON_CLASSES =
-  'bg-[#d2e3fc] after:right-[0.18rem] after:bg-[#1a73e8]';
+  'bg-cosci-toggle-on-track after:right-[0.18rem] ' +
+  'after:bg-cosci-toggle-on-knob';
 
 export const CONNECTOR_TOGGLE_OFF_CLASSES =
-  'bg-[#dadce0] after:left-[0.18rem] after:bg-[#80868b]';
+  'bg-cosci-toggle-off-track after:left-[0.18rem] ' +
+  'after:bg-cosci-toggle-off-knob';

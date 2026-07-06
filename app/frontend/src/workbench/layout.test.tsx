@@ -57,25 +57,24 @@ describe('Layout', () => {
   it('toggles the Co-Scientist sidebar from the menu button', async () => {
     const {container} = renderLayout();
 
+    // Collapsed icon rail by default, matching the reference product.
     const menu = screen.getByRole('button', {name: 'Menu'});
-    expect(menu).toHaveAttribute('aria-expanded', 'true');
-    expect(menu).toHaveTextContent('Menu');
-    expect(container.querySelector('.google-app-shell')).toHaveClass(
-      'nav-open',
-    );
-
-    fireEvent.click(menu);
-
     expect(menu).toHaveAttribute('aria-expanded', 'false');
-    expect(container.querySelector('.google-app-shell')).toHaveClass(
+    expect(menu).toHaveTextContent('Menu');
+    expect(container.querySelector('.ucs-app-shell')).toHaveClass(
       'nav-collapsed',
     );
 
     fireEvent.click(menu);
 
     expect(menu).toHaveAttribute('aria-expanded', 'true');
-    expect(container.querySelector('.google-app-shell')).toHaveClass(
-      'nav-open',
+    expect(container.querySelector('.ucs-app-shell')).toHaveClass('nav-open');
+
+    fireEvent.click(menu);
+
+    expect(menu).toHaveAttribute('aria-expanded', 'false');
+    expect(container.querySelector('.ucs-app-shell')).toHaveClass(
+      'nav-collapsed',
     );
   });
 
@@ -103,10 +102,8 @@ describe('Layout', () => {
     expect(newChat).toHaveClass('ucs-tooltip-anchor');
     expect(newChat).toHaveClass('ucs-tooltip-right');
 
-    const search = screen.getByRole('button', {name: 'Search'});
-    expect(search).toHaveAttribute('data-tooltip', 'Search');
-    expect(search).toHaveClass('ucs-tooltip-anchor');
-    expect(search).toHaveClass('ucs-tooltip-right');
+    // The non-functional "Search" nav item was removed.
+    expect(screen.queryByRole('button', {name: 'Search'})).toBeNull();
 
     const chat = screen.getByRole('link', {name: /ferroptosis/i});
     expect(chat).not.toHaveAttribute('title');
@@ -244,12 +241,12 @@ describe('Layout', () => {
     expect(document.documentElement).toHaveClass('dark');
 
     const logsButton = screen.getByRole('button', {name: /Logs 0/i});
-    expect(logsButton.className).toContain('bg-[var(--cosci-logs-accent-bg)]');
+    expect(logsButton.className).toContain('bg-cosci-logs-accent-bg');
 
     fireEvent.click(logsButton);
 
     const logsPopover = container.querySelector('.ucs-popover--logs');
-    expect(logsPopover?.className).toContain('!bg-[var(--cosci-logs-surface)]');
+    expect(logsPopover?.className).toContain('!bg-cosci-logs-surface');
     expect(screen.getByText('Diagnostic Logs')).toBeInTheDocument();
   });
 

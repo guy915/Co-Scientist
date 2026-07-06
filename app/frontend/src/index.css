@@ -38,6 +38,34 @@
     format("woff2");
 }
 
+/* Google Sans Text — the UI/body face the live Gemini Enterprise product uses
+   for nearly all running text; Google Sans proper is reserved for display
+   (greeting, document headings, wordmark, button labels). Vendored woff2s
+   (latin, 400/500/700), same pattern as the @fontsource Google Sans above. */
+@font-face {
+  font-family: "Google Sans Text";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 400;
+  src: url("./assets/fonts/google-sans-text-latin-400.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Google Sans Text";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 500;
+  src: url("./assets/fonts/google-sans-text-latin-500.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Google Sans Text";
+  font-display: swap;
+  font-style: normal;
+  font-weight: 700;
+  src: url("./assets/fonts/google-sans-text-latin-700.woff2") format("woff2");
+}
+
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
@@ -76,11 +104,6 @@
   --color-th-info-fg: hsl(0 0% 100%);
   --color-th-link: hsl(221 83% 53%);
   --color-th-link-hover: hsl(221 83% 43%);
-  --color-th-phase0: hsl(142 71% 45%);
-  --color-th-phase1: hsl(174 54% 36%);
-  --color-th-phase2: hsl(32 95% 50%);
-  --color-th-phase3: hsl(0 72% 51%);
-  --color-th-phase4: hsl(188 64% 35%);
 
   /* Gemini product palette as named utilities (e.g. text-cosci-fg,
      bg-cosci-panel). Each mirrors a --cosci-* token from reference_surface.css
@@ -104,12 +127,96 @@
   --color-cosci-composer-submit-disabled: var(--cosci-composer-submit-disabled);
   --color-cosci-source-button: var(--cosci-source-button);
   --color-cosci-source-button-hover: var(--cosci-source-button-hover);
-  --color-cosci-source-button-hover-bg: var(--cosci-source-button-hover-bg);
+  --color-cosci-icon-button-hover-bg: var(--cosci-icon-button-hover-bg);
   --color-cosci-menu-bg: var(--cosci-menu-bg);
   --color-cosci-menu-border: var(--cosci-menu-border);
   --color-cosci-menu-divider: var(--cosci-menu-divider);
   --color-cosci-menu-icon: var(--cosci-menu-icon);
   --color-cosci-menu-text: var(--cosci-menu-text);
+
+  /* Semantic component tokens (component_tokens.css) as named utilities.
+     Every token referenced from a component className gets a mirror here —
+     arbitrary [var(--cosci-*)] classes are not allowed (see DESIGN.md). */
+  --color-cosci-danger-bg: var(--cosci-danger-bg);
+  --color-cosci-danger-border: var(--cosci-danger-border);
+  --color-cosci-danger-fg: var(--cosci-danger-fg);
+  --color-cosci-attach-bg: var(--cosci-attach-bg);
+  --color-cosci-attach-fg: var(--cosci-attach-fg);
+  --color-cosci-attach-meta: var(--cosci-attach-meta);
+  --color-cosci-toast-bg: var(--cosci-toast-bg);
+  --color-cosci-toast-fg: var(--cosci-toast-fg);
+  --color-cosci-surface-raised: var(--cosci-surface-raised);
+  --color-cosci-user-bubble-bg: var(--cosci-user-bubble-bg);
+  --color-cosci-setup-doc-bg: var(--cosci-setup-doc-bg);
+  --color-cosci-option-bg: var(--cosci-option-bg);
+  --color-cosci-option-hover-bg: var(--cosci-option-hover-bg);
+  --color-cosci-option-hover-border: var(--cosci-option-hover-border);
+  --color-cosci-option-marker: var(--cosci-option-marker);
+  --color-cosci-option-marker-on: var(--cosci-option-marker-on);
+  --color-cosci-btn-primary-bg: var(--cosci-btn-primary-bg);
+  --color-cosci-btn-primary-fg: var(--cosci-btn-primary-fg);
+  --color-cosci-btn-primary-hover: var(--cosci-btn-primary-hover);
+  --color-cosci-btn-outline-border: var(--cosci-btn-outline-border);
+  --color-cosci-btn-outline-fg: var(--cosci-btn-outline-fg);
+  --color-cosci-btn-outline-hover-bg: var(--cosci-btn-outline-hover-bg);
+  --color-cosci-btn-secondary-border: var(--cosci-btn-secondary-border);
+  --color-cosci-btn-secondary-fg: var(--cosci-btn-secondary-fg);
+  --color-cosci-btn-secondary-hover-bg: var(--cosci-btn-secondary-hover-bg);
+  --color-cosci-btn-disabled-border: var(--cosci-btn-disabled-border);
+  --color-cosci-btn-disabled-bg: var(--cosci-btn-disabled-bg);
+  --color-cosci-btn-disabled-fg: var(--cosci-btn-disabled-fg);
+  --color-cosci-toggle-on-track: var(--cosci-toggle-on-track);
+  --color-cosci-toggle-on-knob: var(--cosci-toggle-on-knob);
+  --color-cosci-toggle-off-track: var(--cosci-toggle-off-track);
+  --color-cosci-toggle-off-knob: var(--cosci-toggle-off-knob);
+  --color-cosci-logs-accent-bg: var(--cosci-logs-accent-bg);
+  --color-cosci-logs-accent-fg: var(--cosci-logs-accent-fg);
+  --color-cosci-logs-accent-hover: var(--cosci-logs-accent-hover);
+  --color-cosci-logs-count-bg: var(--cosci-logs-count-bg);
+  --color-cosci-logs-action-border: var(--cosci-logs-action-border);
+  --color-cosci-logs-action-bg: var(--cosci-logs-action-bg);
+  --color-cosci-logs-action-fg: var(--cosci-logs-action-fg);
+  --color-cosci-logs-action-hover: var(--cosci-logs-action-hover);
+  --color-cosci-logs-surface: var(--cosci-logs-surface);
+  --color-cosci-logs-border: var(--cosci-logs-border);
+  --color-cosci-logs-heading: var(--cosci-logs-heading);
+  --color-cosci-logs-meta: var(--cosci-logs-meta);
+  --color-cosci-logs-panel-bg: var(--cosci-logs-panel-bg);
+  --color-cosci-logs-panel-fg: var(--cosci-logs-panel-fg);
+  --color-cosci-logs-code-fg: var(--cosci-logs-code-fg);
+  --color-cosci-logs-danger-bg: var(--cosci-logs-danger-bg);
+  --color-cosci-logs-danger-fg: var(--cosci-logs-danger-fg);
+  --color-cosci-reference-open-border: var(--cosci-reference-open-border);
+  --color-cosci-reference-open-fg: var(--cosci-reference-open-fg);
+  --color-cosci-reference-open-hover-bg: var(--cosci-reference-open-hover-bg);
+  --color-cosci-reference-open-hover-border: var(
+    --cosci-reference-open-hover-border
+  );
+
+  /* Ideas-surface tokens (reference_surface.css) as named utilities. */
+  --color-cosci-idea-list-border: var(--cosci-idea-list-border);
+  --color-cosci-idea-row-border: var(--cosci-idea-row-border);
+  --color-cosci-idea-row-bg: var(--cosci-idea-row-bg);
+  --color-cosci-idea-row-text: var(--cosci-idea-row-text);
+  --color-cosci-idea-row-hover-border: var(--cosci-idea-row-hover-border);
+  --color-cosci-idea-row-hover-bg: var(--cosci-idea-row-hover-bg);
+  --color-cosci-idea-row-selected-border: var(--cosci-idea-row-selected-border);
+  --color-cosci-idea-row-selected-bg: var(--cosci-idea-row-selected-bg);
+  --color-cosci-idea-row-selected-hover-bg: var(--cosci-idea-row-selected-hover-bg);
+  --color-cosci-idea-chip-bg: var(--cosci-idea-chip-bg);
+  --color-cosci-idea-chip-text: var(--cosci-idea-chip-text);
+  --color-cosci-idea-title-text: var(--cosci-idea-title-text);
+  --color-cosci-idea-preview-text: var(--cosci-idea-preview-text);
+  --color-cosci-idea-breadcrumb-bg: var(--cosci-idea-breadcrumb-bg);
+  --color-cosci-idea-breadcrumb-text: var(--cosci-idea-breadcrumb-text);
+  --color-cosci-idea-detail-text: var(--cosci-idea-detail-text);
+
+  /* Typefaces: font-gsans = display face (greeting, doc headings, wordmark);
+     font-gsans-text = UI/body face (the :root default — utility exists for
+     opting descendants back in under a display-font parent). */
+  --font-gsans: "Google Sans", system-ui, sans-serif;
+  --font-gsans-text:
+    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
 
   --radius: 0.5rem;
 }
@@ -141,9 +248,13 @@
 }
 
 :root {
+  /* Matches the live product: Google Sans Text for running UI text (plain),
+     Google Sans proper for display — greeting, document headings, wordmark. */
   --md-ref-typeface-brand: "Google Sans", system-ui, sans-serif;
-  --md-ref-typeface-plain: "Google Sans", system-ui, sans-serif;
-  font-family: "Google Sans", system-ui, sans-serif;
+  --md-ref-typeface-plain:
+    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
+  font-family:
+    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
 
   /* MD3 elevation levels (light). Reserved for overlays that float above the
      page — menus, popovers, dialogs, toasts. Cards, inputs, and tables stay
@@ -163,7 +274,7 @@
 }
 
 .reference-toast,
-.cosci-report-toast {
+.reference-report-toast {
   box-shadow: var(--md-elevation-3);
 }
 
@@ -208,12 +319,12 @@
 
 /* Run-detail tabs already use ::after for the selected underline, so their MD3
    state layer rides on ::before (which paints beneath the label + icon). */
-.cosci-report-tabs button {
+.reference-report-tabs button {
   position: relative;
   transition: color 120ms cubic-bezier(0.2, 0, 0, 1);
 }
 
-.cosci-report-tabs button::before {
+.reference-report-tabs button::before {
   content: "";
   position: absolute;
   inset: 0.3rem 0.6rem;
@@ -224,17 +335,17 @@
   pointer-events: none;
 }
 
-.cosci-report-tabs button:hover::before {
+.reference-report-tabs button:hover::before {
   opacity: 0.06;
 }
 
-.cosci-report-tabs button:focus-visible::before {
+.reference-report-tabs button:focus-visible::before {
   opacity: 0.1;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cosci-report-tabs button,
-  .cosci-report-tabs button::before {
+  .reference-report-tabs button,
+  .reference-report-tabs button::before {
     transition: none;
   }
 }
@@ -306,17 +417,17 @@ body {
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: #9aa0a6;
+  background: #747775;
   background-clip: padding-box;
 }
 
 :root[data-theme="dark"] *::-webkit-scrollbar-thumb {
-  background: #5f6368;
+  background: #444746;
   background-clip: padding-box;
 }
 
 :root[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
-  background: #80868b;
+  background: #8e918f;
   background-clip: padding-box;
 }
 
@@ -366,12 +477,8 @@ textarea {
 }
 
 .wb-skeleton {
-  background: #3a3f42;
+  background: var(--cosci-skeleton-bg, #f0f4f9);
   border-radius: 0.375rem;
-}
-
-[data-theme="light"] .wb-skeleton {
-  background: #eceff1;
 }
 
 .wb-link {

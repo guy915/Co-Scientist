@@ -42,10 +42,10 @@ describe('LearningView', () => {
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Background')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Open'})).toHaveAttribute(
-      'href',
-      'https://example.test/pubmed',
-    );
+
+    const openLink = screen.getByRole('link', {name: 'Open'});
+    expect(openLink).toHaveAttribute('href', 'https://example.test/pubmed');
+    expect(openLink).toHaveClass('reference-open-pill', 'rounded-full');
 
     fireEvent.click(screen.getAllByRole('button', {name: /Show more/i})[0]);
 

@@ -1,54 +1,60 @@
 import type {MouseEvent, ReactNode} from 'react';
 import {useMemo, useState} from 'react';
-import type {CitationRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
+import {TruncatedLabel} from '../truncated_label';
 import {EmptyState} from '../empty_state';
 
 const IDEA_SPLIT_SHELL_CLASSES =
-  'idea-split-shell h-full overflow-hidden rounded-none border-0 bg-cosci-bg';
+  'idea-split-shell flex h-full min-h-0 flex-col overflow-hidden ' +
+  'rounded-none border-0 bg-cosci-bg';
 
 const IDEA_SPLIT_GRID_CLASSES =
-  'idea-split-grid reference grid h-full min-h-0 min-w-0 ' +
-  'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_15rem] ' +
+  'idea-split-grid reference grid min-h-0 min-w-0 flex-1 ' +
+  'grid-cols-[minmax(24rem,0.66fr)_minmax(0,1.25fr)_17rem] ' +
   'max-[720px]:grid-cols-1';
 
 const IDEA_RANK_LIST_CLASSES =
   'idea-rank-list m-0 grid content-start gap-[0.7rem] overflow-y-auto ' +
-  'border-r border-[var(--idea-list-border)] bg-transparent py-5 pr-6 ' +
+  'border-r border-cosci-idea-list-border bg-transparent py-5 pr-6 ' +
   'pl-5 list-none';
 
+// Single column: the rank + Elo chips sit on a top row (see
+// IDEA_RANK_HEAD_CLASSES) and the title/preview run full width beneath them, so
+// the text is not indented under a rank column.
 const IDEA_RANK_ROW_CLASSES =
-  'idea-rank-row grid min-h-[8.9rem] w-full cursor-pointer ' +
-  'grid-cols-[1.75rem_minmax(0,1fr)] items-start gap-[0.65rem] rounded-lg ' +
-  'border border-[var(--idea-row-border)] bg-[var(--idea-row-bg)] ' +
-  'p-[0.9rem] text-left text-[var(--idea-row-text)] ' +
-  'hover:border-[var(--idea-row-hover-border)] ' +
-  'hover:bg-[var(--idea-row-hover-bg)]';
+  'idea-rank-row grid min-h-[8.9rem] w-full cursor-pointer content-start ' +
+  'gap-[0.5rem] rounded-[10px] ' +
+  'border border-cosci-idea-row-border bg-cosci-idea-row-bg ' +
+  'p-4 text-left text-cosci-idea-row-text transition-colors duration-150 ' +
+  'hover:border-cosci-idea-row-hover-border ' +
+  'hover:bg-cosci-idea-row-hover-bg ' +
+  'motion-reduce:transition-none';
+
+const IDEA_RANK_HEAD_CLASSES = 'idea-rank-head flex items-center gap-[0.6rem]';
 
 const IDEA_RANK_SELECTED_CLASSES =
-  'selected !border-[var(--idea-row-selected-border)] ' +
-  '!bg-[var(--idea-row-selected-bg)] ' +
-  'hover:!border-[var(--idea-row-selected-border)] ' +
-  'hover:!bg-[var(--idea-row-selected-hover-bg)]';
+  'selected !border-cosci-idea-row-selected-border ' +
+  '!bg-cosci-idea-row-selected-bg ' +
+  'hover:!border-cosci-idea-row-selected-border ' +
+  'hover:!bg-cosci-idea-row-selected-hover-bg';
 
 const IDEA_CHIP_CLASSES =
   'inline-grid h-7 min-w-7 place-items-center rounded-full border-0 ' +
-  'bg-[var(--idea-chip-bg)] text-[0.78rem] font-medium ' +
-  'text-[var(--idea-chip-text)]';
+  'px-3 bg-cosci-idea-chip-bg text-[0.875rem] font-normal ' +
+  'text-cosci-idea-chip-text';
 
-const IDEA_ELO_CHIP_CLASSES = `${IDEA_CHIP_CLASSES} idea-elo-chip mb-3 w-fit min-w-[6.35rem]`;
-
-const IDEA_RANK_CONTENT_CLASSES = 'idea-rank-content min-w-0';
+const IDEA_ELO_CHIP_CLASSES = `${IDEA_CHIP_CLASSES} idea-elo-chip w-fit min-w-[6.35rem]`;
 
 const IDEA_RANK_TITLE_CLASSES =
-  'idea-rank-title mt-[0.15rem] block overflow-hidden text-ellipsis ' +
-  'whitespace-nowrap text-[0.9rem] leading-[1.3] font-semibold ' +
-  'text-[var(--idea-title-text)]';
+  'idea-rank-title mt-[0.35rem] block min-w-0 overflow-hidden ' +
+  'whitespace-nowrap text-base leading-6 font-medium ' +
+  'text-cosci-idea-title-text';
 
 const IDEA_RANK_PREVIEW_CLASSES =
-  'idea-rank-preview mt-[0.45rem] line-clamp-2 overflow-hidden ' +
-  'text-[0.72rem] leading-[1.35] text-[var(--idea-preview-text)]';
+  'idea-rank-preview line-clamp-2 overflow-hidden ' +
+  'text-[0.75rem] leading-4 tracking-[0.1px] text-cosci-idea-preview-text';
 
 const IDEA_DETAIL_PANE_CLASSES =
   'idea-detail-pane grid min-w-0 content-start gap-[1.35rem] overflow-x-hidden ' +
@@ -58,54 +64,46 @@ const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +
   'text-[var(--md-sys-color-on-surface-variant)]';
 
-const IDEA_BREADCRUMB_CLASSES =
-  'idea-breadcrumb inline-flex h-[1.65rem] min-h-[1.65rem] w-fit max-w-full ' +
-  'items-center overflow-hidden rounded bg-[var(--idea-breadcrumb-bg)] ' +
-  'px-[0.45rem] text-[0.78rem] leading-[1.65rem] font-semibold ' +
-  'text-ellipsis whitespace-nowrap text-[var(--idea-breadcrumb-text)]';
-
-const IDEA_BREADCRUMB_TEXT_CLASSES =
-  'overflow-hidden text-ellipsis leading-[1.65rem]';
-
 const IDEA_DETAIL_SECTION_CLASSES =
   'idea-detail-section grid gap-[0.45rem] border-t-0 pt-0 ' +
-  '[&_h2]:m-0 [&_h2]:text-[clamp(1.5rem,2.2vw,1.9rem)] ' +
-  '[&_h2]:leading-[1.15] [&_h2]:font-normal ' +
-  '[&_h2]:text-[var(--idea-title-text)] [&_h3]:m-0 ' +
+  '[&_h2]:m-0 [&_h2]:mb-2 [&_h2]:font-gsans [&_h2]:text-[2rem] ' +
+  '[&_h2]:leading-10 [&_h2]:font-normal ' +
+  '[&_h2]:text-cosci-idea-title-text [&_h3]:m-0 ' +
   '[&_h3]:text-base [&_h3]:font-semibold [&_h3]:normal-case ' +
-  '[&_h3]:text-[var(--idea-title-text)] [&_p]:m-0 ' +
-  '[&_p]:[overflow-wrap:anywhere] [&_p]:text-[0.88rem] ' +
-  '[&_p]:leading-[1.5] [&_p]:text-[var(--idea-detail-text)]';
+  '[&_h3]:text-cosci-idea-title-text [&_p]:m-0 ' +
+  '[&_p]:[overflow-wrap:anywhere] [&_p]:text-base ' +
+  '[&_p]:leading-6 [&_p]:text-cosci-idea-detail-text';
 
 const IDEA_SECTIONS_RAIL_CLASSES =
-  'idea-sections-rail mt-5 mr-5 ml-2 grid min-w-0 self-start gap-[1.1rem] ' +
-  'rounded-[0.45rem] bg-cosci-panel p-4 max-[720px]:hidden';
+  'idea-sections-rail m-5 min-w-0 min-w-[12.5rem] self-start ' +
+  'rounded-[10px] bg-cosci-panel p-5 max-[720px]:hidden';
 
-const IDEA_SECTIONS_LABEL_CLASSES = 'text-[0.78rem] text-cosci-muted';
+const IDEA_SECTIONS_LABEL_CLASSES =
+  'text-[0.9rem] tracking-[0.1px] text-cosci-idea-title-text';
 
+// Reference: ul with 20px above the first link, then li+li margin-top 24px.
+const IDEA_SECTIONS_LIST_CLASSES = 'mt-5 grid gap-6';
+
+// Slightly smaller than the body so the longest link ("Tournament
+// performance >") fits on one line without widening the rail.
 const IDEA_SECTION_LINK_CLASSES =
-  'text-[0.9rem] leading-[1.35] font-semibold text-cosci-blue ' +
-  'no-underline';
+  'block whitespace-nowrap text-[0.85rem] leading-6 font-medium ' +
+  'text-cosci-blue no-underline';
 
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
  *
- * @param props The hypotheses, citations, reviews, and matches.
+ * @param props The hypotheses, reviews, and matches.
  */
 export function IdeasTab({
   hypotheses,
-  citations,
   reviews,
   matches = [],
 }: {
   hypotheses: Hypothesis[];
-  citations: CitationRow[];
   reviews: Review[];
   matches?: MatchRow[];
 }) {
-  // Kept in the API contract for other tabs/tests; the reference list view does
-  // not render citation counters.
-  void citations;
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const sorted = useMemo(() => {
@@ -181,16 +179,23 @@ function IdeaListItem({
         }
         onClick={onSelect}
       >
-        <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>{rank}</span>
-        <span className={IDEA_RANK_CONTENT_CLASSES}>
+        <span className={IDEA_RANK_HEAD_CLASSES}>
+          <span className={`idea-rank-number ${IDEA_CHIP_CLASSES}`}>
+            {rank}
+          </span>
           <span className={IDEA_ELO_CHIP_CLASSES}>
             Elo rating: {hypothesis.elo_rating}
           </span>
-          <span className={IDEA_RANK_TITLE_CLASSES}>{hypothesis.title}</span>
-          <span className={IDEA_RANK_PREVIEW_CLASSES}>
-            {hypothesis.statement}
-          </span>
         </span>
+        <TruncatedLabel
+          className={IDEA_RANK_TITLE_CLASSES}
+          text={hypothesis.title}
+        />
+        <TruncatedLabel
+          className={IDEA_RANK_PREVIEW_CLASSES}
+          text={hypothesis.statement}
+          lines={2}
+        />
       </button>
     </li>
   );
@@ -225,12 +230,6 @@ function HypothesisDetail({
       className={IDEA_DETAIL_PANE_CLASSES}
       aria-label="Hypothesis detail"
     >
-      <div className={IDEA_BREADCRUMB_CLASSES}>
-        <span className={IDEA_BREADCRUMB_TEXT_CLASSES}>
-          AI Co-Scientist &gt; Ranked hypothesis &gt; {hypothesis.title}
-        </span>
-      </div>
-
       <DetailSection title="Hypothesis overview" level={2}>
         <p>{hypothesis.statement}</p>
       </DetailSection>
@@ -264,12 +263,20 @@ function HypothesisDetail({
       <DetailSection title="Tournament performance" level={2}>
         <p>
           {totalMatches
-            ? `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches.`
+            ? `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches (${Math.round(
+                (hypothesis.win_count / totalMatches) * 100,
+              )}% win rate).`
             : 'No tournament matches have been recorded yet.'}
         </p>
       </DetailSection>
 
       <DetailSection title="Match summary" level={2}>
+        {latestMatch?.tier && (
+          <p>
+            <strong>Outcome:</strong>{' '}
+            <span className="capitalize">{latestMatch.tier}</span>
+          </p>
+        )}
         <p>
           {latestMatch?.rationale || 'No match rationale is available yet.'}
         </p>
@@ -303,24 +310,26 @@ function SectionsRail() {
   return (
     <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
       <span className={IDEA_SECTIONS_LABEL_CLASSES}>Sections</span>
-      {[
-        'Hypothesis overview',
-        'Description',
-        'Review summary',
-        'Full review',
-        'Tournament performance',
-      ].map(item => (
-        <a
-          key={item}
-          href={`#${item.toLowerCase().replaceAll(' ', '-')}`}
-          className={IDEA_SECTION_LINK_CLASSES}
-          onClick={event =>
-            smoothSectionClick(event, item.toLowerCase().replaceAll(' ', '-'))
-          }
-        >
-          {item} &gt;
-        </a>
-      ))}
+      <nav className={IDEA_SECTIONS_LIST_CLASSES}>
+        {[
+          'Hypothesis overview',
+          'Description',
+          'Review summary',
+          'Full review',
+          'Tournament performance',
+        ].map(item => (
+          <a
+            key={item}
+            href={`#${item.toLowerCase().replaceAll(' ', '-')}`}
+            className={IDEA_SECTION_LINK_CLASSES}
+            onClick={event =>
+              smoothSectionClick(event, item.toLowerCase().replaceAll(' ', '-'))
+            }
+          >
+            {item} &gt;
+          </a>
+        ))}
+      </nav>
     </aside>
   );
 }

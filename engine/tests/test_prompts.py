@@ -214,6 +214,30 @@ def test_review_prompt_supervisor_guidance_branch() -> None:
     assert "testability" in with_guidance
 
 
+def test_review_prompt_surfaces_synthesized_config() -> None:
+    """config_synthesis lands preferences + review_instructions + attributes
+    (with their 1-5 rubric) in the review prompt."""
+    guidance = {
+        "config_synthesis": {
+            "preferences": ["testable within 2 years"],
+            "review_instructions": [
+                "penalize ideas that restate known biology"
+            ],
+            "attributes": [{
+                "name": "Feasibility",
+                "rubric": "1 impossible .. 5 routine",
+            }],
+        }
+    }
+    prompt, _ = get_review_prompt(research_goal="g",
+                                  hypothesis_text="h",
+                                  supervisor_guidance=guidance)
+    assert "testable within 2 years" in prompt
+    assert "penalize ideas that restate known biology" in prompt
+    assert "Feasibility" in prompt
+    assert "1 impossible .. 5 routine" in prompt
+
+
 def test_review_prompt_meta_review_branch() -> None:
     """Meta-review context surfaces common strengths/weaknesses in the prompt."""
     meta_review = {

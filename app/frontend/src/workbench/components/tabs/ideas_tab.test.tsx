@@ -1,7 +1,7 @@
 import {describe, it, expect} from 'vitest';
 import {render, screen} from '@testing-library/react';
 import {IdeasTab} from './ideas_tab';
-import type {CitationRow, Hypothesis, Review} from '@/api/runs';
+import type {Hypothesis, Review} from '@/api/runs';
 
 function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
   return {
@@ -9,6 +9,7 @@ function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
     run_id: 'r1',
     parent_id: null,
     generation: 0,
+    category: null,
     title: 'Untitled hypothesis',
     statement: 'A statement.',
     mechanism: null,
@@ -31,7 +32,7 @@ function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
 
 describe('IdeasTab', () => {
   it('shows the empty state when there are no hypotheses', () => {
-    render(<IdeasTab hypotheses={[]} citations={[]} reviews={[]} />);
+    render(<IdeasTab hypotheses={[]} reviews={[]} />);
     expect(
       screen.getByText('Hypotheses appear here once the generation node runs.'),
     ).toBeInTheDocument();
@@ -54,7 +55,7 @@ describe('IdeasTab', () => {
         loss_count: 1,
       }),
     ];
-    render(<IdeasTab hypotheses={hypotheses} citations={[]} reviews={[]} />);
+    render(<IdeasTab hypotheses={hypotheses} reviews={[]} />);
     expect(screen.getAllByText('High-ranked idea')[0]).toBeInTheDocument();
     expect(screen.getByText('Low-ranked idea')).toBeInTheDocument();
     // Default sort is by Elo descending; the higher Elo badge is rendered.
@@ -64,31 +65,6 @@ describe('IdeasTab', () => {
     const rows = screen.getAllByRole('listitem');
     expect(rows[0]).toHaveTextContent('High-ranked idea');
     expect(rows[1]).toHaveTextContent('Low-ranked idea');
-  });
-
-  it('keeps citation counters out of the reference row layout', () => {
-    const hypotheses = [makeHypothesis({id: 'h1', title: 'Cited idea'})];
-    const citations: CitationRow[] = [
-      {
-        id: 1,
-        hypothesis_id: 'h1',
-        evidence_id: 'e1',
-        claim: 'Claim one.',
-        state: 'verified',
-      },
-      {
-        id: 2,
-        hypothesis_id: 'h1',
-        evidence_id: 'e2',
-        claim: 'Claim two.',
-        state: 'partial',
-      },
-    ];
-    render(
-      <IdeasTab hypotheses={hypotheses} citations={citations} reviews={[]} />,
-    );
-    expect(screen.getAllByText('Cited idea').length).toBeGreaterThan(0);
-    expect(screen.queryByText('1/2 verified')).not.toBeInTheDocument();
   });
 
   it('renders reference detail sections without the legacy detail link', () => {
@@ -108,7 +84,6 @@ describe('IdeasTab', () => {
     render(
       <IdeasTab
         hypotheses={[makeHypothesis({id: 'h1', title: 'Focusable idea'})]}
-        citations={[]}
         reviews={reviews}
       />,
     );

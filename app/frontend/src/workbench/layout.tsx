@@ -4,6 +4,7 @@ import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
+import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
 import {useTheme} from './theme_context';
 import {tooltipClassNames} from './tooltip';
@@ -81,27 +82,23 @@ const THEME_BUTTON_ACTIVE_CLASSES = 'selected';
 
 const THEME_BUTTON_ICON_CLASSES = 'ucs-theme-button-icon';
 
-const HOME_SIDE_CONTENT_CLASSES =
-  'gemini-side-content gemini-side-content--home';
+const SIDE_CONTENT_CLASSES = 'ucs-side-content';
 
-const REPORT_SIDE_CONTENT_CLASSES =
-  'gemini-side-content gemini-side-content--report';
+const SIDE_CONTENT_OPEN_CLASSES = 'ucs-side-content--open';
 
-const SIDE_CONTENT_OPEN_CLASSES = 'gemini-side-content--open';
+const SIDE_CONTENT_COLLAPSED_CLASSES = 'ucs-side-content--collapsed';
 
-const SIDE_CONTENT_COLLAPSED_CLASSES = 'gemini-side-content--collapsed';
+const SIDE_HEADING_CLASSES = 'ucs-side-heading';
 
-const SIDE_HEADING_CLASSES = 'gemini-side-heading';
+const CHAT_LIST_CLASSES = 'ucs-chat-list';
 
-const HOME_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--home';
+const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
 
-const REPORT_CHAT_LIST_CLASSES = 'gemini-chat-list gemini-chat-list--report';
+const CHAT_HISTORY_LINK_ACTIVE_CLASSES = 'ucs-chat-link--active';
 
-const CHAT_HISTORY_LINK_CLASSES = 'gemini-chat-link';
+const CHAT_HISTORY_LABEL_CLASSES = 'ucs-chat-label';
 
-const CHAT_HISTORY_LABEL_CLASSES = 'gemini-chat-label';
-
-const CHAT_HISTORY_MORE_CLASSES = 'gemini-chat-more';
+const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 
 /**
  * Renders the app shell with header navigation, main content, and footer.
@@ -114,22 +111,25 @@ export function Layout({children}: {children: ReactNode}) {
   const {mode, setMode} = useTheme();
   const [overrideTitle, setOverrideTitle] = useState('');
   const [history, setHistory] = useState<Run[]>([]);
-  const [navOpen, setNavOpen] = useState(true);
+  // Collapsed icon rail by default, matching the reference product; the
+  // hamburger expands it.
+  const [navOpen, setNavOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
   const [showAllChats, setShowAllChats] = useState(false);
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
+  // The run id embedded in /runs/:id[/:tab], used to persistently highlight the
+  // active conversation in the sidebar chat list.
+  const activeRunId = isRunRoute ? location.pathname.split('/')[2] : undefined;
   const headerTitle = overrideTitle || '';
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
   const sideContentClasses = [
-    isRunRoute ? REPORT_SIDE_CONTENT_CLASSES : HOME_SIDE_CONTENT_CLASSES,
+    SIDE_CONTENT_CLASSES,
     navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
   ].join(' ');
-  const chatListClasses = isRunRoute
-    ? REPORT_CHAT_LIST_CLASSES
-    : HOME_CHAT_LIST_CLASSES;
+  const chatListClasses = CHAT_LIST_CLASSES;
   const workspaceClasses = isRunRoute
     ? REPORT_WORKSPACE_CLASSES
     : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
@@ -140,7 +140,7 @@ export function Layout({children}: {children: ReactNode}) {
       ? HOME_PAGE_CLASSES
       : PAGE_CLASSES;
   const shellClass = [
-    'google-app-shell',
+    'ucs-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
     navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
   ].join(' ');
@@ -168,11 +168,6 @@ export function Layout({children}: {children: ReactNode}) {
     void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
 
-  function focusComposer() {
-    window.dispatchEvent(new Event('cosci-focus-composer'));
-    void navigate('/', {state: {cosciAction: 'focus-composer'}});
-  }
-
   function toggleNav() {
     setNavOpen(open => !open);
     setActivePanel(null);
@@ -182,10 +177,19 @@ export function Layout({children}: {children: ReactNode}) {
     setActivePanel(current => (current === panel ? null : panel));
   }
 
+  // Close any open popover on navigation.
   useEffect(() => {
-    setOverrideTitle('');
     setActivePanel(null);
   }, [location.pathname]);
+
+  // Clear the shell title only when the title-owning context changes: the run
+  // id for run routes, else the pathname. Switching tabs within one run keeps
+  // the same id, so the run's dispatched title survives (RunDetail stays
+  // mounted across tabs and does not re-dispatch on a tab change).
+  const titleContextKey = isRunRoute ? `run:${activeRunId}` : location.pathname;
+  useEffect(() => {
+    setOverrideTitle('');
+  }, [titleContextKey]);
 
   useEffect(() => {
     if (!activePanel) return;
@@ -253,33 +257,33 @@ export function Layout({children}: {children: ReactNode}) {
               labelClassName={navLabelClasses}
               onClick={startNewChat}
             />
-            <NavActionButton
-              label="Search"
-              icon="search"
-              className={navItemClasses}
-              labelClassName={navLabelClasses}
-              onClick={focusComposer}
-            />
           </nav>
           <div className={sideContentClasses}>
             <p className={SIDE_HEADING_CLASSES}>Chats</p>
             <div className={chatListClasses}>
-              {visibleHistory.map(run => (
-                <Link
-                  key={run.id}
-                  to={`/runs/${run.id}/details`}
-                  className={tooltipClassNames({
-                    className: CHAT_HISTORY_LINK_CLASSES,
-                    placement: 'right',
-                    wrap: true,
-                  })}
-                  data-tooltip={run.research_goal}
-                >
-                  <span className={CHAT_HISTORY_LABEL_CLASSES}>
-                    {conciseTitle(run.research_goal)}
-                  </span>
-                </Link>
-              ))}
+              {visibleHistory.map(run => {
+                const isActive = run.id === activeRunId;
+                return (
+                  <Link
+                    key={run.id}
+                    to={`/runs/${run.id}/details`}
+                    className={tooltipClassNames({
+                      className: isActive
+                        ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
+                        : CHAT_HISTORY_LINK_CLASSES,
+                      placement: 'right',
+                      wrap: true,
+                    })}
+                    aria-current={isActive ? 'page' : undefined}
+                    data-tooltip={run.research_goal}
+                  >
+                    <TruncatedLabel
+                      className={CHAT_HISTORY_LABEL_CLASSES}
+                      text={conciseTitle(run.research_goal)}
+                    />
+                  </Link>
+                );
+              })}
               {hasExtraChats && (
                 <button
                   type="button"
@@ -345,7 +349,14 @@ export function Layout({children}: {children: ReactNode}) {
             <GoogleLabsIcon aria-hidden="true" />
             <span>Co-Scientist</span>
           </button>
-          <div className={HEADER_TITLE_CLASSES}>{headerTitle}</div>
+          <div className={HEADER_TITLE_CLASSES}>
+            {headerTitle && (
+              <TruncatedLabel
+                className="block min-w-0 overflow-hidden whitespace-nowrap"
+                text={headerTitle}
+              />
+            )}
+          </div>
           <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
             <DiagnosticsControl
               open={activePanel === 'logs'}

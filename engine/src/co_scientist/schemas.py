@@ -53,6 +53,16 @@ GENERATION_SCHEMA: dict[str, Any] = {
                                  " datasets, metrics, and validation"
                                  " criteria (4-6 sentences)"),
                         },
+                        "category": {
+                            "type":
+                                "string",
+                            "description":
+                                ("Short (2-4 word) classification label naming"
+                                 " the mechanism family or research sub-area"
+                                 " this hypothesis belongs to, e.g."
+                                 " 'Metabolic reprogramming' or 'Epitope"
+                                 " editing'. Used to group and label ideas."),
+                        },
                     },
                     "required": [
                         "hypothesis", "explanation", "literature_grounding",
@@ -186,6 +196,14 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                                 ("Concrete experiment design with models,"
                                  " datasets, metrics, and validation"
                                  " criteria (4-6 sentences)"),
+                        },
+                        "category": {
+                            "type":
+                                "string",
+                            "description":
+                                ("Short (2-4 word) classification label naming"
+                                 " the mechanism family or research sub-area"
+                                 " this hypothesis belongs to."),
                         },
                         "novelty_validation": {
                             "type": "object",
@@ -1114,6 +1132,66 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 ],
                 "additionalProperties": False,
             },
+            "config_synthesis": {
+                "type": "object",
+                "description":
+                    ("Normalized run configuration synthesized from the goal,"
+                     " mirroring the reference product's Config. Keep the three"
+                     " lists strictly separate."),
+                "properties": {
+                    "preferences": {
+                        "type":
+                            "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description":
+                            ("Hard scope constraints plus the soft 'what makes"
+                             " a good idea' qualities. Used by BOTH generation"
+                             " and review."),
+                    },
+                    "review_instructions": {
+                        "type":
+                            "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description":
+                            ("Comparative critique guidance for reviewers"
+                             " ONLY: how to validate soundness and tell strong"
+                             " ideas from weak ones. Do NOT restate the"
+                             " preferences here."),
+                    },
+                    "attributes": {
+                        "type": "array",
+                        "description":
+                            ("Up to 3 axes used to stratify and compare ideas,"
+                             " each with a 1-5 scoring rubric."),
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "description": "short attribute name",
+                                },
+                                "rubric": {
+                                    "type":
+                                        "string",
+                                    "description":
+                                        ("how to score this attribute from 1"
+                                         " (worst) to 5 (best)"),
+                                },
+                            },
+                            "required": ["name", "rubric"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": [
+                    "preferences", "review_instructions", "attributes"
+                ],
+                "additionalProperties": False,
+            },
             "performance_assessment": {
                 "type": "object",
                 "properties": {
@@ -1240,6 +1318,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
         "required": [
             "research_goal_analysis",
             "workflow_plan",
+            "config_synthesis",
             "performance_assessment",
             "adjustment_recommendations",
             "output_preparation",

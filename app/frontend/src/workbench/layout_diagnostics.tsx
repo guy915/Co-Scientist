@@ -24,60 +24,60 @@ const LOGS_POPOVER_CLASSES = [
   'ucs-popover--logs',
   'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
   'max-h-[min(32rem,calc(100vh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
-  '!gap-0 overflow-hidden !p-0 !border-[var(--cosci-logs-border)] ' +
-    '!bg-[var(--cosci-logs-surface)]',
+  '!gap-0 overflow-hidden !p-0 !border-cosci-logs-border ' +
+    '!bg-cosci-logs-surface',
   'max-[720px]:right-[-0.5rem] max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',
 ].join(' ');
 
 const LOGS_BUTTON_CLASSES =
   'ucs-logs-button relative inline-flex h-[2.35rem] min-w-max cursor-pointer ' +
   'items-center gap-[0.45rem] rounded-full border-0 ' +
-  'bg-[var(--cosci-logs-accent-bg)] px-[0.62rem] py-0 pl-[0.72rem] ' +
+  'bg-cosci-logs-accent-bg px-[0.62rem] py-0 pl-[0.72rem] ' +
   'font-[inherit] text-[0.88rem] font-semibold whitespace-nowrap ' +
-  'text-[var(--cosci-logs-accent-fg)] hover:bg-[var(--cosci-logs-accent-hover)] ' +
-  '[&[aria-expanded=true]]:bg-[var(--cosci-logs-accent-hover)]';
+  'text-cosci-logs-accent-fg hover:bg-cosci-logs-accent-hover ' +
+  '[&[aria-expanded=true]]:bg-cosci-logs-accent-hover';
 
 const LOGS_BUTTON_ICON_CLASSES = 'text-[1.05rem]';
 
 const LOGS_COUNT_CLASSES =
   'ucs-logs-count grid h-[1.38rem] min-w-[1.35rem] place-items-center ' +
-  'rounded-full bg-[var(--cosci-logs-count-bg)] px-[0.42rem] text-[0.72rem] ' +
+  'rounded-full bg-cosci-logs-count-bg px-[0.42rem] text-[0.72rem] ' +
   'leading-none whitespace-nowrap';
 
 const DIAGNOSTIC_HEADER_CLASSES =
   'ucs-diagnostic-header flex items-center justify-between gap-3 border-b ' +
-  'border-[var(--cosci-logs-border)] px-4 py-3 ' +
+  'border-cosci-logs-border px-4 py-3 ' +
   'max-[720px]:flex-col max-[720px]:items-start';
 
 const DIAGNOSTIC_INTRO_CLASSES =
-  'ucs-diagnostic-intro border-b border-[var(--cosci-logs-border)] px-4 py-3';
+  'ucs-diagnostic-intro border-b border-cosci-logs-border px-4 py-3';
 
 const DIAGNOSTIC_TITLE_CLASSES =
-  'm-0 text-base font-semibold leading-tight text-[var(--cosci-logs-heading)]';
+  'm-0 text-base font-semibold leading-tight text-cosci-logs-heading';
 
 const DIAGNOSTIC_ACTIONS_CLASSES =
   'ucs-diagnostic-actions flex flex-nowrap gap-[0.45rem]';
 
 const DIAGNOSTIC_ACTION_BUTTON_CLASSES =
   'inline-flex min-h-8 cursor-pointer items-center gap-[0.3rem] rounded-full ' +
-  'border border-[var(--cosci-logs-action-border)] ' +
-  'bg-[var(--cosci-logs-action-bg)] px-[0.75rem] text-[0.82rem] font-semibold ' +
-  'whitespace-nowrap text-[var(--cosci-logs-action-fg)] ' +
-  'hover:bg-[var(--cosci-logs-action-hover)] ' +
-  'focus-visible:bg-[var(--cosci-logs-action-hover)]';
+  'border border-cosci-logs-action-border ' +
+  'bg-cosci-logs-action-bg px-[0.75rem] text-[0.82rem] font-semibold ' +
+  'whitespace-nowrap text-cosci-logs-action-fg ' +
+  'hover:bg-cosci-logs-action-hover ' +
+  'focus-visible:bg-cosci-logs-action-hover';
 
 const DIAGNOSTIC_CHIPS_CLASSES =
   'ucs-diagnostic-chips flex flex-wrap gap-[0.45rem]';
 
 const DIAGNOSTIC_CHIP_CLASSES =
-  'rounded-full bg-[var(--cosci-logs-accent-bg)] px-2 py-[0.15rem] ' +
+  'rounded-full bg-cosci-logs-accent-bg px-2 py-[0.15rem] ' +
   'text-[0.7rem] font-semibold whitespace-nowrap ' +
-  'text-[var(--cosci-logs-accent-fg)]';
+  'text-cosci-logs-accent-fg';
 
 const DIAGNOSTIC_ERROR_CHIP_CLASSES =
-  'rounded-full bg-[var(--cosci-logs-danger-bg)] px-2 py-[0.15rem] ' +
+  'rounded-full bg-cosci-logs-danger-bg px-2 py-[0.15rem] ' +
   'text-[0.7rem] font-semibold whitespace-nowrap ' +
-  'text-[var(--cosci-logs-danger-fg)]';
+  'text-cosci-logs-danger-fg';
 
 const DIAGNOSTIC_LIST_CLASSES =
   'ucs-diagnostic-list grid min-h-0 gap-2 overflow-auto px-4 pt-3 pb-4';
@@ -87,7 +87,7 @@ const DIAGNOSTIC_ENTRY_CLASSES = 'ucs-diagnostic-entry grid gap-1';
 const DIAGNOSTIC_ENTRY_META_CLASSES =
   'ucs-diagnostic-entry-meta grid grid-cols-[auto_auto_minmax(0,1fr)_auto] ' +
   'items-center gap-2 text-[0.72rem] font-semibold ' +
-  'text-[var(--cosci-logs-meta)] ' +
+  'text-cosci-logs-meta ' +
   'max-[720px]:grid-cols-[auto_auto_minmax(0,1fr)]';
 
 const DIAGNOSTIC_ENTRY_RUN_CLASSES = 'truncate';
@@ -97,13 +97,13 @@ const DIAGNOSTIC_ENTRY_STAGE_CLASSES =
 
 const DIAGNOSTIC_CODE_CLASSES =
   'm-0 max-h-20 overflow-auto rounded-[0.55rem] ' +
-  'bg-[var(--cosci-logs-panel-bg)] px-[0.7rem] py-[0.55rem] font-mono ' +
-  'text-[0.72rem] leading-[1.3] text-[var(--cosci-logs-code-fg)]';
+  'bg-cosci-logs-panel-bg px-[0.7rem] py-[0.55rem] font-mono ' +
+  'text-[0.72rem] leading-[1.3] text-cosci-logs-code-fg';
 
 const DIAGNOSTIC_EMPTY_CLASSES =
   'ucs-diagnostic-empty m-0 rounded-[0.55rem] ' +
-  'bg-[var(--cosci-logs-panel-bg)] px-[0.7rem] py-[0.55rem] text-center ' +
-  'text-[var(--cosci-logs-panel-fg)]';
+  'bg-cosci-logs-panel-bg px-[0.7rem] py-[0.55rem] text-center ' +
+  'text-cosci-logs-panel-fg';
 
 function formatDiagnosticTime(date = new Date()): string {
   return new Intl.DateTimeFormat(undefined, {

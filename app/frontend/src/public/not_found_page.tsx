@@ -8,7 +8,7 @@ export function NotFoundPage() {
   return (
     <>
       <Seo
-        title="Page not found - AI Co-Scientist"
+        title="Page Not Found - Co-Scientist"
         description="The page you requested does not exist."
         path={window.location.pathname}
         robots="noindex, nofollow"

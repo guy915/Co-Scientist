@@ -34,6 +34,16 @@ Object.defineProperty(globalThis, 'localStorage', {
   writable: true,
 });
 
+// jsdom ships no ResizeObserver; components that observe element size (e.g.
+// TruncatedLabel) need a no-op stub so they can mount under test.
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = class {
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+  };
+}
+
 afterEach(() => {
   cleanup();
 });

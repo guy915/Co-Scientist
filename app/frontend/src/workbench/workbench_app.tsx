@@ -27,27 +27,26 @@ export function WorkbenchApp() {
               path="/"
               element={
                 <>
-                  <NoIndex title="AI Co-Scientist workspace" />
+                  <NoIndex title="Workspace" />
                   <ChatWorkspace />
                 </>
               }
             />
             <Route path="/runs" element={<Navigate to="/" replace />} />
             <Route path="/runs/new" element={<Navigate to="/" replace />} />
+            {/* Redirect the bare id to the default tab so every tab shares one
+                required-param route. Switching tabs is then a param change, not
+                a remount — otherwise RunDetail refetches and its header-title
+                effect flaps, blanking the shell header. */}
             <Route
               path="/runs/:id"
-              element={
-                <>
-                  <NoIndex title="Goal report" />
-                  <RunDetail />
-                </>
-              }
+              element={<Navigate to="details" replace />}
             />
             <Route
               path="/runs/:id/:tab"
               element={
                 <>
-                  <NoIndex title="Goal report" />
+                  <NoIndex title="Goal Report" />
                   <RunDetail />
                 </>
               }

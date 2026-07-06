@@ -145,6 +145,7 @@ export function artifactsFor(run: Run): OfflineRunRecord {
       run_id: run.id,
       parent_id: null,
       generation: index < 2 ? 0 : 1,
+      category: title.split(' ').slice(0, 2).join(' '),
       title: `H${index + 1}: ${title}`,
       statement: `In the context of '${run.research_goal}', we hypothesize that ${title.toLowerCase()} will produce a measurable effect through a mechanism distinct from current consensus.`,
       mechanism: `The proposed pathway operates by ${title.toLowerCase()}, with feedback at two checkpoints; the predicted intermediate state is detectable by standard assays.`,
@@ -214,6 +215,7 @@ export function artifactsFor(run: Run): OfflineRunRecord {
     loser_elo_after: loser.elo_rating,
     rationale:
       'The winner is more mechanistically specific and easier to test against the stated criteria.',
+    tier: ['decisive', 'clear', 'narrow'][index] ?? 'clear',
     created_at: base - 20 + index,
   }));
 

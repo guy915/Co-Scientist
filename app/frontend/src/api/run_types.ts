@@ -15,14 +15,14 @@ export type RunMode = 'default';
 /** Former generation profile labels still accepted by the backend. */
 export type LegacyRunProfile = RunMode | 'standard' | 'advanced';
 
-/** Research style selected in the AI Co-Scientist setup flow. */
+/** Research style selected in the Co-Scientist setup flow. */
 export type RunFocus =
   | 'prefer_evidence'
   | 'balance'
   | 'prefer_novelty'
   | 'breakthrough';
 
-/** Depth preset selected in the AI Co-Scientist setup flow. */
+/** Depth preset selected in the Co-Scientist setup flow. */
 export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
 
 /** Durable setup payload persisted inside `Run.config.setup`. */
@@ -93,6 +93,7 @@ export interface Hypothesis {
   run_id: string;
   parent_id: string | null;
   generation: number;
+  category: string | null;
   title: string;
   statement: string;
   mechanism: string | null;
@@ -134,6 +135,7 @@ export interface MatchRow {
   loser_elo_before: number;
   loser_elo_after: number;
   rationale: string;
+  tier: string | null;
   created_at: number;
 }
 

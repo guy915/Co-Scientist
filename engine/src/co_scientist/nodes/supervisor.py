@@ -93,6 +93,8 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
             response.get("research_goal_analysis", {}),
         "workflow_plan":
             response.get("workflow_plan", {}),
+        "config_synthesis":
+            response.get("config_synthesis", {}),
         "performance_assessment":
             response.get("performance_assessment", {}),
         "adjustment_recommendations":

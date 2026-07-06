@@ -2,6 +2,7 @@ import {type ReactNode, useLayoutEffect, useRef, useState} from 'react';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
+import {TruncatedLabel} from '../components/truncated_label';
 import {FOCUS_OPTIONS, type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
 import {
@@ -74,8 +75,14 @@ interface MessageAction {
 }
 
 export async function copyText(text: string) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
+  // Best-effort: the Clipboard API rejects in insecure/unfocused contexts, and
+  // a failed copy must not abort the caller (e.g. the copy-prompt toast).
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+    }
+  } catch {
+    // Clipboard unavailable; ignore.
   }
 }
 
@@ -395,9 +402,12 @@ export function StartedSessionCard({
         className={STARTED_SESSION_CARD_CLASSES}
         onClick={onOpen}
       >
-        <span>
+        <span className="block min-w-0">
           <strong className={STARTED_SESSION_TITLE_CLASSES}>
-            {session.title}
+            <TruncatedLabel
+              className="block min-w-0 overflow-hidden whitespace-nowrap"
+              text={session.title}
+            />
           </strong>
           <small className={STARTED_SESSION_META_CLASSES}>
             Research session

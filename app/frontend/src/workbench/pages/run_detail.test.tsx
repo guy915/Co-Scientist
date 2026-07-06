@@ -1,0 +1,203 @@
+import {fireEvent, render, screen, waitFor} from '@testing-library/react';
+import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
+import {beforeEach, describe, expect, it, vi} from 'vitest';
+import * as runsApi from '@/api/runs';
+import type {Hypothesis, MatchRow, RunWithSummary} from '@/api/runs';
+import {RunDetail} from './run_detail';
+
+vi.mock('@/hooks/use_run_stream', () => ({
+  useRunStream: () => ({events: [], terminal: false}),
+}));
+
+vi.mock('@/api/runs', async importActual => {
+  const actual = await importActual<typeof import('@/api/runs')>();
+  return {
+    ...actual,
+    getRun: vi.fn(),
+    getHypotheses: vi.fn().mockResolvedValue([]),
+    getEvidence: vi.fn().mockResolvedValue([]),
+    getMatches: vi.fn().mockResolvedValue([]),
+    getReviews: vi.fn().mockResolvedValue([]),
+    getCitations: vi.fn().mockResolvedValue([]),
+    getReport: vi.fn().mockResolvedValue(null),
+  };
+});
+
+const makeRun = (
+  goal: string,
+  timing?: {created_at: number; completed_at: number},
+): RunWithSummary =>
+  ({
+    id: 'run-1',
+    research_goal: goal,
+    status: 'completed',
+    config: {
+      setup: {
+        goal,
+        requirements: ['Testable'],
+        attributes: ['Novel'],
+        criteria: ['Feasible'],
+      },
+    },
+    ...timing,
+  }) as unknown as RunWithSummary;
+
+const makeHypothesis = (id: string, title: string, elo: number): Hypothesis =>
+  ({
+    id,
+    title,
+    elo_rating: elo,
+  }) as unknown as Hypothesis;
+
+const makeMatch = (id: number): MatchRow => ({id}) as unknown as MatchRow;
+
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname}</div>;
+}
+
+function renderAt(path: string) {
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route path="/runs/:id" element={<RunDetail />} />
+        <Route path="/runs/:id/:tab" element={<RunDetail />} />
+      </Routes>
+      <LocationDisplay />
+    </MemoryRouter>,
+  );
+}
+
+const tab = (name: RegExp) => screen.getByRole('button', {name});
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
+  // Reset per-run collection mocks so overrides do not leak between tests.
+  vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
+  vi.mocked(runsApi.getMatches).mockResolvedValue([]);
+  vi.mocked(runsApi.getReport).mockResolvedValue(null);
+});
+
+describe('RunDetail', () => {
+  it('shows a skeleton while loading, then the goal details', async () => {
+    renderAt('/runs/run-1');
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
+    expect(
+      await screen.findByText('Research goal details'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders all four report tabs', async () => {
+    renderAt('/runs/run-1');
+    await screen.findByText('Research goal details');
+    for (const label of [
+      'Goal Details',
+      'Learning',
+      'Research Overview',
+      'All Ideas',
+    ]) {
+      expect(tab(new RegExp(label))).toBeInTheDocument();
+    }
+  });
+
+  it('marks the Details tab active for the base URL', async () => {
+    renderAt('/runs/run-1');
+    await screen.findByText('Research goal details');
+    expect(tab(/Goal Details/)).toHaveAttribute('aria-current', 'page');
+    expect(tab(/All Ideas/)).not.toHaveAttribute('aria-current');
+  });
+
+  it('resolves a tab alias in the URL to its canonical tab', async () => {
+    // "specs" aliases to the details tab.
+    renderAt('/runs/run-1/specs');
+    await screen.findByText('Research goal details');
+    expect(tab(/Goal Details/)).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('activates the tab named directly in the URL', async () => {
+    renderAt('/runs/run-1/overview');
+    await screen.findByText('Research overview');
+    expect(tab(/Research Overview/)).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('navigates when a tab is clicked', async () => {
+    renderAt('/runs/run-1');
+    await screen.findByText('Research goal details');
+    fireEvent.click(tab(/All Ideas/));
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent(
+        '/runs/run-1/ideas',
+      ),
+    );
+  });
+
+  it('applies the domain-specific title override', async () => {
+    vi.mocked(runsApi.getRun).mockResolvedValue(
+      makeRun('Reversing MASLD liver fibrosis'),
+    );
+    renderAt('/runs/run-1');
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: /MASH-associated liver fibrosis/i,
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('leads the overview with a combined stat sentence and winning ideas', async () => {
+    const created = 1_700_000_000;
+    vi.mocked(runsApi.getRun).mockResolvedValue(
+      makeRun('Study pathway X', {
+        created_at: created,
+        completed_at: created + 3 * 3600,
+      }),
+    );
+    vi.mocked(runsApi.getHypotheses).mockResolvedValue([
+      makeHypothesis('h1', 'Top idea alpha', 1735),
+      makeHypothesis('h2', 'Runner-up beta', 1707),
+    ]);
+    vi.mocked(runsApi.getMatches).mockResolvedValue([
+      makeMatch(1),
+      makeMatch(2),
+      makeMatch(3),
+    ]);
+
+    renderAt('/runs/run-1/overview');
+    await screen.findByText('Research overview');
+
+    expect(
+      await screen.findByText(
+        /A total of 2 ideas were explored over 3 hours with the highest Elo rating of 1735 points and a total of 3 matches were played\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {name: /Winning ideas/}),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Top idea alpha')).toBeInTheDocument();
+  });
+
+  it('omits stat clauses whose data is unavailable', async () => {
+    // No timing on the run, no matches: the duration and matches clauses drop.
+    vi.mocked(runsApi.getHypotheses).mockResolvedValue([
+      makeHypothesis('h1', 'Sole idea', 1500),
+    ]);
+
+    renderAt('/runs/run-1/overview');
+    await screen.findByText('Research overview');
+
+    const stat = await screen.findByText(/A total of 1 idea was explored/);
+    expect(stat).toHaveTextContent(
+      'A total of 1 idea was explored with the highest Elo rating of 1500 points.',
+    );
+    expect(stat.textContent).not.toContain('over');
+    expect(stat.textContent).not.toContain('matches');
+  });
+
+  it('shows an error alert when loading fails', async () => {
+    vi.mocked(runsApi.getRun).mockRejectedValue(new Error('boom'));
+    renderAt('/runs/run-1');
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('boom');
+  });
+});

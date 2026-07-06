@@ -22,6 +22,7 @@ def test_hypothesis_minimal_construction_defaults() -> None:
     """
     hyp = Hypothesis(text="A hypothesis")
     assert hyp.text == "A hypothesis"
+    assert hyp.category is None
     assert hyp.explanation is None
     assert hyp.literature_grounding is None
     assert hyp.experiment is None
@@ -124,6 +125,7 @@ def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
     expected_keys = {
         "id",
         "text",
+        "category",
         "explanation",
         "literature_grounding",
         "experiment",
@@ -220,6 +222,15 @@ def test_hypothesis_from_dict_preserves_id() -> None:
     assert restored.text == original.text
     assert restored.win_count == 2
     assert restored.loss_count == 1
+
+
+def test_hypothesis_category_round_trips() -> None:
+    """``category`` serializes and reconstructs through to_dict/from_dict."""
+    hyp = Hypothesis(text="x", category="Metabolic reprogramming")
+    d = hyp.to_dict()
+    assert d["category"] == "Metabolic reprogramming"
+    restored = Hypothesis.from_dict(d)
+    assert restored.category == "Metabolic reprogramming"
 
 
 def test_hypothesis_from_dict_generates_id_when_absent() -> None:

@@ -24,20 +24,16 @@ import {
 } from './chat_home_classes';
 import {Composer} from './chat_composer';
 import {HomeRecentsPanel} from './home_recents';
+import {TruncatedLabel} from '../components/truncated_label';
 
+// Single source of truth: the full prompt. The card truncates it to the real
+// available width via TruncatedLabel, and the hover preview shows it in full.
+// (Do not add a hand-shortened variant — a pre-truncated string fed to a
+// width-aware truncator can never fill the actual card space.)
 const SUGGESTIONS = [
-  {
-    short: 'Find new therapeutic targets for M.tuberculosis by combining...',
-    full: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
-  },
-  {
-    short: 'Generate novel hypotheses for the link between...',
-    full: 'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
-  },
-  {
-    short: 'Propose new mechanisms to explain why some patients...',
-    full: 'Propose new mechanisms to explain why some patients fail to respond to checkpoint inhibitor therapy.',
-  },
+  'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+  'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
+  'Propose new mechanisms to explain why some patients fail to respond to checkpoint inhibitor therapy.',
 ];
 
 const SESSION_STEPS: ReadonlyArray<{
@@ -117,7 +113,7 @@ export function HomeStage({
 
         <div className={HOME_SUGGESTION_ROW_CLASSES}>
           {SUGGESTIONS.map((suggestion, index) => {
-            const isPreviewed = hoveredSuggestion === suggestion.full;
+            const isPreviewed = hoveredSuggestion === suggestion;
             const previewPositionClass =
               index === 0
                 ? HOME_SUGGESTION_PREVIEW_START_CLASSES
@@ -125,10 +121,7 @@ export function HomeStage({
                   ? HOME_SUGGESTION_PREVIEW_CENTER_CLASSES
                   : HOME_SUGGESTION_PREVIEW_END_CLASSES;
             return (
-              <div
-                key={suggestion.short}
-                className={HOME_SUGGESTION_SLOT_CLASSES}
-              >
+              <div key={suggestion} className={HOME_SUGGESTION_SLOT_CLASSES}>
                 <p
                   className={[
                     HOME_SUGGESTION_PREVIEW_CLASSES,
@@ -139,7 +132,7 @@ export function HomeStage({
                     .join(' ')}
                   aria-hidden={!isPreviewed}
                 >
-                  {suggestion.full}
+                  {suggestion}
                 </p>
                 <button
                   type="button"
@@ -149,20 +142,22 @@ export function HomeStage({
                   ]
                     .filter(Boolean)
                     .join(' ')}
-                  onMouseEnter={() => setHoveredSuggestion(suggestion.full)}
+                  onMouseEnter={() => setHoveredSuggestion(suggestion)}
                   onMouseLeave={() => setHoveredSuggestion(null)}
-                  onPointerEnter={() => setHoveredSuggestion(suggestion.full)}
+                  onPointerEnter={() => setHoveredSuggestion(suggestion)}
                   onPointerLeave={() => setHoveredSuggestion(null)}
-                  onFocus={() => setHoveredSuggestion(suggestion.full)}
+                  onFocus={() => setHoveredSuggestion(suggestion)}
                   onBlur={() => setHoveredSuggestion(null)}
                   onClick={() => {
-                    setInput(suggestion.full);
+                    setInput(suggestion);
                     setHoveredSuggestion(null);
                   }}
                 >
-                  <span className={HOME_SUGGESTION_TEXT_CLASSES}>
-                    {suggestion.short}
-                  </span>
+                  <TruncatedLabel
+                    className={HOME_SUGGESTION_TEXT_CLASSES}
+                    text={suggestion}
+                    lines={2}
+                  />
                 </button>
               </div>
             );

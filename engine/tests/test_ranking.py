@@ -126,6 +126,8 @@ async def test_deterministic_winner_updates_elo_and_counts(
         assert matchup["loser_elo_after"] < matchup["loser_elo_before"]
         assert matchup["reasoning"] == "stub decision"
         assert matchup["confidence"] == "High"
+        # Every matchup carries a decisiveness tier from the confidence + gap.
+        assert matchup["tier"] in {"upset", "decisive", "clear", "narrow"}
 
 
 async def test_matchups_carry_hypothesis_ids(
@@ -205,3 +207,29 @@ async def test_ranking_honors_tournament_pairs(
     result = await ranking_node(state)
 
     assert len(result["tournament_matchups"]) == 5
+
+
+# --- match_tier: deterministic decisiveness classification ------------------
+
+
+def test_match_tier_upset_when_loser_outrated_winner() -> None:
+    """A win by a hypothesis rated >= ELO_UPSET_MARGIN below the loser is an
+    upset, regardless of confidence."""
+    from co_scientist.constants import ELO_UPSET_MARGIN
+    assert ranking.match_tier(1200, 1200 + ELO_UPSET_MARGIN, "High") == "upset"
+    assert ranking.match_tier(1200, 1200 + ELO_UPSET_MARGIN, "Low") == "upset"
+
+
+def test_match_tier_maps_confidence_when_not_an_upset() -> None:
+    """Absent an upset, tier follows the judge's confidence level."""
+    assert ranking.match_tier(1300, 1200, "High") == "decisive"
+    assert ranking.match_tier(1300, 1200, "Medium") == "clear"
+    assert ranking.match_tier(1300, 1200, "Low") == "narrow"
+
+
+def test_match_tier_confidence_is_case_insensitive_with_narrow_fallback(
+) -> None:
+    """Casing is ignored and an unknown confidence falls back to 'narrow'."""
+    assert ranking.match_tier(1300, 1200, "high") == "decisive"
+    assert ranking.match_tier(1300, 1200, "") == "narrow"
+    assert ranking.match_tier(1300, 1200, "Unknown") == "narrow"

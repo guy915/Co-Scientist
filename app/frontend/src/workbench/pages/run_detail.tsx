@@ -1,9 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
-  type CitationRow,
   type Evidence,
-  getCitations,
   getEvidence,
   getHypotheses,
   getMatches,
@@ -14,13 +12,12 @@ import {
   type MatchRow,
   type Report,
   type Review,
-  type RunSetupConfig,
   type RunWithSummary,
 } from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {useRunStream} from '@/hooks/use_run_stream';
-import {conciseTitle} from '@/lib/text';
+import {TruncatedLabel} from '../components/truncated_label';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {
   REPORT_H3_CLASSES,
@@ -38,10 +35,10 @@ const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 type TabName = (typeof TABS)[number];
 
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
-  details: 'menu_book',
+  details: 'assignment',
   learning: 'menu_book',
-  overview: 'view_list',
-  ideas: 'emoji_objects',
+  overview: 'summarize',
+  ideas: 'lightbulb',
 };
 
 const TAB_LABELS: Record<TabName, string> = {
@@ -52,7 +49,7 @@ const TAB_LABELS: Record<TabName, string> = {
 };
 
 const REPORT_PAGE_CLASSES =
-  'cosci-report-page grid h-full min-h-0 grid-rows-[4.75rem_5.5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg max-[720px]:min-w-0 max-[720px]:overflow-hidden';
+  'cosci-report-page grid h-full min-h-0 grid-rows-[3.75rem_5rem_minmax(0,1fr)] bg-cosci-bg text-cosci-fg max-[720px]:min-w-0 max-[720px]:overflow-hidden';
 
 const REPORT_TITLEBAR_CLASSES =
   'cosci-report-titlebar flex min-w-0 items-center justify-between gap-6 border-b border-cosci-border px-9 max-[720px]:gap-[0.35rem] max-[720px]:px-[0.7rem]';
@@ -64,13 +61,13 @@ const REPORT_BACK_CLASSES =
   'cosci-report-back grid h-10 w-10 shrink-0 place-items-center rounded-full text-cosci-muted no-underline hover:bg-cosci-hover';
 
 const REPORT_TITLE_CLASSES =
-  'm-0 min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[720px]:text-[0.9rem]';
+  'm-0 min-w-0 overflow-hidden text-[1.2rem] leading-[1.25] font-normal tracking-normal max-[720px]:text-[0.9rem]';
 
-const SESSION_DETAILS_CLASSES =
-  'cosci-session-details cursor-pointer border-0 bg-transparent px-0 py-[0.45rem] font-[inherit] text-sm font-medium text-cosci-blue max-[720px]:hidden';
+const REPORT_TITLE_TEXT_CLASSES =
+  'block min-w-0 overflow-hidden whitespace-nowrap';
 
 const REPORT_TABS_CLASSES =
-  'cosci-report-tabs grid grid-cols-4 border-b border-cosci-border max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
+  'reference-report-tabs grid grid-cols-4 border-b border-cosci-border max-[720px]:min-w-0 max-[720px]:overflow-x-hidden';
 
 const REPORT_TAB_BUTTON_BASE_CLASSES =
   'relative grid min-w-0 cursor-pointer content-center justify-items-center gap-[0.35rem] border-0 bg-transparent font-[inherit] text-sm max-[720px]:gap-[0.2rem] max-[720px]:text-[0.68rem]';
@@ -86,15 +83,21 @@ const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto max-[720px]:overflow-x-hidden';
 
 const REPORT_ALERT_CLASSES =
-  'cosci-report-alert mx-8 mt-4 rounded-xl border border-[var(--cosci-danger-border)] bg-[var(--cosci-danger-bg)] px-4 py-3 text-[var(--cosci-danger-fg)]';
+  'cosci-report-alert mx-8 mt-4 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg';
 
 const REPORT_TOAST_CLASSES =
-  'cosci-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-[var(--cosci-danger-border)] bg-[var(--cosci-danger-bg)] px-4 py-3 text-[var(--cosci-danger-fg)]';
+  'reference-report-toast fixed right-4 bottom-4 z-50 rounded-xl border border-cosci-danger-border bg-cosci-danger-bg px-4 py-3 text-cosci-danger-fg';
 
 const REPORT_SKELETON_CLASSES =
   'cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 max-[720px]:mt-5 max-[720px]:mb-12 max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
 
 const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0';
+
+const REPORT_LEAD_STAT_CLASSES =
+  'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';
+
+const HOUR_SECONDS = 3600;
+const MINUTE_SECONDS = 60;
 
 const TAB_ALIASES: Record<string, TabName> = {
   specifications: 'details',
@@ -107,7 +110,7 @@ const TAB_ALIASES: Record<string, TabName> = {
 };
 
 /**
- * Renders the AI Co-Scientist goal report surface from the reference footage.
+ * Renders the Co-Scientist goal report surface from the reference footage.
  */
 export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
@@ -119,7 +122,6 @@ export function RunDetail() {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
-  const [citations, setCitations] = useState<CitationRow[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -133,13 +135,12 @@ export function RunDetail() {
   const refresh = useCallback(async () => {
     if (!id) return;
     try {
-      const [r, h, e, m, rv, c, rep] = await Promise.all([
+      const [r, h, e, m, rv, rep] = await Promise.all([
         getRun(id),
         getHypotheses(id),
         getEvidence(id),
         getMatches(id),
         getReviews(id),
-        getCitations(id),
         getReport(id),
       ]);
       setRun(r);
@@ -147,7 +148,6 @@ export function RunDetail() {
       setEvidence(e);
       setMatches(m);
       setReviews(rv);
-      setCitations(c);
       setReport(rep);
       setLoaded(true);
       setError(null);
@@ -194,9 +194,16 @@ export function RunDetail() {
     }
   }, [terminal, run]);
 
+  // Full display title (curated domain override, else the goal). Shared by the
+  // shell-header dispatch and the titlebar; each host truncates to its own
+  // available width via TruncatedLabel rather than being pre-shortened.
   const title = useMemo(() => {
     if (!run) return 'Goal report';
-    return goalReportTitle(run.research_goal, run.config.setup);
+    return (
+      domainTitleOverride(run.research_goal) ??
+      run.config.setup?.goal ??
+      run.research_goal
+    );
   }, [run]);
 
   useEffect(() => {
@@ -211,22 +218,12 @@ export function RunDetail() {
   const onTabChange = useCallback(
     (nextTab: TabName) => {
       if (!id) return;
-      void navigate(`/runs/${id}${nextTab === 'details' ? '' : `/${nextTab}`}`);
+      // Always include the tab (details included) so every tab is the same
+      // required-param route — switching tabs never remounts RunDetail.
+      void navigate(`/runs/${id}/${nextTab}`);
     },
     [id, navigate],
   );
-
-  const onSessionDetails = useCallback(() => {
-    if (!id) return;
-    if (activeTab !== 'details') {
-      void navigate(`/runs/${id}`);
-      return;
-    }
-    document.querySelector('.cosci-report-scroll')?.scrollTo({
-      top: 0,
-      behavior: 'smooth',
-    });
-  }, [activeTab, id, navigate]);
 
   if (!id) return null;
 
@@ -239,15 +236,13 @@ export function RunDetail() {
           <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
             <Icon aria-hidden="true" name="arrow_back" />
           </Link>
-          <h1 className={REPORT_TITLE_CLASSES}>{title}</h1>
+          <h1 className={REPORT_TITLE_CLASSES}>
+            <TruncatedLabel
+              className={REPORT_TITLE_TEXT_CLASSES}
+              text={title}
+            />
+          </h1>
         </div>
-        <button
-          type="button"
-          className={SESSION_DETAILS_CLASSES}
-          onClick={onSessionDetails}
-        >
-          Session details
-        </button>
       </header>
 
       <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
@@ -290,6 +285,7 @@ export function RunDetail() {
           )}
           {activeTab === 'overview' && (
             <ResearchOverviewView
+              run={run}
               report={report}
               hypotheses={hypotheses}
               matches={matches}
@@ -299,7 +295,6 @@ export function RunDetail() {
             <section className={ALL_IDEAS_CLASSES}>
               <IdeasTab
                 hypotheses={hypotheses}
-                citations={citations}
                 reviews={reviews}
                 matches={matches}
               />
@@ -328,7 +323,7 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
       title="Research goal details"
       className="cosci-goal-details"
     >
-      <h3 className={REPORT_H3_CLASSES}>{goalReportTitle(goal, setup)}</h3>
+      <h3 className={REPORT_H3_CLASSES}>{domainTitleOverride(goal) ?? goal}</h3>
       <p>
         <strong>Goal:</strong> {goal}
       </p>
@@ -340,19 +335,29 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
 }
 
 function ResearchOverviewView({
+  run,
   report,
   hypotheses,
   matches,
 }: {
+  run: RunWithSummary | null;
   report: Report | null;
   hypotheses: Hypothesis[];
   matches: MatchRow[];
 }) {
   const overview = report?.payload.research_overview;
   const leaderboard = report?.payload.leaderboard ?? [];
+  const leadStat = researchOverviewLeadStat({
+    run,
+    leaderboard,
+    hypotheses,
+    matches,
+  });
 
   return (
     <ReportDocument title="Research overview">
+      {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
+
       {overview?.overview?.summary ? (
         <p>{overview.overview.summary}</p>
       ) : (
@@ -402,7 +407,7 @@ function ResearchOverviewView({
 
       {leaderboard.length ? (
         <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Top ideas</h3>
+          <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
           <ol className={REPORT_LIST_CLASSES}>
             {leaderboard.slice(0, 5).map(item => (
               <li className={REPORT_SECTION_LIST_ITEM_CLASSES} key={item.id}>
@@ -416,7 +421,7 @@ function ResearchOverviewView({
         </section>
       ) : hypotheses.length ? (
         <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Top ideas</h3>
+          <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
           <ol className={REPORT_LIST_CLASSES}>
             {[...hypotheses]
               .sort((a, b) => b.elo_rating - a.elo_rating)
@@ -448,11 +453,71 @@ function ResearchOverviewView({
   );
 }
 
-function goalReportTitle(goal: string, setup?: RunSetupConfig): string {
+/**
+ * Builds the reference's lead stat sentence, e.g. "A total of 133 ideas were
+ * explored over 3 hours with the highest Elo rating of 1735 points and a total
+ * of 1360 matches were played." Clauses whose data is unknown are omitted, and
+ * an empty string is returned when there is nothing meaningful to report yet.
+ */
+function researchOverviewLeadStat({
+  run,
+  leaderboard,
+  hypotheses,
+  matches,
+}: {
+  run: RunWithSummary | null;
+  leaderboard: {elo: number}[];
+  hypotheses: Hypothesis[];
+  matches: MatchRow[];
+}): string {
+  const ideaCount = hypotheses.length;
+  if (!ideaCount) return '';
+
+  const duration = runDurationPhrase(run);
+  const highestElo = Math.max(
+    0,
+    ...leaderboard.map(item => item.elo),
+    ...hypotheses.map(hypothesis => hypothesis.elo_rating),
+  );
+  const matchCount = matches.length;
+
+  const ideaLabel = ideaCount === 1 ? 'idea was' : 'ideas were';
+  let sentence = `A total of ${ideaCount} ${ideaLabel} explored`;
+  if (duration) sentence += ` over ${duration}`;
+  if (highestElo > 0) {
+    sentence += ` with the highest Elo rating of ${highestElo} points`;
+  }
+  if (matchCount > 0) {
+    const matchLabel = matchCount === 1 ? 'match was' : 'matches were';
+    sentence += ` and a total of ${matchCount} ${matchLabel} played`;
+  }
+  return `${sentence}.`;
+}
+
+/**
+ * Formats a run's wall-clock duration (creation to completion) as a rounded
+ * human phrase, e.g. "3 hours" or "12 minutes". Returns an empty string when
+ * the run has not completed or the timestamps are unusable.
+ */
+function runDurationPhrase(run: RunWithSummary | null): string {
+  if (!run?.completed_at || !run.created_at) return '';
+  const seconds = run.completed_at - run.created_at;
+  if (!Number.isFinite(seconds) || seconds <= 0) return '';
+
+  if (seconds >= HOUR_SECONDS) {
+    const hours = Math.round(seconds / HOUR_SECONDS);
+    return `${hours} hour${hours === 1 ? '' : 's'}`;
+  }
+  const minutes = Math.max(1, Math.round(seconds / MINUTE_SECONDS));
+  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
+
+/** Curated display title for known domains, or null to fall back to the goal. */
+function domainTitleOverride(goal: string): string | null {
   if (/MASH|MASLD|liver fibrosis/i.test(goal)) {
     return 'Epigenetic and stromal reversal strategies for MASH-associated liver fibrosis';
   }
-  return conciseTitle(setup?.goal ?? goal);
+  return null;
 }
 
 function RunToast({toast}: {toast: {type: 'info' | 'error'; message: string}}) {

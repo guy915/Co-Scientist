@@ -1,8 +1,10 @@
+import {Fragment} from 'react';
 import {Link} from 'react-router-dom';
 import {type Hypothesis, isActiveStatus, type Run} from '@/api/runs';
-import {Icon} from '@/components/icon';
+import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
+import {TruncatedLabel} from '../components/truncated_label';
 import {
   HOME_LOAD_MORE_BUTTON_CLASSES,
   HOME_LOAD_MORE_ITEM_CLASSES,
@@ -51,17 +53,18 @@ const RECENT_CHIP_CLASSES = 'reference-recent-chip';
 
 const RECENT_CHIP_ICON_CLASSES = 'reference-recent-chip-icon';
 
-const ACTIVE_PROGRESS_CLASSES = 'reference-active-progress';
-
-const ACTIVE_PROGRESS_DOT_CLASSES = 'reference-active-progress-dot';
-
 const WINNER_LIST_CLASSES = 'reference-winner-list';
 
 const WINNER_LIST_ITEM_CLASSES = 'reference-winner-list-item';
 
-const GENERATING_ROW_CLASSES = 'reference-generating-row';
-
-const GENERATING_DOT_CLASSES = 'reference-generating-dot';
+// The four progress steps of a live run, mirroring the reference's session
+// loading flow (glyph, label, and the stage boundaries it advances through).
+const RUN_STEPS: {icon: IconName; label: string}[] = [
+  {icon: 'summarize', label: 'Exploring focus areas'},
+  {icon: 'rate_review', label: 'Generating hypotheses'},
+  {icon: 'reviews', label: 'Reviewing hypotheses'},
+  {icon: 'chess', label: 'Playing tournament'},
+];
 
 export function topEloFromHypotheses(hypotheses: Hypothesis[]): number {
   const ratings = hypotheses
@@ -164,51 +167,102 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         <strong className={RECENT_TITLE_CLASSES}>
           {conciseTitle(run.research_goal)}
         </strong>
-        <span className={RECENT_DESCRIPTION_CLASSES}>{run.research_goal}</span>
+        <TruncatedLabel
+          className={RECENT_DESCRIPTION_CLASSES}
+          text={run.research_goal}
+          lines={4}
+        />
         {isActiveRun ? (
-          <div className={ACTIVE_PROGRESS_CLASSES}>
-            <span aria-hidden="true" className={ACTIVE_PROGRESS_DOT_CLASSES} />
-            <span>In Progress: {homeRunProgress(run)}%</span>
-          </div>
+          <RunStepFlow activeIndex={homeRunStepIndex(run)} />
         ) : (
-          <span className={RECENT_CHIPS_CLASSES}>
-            <span className={RECENT_CHIP_CLASSES}>
-              <Icon
-                aria-hidden="true"
-                className={RECENT_CHIP_ICON_CLASSES}
-                name="emoji_events"
-              />
-              Winning ideas
-            </span>
-            {topScore !== null && (
+          <>
+            <span className={RECENT_CHIPS_CLASSES}>
               <span className={RECENT_CHIP_CLASSES}>
                 <Icon
                   aria-hidden="true"
                   className={RECENT_CHIP_ICON_CLASSES}
-                  name="stars"
+                  name="emoji_events"
                 />
-                Top score: {topScore}
+                Winning ideas
               </span>
-            )}
-          </span>
+              {topScore !== null && (
+                <span className={RECENT_CHIP_CLASSES}>
+                  <Icon
+                    aria-hidden="true"
+                    className={RECENT_CHIP_ICON_CLASSES}
+                    name="stars"
+                  />
+                  Top score: {topScore}
+                </span>
+              )}
+            </span>
+            <ol className={WINNER_LIST_CLASSES}>
+              {topIdeas.map((idea, index) => (
+                <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
+                  <span>{index + 1}.</span>
+                  <span>{idea}</span>
+                </li>
+              ))}
+            </ol>
+          </>
         )}
-        <ol className={WINNER_LIST_CLASSES}>
-          {isActiveRun ? (
-            <li className={GENERATING_ROW_CLASSES}>
-              <span aria-hidden="true" className={GENERATING_DOT_CLASSES} />
-              <span>Generating hypotheses</span>
-            </li>
-          ) : (
-            topIdeas.map((idea, index) => (
-              <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
-                <span>{index + 1}.</span>
-                <span>{idea}</span>
-              </li>
-            ))
-          )}
-        </ol>
       </Link>
     </li>
+  );
+}
+
+/**
+ * Renders the reference's live "session loading" flow: a "Step X of N" chip
+ * over the four run steps, each with its glyph, a green check once done, and an
+ * indeterminate spinner on the one currently in progress.
+ *
+ * @param activeIndex The 1-based index of the step currently running.
+ */
+function RunStepFlow({activeIndex}: {activeIndex: number}) {
+  return (
+    <div className="reference-run-steps">
+      <span className="reference-run-step-chip">
+        Step {activeIndex} of {RUN_STEPS.length}
+      </span>
+      <div className="reference-run-step-list">
+        {RUN_STEPS.map((step, index) => {
+          const stepNumber = index + 1;
+          const done = stepNumber < activeIndex;
+          const active = stepNumber === activeIndex;
+          return (
+            <Fragment key={step.label}>
+              <div className="reference-run-step">
+                <Icon
+                  aria-hidden="true"
+                  className="reference-run-step-icon"
+                  name={step.icon}
+                />
+                <span className="reference-run-step-label">{step.label}</span>
+                {done && (
+                  <Icon
+                    aria-hidden="true"
+                    className="reference-run-step-done"
+                    name="check"
+                  />
+                )}
+                {active && (
+                  <span
+                    aria-hidden="true"
+                    className="reference-run-step-spinner"
+                  />
+                )}
+              </div>
+              {index < RUN_STEPS.length - 1 && (
+                <div
+                  aria-hidden="true"
+                  className="reference-run-step-delimiter"
+                />
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -276,19 +330,26 @@ function homeRunScore(
     : null;
 }
 
-function homeRunProgress(run: Run): number {
-  if (run.status === 'completed') return 100;
+/**
+ * Derives the 1-based active step (1-4) for a live run. The run summary carries
+ * no fine-grained stage, so this mirrors the existing progress heuristic:
+ * `queued` sits on Exploring, `synthesizing` on the final Tournament step, and
+ * `running` advances Generating -> Reviewing -> Tournament by elapsed minutes so
+ * the flow visibly moves without a backend stage signal.
+ *
+ * @param run The active run.
+ * @returns The active step index in the range 1-4.
+ */
+function homeRunStepIndex(run: Run): number {
+  if (run.status === 'queued') return 1;
+  if (run.status === 'synthesizing') return 4;
   const elapsedMinutes = Math.max(
     0,
-    Math.round(((run.updated_at || Date.now() / 1000) - run.created_at) / 60),
+    ((run.updated_at || Date.now() / 1000) - run.created_at) / 60,
   );
-  if (run.status === 'queued') {
-    return Math.max(8, Math.min(18, 8 + elapsedMinutes));
-  }
-  if (run.status === 'synthesizing') {
-    return Math.max(72, Math.min(94, 72 + elapsedMinutes * 2));
-  }
-  return Math.max(18, Math.min(86, 18 + elapsedMinutes * 3));
+  if (elapsedMinutes < 1) return 2;
+  if (elapsedMinutes < 2) return 3;
+  return 4;
 }
 
 function isActiveHomeRun(run: Run): boolean {

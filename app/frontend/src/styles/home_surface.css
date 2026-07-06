@@ -1,5 +1,5 @@
 /* Home workspace layout and responsive states. */
-.cosci-workspace {
+.reference-workspace {
   display: grid;
   height: 100%;
   min-height: 100%;
@@ -7,12 +7,51 @@
   gap: 1rem;
 }
 
-.cosci-workspace-main {
+.reference-workspace-main {
+  position: relative;
   display: flex;
   height: 100%;
   min-height: 0;
   min-width: 0;
   flex-direction: column;
+}
+
+/* The chat timeline scrolls under the overlaid composer. Reserve the scrollbar
+   gutter on both edges so its centered column stays symmetric (and thus aligned
+   with the full-width composer's column) regardless of the scrollbar, and let
+   its bottom padding track the composer's measured height so the last item
+   always clears the composer at max scroll. */
+.reference-chat-timeline {
+  scrollbar-gutter: stable both-edges;
+  padding-bottom: var(--chat-composer-h, 12rem);
+}
+
+/* Chat composer overlays the scrolling timeline (matching the reference): it is
+   pinned to the bottom with a gradient that fades the surface bg upward, so
+   content scrolls UNDER it with no gap and a soft shadow-overlay edge instead
+   of sitting in a separate row below a gap. The transparent fade zone stays
+   click-through; only the composer itself is interactive. */
+.reference-chat-composer {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  padding-top: 2.75rem;
+  background: linear-gradient(
+    to top,
+    var(--cosci-surface-bg) 62%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.reference-chat-composer > * {
+  pointer-events: auto;
+}
+
+/* The composer's default top margin is for the home layout; the overlay owns
+   its own top spacing via the fade zone. */
+.reference-chat-composer .reference-composer {
+  margin-top: 0;
 }
 
 .reference-home-stage {
@@ -28,18 +67,42 @@
 }
 
 .reference-home-main {
+  position: relative;
+  z-index: 0;
   display: grid;
   align-content: start;
   padding-top: clamp(2.4rem, 7vh, 3.5rem);
 }
 
+/* Entrance animation copied from the reference: content fades up 16px over
+   0.3s. Gated on no-preference so reduced-motion users get an instant paint. */
+@keyframes reference-fade-in {
+  0% {
+    opacity: 0;
+    translate: 0 16px;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reference-home-main,
+  .reference-recents-panel {
+    animation: reference-fade-in 0.3s ease-in-out 0s forwards;
+  }
+}
+
 .reference-home-title {
-  width: min(100%, 39rem);
-  margin-inline: auto;
+  width: min(100%, 34.375rem);
+  margin: 0 auto 0.5rem;
   color: var(--cosci-home-heading);
-  font-size: clamp(2.75rem, 4.2vw, 3.2rem);
+  font-family: "Google Sans", system-ui, sans-serif;
+  font-size: clamp(2.25rem, 3.4vw, 2.8125rem);
   font-weight: 400;
-  line-height: 1.13;
+  line-height: 1.156;
   text-align: center;
 }
 
@@ -74,26 +137,27 @@
   max-width: 16rem;
   margin-top: 0.25rem;
   color: var(--cosci-step-text);
-  font-size: 0.96rem;
-  line-height: 1.35;
+  font-size: 0.875rem;
+  line-height: 1.43;
 }
 
 .reference-step-number {
   display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 1.875rem;
+  height: 1.875rem;
   place-items: center;
   border-radius: 9999px;
   background: var(--cosci-step-dot-bg);
   color: var(--cosci-step-dot-text);
-  font-size: 0.95rem;
-  font-weight: 600;
+  font-size: 1rem;
+  font-weight: 400;
+  transition: background-color 0.3s ease-in-out;
 }
 
 .reference-step-heading {
   margin: 0;
   color: var(--cosci-step-heading);
-  font-size: 0.92rem;
+  font-size: 0.875rem;
   font-weight: 400;
 }
 
@@ -124,15 +188,24 @@
   cursor: pointer;
   line-height: 1.35;
   outline: 0;
-  padding: 0.9rem 1rem;
+  padding: 0.75rem;
   text-align: left;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease;
 }
 
 .reference-suggestion-button:hover,
 .reference-suggestion-button:focus-visible,
 .reference-suggestion-button.is-previewed {
   border-color: var(--cosci-suggestion-hover-border);
-  background: var(--cosci-suggestion-active-bg);
+  background: var(--cosci-suggestion-hover-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-suggestion-button {
+    transition: none;
+  }
 }
 
 .reference-suggestion-preview {
@@ -142,22 +215,22 @@
   display: -webkit-box;
   visibility: hidden;
   width: max-content;
-  max-width: min(42rem, calc(100vw - 7rem));
+  /* Wide enough for the longest suggestion to sit on a single line; it only
+     wraps when the viewport itself is narrower. text-wrap: pretty then keeps
+     the last line from collapsing to a lonely orphan word. */
+  max-width: min(46rem, calc(100vw - 7rem));
   margin: 0;
   overflow: hidden;
-  color: #3c4043;
+  color: var(--cosci-shell-icon);
   font-size: 0.84rem;
   font-weight: 400;
   line-height: 1.25rem;
+  text-wrap: pretty;
   opacity: 0;
   pointer-events: none;
   transform: translateY(0.2rem);
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
-}
-
-:root[data-theme="dark"] .reference-suggestion-preview {
-  color: #e8eaed;
 }
 
 .reference-suggestion-preview.visible {
@@ -194,6 +267,12 @@
   -webkit-line-clamp: 2;
 }
 
+/* Composer chrome shadow lives on a token because the reference only casts
+   it in light mode (dark zeroes it). */
+.reference-composer {
+  box-shadow: var(--cosci-composer-shadow);
+}
+
 .reference-recents-panel {
   display: grid;
   min-height: 0;
@@ -212,9 +291,19 @@
   overflow-y: auto;
   padding: 0 0.6rem 0 0;
   list-style: none;
+  /* Soften the scroll-viewport bottom edge so the last visible card fades out
+     instead of hard-cutting (mirrors the composer's fade over the timeline).
+     A mask is scroll-aware and background-agnostic, so it works in both
+     themes without matching a surface token. */
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.25rem), transparent);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 2.25rem),
+    transparent
+  );
 }
 
-.google-recents-heading {
+.reference-recents-heading {
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -260,28 +349,19 @@
   place-items: center;
   align-content: center;
   gap: 1rem;
-  border: 1.5px dashed #c7c9cc;
+  border: 1.5px dashed var(--cosci-border);
   border-radius: 1.35rem;
   background: transparent;
-  color: #5f6368;
+  color: var(--cosci-muted);
   padding: 1.5rem;
   text-align: center;
-}
-
-:root[data-theme="dark"] .reference-recents-empty-state {
-  border-color: #53565a;
-  color: #bdc1c6;
 }
 
 .reference-recents-empty-icon {
   display: block;
   width: 2.1rem;
   height: 1.95rem;
-  color: var(--cosci-teal);
-}
-
-:root[data-theme="dark"] .reference-recents-empty-icon {
-  color: #7fd7bf;
+  color: var(--cosci-logo-color);
 }
 
 .reference-recents-empty-copy {
@@ -299,39 +379,25 @@
   align-content: start;
   gap: 0.7rem;
   border: 1px solid var(--cosci-recent-card-border);
-  border-radius: 0.8rem;
+  border-radius: 0.75rem;
   background: var(--cosci-recent-card-bg);
   color: var(--cosci-recent-card-text);
   cursor: pointer;
-  padding: 1.05rem 1.2rem;
+  padding: 1rem;
   text-align: left;
   text-decoration: none;
   box-shadow:
-    0 1px 3px rgb(60 64 67 / 12%),
-    0 6px 14px -2px rgb(60 64 67 / 8%);
-  transition:
-    box-shadow 160ms cubic-bezier(0.2, 0, 0, 1),
-    border-color 160ms cubic-bezier(0.2, 0, 0, 1);
+    0 1px 2px rgb(0 0 0 / 15%),
+    0 2px 10px rgb(0 0 0 / 10%);
+  transition: background-color 160ms cubic-bezier(0.2, 0, 0, 1);
 }
 
+/* Reference hover: fill shifts to surface-container-low; the elevation shadow
+   stays constant (and identical in both themes — the dark .card rule only
+   swaps the fill, never the shadow). */
 .reference-recent-card:hover,
 .reference-recent-card:focus-visible {
-  box-shadow:
-    0 1px 3px rgb(60 64 67 / 16%),
-    0 10px 22px -4px rgb(60 64 67 / 12%);
-}
-
-:root[data-theme="dark"] .reference-recent-card {
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 44%),
-    0 6px 14px -2px rgb(0 0 0 / 34%);
-}
-
-:root[data-theme="dark"] .reference-recent-card:hover,
-:root[data-theme="dark"] .reference-recent-card:focus-visible {
-  box-shadow:
-    0 1px 3px rgb(0 0 0 / 50%),
-    0 10px 22px -4px rgb(0 0 0 / 42%);
+  background: var(--cosci-recent-card-hover-bg);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -347,17 +413,19 @@
 }
 
 .reference-recent-meta-chip {
-  border-radius: 0.35rem;
+  border-radius: 0.3125rem;
   background: var(--cosci-recent-meta-bg);
   color: var(--cosci-recent-meta-text);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.32rem 0.48rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 0.25rem 0.5rem;
 }
 
 .reference-recent-title {
-  font-size: 1.02rem;
-  line-height: 1.35;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.5;
 }
 
 .reference-recent-description {
@@ -381,12 +449,13 @@
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  border-radius: 0.35rem;
+  border-radius: 0.3125rem;
   background: var(--cosci-recent-chip-bg);
   color: var(--cosci-recent-chip-text);
-  font-size: 0.75rem;
-  font-weight: 600;
-  padding: 0.32rem 0.48rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 0.25rem 0.5rem;
 }
 
 .reference-recent-chip-icon {
@@ -400,9 +469,96 @@
   margin: 0.15rem 0 0;
   padding: 0;
   color: var(--cosci-recent-card-text);
-  font-size: 0.78rem;
-  line-height: 1.35;
+  font-size: 0.75rem;
+  letter-spacing: 0.1px;
+  line-height: 1.33;
   list-style: none;
+}
+
+/* Live-run "session loading" flow (reference: Step X of N + the four run
+   steps). Present at every width — the run card renders it in the recents rail
+   while a run is active. */
+.reference-run-steps {
+  display: grid;
+  gap: 0.7rem;
+  margin-top: 0.1rem;
+}
+
+.reference-run-step-chip {
+  justify-self: start;
+  border-radius: 0.3125rem;
+  background: var(--cosci-recent-meta-bg);
+  color: var(--cosci-recent-meta-text);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  padding: 0.25rem 0.5rem;
+}
+
+.reference-run-step-list {
+  display: grid;
+}
+
+.reference-run-step {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--cosci-recent-card-text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.reference-run-step-icon {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+  color: var(--cosci-recent-card-copy);
+}
+
+.reference-run-step-label {
+  min-width: 0;
+}
+
+.reference-run-step-done {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  color: #1e8e3e;
+}
+
+:root[data-theme="dark"] .reference-run-step-done {
+  color: var(--cosci-green);
+}
+
+.reference-run-step-spinner {
+  width: 1.05rem;
+  height: 1.05rem;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  border: 2px solid
+    color-mix(in srgb, var(--color-th-primary) 28%, transparent);
+  border-top-color: var(--color-th-primary);
+  animation: reference-run-step-spin 0.8s linear infinite;
+}
+
+@keyframes reference-run-step-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reference-run-step-spinner {
+    animation: none;
+  }
+}
+
+/* 1px connector between steps, inset to sit under the 1.25rem icon's center. */
+.reference-run-step-delimiter {
+  height: 0.75rem;
+  margin: 0.2rem 0 0.2rem 0.625rem;
+  border-inline-start: 1px solid var(--cosci-border);
 }
 
 .reference-load-more-item {
@@ -415,7 +571,7 @@
   justify-self: center;
   border: 0;
   background: transparent;
-  color: var(--idea-ref-blue);
+  color: var(--cosci-idea-ref-blue);
   font: inherit;
   font-size: 0.9rem;
   font-weight: 500;
@@ -433,10 +589,10 @@
 
 @media (min-width: 1181px) {
   .reference-home-stage {
-    --home-recents-width: clamp(20.75rem, 20vw, 22rem);
+    --home-recents-width: clamp(19rem, 18vw, 20.5rem);
 
     align-items: start;
-    grid-template-columns: minmax(0, 1fr) minmax(20.75rem, var(--home-recents-width));
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, var(--home-recents-width));
     justify-content: stretch;
     gap: clamp(2.25rem, 3.1vw, 3.35rem);
     padding-block: 0;
@@ -455,8 +611,8 @@
 
   .reference-home-title {
     width: min(100%, 43.5rem);
-    font-size: clamp(2.35rem, 3vw, 3rem);
-    line-height: 1.14;
+    font-size: clamp(2.35rem, 3vw, 2.8125rem);
+    line-height: 1.156;
   }
 
   .reference-step-timeline {
@@ -479,10 +635,17 @@
 
   .reference-recents-panel {
     width: 100%;
+    /* Full-height column (like the main column) with the list on a flexible
+       row, and the SAME bottom padding as .reference-home-main, so the recents
+       list bottom lines up with the composer bottom instead of being pinned to
+       a viewport-relative max-height. */
+    height: 100%;
     max-height: calc(100vh - 4.5rem);
+    grid-template-rows: auto minmax(0, 1fr);
     justify-self: end;
     overflow: visible;
     padding-top: clamp(0.35rem, 1vh, 0.75rem);
+    padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
   }
 
   .reference-recents.reference-recents-panel {
@@ -490,9 +653,17 @@
   }
 
   .reference-recents-list {
-    max-height: calc(100vh - 10.1rem);
-    padding: 0.55rem 1.2rem 2.15rem 0.55rem;
-    scroll-padding: 0.55rem 1.2rem 2.15rem 0.55rem;
+    /* Fill the panel's flexible row (min-height:0 from base enables scrolling)
+       so the list ends at the panel's bottom padding — level with the composer
+       — rather than at a viewport-relative cap. */
+    max-height: none;
+    /* Symmetric horizontal padding: the old asymmetric 1.2rem right inset was
+       sized for a wider column and, together with the vertical scrollbar,
+       pushed the cards a few px past the viewport (a grid/scrollbar rounding
+       mismatch) once the column was narrowed — surfacing as a horizontal
+       scrollbar. Equal insets leave slack for the scrollbar on both sides. */
+    padding: 0.55rem 0.55rem 2.15rem 0.55rem;
+    scroll-padding: 0.55rem 0.55rem 2.15rem 0.55rem;
   }
 
   .reference-recents .reference-recents-list {
@@ -505,50 +676,34 @@
   }
 
   .reference-recents-heading-title {
-    font-size: 1.22rem;
+    font-size: 1rem;
     font-weight: 500;
-    line-height: 1.2;
+    line-height: 1.5;
   }
 
   .reference-recent-card {
     min-height: 0;
-    border-color: #eef1f4;
-    border-radius: 1rem;
-    padding: 1.05rem 1.15rem 1.12rem;
+    border-color: transparent;
+    border-radius: 0.75rem;
+    padding: 1rem;
   }
 
   .reference-recent-card:hover,
   .reference-recent-card:focus-visible {
-    border-color: #dadce0;
-    background: #f8fafd;
-  }
-
-  :root[data-theme="dark"] .reference-recent-card {
     border-color: transparent;
-    background: #17191c;
-  }
-
-  :root[data-theme="dark"] .reference-recent-card:hover,
-  :root[data-theme="dark"] .reference-recent-card:focus-visible {
-    border-color: #3c4043;
-    background: #202124;
+    background: var(--cosci-recent-card-hover-bg);
   }
 
   .reference-recent-meta-chip {
-    background: #f1f4f7;
-    color: #3c4043;
-    font-size: 0.78rem;
-    line-height: 1.1;
-    padding: 0.38rem 0.62rem;
-  }
-
-  :root[data-theme="dark"] .reference-recent-meta-chip {
-    background: #303335;
-    color: #f1f3f4;
+    background: var(--cosci-recent-meta-bg);
+    color: var(--cosci-recent-meta-text);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    padding: 0.25rem 0.5rem;
   }
 
   .reference-recent-title {
-    font-size: 1.08rem;
+    font-size: 1rem;
   }
 
   .reference-recent-description {
@@ -560,50 +715,18 @@
   .reference-recent-chip {
     flex: none;
     min-height: 1.62rem;
-    padding: 0.26rem 0.42rem;
-    font-size: 0.68rem;
-    line-height: 1;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.6875rem;
+    line-height: 1.45;
     white-space: nowrap;
-  }
-
-  :root[data-theme="dark"] .reference-recent-chip {
-    background: #0b8043;
-    color: #e6f4ea;
-  }
-
-  .reference-active-progress {
-    display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    margin-top: 0.05rem;
-    color: #1967d2;
-    font-size: 0.92rem;
-    font-weight: 500;
-    line-height: 1.25;
-  }
-
-  :root[data-theme="dark"] .reference-active-progress {
-    color: #8fd8c7;
-  }
-
-  .reference-active-progress-dot {
-    display: block;
-    width: 0.7rem;
-    height: 0.7rem;
-    flex-shrink: 0;
-    border-radius: 9999px;
-    background: currentColor;
   }
 
   .reference-winner-list {
     gap: 0.5rem;
-    color: #202124;
-    font-size: 0.84rem;
-    line-height: 1.25;
-  }
-
-  :root[data-theme="dark"] .reference-winner-list {
-    color: #f1f3f4;
+    color: var(--cosci-recent-card-text);
+    font-size: 0.75rem;
+    letter-spacing: 0.1px;
+    line-height: 1.33;
   }
 
   .reference-winner-list-item {
@@ -612,28 +735,6 @@
     gap: 0.2rem;
   }
 
-  .reference-generating-row {
-    display: grid;
-    grid-template-columns: 0.75rem minmax(0, 1fr);
-    align-items: center;
-    gap: 0.65rem;
-    color: #137333;
-    font-weight: 500;
-  }
-
-  :root[data-theme="dark"] .reference-generating-row {
-    color: #8fd8c7;
-  }
-
-  .reference-generating-dot {
-    display: block;
-    width: 0.6rem;
-    height: 0.6rem;
-    flex-shrink: 0;
-    border-radius: 9999px;
-    background: currentColor;
-    opacity: 0.7;
-  }
 }
 
 @media (min-width: 701px) {
@@ -683,8 +784,8 @@
 }
 
 @media (max-width: 700px) {
-  .cosci-workspace,
-  .cosci-workspace-main,
+  .reference-workspace,
+  .reference-workspace-main,
   .reference-home-stage {
     height: auto;
     min-height: 100%;
@@ -783,8 +884,6 @@
   }
 
   .reference-home-composer-textarea {
-    height: 2.65rem;
     min-height: 2.65rem;
-    max-height: 2.65rem;
   }
 }

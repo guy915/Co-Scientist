@@ -33,7 +33,7 @@ const REFERENCE_LIST_INDEX_CLASSES = 'text-cosci-muted';
 const REFERENCE_LIST_TITLE_CLASSES = 'font-medium leading-[1.35]';
 
 const REFERENCE_LIST_LINK_CLASSES =
-  'inline-flex items-center gap-[0.35rem] text-[0.78rem] text-cosci-blue no-underline max-[720px]:col-start-2 max-[720px]:w-fit';
+  'reference-open-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-reference-open-border bg-transparent px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg no-underline transition-colors hover:border-cosci-reference-open-hover-border hover:bg-cosci-reference-open-hover-bg max-[720px]:col-start-2 max-[720px]:w-fit';
 
 const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 

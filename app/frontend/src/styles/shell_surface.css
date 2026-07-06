@@ -1,5 +1,5 @@
 /* Workbench shell, sidebar, header, and shell popovers. */
-.google-app-shell {
+.ucs-app-shell {
   display: grid;
   min-height: 100vh;
   background: var(--cosci-rail);
@@ -7,7 +7,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .google-app-shell {
+  .ucs-app-shell {
     transition: none;
   }
 }
@@ -169,6 +169,10 @@
 }
 
 .nav-label--collapsed {
+  /* Fully out of flow when collapsed. visibility:hidden alone kept the label
+     occupying a second grid row in the icon-only button, which pushed the icon
+     up off-center and made it jump vertically on toggle. */
+  display: none;
   width: 0;
   max-width: 0;
   overflow: hidden;
@@ -181,7 +185,7 @@
   top: 0;
   z-index: 20;
   display: flex;
-  min-height: 4.5rem;
+  min-height: 4rem;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
@@ -198,8 +202,10 @@
   background: transparent;
   color: var(--cosci-home-heading);
   cursor: pointer;
-  font-size: 1.375rem;
+  font-family: "Google Sans", system-ui, sans-serif;
+  font-size: 1.25rem;
   font-weight: 500;
+  letter-spacing: -0.6px;
   padding: 0;
   text-decoration: none;
 }
@@ -219,14 +225,16 @@
 .ucs-header-title {
   position: absolute;
   left: 50%;
-  color: #202124;
+  /* Grow with the content up to a viewport-scaled cap (kept clear of the logo
+     and Logs control), so the title uses the available space and only
+     word-truncates when it genuinely overflows — not at a fixed char count. */
+  width: max-content;
+  max-width: min(52rem, 44vw);
+  overflow: hidden;
+  color: var(--cosci-text);
   font-size: 1rem;
   font-weight: 500;
   transform: translateX(-50%);
-}
-
-:root[data-theme="dark"] .ucs-header-title {
-  color: #e8eaed;
 }
 
 .ucs-header-actions {
@@ -246,17 +254,11 @@
   display: grid;
   width: 20rem;
   gap: 0.35rem;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--cosci-menu-border);
   border-radius: 1rem;
-  background: #fff;
-  color: #202124;
+  background: var(--cosci-menu-bg);
+  color: var(--cosci-menu-text);
   padding: 0.75rem;
-}
-
-:root[data-theme="dark"] .ucs-popover {
-  border-color: #3c4043;
-  background: #202124;
-  color: #e8eaed;
 }
 
 .ucs-popover--rail {
@@ -269,21 +271,21 @@
 .ucs-settings-control {
   position: relative;
   display: grid;
-}
-
-.ucs-settings-control--open {
-  width: 100%;
-}
-
-.ucs-settings-control--collapsed {
+  /* Icon-only rail default: shrink to the button and let the centered
+     nav-bottom track keep the gear on the same gutter as the icons above it.
+     The open/collapsed width switch below only kicks in on the desktop rail
+     (>=701px), where the panel actually widens; at mobile widths the panel is
+     a fixed icon rail, so a width:100% here would left-align the gear and make
+     it jump when the nav toggles. */
   width: auto;
+  justify-items: center;
 }
 
 .ucs-theme-segment {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.3rem;
-  border: 1px solid #dadce0;
+  border: 1px solid var(--cosci-border);
   border-radius: 9999px;
   background: #f8fafd;
   padding: 0.18rem;
@@ -294,8 +296,8 @@
 }
 
 :root[data-theme="dark"] .ucs-theme-segment {
-  border-color: #3c4043;
-  background: #171717;
+  border-color: var(--cosci-border);
+  background: #1b1b1b;
 }
 
 .ucs-theme-button {
@@ -308,7 +310,7 @@
   border: 0;
   border-radius: 9999px;
   background: transparent;
-  color: #3c4043;
+  color: var(--cosci-shell-icon);
   cursor: pointer;
   font: inherit;
   font-size: 0.74rem;
@@ -317,7 +319,7 @@
 }
 
 :root[data-theme="dark"] .ucs-theme-button {
-  color: #e8eaed;
+  color: var(--cosci-muted);
 }
 
 .ucs-theme-button.selected {
@@ -326,58 +328,47 @@
 }
 
 :root[data-theme="dark"] .ucs-theme-button.selected {
-  background: #0b57d0;
-  color: #f8fbff;
+  background: #0842a0;
+  color: #d3e3fd;
 }
 
 .ucs-theme-button-icon {
   font-size: 1rem;
 }
 
-.gemini-side-content {
+/* One sidebar treatment for every route — the chat rail must look identical on
+   the home surface and inside a run (no home/report variants). */
+.ucs-side-content {
   display: grid;
   min-width: 0;
   gap: 0.35rem;
+  margin-top: 1rem;
+  max-height: 22rem;
   overflow: hidden;
   opacity: 1;
   visibility: visible;
 }
 
-.gemini-side-content--home {
-  max-height: 18rem;
-  margin-top: 0.85rem;
-}
-
-.gemini-side-content--report {
-  max-height: 20rem;
-  margin-top: 1.5rem;
-}
-
-.gemini-side-heading {
-  margin: 1rem 0 0.4rem;
-  color: #5f6368;
-  font-size: 0.78rem;
+/* "Chats" section heading: on-surface (dark in light, white in dark), matching
+   the reference's section labels. The sidebar uses a single font size (the nav
+   labels' 0.875rem); the heading is only distinguished by weight and color. Its
+   text is indented to the shared 0.75rem gutter so it lines up with the nav
+   icons and the chat item labels rather than sitting flush-left. */
+.ucs-side-heading {
+  margin: 1.15rem 0 0.55rem;
+  padding-inline: 0.75rem;
+  color: var(--cosci-text);
+  font-size: 0.875rem;
   font-weight: 500;
 }
 
-:root[data-theme="dark"] .gemini-side-heading {
-  color: var(--cosci-subtle);
-}
-
-.gemini-chat-list {
+.ucs-chat-list {
   display: grid;
   min-width: 0;
-}
-
-.gemini-chat-list--home {
   gap: 0.35rem;
 }
 
-.gemini-chat-list--report {
-  gap: 0.1rem;
-}
-
-.gemini-chat-link {
+.ucs-chat-link {
   position: relative;
   display: flex;
   min-width: 0;
@@ -385,61 +376,78 @@
   align-items: center;
   overflow: visible;
   border-radius: 9999px;
-  color: #3c4043;
-  font-size: 0.86rem;
+  color: var(--cosci-shell-icon);
+  font-size: 0.875rem;
   line-height: 2.35rem;
   padding-inline: 0.75rem;
   text-decoration: none;
 }
 
-.gemini-chat-link:hover,
-.gemini-chat-link:focus-visible {
-  background: #dfeafc;
-  color: #202124;
+.ucs-chat-link:hover,
+.ucs-chat-link:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
 }
 
-:root[data-theme="dark"] .gemini-chat-link {
+/* Active conversation: a persistent filled pill in the shell-hover tone, so the
+   chat the user is viewing stays highlighted in the rail (matches the
+   reference's selected conversation). */
+.ucs-chat-link--active,
+.ucs-chat-link--active:hover,
+.ucs-chat-link--active:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
+}
+
+:root[data-theme="dark"] .ucs-chat-link {
   color: var(--cosci-muted);
 }
 
-:root[data-theme="dark"] .gemini-chat-link:hover,
-:root[data-theme="dark"] .gemini-chat-link:focus-visible {
-  background: #303134;
-  color: var(--cosci-text);
+:root[data-theme="dark"] .ucs-chat-link:hover,
+:root[data-theme="dark"] .ucs-chat-link:focus-visible,
+:root[data-theme="dark"] .ucs-chat-link--active,
+:root[data-theme="dark"] .ucs-chat-link--active:hover,
+:root[data-theme="dark"] .ucs-chat-link--active:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
 }
 
-.gemini-chat-label {
+.ucs-chat-label {
+  /* Fill the link's width regardless of content so word-boundary truncation
+     measures against the full available width (flex-basis:0 grow), not the
+     truncated text — otherwise the label collapses to its own clipped content. */
+  flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.gemini-chat-more {
+.ucs-chat-more {
   justify-self: start;
   border: 0;
   border-radius: 9999px;
   background: transparent;
-  color: #3c4043;
+  color: var(--cosci-shell-icon);
   font: inherit;
   font-size: 0.84rem;
   padding: 0.48rem 0.75rem;
 }
 
-.gemini-chat-more:hover,
-.gemini-chat-more:focus-visible {
-  background: #dfeafc;
-  color: #202124;
+.ucs-chat-more:hover,
+.ucs-chat-more:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
 }
 
-:root[data-theme="dark"] .gemini-chat-more {
+:root[data-theme="dark"] .ucs-chat-more {
   color: var(--cosci-muted);
 }
 
-:root[data-theme="dark"] .gemini-chat-more:hover,
-:root[data-theme="dark"] .gemini-chat-more:focus-visible {
-  background: #303134;
-  color: var(--cosci-text);
+:root[data-theme="dark"] .ucs-chat-more:hover,
+:root[data-theme="dark"] .ucs-chat-more:focus-visible {
+  background: var(--cosci-shell-hover-bg);
+  color: var(--cosci-shell-hover-text);
 }
 
 @media (min-width: 1181px) {
@@ -457,12 +465,15 @@
 }
 
 @media (min-width: 701px) {
-  .google-app-shell.nav-open {
+  .ucs-app-shell.nav-open {
     grid-template-columns: 17.25rem minmax(0, 1fr);
   }
 
-  .google-app-shell.nav-collapsed {
-    grid-template-columns: 4.75rem minmax(0, 1fr);
+  .ucs-app-shell.nav-collapsed {
+    /* 4.5rem so a centered 2.5rem nav item lands its icon on the same 24px
+       gutter the open rail uses (12px panel + 12px item padding) — the nav
+       icons then don't shift when the rail collapses/expands. */
+    grid-template-columns: 4.5rem minmax(0, 1fr);
   }
 
   .ucs-nav-panel--open {
@@ -483,12 +494,38 @@
     margin-top: 0.25rem;
   }
 
+  /* Collapsed uses the SAME vertical metrics as open (top margin, gap, item
+     height) so every icon keeps its exact Y position when the rail toggles;
+     only the horizontal treatment (centered icon vs. left-aligned icon+label)
+     differs between the two states. */
+  .ucs-nav-top--collapsed,
+  .ucs-nav-items--collapsed {
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+  }
+
+  .ucs-nav-item--collapsed {
+    height: 2.45rem;
+    min-height: 2.45rem;
+  }
+
   .ucs-nav-bottom--collapsed {
     width: 100%;
     align-items: center;
     justify-items: center;
     gap: 0.74rem;
     margin-top: 0;
+  }
+
+  /* On the desktop rail the panel widens, so the settings control stretches to
+     fill it (matching the nav-items) when open and shrinks back when collapsed.
+     Mobile keeps the base icon-only width:auto so the gear never shifts. */
+  .ucs-settings-control--open {
+    width: 100%;
+  }
+
+  .ucs-settings-control--collapsed {
+    width: auto;
   }
 
   .ucs-nav-item--open {
@@ -512,14 +549,14 @@
     visibility: visible;
   }
 
-  .gemini-side-content--open {
+  .ucs-side-content--open {
     display: block;
     max-width: none;
     opacity: 1;
     visibility: visible;
   }
 
-  .gemini-side-content--collapsed {
+  .ucs-side-content--collapsed {
     display: grid;
     max-height: 0;
     margin-top: 0;
@@ -529,8 +566,8 @@
 }
 
 @media (max-width: 700px) {
-  .google-app-shell.nav-open,
-  .google-app-shell.nav-collapsed {
+  .ucs-app-shell.nav-open,
+  .ucs-app-shell.nav-collapsed {
     grid-template-columns: 4.125rem minmax(0, 1fr);
   }
 
@@ -567,7 +604,7 @@
   }
 
   .nav-label,
-  .gemini-side-content,
+  .ucs-side-content,
   .ucs-header-title,
   .ucs-header-actions {
     display: none;

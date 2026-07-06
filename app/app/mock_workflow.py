@@ -77,8 +77,24 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
         "the bottleneck enzyme",
         "the canonical signalling module",
     ]
-    angle = rng.choice(angles)
+    categories = [
+        "Regulatory feedback",
+        "Metabolic flux",
+        "Transcriptional control",
+        "Intermediate stabilization",
+        "Co-expression decoupling",
+        "Temporal restriction",
+        "Allosteric switching",
+        "Cross-pathway interference",
+    ]
+    # angles and categories are parallel lists: pick one index and use it for
+    # both so the pairing stays explicit (no value-based lookup that could
+    # mis-map if an angle were ever duplicated or reordered). randrange consumes
+    # the RNG identically to choice, so the deterministic output is unchanged.
+    angle_index = rng.randrange(len(angles))
+    angle = angles[angle_index]
     target = rng.choice(targets)
+    category = categories[angle_index]
     title = f"H{idx + 1}: {angle.capitalize()} {target}".strip()
     statement = (
         f"In the context of '{goal[:120]}', we hypothesise that {angle} {target} will "  # pylint: disable=line-too-long
@@ -95,6 +111,7 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
         "validate top hits in an orthogonal model system.")
     return {
         "title": title,
+        "category": category,
         "statement": statement,
         "mechanism": mechanism,
         "expected_effect": expected,
@@ -416,6 +433,7 @@ async def run_mock_workflow(
             run_id,
             title=h["title"],
             statement=h["statement"],
+            category=h.get("category"),
             mechanism=h["mechanism"],
             expected_effect=h["expected_effect"],
             experimental_context=h["experimental_context"],
@@ -505,6 +523,16 @@ async def run_mock_workflow(
             winner, loser, rationale = _judge(a, b)
             wb = elo_state[winner]
             lb = elo_state[loser]
+            # Deterministic decisiveness tier from the pre-match Elo gap,
+            # matching the engine's tier vocabulary (see ranking.match_tier).
+            if lb - wb >= 100:
+                tier = "upset"
+            elif abs(wb - lb) >= 60:
+                tier = "decisive"
+            elif abs(wb - lb) >= 20:
+                tier = "clear"
+            else:
+                tier = "narrow"
             wa, la = update_pair(wb, lb, k_factor=cfg["k_factor"])
             elo_state[winner] = wa
             elo_state[loser] = la
@@ -528,6 +556,7 @@ async def run_mock_workflow(
                 loser_before=lb,
                 loser_after=la,
                 rationale=rationale,
+                tier=tier,
                 db_path=db_path,
             )
             round_matches.append({
@@ -538,6 +567,7 @@ async def run_mock_workflow(
                 "loser_elo_before": lb,
                 "loser_elo_after": la,
                 "rationale": rationale,
+                "tier": tier,
             })
         yield await emit(
             "ranking",
@@ -581,6 +611,7 @@ async def run_mock_workflow(
                     run_id,
                     title=child_h["title"],
                     statement=child_h["statement"],
+                    category=parent.get("category") or child_h.get("category"),
                     mechanism=child_h["mechanism"],
                     expected_effect=child_h["expected_effect"],
                     experimental_context=child_h["experimental_context"],

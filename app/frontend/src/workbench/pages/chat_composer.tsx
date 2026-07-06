@@ -3,6 +3,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from 'react';
@@ -34,6 +35,11 @@ import {
 
 const COMPOSER_CONNECTORS = ['PubMed'];
 
+// Auto-grow caps (px) before the textarea starts scrolling: the roomier home
+// composer grows taller than the compact in-run/setup composer.
+const COMPOSER_MAX_HEIGHT = 120;
+const COMPOSER_MAX_HEIGHT_LARGE = 146;
+
 const REFERENCE_COMPOSER_ATTACHED_CLASSES =
   'has-attachments !min-h-[13.5rem] !pt-4';
 
@@ -44,14 +50,14 @@ const ATTACHMENT_STRIP_CLASSES =
 const ATTACHMENT_CARD_CLASSES =
   'reference-attachment-card group relative box-border grid h-[4.85rem] ' +
   'w-[13.75rem] flex-none items-center rounded-2xl border-0 ' +
-  'bg-[var(--cosci-attach-bg)] py-[0.85rem] pr-[3.2rem] pl-4 ' +
-  'text-[var(--cosci-attach-fg)]';
+  'bg-cosci-attach-bg py-[0.85rem] pr-[3.2rem] pl-4 ' +
+  'text-cosci-attach-fg';
 
 const ATTACHMENT_IMAGE_CARD_CLASSES =
   'reference-attachment-card reference-attachment-card--image group relative ' +
   'box-border grid size-[4.85rem] flex-none items-center overflow-hidden ' +
-  'rounded-2xl border-0 bg-[var(--cosci-attach-bg)] p-0 ' +
-  'text-[var(--cosci-attach-fg)]';
+  'rounded-2xl border-0 bg-cosci-attach-bg p-0 ' +
+  'text-cosci-attach-fg';
 
 const ATTACHMENT_PREVIEW_IMAGE_CLASSES =
   'absolute inset-0 size-full rounded-2xl object-cover';
@@ -65,7 +71,7 @@ const ATTACHMENT_NAME_CLASSES =
 
 const ATTACHMENT_META_CLASSES =
   'flex min-w-0 items-center gap-[0.55rem] text-[0.9rem] leading-[1.2] ' +
-  'text-[var(--cosci-attach-meta)]';
+  'text-cosci-attach-meta';
 
 const ATTACHMENT_EXTENSION_CLASSES =
   'reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] ' +
@@ -75,7 +81,7 @@ const ATTACHMENT_EXTENSION_CLASSES =
 const ATTACHMENT_REMOVE_BUTTON_CLASSES =
   'absolute top-[0.62rem] right-[0.62rem] grid size-[2.05rem] ' +
   'cursor-pointer place-items-center rounded-full border-0 ' +
-  'bg-[var(--cosci-surface-raised)] p-0 text-cosci-fg opacity-0 ' +
+  'bg-cosci-surface-raised p-0 text-cosci-fg opacity-0 ' +
   'group-hover:opacity-100 group-focus-within:opacity-100 ' +
   'hover:bg-cosci-hover focus-visible:bg-cosci-hover ' +
   'focus-visible:outline-none';
@@ -111,10 +117,24 @@ export function Composer({
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sourceControlsRef = useRef<HTMLDivElement>(null);
   const attachmentRef = useRef<ComposerAttachment[]>([]);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
+
+  // Grow the textarea with its content up to a cap, then let it scroll — the
+  // reference composer expands as you type before it becomes scrollable. Runs
+  // on every input change (including programmatic fills from suggestions) so the
+  // height always tracks the current value; clearing the input snaps it back to
+  // the CSS min-height floor.
+  useLayoutEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    const maxHeight = large ? COMPOSER_MAX_HEIGHT_LARGE : COMPOSER_MAX_HEIGHT;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
+  }, [input, large]);
 
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -276,12 +296,16 @@ export function Composer({
           <Icon
             aria-hidden="true"
             className={COMPOSER_LABEL_ICON_CLASSES}
-            name="shield"
+            name="encrypted"
           />
           {referenceLabel}
         </span>
         <textarea
-          rows={large ? 4 : 3}
+          ref={textareaRef}
+          // One row; the empty height comes from the textarea's min-height and
+          // growth is driven by the auto-grow effect. A larger rows value would
+          // force the empty box several lines tall.
+          rows={1}
           value={input}
           disabled={disabled}
           className={[
