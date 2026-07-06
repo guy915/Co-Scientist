@@ -41,10 +41,10 @@
      a near-white number, and a line blending the brand teal with the neutral
      outline. Unlike the reference these DO swap per theme — mint green in
      dark, matching our logo/submit accent. */
-  --cosci-step-line: color-mix(in srgb, var(--cosci-teal) 38%, #c4c7c5);
-  --cosci-step-dot-bg: #34b3a0;
+  --cosci-step-line: color-mix(in srgb, #238a84 38%, #c4c7c5);
+  --cosci-step-dot-bg: #238a84;
   --cosci-step-dot-text: #f2f2f2;
-  --cosci-logo-color: var(--cosci-teal);
+  --cosci-logo-color: #238a84;
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
   --cosci-suggestion-border: #c4c7c5;
@@ -121,7 +121,7 @@
   --cosci-blue: #a8c7fa;
   --cosci-blue-strong: #a8c7fa;
   --cosci-hover: #282a2c;
-  --cosci-green: #7fd7bf;
+  --cosci-green: #68d0c0;
   --cosci-shell-icon: var(--cosci-muted);
   --cosci-shell-hover-bg: #282a2c;
   --cosci-shell-hover-text: var(--cosci-text);
