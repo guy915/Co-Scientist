@@ -169,6 +169,10 @@
 }
 
 .nav-label--collapsed {
+  /* Fully out of flow when collapsed. visibility:hidden alone kept the label
+     occupying a second grid row in the icon-only button, which pushed the icon
+     up off-center and made it jump vertically on toggle. */
+  display: none;
   width: 0;
   max-width: 0;
   overflow: hidden;
@@ -267,14 +271,14 @@
 .ucs-settings-control {
   position: relative;
   display: grid;
-}
-
-.ucs-settings-control--open {
-  width: 100%;
-}
-
-.ucs-settings-control--collapsed {
+  /* Icon-only rail default: shrink to the button and let the centered
+     nav-bottom track keep the gear on the same gutter as the icons above it.
+     The open/collapsed width switch below only kicks in on the desktop rail
+     (>=701px), where the panel actually widens; at mobile widths the panel is
+     a fixed icon rail, so a width:100% here would left-align the gear and make
+     it jump when the nav toggles. */
   width: auto;
+  justify-items: center;
 }
 
 .ucs-theme-segment {
@@ -490,12 +494,38 @@
     margin-top: 0.25rem;
   }
 
+  /* Collapsed uses the SAME vertical metrics as open (top margin, gap, item
+     height) so every icon keeps its exact Y position when the rail toggles;
+     only the horizontal treatment (centered icon vs. left-aligned icon+label)
+     differs between the two states. */
+  .ucs-nav-top--collapsed,
+  .ucs-nav-items--collapsed {
+    gap: 0.25rem;
+    margin-top: 0.25rem;
+  }
+
+  .ucs-nav-item--collapsed {
+    height: 2.45rem;
+    min-height: 2.45rem;
+  }
+
   .ucs-nav-bottom--collapsed {
     width: 100%;
     align-items: center;
     justify-items: center;
     gap: 0.74rem;
     margin-top: 0;
+  }
+
+  /* On the desktop rail the panel widens, so the settings control stretches to
+     fill it (matching the nav-items) when open and shrinks back when collapsed.
+     Mobile keeps the base icon-only width:auto so the gear never shifts. */
+  .ucs-settings-control--open {
+    width: 100%;
+  }
+
+  .ucs-settings-control--collapsed {
+    width: auto;
   }
 
   .ucs-nav-item--open {
