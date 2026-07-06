@@ -333,6 +333,10 @@
   max-height: none;
   overflow: hidden;
   padding: 0;
+  /* No scroll viewport here, so drop the bottom fade — otherwise it dims the
+     lower edge of the empty-state card. */
+  mask-image: none;
+  -webkit-mask-image: none;
 }
 
 .reference-recents-empty-item {
