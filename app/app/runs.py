@@ -104,10 +104,6 @@ class AskRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _summary_counts(run_id: str) -> dict[str, int]:
-    return store.summary_counts(run_id)
-
-
 def _run_or_404(run_id: str) -> RunRow:
     run = store.get_run(run_id)
     if not run:
@@ -195,14 +191,14 @@ async def list_runs(
 
 @router.get("/demo")
 async def list_demo_runs() -> dict[str, Any]:
-    runs = store.list_runs(client_id="__demo__")
+    runs = store.list_runs(client_id=store.DEMO_CLIENT_ID)
     return {"runs": [r.to_dict() for r in runs]}
 
 
 @router.get("/{run_id}")
 async def get_run(run_id: str) -> dict[str, Any]:
     run = _run_or_404(run_id)
-    return {**run.to_dict(), "summary": _summary_counts(run_id)}
+    return {**run.to_dict(), "summary": store.summary_counts(run_id)}
 
 
 @router.post("/{run_id}/start")

@@ -161,12 +161,6 @@ class WorkflowState(TypedDict):
     criteria: list[str] | None
     """Optional: Explicit success criteria for judging hypotheses."""
 
-    run_focus: str | None
-    """Optional: Co-Scientist run focus identifier."""
-
-    run_tier: str | None
-    """Optional: Co-Scientist depth tier identifier."""
-
     run_focus_guidance: str | None
     """Prompt-ready guidance for the selected run focus."""
 

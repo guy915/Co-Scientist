@@ -428,10 +428,6 @@ class HypothesisGenerator:
                 opts.get("constraints"),
             "criteria":
                 opts.get("criteria"),
-            "run_focus":
-                opts.get("run_focus"),
-            "run_tier":
-                opts.get("run_tier"),
             "run_focus_guidance":
                 opts.get("run_focus_guidance"),
             "run_setup_guidance":

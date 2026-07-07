@@ -49,7 +49,7 @@ from app.report_render import (
     render_research_overview_markdown,
 )
 from app.run_modes import CANONICAL_RUN_MODE, resolved_run_config, setup_guidance
-from app.safety import screen_final
+from app.safety import apply_safety_gate, screen_final
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -724,25 +724,12 @@ async def run_mock_workflow(
     markdown = "\n".join(md_lines)
 
     final_safety = screen_final(markdown)
-    store.add_safety_decision(
-        run_id,
-        final_safety.stage,
-        final_safety.decision,
-        final_safety.reason,
-        final_safety.matches,
-        db_path=db_path,
-    )
-    yield await emit("safety.final", final_safety.to_dict())
-
+    async for event in apply_safety_gate(run_id,
+                                         final_safety,
+                                         emit,
+                                         db_path=db_path):
+        yield event
     if final_safety.decision == "block":
-        store.update_run_status(run_id,
-                                RunStatus.BLOCKED,
-                                error=final_safety.reason,
-                                db_path=db_path)
-        yield await emit("status", {
-            "status": "blocked",
-            "error": final_safety.reason
-        })
         return
 
     payload = {

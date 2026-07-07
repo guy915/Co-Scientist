@@ -373,6 +373,17 @@ function ResearchOverviewView({
     matches,
   });
 
+  // Top ideas by Elo, normalized to one shape from whichever source is
+  // available: the persisted report leaderboard, else the live hypotheses.
+  const winningIdeas: {id: string; title: string; elo: number}[] =
+    leaderboard.length
+      ? leaderboard
+          .slice(0, 5)
+          .map(item => ({id: item.id, title: item.title, elo: item.elo}))
+      : sortByEloDesc(hypotheses)
+          .slice(0, 5)
+          .map(h => ({id: h.id, title: h.title, elo: h.elo_rating}));
+
   return (
     <ReportDocument title="Research overview">
       {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
@@ -424,11 +435,11 @@ function ResearchOverviewView({
         </section>
       ) : null}
 
-      {leaderboard.length ? (
+      {winningIdeas.length ? (
         <section className={REPORT_SECTION_CLASSES}>
           <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
           <ol className={REPORT_LIST_CLASSES}>
-            {leaderboard.slice(0, 5).map(item => (
+            {winningIdeas.map(item => (
               <li className={REPORT_SECTION_LIST_ITEM_CLASSES} key={item.id}>
                 <strong>{item.title}</strong>
                 <span className={REPORT_SECTION_LIST_META_CLASSES}>
@@ -436,25 +447,6 @@ function ResearchOverviewView({
                 </span>
               </li>
             ))}
-          </ol>
-        </section>
-      ) : hypotheses.length ? (
-        <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
-          <ol className={REPORT_LIST_CLASSES}>
-            {sortByEloDesc(hypotheses)
-              .slice(0, 5)
-              .map(hypothesis => (
-                <li
-                  className={REPORT_SECTION_LIST_ITEM_CLASSES}
-                  key={hypothesis.id}
-                >
-                  <strong>{hypothesis.title}</strong>
-                  <span className={REPORT_SECTION_LIST_META_CLASSES}>
-                    Elo rating: {hypothesis.elo_rating}
-                  </span>
-                </li>
-              ))}
           </ol>
         </section>
       ) : null}

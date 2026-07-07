@@ -37,11 +37,10 @@ from app.run_modes import (
     clean_string_list,
     focus_guidance,
     normalize_run_focus,
-    normalize_run_tier,
     resolved_run_config,
     setup_guidance,
 )
-from app.safety import screen_final, screen_intake
+from app.safety import apply_safety_gate, screen_final, screen_intake
 from app.store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
@@ -103,31 +102,14 @@ def system_status() -> dict[str, Any]:
     }
 
 
-# Maps each real-engine graph node name (from generator.py's ``add_node``
-# calls) to the canonical, unprefixed event type that the mock workflow emits.
-# Only ``supervisor`` differs from its node name (it emits ``supervisor.plan``);
-# every other node maps to itself. ``review`` has no mock counterpart, so it is
-# absent here and keeps its unprefixed node name via ``_canonical_event_type``.
-_NODE_TO_EVENT_TYPE: dict[str, str] = {
-    "supervisor": "supervisor.plan",
-    "literature_review": "literature_review",
-    "generate": "generate",
-    "reflection": "reflection",
-    "ranking": "ranking",
-    "deep_verification": "deep_verification",
-    "meta_review": "meta_review",
-    "evolve": "evolve",
-    "proximity": "proximity",
-    "research_overview": "research_overview",
-}
-
-
 def _canonical_event_type(node_name: str) -> str:
     """Map an engine node name to the canonical mock event vocabulary.
 
-    Any node with no mock counterpart (e.g. ``review``) keeps its unprefixed
-    node name, so it renders via the frontend's prettify fallback rather than
-    a legacy ``engine.`` prefix.
+    Only ``supervisor`` diverges from its node name (it emits
+    ``supervisor.plan``). Every other node -- including any with no mock
+    counterpart, such as ``review`` -- keeps its unprefixed node name, so it
+    renders via the frontend's prettify fallback rather than a legacy
+    ``engine.`` prefix.
 
     Args:
         node_name: The engine graph node name streamed by the generator.
@@ -135,7 +117,7 @@ def _canonical_event_type(node_name: str) -> str:
     Returns:
         The canonical event type used across the mock, adapter, and frontend.
     """
-    return _NODE_TO_EVENT_TYPE.get(node_name, node_name)
+    return "supervisor.plan" if node_name == "supervisor" else node_name
 
 
 # Canonical pipeline stages the real engine runs, surfaced in the
@@ -514,22 +496,10 @@ async def run_workflow(
     # Intake safety gate, shared by every provider. A hard block short-circuits
     # the run before any hypotheses are generated.
     intake = screen_intake(research_goal)
-    store.add_safety_decision(run_id,
-                              intake.stage,
-                              intake.decision,
-                              intake.reason,
-                              intake.matches,
-                              db_path=db_path)
-    yield await _emit("safety.intake", intake.to_dict())
+    async for event in apply_safety_gate(run_id, intake, _emit,
+                                         db_path=db_path):
+        yield event
     if intake.decision == "block":
-        store.update_run_status(run_id,
-                                RunStatus.BLOCKED,
-                                error=intake.reason,
-                                db_path=db_path)
-        yield await _emit("status", {
-            "status": "blocked",
-            "error": intake.reason
-        })
         return
 
     if provider == "mock":
@@ -583,10 +553,7 @@ async def run_workflow(
     setup = cfg.get("setup")
     if isinstance(setup, dict):
         focus = normalize_run_focus(setup.get("focus"))
-        tier = normalize_run_tier(setup.get("tier"))
         setup_text = setup_guidance(setup)
-        initial_opts["run_focus"] = focus
-        initial_opts["run_tier"] = tier
         initial_opts["run_focus_guidance"] = focus_guidance(focus)
         initial_opts["run_setup_guidance"] = setup_text
         initial_opts["attributes"] = clean_string_list(
@@ -638,7 +605,6 @@ async def run_workflow(
         "articles": [],
         "tournament_matchups": [],
         "meta_review": {},
-        "evolution_details": [],
         "research_overview": {},
     }
     try:
@@ -657,8 +623,7 @@ async def run_workflow(
 
             # Update final_state from each yielded cumulative snapshot.
             for key in ("hypotheses", "articles", "tournament_matchups",
-                        "meta_review", "evolution_details",
-                        "research_overview"):
+                        "meta_review", "research_overview"):
                 if state.get(key) is not None:
                     final_state[key] = state[key]
 
@@ -689,22 +654,12 @@ async def run_workflow(
         # decision so the engine path is gated on the same terms as the mock.
         final = screen_final(
             store.read_report_markdown(run_id, db_path=db_path) or "")
-        store.add_safety_decision(run_id,
-                                  final.stage,
-                                  final.decision,
-                                  final.reason,
-                                  final.matches,
-                                  db_path=db_path)
-        yield await _emit("safety.final", final.to_dict())
+        async for event in apply_safety_gate(run_id,
+                                             final,
+                                             _emit,
+                                             db_path=db_path):
+            yield event
         if final.decision == "block":
-            store.update_run_status(run_id,
-                                    RunStatus.BLOCKED,
-                                    error=final.reason,
-                                    db_path=db_path)
-            yield await _emit("status", {
-                "status": "blocked",
-                "error": final.reason
-            })
             return
 
         yield await _emit("report", report_payload)

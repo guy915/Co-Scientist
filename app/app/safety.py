@@ -12,8 +12,12 @@ from __future__ import annotations
 import enum
 import os
 import re
-from collections.abc import Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
+from typing import Any
+
+from app import store
+from app.store import RunStatus
 
 
 class SafetyMode(str, enum.Enum):
@@ -128,3 +132,45 @@ def screen_final(report_markdown: str) -> SafetyDecision:
             matches=flagged,
         )
     return SafetyDecision(stage="final", decision="allow")
+
+
+async def apply_safety_gate(
+    run_id: str,
+    result: SafetyDecision,
+    emit: Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]],
+    *,
+    db_path: str | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Record a safety decision, emit it, and gate the run on a hard block.
+
+    Shared by both workflow providers so the record -> emit -> block-and-stop
+    sequence lives in one place. Yields the events to forward on the workflow's
+    stream: the ``safety.{stage}`` decision, plus a blocked ``status`` event
+    when the decision blocks. The caller must return from its workflow when
+    ``result.decision == "block"``.
+
+    Args:
+        run_id: Identifier of the run being gated.
+        result: The safety screening outcome to record and act on.
+        emit: The provider's event emitter, called as ``emit(type, payload)``.
+        db_path: Optional override for the SQLite database path.
+
+    Yields:
+        Event dicts to forward on the workflow's event stream.
+    """
+    store.add_safety_decision(run_id,
+                              result.stage,
+                              result.decision,
+                              result.reason,
+                              result.matches,
+                              db_path=db_path)
+    yield await emit(f"safety.{result.stage}", result.to_dict())
+    if result.decision == "block":
+        store.update_run_status(run_id,
+                                RunStatus.BLOCKED,
+                                error=result.reason,
+                                db_path=db_path)
+        yield await emit("status", {
+            "status": "blocked",
+            "error": result.reason
+        })

@@ -11,10 +11,9 @@ import logging
 
 from app import engine_adapter, store
 from app.run_modes import CANONICAL_RUN_MODE
+from app.store import DEMO_CLIENT_ID
 
 logger = logging.getLogger(__name__)
-
-DEMO_CLIENT_ID = "__demo__"
 
 _DEMO_GOALS: list[tuple[str, str]] = [
     (

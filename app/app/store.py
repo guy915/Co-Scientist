@@ -58,6 +58,10 @@ TERMINAL_STATUSES: tuple[RunStatus, ...] = (
     RunStatus.CANCELLED,
 )
 
+# Client identifier for the seeded demo runs newcomers can browse. Owns the
+# single source of truth for the sentinel; seed.py and runs.py import it.
+DEMO_CLIENT_ID = "__demo__"
+
 # ---------------------------------------------------------------------------
 # Connection management
 # ---------------------------------------------------------------------------
@@ -409,7 +413,7 @@ class RunRow:
             "status": self.status,
             "provider": self.provider,
             "config": self.config,
-            "is_demo": self.client_id == "__demo__",
+            "is_demo": self.client_id == DEMO_CLIENT_ID,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "completed_at": self.completed_at,
