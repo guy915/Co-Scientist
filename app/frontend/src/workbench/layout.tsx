@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
-import {listDemoRuns, listRuns, type Run} from '@/api/runs';
+import {loadRunHistory, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
@@ -241,13 +241,7 @@ export function Layout({children}: {children: ReactNode}) {
   }, []);
 
   const loadHistory = useCallback(async () => {
-    const [ownedRuns, demoRuns] = await Promise.all([
-      listRuns().catch(() => [] as Run[]),
-      listDemoRuns().catch(() => [] as Run[]),
-    ]);
-    const byId = new Map<string, Run>();
-    for (const item of [...ownedRuns, ...demoRuns]) byId.set(item.id, item);
-    setHistory([...byId.values()].sort((a, b) => b.updated_at - a.updated_at));
+    setHistory(await loadRunHistory());
   }, []);
 
   // Reload the sidebar history on mount, whenever a run is created/started

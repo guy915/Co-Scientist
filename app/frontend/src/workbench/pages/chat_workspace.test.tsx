@@ -1,15 +1,32 @@
 import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
+import type {Run} from '@/api/runs';
 import {ChatWorkspace} from './chat_workspace';
 
-const apiMock = vi.hoisted(() => ({
-  createRun: vi.fn(),
-  getHypotheses: vi.fn(),
-  listDemoRuns: vi.fn(),
-  listRuns: vi.fn(),
-  startRun: vi.fn(),
-}));
+const apiMock = vi.hoisted(() => {
+  const listDemoRuns = vi.fn();
+  const listRuns = vi.fn();
+  // Override the real loadRunHistory so tests keep driving history through the
+  // listRuns/listDemoRuns mocks.
+  const loadRunHistory = vi.fn(async () => {
+    const [owned, demo] = await Promise.all([
+      listRuns().catch(() => []),
+      listDemoRuns().catch(() => []),
+    ]);
+    const byId = new Map<string, Run>();
+    for (const item of [...owned, ...demo] as Run[]) byId.set(item.id, item);
+    return [...byId.values()].sort((a, b) => b.updated_at - a.updated_at);
+  });
+  return {
+    createRun: vi.fn(),
+    getHypotheses: vi.fn(),
+    listDemoRuns,
+    listRuns,
+    loadRunHistory,
+    startRun: vi.fn(),
+  };
+});
 
 vi.mock('@/api/runs', async importOriginal => ({
   ...(await importOriginal<typeof import('@/api/runs')>()),

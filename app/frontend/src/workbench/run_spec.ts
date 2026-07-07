@@ -1,4 +1,5 @@
 import type {RunFocus, RunTier} from '@/api/runs';
+import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 
 /** Chat-inferred setup shown before a run is created. */
 export interface InferredRunSpec {
@@ -14,11 +15,6 @@ export interface RunTierOption {
   id: RunTier;
   label: string;
   description: string;
-  initialHypotheses: number;
-  iterations: number;
-  evolvedHypotheses: number;
-  tournamentPairs: number;
-  evidenceCount: number;
 }
 
 export interface RunFocusOption {
@@ -34,43 +30,23 @@ export const TIER_OPTIONS: RunTierOption[] = [
     label: 'Express',
     description:
       'Suitable for quick research questions and small-scale experiments.',
-    initialHypotheses: 4,
-    iterations: 1,
-    evolvedHypotheses: 4,
-    tournamentPairs: 6,
-    evidenceCount: 4,
   },
   {
     id: 'standard',
     label: 'Standard',
     description:
       'Suitable for medium-sized research questions and experiments.',
-    initialHypotheses: 8,
-    iterations: 2,
-    evolvedHypotheses: 8,
-    tournamentPairs: 12,
-    evidenceCount: 8,
   },
   {
     id: 'extended',
     label: 'Extended',
     description: 'Suitable for large-scale research questions and experiments.',
-    initialHypotheses: 12,
-    iterations: 3,
-    evolvedHypotheses: 12,
-    tournamentPairs: 20,
-    evidenceCount: 12,
   },
   {
     id: 'ultra',
     label: 'Ultra',
     description:
       'Most compute-intensive, using the largest models for cutting-edge insights.',
-    initialHypotheses: 16,
-    iterations: 4,
-    evolvedHypotheses: 16,
-    tournamentPairs: 32,
-    evidenceCount: 16,
   },
 ];
 
@@ -180,10 +156,6 @@ export function inferRunSpec(rawGoal: string): InferredRunSpec {
     focus: 'balance',
     tier: 'standard',
   };
-}
-
-function isLiverFibrosisGoal(goal: string): boolean {
-  return /\b(liver fibrosis|masld|mash|hepatic stellate)\b/i.test(goal);
 }
 
 /**

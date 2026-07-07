@@ -22,19 +22,13 @@ import {
   runFor,
   type OfflineRunRecord,
 } from './offline_run_records';
+import {makePrefixedId} from '@/lib/id';
 
 const STORAGE_KEY = 'coscientist-offline-runs-v1';
 const MESSAGE_KEY = 'coscientist-offline-messages-v1';
 
 function canStore(): boolean {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
-}
-
-function makeId(prefix: string): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return `${prefix}-${crypto.randomUUID()}`;
-  }
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function readStoredRecords(): OfflineRunRecord[] {
@@ -125,7 +119,7 @@ export function offlineCreateRun(input: {
       : defaultSetup(input.research_goal).criteria,
   };
   const run = runFor(
-    makeId('offline-run'),
+    makePrefixedId('offline-run'),
     input.research_goal,
     createdAt,
     {setup, focus: setup.focus, tier: setup.tier},

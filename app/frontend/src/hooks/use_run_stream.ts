@@ -21,10 +21,7 @@ export interface UseRunStreamResult {
  * Subscribe to /api/runs/{id}/events. Always replays from seq=0 so the
  * UI hydrates the entire timeline on mount, even after a refresh.
  */
-export function useRunStream(
-  runId: string | null,
-  after = 0,
-): UseRunStreamResult {
+export function useRunStream(runId: string | null): UseRunStreamResult {
   const [events, setEvents] = useState<StreamEvent[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [terminal, setTerminal] = useState(false);
@@ -49,7 +46,7 @@ export function useRunStream(
       return;
     }
 
-    const es = new EventSource(eventsStreamUrl(runId, after));
+    const es = new EventSource(eventsStreamUrl(runId));
 
     // The server replays the full history on connect and each event arrives
     // as its own onmessage macrotask, so appending per message costs one

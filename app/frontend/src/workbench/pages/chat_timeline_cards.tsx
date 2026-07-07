@@ -9,6 +9,7 @@ import {
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
+import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from '../components/truncated_label';
 import {FOCUS_OPTIONS, type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
@@ -85,7 +86,7 @@ interface MessageAction {
 }
 
 export function referenceSetupTitle(goal: string): string {
-  if (/liver fibrosis|MASLD|MASH/i.test(goal)) {
+  if (isLiverFibrosisGoal(goal)) {
     return 'Reversing MASLD/MASH Fibrosis Hypothesis';
   }
   return conciseTitle(goal);

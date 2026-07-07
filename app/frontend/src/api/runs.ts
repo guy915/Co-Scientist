@@ -257,6 +257,24 @@ export async function listDemoRuns(): Promise<Run[]> {
 }
 
 /**
+ * Loads the combined run history for the sidebar and home surfaces: owned runs
+ * plus demo runs, de-duplicated by id and sorted by `updated_at` descending.
+ * Each fetch degrades to an empty list on failure so a single failing source
+ * never blocks the other.
+ *
+ * @returns The merged, sorted run history.
+ */
+export async function loadRunHistory(): Promise<Run[]> {
+  const [ownedRuns, demoRuns] = await Promise.all([
+    listRuns().catch(() => [] as Run[]),
+    listDemoRuns().catch(() => [] as Run[]),
+  ]);
+  const byId = new Map<string, Run>();
+  for (const item of [...ownedRuns, ...demoRuns]) byId.set(item.id, item);
+  return [...byId.values()].sort((a, b) => b.updated_at - a.updated_at);
+}
+
+/**
  * Fetches a single run together with its artifact summary.
  *
  * @param id Run identifier.
@@ -415,14 +433,14 @@ export function reportMarkdownUrl(id: string): string {
 }
 
 /**
- * Builds the SSE events-stream URL for a run.
+ * Builds the SSE events-stream URL for a run. The stream always replays from
+ * the start; the backend treats a missing cursor as `after=0`.
  *
  * @param id Run identifier.
- * @param after Sequence number to resume after; 0 replays from the start.
  * @returns The absolute events endpoint URL.
  */
-export function eventsStreamUrl(id: string, after = 0): string {
-  return `${API_BASE_URL}/api/runs/${id}/events?after=${after}`;
+export function eventsStreamUrl(id: string): string {
+  return `${API_BASE_URL}/api/runs/${id}/events`;
 }
 
 /**

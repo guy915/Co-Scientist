@@ -17,6 +17,8 @@ import {
 import {Icon, type IconName} from '@/components/icon';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {useRunStream} from '@/hooks/use_run_stream';
+import {isLiverFibrosisGoal} from '@/lib/demo_domains';
+import {formatDurationPhrase} from '@/lib/duration';
 import {TruncatedLabel} from '../components/truncated_label';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {
@@ -96,9 +98,6 @@ const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0';
 const REPORT_LEAD_STAT_CLASSES =
   'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';
 
-const HOUR_SECONDS = 3600;
-const MINUTE_SECONDS = 60;
-
 const TAB_ALIASES: Record<string, TabName> = {
   specifications: 'details',
   specs: 'details',
@@ -133,7 +132,7 @@ export function RunDetail() {
     message: string;
   } | null>(null);
 
-  const {events, terminal} = useRunStream(id ?? null, 0);
+  const {events, terminal} = useRunStream(id ?? null);
 
   const refresh = useCallback(async () => {
     if (!id) return;
@@ -522,18 +521,12 @@ function runDurationPhrase(run: RunWithSummary | null): string {
   if (!run?.completed_at || !run.created_at) return '';
   const seconds = run.completed_at - run.created_at;
   if (!Number.isFinite(seconds) || seconds <= 0) return '';
-
-  if (seconds >= HOUR_SECONDS) {
-    const hours = Math.round(seconds / HOUR_SECONDS);
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-  const minutes = Math.max(1, Math.round(seconds / MINUTE_SECONDS));
-  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+  return formatDurationPhrase(seconds);
 }
 
 /** Curated display title for known domains, or null to fall back to the goal. */
 function domainTitleOverride(goal: string): string | null {
-  if (/MASH|MASLD|liver fibrosis/i.test(goal)) {
+  if (isLiverFibrosisGoal(goal)) {
     return 'Epigenetic and stromal reversal strategies for MASH-associated liver fibrosis';
   }
   return null;

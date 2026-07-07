@@ -115,6 +115,40 @@ def connect(
         conn.close()
 
 
+@contextlib.contextmanager
+def transaction(
+        path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
+    """Yield a connection whose writes commit as a single transaction.
+
+    Pass the yielded connection to the store helpers' ``conn`` parameter to
+    batch many writes into one fsync'd transaction instead of one per call.
+
+    Args:
+        path: Optional override for the SQLite database path.
+    """
+    with connect(path) as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            yield conn
+        except BaseException:
+            conn.execute("ROLLBACK")
+            raise
+        conn.execute("COMMIT")
+
+
+@contextlib.contextmanager
+def _use_conn(
+    conn: sqlite3.Connection | None,
+    path: str | None,
+) -> Generator[sqlite3.Connection, None, None]:
+    """Yield the caller-supplied connection, or open (and close) a fresh one."""
+    if conn is not None:
+        yield conn
+    else:
+        with connect(path) as fresh:
+            yield fresh
+
+
 def _init_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(_SCHEMA)
     conn.execute("PRAGMA journal_mode=WAL")
@@ -162,8 +196,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         logger.info("migration: added category column to hypotheses")
 
     match_cols = {
-        row[1]
-        for row in conn.execute("PRAGMA table_info(matches)").fetchall()
+        row[1] for row in conn.execute("PRAGMA table_info(matches)").fetchall()
     }
     if "tier" not in match_cols:
         conn.execute("ALTER TABLE matches ADD COLUMN tier TEXT")
@@ -491,16 +524,10 @@ def update_run_status(
     now = _now()
     completed_at = now if status in TERMINAL_STATUSES else None
     with connect(db_path) as conn:
-        if completed_at is not None:
-            conn.execute(
-                "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
-                (status.value, error, now, completed_at, run_id),
-            )
-        else:
-            conn.execute(
-                "UPDATE runs SET status=?, error=?, updated_at=? WHERE id=?",
-                (status.value, error, now, run_id),
-            )
+        conn.execute(
+            "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
+            (status.value, error, now, completed_at, run_id),
+        )
 
 
 def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
@@ -537,19 +564,10 @@ def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
                 "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
                 (RunStatus.FAILED.value, reason, now, now, rid),
             )
-            seq_row = conn.execute(
-                "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?",  # pylint: disable=line-too-long
-                (rid,),
-            ).fetchone()
-            seq = (seq_row["s"] if seq_row else 0) + 1
-            conn.execute(
-                "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) VALUES (?,?,?,?,?)",  # pylint: disable=line-too-long
-                (rid, seq, "status",
-                 json.dumps({
-                     "status": "failed",
-                     "error": reason
-                 }), now),
-            )
+            _append_event(conn, rid, "status", {
+                "status": "failed",
+                "error": reason
+            }, now)
             reconciled.append(rid)
     return reconciled
 
@@ -575,6 +593,25 @@ def checkpoint_wal(db_path: str | None = None) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _append_event(
+    conn: sqlite3.Connection,
+    run_id: str,
+    type_: str,
+    payload: dict[str, Any],
+    created_at: float,
+) -> int:
+    """Insert an event row on an open connection and return its seq."""
+    row = conn.execute(
+        "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?",
+        (run_id,)).fetchone()
+    seq = (row["s"] if row else 0) + 1
+    conn.execute(
+        "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) VALUES (?,?,?,?,?)",  # pylint: disable=line-too-long
+        (run_id, seq, type_, json.dumps(payload), created_at),
+    )
+    return seq
+
+
 def append_event(
     run_id: str,
     type_: str,
@@ -593,15 +630,7 @@ def append_event(
         The monotonically increasing sequence number assigned to the event.
     """
     with connect(db_path) as conn:
-        row = conn.execute(
-            "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?",
-            (run_id,)).fetchone()
-        seq = (row["s"] if row else 0) + 1
-        conn.execute(
-            "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) VALUES (?,?,?,?,?)",  # pylint: disable=line-too-long
-            (run_id, seq, type_, json.dumps(payload), _now()),
-        )
-    return seq
+        return _append_event(conn, run_id, type_, payload, _now())
 
 
 def list_events(
@@ -636,8 +665,7 @@ def list_events(
         return out
 
 
-def summary_counts(run_id: str,
-                   db_path: str | None = None) -> dict[str, int]:
+def summary_counts(run_id: str, db_path: str | None = None) -> dict[str, int]:
     """Return per-table row counts for a run in a single connection.
 
     Uses COUNT(*) per table rather than materializing and parsing whole tables.
@@ -658,10 +686,11 @@ def summary_counts(run_id: str,
     }
     with connect(db_path) as conn:
         return {
-            field: conn.execute(
-                f"SELECT COUNT(*) FROM {table} WHERE run_id=?",
-                (run_id,),
-            ).fetchone()[0] for field, table in tables.items()
+            field:
+                conn.execute(
+                    f"SELECT COUNT(*) FROM {table} WHERE run_id=?",
+                    (run_id,),
+                ).fetchone()[0] for field, table in tables.items()
         }
 
 
@@ -684,6 +713,7 @@ def add_hypothesis(
     experimental_context: str = "",
     created_by_agent: str = "generation",
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> str:
     """Insert a hypothesis row and its initial mutable state row.
 
@@ -703,13 +733,14 @@ def add_hypothesis(
         experimental_context: Context describing how to test the hypothesis.
         created_by_agent: Agent that created the row, e.g. 'generation'.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
 
     Returns:
         The identifier of the newly inserted hypothesis.
     """
     hyp_id = hypothesis_id or str(uuid.uuid4())
     now = _now()
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO hypotheses (id, run_id, parent_id, generation, category, title, statement, mechanism, "  # pylint: disable=line-too-long
             "expected_effect, experimental_context, created_by_agent, created_at) "
@@ -749,6 +780,7 @@ def update_hypothesis_state(
     status: str | None = None,
     cluster_id: str | None = None,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Update selected mutable-state fields for a hypothesis.
 
@@ -767,6 +799,7 @@ def update_hypothesis_state(
         status: New lifecycle status for the hypothesis.
         cluster_id: New proximity cluster identifier to set.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
     sets: list[str] = []
     params: list[Any] = []
@@ -801,34 +834,47 @@ def update_hypothesis_state(
     params.append(_now())
     params.append(hypothesis_id)
     set_clause = ", ".join(sets)
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",  # pylint: disable=line-too-long
             params,
         )
 
 
-def list_hypotheses(run_id: str,
-                    db_path: str | None = None) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
+# Shared hypothesis + mutable-state projection. `add_hypothesis` always inserts
+# the state row, so the joined columns are COALESCE'd to their column defaults
+# and consumers can rely on them being non-null.
+_HYP_SELECT = (
+    f"SELECT h.*, COALESCE(s.elo_rating, {INITIAL_ELO}) AS elo_rating, "
+    "COALESCE(s.win_count, 0) AS win_count, "
+    "COALESCE(s.loss_count, 0) AS loss_count, "
+    "s.novelty_score, s.plausibility_score, "
+    "s.testability_score, s.safety_status, s.status, s.cluster_id "
+    "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id ")
+
+
+def list_hypotheses(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    with _use_conn(conn, db_path) as conn:
         rows = conn.execute(
-            "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "  # pylint: disable=line-too-long
-            "s.testability_score, s.safety_status, s.status, s.cluster_id "
-            "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "  # pylint: disable=line-too-long
+            _HYP_SELECT +
             "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
             (run_id,),
         ).fetchall()
         return [dict(r) for r in rows]
 
 
-def get_hypothesis(hypothesis_id: str,
-                   db_path: str | None = None) -> dict[str, Any] | None:
-    with connect(db_path) as conn:
+def get_hypothesis(
+    hypothesis_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any] | None:
+    with _use_conn(conn, db_path) as conn:
         row = conn.execute(
-            "SELECT h.*, s.elo_rating, s.win_count, s.loss_count, s.novelty_score, s.plausibility_score, "  # pylint: disable=line-too-long
-            "s.testability_score, s.safety_status, s.status, s.cluster_id "
-            "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "  # pylint: disable=line-too-long
-            "WHERE h.id=?",
+            _HYP_SELECT + "WHERE h.id=?",
             (hypothesis_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -850,6 +896,7 @@ def add_evidence(
     abstract: str = "",
     available: bool = True,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> str:
     """Insert an evidence row for a run and return its identifier.
 
@@ -863,12 +910,13 @@ def add_evidence(
         abstract: Optional abstract text for the evidence.
         available: Whether the evidence full text is available.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
 
     Returns:
         The identifier of the newly inserted evidence row.
     """
     ev_id = str(uuid.uuid4())
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO evidence (id, run_id, title, source, url, authors_json, year, abstract, available, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -888,28 +936,41 @@ def add_evidence(
     return ev_id
 
 
-def list_evidence(run_id: str,
-                  db_path: str | None = None) -> list[dict[str, Any]]:
+def _list_by_run(
+    table: str,
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    """Return a run's rows from ``table`` (a trusted literal), oldest first."""
+    with _use_conn(conn, db_path) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM {table} WHERE run_id=? ORDER BY created_at ASC",
+            (run_id,)).fetchall()
+        return [dict(r) for r in rows]
+
+
+def list_evidence(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
     """Return a run's evidence rows ordered by creation time.
 
     Args:
         run_id: Identifier of the run whose evidence to list.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
 
     Returns:
         A list of evidence dicts with decoded authors and available fields.
     """
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM evidence WHERE run_id=? ORDER BY created_at ASC",
-            (run_id,)).fetchall()
-        out = []
-        for r in rows:
-            d = dict(r)
-            d["authors"] = json.loads(d.pop("authors_json") or "[]")
-            d["available"] = bool(d["available"])
-            out.append(d)
-        return out
+    out = []
+    for d in _list_by_run("evidence", run_id, db_path, conn):
+        d["authors"] = json.loads(d.pop("authors_json") or "[]")
+        d["available"] = bool(d["available"])
+        out.append(d)
+    return out
 
 
 def add_citation(
@@ -919,8 +980,9 @@ def add_citation(
     claim: str,
     state: CitationState,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO citations (run_id, hypothesis_id, evidence_id, claim, state, created_at) "  # pylint: disable=line-too-long
             "VALUES (?,?,?,?,?,?)",
@@ -928,13 +990,12 @@ def add_citation(
         )
 
 
-def list_citations(run_id: str,
-                   db_path: str | None = None) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM citations WHERE run_id=? ORDER BY created_at ASC",
-            (run_id,)).fetchall()
-        return [dict(r) for r in rows]
+def list_citations(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    return _list_by_run("citations", run_id, db_path, conn)
 
 
 # ---------------------------------------------------------------------------
@@ -954,6 +1015,7 @@ def add_review(
     testability: float | None = None,
     overall: float | None = None,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Insert a reviewer's assessment of a hypothesis.
 
@@ -968,8 +1030,9 @@ def add_review(
         testability: Optional testability score assigned by the reviewer.
         overall: Optional overall score assigned by the reviewer.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO reviews (run_id, hypothesis_id, reviewer_agent, summary, critique, "  # pylint: disable=line-too-long
             "novelty, plausibility, testability, overall, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",  # pylint: disable=line-too-long
@@ -988,13 +1051,12 @@ def add_review(
         )
 
 
-def list_reviews(run_id: str,
-                 db_path: str | None = None) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM reviews WHERE run_id=? ORDER BY created_at ASC",
-            (run_id,)).fetchall()
-        return [dict(r) for r in rows]
+def list_reviews(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    return _list_by_run("reviews", run_id, db_path, conn)
 
 
 # ---------------------------------------------------------------------------
@@ -1014,6 +1076,7 @@ def add_match(
     rationale: str,
     tier: str | None = None,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
     """Record the outcome of a pairwise tournament match.
 
@@ -1029,8 +1092,9 @@ def add_match(
         rationale: Explanation of why the winner prevailed.
         tier: Decisiveness class of the match (upset|decisive|clear|narrow).
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO matches (run_id, iteration, winner_id, loser_id, winner_elo_before, "  # pylint: disable=line-too-long
             "winner_elo_after, loser_elo_before, loser_elo_after, rationale, tier, created_at) "  # pylint: disable=line-too-long
@@ -1051,13 +1115,12 @@ def add_match(
         )
 
 
-def list_matches(run_id: str,
-                 db_path: str | None = None) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM matches WHERE run_id=? ORDER BY created_at ASC",
-            (run_id,)).fetchall()
-        return [dict(r) for r in rows]
+def list_matches(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    return _list_by_run("matches", run_id, db_path, conn)
 
 
 # ---------------------------------------------------------------------------
@@ -1083,16 +1146,11 @@ def add_safety_decision(
 
 def list_safety_decisions(run_id: str,
                           db_path: str | None = None) -> list[dict[str, Any]]:
-    with connect(db_path) as conn:
-        rows = conn.execute(
-            "SELECT * FROM safety_decisions WHERE run_id=? ORDER BY created_at ASC",  # pylint: disable=line-too-long
-            (run_id,)).fetchall()
-        out = []
-        for r in rows:
-            d = dict(r)
-            d["matches"] = json.loads(d.pop("matches_json") or "[]")
-            out.append(d)
-        return out
+    out = []
+    for d in _list_by_run("safety_decisions", run_id, db_path):
+        d["matches"] = json.loads(d.pop("matches_json") or "[]")
+        out.append(d)
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1105,6 +1163,7 @@ def save_report(
     payload: dict[str, Any],
     markdown: str,
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> dict[str, str]:
     """Persist a report as a JSON row plus a rendered Markdown file.
 
@@ -1117,6 +1176,7 @@ def save_report(
         payload: Structured report payload serialized to JSON.
         markdown: Rendered Markdown report written to disk.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
 
     Returns:
         A dict with the new report 'id' and the 'markdown_path' on disk.
@@ -1127,7 +1187,7 @@ def save_report(
         md_path.write_text(markdown, encoding="utf-8")
     except OSError:
         logger.warning("Could not write report markdown to disk at %s", md_path)
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO reports "
             "(id, run_id, payload_json, markdown_path, markdown_text, created_at) "  # pylint: disable=line-too-long
@@ -1272,8 +1332,12 @@ _MESSAGE_COLUMNS = ("id, run_id, sender, content, kind, created_at, applied, "
                     "meta_json")
 
 
-def list_messages(run_id: str, db_path: str | None = None) -> list[MessageRow]:
-    with connect(db_path) as conn:
+def list_messages(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[MessageRow]:
+    with _use_conn(conn, db_path) as conn:
         rows = conn.execute(
             f"SELECT {_MESSAGE_COLUMNS} FROM messages "
             "WHERE run_id=? ORDER BY id ASC",

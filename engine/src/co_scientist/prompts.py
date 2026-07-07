@@ -886,21 +886,28 @@ def get_literature_review_query_generation_prompt(
     )
 
 
+def _format_authors(authors: list[str]) -> str:
+    """Format an author list for paper analysis prompts."""
+    return ", ".join(authors) if authors else "Unknown"
+
+
+def _format_year(year: int | None) -> str:
+    """Format a publication year for paper analysis prompts."""
+    return str(year) if year else "Unknown"
+
+
 def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
                                                 authors: list[str],
                                                 year: int | None,
                                                 fulltext: str) -> str:
     """Get the prompt for analyzing a single paper."""
-    authors_str = ", ".join(authors) if authors else "Unknown"
-    year_str = str(year) if year else "Unknown"
-
     return load_prompt(
         "literature_review_paper_analysis",
         {
             "research_goal": research_goal,
             "title": title,
-            "authors": authors_str,
-            "year": year_str,
+            "authors": _format_authors(authors),
+            "year": _format_year(year),
             "fulltext": fulltext,
         },
     )
@@ -960,16 +967,13 @@ def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
                                            authors: list[str], year: int | None,
                                            fulltext: str) -> str:
     """Get the prompt for analyzing a paper for hypothesis novelty."""
-    authors_str = ", ".join(authors) if authors else "Unknown"
-    year_str = str(year) if year else "Unknown"
-
     return load_prompt(
         "hypothesis_novelty_analysis",
         {
             "hypothesis_text": hypothesis_text,
             "title": title,
-            "authors": authors_str,
-            "year": year_str,
+            "authors": _format_authors(authors),
+            "year": _format_year(year),
             "fulltext": fulltext,
         },
     )

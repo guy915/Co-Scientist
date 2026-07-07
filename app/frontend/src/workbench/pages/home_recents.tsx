@@ -2,6 +2,8 @@ import {Fragment} from 'react';
 import {Link} from 'react-router-dom';
 import {type Hypothesis, isActiveStatus, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
+import {isLiverFibrosisGoal} from '@/lib/demo_domains';
+import {formatDurationPhrase} from '@/lib/duration';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
@@ -274,22 +276,13 @@ function formatHomeRunDate(timestamp: number): string {
   }).format(new Date(timestamp * 1000));
 }
 
-function formatDurationLabel(seconds: number): string {
-  const minutes = Math.max(1, Math.round(seconds / 60));
-  if (minutes >= 90) {
-    const hours = Math.max(1, Math.round(minutes / 60));
-    return `${hours} hour${hours === 1 ? '' : 's'}`;
-  }
-  return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-}
-
 function formatHomeRunDuration(run: Run): string {
   const endTime = run.completed_at ?? run.updated_at;
   if (endTime && endTime > run.created_at) {
-    return formatDurationLabel(endTime - run.created_at);
+    return formatDurationPhrase(endTime - run.created_at);
   }
   if (run.status === 'completed') {
-    return formatDurationLabel(60);
+    return formatDurationPhrase(60);
   }
   if (isActiveStatus(run.status)) {
     return 'In progress';
@@ -303,7 +296,7 @@ function formatHomeRunElapsed(run: Run): string {
     (run.updated_at || Date.now() / 1000) - run.created_at,
   );
   if (elapsedSeconds < 60) return '< 1 minute';
-  return formatDurationLabel(elapsedSeconds);
+  return formatDurationPhrase(elapsedSeconds);
 }
 
 function formatHomeRunTimeChip(run: Run): string {
@@ -365,11 +358,7 @@ function homeRunIdeaTitles(goal: string): string[] {
       'Iron-trafficking checkpoint hypothesis',
     ];
   }
-  if (
-    normalized.includes('fibrosis') ||
-    normalized.includes('mash') ||
-    normalized.includes('masld')
-  ) {
+  if (isLiverFibrosisGoal(goal)) {
     return [
       'Epigenetic stromal reversal hypothesis',
       'Fibrotic memory erasure hypothesis',

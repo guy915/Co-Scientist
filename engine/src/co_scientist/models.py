@@ -10,6 +10,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.constants import INITIAL_ELO_RATING
+
 
 class GenerationMethod(str, enum.Enum):
     """How a hypothesis was generated."""
@@ -81,7 +83,7 @@ class Hypothesis:
     enrichments: dict[str, Any] = field(default_factory=dict)
     citation_map: dict[str, dict[str, Any]] = field(default_factory=dict)
     score: float = 0.0
-    elo_rating: int = 1200  # Starting Elo rating
+    elo_rating: int = INITIAL_ELO_RATING
     reviews: list[HypothesisReview] = field(default_factory=list)
     similarity_cluster_id: str | None = None
     similarity_degree: str | None = None  # 'high', 'medium', or 'low'

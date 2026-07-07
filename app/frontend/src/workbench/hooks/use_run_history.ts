@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useState} from 'react';
-import {getHypotheses, listDemoRuns, listRuns, type Run} from '@/api/runs';
+import {getHypotheses, loadRunHistory, type Run} from '@/api/runs';
 import {topEloFromHypotheses} from '../pages/home_recents';
 
 /**
@@ -20,15 +20,7 @@ export function useRunHistory(): {
   );
 
   const reloadHistory = useCallback(async () => {
-    const [ownedRuns, demoRuns] = await Promise.all([
-      listRuns().catch(() => [] as Run[]),
-      listDemoRuns().catch(() => [] as Run[]),
-    ]);
-    const byId = new Map<string, Run>();
-    for (const item of [...ownedRuns, ...demoRuns]) {
-      byId.set(item.id, item);
-    }
-    setHistory([...byId.values()].sort((a, b) => b.updated_at - a.updated_at));
+    setHistory(await loadRunHistory());
   }, []);
 
   useEffect(() => {

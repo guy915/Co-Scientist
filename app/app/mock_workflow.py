@@ -365,8 +365,6 @@ async def run_mock_workflow(
         ],
         "run_mode":
             run_mode,
-        "profile":
-            run_mode,
         "config":
             cfg,
         "setup":
@@ -389,21 +387,22 @@ async def run_mock_workflow(
     evidence_count = cfg["evidence_count"]
     evidence_ids: list[str] = []
     evidence_payload: list[dict[str, Any]] = []
-    for i in range(evidence_count):
-        ev = _evidence_seed(rng, research_goal, i)
-        ev_id = store.add_evidence(
-            run_id,
-            title=ev["title"],
-            source="mock",
-            url=ev["url"],
-            authors=ev["authors"],
-            year=ev["year"],
-            abstract=ev["abstract"],
-            available=ev["available"],
-            db_path=db_path,
-        )
-        evidence_ids.append(ev_id)
-        evidence_payload.append({"id": ev_id, **ev})
+    with store.transaction(db_path) as conn:
+        for i in range(evidence_count):
+            ev = _evidence_seed(rng, research_goal, i)
+            ev_id = store.add_evidence(
+                run_id,
+                title=ev["title"],
+                source="mock",
+                url=ev["url"],
+                authors=ev["authors"],
+                year=ev["year"],
+                abstract=ev["abstract"],
+                available=ev["available"],
+                conn=conn,
+            )
+            evidence_ids.append(ev_id)
+            evidence_payload.append({"id": ev_id, **ev})
     yield await emit(
         "literature_review",
         {
@@ -416,57 +415,61 @@ async def run_mock_workflow(
     initial_count = cfg["initial_hypotheses_count"]
     hyp_ids: list[str] = []
     hyp_payloads: list[dict[str, Any]] = []
-    for i in range(initial_count):
-        h = _hypothesis_seed(rng, research_goal, i)
-        hid = store.add_hypothesis(
-            run_id,
-            title=h["title"],
-            statement=h["statement"],
-            category=h.get("category"),
-            mechanism=h["mechanism"],
-            expected_effect=h["expected_effect"],
-            experimental_context=h["experimental_context"],
-            generation=0,
-            created_by_agent="generation",
-            db_path=db_path,
-        )
-        hyp_ids.append(hid)
-        hyp_payloads.append({
-            "id": hid,
-            **h, "elo_rating": INITIAL_ELO,
-            "generation": 0
-        })
+    with store.transaction(db_path) as conn:
+        for i in range(initial_count):
+            h = _hypothesis_seed(rng, research_goal, i)
+            hid = store.add_hypothesis(
+                run_id,
+                title=h["title"],
+                statement=h["statement"],
+                category=h.get("category"),
+                mechanism=h["mechanism"],
+                expected_effect=h["expected_effect"],
+                experimental_context=h["experimental_context"],
+                generation=0,
+                created_by_agent="generation",
+                conn=conn,
+            )
+            hyp_ids.append(hid)
+            hyp_payloads.append({
+                "id": hid,
+                **h, "elo_rating": INITIAL_ELO,
+                "generation": 0
+            })
     yield await emit("generate", {
         "count": len(hyp_payloads),
         "hypotheses": hyp_payloads
     })
 
     # ---- 5. Reflection ----
-    for hid, h in zip(hyp_ids, hyp_payloads):
-        critique = (
-            f"Reflection: '{h['title']}' offers a plausible mechanism but should be checked against "  # pylint: disable=line-too-long
-            "the {N} retrieved sources for prior work; novelty is moderate; testability is high if "  # pylint: disable=line-too-long
-            "the experimental context is constrained.").format(N=evidence_count)
-        store.add_review(
-            run_id,
-            hid,
-            "reflection",
-            summary=f"Initial reflection on {h['title']}",
-            critique=critique,
-            novelty=round(rng.uniform(0.4, 0.8), 2),
-            plausibility=round(rng.uniform(0.5, 0.9), 2),
-            testability=round(rng.uniform(0.5, 0.95), 2),
-            overall=round(rng.uniform(0.55, 0.85), 2),
-            db_path=db_path,
-        )
+    with store.transaction(db_path) as conn:
+        for hid, h in zip(hyp_ids, hyp_payloads):
+            critique = (
+                f"Reflection: '{h['title']}' offers a plausible mechanism but should be checked against "  # pylint: disable=line-too-long
+                "the {N} retrieved sources for prior work; novelty is moderate; testability is high if "  # pylint: disable=line-too-long
+                "the experimental context is constrained.").format(
+                    N=evidence_count)
+            store.add_review(
+                run_id,
+                hid,
+                "reflection",
+                summary=f"Initial reflection on {h['title']}",
+                critique=critique,
+                novelty=round(rng.uniform(0.4, 0.8), 2),
+                plausibility=round(rng.uniform(0.5, 0.9), 2),
+                testability=round(rng.uniform(0.5, 0.95), 2),
+                overall=round(rng.uniform(0.55, 0.85), 2),
+                conn=conn,
+            )
     yield await emit("reflection", {"reviewed": len(hyp_ids)})
 
     # ---- 6. Proximity / clustering ----
     clusters: dict[str, list[str]] = {}
-    for i, hid in enumerate(hyp_ids):
-        cid = _cluster_id(i)
-        clusters.setdefault(cid, []).append(hid)
-        store.update_hypothesis_state(hid, cluster_id=cid, db_path=db_path)
+    with store.transaction(db_path) as conn:
+        for i, hid in enumerate(hyp_ids):
+            cid = _cluster_id(i)
+            clusters.setdefault(cid, []).append(hid)
+            store.update_hypothesis_state(hid, cluster_id=cid, conn=conn)
     yield await emit("proximity",
                      {"clusters": {
                          k: len(v) for k, v in clusters.items()
@@ -508,56 +511,57 @@ async def run_mock_workflow(
             store.mark_steering_applied([m.id for m in pending],
                                         db_path=db_path)
         round_matches = []
-        for a, b in pairs:
-            winner, loser, rationale = _judge(a, b)
-            wb = elo_state[winner]
-            lb = elo_state[loser]
-            # Deterministic decisiveness tier from the pre-match Elo gap,
-            # matching the engine's tier vocabulary (see ranking.match_tier).
-            if lb - wb >= 100:
-                tier = "upset"
-            elif abs(wb - lb) >= 60:
-                tier = "decisive"
-            elif abs(wb - lb) >= 20:
-                tier = "clear"
-            else:
-                tier = "narrow"
-            wa, la = update_pair(wb, lb, k_factor=cfg["k_factor"])
-            elo_state[winner] = wa
-            elo_state[loser] = la
-            win_count[winner] = win_count.get(winner, 0) + 1
-            loss_count[loser] = loss_count.get(loser, 0) + 1
-            store.update_hypothesis_state(winner,
-                                          elo_rating=wa,
-                                          win_delta=1,
-                                          db_path=db_path)
-            store.update_hypothesis_state(loser,
-                                          elo_rating=la,
-                                          loss_delta=1,
-                                          db_path=db_path)
-            store.add_match(
-                run_id,
-                iteration=itr,
-                winner_id=winner,
-                loser_id=loser,
-                winner_before=wb,
-                winner_after=wa,
-                loser_before=lb,
-                loser_after=la,
-                rationale=rationale,
-                tier=tier,
-                db_path=db_path,
-            )
-            round_matches.append({
-                "winner_id": winner,
-                "loser_id": loser,
-                "winner_elo_before": wb,
-                "winner_elo_after": wa,
-                "loser_elo_before": lb,
-                "loser_elo_after": la,
-                "rationale": rationale,
-                "tier": tier,
-            })
+        with store.transaction(db_path) as conn:
+            for a, b in pairs:
+                winner, loser, rationale = _judge(a, b)
+                wb = elo_state[winner]
+                lb = elo_state[loser]
+                # Deterministic decisiveness tier from the pre-match Elo gap,
+                # matching the engine's vocabulary (see ranking.match_tier).
+                if lb - wb >= 100:
+                    tier = "upset"
+                elif abs(wb - lb) >= 60:
+                    tier = "decisive"
+                elif abs(wb - lb) >= 20:
+                    tier = "clear"
+                else:
+                    tier = "narrow"
+                wa, la = update_pair(wb, lb, k_factor=cfg["k_factor"])
+                elo_state[winner] = wa
+                elo_state[loser] = la
+                win_count[winner] = win_count.get(winner, 0) + 1
+                loss_count[loser] = loss_count.get(loser, 0) + 1
+                store.update_hypothesis_state(winner,
+                                              elo_rating=wa,
+                                              win_delta=1,
+                                              conn=conn)
+                store.update_hypothesis_state(loser,
+                                              elo_rating=la,
+                                              loss_delta=1,
+                                              conn=conn)
+                store.add_match(
+                    run_id,
+                    iteration=itr,
+                    winner_id=winner,
+                    loser_id=loser,
+                    winner_before=wb,
+                    winner_after=wa,
+                    loser_before=lb,
+                    loser_after=la,
+                    rationale=rationale,
+                    tier=tier,
+                    conn=conn,
+                )
+                round_matches.append({
+                    "winner_id": winner,
+                    "loser_id": loser,
+                    "winner_elo_before": wb,
+                    "winner_elo_after": wa,
+                    "loser_elo_before": lb,
+                    "loser_elo_after": la,
+                    "rationale": rationale,
+                    "tier": tier,
+                })
         yield await emit(
             "ranking",
             {
@@ -584,38 +588,40 @@ async def run_mock_workflow(
             top_k = sorted(elo_state.items(),
                            key=lambda kv: -kv[1])[:cfg["evolution_max_count"]]
             children: list[dict[str, Any]] = []
-            for parent_id, _ in top_k:
-                parent = store.get_hypothesis(parent_id, db_path=db_path)
-                if not parent:
-                    continue
-                child_h = _hypothesis_seed(rng, research_goal,
-                                           len(hyp_ids) + len(children))
-                child_h[
-                    "title"] = f"{child_h['title']} (evolved from {parent['title'][:30]}...)"  # pylint: disable=line-too-long
-                child_h["statement"] = (
-                    f"Evolved variant of '{parent['title']}': {child_h['statement']} "  # pylint: disable=line-too-long
-                    "Carries forward the parent's mechanistic frame with sharpened predictions."  # pylint: disable=line-too-long
-                )
-                child_id = store.add_hypothesis(
-                    run_id,
-                    title=child_h["title"],
-                    statement=child_h["statement"],
-                    category=parent.get("category") or child_h.get("category"),
-                    mechanism=child_h["mechanism"],
-                    expected_effect=child_h["expected_effect"],
-                    experimental_context=child_h["experimental_context"],
-                    parent_id=parent_id,
-                    generation=parent["generation"] + 1,
-                    created_by_agent="evolution",
-                    db_path=db_path,
-                )
-                hyp_ids.append(child_id)
-                elo_state[child_id] = INITIAL_ELO
-                children.append({
-                    "id": child_id,
-                    "parent_id": parent_id,
-                    **child_h
-                })
+            with store.transaction(db_path) as conn:
+                for parent_id, _ in top_k:
+                    parent = store.get_hypothesis(parent_id, conn=conn)
+                    if not parent:
+                        continue
+                    child_h = _hypothesis_seed(rng, research_goal,
+                                               len(hyp_ids) + len(children))
+                    child_h[
+                        "title"] = f"{child_h['title']} (evolved from {parent['title'][:30]}...)"  # pylint: disable=line-too-long
+                    child_h["statement"] = (
+                        f"Evolved variant of '{parent['title']}': {child_h['statement']} "  # pylint: disable=line-too-long
+                        "Carries forward the parent's mechanistic frame with sharpened predictions."  # pylint: disable=line-too-long
+                    )
+                    child_id = store.add_hypothesis(
+                        run_id,
+                        title=child_h["title"],
+                        statement=child_h["statement"],
+                        category=parent.get("category") or
+                        child_h.get("category"),
+                        mechanism=child_h["mechanism"],
+                        expected_effect=child_h["expected_effect"],
+                        experimental_context=child_h["experimental_context"],
+                        parent_id=parent_id,
+                        generation=parent["generation"] + 1,
+                        created_by_agent="evolution",
+                        conn=conn,
+                    )
+                    hyp_ids.append(child_id)
+                    elo_state[child_id] = INITIAL_ELO
+                    children.append({
+                        "id": child_id,
+                        "parent_id": parent_id,
+                        **child_h
+                    })
             yield await emit("evolve", {"children": children, "iteration": itr})
 
             # ---- 9. Meta-review (per iteration) ----
@@ -770,7 +776,6 @@ async def run_mock_workflow(
     payload = {
         "research_goal": research_goal,
         "run_mode": run_mode,
-        "profile": run_mode,
         "provider": "mock",
         "leaderboard": [{
             "id": h["id"],

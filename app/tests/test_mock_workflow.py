@@ -106,7 +106,6 @@ def test_legacy_standard_profile_uses_default_depth(isolated_db: str) -> None:
     assert len(events) >= 14
     plan = next(e for e in events if e["type"] == "supervisor.plan")
     assert plan["payload"]["run_mode"] == "default"
-    assert plan["payload"]["profile"] == "default"
     assert len(store.list_hypotheses(run.id)) >= 8
     assert len(store.list_evidence(run.id)) >= 8
     assert len(store.list_matches(run.id)) >= 12

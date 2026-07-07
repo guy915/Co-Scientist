@@ -317,16 +317,10 @@ describe('url builders', () => {
     expect(url).toBe('/api/runs/run-42/report.md');
   });
 
-  it('eventsStreamUrl defaults the after cursor to 0', () => {
+  it('eventsStreamUrl builds the run events endpoint', () => {
     const url = eventsStreamUrl('run-42');
     expect(url).toContain('run-42');
-    expect(url).toBe('/api/runs/run-42/events?after=0');
-  });
-
-  it('eventsStreamUrl includes the provided after cursor', () => {
-    expect(eventsStreamUrl('run-42', 17)).toBe(
-      '/api/runs/run-42/events?after=17',
-    );
+    expect(url).toBe('/api/runs/run-42/events');
   });
 
   it('askQuestionUrl points at the run ask endpoint', () => {

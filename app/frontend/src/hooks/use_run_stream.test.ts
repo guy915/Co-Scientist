@@ -58,7 +58,6 @@ describe('useRunStream', () => {
     const {result} = renderHook(() => useRunStream('run-1'));
     const es = FakeEventSource.last();
     expect(es.url).toContain('/api/runs/run-1/events');
-    expect(es.url).toContain('after=0');
 
     expect(result.current.isOpen).toBe(false);
     act(() => es.onopen?.());

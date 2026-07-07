@@ -126,12 +126,10 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
 
         # Separate by similarity degree
         high_similarity = [
-            h for h in cluster_hypotheses
-            if getattr(h, "similarity_degree", "low") == "high"
+            h for h in cluster_hypotheses if h.similarity_degree == "high"
         ]
         others = [
-            h for h in cluster_hypotheses
-            if getattr(h, "similarity_degree", "low") != "high"
+            h for h in cluster_hypotheses if h.similarity_degree != "high"
         ]
 
         # Keep all non-high-similarity hypotheses

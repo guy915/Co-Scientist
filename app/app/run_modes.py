@@ -18,14 +18,6 @@ RUN_TIER_PATTERN = "^(express|standard|extended|ultra)$"
 DEFAULT_RUN_FOCUS = "balance"
 RUN_FOCUS_PATTERN = "^(prefer_evidence|balance|prefer_novelty|breakthrough)$"
 
-LEGACY_RUN_MODE_ALIASES = {
-    None: CANONICAL_RUN_MODE,
-    "": CANONICAL_RUN_MODE,
-    "default": CANONICAL_RUN_MODE,
-    "standard": CANONICAL_RUN_MODE,
-    "advanced": CANONICAL_RUN_MODE,
-}
-
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
         "initial_hypotheses_count": 4,
@@ -64,7 +56,8 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
 
 def normalize_run_mode(run_mode: str | None = None) -> str:
     """Return the canonical run mode for current and legacy labels."""
-    return LEGACY_RUN_MODE_ALIASES.get(run_mode, CANONICAL_RUN_MODE)
+    del run_mode  # Every current and legacy label maps to the single mode.
+    return CANONICAL_RUN_MODE
 
 
 def normalize_run_tier(tier: str | None = None) -> str:

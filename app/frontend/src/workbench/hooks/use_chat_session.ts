@@ -2,16 +2,13 @@ import {type FormEvent, useCallback, useState} from 'react';
 import {createRun, startRun} from '@/api/runs';
 import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
 import {copyText} from '@/lib/clipboard';
+import {makePrefixedId} from '@/lib/id';
 import {
   type ChatEntry,
   referenceSetupTitle,
   type StartedSession,
 } from '../pages/chat_timeline_cards';
 import {type ToastState} from './use_toast';
-
-function id(prefix: string): string {
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
 
 function emitDiagnosticEvent({
   stage,
@@ -78,7 +75,12 @@ export function useChatSession({
   function appendAssistant(content: string, createdAt = Date.now() / 1000) {
     setMessages(prev => [
       ...prev,
-      {id: id('assistant'), role: 'assistant', content, created_at: createdAt},
+      {
+        id: makePrefixedId('assistant'),
+        role: 'assistant',
+        content,
+        created_at: createdAt,
+      },
     ]);
     return createdAt;
   }
@@ -86,7 +88,12 @@ export function useChatSession({
   function appendUser(content: string, createdAt = Date.now() / 1000) {
     setMessages(prev => [
       ...prev,
-      {id: id('user'), role: 'user', content, created_at: createdAt},
+      {
+        id: makePrefixedId('user'),
+        role: 'user',
+        content,
+        created_at: createdAt,
+      },
     ]);
     return createdAt;
   }

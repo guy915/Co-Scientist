@@ -1,5 +1,6 @@
 """FastAPI application main module."""
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -17,6 +18,7 @@ load_dotenv()
 
 from app import engine_adapter, store  # pylint: disable=wrong-import-position
 from app.config import settings  # pylint: disable=wrong-import-position
+from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS  # pylint: disable=wrong-import-position
 from app.runs import router as runs_router  # pylint: disable=wrong-import-position
 from app.seed import seed_demo_runs  # pylint: disable=wrong-import-position
 
@@ -64,10 +66,6 @@ async def lifespan(
     # Startup
     logger.info("Starting Co-Scientist server...")
     logger.info("Model: %s", settings.model_name)
-    logger.info("Max iterations: %s", settings.max_iterations)
-    logger.info("Initial hypotheses count: %s",
-                settings.initial_hypotheses_count)
-    logger.info("Evolution max count: %s", settings.evolution_max_count)
     if settings.tools_config:
         logger.info("Tools config: %s", settings.tools_config)
     else:
@@ -180,11 +178,12 @@ async def health() -> HealthResponse:
 
 @app.get("/config", response_model=ConfigResponse, tags=["config"])
 async def get_config() -> ConfigResponse:
-    """Get default configuration values."""
+    """Get default run configuration values (standard tier)."""
+    defaults = RUN_TIER_DEFAULTS[DEFAULT_RUN_TIER]
     return ConfigResponse(
-        max_iterations=settings.max_iterations,
-        initial_hypotheses_count=settings.initial_hypotheses_count,
-        evolution_max_count=settings.evolution_max_count,
+        max_iterations=defaults["max_iterations"],
+        initial_hypotheses_count=defaults["initial_hypotheses_count"],
+        evolution_max_count=defaults["evolution_max_count"],
     )
 
 
@@ -203,8 +202,9 @@ async def get_system_status() -> dict[str, Any]:
             check_mcp_available, check_pubmed_available_via_mcp,
         )
 
-        mcp_available = await check_mcp_available()
-        pubmed_available = await check_pubmed_available_via_mcp()
+        # The two probes are independent network round-trips; overlap them.
+        mcp_available, pubmed_available = await asyncio.gather(
+            check_mcp_available(), check_pubmed_available_via_mcp())
     except Exception:  # pragma: no cover - engine optional in mock mode  # pylint: disable=broad-exception-caught
         mcp_available = False
         pubmed_available = False

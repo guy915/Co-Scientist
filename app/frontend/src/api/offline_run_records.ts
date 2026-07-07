@@ -14,6 +14,7 @@ import type {
   RunTier,
   SafetyDecision,
 } from './run_types';
+import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 
 export interface OfflineRunRecord {
   run: Run;
@@ -103,7 +104,7 @@ export function runFor(
 }
 
 function hypothesisTitles(goal: string): string[] {
-  if (/fibrosis|MASH|MASLD/i.test(goal)) {
+  if (isLiverFibrosisGoal(goal)) {
     return [
       'Temporal restriction of downstream epigenetic effectors',
       'Stellate-cell enhancer remodeling through transient chromatin release',

@@ -286,9 +286,6 @@ def test_engine_adapter_emits_canonical_event_types(
     assert len(by_type["literature_review"]["evidence"]) == 1
     assert by_type["supervisor.plan"]["agents"]
 
-    # Live standings ride node events for the leaderboard reader.
-    assert by_type["ranking"]["leaderboard"]
-
 
 def test_engine_adapter_generates_canonical_milestones(
         isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:

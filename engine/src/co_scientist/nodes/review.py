@@ -35,6 +35,35 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
+    """Builds a HypothesisReview from an LLM review payload.
+
+    The overall score is calculated from the criterion scores (more
+    consistent than an LLM-provided value), falling back to the payload's
+    overall_score when no criterion scores are present.
+
+    Args:
+        data: Review payload from the LLM response
+
+    Returns:
+        HypothesisReview object
+    """
+    scores = data.get("scores", {})
+    if scores:
+        overall_score = sum(scores.values()) / len(scores)
+    else:
+        overall_score = data.get("overall_score", 0.0)
+
+    return HypothesisReview(
+        review_summary=data.get("review_summary", ""),
+        scores=scores,
+        safety_ethical_concerns=data.get("safety_ethical_concerns", ""),
+        detailed_feedback=data.get("detailed_feedback", {}),
+        constructive_feedback=data.get("constructive_feedback", ""),
+        overall_score=overall_score,
+    )
+
+
 async def review_single_hypothesis(
     hypothesis_text: str,
     research_goal: str,
@@ -90,22 +119,7 @@ async def review_single_hypothesis(
         },
     )
 
-    # Calculate overall_score from criterion scores (more consistent than LLM-
-    # provided)
-    scores = response.get("scores", {})
-    if scores:
-        overall_score = sum(scores.values()) / len(scores)
-    else:
-        overall_score = response.get("overall_score", 0.0)
-
-    return HypothesisReview(
-        review_summary=response.get("review_summary", ""),
-        scores=scores,
-        safety_ethical_concerns=response.get("safety_ethical_concerns", ""),
-        detailed_feedback=response.get("detailed_feedback", {}),
-        constructive_feedback=response.get("constructive_feedback", ""),
-        overall_score=overall_score,
-    )
+    return _review_from_response(response)
 
 
 async def review_parallel_individual(
@@ -252,26 +266,7 @@ async def review_comparative_batch(
     reviews = []
     for i in range(len(hypotheses)):
         if i < len(reviews_data):
-            review_data = reviews_data[i]
-            scores = review_data.get("scores", {})
-
-            # Calculate overall score from criterion scores
-            if scores:
-                overall_score = sum(scores.values()) / len(scores)
-            else:
-                overall_score = 0.0
-
-            review = HypothesisReview(
-                review_summary=review_data.get("review_summary", ""),
-                scores=scores,
-                safety_ethical_concerns=review_data.get(
-                    "safety_ethical_concerns", ""),
-                detailed_feedback=review_data.get("detailed_feedback", {}),
-                constructive_feedback=review_data.get("constructive_feedback",
-                                                      ""),
-                overall_score=overall_score,
-            )
-            reviews.append(review)
+            reviews.append(_review_from_response(reviews_data[i]))
         else:
             # Missing review - create empty one
             logger.error("No review data for hypothesis %s", i)

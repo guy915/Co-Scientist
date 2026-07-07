@@ -174,12 +174,9 @@ def _canonical_engine_payload(node_name: str, node_type: str,
                               state: dict[str, Any]) -> dict[str, Any]:
     """Build a canonical event payload for a streamed engine node.
 
-    The generic fields (``node``, ``iteration``, counts, ``leaderboard``) are
-    kept as-is. On top of them, per-stage keys are added to match the mock's
-    payload shape (``count``, ``hypotheses``, ``evidence``, ``matches``,
-    ``children``, ``agents``) so a single vocabulary drives both
-    ``_format_milestone`` and the frontend's ``summarizeEventPayload`` /
-    ``selectLiveLeaderboard`` readers.
+    Per-stage keys match the mock's payload shape (``count``, ``hypotheses``,
+    ``evidence``, ``matches``, ``children``, ``agents``) so a single
+    vocabulary drives ``_format_milestone`` and the raw event log console.
 
     The list-shaped keys are projected to minimal stubs rather than carrying
     raw engine-state objects: every consumer reads only their ``length``, and
@@ -204,10 +201,6 @@ def _canonical_engine_payload(node_name: str, node_type: str,
     payload: dict[str, Any] = {
         "node": node_name,
         "iteration": iteration,
-        "hypothesis_count": len(hyps),
-        "matches_count": len(matchups),
-        "articles_count": len(articles),
-        "leaderboard": live_leaderboard(hyps),
     }
 
     if node_type == "generate":
@@ -389,170 +382,165 @@ def _persist_final_state(
     matchups: list[dict[str,
                         Any]] = final_state.get("tournament_matchups") or []
 
-    # 1. Evidence: persist retrieved articles.
-    ev_id_by_title: dict[str, str] = {}
-    for art in articles:
-        ev_id = store.add_evidence(
-            run_id,
-            art.get("title", "Untitled"),
-            source=art.get("source", "engine"),
-            url=art.get("url") or "",
-            authors=art.get("authors") or [],
-            year=art.get("year"),
-            abstract=art.get("abstract") or "",
-            available=True,
-            db_path=db_path,
-        )
-        ev_id_by_title[art.get("title", "")] = ev_id
+    # Batch the whole drain into one transaction: a real run writes dozens of
+    # rows here, and per-call connections would fsync each one individually.
+    with store.transaction(db_path) as conn:
+        # 1. Evidence: persist retrieved articles.
+        ev_id_by_title: dict[str, str] = {}
+        for art in articles:
+            ev_id = store.add_evidence(
+                run_id,
+                art.get("title", "Untitled"),
+                source=art.get("source", "engine"),
+                url=art.get("url") or "",
+                authors=art.get("authors") or [],
+                year=art.get("year"),
+                abstract=art.get("abstract") or "",
+                available=True,
+                conn=conn,
+            )
+            ev_id_by_title[art.get("title", "")] = ev_id
 
-    # 2. Hypotheses: persist in generation order; mark evolved ones. The
-    # engine's stable hypothesis id is passed straight through as the store row
-    # id, so identity holds end-to-end (engine -> DB -> API -> UI) and matchups
-    # resolve by id rather than by fragile text-prefix matching.
-    store_id_by_engine_id: dict[str, str] = {}
-    for h in hyps:
-        is_evolved = bool(h.get("evolution_history"))
-        generation = 1 if is_evolved else 0
-        agent = "evolution" if is_evolved else "generation"
-        # Derive a short title from the first sentence / 120 chars.
-        text = h.get("text", "")
-        title = text.split(".")[0][:120] or text[:120]
-        engine_id = h.get("id") or None
-        hyp_id = store.add_hypothesis(
-            run_id=run_id,
-            title=title,
-            statement=text,
-            hypothesis_id=engine_id,
-            category=h.get("category") or None,
-            mechanism=h.get("literature_grounding") or "",
-            expected_effect=h.get("explanation") or "",
-            experimental_context=h.get("experiment") or "",
-            generation=generation,
-            created_by_agent=agent,
-            db_path=db_path,
-        )
-        if engine_id:
-            store_id_by_engine_id[engine_id] = hyp_id
-
-        # Update mutable state: Elo, wins, losses, scores.
-        store.update_hypothesis_state(
-            hyp_id,
-            elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
-            win_delta=int(h.get("win_count", 0)),
-            loss_delta=int(h.get("loss_count", 0)),
-            novelty=float(h.get("score", 0) or 0) or None,
-            db_path=db_path,
-        )
-
-        # Persist per-hypothesis reviews.
-        for rv in h.get("reviews") or []:
-            store.add_review(
+        # 2. Hypotheses: persist in generation order; mark evolved ones. The
+        # engine's stable hypothesis id is passed straight through as the store
+        # row id, so identity holds end-to-end (engine -> DB -> API -> UI) and
+        # matchups resolve by id rather than by fragile text-prefix matching.
+        store_id_by_engine_id: dict[str, str] = {}
+        for h in hyps:
+            is_evolved = bool(h.get("evolution_history"))
+            generation = 1 if is_evolved else 0
+            agent = "evolution" if is_evolved else "generation"
+            # Derive a short title from the first sentence / 120 chars.
+            text = h.get("text", "")
+            title = text.split(".")[0][:120] or text[:120]
+            engine_id = h.get("id") or None
+            hyp_id = store.add_hypothesis(
                 run_id=run_id,
-                hypothesis_id=hyp_id,
-                reviewer_agent="review",
-                summary=rv.get("review_summary", ""),
-                critique=rv.get("constructive_feedback", ""),
-                novelty=float(rv.get("scores", {}).get("novelty", 0) or 0) or
-                None,
-                plausibility=float(
-                    rv.get("scores", {}).get("scientific_soundness", 0) or 0) or
-                None,
-                testability=float(
-                    rv.get("scores", {}).get("testability", 0) or 0) or None,
-                overall=float(rv.get("overall_score", 0) or 0) or None,
-                db_path=db_path,
+                title=title,
+                statement=text,
+                hypothesis_id=engine_id,
+                category=h.get("category") or None,
+                mechanism=h.get("literature_grounding") or "",
+                expected_effect=h.get("explanation") or "",
+                experimental_context=h.get("experiment") or "",
+                generation=generation,
+                created_by_agent=agent,
+                conn=conn,
+            )
+            if engine_id:
+                store_id_by_engine_id[engine_id] = hyp_id
+
+            # Update mutable state: Elo, wins, losses, scores.
+            store.update_hypothesis_state(
+                hyp_id,
+                elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
+                win_delta=int(h.get("win_count", 0)),
+                loss_delta=int(h.get("loss_count", 0)),
+                novelty=float(h.get("score", 0) or 0) or None,
+                conn=conn,
             )
 
-        # Persist deep-verification probes as a dedicated review row.
-        probes = h.get("deep_verification_probes") or []
-        if probes:
-            summary, critique = _format_deep_verification_critique(
-                probes, h.get("deep_verification_verdict"))
-            store.add_review(
-                run_id=run_id,
-                hypothesis_id=hyp_id,
-                reviewer_agent="deep_verification",
-                summary=summary,
-                critique=critique,
-                db_path=db_path,
-            )
-
-        # Persist citations from the hypothesis citation_map.
-        for cite_key, cite_info in (h.get("citation_map") or {}).items():
-            cite_title = cite_info.get("title", cite_key)
-            cite_ev_id = ev_id_by_title.get(cite_title)
-            if cite_ev_id is None:
-                # Add evidence on the fly for this citation source.
-                cite_ev_id = store.add_evidence(
-                    run_id,
-                    cite_title,
-                    source=cite_info.get("type", "engine"),
-                    url=cite_info.get("url") or "",
-                    authors=cite_info.get("authors") or [],
-                    year=cite_info.get("year"),
-                    abstract="",
-                    available=True,
-                    db_path=db_path,
+            # Persist per-hypothesis reviews.
+            for rv in h.get("reviews") or []:
+                store.add_review(
+                    run_id=run_id,
+                    hypothesis_id=hyp_id,
+                    reviewer_agent="review",
+                    summary=rv.get("review_summary", ""),
+                    critique=rv.get("constructive_feedback", ""),
+                    novelty=float(rv.get("scores", {}).get("novelty", 0) or
+                                  0) or None,
+                    plausibility=float(
+                        rv.get("scores", {}).get("scientific_soundness", 0) or
+                        0) or None,
+                    testability=float(
+                        rv.get("scores", {}).get("testability", 0) or 0) or
+                    None,
+                    overall=float(rv.get("overall_score", 0) or 0) or None,
+                    conn=conn,
                 )
-                ev_id_by_title[cite_title] = cite_ev_id
-            claim = f"[{cite_key}] cited in hypothesis"
-            store.add_citation(run_id,
-                               hyp_id,
-                               cite_ev_id,
-                               claim,
-                               CitationState.VERIFIED,
-                               db_path=db_path)
 
-    # 3. Tournament matches: resolve each side by the engine's stable
-    # hypothesis id. Matchups may legitimately reference hypotheses that were
-    # dropped from the final set (evolve discards lower-ranked ones), so an
-    # unresolved id is expected rather than an error — log it and skip.
-    for m in matchups:
-        a_engine_id = m.get("hypothesis_a_id")
-        b_engine_id = m.get("hypothesis_b_id")
-        winner_engine_id = m.get("winner_id")
+            # Persist deep-verification probes as a dedicated review row.
+            probes = h.get("deep_verification_probes") or []
+            if probes:
+                summary, critique = _format_deep_verification_critique(
+                    probes, h.get("deep_verification_verdict"))
+                store.add_review(
+                    run_id=run_id,
+                    hypothesis_id=hyp_id,
+                    reviewer_agent="deep_verification",
+                    summary=summary,
+                    critique=critique,
+                    conn=conn,
+                )
 
-        loser_engine_id = (b_engine_id
-                           if winner_engine_id == a_engine_id else a_engine_id)
+            # Persist citations from the hypothesis citation_map.
+            for cite_key, cite_info in (h.get("citation_map") or {}).items():
+                cite_title = cite_info.get("title", cite_key)
+                cite_ev_id = ev_id_by_title.get(cite_title)
+                if cite_ev_id is None:
+                    # Add evidence on the fly for this citation source.
+                    cite_ev_id = store.add_evidence(
+                        run_id,
+                        cite_title,
+                        source=cite_info.get("type", "engine"),
+                        url=cite_info.get("url") or "",
+                        authors=cite_info.get("authors") or [],
+                        year=cite_info.get("year"),
+                        abstract="",
+                        available=True,
+                        conn=conn,
+                    )
+                    ev_id_by_title[cite_title] = cite_ev_id
+                claim = f"[{cite_key}] cited in hypothesis"
+                store.add_citation(run_id,
+                                   hyp_id,
+                                   cite_ev_id,
+                                   claim,
+                                   CitationState.VERIFIED,
+                                   conn=conn)
 
-        winner_id = store_id_by_engine_id.get(winner_engine_id or "")
-        loser_id = store_id_by_engine_id.get(loser_engine_id or "")
-        if not winner_id or not loser_id:
-            logger.warning(
-                "skipping matchup: unresolved hypothesis id "
-                "(winner=%s, loser=%s) — likely a hypothesis dropped during "
-                "evolution", winner_engine_id, loser_engine_id)
-            continue
+        # 3. Tournament matches: resolve each side by the engine's stable
+        # hypothesis id. Matchups may legitimately reference hypotheses that
+        # were dropped from the final set (evolve discards lower-ranked ones),
+        # so an unresolved id is expected rather than an error — log and skip.
+        for m in matchups:
+            a_engine_id = m.get("hypothesis_a_id")
+            b_engine_id = m.get("hypothesis_b_id")
+            winner_engine_id = m.get("winner_id")
 
-        store.add_match(
-            run_id=run_id,
-            iteration=0,
-            winner_id=winner_id,
-            loser_id=loser_id,
-            winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
-            winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
-            loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
-            loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
-            rationale=m.get("reasoning", ""),
-            tier=m.get("tier") or None,
-            db_path=db_path,
-        )
+            loser_engine_id = (b_engine_id if winner_engine_id == a_engine_id
+                               else a_engine_id)
+
+            winner_id = store_id_by_engine_id.get(winner_engine_id or "")
+            loser_id = store_id_by_engine_id.get(loser_engine_id or "")
+            if not winner_id or not loser_id:
+                logger.warning(
+                    "skipping matchup: unresolved hypothesis id "
+                    "(winner=%s, loser=%s) — likely a hypothesis dropped "
+                    "during evolution", winner_engine_id, loser_engine_id)
+                continue
+
+            store.add_match(
+                run_id=run_id,
+                iteration=0,
+                winner_id=winner_id,
+                loser_id=loser_id,
+                winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
+                winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
+                loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
+                loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
+                rationale=m.get("reasoning", ""),
+                tier=m.get("tier") or None,
+                conn=conn,
+            )
 
     # 4. Build and persist the report.
-    sorted_hyps = sorted(hyps,
-                         key=lambda h: -int(h.get("elo_rating", INITIAL_ELO)))
-    leaderboard = [{
-        "rank": idx + 1,
-        "title": h.get("text", "")[:120],
-        "elo": h.get("elo_rating", INITIAL_ELO),
-        "wins": h.get("win_count", 0),
-        "losses": h.get("loss_count", 0),
-    } for idx, h in enumerate(sorted_hyps[:10])]
+    leaderboard = live_leaderboard(hyps)
     research_overview = final_state.get("research_overview") or {}
     report_payload = {
         "research_goal": research_goal,
         "run_mode": run_mode,
-        "profile": run_mode,
         "provider": "engine",
         "execution_time": execution_time,
         "hypothesis_count": len(hyps),

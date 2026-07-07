@@ -37,7 +37,6 @@ from pydantic import BaseModel, Field
 from app import engine_adapter, store
 from app.citations import STATE_RANK
 from app.config import settings
-from app.elo import INITIAL_ELO
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
     RUN_MODE_PATTERN,
@@ -180,7 +179,6 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         {
             "event": "created",
             "run_mode": run_mode,
-            "profile": run_mode,
             "provider": provider,
             "focus": focus,
             "tier": tier,
@@ -552,19 +550,20 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
 
     question_msg = store.append_message(run_id, "user", req.question, "qa")
 
-    hypotheses = store.list_hypotheses(run_id)
-    reviews = store.list_reviews(run_id)
-    matches = store.list_matches(run_id)
-    history = store.list_messages(run_id)[:-1]
-    evidence = store.list_evidence(run_id)
-    citations = store.list_citations(run_id)
+    # All six reads target the same run; share one connection.
+    with store.connect() as conn:
+        hypotheses = store.list_hypotheses(run_id, conn=conn)
+        reviews = store.list_reviews(run_id, conn=conn)
+        matches = store.list_matches(run_id, conn=conn)
+        history = store.list_messages(run_id, conn=conn)[:-1]
+        evidence = store.list_evidence(run_id, conn=conn)
+        citations = store.list_citations(run_id, conn=conn)
     manifest = _build_evidence_manifest(evidence, citations)
     evidence_lines = _format_manifest_for_prompt(manifest)
 
-    top_hyps = sorted(
-        hypotheses, key=lambda h: -int(h.get("elo_rating") or INITIAL_ELO))[:5]
+    top_hyps = sorted(hypotheses, key=lambda h: -int(h["elo_rating"]))[:5]
     hyp_lines = "\n".join(
-        f"- [{h['title']}] Elo {h.get('elo_rating', INITIAL_ELO)}, {h.get('win_count', 0)}W/{h.get('loss_count', 0)}L"  # pylint: disable=line-too-long
+        f"- [{h['title']}] Elo {h['elo_rating']}, {h['win_count']}W/{h['loss_count']}L"  # pylint: disable=line-too-long
         for h in top_hyps)
     review_lines = "\n".join(
         f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"  # pylint: disable=line-too-long
