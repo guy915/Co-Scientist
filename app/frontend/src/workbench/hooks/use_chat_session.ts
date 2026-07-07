@@ -262,6 +262,9 @@ export function useChatSession({
       await startRun(created.id);
       setStartedSession(session);
       await reloadHistory();
+      // Tell the shell sidebar (which owns a separate history copy) that a new
+      // run exists, so it appears immediately instead of only after a reload.
+      window.dispatchEvent(new Event('cosci-runs-changed'));
       emitDiagnosticEvent({
         stage: 'LIFECYCLE',
         run: session.title,

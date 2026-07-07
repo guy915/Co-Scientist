@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
@@ -237,25 +237,26 @@ export function Layout({children}: {children: ReactNode}) {
     };
   }, []);
 
-  useEffect(() => {
-    let ignore = false;
-    async function loadHistory() {
-      const [ownedRuns, demoRuns] = await Promise.all([
-        listRuns().catch(() => [] as Run[]),
-        listDemoRuns().catch(() => [] as Run[]),
-      ]);
-      if (ignore) return;
-      const byId = new Map<string, Run>();
-      for (const item of [...ownedRuns, ...demoRuns]) byId.set(item.id, item);
-      setHistory(
-        [...byId.values()].sort((a, b) => b.updated_at - a.updated_at),
-      );
-    }
-    void loadHistory();
-    return () => {
-      ignore = true;
-    };
+  const loadHistory = useCallback(async () => {
+    const [ownedRuns, demoRuns] = await Promise.all([
+      listRuns().catch(() => [] as Run[]),
+      listDemoRuns().catch(() => [] as Run[]),
+    ]);
+    const byId = new Map<string, Run>();
+    for (const item of [...ownedRuns, ...demoRuns]) byId.set(item.id, item);
+    setHistory([...byId.values()].sort((a, b) => b.updated_at - a.updated_at));
   }, []);
+
+  // Reload the sidebar history on mount, whenever a run is created/started
+  // (cosci-runs-changed), and on every navigation so status changes (e.g. a
+  // run finishing) are reflected without a full page reload.
+  useEffect(() => {
+    void loadHistory();
+    window.addEventListener('cosci-runs-changed', loadHistory);
+    return () => {
+      window.removeEventListener('cosci-runs-changed', loadHistory);
+    };
+  }, [loadHistory, location.pathname]);
 
   return (
     <div className={shellClass}>
