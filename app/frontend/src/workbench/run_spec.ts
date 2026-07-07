@@ -65,7 +65,7 @@ export const TIER_OPTIONS: RunTierOption[] = [
     id: 'ultra',
     label: 'Ultra',
     description:
-      'Most compute-intensive, using the largest models for cutting-edge insights. May take longer.',
+      'Most compute-intensive, using the largest models for cutting-edge insights.',
     initialHypotheses: 16,
     iterations: 4,
     evolvedHypotheses: 16,

@@ -129,10 +129,9 @@ export const OPTION_CARD_BASE_CLASSES =
   'reference-option-card relative grid min-h-[4.75rem] grid-cols-[1.6rem_minmax(0,1fr)] ' +
   'content-start gap-x-[0.8rem] rounded-[0.65rem] border border-transparent ' +
   'bg-cosci-option-bg px-[0.95rem] py-[0.85rem] text-cosci-fg ' +
-  'hover:border-cosci-option-hover-border ' +
   'hover:bg-cosci-option-hover-bg ' +
-  'focus-within:border-cosci-option-hover-border ' +
-  'focus-within:bg-cosci-option-hover-bg';
+  'has-[:focus-visible]:border-cosci-option-hover-border ' +
+  'has-[:focus-visible]:bg-cosci-option-hover-bg';
 
 export const OPTION_INPUT_CLASSES = 'absolute pointer-events-none opacity-0';
 
