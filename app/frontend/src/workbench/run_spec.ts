@@ -150,9 +150,12 @@ export function inferRunSpec(rawGoal: string): InferredRunSpec {
   }
   return {
     goal,
-    requirements: [...DEFAULT_REQUIREMENTS, ...domainRequirements(goal)],
-    attributes: [...DEFAULT_ATTRIBUTES, ...domainAttributes(goal)],
-    criteria: [...DEFAULT_CRITERIA, ...domainCriteria(goal)],
+    requirements: [
+      ...DEFAULT_REQUIREMENTS,
+      ...domainPhrases(goal, 'requirements'),
+    ],
+    attributes: [...DEFAULT_ATTRIBUTES, ...domainPhrases(goal, 'attributes')],
+    criteria: [...DEFAULT_CRITERIA, ...domainPhrases(goal, 'criteria')],
     focus: 'balance',
     tier: 'standard',
   };
@@ -256,16 +259,4 @@ function domainPhrases(goal: string, bucket: DomainRule['bucket']): string[] {
   return DOMAIN_RULES.filter(
     rule => rule.bucket === bucket && rule.pattern.test(lower),
   ).map(rule => rule.phrase);
-}
-
-function domainRequirements(goal: string): string[] {
-  return domainPhrases(goal, 'requirements');
-}
-
-function domainAttributes(goal: string): string[] {
-  return domainPhrases(goal, 'attributes');
-}
-
-function domainCriteria(goal: string): string[] {
-  return domainPhrases(goal, 'criteria');
 }

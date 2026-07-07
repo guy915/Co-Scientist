@@ -12,6 +12,7 @@ from co_scientist.constants import (
     THINKING_MAX_TOKENS,
     LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
+    truncate,
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis, create_metrics_update, rank_by_elo
@@ -339,9 +340,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         old_loser_elo = loser_hyp.elo_rating
 
         new_winner_elo, new_loser_elo = calculate_elo_update(
-            winner_elo=winner_hyp.elo_rating,
-            loser_elo=loser_hyp.elo_rating,
-            k_factor=ELO_K_FACTOR)
+            winner_elo=winner_hyp.elo_rating, loser_elo=loser_hyp.elo_rating)
         logger.debug("Matchup result: Winner %s -> %s, Loser %s -> %s",
                      winner_hyp.elo_rating, new_winner_elo,
                      loser_hyp.elo_rating, new_loser_elo)
@@ -360,11 +359,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
 
         matchup_details.append({
             "hypothesis_a":
-                hyp_a.text[:200] +
-                "..." if len(hyp_a.text) > 200 else hyp_a.text,
+                truncate(hyp_a.text),
             "hypothesis_b":
-                hyp_b.text[:200] +
-                "..." if len(hyp_b.text) > 200 else hyp_b.text,
+                truncate(hyp_b.text),
             # Stable ids alongside the truncated text so downstream consumers can
             # resolve identity exactly instead of by text-prefix matching.
             "hypothesis_a_id":

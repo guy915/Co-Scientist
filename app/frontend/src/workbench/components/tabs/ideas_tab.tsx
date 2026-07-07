@@ -330,6 +330,11 @@ function HypothesisDetail({
   );
 }
 
+/** Anchor id for a detail section, shared by the section and its rail link. */
+function sectionSlug(title: string): string {
+  return title.toLowerCase().replaceAll(' ', '-');
+}
+
 function DetailSection({
   title,
   children,
@@ -341,10 +346,7 @@ function DetailSection({
 }) {
   const Heading = level === 2 ? 'h2' : 'h3';
   return (
-    <section
-      className={IDEA_DETAIL_SECTION_CLASSES}
-      id={title.toLowerCase().replaceAll(' ', '-')}
-    >
+    <section className={IDEA_DETAIL_SECTION_CLASSES} id={sectionSlug(title)}>
       <Heading>{title}</Heading>
       <div>{children}</div>
     </section>
@@ -365,11 +367,9 @@ function SectionsRail() {
         ].map(item => (
           <a
             key={item}
-            href={`#${item.toLowerCase().replaceAll(' ', '-')}`}
+            href={`#${sectionSlug(item)}`}
             className={IDEA_SECTION_LINK_CLASSES}
-            onClick={event =>
-              smoothSectionClick(event, item.toLowerCase().replaceAll(' ', '-'))
-            }
+            onClick={event => smoothSectionClick(event, sectionSlug(item))}
           >
             {item} &gt;
           </a>

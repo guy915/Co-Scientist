@@ -478,3 +478,81 @@ def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
     assert report is not None
     assert "## Research Overview" not in report["markdown_text"]
     assert "## NIH Specific Aims" not in report["markdown_text"]
+
+
+def _final_state_with_citations() -> dict[str, Any]:
+    """A minimal final state whose hypothesis cites three distinct sources.
+
+    The three citations are engineered to land in three different citation
+    states once routed through ``classify_citation``: a retrieved paper whose
+    abstract overlaps the grounding (verified), a paper with a URL but no
+    retrieved abstract (unsupported), and a knowledge-graph source with no URL
+    (unavailable).
+    """
+    grounding = "CXCR1 signaling drives breast cancer stem cell renewal"
+    return {
+        "hypotheses": [{
+            "id": "eng-hyp-a",
+            "text": "Blocking CXCR1 suppresses breast cancer stem cells.",
+            "literature_grounding": grounding,
+            "citation_map": {
+                "C1": {
+                    "type": "paper",
+                    "title": "CXCR1 drives CSC renewal",
+                    "url": "https://example.org/c1",
+                    "authors": ["Smith"],
+                    "year": 2023,
+                },
+                "C2": {
+                    "type": "paper",
+                    "title": "Unrelated off-target study",
+                    "url": "https://example.org/c2",
+                    "authors": ["Doe"],
+                    "year": 2021,
+                },
+                "C3": {
+                    "type": "knowledge_graph",
+                    "display": "INDRA: CXCR1 -> STAT3",
+                },
+            },
+        }],
+        "articles": [{
+            "title": "CXCR1 drives CSC renewal",
+            "url": "https://example.org/c1",
+            "abstract":
+                "CXCR1 signaling drives breast cancer stem cell renewal "
+                "across xenograft models.",
+            "authors": ["Smith"],
+            "year": 2023,
+        }],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "research_overview": {},
+    }
+
+
+def test_persist_classifies_citations_via_shared_classifier(
+        isolated_db: str) -> None:
+    """Engine citations run through classify_citation, not a hardcoded state.
+
+    Regression guard: the drain previously stamped every citation "verified",
+    leaving the four-state citation UI dead for real runs. Each source must now
+    resolve to the state its content warrants.
+    """
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        final_state=_final_state_with_citations(),
+        execution_time=1.0,
+        db_path=isolated_db,
+    )
+
+    citations = store.list_citations(run.id, db_path=isolated_db)
+    states = {c["claim"]: c["state"] for c in citations}
+    assert states == {
+        "[C1] cited in hypothesis": "verified",
+        "[C2] cited in hypothesis": "unsupported",
+        "[C3] cited in hypothesis": "unavailable",
+    }

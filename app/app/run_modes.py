@@ -157,8 +157,8 @@ def resolved_run_config(
                 base[key] = raw_value
                 continue
             if key == "tier":
-                base[key] = normalize_run_tier(
-                    raw_value if isinstance(raw_value, str) else None)
+                # Resolved once, above; the final assignment below always wins,
+                # so skip the numeric path (int("standard") would raise anyway).
                 continue
             if key == "focus":
                 base[key] = normalize_run_focus(

@@ -10,6 +10,7 @@ from co_scientist.constants import (
     MEDIUM_TEMPERATURE,
     PROGRESS_META_REVIEW_START,
     PROGRESS_META_REVIEW_COMPLETE,
+    truncate,
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
@@ -53,24 +54,15 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         latest_review = hyp.reviews[-1]
 
         review_data = {
-            "hypothesis_index":
-                i,
-            "hypothesis_text":
-                hyp.text[:200] + "..." if len(hyp.text) > 200 else hyp.text,
-            "overall_score":
-                latest_review.overall_score,
-            "review_summary":
-                latest_review.review_summary,
-            "scores":
-                latest_review.scores,
-            "constructive_feedback":
-                latest_review.constructive_feedback,
-            "elo_rating":
-                hyp.elo_rating,
-            "win_loss_record":
-                f"{hyp.win_count}W-{hyp.loss_count}L",
-            "deep_verification_verdict":
-                hyp.deep_verification_verdict,
+            "hypothesis_index": i,
+            "hypothesis_text": truncate(hyp.text),
+            "overall_score": latest_review.overall_score,
+            "review_summary": latest_review.review_summary,
+            "scores": latest_review.scores,
+            "constructive_feedback": latest_review.constructive_feedback,
+            "elo_rating": hyp.elo_rating,
+            "win_loss_record": f"{hyp.win_count}W-{hyp.loss_count}L",
+            "deep_verification_verdict": hyp.deep_verification_verdict,
         }
         all_reviews.append(review_data)
 

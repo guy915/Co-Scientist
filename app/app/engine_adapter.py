@@ -21,7 +21,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
-from app.citations import CitationState
+from app.citations import CitationRecord, classify_citation
 from app.config import settings
 from app.elo import INITIAL_ELO, live_leaderboard
 from app.mock_workflow import run_mock_workflow
@@ -254,8 +254,11 @@ def _persist_final_state(
     # Batch the whole drain into one transaction: a real run writes dozens of
     # rows here, and per-call connections would fsync each one individually.
     with store.transaction(db_path) as conn:
-        # 1. Evidence: persist retrieved articles.
+        # 1. Evidence: persist retrieved articles. Keep each article's abstract
+        # keyed by title so the citation pass can classify a cited source
+        # against it (the citation_map carries no abstract of its own).
         ev_id_by_title: dict[str, str] = {}
+        abstract_by_title: dict[str, str] = {}
         for art in articles:
             ev_id = store.add_evidence(
                 run_id,
@@ -269,6 +272,7 @@ def _persist_final_state(
                 conn=conn,
             )
             ev_id_by_title[art.get("title", "")] = ev_id
+            abstract_by_title[art.get("title", "")] = art.get("abstract") or ""
 
         # 2. Hypotheses: persist in generation order; mark evolved ones. The
         # engine's stable hypothesis id is passed straight through as the store
@@ -343,9 +347,18 @@ def _persist_final_state(
                     conn=conn,
                 )
 
-            # Persist citations from the hypothesis citation_map.
+            # Persist citations from the hypothesis citation_map. Route each
+            # through the shared classifier (the same path the mock uses) rather
+            # than hardcoding a state, so the four-state citation UI reflects
+            # real runs. The hypothesis grounding is the claim the citation
+            # supports; it is matched against the cited paper's abstract (when
+            # the source was retrieved), and a source with no resolvable URL
+            # (e.g. a knowledge-graph statement) falls out as "unavailable".
+            grounding = str(
+                h.get("literature_grounding") or h.get("text") or "")
             for cite_key, cite_info in (h.get("citation_map") or {}).items():
                 cite_title = cite_info.get("title", cite_key)
+                cite_url = cite_info.get("url") or ""
                 cite_ev_id = ev_id_by_title.get(cite_title)
                 if cite_ev_id is None:
                     # Add evidence on the fly for this citation source.
@@ -353,7 +366,7 @@ def _persist_final_state(
                         run_id,
                         cite_title,
                         source=cite_info.get("type", "engine"),
-                        url=cite_info.get("url") or "",
+                        url=cite_url,
                         authors=cite_info.get("authors") or [],
                         year=cite_info.get("year"),
                         abstract="",
@@ -362,11 +375,19 @@ def _persist_final_state(
                     )
                     ev_id_by_title[cite_title] = cite_ev_id
                 claim = f"[{cite_key}] cited in hypothesis"
+                state = classify_citation(
+                    CitationRecord(
+                        title=cite_title,
+                        url=cite_url,
+                        abstract=abstract_by_title.get(cite_title, ""),
+                        claim=grounding,
+                        available=True,
+                    ))
                 store.add_citation(run_id,
                                    hyp_id,
                                    cite_ev_id,
                                    claim,
-                                   CitationState.VERIFIED,
+                                   state,
                                    conn=conn)
 
         # 3. Tournament matches: resolve each side by the engine's stable

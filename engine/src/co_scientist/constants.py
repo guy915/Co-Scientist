@@ -203,6 +203,21 @@ def scaled_max_tokens(base: int,
     return min(base + max(0, count - free_count) * per_item, cap)
 
 
+def truncate(text: str, limit: int = 200, suffix: str = "...") -> str:
+    """Truncates text to ``limit`` characters, appending ``suffix`` if cut.
+
+    Args:
+        text: The text to truncate.
+        limit: Maximum length of the returned text before the suffix.
+        suffix: Marker appended when the text is longer than ``limit``.
+
+    Returns:
+        The original text if within ``limit``, else its first ``limit``
+        characters followed by ``suffix``.
+    """
+    return text[:limit] + suffix if len(text) > limit else text
+
+
 REVIEW_BATCH_TOKENS_PER_HYPOTHESIS: Final = 1500
 """Extra batch-review output tokens per hypothesis beyond the free count."""
 

@@ -98,13 +98,13 @@ export function useChatSession({
     return createdAt;
   }
 
-  function clearSessionState() {
+  const clearSessionState = useCallback(() => {
     setDraftSpec(null);
     setDraftSpecCreatedAt(null);
     setConfirmedSpec(null);
     setConfirmedSpecCreatedAt(null);
     setStartedSession(null);
-  }
+  }, []);
 
   function stageDraftSpec(
     spec: InferredRunSpec,
@@ -118,16 +118,12 @@ export function useChatSession({
   }
 
   const resetSession = useCallback(() => {
+    clearSessionState();
     setInput('');
-    setDraftSpec(null);
-    setDraftSpecCreatedAt(null);
-    setConfirmedSpec(null);
-    setConfirmedSpecCreatedAt(null);
-    setStartedSession(null);
     setIsStarting(false);
     setMessages([]);
     setError(null);
-  }, []);
+  }, [clearSessionState]);
 
   function handleRetryMessage(message: ChatEntry) {
     appendAssistant(message.content);

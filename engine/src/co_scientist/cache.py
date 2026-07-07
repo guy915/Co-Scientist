@@ -14,7 +14,11 @@ from typing import Any
 import pickle
 
 from co_scientist.config.registry import parse_bool_env
-from co_scientist.constants import DEFAULT_CACHE_DIR, DEFAULT_CACHE_ENABLED
+from co_scientist.constants import (
+    DEFAULT_CACHE_DIR,
+    DEFAULT_CACHE_ENABLED,
+    truncate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -180,14 +184,10 @@ class LLMCache:
         try:
             cache_data = {
                 "request": {
-                    "model":
-                        model_name,
-                    "temperature":
-                        temperature,
-                    "max_tokens":
-                        max_tokens,
-                    "prompt_preview":
-                        prompt[:200] + "..." if len(prompt) > 200 else prompt,
+                    "model": model_name,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                    "prompt_preview": truncate(prompt),
                 },
                 "response": response,
             }
