@@ -145,8 +145,10 @@
   --color-cosci-attach-meta: var(--cosci-attach-meta);
   --color-cosci-toast-bg: var(--cosci-toast-bg);
   --color-cosci-toast-fg: var(--cosci-toast-fg);
+  --color-cosci-toast-action: var(--cosci-toast-action);
   --color-cosci-surface-raised: var(--cosci-surface-raised);
   --color-cosci-user-bubble-bg: var(--cosci-user-bubble-bg);
+  --color-cosci-user-bubble-hover: var(--cosci-user-bubble-hover);
   --color-cosci-setup-doc-bg: var(--cosci-setup-doc-bg);
   --color-cosci-option-bg: var(--cosci-option-bg);
   --color-cosci-option-hover-bg: var(--cosci-option-hover-bg);

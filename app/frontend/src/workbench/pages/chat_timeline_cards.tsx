@@ -1,4 +1,11 @@
-import {type ReactNode, useLayoutEffect, useRef, useState} from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  type TransitionEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
@@ -50,8 +57,10 @@ import {
   STARTED_SESSION_META_CLASSES,
   STARTED_SESSION_TITLE_CLASSES,
   USER_BUBBLE_CLASSES,
+  USER_BUBBLE_TEXT_CLAMP_CLASSES,
   USER_BUBBLE_TEXT_CLASSES,
-  USER_BUBBLE_TEXT_COLLAPSED_CLASSES,
+  USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES,
+  USER_BUBBLE_TEXT_OPEN_CLASSES,
   USER_COLLAPSE_BUTTON_CLASSES,
 } from './chat_setup_classes';
 
@@ -143,6 +152,54 @@ function MessageActionRow({
   );
 }
 
+const COLLAPSED_LINE_COUNT = 4;
+
+/**
+ * Measures a request bubble's collapsed (four-line) and full natural heights.
+ *
+ * The clamp and any inline max-height are stripped for the read so scrollHeight
+ * reports the true untruncated height, then restored.
+ *
+ * @param element The bubble text element to measure.
+ * @returns The collapsed and full pixel heights.
+ */
+function measureBubbleHeights(element: HTMLSpanElement) {
+  const styles = window.getComputedStyle(element);
+  const fontSize = Number.parseFloat(styles.fontSize) || 16;
+  const lineHeight =
+    Number.parseFloat(styles.lineHeight) || Math.round(fontSize * 1.45);
+  const collapsed = Math.round(lineHeight * COLLAPSED_LINE_COUNT);
+  const previousMaxHeight = element.style.maxHeight;
+  const previousClamp = element.style.getPropertyValue('-webkit-line-clamp');
+  const previousDisplay = element.style.display;
+  const previousWhiteSpace = element.style.whiteSpace;
+  element.style.maxHeight = 'none';
+  element.style.setProperty('-webkit-line-clamp', 'unset');
+  element.style.display = 'block';
+  // Measure against the expanded state's wrapping so the open height is exact.
+  element.style.whiteSpace = 'pre-wrap';
+  const full = element.scrollHeight;
+  element.style.maxHeight = previousMaxHeight;
+  element.style.setProperty('-webkit-line-clamp', previousClamp);
+  element.style.display = previousDisplay;
+  element.style.whiteSpace = previousWhiteSpace;
+  return {collapsed, full};
+}
+
+/**
+ * Reports whether the user prefers reduced motion, so expand/collapse can snap
+ * instead of animating.
+ *
+ * @returns True when the reduced-motion media query matches.
+ */
+function prefersReducedMotion() {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 export function ChatBubble({
   message,
   onEdit,
@@ -158,24 +215,80 @@ export function ChatBubble({
   const textRef = useRef<HTMLSpanElement>(null);
   const [canCollapse, setCanCollapse] = useState(false);
   const [expanded, setExpanded] = useState(false);
+  // `clamped` gates the ellipsis; `settled` drops the max-height cap once a
+  // request is fully open so it never clips after a resize.
+  const [clamped, setClamped] = useState(false);
+  const [settled, setSettled] = useState(false);
+  const [heights, setHeights] = useState({collapsed: 0, full: 0});
 
   useLayoutEffect(() => {
     if (!isUser || !textRef.current) {
       setCanCollapse(false);
       return;
     }
-    const element = textRef.current;
-    const styles = window.getComputedStyle(element);
-    const fontSize = Number.parseFloat(styles.fontSize) || 16;
-    const lineHeight =
-      Number.parseFloat(styles.lineHeight) || Math.round(fontSize * 1.45);
-    const naturalHeight = element.scrollHeight;
-    const exceedsThreeLines = naturalHeight > lineHeight * 3 + 2;
-    setCanCollapse(exceedsThreeLines || message.content.length > 140);
+    const {collapsed, full} = measureBubbleHeights(textRef.current);
+    const exceeds = full > collapsed + 2;
+    setHeights({collapsed, full});
+    setCanCollapse(exceeds);
     setExpanded(false);
+    setSettled(false);
+    setClamped(exceeds);
   }, [isUser, message.content]);
 
+  function toggleExpanded() {
+    const element = textRef.current;
+    if (element) setHeights(measureBubbleHeights(element));
+    if (expanded) {
+      // Collapse: display is already block, so drop any max-height cap to a
+      // concrete height, then animate down on the next frame. The clamp (and
+      // its ellipsis) returns on transition end.
+      setSettled(false);
+      if (prefersReducedMotion()) {
+        setExpanded(false);
+        setClamped(true);
+      } else {
+        requestAnimationFrame(() => setExpanded(false));
+      }
+    } else {
+      // Expand: switch off the -webkit-box clamp first (display: block) so the
+      // following max-height change actually animates rather than snapping.
+      setClamped(false);
+      if (prefersReducedMotion()) {
+        setExpanded(true);
+        setSettled(true);
+      } else {
+        requestAnimationFrame(() => setExpanded(true));
+      }
+    }
+  }
+
+  function handleBubbleTransitionEnd(event: TransitionEvent<HTMLSpanElement>) {
+    if (event.propertyName !== 'max-height') return;
+    if (expanded) {
+      setSettled(true);
+    } else {
+      setClamped(true);
+    }
+  }
+
   const bubbleClassName = isUser ? USER_BUBBLE_CLASSES : MODEL_BUBBLE_CLASSES;
+  const collapsible = isUser && canCollapse;
+  const bubbleTextClassName = collapsible
+    ? `${USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES} ${
+        clamped && !expanded
+          ? USER_BUBBLE_TEXT_CLAMP_CLASSES
+          : USER_BUBBLE_TEXT_OPEN_CLASSES
+      }`
+    : USER_BUBBLE_TEXT_CLASSES;
+  const bubbleTextStyle: CSSProperties | undefined = collapsible
+    ? {
+        maxHeight: expanded
+          ? settled
+            ? undefined
+            : `${heights.full}px`
+          : `${heights.collapsed}px`,
+      }
+    : undefined;
 
   return (
     <div
@@ -186,21 +299,29 @@ export function ChatBubble({
       <div className={bubbleClassName}>
         <span
           ref={isUser ? textRef : undefined}
-          className={
-            isUser && canCollapse && !expanded
-              ? USER_BUBBLE_TEXT_COLLAPSED_CLASSES
-              : USER_BUBBLE_TEXT_CLASSES
-          }
+          className={bubbleTextClassName}
+          style={bubbleTextStyle}
+          onTransitionEnd={collapsible ? handleBubbleTransitionEnd : undefined}
         >
           {message.content}
         </span>
-        {isUser && canCollapse && (
+        {collapsible && (
           <button
             type="button"
-            className={USER_COLLAPSE_BUTTON_CLASSES}
-            aria-label={expanded ? 'Collapse request' : 'Expand request'}
-            title={expanded ? 'Collapse request' : 'Expand request'}
-            onClick={() => setExpanded(current => !current)}
+            className={tooltipClassNames({
+              className: USER_COLLAPSE_BUTTON_CLASSES,
+              placement: 'right',
+            })}
+            aria-label={expanded ? 'Collapse' : 'Expand'}
+            data-tooltip={expanded ? 'Collapse' : 'Expand'}
+            onClick={event => {
+              toggleExpanded();
+              // Drop focus after a pointer click so the hover-revealed action
+              // row (edit/copy, shown via group-focus-within) doesn't stay up
+              // once the pointer leaves. Keyboard activation (detail 0) keeps
+              // focus so those users can still reach the actions.
+              if (event.detail > 0) event.currentTarget.blur();
+            }}
           >
             <Icon
               aria-hidden="true"

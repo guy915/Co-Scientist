@@ -47,16 +47,39 @@ export const CHAT_BUBBLE_USER_ROW_CLASSES =
   'justify-end gap-[0.35rem]';
 
 export const USER_BUBBLE_CLASSES =
-  'reference-user-bubble flex max-w-[31rem] items-start gap-4 rounded-2xl ' +
+  'reference-user-bubble flex max-w-[31rem] items-start gap-4 ' +
+  'rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] ' +
   'bg-cosci-user-bubble-bg py-3 pr-[0.9rem] pl-4 text-base ' +
   'leading-[1.45] text-cosci-fg';
 
-export const USER_BUBBLE_TEXT_CLASSES =
-  'reference-user-bubble-text min-w-0 whitespace-pre-wrap break-words';
+const USER_BUBBLE_TEXT_BASE_CLASSES =
+  'reference-user-bubble-text min-w-0 break-words';
 
-export const USER_BUBBLE_TEXT_COLLAPSED_CLASSES = `${USER_BUBBLE_TEXT_CLASSES} line-clamp-3`;
+export const USER_BUBBLE_TEXT_CLASSES = `${USER_BUBBLE_TEXT_BASE_CLASSES} whitespace-pre-wrap`;
 
-export const USER_COLLAPSE_BUTTON_CLASSES = `reference-user-collapse ml-1 size-6 shrink-0 ${MUTED_ICON_BUTTON}`;
+// A long request collapses to four lines and animates open/closed through an
+// inline max-height that React drives. The clamp adds the trailing ellipsis
+// (via -webkit-box) only while collapsed at rest; every other state uses
+// `block` so the max-height transition applies. Whitespace is set per state,
+// not on the base: the clamp collapses it so the ellipsis hugs the last word
+// (pre-wrap would leave a stray space before it), while the open state keeps
+// pre-wrap so the sender's line breaks survive.
+export const USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES =
+  `${USER_BUBBLE_TEXT_BASE_CLASSES} overflow-hidden ` +
+  'transition-[max-height] duration-300 ease-out motion-reduce:transition-none';
+
+export const USER_BUBBLE_TEXT_CLAMP_CLASSES = 'line-clamp-4 whitespace-normal';
+
+export const USER_BUBBLE_TEXT_OPEN_CLASSES = 'block whitespace-pre-wrap';
+
+// Mirrors MUTED_ICON_BUTTON but hovers with the on-bubble shade: this button
+// lives inside the bubble, where the shared --cosci-hover equals the bubble bg
+// and would be invisible.
+export const USER_COLLAPSE_BUTTON_CLASSES =
+  'reference-user-collapse size-8 shrink-0 grid cursor-pointer ' +
+  'place-items-center rounded-full border-0 bg-transparent p-0 text-[1.25rem] ' +
+  'text-cosci-muted hover:bg-cosci-user-bubble-hover hover:text-cosci-fg ' +
+  'focus-visible:bg-cosci-user-bubble-hover focus-visible:text-cosci-fg';
 
 export const MODEL_BUBBLE_CLASSES =
   'reference-model-bubble max-w-[50.75rem] text-base leading-[1.45] ' +

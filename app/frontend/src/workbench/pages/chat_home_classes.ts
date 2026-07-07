@@ -85,7 +85,7 @@ export const HOME_TOAST_CLASSES =
 
 export const HOME_TOAST_ACTION_CLASSES =
   'cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] ' +
-  'font-medium text-cosci-blue focus-visible:outline-none focus-visible:underline';
+  'font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline';
 
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border ' +

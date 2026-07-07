@@ -23,9 +23,12 @@
   --cosci-attach-fg: #1f1f1f;
   --cosci-attach-meta: #444746;
 
-  /* Center toast + raised action pill (toast = MD3 inverse surface pair) */
+  /* Center toast + raised action pill (toast = MD3 inverse surface pair).
+     The action uses inverse-primary: a light blue that stays legible on the
+     dark pill (the plain --cosci-blue would be dark-on-dark and read faded). */
   --cosci-toast-bg: #303030;
   --cosci-toast-fg: #f2f2f2;
+  --cosci-toast-action: #a8c7fa;
   --cosci-surface-raised: #fff;
 
   /* Skeleton loaders */
@@ -98,6 +101,9 @@
      surface-container-high; setup .plan-details = surface-container light,
      surface-container-highest dark) */
   --cosci-user-bubble-bg: #e9eef6;
+  /* Hover state layer for icon buttons that sit ON the bubble (the expand
+     toggle): --cosci-hover equals the bubble bg, so it needs its own shade. */
+  --cosci-user-bubble-hover: #dbe2ee;
   --cosci-setup-doc-bg: #f0f4f9;
 
   /* References "Open" pill — neutral outlined pill (external-link icon) that
@@ -120,6 +126,7 @@
 
   --cosci-toast-bg: #e3e3e3;
   --cosci-toast-fg: #303030;
+  --cosci-toast-action: #0b57d0;
   --cosci-surface-raised: #1e1f20;
 
   --cosci-skeleton-bg: #282a2c;
@@ -151,5 +158,6 @@
   --cosci-toggle-off-knob: #8e918f;
 
   --cosci-user-bubble-bg: #282a2c;
+  --cosci-user-bubble-hover: #34363a;
   --cosci-setup-doc-bg: #333537;
 }
