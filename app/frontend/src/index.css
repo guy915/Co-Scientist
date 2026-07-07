@@ -143,6 +143,7 @@
   --color-cosci-attach-bg: var(--cosci-attach-bg);
   --color-cosci-attach-fg: var(--cosci-attach-fg);
   --color-cosci-attach-meta: var(--cosci-attach-meta);
+  --color-cosci-attach-badge: var(--cosci-attach-badge);
   --color-cosci-toast-bg: var(--cosci-toast-bg);
   --color-cosci-toast-fg: var(--cosci-toast-fg);
   --color-cosci-toast-action: var(--cosci-toast-action);

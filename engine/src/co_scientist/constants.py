@@ -35,9 +35,6 @@ EXTENDED_MAX_TOKENS: Final = 8000
 LONG_MAX_TOKENS: Final = 10000
 """Max tokens for complex multi-hypothesis operations."""
 
-LITERATURE_REVIEW_MAX_TOKENS: Final = 8000
-"""Max tokens for literature review analyses (synthesis outputs)."""
-
 THINKING_MAX_TOKENS: Final = 18000
 """Max tokens for extended thinking + long responses."""
 
@@ -68,9 +65,6 @@ DEFAULT_MAX_ITERATIONS: Final = 1
 """Default number of refinement iterations."""
 
 # Debate generation parameters
-DEBATE_MIN_TURNS: Final = 3
-"""Minimum number of debate turns before generating final hypotheses."""
-
 DEBATE_MAX_TURNS: Final = 5
 """Default number of debate turns (can be up to 10)."""
 
@@ -92,9 +86,6 @@ RESEARCH_OVERVIEW_TOP_K: Final = 10
 DUPLICATE_SIMILARITY_THRESHOLD: Final = 0.95
 """Similarity threshold above which hypotheses are considered duplicates (0-1).
 """
-
-PROXIMITY_SIMILARITY_THRESHOLD: Final = 0.85
-"""Similarity threshold for proximity-based deduplication (0-1)."""
 
 # Progress tracking
 PROGRESS_SUPERVISOR_START: Final = 5

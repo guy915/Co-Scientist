@@ -24,10 +24,6 @@ class Settings(BaseSettings):
     port: int = 8000
     debug: bool = False
 
-    # PubMed/Entrez Configuration (optional)
-    entrez_email: str = ""
-    entrez_api_key: str = ""
-
     # MCP Server Configuration (optional, for literature review tools)
     mcp_server_url: str = "http://localhost:8888/mcp"
 

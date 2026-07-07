@@ -75,7 +75,8 @@ const ATTACHMENT_META_CLASSES =
 
 const ATTACHMENT_EXTENSION_CLASSES =
   'reference-attachment-extension inline-grid h-[1.35rem] min-w-[1.35rem] ' +
-  'place-items-center rounded-[0.18rem] bg-[#7d8797] text-[0.48rem] ' +
+  'place-items-center rounded-[0.18rem] bg-cosci-attach-badge ' +
+  'text-[0.48rem] ' +
   'leading-none font-bold text-white';
 
 const ATTACHMENT_REMOVE_BUTTON_CLASSES =

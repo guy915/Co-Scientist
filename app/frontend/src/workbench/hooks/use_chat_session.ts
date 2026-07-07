@@ -1,9 +1,9 @@
 import {type FormEvent, useCallback, useState} from 'react';
 import {createRun, startRun} from '@/api/runs';
 import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
+import {copyText} from '@/lib/clipboard';
 import {
   type ChatEntry,
-  copyText,
   referenceSetupTitle,
   type StartedSession,
 } from '../pages/chat_timeline_cards';

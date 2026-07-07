@@ -9,6 +9,7 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
 
 
 def _env_int(key: str, default: int) -> int:
@@ -42,6 +43,38 @@ def update_pair(
     new_winner = winner_elo + k_factor * (1.0 - e_win)
     new_loser = loser_elo + k_factor * (0.0 - e_lose)
     return int(round(new_winner)), int(round(new_loser))
+
+
+def live_leaderboard(hyps: list[dict[str, Any]],
+                     cap: int = 10) -> list[dict[str, Any]]:
+    """Compact Elo standings snapshot carried on workflow event payloads.
+
+    Shared by the engine adapter and the mock workflow so the frontend's
+    live-standings reader sees one payload shape across providers.
+
+    Args:
+        hyps: Hypothesis dicts carrying ``elo_rating``, ``win_count``,
+            ``loss_count``, and a title under ``title`` or ``text``.
+        cap: Maximum number of standings to include.
+
+    Returns:
+        A list of ``{rank, id, title, elo, wins, losses}`` dicts, Elo-sorted.
+    """
+    ordered = sorted(
+        hyps,
+        key=lambda h: -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO))
+    out: list[dict[str, Any]] = []
+    for rank, h in enumerate(ordered[:cap], start=1):
+        title = str(h.get("title") or h.get("text") or "Untitled")
+        out.append({
+            "rank": rank,
+            "id": str(h.get("id") or h.get("hypothesis_id") or title),
+            "title": title[:140],
+            "elo": int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO),
+            "wins": int(h.get("win_count", 0) or 0),
+            "losses": int(h.get("loss_count", 0) or 0),
+        })
+    return out
 
 
 @dataclass

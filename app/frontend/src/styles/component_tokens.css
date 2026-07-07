@@ -18,10 +18,12 @@
   --cosci-danger-border: #b3261e;
   --cosci-danger-fg: #b3261e;
 
-  /* Attachment cards */
+  /* Attachment cards. The extension badge keeps one mid-grey in both themes
+     (white label text stays legible on it either way). */
   --cosci-attach-bg: #f0f4f9;
   --cosci-attach-fg: #1f1f1f;
   --cosci-attach-meta: #444746;
+  --cosci-attach-badge: #7d8797;
 
   /* Center toast + raised action pill (toast = MD3 inverse surface pair).
      The action uses inverse-primary: a light blue that stays legible on the

@@ -61,7 +61,7 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     from app.mock_workflow import run_mock_workflow  # pylint: disable=import-outside-toplevel
     from app.run_modes import resolved_run_config  # pylint: disable=import-outside-toplevel
 
-    cfg = resolved_run_config("standard", {})
+    cfg = resolved_run_config({})
 
     # Two separate runs with hand-pinned ids.
     run_a = store.create_run("Determinism", "standard", "mock", {})
@@ -218,7 +218,7 @@ def test_mock_deep_verification_and_overview_are_deterministic(
     from app.mock_workflow import run_mock_workflow  # pylint: disable=import-outside-toplevel
     from app.run_modes import resolved_run_config  # pylint: disable=import-outside-toplevel
 
-    cfg = resolved_run_config("standard", {})
+    cfg = resolved_run_config({})
     fixed_goal = "Pinned goal for deep-verification determinism"
     fixed_id = "fixed-dv-seed-a"
 

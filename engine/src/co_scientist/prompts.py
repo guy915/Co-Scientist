@@ -4,6 +4,7 @@ All prompts are stored as markdown files in the prompts/ directory.
 """
 # pylint: disable=inconsistent-quotes
 
+import functools
 import logging
 import os
 import re
@@ -103,19 +104,29 @@ def load_prompt(prompt_name: str,
     Example:
         >>> load_prompt("generation", {"research_goal": "Cure cancer", "hypotheses_count": 5})  # pylint: disable=line-too-long
     """
-    prompt_path = _PROMPTS_DIR / f"{prompt_name}.md"
-
-    if not prompt_path.exists():
-        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
-
-    # Read the prompt template
-    prompt_template = prompt_path.read_text()
+    prompt_template = _read_prompt_template(prompt_name)
 
     # Substitute variables if provided
     if variables:
         prompt_template = substitute_variables(prompt_template, variables)
 
     return prompt_template
+
+
+@functools.lru_cache(maxsize=None)
+def _read_prompt_template(prompt_name: str) -> str:
+    """Read a bundled prompt template, cached for the process lifetime.
+
+    Template files are immutable package data, and prompt getters run once
+    per hypothesis / tournament pair inside gathered loops — the cache keeps
+    that to one disk read per file instead of one per LLM call.
+    """
+    prompt_path = _PROMPTS_DIR / f"{prompt_name}.md"
+
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"Prompt file not found: {prompt_path}")
+
+    return prompt_path.read_text()
 
 
 def load_prompt_with_schema(

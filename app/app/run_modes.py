@@ -61,10 +61,6 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     },
 }
 
-RUN_MODE_DEFAULTS: dict[str, dict[str, int]] = {
-    CANONICAL_RUN_MODE: RUN_TIER_DEFAULTS[DEFAULT_RUN_TIER],
-}
-
 
 def normalize_run_mode(run_mode: str | None = None) -> str:
     """Return the canonical run mode for current and legacy labels."""
@@ -155,9 +151,7 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
 
 
 def resolved_run_config(
-    run_mode: str | None,
-    overrides: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+        overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     """Resolve run config defaults plus user-provided numeric overrides."""
     tier = None
     if overrides:

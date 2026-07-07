@@ -38,7 +38,7 @@ from typing import Any
 
 from app import store
 from app.citations import ALL_STATES, CitationRecord, classify_citation
-from app.elo import INITIAL_ELO, update_pair
+from app.elo import INITIAL_ELO, live_leaderboard, update_pair
 from app.run_modes import normalize_run_mode, resolved_run_config, setup_guidance
 from app.safety import screen_final, screen_intake
 from app.store import RunStatus
@@ -147,26 +147,15 @@ def _mock_leaderboard(
     wins: dict[str, int],
     losses: dict[str, int],
     titles: dict[str, str],
-    cap: int = 10,
 ) -> list[dict[str, Any]]:
-    """Build the live leaderboard snapshot in the same shape as the engine.
-
-    Mirrors ``engine_adapter._live_leaderboard`` so the frontend live-standings
-    view reads one consistent payload shape across mock and engine runs.
-    """
-    ordered = sorted(elo.items(), key=lambda kv: -kv[1])
-    out: list[dict[str, Any]] = []
-    for rank, (hid, rating) in enumerate(ordered[:cap], start=1):
-        title = titles.get(hid, hid)
-        out.append({
-            "rank": rank,
-            "id": hid,
-            "title": title[:140],
-            "elo": rating,
-            "wins": wins.get(hid, 0),
-            "losses": losses.get(hid, 0),
-        })
-    return out
+    """Project the mock's per-id state into the shared leaderboard shape."""
+    return live_leaderboard([{
+        "id": hid,
+        "title": titles.get(hid, hid),
+        "elo_rating": rating,
+        "win_count": wins.get(hid, 0),
+        "loss_count": losses.get(hid, 0),
+    } for hid, rating in elo.items()])
 
 
 # Number of top-ranked hypotheses subjected to deep verification. Hardcoded
@@ -324,7 +313,7 @@ async def run_mock_workflow(
 ) -> AsyncIterator[dict[str, Any]]:
     """Execute the deterministic mock workflow and yield events as they happen."""  # pylint: disable=line-too-long
     run_mode = normalize_run_mode(profile)
-    cfg = resolved_run_config(run_mode, config)
+    cfg = resolved_run_config(config)
     rng = _seeded_rng("mock", run_id, research_goal, run_mode)
 
     def _check_cancel() -> bool:
@@ -750,8 +739,8 @@ async def run_mock_workflow(
     md_lines.append(
         "- Append-only evolution: evolved hypotheses appear as new rows with `parent_id`."  # pylint: disable=line-too-long
     )
-    md_lines.append("- Elo: initial 1200, K = " + str(cfg["k_factor"]) +
-                    ", standard formula.")
+    md_lines.append(f"- Elo: initial {INITIAL_ELO}, K = " +
+                    str(cfg["k_factor"]) + ", standard formula.")
     md_lines.append("")
     md_lines.extend(_render_research_overview_markdown(research_overview))
     markdown = "\n".join(md_lines)

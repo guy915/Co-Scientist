@@ -27,7 +27,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -37,6 +36,8 @@ from pydantic import BaseModel, Field
 
 from app import engine_adapter, store
 from app.citations import STATE_RANK
+from app.config import settings
+from app.elo import INITIAL_ELO
 from app.run_modes import (
     RUN_FOCUS_PATTERN,
     RUN_MODE_PATTERN,
@@ -67,7 +68,6 @@ class _RunHandle:
 
 _active: dict[str, _RunHandle] = {}
 _active_lock = asyncio.Lock()
-
 
 # ---------------------------------------------------------------------------
 # Request / response models
@@ -166,7 +166,7 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         overrides["k_factor"] = req.k_factor
     if req.enable_literature_review is not None:
         overrides["enable_literature_review"] = req.enable_literature_review
-    config = resolved_run_config(run_mode, overrides)
+    config = resolved_run_config(overrides)
     run = store.create_run(
         research_goal=req.research_goal,
         profile=run_mode,
@@ -194,8 +194,7 @@ async def list_runs(
         request: Request,
         limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
-    runs = store.list_runs(client_id=_client_id(request),
-                           limit=limit)
+    runs = store.list_runs(client_id=_client_id(request), limit=limit)
     return {"runs": [r.to_dict() for r in runs]}
 
 
@@ -241,8 +240,7 @@ async def start_run(run_id: str, req: StartRunRequest,
         _active[run_id] = handle
 
     store.update_run_status(run_id, RunStatus.QUEUED)
-    store.append_event(run_id,
-                       "lifecycle", {"event": "queued"})
+    store.append_event(run_id, "lifecycle", {"event": "queued"})
 
     async def runner() -> None:
         try:
@@ -257,14 +255,11 @@ async def start_run(run_id: str, req: StartRunRequest,
                 handle.new_event.set()
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception("workflow failed: %s", e)
-            store.update_run_status(run_id,
-                                    RunStatus.FAILED,
-                                    error=str(e))
-            store.append_event(run_id,
-                               "status", {
-                                   "status": "failed",
-                                   "error": str(e)
-                               })
+            store.update_run_status(run_id, RunStatus.FAILED, error=str(e))
+            store.append_event(run_id, "status", {
+                "status": "failed",
+                "error": str(e)
+            })
             handle.new_event.set()
         finally:
             async with _active_lock:
@@ -282,8 +277,7 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
     if not handle:
         raise HTTPException(status_code=404, detail="run is not active")
     handle.cancelled.set()
-    store.append_event(run_id,
-                       "lifecycle", {"event": "cancel_requested"})
+    store.append_event(run_id, "lifecycle", {"event": "cancel_requested"})
     return {"id": run_id, "status": "cancelling"}
 
 
@@ -314,8 +308,7 @@ async def stream_events(
         last_seq = after
 
         # Replay historical events first.
-        history = store.list_events(run_id,
-                                    after_seq=last_seq)
+        history = store.list_events(run_id, after_seq=last_seq)
         for ev in history:
             last_seq = ev["seq"]
             yield _sse(ev)
@@ -338,7 +331,7 @@ async def stream_events(
         # Live tail. Poll the store; the in-process handle's `new_event` cuts
         # latency when we are the producing process. Cap with a wall-clock
         # so a stale connection doesn't hang forever.
-        for _ in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
+        for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
             if await request.is_disconnected():
                 return
 
@@ -351,13 +344,17 @@ async def stream_events(
             else:
                 await asyncio.sleep(0.5)
 
-            new_events = store.list_events(run_id,
-                                           after_seq=last_seq)
+            new_events = store.list_events(run_id, after_seq=last_seq)
             for ev in new_events:
                 last_seq = ev["seq"]
                 yield _sse(ev)
 
-            # Re-check run status; exit on terminal.
+            # Re-check run status; exit on terminal. A terminal transition
+            # normally rides on a new event (all workflow paths append a
+            # `status` event), so idle ticks skip the query; the every-10th
+            # tick check covers terminal writes that append no event.
+            if not new_events and tick % 10 != 9:
+                continue
             current = store.get_run(run_id)
             if current and current.status in TERMINAL_STATUSES:
                 yield _sse({
@@ -464,10 +461,7 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue a user steering message for the next iteration."""
     _run_or_404(run_id)
-    msg = store.append_message(run_id,
-                               "user",
-                               req.content,
-                               "steering")
+    msg = store.append_message(run_id, "user", req.content, "steering")
     return {**msg.to_dict(), "status": "queued"}
 
 
@@ -556,10 +550,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     """Answer a question about the run using a fast LLM, streaming the response."""  # pylint: disable=line-too-long
     run = _run_or_404(run_id)
 
-    question_msg = store.append_message(run_id,
-                                        "user",
-                                        req.question,
-                                        "qa")
+    question_msg = store.append_message(run_id, "user", req.question, "qa")
 
     hypotheses = store.list_hypotheses(run_id)
     reviews = store.list_reviews(run_id)
@@ -570,10 +561,10 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     manifest = _build_evidence_manifest(evidence, citations)
     evidence_lines = _format_manifest_for_prompt(manifest)
 
-    top_hyps = sorted(hypotheses,
-                      key=lambda h: -int(h.get("elo_rating") or 1200))[:5]
+    top_hyps = sorted(
+        hypotheses, key=lambda h: -int(h.get("elo_rating") or INITIAL_ELO))[:5]
     hyp_lines = "\n".join(
-        f"- [{h['title']}] Elo {h.get('elo_rating', 1200)}, {h.get('win_count', 0)}W/{h.get('loss_count', 0)}L"  # pylint: disable=line-too-long
+        f"- [{h['title']}] Elo {h.get('elo_rating', INITIAL_ELO)}, {h.get('win_count', 0)}W/{h.get('loss_count', 0)}L"  # pylint: disable=line-too-long
         for h in top_hyps)
     review_lines = "\n".join(
         f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"  # pylint: disable=line-too-long
@@ -599,8 +590,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         f"Answer concisely and accurately. Do not repeat the question. When a "
         f"statement is supported by a listed source, cite it inline as [n].")
 
-    model = os.getenv("CHAT_MODEL_NAME") or os.getenv("MODEL_NAME",
-                                                      "deepseek/deepseek-chat")
+    model = settings.chat_model_name or settings.model_name
 
     async def _stream() -> AsyncGenerator[str, None]:
         try:
@@ -644,10 +634,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("Q&A stream error for run %s: %s", run_id, exc)
             fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."  # pylint: disable=line-too-long
-            store.append_message(run_id,
-                                 "system",
-                                 fallback,
-                                 "qa")
+            store.append_message(run_id, "system", fallback, "qa")
             yield f"data: {json.dumps({'type': 'error', 'message': fallback})}\n\n"  # pylint: disable=line-too-long
 
     return StreamingResponse(_stream(), media_type="text/event-stream")

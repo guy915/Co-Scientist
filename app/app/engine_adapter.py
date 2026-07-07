@@ -22,6 +22,8 @@ from typing import Any
 
 from app import store
 from app.citations import CitationState
+from app.config import settings
+from app.elo import INITIAL_ELO, live_leaderboard
 from app.mock_workflow import run_mock_workflow
 from app.run_modes import (
     clean_string_list,
@@ -84,7 +86,11 @@ def system_status() -> dict[str, Any]:
         "mock_mode": provider == "mock",
         "has_provider_key": has_key,
         "engine_importable": engine,
-        "model_name": os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash"),
+        "model_name": settings.model_name,
+        # Report the effective supervisor model: the generator falls back to
+        # model_name when supervisor_model_name is unset, so mirror that here.
+        "supervisor_model_name": (settings.supervisor_model_name or
+                                  settings.model_name),
         "mcp_server_url": os.getenv("MCP_SERVER_URL", ""),
     }
 
@@ -201,7 +207,7 @@ def _canonical_engine_payload(node_name: str, node_type: str,
         "hypothesis_count": len(hyps),
         "matches_count": len(matchups),
         "articles_count": len(articles),
-        "leaderboard": _live_leaderboard(hyps),
+        "leaderboard": live_leaderboard(hyps),
     }
 
     if node_type == "generate":
@@ -350,37 +356,6 @@ def _render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _live_leaderboard(hyps: list[dict[str, Any]],
-                      cap: int = 10) -> list[dict[str, Any]]:
-    """Compact current standings carried on every engine event.
-
-    The store is only populated when the run completes, so the UI cannot fetch
-    forming hypotheses mid-run. Emitting this snapshot on each node event lets
-    the run view show a live leaderboard (titles + Elo) as the run progresses.
-
-    Args:
-        hyps: Current hypothesis dicts from the streamed state snapshot.
-        cap: Maximum number of standings to include.
-
-    Returns:
-        A list of ``{rank, id, title, elo, wins, losses}`` dicts, Elo-sorted.
-    """
-    ordered = sorted(hyps,
-                     key=lambda h: -int(h.get("elo_rating", 1200) or 1200))
-    out: list[dict[str, Any]] = []
-    for rank, h in enumerate(ordered[:cap], start=1):
-        title = str(h.get("title") or h.get("text") or "Untitled")
-        out.append({
-            "rank": rank,
-            "id": str(h.get("id") or h.get("hypothesis_id") or title),
-            "title": title[:140],
-            "elo": int(h.get("elo_rating", 1200) or 1200),
-            "wins": int(h.get("win_count", 0) or 0),
-            "losses": int(h.get("loss_count", 0) or 0),
-        })
-    return out
-
-
 def _persist_final_state(
     *,
     run_id: str,
@@ -462,7 +437,7 @@ def _persist_final_state(
         # Update mutable state: Elo, wins, losses, scores.
         store.update_hypothesis_state(
             hyp_id,
-            elo_rating=int(h.get("elo_rating", 1200)),
+            elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
             win_delta=int(h.get("win_count", 0)),
             loss_delta=int(h.get("loss_count", 0)),
             novelty=float(h.get("score", 0) or 0) or None,
@@ -554,21 +529,22 @@ def _persist_final_state(
             iteration=0,
             winner_id=winner_id,
             loser_id=loser_id,
-            winner_before=int(m.get("winner_elo_before", 1200)),
-            winner_after=int(m.get("winner_elo_after", 1200)),
-            loser_before=int(m.get("loser_elo_before", 1200)),
-            loser_after=int(m.get("loser_elo_after", 1200)),
+            winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
+            winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
+            loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
+            loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
             rationale=m.get("reasoning", ""),
             tier=m.get("tier") or None,
             db_path=db_path,
         )
 
     # 4. Build and persist the report.
-    sorted_hyps = sorted(hyps, key=lambda h: -int(h.get("elo_rating", 1200)))
+    sorted_hyps = sorted(hyps,
+                         key=lambda h: -int(h.get("elo_rating", INITIAL_ELO)))
     leaderboard = [{
         "rank": idx + 1,
         "title": h.get("text", "")[:120],
-        "elo": h.get("elo_rating", 1200),
+        "elo": h.get("elo_rating", INITIAL_ELO),
         "wins": h.get("win_count", 0),
         "losses": h.get("loss_count", 0),
     } for idx, h in enumerate(sorted_hyps[:10])]
@@ -648,7 +624,7 @@ async def run_workflow(
     """Drive the chosen workflow and yield events as the store records them."""
     provider = force_provider or select_provider()
     run_mode = normalize_run_mode(profile)
-    cfg = resolved_run_config(run_mode, config)
+    cfg = resolved_run_config(config)
 
     logger.info("starting workflow run=%s provider=%s run_mode=%s", run_id,
                 provider, run_mode)
@@ -747,7 +723,8 @@ async def run_workflow(
     initial_opts["enable_literature_review_node"] = enable_literature_review
 
     generator = HypothesisGenerator(
-        model_name=os.getenv("MODEL_NAME", "gemini/gemini-2.5-flash"),
+        model_name=settings.model_name,
+        supervisor_model_name=settings.supervisor_model_name,
         max_iterations=int(cfg.get("max_iterations", 1)),
         initial_hypotheses_count=int(cfg.get("initial_hypotheses_count", 5)),
         evolution_max_count=int(cfg.get("evolution_max_count", 2)),

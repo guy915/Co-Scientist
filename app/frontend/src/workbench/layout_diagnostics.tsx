@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react';
 import {Icon} from '@/components/icon';
+import {copyText} from '@/lib/clipboard';
 import {tooltipClassNames} from './tooltip';
 
 type DiagnosticLogLevel = 'info' | 'success' | 'error';
@@ -139,24 +140,7 @@ export function DiagnosticsControl({
   }
 
   async function copyLogs() {
-    const text = JSON.stringify(entries, null, 2);
-    try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        throw new Error('Clipboard API unavailable');
-      }
-    } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      textarea.setAttribute('readonly', '');
-      textarea.style.position = 'fixed';
-      textarea.style.opacity = '0';
-      document.body.append(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      textarea.remove();
-    }
+    await copyText(JSON.stringify(entries, null, 2));
     setCopied(true);
   }
 

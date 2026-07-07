@@ -8,6 +8,7 @@ import {
 } from 'react';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
+import {copyText} from '@/lib/clipboard';
 import {conciseTitle} from '@/lib/text';
 import {TruncatedLabel} from '../components/truncated_label';
 import {FOCUS_OPTIONS, type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
@@ -81,18 +82,6 @@ interface MessageAction {
   icon: IconName;
   label: string;
   onClick: () => void;
-}
-
-export async function copyText(text: string) {
-  // Best-effort: the Clipboard API rejects in insecure/unfocused contexts, and
-  // a failed copy must not abort the caller (e.g. the copy-prompt toast).
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-    }
-  } catch {
-    // Clipboard unavailable; ignore.
-  }
 }
 
 export function referenceSetupTitle(goal: string): string {

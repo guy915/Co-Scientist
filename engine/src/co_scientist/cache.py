@@ -19,6 +19,12 @@ from co_scientist.constants import DEFAULT_CACHE_DIR, DEFAULT_CACHE_ENABLED
 logger = logging.getLogger(__name__)
 
 
+def _hash_key(key_data: dict[str, Any]) -> str:
+    """Return the SHA256 hex digest of a canonical-JSON key payload."""
+    key_string = json.dumps(key_data, sort_keys=True)
+    return hashlib.sha256(key_string.encode()).hexdigest()
+
+
 class LLMCache:
     """Simple file-based cache for LLM responses."""
 
@@ -78,8 +84,7 @@ class LLMCache:
         if force_json is not None:
             key_data["force_json"] = force_json
 
-        key_string = json.dumps(key_data, sort_keys=True)
-        return hashlib.sha256(key_string.encode()).hexdigest()
+        return _hash_key(key_data)
 
     def get(
         self,
@@ -338,8 +343,7 @@ class NodeCache:
             SHA256 hash of the node name and parameters
         """
         key_data = {"node": node_name, **key_params}
-        key_string = json.dumps(key_data, sort_keys=True)
-        return hashlib.sha256(key_string.encode()).hexdigest()
+        return _hash_key(key_data)
 
     def get(self,
             node_name: str,

@@ -12,6 +12,8 @@ import logging
 import re
 from typing import Any, cast, Optional, TYPE_CHECKING
 
+from co_scientist.tools.response_parser import parse_mcp_result
+
 if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
@@ -315,15 +317,12 @@ async def _query_entities(
 
 
 def _parse_tool_result(raw: Any) -> dict[str, Any]:
-    """Parse MCP tool result which may be string JSON or already a dict."""
-    if isinstance(raw, str):
-        try:
-            return cast("dict[str, Any]", json.loads(raw))
-        except (json.JSONDecodeError, TypeError):
-            return {}
-    if isinstance(raw, dict):
-        return raw
-    return {}
+    """Decode an MCP tool result, coercing malformed or non-dict data to {}."""
+    try:
+        decoded = parse_mcp_result(raw)
+    except json.JSONDecodeError:
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
 
 
 def _format_evidence(statements: list[dict[str, Any]],

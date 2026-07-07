@@ -153,7 +153,9 @@ class SystemStatusResponse(BaseModel):
                                    description="any LLM provider key is set")
     engine_importable: bool = Field(
         False, description="co_scientist package is importable")
-    model_name: str = Field("", description="configured model id")
+    model_name: str = Field("", description="configured worker model id")
+    supervisor_model_name: str = Field(
+        "", description="effective supervisor/meta-review model id")
 
 
 @app.get("/", tags=["root"])

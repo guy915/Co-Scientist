@@ -21,6 +21,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_MCP_SERVER_URL = "http://localhost:8888/mcp"
+"""Fallback MCP server URL when MCP_SERVER_URL is unset."""
+
+
+def _resolve_server_url() -> str:
+    """Return the MCP server URL from the environment or the default."""
+    return os.environ.get("MCP_SERVER_URL", DEFAULT_MCP_SERVER_URL)
+
 
 class MCPToolClient:
     """Client for accessing MCP tools from one or more MCP servers.
@@ -73,8 +81,7 @@ class MCPToolClient:
         else:
             # Legacy single-server mode
             if server_url is None:
-                server_url = os.environ.get("MCP_SERVER_URL",
-                                            "http://localhost:8888/mcp")
+                server_url = _resolve_server_url()
             self._server_configs = {
                 "default": {
                     "transport": "streamable_http",
@@ -312,8 +319,7 @@ async def check_literature_source_available(
         check_tool_name = "check_pubmed_available"
 
     if server_url is None and tool_registry is None:
-        server_url = os.environ.get("MCP_SERVER_URL",
-                                    "http://localhost:8888/mcp")
+        server_url = _resolve_server_url()
 
     try:
         # One throwaway client serves both the server-availability probe and
@@ -398,8 +404,7 @@ async def check_mcp_available(
         True if MCP server is available and responding, False otherwise
     """
     if server_url is None and tool_registry is None:
-        server_url = os.environ.get("MCP_SERVER_URL",
-                                    "http://localhost:8888/mcp")
+        server_url = _resolve_server_url()
 
     try:
         if tool_registry:

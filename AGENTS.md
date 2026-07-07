@@ -127,7 +127,7 @@ A single `HypothesisGenerator` instance is constructed in the `lifespan` startup
 
 ### Frontend (`frontend/`)
 
-React 19 + Vite 7 + TypeScript + Tailwind v4 + shadcn/ui + Radix. Package manager is **Bun**. Linter/formatter is **gts** (Google TypeScript Style: ESLint + Prettier).
+React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter/formatter is **gts** (Google TypeScript Style: ESLint + Prettier).
 
 **Design system:** `frontend/DESIGN.md` is the authoritative design reference for all UI work. It follows the [google-labs-code/design.md](https://github.com/google-labs-code/design.md) spec: YAML design tokens in frontmatter, markdown rationale in body. Read it before making visual changes — it documents the color system, typography scale, spacing grid, radius rules, component inventory, and Do's & Don'ts. Key points:
 - Palette is Material Design 3, generated at runtime from seed `#1A6B6B` via `applyMd3Theme()` in `src/lib/theme.ts`. Never hardcode `--md-sys-color-*` values.
@@ -147,13 +147,11 @@ bun run test         # vitest run (jsdom + React Testing Library)
 
 Frontend tests are colocated `*.test.ts`/`*.test.tsx` files run by Vitest (config in `vite.config.ts`, setup in `src/test-setup.ts`); they are typechecked by `tsc` and linted by gts like any other source.
 
-Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (chat workspace, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/ui/` (shadcn), `src/components/error_boundary.tsx`, `src/lib/utils.ts`.
+Vite reads `VITE_API_BASE_URL` (defaults to `http://localhost:8008`). The live UI is the **workbench**: `src/main.tsx` mounts `BrowserRouter` + `src/workbench/workbench_app.tsx`, with pages under `src/workbench/pages/` (chat workspace, run detail) and run views under `src/workbench/components/` (incl. `tabs/`). HTTP + SSE/streaming entry points live in `src/api/runs.ts` and `src/hooks/use_run_stream.ts`. Theme state is in `src/workbench/theme_context.tsx` — no Redux/Zustand. Shared primitives: `src/components/error_boundary.tsx`, `src/components/icon.tsx`, and helpers under `src/lib/` (theme, text, clipboard, sanitize_html, ...).
 
 **Routing** (`workbench_app.tsx`): `/` (chat workspace — session home), `/runs/:id`, `/runs/:id/:tab` (run detail), `*` (404). `/runs` and `/runs/new` redirect to `/`. The old public surface (`/about` landing page, `/demos/:slug` public demos, `/runs` dashboard) was deliberately removed. `src/public/` now holds only the residual helpers still in use (plus their colocated tests): `not_found_page.tsx`, `no_index.tsx`, `public_link_button.tsx`, `seo.tsx`.
 
 **Tabs** (`src/workbench/components/tabs/`): `ideas_tab.tsx` is the only live tab component; `run_detail.tsx` renders its other views (details, learning, research overview) inline. The earlier `overview_tab.tsx`, `evidence_tab.tsx`, `tournament_tab.tsx`, `run_specifications_tab.tsx`, and `chat_tab.tsx` were retired and preserved under `references/ui-ux/legacy-workbench-ui/retired-orphan-tabs/`.
-
-**MD3 wrappers** (`src/md3/`): `md_dialog.tsx`, `md_tabs.tsx` — thin wrappers around `@material/web` components.
 
 **Workbench hooks** (`src/workbench/hooks/`): `use_global_shortcuts.ts` (keyboard shortcut handler).
 

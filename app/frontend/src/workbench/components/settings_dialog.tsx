@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
+import {useToast} from '../hooks/use_toast';
 import {useTheme} from '../theme_context';
 
 export type SettingsSection = 'appearance' | 'model' | 'help';
@@ -71,8 +72,7 @@ export function SettingsDialog({
   const {mode, setMode} = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
   const [apiKey, setApiKey] = useState(getStoredApiKey);
-  const [savedToast, setSavedToast] = useState(false);
-  const toastTimerRef = useRef<number>(0);
+  const {toast: savedToast, setToast: setSavedToast} = useToast(2400);
 
   useEffect(() => {
     closeRef.current?.focus();
@@ -88,22 +88,11 @@ export function SettingsDialog({
     };
   }, [onClose]);
 
-  useEffect(
-    () => () => {
-      window.clearTimeout(toastTimerRef.current);
-    },
-    [],
-  );
-
   function saveApiKey() {
     if (apiKey.trim() === getStoredApiKey()) return;
     setStoredApiKey(apiKey);
     setApiKey(getStoredApiKey());
-    setSavedToast(true);
-    window.clearTimeout(toastTimerRef.current);
-    toastTimerRef.current = window.setTimeout(() => {
-      setSavedToast(false);
-    }, 2400);
+    setSavedToast('Settings saved');
   }
 
   return (
@@ -257,7 +246,7 @@ export function SettingsDialog({
         </div>
         {savedToast && (
           <div className="ucs-settings-toast" role="status">
-            Settings saved
+            {savedToast.message}
           </div>
         )}
       </div>

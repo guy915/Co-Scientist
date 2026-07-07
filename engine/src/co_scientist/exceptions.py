@@ -24,7 +24,3 @@ class ResponseParseError(CoScientistError):
 
 class ToolError(CoScientistError):
     """A tool provider or tool execution failed (MCP or Python tools)."""
-
-
-class LLMError(CoScientistError):
-    """An LLM call failed."""
