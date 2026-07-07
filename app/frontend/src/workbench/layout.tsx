@@ -4,20 +4,16 @@ import {listDemoRuns, listRuns, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {GoogleLabsIcon} from './components/google_labs_icon';
+import {
+  SettingsDialog,
+  type SettingsSection,
+} from './components/settings_dialog';
 import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
 import {isMobileViewport} from './hooks/use_is_mobile';
-import {useTheme} from './theme_context';
 import {tooltipClassNames} from './tooltip';
 
 type ShellPanel = 'settings' | 'logs';
-type ThemeMode = 'system' | 'light' | 'dark';
-
-const THEME_MODES: Array<{mode: ThemeMode; icon: IconName; label: string}> = [
-  {mode: 'system', icon: 'computer', label: 'System'},
-  {mode: 'light', icon: 'light_mode', label: 'Light'},
-  {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
-];
 
 const WORKSPACE_CLASSES = 'ucs-workspace';
 
@@ -75,13 +71,11 @@ const RAIL_POPOVER_CLASSES = 'ucs-popover--rail';
 
 const SETTINGS_CONTROL_CLASSES = 'ucs-settings-control';
 
-const THEME_SEGMENT_CLASSES = 'ucs-theme-segment ucs-theme-segment--inline';
+const SETTINGS_MENU_CLASSES = 'ucs-settings-menu';
 
-const THEME_BUTTON_BASE_CLASSES = 'ucs-theme-button';
+const SETTINGS_MENU_ITEM_CLASSES = 'ucs-settings-menu-item';
 
-const THEME_BUTTON_ACTIVE_CLASSES = 'selected';
-
-const THEME_BUTTON_ICON_CLASSES = 'ucs-theme-button-icon';
+const SETTINGS_MENU_ICON_CLASSES = 'ucs-settings-menu-icon';
 
 const SIDE_CONTENT_CLASSES = 'ucs-side-content';
 
@@ -109,13 +103,14 @@ const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const {mode, setMode} = useTheme();
   const [overrideTitle, setOverrideTitle] = useState('');
   const [history, setHistory] = useState<Run[]>([]);
   // Collapsed icon rail by default, matching the reference product; the
   // hamburger expands it.
   const [navOpen, setNavOpen] = useState(false);
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection | null>(null);
   const [showAllChats, setShowAllChats] = useState(false);
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
@@ -179,6 +174,14 @@ export function Layout({children}: {children: ReactNode}) {
 
   function togglePanel(panel: ShellPanel) {
     setActivePanel(current => (current === panel ? null : panel));
+  }
+
+  function openSettings(section: SettingsSection) {
+    setActivePanel(null);
+    // The dialog overlays the content; drop the mobile drawer beneath it so
+    // dismissing the dialog doesn't land back on a stale overlay.
+    if (isMobileViewport()) setNavOpen(false);
+    setSettingsSection(section);
   }
 
   // Close any open popover on navigation, and dismiss the mobile drawer so a
@@ -336,20 +339,25 @@ export function Layout({children}: {children: ReactNode}) {
               onClick={() => togglePanel('settings')}
             />
             {activePanel === 'settings' && (
-              <ShellPopover className={RAIL_POPOVER_CLASSES}>
-                <div
-                  className={THEME_SEGMENT_CLASSES}
-                  role="group"
-                  aria-label="Theme"
-                >
-                  {THEME_MODES.map(option => (
-                    <ThemeModeButton
-                      key={option.mode}
-                      {...option}
-                      active={mode === option.mode}
-                      onModeChange={setMode}
-                    />
-                  ))}
+              <ShellPopover
+                className={`${RAIL_POPOVER_CLASSES} ucs-popover--menu`}
+              >
+                <div className={SETTINGS_MENU_CLASSES} role="menu">
+                  <SettingsMenuButton
+                    label="Appearance"
+                    icon="palette"
+                    onClick={() => openSettings('appearance')}
+                  />
+                  <SettingsMenuButton
+                    label="Model"
+                    icon="neurology"
+                    onClick={() => openSettings('model')}
+                  />
+                  <SettingsMenuButton
+                    label="Help"
+                    icon="help"
+                    onClick={() => openSettings('help')}
+                  />
                 </div>
               </ShellPopover>
             )}
@@ -408,6 +416,13 @@ export function Layout({children}: {children: ReactNode}) {
         </header>
         <main className={pageClasses}>{children}</main>
       </section>
+      {settingsSection && (
+        <SettingsDialog
+          section={settingsSection}
+          onSectionChange={setSettingsSection}
+          onClose={() => setSettingsSection(null)}
+        />
+      )}
     </div>
   );
 }
@@ -445,33 +460,25 @@ function NavActionButton({
   );
 }
 
-function ThemeModeButton({
-  mode,
-  active,
-  icon,
+function SettingsMenuButton({
   label,
-  onModeChange,
+  icon,
+  onClick,
 }: {
-  mode: 'system' | 'light' | 'dark';
-  active: boolean;
-  icon: IconName;
   label: string;
-  onModeChange: (mode: ThemeMode) => void;
+  icon: IconName;
+  onClick: () => void;
 }) {
   return (
     <button
       type="button"
-      className={
-        active
-          ? `${THEME_BUTTON_BASE_CLASSES} ${THEME_BUTTON_ACTIVE_CLASSES}`
-          : THEME_BUTTON_BASE_CLASSES
-      }
-      aria-pressed={active}
-      onClick={() => onModeChange(mode)}
+      className={SETTINGS_MENU_ITEM_CLASSES}
+      role="menuitem"
+      onClick={onClick}
     >
       <Icon
         aria-hidden="true"
-        className={THEME_BUTTON_ICON_CLASSES}
+        className={SETTINGS_MENU_ICON_CLASSES}
         name={icon}
       />
       <span>{label}</span>

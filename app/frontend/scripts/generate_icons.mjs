@@ -50,6 +50,8 @@ const ICONS = {
   expand_less: 'keyboard_arrow_up',
   expand_more: 'keyboard_arrow_down',
   format_list_numbered: 'format_list_numbered',
+  // Question-mark-in-a-circle — the reference settings menu's "Get help" row.
+  help: 'help',
   // The recents clock-rewind glyph (clock face + counterclockwise arrow), not
   // the plain 'schedule' clock.
   history: 'history',
@@ -60,7 +62,14 @@ const ICONS = {
   lightbulb: 'lightbulb',
   menu: 'menu',
   menu_book: 'menu_book',
+  // Outlined brain — the settings menu's "Model" row. Reads as model/AI and
+  // matches the airy outlined set.
+  neurology: 'neurology',
   open_in_new: 'open_in_new',
+  // Painter's palette — the glyph the reference settings menu renders for
+  // "Appearance" (an <md-icon>palette</md-icon> ligature in the capture under
+  // references/ui-ux/gemini-enterprise/).
+  palette: 'palette',
   // "Generating ideas" progress step — a speech bubble with a pencil.
   rate_review: 'rate_review',
   refresh: 'refresh',
