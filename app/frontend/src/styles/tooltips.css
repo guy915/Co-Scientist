@@ -148,7 +148,18 @@
   --ucs-tooltip-open-x: 0;
 }
 
-[data-tooltip].ucs-tooltip-anchor:hover::after,
+/* Hover reveal only on devices that can actually hover: on touch screens a
+   tap sets a sticky :hover on the target, which would pop the tooltip and
+   leave it hanging until the next tap elsewhere. */
+@media (hover: hover) {
+  [data-tooltip].ucs-tooltip-anchor:hover::after {
+    opacity: 1;
+    transform: translate(var(--ucs-tooltip-open-x), var(--ucs-tooltip-open-y))
+      scale(var(--ucs-tooltip-open-scale));
+    visibility: visible;
+  }
+}
+
 [data-tooltip].ucs-tooltip-anchor:focus-visible::after {
   opacity: 1;
   transform: translate(var(--ucs-tooltip-open-x), var(--ucs-tooltip-open-y))
