@@ -5,9 +5,39 @@ import * as runsApi from '@/api/runs';
 import type {Hypothesis, MatchRow, RunWithSummary} from '@/api/runs';
 import {RunDetail} from './run_detail';
 
-vi.mock('@/hooks/use_run_stream', () => ({
-  useRunStream: () => ({events: [], terminal: false}),
+// Controllable stream mock: tests mutate `streamState` then rerender to drive
+// the event-driven refetch effect. `setStream` replaces the events array so its
+// identity changes and the effect re-runs.
+const streamMock = vi.hoisted(() => ({
+  state: {events: [] as Array<{seq: number; type: string; payload: object}>},
 }));
+vi.mock('@/hooks/use_run_stream', () => ({
+  useRunStream: () => ({events: streamMock.state.events, terminal: false}),
+}));
+
+// Collapse the 600ms debounce to a synchronous passthrough with a stable
+// identity, so a triggered refetch is observable in the same act() without
+// timers. The wrapper is a module singleton (stable across renders); it always
+// invokes the latest render's callback.
+vi.mock('@/hooks/use_debounced_callback', () => {
+  const latest: {fn: (...args: never[]) => void} = {fn: () => {}};
+  const wrapper = Object.assign((...args: never[]) => latest.fn(...args), {
+    cancel: () => {},
+    flush: () => {},
+  });
+  return {
+    useDebouncedCallback: (fn: (...args: never[]) => void) => {
+      latest.fn = fn;
+      return wrapper;
+    },
+  };
+});
+
+function setStream(
+  events: Array<{seq: number; type: string; payload: object}>,
+) {
+  streamMock.state = {events};
+}
 
 vi.mock('@/api/runs', async importActual => {
   const actual = await importActual<typeof import('@/api/runs')>();
@@ -72,6 +102,7 @@ const tab = (name: RegExp) => screen.getByRole('button', {name});
 
 beforeEach(() => {
   vi.clearAllMocks();
+  setStream([]);
   vi.mocked(runsApi.getRun).mockResolvedValue(makeRun('Study pathway X'));
   // Reset per-run collection mocks so overrides do not leak between tests.
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
@@ -86,6 +117,41 @@ describe('RunDetail', () => {
     expect(
       await screen.findByText('Research goal details'),
     ).toBeInTheDocument();
+  });
+
+  it('refetches on a coalesced batch that ends in status but carries data', async () => {
+    const getRun = vi.mocked(runsApi.getRun);
+    // A fresh element each render — passing the same reference makes React bail
+    // out of re-rendering, so the mutated stream would never be re-read.
+    const makeUi = () => (
+      <MemoryRouter initialEntries={['/runs/run-1']}>
+        <Routes>
+          <Route path="/runs/:id" element={<RunDetail />} />
+          <Route path="/runs/:id/:tab" element={<RunDetail />} />
+        </Routes>
+      </MemoryRouter>
+    );
+    const {rerender} = render(makeUi());
+    await screen.findByText('Research goal details');
+    const afterMount = getRun.mock.calls.length;
+
+    // A pure-status delta must not refetch (preserves the original filter).
+    setStream([{seq: 1, type: 'status', payload: {}}]);
+    rerender(makeUi());
+    expect(getRun.mock.calls.length).toBe(afterMount);
+
+    // A batch whose newest event is 'status' but which carries a data event
+    // must still refetch. The old tail-only check skipped this; the batch scan
+    // fixes it. This assertion fails against the pre-fix implementation.
+    setStream([
+      {seq: 1, type: 'status', payload: {}},
+      {seq: 2, type: 'generate', payload: {}},
+      {seq: 3, type: 'status', payload: {}},
+    ]);
+    rerender(makeUi());
+    await waitFor(() =>
+      expect(getRun.mock.calls.length).toBeGreaterThan(afterMount),
+    );
   });
 
   it('renders all four report tabs', async () => {

@@ -51,6 +51,22 @@ export function useRunStream(
 
     const es = new EventSource(eventsStreamUrl(runId, after));
 
+    // The server replays the full history on connect and each event arrives
+    // as its own onmessage macrotask, so appending per message costs one
+    // render (and one array copy) per historical event. Buffer arrivals and
+    // flush once per timer tick: a replay burst that is already queued drains
+    // ahead of the timer, collapsing into a single state update.
+    let buffer: StreamEvent[] = [];
+    let flushTimer = 0;
+
+    const flush = () => {
+      flushTimer = 0;
+      if (buffer.length === 0) return;
+      const batch = buffer;
+      buffer = [];
+      setEvents(prev => [...prev, ...batch]);
+    };
+
     es.onopen = () => setIsOpen(true);
     es.onerror = () => {
       // Browsers fire onerror on close; we use the terminal flag to suppress
@@ -62,18 +78,26 @@ export function useRunStream(
       try {
         const ev = JSON.parse(msg.data) as StreamEvent;
         if (ev.type === '_terminal') {
+          // Drain anything still buffered before marking terminal so no
+          // event is lost when the stream closes.
+          window.clearTimeout(flushTimer);
+          flush();
           setTerminal(true);
           es.close();
           setIsOpen(false);
           return;
         }
-        setEvents(prev => [...prev, ev]);
+        buffer.push(ev);
+        if (flushTimer === 0) flushTimer = window.setTimeout(flush, 0);
       } catch (e) {
         console.error('[useRunStream] parse failed', e);
       }
     };
 
     return () => {
+      // Cancel any pending flush and drop the unflushed buffer: after cleanup
+      // a flush would append this run's events to the next run's state.
+      window.clearTimeout(flushTimer);
       es.close();
       setIsOpen(false);
     };

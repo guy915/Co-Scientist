@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {Link, useNavigate, useParams} from 'react-router-dom';
 import {
   type Evidence,
@@ -173,10 +173,19 @@ export function RunDetail() {
   }, [refresh, debouncedRefresh]);
 
   // Re-pull on new events so tabs stay in sync, debounced to absorb bursts.
+  // The stream delivers events in coalesced batches, so scan the whole newly
+  // appended slice for a data event rather than only the batch tail: a batch
+  // that ends in a 'status' event still warrants a refetch if it carried a
+  // node event earlier. The processed-count ref resets naturally when the
+  // hook clears events on a run change (length drops back toward zero).
+  const processedEventCount = useRef(0);
   useEffect(() => {
-    if (!events.length) return;
-    const interesting = events[events.length - 1]?.type;
-    if (interesting && interesting !== 'status') debouncedRefresh();
+    if (events.length < processedEventCount.current) {
+      processedEventCount.current = 0;
+    }
+    const fresh = events.slice(processedEventCount.current);
+    processedEventCount.current = events.length;
+    if (fresh.some(event => event.type !== 'status')) debouncedRefresh();
   }, [events, debouncedRefresh]);
 
   // On stream end, refetch immediately so a pending debounce cannot leave the
