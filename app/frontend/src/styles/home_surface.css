@@ -619,7 +619,7 @@
        stop stretching edge-to-edge on wide screens — but keep it dynamic: it
        tracks the viewport (62vw) between a floor and a ceiling, then centers
        in its (1fr) track, leaving a deliberate margin at ultrawide sizes. */
-    max-width: clamp(48rem, 58vw, 56rem);
+    max-width: clamp(46rem, 55vw, 53.5rem);
     justify-self: center;
     max-height: calc(100vh - 4.5rem);
     max-height: calc(100dvh - 4.5rem);
