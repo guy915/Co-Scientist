@@ -87,7 +87,7 @@ export function runFor(
   status: RunStatus = 'completed',
 ): Run {
   const setup = config.setup ?? defaultSetup(goal, config.focus, config.tier);
-  return {
+  const run: Run = {
     id,
     research_goal: goal,
     run_mode: 'default',
@@ -100,7 +100,15 @@ export function runFor(
     updated_at: createdAt + 60,
     completed_at: status === 'completed' ? createdAt + 60 : null,
     error: null,
+    top_elo: null,
   };
+  // Mirror the backend: the run list carries the run's highest Elo so the home
+  // surface never fetches hypotheses just to show a score.
+  if (status === 'completed') {
+    const elos = artifactsFor(run).hypotheses.map(h => h.elo_rating);
+    run.top_elo = elos.length ? Math.max(...elos) : null;
+  }
+  return run;
 }
 
 function hypothesisTitles(goal: string): string[] {

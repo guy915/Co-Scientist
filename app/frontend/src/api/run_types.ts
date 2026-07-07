@@ -71,6 +71,11 @@ export interface Run {
   updated_at: number;
   completed_at: number | null;
   error: string | null;
+  /**
+   * Highest Elo across the run's hypotheses, served by the run-list endpoint so
+   * home surfaces avoid fetching hypotheses. Absent/null until the run has any.
+   */
+  top_elo?: number | null;
 }
 
 /** Aggregate counts of the artifacts a run has produced. */

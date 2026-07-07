@@ -10,6 +10,7 @@ from co_scientist.constants import RESEARCH_OVERVIEW_TOP_K
 from co_scientist.constants import THINKING_MAX_TOKENS
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.models import rank_by_elo
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_research_overview_prompt
 from co_scientist.state import WorkflowState
@@ -30,7 +31,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     if not hypotheses:
         return {"research_overview": {}}
 
-    ranked = sorted(hypotheses, key=lambda h: h.elo_rating, reverse=True)
+    ranked = rank_by_elo(hypotheses)
     top = ranked[:RESEARCH_OVERVIEW_TOP_K]
     summary = "\n".join(
         f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top))

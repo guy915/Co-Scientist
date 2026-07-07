@@ -59,6 +59,7 @@ function minimalRun(overrides = {}) {
     updated_at: 2,
     completed_at: 3,
     error: null,
+    top_elo: 1200,
     summary: {events: 4, hypotheses: 1, evidence: 1, matches: 1, reviews: 1},
     ...overrides,
   };
@@ -178,17 +179,14 @@ describe('ChatWorkspace', () => {
     expect(screen.getByRole('button', {name: 'Show more'})).toBeInTheDocument();
   });
 
-  it('uses backend hypothesis Elo for completed home-card top scores', async () => {
+  it('uses the run-list top_elo for completed home-card top scores', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue([
       minimalRun({
         id: 'run-scored',
         research_goal: 'Rank host-pathogen target hypotheses.',
+        top_elo: 1324,
       }),
-    ]);
-    apiMock.getHypotheses.mockResolvedValue([
-      {...hypothesis, id: 'hyp-low', elo_rating: 1198},
-      {...hypothesis, id: 'hyp-high', elo_rating: 1324},
     ]);
 
     renderWorkspace();

@@ -31,19 +31,9 @@ def test_create_run_rejects_empty_goal() -> None:
     assert res.status_code == 422
 
 
-def test_create_run_rejects_invalid_profile() -> None:
+def test_create_run_defaults_run_mode() -> None:
     c = _client()
-    res = c.post("/api/runs", json={"research_goal": "x", "profile": "bogus"})
-    assert res.status_code == 422
-
-
-def test_create_run_accepts_default_run_mode() -> None:
-    c = _client()
-    res = c.post("/api/runs",
-                 json={
-                     "research_goal": "x",
-                     "run_mode": "default"
-                 })
+    res = c.post("/api/runs", json={"research_goal": "x"})
     assert res.status_code == 200
     assert res.json()["run_mode"] == "default"
 

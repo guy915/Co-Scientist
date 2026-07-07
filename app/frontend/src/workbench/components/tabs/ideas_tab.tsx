@@ -2,6 +2,7 @@ import type {MouseEvent, ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import type {Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
+import {sortByEloDesc} from '@/lib/hypotheses';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
@@ -121,11 +122,7 @@ export function IdeasTab({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
-  const sorted = useMemo(() => {
-    const arr = [...hypotheses];
-    arr.sort((a, b) => b.elo_rating - a.elo_rating);
-    return arr;
-  }, [hypotheses]);
+  const sorted = useMemo(() => sortByEloDesc(hypotheses), [hypotheses]);
 
   const selected = useMemo(() => {
     if (!sorted.length) return null;

@@ -253,7 +253,6 @@ def test_engine_adapter_emits_canonical_event_types(
         engine_adapter.run_workflow(
             run.id,
             run.research_goal,
-            "standard",
             run.config,
             force_provider="engine",
             sleep_seconds=0,
@@ -268,8 +267,10 @@ def test_engine_adapter_emits_canonical_event_types(
     for node, expected in _EXPECTED_TYPES.items():
         assert expected in types_emitted, f"{node} -> {expected} missing"
 
-    # Lifecycle + report events remain canonical too.
-    assert types_emitted[0] == "status"  # running
+    # Lifecycle + report events remain canonical too. Intake screening runs at
+    # the shared boundary, so it leads, then the engine marks the run running.
+    assert types_emitted[0] == "safety.intake"
+    assert types_emitted[1] == "status"  # running
     assert "report" in types_emitted
     assert types_emitted[-1] == "status"  # completed
 
@@ -298,7 +299,6 @@ def test_engine_adapter_generates_canonical_milestones(
         engine_adapter.run_workflow(
             run.id,
             run.research_goal,
-            "standard",
             run.config,
             force_provider="engine",
             sleep_seconds=0,

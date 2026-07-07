@@ -25,7 +25,6 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
     events_a = _drain(
         engine_adapter.run_workflow(run_a.id,
                                     run_a.research_goal,
-                                    "standard",
                                     run_a.config,
                                     sleep_seconds=0))
     titles_a = [h["title"] for h in store.list_hypotheses(run_a.id)]
@@ -41,7 +40,6 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
     events_b = _drain(
         engine_adapter.run_workflow(run_b.id,
                                     run_b.research_goal,
-                                    "standard",
                                     run_b.config,
                                     sleep_seconds=0))
     titles_b = [h["title"] for h in store.list_hypotheses(run_b.id)]
@@ -74,7 +72,7 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     async def _drain_async(rid: str) -> list[Any]:
         return [
             e async for e in run_mock_workflow(
-                rid, fixed_goal, "standard", cfg, sleep_seconds=0)
+                rid, fixed_goal, cfg, sleep_seconds=0)
         ]
 
     # Same seed → same sequence
@@ -95,8 +93,7 @@ def test_legacy_standard_profile_uses_default_depth(isolated_db: str) -> None:
     run = store.create_run("Default depth test", "standard", "mock", {})
     events = _drain(
         engine_adapter.run_workflow(run.id,
-                                    run.research_goal,
-                                    "standard", {
+                                    run.research_goal, {
                                         "initial_hypotheses_count": 1,
                                         "max_iterations": 0,
                                         "evolution_max_count": 1,
@@ -116,7 +113,6 @@ def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:
     events = _drain(
         engine_adapter.run_workflow(run.id,
                                     run.research_goal,
-                                    "standard",
                                     run.config,
                                     sleep_seconds=0))
     types = [e["type"] for e in events]
@@ -148,7 +144,6 @@ def test_mock_deep_verification_writes_reviews(isolated_db: str) -> None:
     events = _drain(
         engine_adapter.run_workflow(run.id,
                                     run.research_goal,
-                                    "standard",
                                     run.config,
                                     sleep_seconds=0))
 
@@ -185,7 +180,6 @@ def test_mock_research_overview_rides_report(isolated_db: str) -> None:
     events = _drain(
         engine_adapter.run_workflow(run.id,
                                     run.research_goal,
-                                    "standard",
                                     run.config,
                                     sleep_seconds=0))
 
@@ -229,7 +223,7 @@ def test_mock_deep_verification_and_overview_are_deterministic(
     async def _drain_async(rid: str) -> list[Any]:
         return [
             e async for e in run_mock_workflow(
-                rid, fixed_goal, "standard", cfg, sleep_seconds=0)
+                rid, fixed_goal, cfg, sleep_seconds=0)
         ]
 
     def _seeded_content(events: list[Any]) -> dict[str, Any]:

@@ -11,7 +11,7 @@ from co_scientist.constants import (
     PROGRESS_PROXIMITY_COMPLETE,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.models import Hypothesis, create_metrics_update, rank_by_elo
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.state import WorkflowState
@@ -136,11 +136,9 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
         hypotheses_to_keep.extend(others)
 
         if high_similarity:
-            # For high-similarity duplicates, keep only the best
-            # Sort by: Elo rating (primary), then score (secondary), then text
-            # (tiebreaker)
-            high_similarity.sort(key=lambda h: (h.elo_rating, h.score, h.text),
-                                 reverse=True)
+            # For high-similarity duplicates, keep only the best. Rank by Elo
+            # (primary), then score, then text as deterministic tiebreakers.
+            high_similarity[:] = rank_by_elo(high_similarity)
 
             # Keep the best
             best = high_similarity[0]

@@ -7,8 +7,6 @@ so the clone's tournament behaviour is consistent across mock and real paths.
 from __future__ import annotations
 
 import os
-from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any
 
 
@@ -75,48 +73,3 @@ def live_leaderboard(hyps: list[dict[str, Any]],
             "losses": int(h.get("loss_count", 0) or 0),
         })
     return out
-
-
-@dataclass
-class Match:
-    """Single tournament match record."""
-
-    winner_id: str
-    loser_id: str
-    winner_elo_before: int
-    winner_elo_after: int
-    loser_elo_before: int
-    loser_elo_after: int
-    rationale: str = ""
-
-
-def run_round_robin(
-    hypotheses_elo: dict[str, int],
-    pairs: list[tuple[str, str]],
-    judge: Callable[[str, str], tuple[str, str, str]],
-    k_factor: int = DEFAULT_K_FACTOR,
-) -> list[Match]:
-    """Apply Elo updates for an ordered list of pairs.
-
-    `judge(a, b) -> (winner_id, loser_id, rationale)` decides each match.
-    `hypotheses_elo` is mutated in place; returned matches are the audit log.
-    """
-    matches: list[Match] = []
-    for a, b in pairs:
-        winner_id, loser_id, rationale = judge(a, b)
-        w_before = hypotheses_elo[winner_id]
-        l_before = hypotheses_elo[loser_id]
-        w_after, l_after = update_pair(w_before, l_before, k_factor=k_factor)
-        hypotheses_elo[winner_id] = w_after
-        hypotheses_elo[loser_id] = l_after
-        matches.append(
-            Match(
-                winner_id=winner_id,
-                loser_id=loser_id,
-                winner_elo_before=w_before,
-                winner_elo_after=w_after,
-                loser_elo_before=l_before,
-                loser_elo_after=l_after,
-                rationale=rationale,
-            ))
-    return matches

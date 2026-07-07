@@ -4,9 +4,11 @@ It emits the full agent-equivalent sequence the real engine produces — so the
 backend, persistence layer, SSE stream, and frontend can be exercised end-to-end
 without any external API calls.
 
-Stages emitted (in order):
-1. supervisor.plan       — research plan + agent DAG
-2. intake.scope          — clarified goal + safety screen
+Intake safety screening runs upstream at the shared workflow boundary
+(``engine_adapter.run_workflow``) before this generator, so it is not emitted
+here. Stages emitted (in order):
+1. status: running
+2. supervisor.plan       — research plan + agent DAG
 3. literature_review     — retrieved evidence list
 4. generate              — initial hypotheses (initial_count)
 5. reflection            — per-hypothesis reflection notes
@@ -39,8 +41,15 @@ from typing import Any
 from app import store
 from app.citations import ALL_STATES, CitationRecord, classify_citation
 from app.elo import INITIAL_ELO, live_leaderboard, update_pair
-from app.run_modes import normalize_run_mode, resolved_run_config, setup_guidance
-from app.safety import screen_final, screen_intake
+from app.report_render import (
+    article_stub,
+    format_deep_verification_critique,
+    hypothesis_stub,
+    match_stub,
+    render_research_overview_markdown,
+)
+from app.run_modes import CANONICAL_RUN_MODE, resolved_run_config, setup_guidance
+from app.safety import screen_final
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -140,22 +149,6 @@ def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
 
 def _cluster_id(idx: int) -> str:
     return f"cluster-{idx % 3}"
-
-
-def _mock_leaderboard(
-    elo: dict[str, int],
-    wins: dict[str, int],
-    losses: dict[str, int],
-    titles: dict[str, str],
-) -> list[dict[str, Any]]:
-    """Project the mock's per-id state into the shared leaderboard shape."""
-    return live_leaderboard([{
-        "id": hid,
-        "title": titles.get(hid, hid),
-        "elo_rating": rating,
-        "win_count": wins.get(hid, 0),
-        "loss_count": losses.get(hid, 0),
-    } for hid, rating in elo.items()])
 
 
 # Number of top-ranked hypotheses subjected to deep verification. Hardcoded
@@ -304,15 +297,18 @@ def _research_overview_seed(rng: random.Random, goal: str,
 async def run_mock_workflow(
     run_id: str,
     research_goal: str,
-    profile: str,
     config: dict[str, Any],
     *,
     db_path: str | None = None,
     cancelled: asyncio.Event | None = None,
     sleep_seconds: float = 0.05,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Execute the deterministic mock workflow and yield events as they happen."""  # pylint: disable=line-too-long
-    run_mode = normalize_run_mode(profile)
+    """Execute the deterministic mock workflow and yield events as they happen.
+
+    Intake safety screening is applied upstream at the shared workflow boundary
+    (``engine_adapter.run_workflow``); this generator assumes intake passed.
+    """
+    run_mode = CANONICAL_RUN_MODE
     cfg = resolved_run_config(config)
     rng = _seeded_rng("mock", run_id, research_goal, run_mode)
 
@@ -324,26 +320,7 @@ async def run_mock_workflow(
         await asyncio.sleep(sleep_seconds)
         return {"seq": seq, "type": type_, "payload": payload}
 
-    # ---- 1. Intake / Safety (input gate) ----
-    intake = screen_intake(research_goal)
-    store.add_safety_decision(run_id,
-                              intake.stage,
-                              intake.decision,
-                              intake.reason,
-                              intake.matches,
-                              db_path=db_path)
-    yield await emit("safety.intake", intake.to_dict())
-    if intake.decision == "block":
-        store.update_run_status(run_id,
-                                RunStatus.BLOCKED,
-                                error=intake.reason,
-                                db_path=db_path)
-        yield await emit("status", {
-            "status": "blocked",
-            "error": intake.reason
-        })
-        return
-
+    # ---- 1. Mark running (intake screening runs at the shared boundary) ----
     store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     yield await emit("status", {"status": "running"})
 
@@ -407,7 +384,7 @@ async def run_mock_workflow(
         "literature_review",
         {
             "count": len(evidence_payload),
-            "evidence": evidence_payload
+            "evidence": [article_stub(e) for e in evidence_payload],
         },
     )
 
@@ -436,10 +413,11 @@ async def run_mock_workflow(
                 **h, "elo_rating": INITIAL_ELO,
                 "generation": 0
             })
-    yield await emit("generate", {
-        "count": len(hyp_payloads),
-        "hypotheses": hyp_payloads
-    })
+    yield await emit(
+        "generate", {
+            "count": len(hyp_payloads),
+            "hypotheses": [hypothesis_stub(h) for h in hyp_payloads],
+        })
 
     # ---- 5. Reflection ----
     with store.transaction(db_path) as conn:
@@ -477,8 +455,6 @@ async def run_mock_workflow(
 
     # ---- 7. First ranking round ----
     elo_state: dict[str, int] = {hid: INITIAL_ELO for hid in hyp_ids}
-    win_count: dict[str, int] = {hid: 0 for hid in hyp_ids}
-    loss_count: dict[str, int] = {hid: 0 for hid in hyp_ids}
 
     # Map each hypothesis id to its seed-deterministic title so the tournament
     # outcome (and thus the leaderboard, deep-verification selection, and the
@@ -529,8 +505,6 @@ async def run_mock_workflow(
                 wa, la = update_pair(wb, lb, k_factor=cfg["k_factor"])
                 elo_state[winner] = wa
                 elo_state[loser] = la
-                win_count[winner] = win_count.get(winner, 0) + 1
-                loss_count[loser] = loss_count.get(loser, 0) + 1
                 store.update_hypothesis_state(winner,
                                               elo_rating=wa,
                                               win_delta=1,
@@ -567,11 +541,10 @@ async def run_mock_workflow(
             {
                 "iteration":
                     itr,
-                "matches":
-                    round_matches,
-                "leaderboard":
-                    _mock_leaderboard(elo_state, win_count, loss_count,
-                                      title_by_id),
+                "matches": [
+                    match_stub({"winner": m["winner_id"]})
+                    for m in round_matches
+                ],
             },
         )
 
@@ -622,7 +595,11 @@ async def run_mock_workflow(
                         "parent_id": parent_id,
                         **child_h
                     })
-            yield await emit("evolve", {"children": children, "iteration": itr})
+            yield await emit(
+                "evolve", {
+                    "children": [hypothesis_stub(c) for c in children],
+                    "iteration": itr,
+                })
 
             # ---- 9. Meta-review (per iteration) ----
             mr_critique = (
@@ -646,11 +623,6 @@ async def run_mock_workflow(
                 },
             )
 
-    # Shared formatters from the real-engine drain, imported lazily to avoid a
-    # circular import (engine_adapter imports this module at top level).
-    from app.engine_adapter import (  # pylint: disable=import-outside-toplevel
-        _format_deep_verification_critique, _render_research_overview_markdown)
-
     # ---- 10. Deep verification (top-k by Elo) ----
     leaderboard_ids = [
         hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])
@@ -661,7 +633,7 @@ async def run_mock_workflow(
         if not hyp:
             continue
         dv = _deep_verification_seed(rng, hyp["title"])
-        summary, critique = _format_deep_verification_critique(
+        summary, critique = format_deep_verification_critique(
             dv["probes"], dv["verdict"])
         store.add_review(
             run_id,
@@ -748,7 +720,7 @@ async def run_mock_workflow(
     md_lines.append(f"- Elo: initial {INITIAL_ELO}, K = " +
                     str(cfg["k_factor"]) + ", standard formula.")
     md_lines.append("")
-    md_lines.extend(_render_research_overview_markdown(research_overview))
+    md_lines.extend(render_research_overview_markdown(research_overview))
     markdown = "\n".join(md_lines)
 
     final_safety = screen_final(markdown)
@@ -777,11 +749,7 @@ async def run_mock_workflow(
         "research_goal": research_goal,
         "run_mode": run_mode,
         "provider": "mock",
-        "leaderboard": [{
-            "id": h["id"],
-            "title": h["title"],
-            "elo": h["elo_rating"]
-        } for h in top_hypotheses],
+        "leaderboard": live_leaderboard(top_hypotheses),
         "citation_summary": cit_summary,
         "evidence_count": len(evidence_payload),
         "matches_count": len(pairs) * (cfg["max_iterations"] + 1),

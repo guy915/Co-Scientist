@@ -18,7 +18,7 @@ from co_scientist.constants import (
     scaled_max_tokens,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.models import Hypothesis, create_metrics_update, rank_by_elo
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.state import WorkflowState
@@ -51,7 +51,7 @@ def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
         return [h.text for h in others]
 
     # Sort by Elo rating (descending)
-    others_sorted = sorted(others, key=lambda h: h.elo_rating, reverse=True)
+    others_sorted = rank_by_elo(others)
 
     # Take top 5 by Elo (the best ones to avoid copying)
     top_performers = others_sorted[:5]

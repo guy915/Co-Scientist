@@ -25,15 +25,23 @@ from app.citations import CitationState
 from app.config import settings
 from app.elo import INITIAL_ELO, live_leaderboard
 from app.mock_workflow import run_mock_workflow
+from app.report_render import (
+    article_stub,
+    format_deep_verification_critique,
+    hypothesis_stub,
+    match_stub,
+    render_research_overview_markdown,
+)
 from app.run_modes import (
+    CANONICAL_RUN_MODE,
     clean_string_list,
     focus_guidance,
     normalize_run_focus,
-    normalize_run_mode,
     normalize_run_tier,
     resolved_run_config,
     setup_guidance,
 )
+from app.safety import screen_final, screen_intake
 from app.store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
@@ -149,27 +157,6 @@ _ENGINE_PIPELINE_AGENTS: list[str] = [
 ]
 
 
-def _hypothesis_stub(h: dict[str, Any]) -> dict[str, str]:
-    """Project a hypothesis to a minimal JSON-safe stub for event payloads."""
-    return {
-        "id": str(h.get("id") or h.get("hypothesis_id") or ""),
-        "title": str(h.get("title") or h.get("text") or "Untitled")[:140],
-    }
-
-
-def _article_stub(a: dict[str, Any]) -> dict[str, str]:
-    """Project an article to a minimal JSON-safe stub for event payloads."""
-    return {
-        "title": str(a.get("title") or "Untitled"),
-        "url": str(a.get("url") or ""),
-    }
-
-
-def _match_stub(m: dict[str, Any]) -> dict[str, str]:
-    """Project a tournament matchup to a minimal JSON-safe stub."""
-    return {"winner": str(m.get("winner") or "")}
-
-
 def _canonical_engine_payload(node_name: str, node_type: str,
                               state: dict[str, Any]) -> dict[str, Any]:
     """Build a canonical event payload for a streamed engine node.
@@ -205,15 +192,15 @@ def _canonical_engine_payload(node_name: str, node_type: str,
 
     if node_type == "generate":
         payload["count"] = len(hyps)
-        payload["hypotheses"] = [_hypothesis_stub(h) for h in hyps]
+        payload["hypotheses"] = [hypothesis_stub(h) for h in hyps]
     elif node_type == "literature_review":
         payload["count"] = len(articles)
-        payload["evidence"] = [_article_stub(a) for a in articles]
+        payload["evidence"] = [article_stub(a) for a in articles]
     elif node_type == "ranking":
-        payload["matches"] = [_match_stub(m) for m in matchups]
+        payload["matches"] = [match_stub(m) for m in matchups]
     elif node_type == "evolve":
         payload["children"] = [
-            _hypothesis_stub(h) for h in hyps if h.get("evolution_history")
+            hypothesis_stub(h) for h in hyps if h.get("evolution_history")
         ]
     elif node_type == "supervisor.plan":
         payload["agents"] = list(_ENGINE_PIPELINE_AGENTS)
@@ -247,106 +234,6 @@ def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
         itr = payload.get("iteration", 0)
         return f"{count} hypotheses evolved (iteration {itr})"
     return None
-
-
-def _format_deep_verification_critique(probes: list[dict[str, Any]],
-                                       verdict: str | None) -> tuple[str, str]:
-    """Render deep-verification probes into a (summary, critique) pair.
-
-    Args:
-        probes: Probing-question entries, each carrying ``question``,
-            ``answer``, ``reasoning``, and ``assumption_is_fundamental``.
-        verdict: Overall verdict, one of ``holds``/``weakened``/``undermined``,
-            or None when the engine did not return one.
-
-    Returns:
-        A tuple of (summary, critique). Both are non-empty strings suitable
-        for the NOT NULL reviews columns.
-    """
-    verdict_text = verdict or "unspecified"
-    summary = f"Deep verification verdict: {verdict_text}"
-    lines: list[str] = [summary, ""]
-    for idx, probe in enumerate(probes, start=1):
-        question = str(probe.get("question", "")).strip()
-        answer = str(probe.get("answer", "")).strip()
-        reasoning = str(probe.get("reasoning", "")).strip()
-        fundamental = bool(probe.get("assumption_is_fundamental"))
-        flag = "fundamental" if fundamental else "non-fundamental"
-        lines.append(f"Probe {idx} ({flag} assumption):")
-        if question:
-            lines.append(f"  Question: {question}")
-        if answer:
-            lines.append(f"  Answer: {answer}")
-        if reasoning:
-            lines.append(f"  Reasoning: {reasoning}")
-        lines.append("")
-    critique = "\n".join(lines).strip()
-    return summary, critique
-
-
-def _render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
-    """Render the research overview + NIH Specific Aims as markdown lines.
-
-    Args:
-        overview: The engine ``research_overview`` payload, shaped as
-            ``{"overview": {...}, "nih_specific_aims": {...}}``. May be empty
-            or carry empty sub-dicts for runs without hypotheses.
-
-    Returns:
-        A list of markdown lines. Empty when no renderable content exists, so
-        callers never emit bare section headers.
-    """
-    lines: list[str] = []
-    if not isinstance(overview, dict):
-        return lines
-
-    ov = overview.get("overview") or {}
-    if isinstance(ov, dict):
-        summary = ov.get("summary")
-        directions = ov.get("research_directions") or []
-        if summary or directions:
-            lines.append("\n## Research Overview\n")
-            if summary:
-                lines.append(f"{summary}\n")
-            for direction in directions:
-                if not isinstance(direction, dict):
-                    continue
-                title = direction.get("title", "")
-                importance = direction.get("importance", "")
-                experiments = direction.get("suggested_experiments") or []
-                lines.append(f"### {title}\n")
-                if importance:
-                    lines.append(f"{importance}\n")
-                if experiments:
-                    lines.append("Suggested experiments:\n")
-                    for experiment in experiments:
-                        lines.append(f"- {experiment}")
-                    lines.append("")
-
-    aims_section = overview.get("nih_specific_aims") or {}
-    if isinstance(aims_section, dict):
-        introduction = aims_section.get("introduction")
-        aims = aims_section.get("aims") or []
-        impact = aims_section.get("impact")
-        if introduction or aims or impact:
-            lines.append("\n## NIH Specific Aims\n")
-            if introduction:
-                lines.append(f"{introduction}\n")
-            for aim in aims:
-                if not isinstance(aim, dict):
-                    continue
-                aim_text = aim.get("aim", "")
-                rationale = aim.get("rationale", "")
-                approach = aim.get("approach", "")
-                lines.append(f"### {aim_text}\n")
-                if rationale:
-                    lines.append(f"**Rationale:** {rationale}\n")
-                if approach:
-                    lines.append(f"**Approach:** {approach}\n")
-            if impact:
-                lines.append("### Impact\n")
-                lines.append(f"{impact}\n")
-    return lines
 
 
 def _persist_final_state(
@@ -463,7 +350,7 @@ def _persist_final_state(
             # Persist deep-verification probes as a dedicated review row.
             probes = h.get("deep_verification_probes") or []
             if probes:
-                summary, critique = _format_deep_verification_critique(
+                summary, critique = format_deep_verification_critique(
                     probes, h.get("deep_verification_verdict"))
                 store.add_review(
                     run_id=run_id,
@@ -591,7 +478,7 @@ def _persist_final_state(
                 else:
                     md_lines.append(f"- {rec}")
 
-    md_lines.extend(_render_research_overview_markdown(research_overview))
+    md_lines.extend(render_research_overview_markdown(research_overview))
     markdown = "\n".join(md_lines)
 
     store.save_report(run_id, report_payload, markdown, db_path=db_path)
@@ -601,7 +488,6 @@ def _persist_final_state(
 async def run_workflow(
     run_id: str,
     research_goal: str,
-    profile: str,
     config: dict[str, Any],
     *,
     db_path: str | None = None,
@@ -609,13 +495,42 @@ async def run_workflow(
     sleep_seconds: float = 0.05,
     force_provider: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Drive the chosen workflow and yield events as the store records them."""
+    """Drive the chosen workflow and yield events as the store records them.
+
+    Intake safety screening runs here, at the shared boundary both providers
+    pass through, so every run (engine or mock) is gated before any work.
+    """
     provider = force_provider or select_provider()
-    run_mode = normalize_run_mode(profile)
+    run_mode = CANONICAL_RUN_MODE
     cfg = resolved_run_config(config)
 
     logger.info("starting workflow run=%s provider=%s run_mode=%s", run_id,
                 provider, run_mode)
+
+    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
+        seq = store.append_event(run_id, type_, payload, db_path=db_path)
+        return {"seq": seq, "type": type_, "payload": payload}
+
+    # Intake safety gate, shared by every provider. A hard block short-circuits
+    # the run before any hypotheses are generated.
+    intake = screen_intake(research_goal)
+    store.add_safety_decision(run_id,
+                              intake.stage,
+                              intake.decision,
+                              intake.reason,
+                              intake.matches,
+                              db_path=db_path)
+    yield await _emit("safety.intake", intake.to_dict())
+    if intake.decision == "block":
+        store.update_run_status(run_id,
+                                RunStatus.BLOCKED,
+                                error=intake.reason,
+                                db_path=db_path)
+        yield await _emit("status", {
+            "status": "blocked",
+            "error": intake.reason
+        })
+        return
 
     if provider == "mock":
         pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
@@ -626,7 +541,6 @@ async def run_workflow(
         async for event in run_mock_workflow(
                 run_id=run_id,
                 research_goal=research_goal,
-                profile=run_mode,
                 config=cfg,
                 db_path=db_path,
                 cancelled=cancelled,
@@ -651,7 +565,6 @@ async def run_workflow(
         async for event in run_mock_workflow(
                 run_id=run_id,
                 research_goal=research_goal,
-                profile=run_mode,
                 config=cfg,
                 db_path=db_path,
                 cancelled=cancelled,
@@ -659,10 +572,6 @@ async def run_workflow(
         ):
             yield event
         return
-
-    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        seq = store.append_event(run_id, type_, payload, db_path=db_path)
-        return {"seq": seq, "type": type_, "payload": payload}
 
     # Persist the running state, not just emit it. The mock path sets this; the
     # engine path previously only emitted the event, leaving the run row stuck
@@ -775,6 +684,29 @@ async def run_workflow(
             execution_time=time.time() - start,
             db_path=db_path,
         )
+
+        # Final-output safety gate. Screens the rendered report and records the
+        # decision so the engine path is gated on the same terms as the mock.
+        final = screen_final(
+            store.read_report_markdown(run_id, db_path=db_path) or "")
+        store.add_safety_decision(run_id,
+                                  final.stage,
+                                  final.decision,
+                                  final.reason,
+                                  final.matches,
+                                  db_path=db_path)
+        yield await _emit("safety.final", final.to_dict())
+        if final.decision == "block":
+            store.update_run_status(run_id,
+                                    RunStatus.BLOCKED,
+                                    error=final.reason,
+                                    db_path=db_path)
+            yield await _emit("status", {
+                "status": "blocked",
+                "error": final.reason
+            })
+            return
+
         yield await _emit("report", report_payload)
         store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
         yield await _emit("status", {"status": "completed"})

@@ -1498,8 +1498,6 @@ def get_schema_for_prompt(prompt_name: str) -> dict[str, Any] | None:
             RESEARCH_OVERVIEW_SCHEMA,
         "supervisor":
             SUPERVISOR_SCHEMA,
-        "literature_query_generation":
-            LITERATURE_QUERY_SCHEMA,
         "literature_review_paper_analysis":
             LITERATURE_PAPER_ANALYSIS_SCHEMA,
         "hypothesis_novelty_analysis":

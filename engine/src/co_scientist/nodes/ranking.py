@@ -14,7 +14,7 @@ from co_scientist.constants import (
     MAX_CONCURRENT_LLM_CALLS,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update
+from co_scientist.models import Hypothesis, create_metrics_update, rank_by_elo
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_ranking_prompt
 from co_scientist.state import WorkflowState
@@ -397,10 +397,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         winner_hyp.win_count += 1
         loser_hyp.loss_count += 1
 
-    # Sort hypotheses by Elo rating (highest first)
-    # Use hypothesis text as tiebreaker for deterministic ordering when Elo
-    # ratings are equal
-    hypotheses.sort(key=lambda h: (h.elo_rating, h.text), reverse=True)
+    # Sort hypotheses by Elo rating (highest first), with score then text as
+    # deterministic tiebreakers when Elo ratings are equal.
+    hypotheses = rank_by_elo(hypotheses)
 
     logger.info("Tournament complete. Top Elo: %s", hypotheses[0].elo_rating)
     logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])

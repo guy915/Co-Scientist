@@ -77,7 +77,6 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
 
     req = CreateRunRequest(
         research_goal="Map senescence escape mechanisms",
-        profile="standard",
         initial_hypotheses_count=1,
         max_iterations=0,
         evolution_max_count=1,

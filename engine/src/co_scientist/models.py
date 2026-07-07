@@ -181,6 +181,25 @@ class Hypothesis:
         return cls(**payload)
 
 
+def rank_by_elo(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
+    """Return hypotheses ordered by Elo rating, strongest first.
+
+    Canonical ranking policy shared across nodes. Ties break by ``score`` then
+    ``text`` so ordering is fully deterministic for a fixed set of hypotheses.
+
+    Args:
+        hypotheses: The hypotheses to rank (not mutated).
+
+    Returns:
+        A new list sorted by descending ``(elo_rating, score, text)``.
+    """
+    return sorted(
+        hypotheses,
+        key=lambda h: (h.elo_rating, h.score, h.text),
+        reverse=True,
+    )
+
+
 @dataclass
 class ExecutionMetrics:
     """Metrics for workflow execution."""

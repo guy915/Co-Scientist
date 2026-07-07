@@ -13,6 +13,7 @@ from co_scientist.constants import PROGRESS_DEEP_VERIFICATION_START
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
 from co_scientist.models import Hypothesis
+from co_scientist.models import rank_by_elo
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.state import WorkflowState
@@ -76,7 +77,7 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     if not hypotheses:
         return {}
 
-    ranked = sorted(hypotheses, key=lambda h: h.elo_rating, reverse=True)
+    ranked = rank_by_elo(hypotheses)
     top_k = ranked[:DEEP_VERIFICATION_TOP_K]
     to_verify = [h for h in top_k if not h.deep_verification_probes]
 

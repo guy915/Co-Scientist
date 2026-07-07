@@ -19,6 +19,7 @@ import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {useRunStream} from '@/hooks/use_run_stream';
 import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 import {formatDurationPhrase} from '@/lib/duration';
+import {sortByEloDesc} from '@/lib/hypotheses';
 import {TruncatedLabel} from '../components/truncated_label';
 import {IdeasTab} from '../components/tabs/ideas_tab';
 import {
@@ -441,8 +442,7 @@ function ResearchOverviewView({
         <section className={REPORT_SECTION_CLASSES}>
           <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
           <ol className={REPORT_LIST_CLASSES}>
-            {[...hypotheses]
-              .sort((a, b) => b.elo_rating - a.elo_rating)
+            {sortByEloDesc(hypotheses)
               .slice(0, 5)
               .map(hypothesis => (
                 <li

@@ -98,7 +98,12 @@ def connect(
         path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
     """Yield a sqlite3 connection with WAL + row factory enabled."""
     db_path = _resolved_db_path(path)
-    Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    # The parent dir only needs creating before the first connect for a path.
+    # A db_path already in `_initialized` was connected before, so its dir
+    # exists; skipping the syscall keeps hot read paths (SSE poll, endpoints)
+    # off a per-call mkdir.
+    if db_path not in _initialized:
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path,
                            timeout=30,
                            isolation_level=None,
@@ -390,6 +395,10 @@ class RunRow:
     updated_at: float
     completed_at: float | None
     error: str | None
+    # Highest Elo across the run's hypotheses. Populated by ``list_runs`` (via a
+    # single aggregate query) so list surfaces avoid fetching every hypothesis;
+    # None on single-run reads and runs with no hypotheses yet.
+    top_elo: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -405,6 +414,7 @@ class RunRow:
             "updated_at": self.updated_at,
             "completed_at": self.completed_at,
             "error": self.error,
+            "top_elo": self.top_elo,
         }
 
 
@@ -426,6 +436,7 @@ class MessageRow:
 
 
 def _row_to_run(row: sqlite3.Row) -> RunRow:
+    keys = row.keys()
     return RunRow(
         id=row["id"],
         research_goal=row["research_goal"],
@@ -438,6 +449,7 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
         updated_at=row["updated_at"],
         completed_at=row["completed_at"],
         error=row["error"],
+        top_elo=row["top_elo"] if "top_elo" in keys else None,
     )
 
 
@@ -501,7 +513,12 @@ def list_runs(client_id: str = "",
               db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
         rows = conn.execute(
-            "SELECT * FROM runs WHERE client_id = ? ORDER BY created_at DESC LIMIT ?",  # pylint: disable=line-too-long
+            "SELECT r.*, ("
+            " SELECT MAX(s.elo_rating) FROM hypothesis_state s "
+            " JOIN hypotheses h ON h.id = s.hypothesis_id "
+            " WHERE h.run_id = r.id) AS top_elo "
+            "FROM runs r WHERE r.client_id = ? "
+            "ORDER BY r.created_at DESC LIMIT ?",
             (client_id, limit),
         ).fetchall()
         return [_row_to_run(r) for r in rows]

@@ -226,12 +226,3 @@ class WorkflowState(TypedDict):
     [KG1]-style citation keys for hypothesis generation. Domain-agnostic:
     any enrichment tool can populate this.
     """
-
-
-class WorkflowConfig(TypedDict):
-    """Configuration for the hypothesis generation workflow."""
-
-    model_name: str
-    max_iterations: int
-    initial_hypotheses_count: int
-    evolution_max_count: int

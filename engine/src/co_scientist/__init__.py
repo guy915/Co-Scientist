@@ -39,7 +39,7 @@ if sys.version_info < (3, 10):
 # pylint: disable=wrong-import-position
 from co_scientist.generator import HypothesisGenerator
 from co_scientist.models import Hypothesis, HypothesisReview, ExecutionMetrics
-from co_scientist.state import WorkflowState, WorkflowConfig
+from co_scientist.state import WorkflowState
 from co_scientist.cache import (
     clear_cache,
     get_cache_stats,
@@ -56,7 +56,6 @@ __all__ = [
     "HypothesisReview",
     "ExecutionMetrics",
     "WorkflowState",
-    "WorkflowConfig",
     "clear_cache",
     "get_cache_stats",
     "clear_node_cache",

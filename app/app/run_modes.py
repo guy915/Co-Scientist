@@ -12,11 +12,16 @@ from typing import Any
 from app.elo import DEFAULT_K_FACTOR
 
 CANONICAL_RUN_MODE = "default"
-RUN_MODE_PATTERN = "^(default|standard|advanced)$"
 DEFAULT_RUN_TIER = "standard"
 RUN_TIER_PATTERN = "^(express|standard|extended|ultra)$"
 DEFAULT_RUN_FOCUS = "balance"
-RUN_FOCUS_PATTERN = "^(prefer_evidence|balance|prefer_novelty|breakthrough)$"
+RUN_FOCUS_VALUES: tuple[str, ...] = (
+    "prefer_evidence",
+    "balance",
+    "prefer_novelty",
+    "breakthrough",
+)
+RUN_FOCUS_PATTERN = "^(" + "|".join(RUN_FOCUS_VALUES) + ")$"
 
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
@@ -54,12 +59,6 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
 }
 
 
-def normalize_run_mode(run_mode: str | None = None) -> str:
-    """Return the canonical run mode for current and legacy labels."""
-    del run_mode  # Every current and legacy label maps to the single mode.
-    return CANONICAL_RUN_MODE
-
-
 def normalize_run_tier(tier: str | None = None) -> str:
     """Return a supported run tier, defaulting to Standard."""
     if tier in RUN_TIER_DEFAULTS:
@@ -69,9 +68,7 @@ def normalize_run_tier(tier: str | None = None) -> str:
 
 def normalize_run_focus(focus: str | None = None) -> str:
     """Return a supported research focus, defaulting to balanced."""
-    if focus in {
-            "prefer_evidence", "balance", "prefer_novelty", "breakthrough"
-    }:
+    if focus in RUN_FOCUS_VALUES:
         return focus
     return DEFAULT_RUN_FOCUS
 

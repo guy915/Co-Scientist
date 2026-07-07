@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import logging
 
-from app import store
-from app.mock_workflow import run_mock_workflow
+from app import engine_adapter, store
 from app.run_modes import CANONICAL_RUN_MODE
 
 logger = logging.getLogger(__name__)
@@ -71,13 +70,13 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
                     client_id=DEMO_CLIENT_ID,
                     db_path=db_path,
                 )
-            async for _ in run_mock_workflow(
+            async for _ in engine_adapter.run_workflow(
                     run_id=run.id,
                     research_goal=goal,
-                    profile=run_mode,
                     config={},
                     db_path=db_path,
                     sleep_seconds=0.0,
+                    force_provider="mock",
             ):
                 pass
             logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)

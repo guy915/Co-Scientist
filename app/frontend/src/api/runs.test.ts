@@ -8,12 +8,7 @@ import {
   getHypotheses,
   getReport,
   isActiveStatus,
-  isTerminal,
-  sendMessage,
-  getSystemStatus,
-  reportMarkdownUrl,
   eventsStreamUrl,
-  askQuestionUrl,
   type RunStatus,
 } from './runs';
 
@@ -66,7 +61,6 @@ describe('status predicates', () => {
     const active: RunStatus[] = ['queued', 'running', 'synthesizing'];
     for (const status of active) {
       expect(isActiveStatus(status)).toBe(true);
-      expect(isTerminal(status)).toBe(false);
     }
   });
 
@@ -79,12 +73,9 @@ describe('status predicates', () => {
     ];
     for (const status of terminal) {
       expect(isActiveStatus(status)).toBe(false);
-      expect(isTerminal(status)).toBe(true);
     }
     expect(isActiveStatus('draft')).toBe(false);
-    expect(isTerminal('draft')).toBe(false);
     expect(isActiveStatus(undefined)).toBe(false);
-    expect(isTerminal(undefined)).toBe(false);
   });
 });
 
@@ -256,76 +247,10 @@ describe('getReport', () => {
   });
 });
 
-describe('sendMessage', () => {
-  it('POSTs the content with the client header and omits kind when absent', async () => {
-    const message = {id: 1, content: 'hi'};
-    fetchMock().mockResolvedValue(jsonResponse(message));
-
-    const result = await sendMessage('r1', 'hi');
-
-    const [url, opts] = firstCall();
-    expect(url).toBe('/api/runs/r1/messages');
-    expect(opts?.method).toBe('POST');
-    const headers = opts?.headers as Record<string, string>;
-    expect(headers['Content-Type']).toBe('application/json');
-    expect(headers['X-Client-ID']).toBeTruthy();
-    expect(JSON.parse(opts?.body as string)).toEqual({content: 'hi'});
-    expect(result).toEqual(message);
-  });
-
-  it('includes the kind in the body when provided', async () => {
-    fetchMock().mockResolvedValue(jsonResponse({id: 2}));
-
-    await sendMessage('r1', 'steer me', 'steering');
-
-    const [, opts] = firstCall();
-    expect(JSON.parse(opts?.body as string)).toEqual({
-      content: 'steer me',
-      kind: 'steering',
-    });
-  });
-
-  it('throws "sendMessage <status>" on a non-OK response', async () => {
-    fetchMock().mockResolvedValue(errorResponse(400));
-    await expect(sendMessage('r1', 'hi')).rejects.toThrow('sendMessage 400');
-  });
-});
-
-describe('getSystemStatus', () => {
-  it('GETs /status and returns the parsed status', async () => {
-    const status = {mcp_available: true, model_name: 'deepseek/deepseek-chat'};
-    fetchMock().mockResolvedValue(jsonResponse(status));
-
-    const result = await getSystemStatus();
-
-    const [url, opts] = firstCall();
-    expect(url).toBe('/status');
-    expect(opts).toBeUndefined();
-    expect(result).toEqual(status);
-  });
-
-  it('throws on a non-OK response', async () => {
-    fetchMock().mockResolvedValue(errorResponse(503, 'down'));
-    await expect(getSystemStatus()).rejects.toThrow('503 down');
-  });
-});
-
 describe('url builders', () => {
-  it('reportMarkdownUrl points at the run report.md endpoint', () => {
-    const url = reportMarkdownUrl('run-42');
-    expect(url).toContain('run-42');
-    expect(url).toBe('/api/runs/run-42/report.md');
-  });
-
   it('eventsStreamUrl builds the run events endpoint', () => {
     const url = eventsStreamUrl('run-42');
     expect(url).toContain('run-42');
     expect(url).toBe('/api/runs/run-42/events');
-  });
-
-  it('askQuestionUrl points at the run ask endpoint', () => {
-    const url = askQuestionUrl('run-42');
-    expect(url).toContain('run-42');
-    expect(url).toBe('/api/runs/run-42/messages/ask');
   });
 });

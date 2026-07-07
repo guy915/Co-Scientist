@@ -198,47 +198,74 @@ function normalizeWhitespace(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
 
-function domainRequirements(goal: string): string[] {
-  const lower = goal.toLowerCase();
-  const requirements: string[] = [];
-  if (/\b(cancer|tumou?r|oncolog|drug|therapy|disease|patient)\b/.test(lower)) {
-    requirements.push(
+interface DomainRule {
+  pattern: RegExp;
+  bucket: 'requirements' | 'attributes' | 'criteria';
+  phrase: string;
+}
+
+/**
+ * Domain-specific phrases appended to the defaults, tagged by bucket.
+ *
+ * Rules are listed in the exact order each bucket's phrases must be appended;
+ * `domainPhrases` filters by bucket and preserves this order.
+ */
+const DOMAIN_RULES: DomainRule[] = [
+  {
+    pattern: /\b(cancer|tumou?r|oncolog|drug|therapy|disease|patient)\b/,
+    bucket: 'requirements',
+    phrase:
       'Treat biomedical safety and translational feasibility as first-class review criteria.',
-    );
-  }
-  if (/\b(novel|unknown|discover|new)\b/.test(lower)) {
-    requirements.push(
+  },
+  {
+    pattern: /\b(novel|unknown|discover|new)\b/,
+    bucket: 'requirements',
+    phrase:
       'Penalize hypotheses that only restate known mechanisms without a differentiating test.',
-    );
-  }
-  if (/\b(mechanism|pathway|signalling|signaling|regulat)\b/.test(lower)) {
-    requirements.push(
+  },
+  {
+    pattern: /\b(mechanism|pathway|signalling|signaling|regulat)\b/,
+    bucket: 'requirements',
+    phrase:
       'Make the causal mechanism explicit enough to design a discriminating experiment.',
-    );
-  }
-  return requirements;
+  },
+  {
+    pattern: /\b(drug|therapy|clinical|patient|tnbc|cancer|disease)\b/,
+    bucket: 'attributes',
+    phrase: 'Translationally plausible',
+  },
+  {
+    pattern: /\b(novel|discover|unknown|new)\b/,
+    bucket: 'attributes',
+    phrase: 'Differentiated from known mechanisms',
+  },
+  {
+    pattern: /\b(mechanism|pathway|signalling|signaling)\b/,
+    bucket: 'criteria',
+    phrase: 'Causal pathway clarity',
+  },
+  {
+    pattern: /\b(glucose|metabolic|mitochond|autophagy|aging|neural)\b/,
+    bucket: 'criteria',
+    phrase: 'Measurable biological readout',
+  },
+];
+
+function domainPhrases(goal: string, bucket: DomainRule['bucket']): string[] {
+  const lower = goal.toLowerCase();
+  return DOMAIN_RULES.filter(
+    rule => rule.bucket === bucket && rule.pattern.test(lower),
+  ).map(rule => rule.phrase);
+}
+
+function domainRequirements(goal: string): string[] {
+  return domainPhrases(goal, 'requirements');
 }
 
 function domainAttributes(goal: string): string[] {
-  const lower = goal.toLowerCase();
-  const attributes: string[] = [];
-  if (/\b(drug|therapy|clinical|patient|tnbc|cancer|disease)\b/.test(lower)) {
-    attributes.push('Translationally plausible');
-  }
-  if (/\b(novel|discover|unknown|new)\b/.test(lower)) {
-    attributes.push('Differentiated from known mechanisms');
-  }
-  return attributes;
+  return domainPhrases(goal, 'attributes');
 }
 
 function domainCriteria(goal: string): string[] {
-  const lower = goal.toLowerCase();
-  const criteria: string[] = [];
-  if (/\b(mechanism|pathway|signalling|signaling)\b/.test(lower)) {
-    criteria.push('Causal pathway clarity');
-  }
-  if (/\b(glucose|metabolic|mitochond|autophagy|aging|neural)\b/.test(lower)) {
-    criteria.push('Measurable biological readout');
-  }
-  return criteria;
+  return domainPhrases(goal, 'criteria');
 }

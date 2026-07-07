@@ -36,6 +36,25 @@ def test_list_events_filters_after_seq(db: str) -> None:
         assert ev["seq"] > half
 
 
+def test_list_runs_reports_top_elo(db: str) -> None:
+    run = store.create_run("top-elo", "standard", "mock", {})
+    for rating in (1240, 1310, 1180):
+        hid = store.add_hypothesis(run.id,
+                                   title="t",
+                                   statement="s",
+                                   created_by_agent="generation")
+        store.update_hypothesis_state(hid, elo_rating=rating)
+    # A second run with no hypotheses reports None rather than a stray value.
+    store.create_run("no-hyps", "standard", "mock", {})
+
+    by_goal = {r.research_goal: r for r in store.list_runs()}
+    assert by_goal["top-elo"].top_elo == 1310
+    assert by_goal["no-hyps"].top_elo is None
+    # A single-run read does not carry the aggregate.
+    assert store.get_run(run.id) is not None
+    assert store.get_run(run.id).top_elo is None  # type: ignore[union-attr]
+
+
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
     run = store.create_run("decoupling test", "standard", "mock", {})
     hid = store.add_hypothesis(

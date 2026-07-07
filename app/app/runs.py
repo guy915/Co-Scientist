@@ -38,11 +38,10 @@ from app import engine_adapter, store
 from app.citations import STATE_RANK
 from app.config import settings
 from app.run_modes import (
+    CANONICAL_RUN_MODE,
     RUN_FOCUS_PATTERN,
-    RUN_MODE_PATTERN,
     RUN_TIER_PATTERN,
     normalize_run_focus,
-    normalize_run_mode,
     normalize_run_tier,
     resolved_run_config,
     setup_config,
@@ -75,8 +74,6 @@ _active_lock = asyncio.Lock()
 
 class CreateRunRequest(BaseModel):
     research_goal: str = Field(..., min_length=1)
-    run_mode: str | None = Field(None, pattern=RUN_MODE_PATTERN)
-    profile: str | None = Field(None, pattern=RUN_MODE_PATTERN)
     requirements: list[str] | None = None
     attributes: list[str] | None = None
     criteria: list[str] | None = None
@@ -139,7 +136,7 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         The created run serialized as a dict.
     """
     provider = engine_adapter.select_provider()
-    run_mode = normalize_run_mode(req.run_mode or req.profile)
+    run_mode = CANONICAL_RUN_MODE
     focus = normalize_run_focus(req.focus)
     tier = normalize_run_tier(req.tier)
     setup = setup_config(
@@ -245,7 +242,6 @@ async def start_run(run_id: str, req: StartRunRequest,
             async for _ in engine_adapter.run_workflow(
                     run_id=run_id,
                     research_goal=run.research_goal,
-                    profile=normalize_run_mode(run.profile),
                     config=run.config,
                     cancelled=handle.cancelled,
                     force_provider=req.force_provider,
@@ -333,14 +329,21 @@ async def stream_events(
             if await request.is_disconnected():
                 return
 
+            signaled = True
             if handle is not None:
                 try:
                     await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
                     handle.new_event.clear()
                 except asyncio.TimeoutError:
-                    pass
+                    signaled = False
             else:
                 await asyncio.sleep(0.5)
+
+            # With an in-process producer, every appended event sets `new_event`.
+            # A timed-out wait therefore means nothing was written, so skip the
+            # query -- except on the every-10th-tick terminal-status safety net.
+            if handle is not None and not signaled and tick % 10 != 9:
+                continue
 
             new_events = store.list_events(run_id, after_seq=last_seq)
             for ev in new_events:
@@ -598,7 +601,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
             # Send the cited-source manifest first so the UI can resolve [n]
             # references as the answer streams in.
             if manifest:
-                yield f"data: {json.dumps({'type': 'sources', 'sources': manifest})}\n\n"  # pylint: disable=line-too-long
+                yield _sse({"type": "sources", "sources": manifest})
 
             full: list[str] = []
             response = await litellm.acompletion(
@@ -620,7 +623,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
                          "") if chunk.choices else ""
                 if delta:
                     full.append(delta)
-                    yield f"data: {json.dumps({'type': 'chunk', 'content': delta})}\n\n"  # pylint: disable=line-too-long
+                    yield _sse({"type": "chunk", "content": delta})
 
             answer = "".join(full)
             store.append_message(
@@ -629,11 +632,11 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
                 answer,
                 "qa",
                 meta={"sources": manifest} if manifest else None)
-            yield f"data: {json.dumps({'type': 'done', 'question_id': question_msg.id})}\n\n"  # pylint: disable=line-too-long
+            yield _sse({"type": "done", "question_id": question_msg.id})
         except Exception as exc:  # pylint: disable=broad-exception-caught
             logger.error("Q&A stream error for run %s: %s", run_id, exc)
             fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."  # pylint: disable=line-too-long
             store.append_message(run_id, "system", fallback, "qa")
-            yield f"data: {json.dumps({'type': 'error', 'message': fallback})}\n\n"  # pylint: disable=line-too-long
+            yield _sse({"type": "error", "message": fallback})
 
     return StreamingResponse(_stream(), media_type="text/event-stream")

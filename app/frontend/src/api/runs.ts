@@ -3,32 +3,24 @@
 import {getClientId} from '@/lib/client_id';
 import {
   isOfflineRunId,
-  offlineAnswer,
   offlineCancelRun,
-  offlineCitations,
   offlineCreateRun,
   offlineEvents,
   offlineEvidence,
   offlineGetRun,
   offlineHypotheses,
   offlineListDemoRuns,
-  offlineListMessages,
   offlineListRuns,
   offlineMatches,
   offlineReport,
   offlineReviews,
-  offlineSafety,
-  offlineSendMessage,
   offlineStartRun,
-  offlineStatus,
 } from './offline_runs';
 import type {
-  CitationRow,
   Evidence,
   Hypothesis,
   LegacyRunProfile,
   MatchRow,
-  Message,
   Report,
   Review,
   Run,
@@ -38,8 +30,6 @@ import type {
   RunStatus,
   RunTier,
   RunWithSummary,
-  SafetyDecision,
-  SystemStatus,
 } from './run_types';
 export type {
   CitationRow,
@@ -85,14 +75,6 @@ const ACTIVE_STATUSES: readonly RunStatus[] = [
   'synthesizing',
 ];
 
-/** Statuses for a run whose workflow has finished (in any way). */
-const TERMINAL_STATUSES: readonly RunStatus[] = [
-  'completed',
-  'failed',
-  'blocked',
-  'cancelled',
-];
-
 /**
  * Whether a run status represents in-progress work.
  *
@@ -101,16 +83,6 @@ const TERMINAL_STATUSES: readonly RunStatus[] = [
  */
 export function isActiveStatus(status: RunStatus | undefined): boolean {
   return Boolean(status && ACTIVE_STATUSES.includes(status));
-}
-
-/**
- * Whether a run status is terminal.
- *
- * @param status The run status (may be undefined before load).
- * @returns True if the run's workflow has finished.
- */
-export function isTerminal(status: RunStatus | undefined): boolean {
-  return Boolean(status && TERMINAL_STATUSES.includes(status));
 }
 
 class ApiUnavailableError extends Error {
@@ -386,26 +358,6 @@ export function getReviews(id: string): Promise<Review[]> {
 }
 
 /**
- * Fetches the safety-gate decisions recorded for a run.
- *
- * @param id Run identifier.
- * @returns The run's safety decisions.
- */
-export function getSafety(id: string): Promise<SafetyDecision[]> {
-  return getRunList<SafetyDecision>(id, 'safety', () => offlineSafety(id));
-}
-
-/**
- * Fetches the claim-to-evidence citations for a run.
- *
- * @param id Run identifier.
- * @returns The run's citation rows.
- */
-export function getCitations(id: string): Promise<CitationRow[]> {
-  return getRunList<CitationRow>(id, 'citations', () => offlineCitations(id));
-}
-
-/**
  * Fetches a run's final report, or null if none exists yet.
  *
  * @param id Run identifier.
@@ -420,16 +372,6 @@ export async function getReport(id: string): Promise<Report | null> {
     },
     () => offlineReport(id),
   );
-}
-
-/**
- * Builds the URL for a run's downloadable markdown report.
- *
- * @param id Run identifier.
- * @returns The absolute report.md endpoint URL.
- */
-export function reportMarkdownUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/report.md`;
 }
 
 /**
@@ -455,69 +397,6 @@ export async function getRunEventsLog(id: string): Promise<RunEvent[]> {
   );
 }
 
-/**
- * Fetches backend diagnostics for provider and tool availability.
- *
- * @returns The current system status.
- */
-export async function getSystemStatus(): Promise<SystemStatus> {
-  return fetchWithFallback('/status', offlineStatus);
-}
-
-/**
- * Lists the chat messages for a run.
- *
- * @param runId Run identifier.
- * @returns The run's messages.
- */
-export function listMessages(runId: string): Promise<Message[]> {
-  return getRunList<Message>(
-    runId,
-    'messages',
-    () => offlineListMessages(runId),
-    {headers: clientHeaders()},
-    'listMessages',
-  );
-}
-
-/**
- * Posts a steering or Q&A message to a run.
- *
- * @param runId Run identifier.
- * @param content Message body.
- * @param kind Message kind; defaults to the server's choice when omitted.
- * @returns The persisted message.
- */
-export async function sendMessage(
-  runId: string,
-  content: string,
-  kind?: 'steering' | 'qa',
-): Promise<Message> {
-  return fetchWithFallback(
-    `/api/runs/${runId}/messages`,
-    () => offlineSendMessage(runId, content, kind),
-    jsonRequest({content, ...(kind ? {kind} : {})}, true),
-    'sendMessage',
-  );
-}
-
-/**
- * Builds the streaming endpoint URL for asking a run a question.
- *
- * @param runId Run identifier.
- * @returns The absolute ask endpoint URL.
- */
-export function askQuestionUrl(runId: string): string {
-  return `${API_BASE_URL}/api/runs/${runId}/messages/ask`;
-}
-
 export function canUseOfflineRun(runId: string): boolean {
   return OFFLINE_FALLBACK_ENABLED && isOfflineRunId(runId);
-}
-
-export function answerOfflineQuestion(
-  runId: string,
-  question: string,
-): Message {
-  return offlineAnswer(runId, question);
 }

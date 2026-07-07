@@ -100,12 +100,13 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 | `config.py` | Pydantic settings (model names, API keys, DB path, Elo tuning, safety mode) |
 | `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group) |
 | `store.py` | SQLite persistence layer (WAL mode, append-only event log) |
-| `engine_adapter.py` | Engine/mock provider selection with lazy imports and mock fallback |
-| `mock_workflow.py` | Deterministic mock workflow (full 14-stage agent-equivalent sequence) |
+| `engine_adapter.py` | Engine/mock provider selection; owns the shared workflow boundary (intake/final safety gates, event streaming) |
+| `mock_workflow.py` | Deterministic mock workflow (full agent-equivalent sequence) |
+| `report_render.py` | Shared report-markdown + event-payload-stub helpers used by both the engine drain and the mock |
 | `elo.py` | Elo rating utilities |
 | `citations.py` | Citation classification (verified, partial, unsupported, unavailable) |
-| `safety.py` | Safety decision storage + intake/final-output screening |
-| `run_modes.py` | Run-mode backward-compat helpers (legacy standard/advanced → unified mode) |
+| `safety.py` | Intake/final-output screening; both gates run at the shared `run_workflow` boundary for every provider |
+| `run_modes.py` | Run tier/focus normalization + durable setup/config resolution |
 | `seed.py` | Startup demo run seeder |
 
 **Key endpoints**:

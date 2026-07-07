@@ -1,6 +1,6 @@
 import {Fragment} from 'react';
 import {Link} from 'react-router-dom';
-import {type Hypothesis, isActiveStatus, type Run} from '@/api/runs';
+import {isActiveStatus, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 import {formatDurationPhrase} from '@/lib/duration';
@@ -14,8 +14,6 @@ import {
   HOME_RECENTS_LIST_CLASSES,
   HOME_RECENTS_PANEL_CLASSES,
 } from './chat_home_classes';
-
-const BASELINE_ELO_RATING = 1200;
 
 const RECENTS_PANEL_CLASSES = `reference-recents ${HOME_RECENTS_PANEL_CLASSES}`;
 
@@ -67,14 +65,6 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
   {icon: 'reviews', label: 'Reviewing hypotheses'},
   {icon: 'chess', label: 'Playing tournament'},
 ];
-
-export function topEloFromHypotheses(hypotheses: Hypothesis[]): number {
-  const ratings = hypotheses
-    .map(hypothesis => hypothesis.elo_rating)
-    .filter(Number.isFinite);
-  if (!ratings.length) return BASELINE_ELO_RATING;
-  return Math.max(...ratings);
-}
 
 export function HomeRecentsPanel({
   runs,
