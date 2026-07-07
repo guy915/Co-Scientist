@@ -165,7 +165,9 @@ export function Layout({children}: {children: ReactNode}) {
     : NAV_LABEL_COLLAPSED_CLASSES;
 
   function startNewChat() {
-    setNavOpen(false);
+    // Only dismiss the mobile drawer; on desktop the expanded rail is a user
+    // preference and clicking Home or New chat should leave it untouched.
+    if (isMobileViewport()) setNavOpen(false);
     window.dispatchEvent(new Event('cosci-new-chat'));
     void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
