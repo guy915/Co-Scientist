@@ -182,7 +182,8 @@
 }
 
 .reference-suggestion-button {
-  display: block;
+  display: flex;
+  align-items: center;
   width: 100%;
   height: 4.4rem;
   min-height: 4.4rem;
