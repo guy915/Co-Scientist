@@ -104,6 +104,13 @@
   font-weight: 400;
   line-height: 1.156;
   text-align: center;
+  /* Natural (greedy) wrap fills the first line — "What breakthrough should
+     we" / "make today?" on desktop, "What breakthrough" / "should we make
+     today?" on the narrow phone column. pretty only steps in to stop a lone
+     word (e.g. "today?") from landing on the last line at in-between widths.
+     (Do NOT use balance here: it evens the two lines out and breaks the
+     intended 4/2 desktop shape.) */
+  text-wrap: pretty;
 }
 
 .reference-step-timeline {
@@ -608,6 +615,12 @@
   .reference-home-main {
     height: 100%;
     min-width: 0;
+    /* Rein in the content column so the stepper, suggestions, and composer
+       stop stretching edge-to-edge on wide screens — but keep it dynamic: it
+       tracks the viewport (62vw) between a floor and a ceiling, then centers
+       in its (1fr) track, leaving a deliberate margin at ultrawide sizes. */
+    max-width: clamp(48rem, 58vw, 56rem);
+    justify-self: center;
     max-height: calc(100vh - 4.5rem);
     max-height: calc(100dvh - 4.5rem);
     grid-template-rows: auto auto minmax(2rem, 1fr) auto;
