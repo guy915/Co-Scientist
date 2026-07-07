@@ -23,7 +23,7 @@ interface DiagnosticLogEventDetail {
 const LOGS_POPOVER_CLASSES = [
   'ucs-popover--logs',
   'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
-  'max-h-[min(32rem,calc(100vh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
+  'max-h-[min(32rem,calc(100dvh-6rem))] grid-rows-[auto_auto_minmax(0,1fr)]',
   '!gap-0 overflow-hidden !p-0 !border-cosci-logs-border ' +
     '!bg-cosci-logs-surface',
   'max-[720px]:right-[-0.5rem] max-[720px]:!w-[min(18.5rem,calc(100vw-1.5rem))]',

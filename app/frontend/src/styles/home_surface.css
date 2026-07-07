@@ -286,6 +286,7 @@
   display: grid;
   min-height: 0;
   max-height: calc(100vh - 12rem);
+  max-height: calc(100dvh - 12rem);
   gap: 2.6rem;
   margin: 0;
   overflow-y: auto;
@@ -608,6 +609,7 @@
     height: 100%;
     min-width: 0;
     max-height: calc(100vh - 4.5rem);
+    max-height: calc(100dvh - 4.5rem);
     grid-template-rows: auto auto minmax(2rem, 1fr) auto;
     padding-top: clamp(4.85rem, 8.8vh, 6.4rem);
     padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
@@ -645,6 +647,7 @@
        a viewport-relative max-height. */
     height: 100%;
     max-height: calc(100vh - 4.5rem);
+    max-height: calc(100dvh - 4.5rem);
     grid-template-rows: auto minmax(0, 1fr);
     justify-self: end;
     overflow: visible;

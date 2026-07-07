@@ -1,7 +1,11 @@
 /* Workbench shell, sidebar, header, and shell popovers. */
+/* Viewport-sized boxes use dvh with a vh fallback: on iOS Safari 100vh is
+   the toolbar-collapsed height, so vh-sized boxes run under the visible
+   toolbar; dvh tracks the actual visible viewport. */
 .ucs-app-shell {
   display: grid;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--cosci-rail);
   transition: grid-template-columns 240ms cubic-bezier(0.2, 0, 0, 1);
 }
@@ -28,11 +32,13 @@
 
 .ucs-workspace--report {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .ucs-page {
   min-width: 0;
   height: calc(100vh - 4.5rem);
+  height: calc(100dvh - 4.5rem);
   overflow: auto;
   padding: 0;
 }
@@ -488,6 +494,7 @@
 @media (min-width: 1181px) {
   .ucs-page--home {
     height: calc(100vh - 4.5rem);
+    height: calc(100dvh - 4.5rem);
     overflow: hidden;
   }
 }
