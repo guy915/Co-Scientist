@@ -635,7 +635,10 @@
     width: 21rem;
     min-width: 0;
     max-width: 85vw;
-    height: 100vh;
+    /* Stretch between the inset's top/bottom edges instead of sizing to
+       100vh: on iOS Safari 100vh is the toolbar-collapsed height, which
+       pushed the drawer's bottom corner under the visible toolbar. */
+    height: auto;
     align-items: stretch;
     padding: 1rem 0.75rem;
     /* Mirror the desktop workspace radii (1.85rem top / 1.9rem bottom): there
