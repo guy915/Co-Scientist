@@ -23,6 +23,27 @@ RUN_FOCUS_VALUES: tuple[str, ...] = (
 )
 RUN_FOCUS_PATTERN = "^(" + "|".join(RUN_FOCUS_VALUES) + ")$"
 
+# Client-independent planning baseline. The chat UI infers a richer,
+# domain-tailored spec and sends it explicitly; when a run is created without
+# one (a direct API call, a seeded demo), setup_config falls back to these so
+# every run reaches the engine with sensible planning guidance.
+DEFAULT_REQUIREMENTS: tuple[str, ...] = (
+    "Prioritize mechanistic novelty, plausibility, and direct testability.",
+    "Retrieve broader literature evidence and preserve competing mechanisms.",
+    "Use tournament ranking and evolution before final synthesis.",
+)
+DEFAULT_ATTRIBUTES: tuple[str, ...] = (
+    "Mechanistically specific",
+    "Evidence-grounded",
+    "Experiment-ready",
+)
+DEFAULT_CRITERIA: tuple[str, ...] = (
+    "Scientific soundness",
+    "Novelty over known mechanisms",
+    "Discriminating experimental design",
+    "Translational feasibility",
+)
+
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
         "initial_hypotheses_count": 4,
@@ -83,14 +104,25 @@ def setup_config(
     focus: str | None = None,
     tier: str | None = None,
 ) -> dict[str, Any]:
-    """Build the durable setup block persisted inside run config JSON."""
+    """Build the durable setup block persisted inside run config JSON.
+
+    Callers that omit requirements/attributes/criteria (a direct API call, a
+    seeded demo) fall back to the client-independent planning baseline so the
+    engine always receives guidance regardless of which client created the run.
+    """
     return {
-        "goal": research_goal.strip(),
-        "requirements": clean_string_list(requirements),
-        "attributes": clean_string_list(attributes),
-        "criteria": clean_string_list(criteria),
-        "focus": normalize_run_focus(focus),
-        "tier": normalize_run_tier(tier),
+        "goal":
+            research_goal.strip(),
+        "requirements":
+            clean_string_list(requirements) or list(DEFAULT_REQUIREMENTS),
+        "attributes":
+            clean_string_list(attributes) or list(DEFAULT_ATTRIBUTES),
+        "criteria":
+            clean_string_list(criteria) or list(DEFAULT_CRITERIA),
+        "focus":
+            normalize_run_focus(focus),
+        "tier":
+            normalize_run_tier(tier),
     }
 
 

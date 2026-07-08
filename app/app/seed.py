@@ -10,7 +10,11 @@ from __future__ import annotations
 import logging
 
 from app import engine_adapter, store
-from app.run_modes import CANONICAL_RUN_MODE
+from app.run_modes import (
+    CANONICAL_RUN_MODE,
+    resolved_run_config,
+    setup_config,
+)
 from app.store import DEMO_CLIENT_ID
 
 logger = logging.getLogger(__name__)
@@ -51,19 +55,21 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
                 run.id[:8],
             )
         try:
+            config = resolved_run_config(
+                {"setup": setup_config(research_goal=goal)})
             if run is None:
                 run = store.create_run(
                     research_goal=goal,
                     profile=CANONICAL_RUN_MODE,
                     provider="mock",
-                    config={},
+                    config=config,
                     client_id=DEMO_CLIENT_ID,
                     db_path=db_path,
                 )
             async for _ in engine_adapter.run_workflow(
                     run_id=run.id,
                     research_goal=goal,
-                    config={},
+                    config=config,
                     db_path=db_path,
                     sleep_seconds=0.0,
                     force_provider="mock",

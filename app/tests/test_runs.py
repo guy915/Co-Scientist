@@ -103,6 +103,23 @@ def test_create_run_persists_setup_and_exact_tier_defaults(
     }
 
 
+def test_create_run_without_spec_gets_baseline_planning(
+        isolated_db: str) -> None:
+    """A goal-only run (no UI-inferred spec) still gets baseline guidance."""
+    from app.run_modes import (  # pylint: disable=import-outside-toplevel
+        DEFAULT_ATTRIBUTES, DEFAULT_CRITERIA, DEFAULT_REQUIREMENTS)
+
+    client = _client()
+    res = client.post(
+        "/api/runs", json={"research_goal": "Map tau propagation in the brain"})
+
+    assert res.status_code == 200
+    setup = res.json()["config"]["setup"]
+    assert setup["requirements"] == list(DEFAULT_REQUIREMENTS)
+    assert setup["attributes"] == list(DEFAULT_ATTRIBUTES)
+    assert setup["criteria"] == list(DEFAULT_CRITERIA)
+
+
 def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     client = _client()
     res = client.post(
