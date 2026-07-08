@@ -31,10 +31,12 @@ async def emit_progress(
     # phase boundary without checking whether a caller is listening.
     callback = state.get("progress_callback")
     if callback:
-        await callback(event, {
-            "message": message,
-            "progress": progress,
-            # Extra fields (e.g. key_areas, hypotheses_count) are merged
-            # flat into the payload alongside message/progress.
-            **extra
-        })
+        await callback(
+            event,
+            {
+                "message": message,
+                "progress": progress,
+                # Extra fields (e.g. key_areas, hypotheses_count) are merged
+                # flat into the payload alongside message/progress.
+                **extra
+            })

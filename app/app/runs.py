@@ -413,7 +413,8 @@ async def stream_events(
                 # No in-process producer: plain fixed-interval polling.
                 await asyncio.sleep(0.5)
 
-            # With an in-process producer, every appended event sets `new_event`.
+            # With an in-process producer, every appended event sets
+            # `new_event`.
             # A timed-out wait therefore means nothing was written, so skip the
             # query -- except on the every-10th-tick terminal-status safety net.
             if handle is not None and not signaled and tick % 10 != 9:

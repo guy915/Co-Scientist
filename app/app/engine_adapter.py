@@ -468,8 +468,7 @@ async def run_workflow(
     # Intake safety gate, shared by every provider. A hard block short-circuits
     # the run before any hypotheses are generated.
     intake = screen_intake(research_goal)
-    async for event in apply_safety_gate(run_id, intake, emit,
-                                         db_path=db_path):
+    async for event in apply_safety_gate(run_id, intake, emit, db_path=db_path):
         yield event
     if intake.decision == "block":
         return

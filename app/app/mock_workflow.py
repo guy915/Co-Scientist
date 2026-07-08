@@ -573,7 +573,8 @@ async def run_mock_workflow(
             yield await emit("status", {"status": "cancelled"})
             return
 
-        # Only run evolve/meta inside iterations, not after the final ranking pass
+        # Only run evolve/meta inside iterations, not after the final
+        # ranking pass.
         if itr <= cfg["max_iterations"]:
             # ---- 8. Evolve top-k ----
             top_k = sorted(elo_state.items(),

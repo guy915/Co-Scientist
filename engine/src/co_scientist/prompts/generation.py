@@ -260,6 +260,8 @@ def get_debate_generation_prompt(
         tool_registry: Optional ToolRegistry for dynamic tool instructions
         reference_list: Optional citation reference list of `[C*]` keys
         meta_review: Optional cross-iteration meta-review feedback
+        run_setup_guidance: Optional durable run setup guidance text
+        run_focus_guidance: Optional durable run focus guidance text
 
     Returns:
         Tuple of (formatted prompt string, JSON schema dict or None)
@@ -597,6 +599,8 @@ def get_draft_prompt_with_tools(
         tool_registry: Optional ToolRegistry for dynamic tool instructions
         reference_list: Optional citation reference list of `[C*]` keys
         meta_review: Optional cross-iteration meta-review feedback
+        run_setup_guidance: Optional durable run setup guidance text
+        run_focus_guidance: Optional durable run focus guidance text
     """
     # Get tool IDs for draft generation workflow
     tool_ids = []
