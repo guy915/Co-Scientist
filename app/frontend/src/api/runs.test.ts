@@ -4,7 +4,6 @@ import {
   listRuns,
   getRun,
   startRun,
-  cancelRun,
   getHypotheses,
   getReport,
   isActiveStatus,
@@ -185,23 +184,6 @@ describe('startRun', () => {
 
     const [, opts] = firstCall();
     expect(JSON.parse(opts?.body as string)).toEqual({});
-  });
-});
-
-describe('cancelRun', () => {
-  it('POSTs to /api/runs/:id/cancel with no headers or body', async () => {
-    fetchMock().mockResolvedValue(
-      jsonResponse({id: 'r1', status: 'cancelled'}),
-    );
-
-    const result = await cancelRun('r1');
-
-    const [url, opts] = firstCall();
-    expect(url).toBe('/api/runs/r1/cancel');
-    expect(opts?.method).toBe('POST');
-    expect(opts?.headers).toBeUndefined();
-    expect(opts?.body).toBeUndefined();
-    expect(result).toEqual({id: 'r1', status: 'cancelled'});
   });
 });
 

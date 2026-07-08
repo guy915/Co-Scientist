@@ -1400,66 +1400,6 @@ def format_supervisor_guidance_for_generation(
     return ""
 
 
-def condense_literature_summary(articles_with_reasoning: str | None) -> str:
-    """Condense full literature review summary to concise overview.
-
-    Agent will read papers directly with tools, so keep brief (~15-20 lines).
-    Extracts 2-3 key sentences covering main themes and gaps.
-    """
-    if not articles_with_reasoning:
-        return "No pre-curated literature review available."
-
-    # Simple strategy: take first ~500 chars (usually covers main findings)
-    # plus extract any "gap" or "limitation" mentions
-    text = articles_with_reasoning.strip()
-
-    # Find main content sections (skip headers)
-    lines = [
-        line for line in text.split("\n")
-        if line.strip() and not line.startswith("#")
-    ]
-
-    # Take first 2-3 substantive lines for themes
-    theme_lines = []
-    for line in lines[:10]:  # look in first 10 lines
-        if len(line) > 50:  # substantive line
-            theme_lines.append(line.strip())
-            if len(theme_lines) >= 2:
-                break
-
-    # Look for gap/limitation mentions
-    gap_lines = []
-    for line in lines:
-        line_lower = line.lower()
-        if any(kw in line_lower for kw in
-               ["gap", "limitation", "unsolved", "need for", "lack of"]):
-            if len(line) > 50:  # substantive
-                gap_lines.append(line.strip())
-                if len(gap_lines) >= 2:
-                    break
-
-    parts = []
-    if theme_lines:
-        # Take first 300 chars of themes
-        themes_text = " ".join(theme_lines)[:300]
-        parts.append(f"**Key Themes:** {themes_text}...")
-
-    if gap_lines:
-        # Take first 250 chars of gaps
-        gaps_text = " ".join(gap_lines)[:250]
-        parts.append(f"**Identified Gaps:** {gaps_text}...")
-
-    # Fallback: just take first 400 chars
-    if not parts:
-        return (text[:400] + "...\n\n(See papers below for details."
-                " Use tools to read papers directly.)")
-
-    result = "\n\n".join(parts)
-    result += ("\n\n(Brief summary - use tools to examine papers directly"
-               " for comprehensive details.)")
-    return result
-
-
 def format_articles_metadata(articles: list[Any]) -> str:
     """Format analyzed articles with metadata for tool-based generation prompts.
 

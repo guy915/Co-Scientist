@@ -215,7 +215,6 @@ async def get_system_status() -> dict[str, Any]:
         "mcp_available": mcp_available,
         "pubmed_available": pubmed_available,
         "literature_review_available": mcp_available,
-        "mcp_server_url": settings.mcp_server_url,
         **adapter_status,
     }
 

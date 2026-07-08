@@ -228,43 +228,40 @@ def test_build_url_fallback_returns_paper_id() -> None:
 
 
 # =============================================================================
-# _parse_year_from_metadata
+# parse_year_from_metadata
 # =============================================================================
 
 
 def test_parse_year_from_year_field() -> None:
     """A numeric-string ``year`` field parses to an int."""
-    assert helpers._parse_year_from_metadata(  # pylint: disable=protected-access
-        {"year": "2019"}) == 2019
+    assert helpers.parse_year_from_metadata({"year": "2019"}) == 2019
 
 
 def test_parse_year_from_year_field_int() -> None:
     """An int ``year`` field is returned as-is."""
-    assert helpers._parse_year_from_metadata(  # pylint: disable=protected-access
-        {"year": 2007}) == 2007
+    assert helpers.parse_year_from_metadata({"year": 2007}) == 2007
 
 
 def test_parse_year_from_date_revised() -> None:
     """A ``date_revised`` like ``2021/03/01`` yields the leading year."""
-    assert helpers._parse_year_from_metadata(  # pylint: disable=protected-access
-        {"date_revised": "2021/03/01"}) == 2021
+    assert helpers.parse_year_from_metadata({"date_revised": "2021/03/01"
+                                            }) == 2021
 
 
 def test_parse_year_garbage_returns_none() -> None:
     """A non-numeric year with no usable fallback returns None."""
-    assert helpers._parse_year_from_metadata(  # pylint: disable=protected-access
-        {"year": "not-a-year"}) is None
+    assert helpers.parse_year_from_metadata({"year": "not-a-year"}) is None
 
 
 def test_parse_year_missing_returns_none() -> None:
     """Empty metadata yields no year."""
-    assert helpers._parse_year_from_metadata({}) is None  # pylint: disable=protected-access
+    assert helpers.parse_year_from_metadata({}) is None
 
 
 def test_parse_year_falls_back_to_date_revised_when_year_empty() -> None:
     """An empty ``year`` falls through to ``date_revised`` parsing."""
     meta = {"year": "", "date_revised": "1998/12/31"}
-    assert helpers._parse_year_from_metadata(meta) == 1998  # pylint: disable=protected-access
+    assert helpers.parse_year_from_metadata(meta) == 1998
 
 
 # =============================================================================

@@ -594,15 +594,3 @@ class ToolsConfig:
             for tool_id, tool in self.get_all_tools().items()
             if tool.enabled
         }
-
-    def get_tools_by_category(self, category: str) -> dict[str, ToolConfig]:
-        """Get tools in a specific category."""
-        return self.tools.get(category, {})
-
-    def get_tools_for_server(self, server_id: str) -> dict[str, ToolConfig]:
-        """Get all tools belonging to a specific server."""
-        return {
-            tool_id: tool
-            for tool_id, tool in self.get_all_tools().items()
-            if tool.server == server_id
-        }

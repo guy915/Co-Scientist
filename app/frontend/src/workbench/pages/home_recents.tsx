@@ -137,7 +137,7 @@ export function HomeRecentsPanel({
 
 function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
   const topIdeas = homeRunIdeaTitles(run.research_goal);
-  const isActiveRun = isActiveHomeRun(run);
+  const isActiveRun = isActiveStatus(run.status);
 
   return (
     <li>
@@ -333,10 +333,6 @@ function homeRunStepIndex(run: Run): number {
   if (elapsedMinutes < 1) return 2;
   if (elapsedMinutes < 2) return 3;
   return 4;
-}
-
-function isActiveHomeRun(run: Run): boolean {
-  return isActiveStatus(run.status);
 }
 
 function homeRunIdeaTitles(goal: string): string[] {

@@ -12,26 +12,24 @@ export interface StreamEvent {
 /** State returned by {@link useRunStream}. */
 export interface UseRunStreamResult {
   events: StreamEvent[];
-  isOpen: boolean;
-  error: string | null;
   terminal: boolean;
 }
 
 /**
  * Subscribe to /api/runs/{id}/events. Always replays from seq=0 so the
  * UI hydrates the entire timeline on mount, even after a refresh.
+ *
+ * Connection drops are not surfaced: EventSource reconnects on its own, and
+ * the terminal sentinel is the only signal consumers act on.
  */
 export function useRunStream(runId: string | null): UseRunStreamResult {
   const [events, setEvents] = useState<StreamEvent[]>([]);
-  const [isOpen, setIsOpen] = useState(false);
   const [terminal, setTerminal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!runId) return;
     setEvents([]);
     setTerminal(false);
-    setError(null);
 
     if (canUseOfflineRun(runId)) {
       void getRunEventsLog(runId)
@@ -40,7 +38,7 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
           setTerminal(true);
         })
         .catch(err => {
-          setError(err instanceof Error ? err.message : String(err));
+          console.error('[useRunStream] offline events load failed', err);
           setTerminal(true);
         });
       return;
@@ -64,13 +62,6 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
       setEvents(prev => [...prev, ...batch]);
     };
 
-    es.onopen = () => setIsOpen(true);
-    es.onerror = () => {
-      // Browsers fire onerror on close; we use the terminal flag to suppress
-      // false-positive UI errors.
-      if (!terminal) setError('Connection lost; events may be incomplete.');
-      setIsOpen(false);
-    };
     es.onmessage = msg => {
       try {
         const ev = JSON.parse(msg.data) as StreamEvent;
@@ -81,7 +72,6 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
           flush();
           setTerminal(true);
           es.close();
-          setIsOpen(false);
           return;
         }
         buffer.push(ev);
@@ -96,10 +86,9 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
       // a flush would append this run's events to the next run's state.
       window.clearTimeout(flushTimer);
       es.close();
-      setIsOpen(false);
     };
     // Re-subscribe only when runId changes; other referenced setters are stable.
   }, [runId]);
 
-  return {events, isOpen, error, terminal};
+  return {events, terminal};
 }

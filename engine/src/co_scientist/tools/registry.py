@@ -28,7 +28,6 @@ class PythonToolRegistry:
 
     def __init__(self) -> None:
         self._functions: dict[str, Callable[..., Any]] = {}
-        self._schemas: dict[str, dict[str, Any]] = {}
         self._openai_tools: list[dict[str, Any]] = []
 
     def register(
@@ -54,9 +53,7 @@ class PythonToolRegistry:
             # Generate JSON schema from type hints
             schema = self._generate_schema(func, tool_name, tool_description)
 
-            # Store function and schema
             self._functions[tool_name] = func
-            self._schemas[tool_name] = schema
 
             # Convert to OpenAI format
             openai_tool = {"type": "function", "function": schema}
@@ -174,17 +171,9 @@ class PythonToolRegistry:
         """Get registered function by name."""
         return self._functions.get(name)
 
-    def get_schema(self, name: str) -> dict[str, Any] | None:
-        """Get JSON schema for registered tool by name."""
-        return self._schemas.get(name)
-
     def get_all_functions(self) -> dict[str, Callable[..., Any]]:
         """Get all registered functions."""
         return self._functions.copy()
-
-    def get_all_schemas(self) -> dict[str, dict[str, Any]]:
-        """Get all JSON schemas."""
-        return self._schemas.copy()
 
     def get_openai_tools(self) -> list[dict[str, Any]]:
         """Get tools in OpenAI format for LiteLLM."""

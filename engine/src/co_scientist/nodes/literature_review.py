@@ -68,6 +68,7 @@ from co_scientist.nodes.literature_review_helpers import (
     get_papers_needing_content,
     parse_content_result,
     get_paper_content_for_analysis,
+    parse_year_from_metadata,
 )
 from co_scientist.nodes.progress import emit_progress
 
@@ -889,13 +890,7 @@ async def _analyze_single_paper(
 ) -> dict[str, Any] | None:
     """Analyze a single paper for gaps and opportunities."""
     try:
-        year = metadata.get("year")
-        if not year and "date_revised" in metadata:
-            try:
-                year = int(metadata["date_revised"].split("/")[0])
-            except (ValueError, KeyError, IndexError, AttributeError):
-                pass
-
+        year = parse_year_from_metadata(metadata)
         content = get_paper_content_for_analysis(metadata)
 
         prompt = get_literature_review_paper_analysis_prompt(

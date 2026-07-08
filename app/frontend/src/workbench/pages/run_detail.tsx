@@ -109,6 +109,25 @@ const TAB_ALIASES: Record<string, TabName> = {
   hypotheses: 'ideas',
 };
 
+type RunDataKey = 'hypotheses' | 'evidence' | 'matches' | 'reviews' | 'report';
+
+// Which fetched collections each canonical event type can change mid-run.
+// Event types not listed (supervisor.plan, research_overview, safety.*, ...)
+// only affect the run row itself, which every refresh re-reads; the terminal
+// full refresh is the safety net for anything persisted only at finalize.
+const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
+  literature_review: ['evidence'],
+  generate: ['hypotheses'],
+  reflection: ['reviews'],
+  review: ['reviews'],
+  meta_review: ['reviews'],
+  deep_verification: ['reviews'],
+  proximity: ['hypotheses'],
+  ranking: ['hypotheses', 'matches'],
+  evolve: ['hypotheses'],
+  report: ['report'],
+};
+
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.
  */
@@ -135,46 +154,62 @@ export function RunDetail() {
 
   const {events, terminal} = useRunStream(id ?? null);
 
-  const refresh = useCallback(async () => {
-    if (!id) return;
-    try {
-      const [r, h, e, m, rv, rep] = await Promise.all([
-        getRun(id),
-        getHypotheses(id),
-        getEvidence(id),
-        getMatches(id),
-        getReviews(id),
-        getReport(id),
-      ]);
-      setRun(r);
-      setHypotheses(h);
-      setEvidence(e);
-      setMatches(m);
-      setReviews(rv);
-      setReport(rep);
-      setLoaded(true);
-      setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setLoaded(true);
-    }
-  }, [id]);
+  // With no key set, everything is refetched (initial load, terminal drain).
+  // With one, only the run row plus the named collections are, so a mid-run
+  // event burst does not fan out to all six endpoints indiscriminately.
+  const refresh = useCallback(
+    async (keys?: ReadonlySet<RunDataKey>) => {
+      if (!id) return;
+      const want = (key: RunDataKey) => !keys || keys.has(key);
+      try {
+        const [r, h, e, m, rv, rep] = await Promise.all([
+          getRun(id),
+          want('hypotheses') ? getHypotheses(id) : undefined,
+          want('evidence') ? getEvidence(id) : undefined,
+          want('matches') ? getMatches(id) : undefined,
+          want('reviews') ? getReviews(id) : undefined,
+          want('report') ? getReport(id) : undefined,
+        ]);
+        setRun(r);
+        if (h !== undefined) setHypotheses(h);
+        if (e !== undefined) setEvidence(e);
+        if (m !== undefined) setMatches(m);
+        if (rv !== undefined) setReviews(rv);
+        if (rep !== undefined) setReport(rep);
+        setLoaded(true);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+        setLoaded(true);
+      }
+    },
+    [id],
+  );
 
   // Debounced variant for event-driven refetches: the SSE stream replays the
   // full history on mount and live runs emit rapid bursts, so per-event
-  // refetches collapse into one trailing call. The identity is stable, and any
-  // pending call is cancelled on unmount.
-  const debouncedRefresh = useDebouncedCallback(() => void refresh(), 600);
+  // refetches collapse into one trailing call. Data keys accumulate in a ref
+  // across the debounce window (the hook keeps only the latest call's args),
+  // so a burst mixing event types still refetches every collection it
+  // touched. The identity is stable, and any pending call is cancelled on
+  // unmount.
+  const pendingRefreshKeys = useRef(new Set<RunDataKey>());
+  const debouncedRefresh = useDebouncedCallback(() => {
+    const keys = pendingRefreshKeys.current;
+    pendingRefreshKeys.current = new Set();
+    void refresh(keys);
+  }, 600);
 
   // Initial load (and reload when the run id changes) stays immediate.
   useEffect(() => {
     debouncedRefresh.cancel();
+    pendingRefreshKeys.current = new Set();
     void refresh();
   }, [refresh, debouncedRefresh]);
 
   // Re-pull on new events so tabs stay in sync, debounced to absorb bursts.
   // The stream delivers events in coalesced batches, so scan the whole newly
-  // appended slice for a data event rather than only the batch tail: a batch
+  // appended slice for data events rather than only the batch tail: a batch
   // that ends in a 'status' event still warrants a refetch if it carried a
   // node event earlier. The processed-count ref resets naturally when the
   // hook clears events on a run change (length drops back toward zero).
@@ -185,7 +220,14 @@ export function RunDetail() {
     }
     const fresh = events.slice(processedEventCount.current);
     processedEventCount.current = events.length;
-    if (fresh.some(event => event.type !== 'status')) debouncedRefresh();
+    const data = fresh.filter(event => event.type !== 'status');
+    if (data.length === 0) return;
+    for (const event of data) {
+      for (const key of EVENT_DATA_KEYS[event.type] ?? []) {
+        pendingRefreshKeys.current.add(key);
+      }
+    }
+    debouncedRefresh();
   }, [events, debouncedRefresh]);
 
   // On stream end, refetch immediately so a pending debounce cannot leave the

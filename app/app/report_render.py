@@ -300,8 +300,6 @@ async def finalize_report(
     research_goal: str,
     run_mode: str,
     provider: str,
-    evidence_count: int,
-    match_count: int,
     citation_summary: dict[str, int] | None,
     meta_review: dict[str, Any] | None,
     research_overview: dict[str, Any] | None,
@@ -314,8 +312,9 @@ async def finalize_report(
 
     This is the single finalize path both providers invoke after their drain,
     so the final safety gate and the report/completed emission live in one
-    place. Leaderboard, top hypotheses, and the hypothesis count are read from
-    the store, so callers only supply the counts they alone know.
+    place. Leaderboard, top hypotheses, and every row count are read from the
+    store -- the drain has already persisted everything the payload counts, so
+    the counts have one definition across providers.
 
     Order matches the shared contract: build payload -> render markdown ->
     screen_final + apply_safety_gate -> (unless blocked) save report -> emit
@@ -327,8 +326,6 @@ async def finalize_report(
         research_goal: The natural-language research goal.
         run_mode: Canonical run mode.
         provider: ``"engine"`` or ``"mock"``.
-        evidence_count: Number of evidence rows persisted for the run.
-        match_count: Number of tournament matches persisted for the run.
         citation_summary: Citation state -> count, or None.
         meta_review: Meta-review synthesis dict, or None.
         research_overview: Research-overview payload, or None.
@@ -341,6 +338,7 @@ async def finalize_report(
         Event dicts to forward on the workflow's event stream.
     """
     hyps = store.list_hypotheses(run_id, db_path=db_path)
+    counts = store.summary_counts(run_id, db_path=db_path)
     leaderboard = live_leaderboard(hyps)
     payload = build_report_payload(
         research_goal=research_goal,
@@ -348,8 +346,8 @@ async def finalize_report(
         provider=provider,
         leaderboard=leaderboard,
         hypothesis_count=len(hyps),
-        evidence_count=evidence_count,
-        match_count=match_count,
+        evidence_count=counts["evidence"],
+        match_count=counts["matches"],
         citation_summary=citation_summary,
         meta_review=meta_review,
         research_overview=research_overview,

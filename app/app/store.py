@@ -516,12 +516,16 @@ def list_runs(client_id: str = "",
               limit: int = 100,
               db_path: str | None = None) -> list[RunRow]:
     with connect(db_path) as conn:
+        # One grouped aggregate joined in, rather than a correlated subquery
+        # re-run per run row.
         rows = conn.execute(
-            "SELECT r.*, ("
-            " SELECT MAX(s.elo_rating) FROM hypothesis_state s "
-            " JOIN hypotheses h ON h.id = s.hypothesis_id "
-            " WHERE h.run_id = r.id) AS top_elo "
-            "FROM runs r WHERE r.client_id = ? "
+            "SELECT r.*, t.top_elo FROM runs r "
+            "LEFT JOIN ("
+            " SELECT h.run_id, MAX(s.elo_rating) AS top_elo "
+            " FROM hypotheses h "
+            " JOIN hypothesis_state s ON s.hypothesis_id = h.id "
+            " GROUP BY h.run_id) t ON t.run_id = r.id "
+            "WHERE r.client_id = ? "
             "ORDER BY r.created_at DESC LIMIT ?",
             (client_id, limit),
         ).fetchall()
@@ -795,10 +799,6 @@ def update_hypothesis_state(
     win_delta: int = 0,
     loss_delta: int = 0,
     novelty: float | None = None,
-    plausibility: float | None = None,
-    testability: float | None = None,
-    safety_status: str | None = None,
-    status: str | None = None,
     cluster_id: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
@@ -814,10 +814,6 @@ def update_hypothesis_state(
         win_delta: Amount to add to the win count.
         loss_delta: Amount to add to the loss count.
         novelty: New novelty score to set.
-        plausibility: New plausibility score to set.
-        testability: New testability score to set.
-        safety_status: New safety status to set.
-        status: New lifecycle status for the hypothesis.
         cluster_id: New proximity cluster identifier to set.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
@@ -836,18 +832,6 @@ def update_hypothesis_state(
     if novelty is not None:
         sets.append("novelty_score=?")
         params.append(novelty)
-    if plausibility is not None:
-        sets.append("plausibility_score=?")
-        params.append(plausibility)
-    if testability is not None:
-        sets.append("testability_score=?")
-        params.append(testability)
-    if safety_status is not None:
-        sets.append("safety_status=?")
-        params.append(safety_status)
-    if status is not None:
-        sets.append("status=?")
-        params.append(status)
     if cluster_id is not None:
         sets.append("cluster_id=?")
         params.append(cluster_id)

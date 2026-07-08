@@ -3,7 +3,6 @@
 import {getClientId} from '@/lib/client_id';
 import {
   isOfflineRunId,
-  offlineCancelRun,
   offlineCreateRun,
   offlineEvents,
   offlineEvidence,
@@ -266,22 +265,6 @@ export async function startRun(
     `/api/runs/${id}/start`,
     () => offlineStartRun(id),
     jsonRequest(body),
-  );
-}
-
-/**
- * Requests cancellation of an in-progress run.
- *
- * @param id Run identifier.
- * @returns The run id and its new status.
- */
-export async function cancelRun(
-  id: string,
-): Promise<{id: string; status: string}> {
-  return fetchWithFallback(
-    `/api/runs/${id}/cancel`,
-    () => offlineCancelRun(id),
-    {method: 'POST'},
   );
 }
 

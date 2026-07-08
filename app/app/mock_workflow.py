@@ -39,8 +39,9 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
-from app.citations import ALL_STATES, CitationRecord, classify_citation
-from app.elo import INITIAL_ELO, update_pair
+from app.citations import (CitationRecord, classify_citation,
+                           empty_citation_summary)
+from app.elo import INITIAL_ELO, UPSET_MARGIN, update_pair
 from app.report_render import (
     article_stub,
     finalize_report,
@@ -499,9 +500,11 @@ async def run_mock_workflow(
                 winner, loser, rationale = _judge(a, b)
                 wb = elo_state[winner]
                 lb = elo_state[loser]
-                # Deterministic decisiveness tier from the pre-match Elo gap,
-                # matching the engine's vocabulary (see ranking.match_tier).
-                if lb - wb >= 100:
+                # Deterministic decisiveness tier from the pre-match Elo gap.
+                # Only the label vocabulary matches the engine's
+                # ranking.match_tier -- the engine derives the non-upset tiers
+                # from judge confidence, which the mock does not have.
+                if lb - wb >= UPSET_MARGIN:
                     tier = "upset"
                 elif abs(wb - lb) >= 60:
                     tier = "decisive"
@@ -662,7 +665,7 @@ async def run_mock_workflow(
     })
 
     # ---- 11. Citation audit ----
-    cit_summary = {state.value: 0 for state in ALL_STATES}
+    cit_summary = empty_citation_summary()
     with store.transaction(db_path) as conn:
         for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
             # Link first 2 evidence items to each hypothesis as supporting
@@ -705,8 +708,6 @@ async def run_mock_workflow(
         research_goal=research_goal,
         run_mode=run_mode,
         provider="mock",
-        evidence_count=len(evidence_payload),
-        match_count=len(pairs) * (cfg["max_iterations"] + 1),
         citation_summary=cit_summary,
         meta_review=None,
         research_overview=research_overview,

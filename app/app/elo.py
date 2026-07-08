@@ -22,6 +22,9 @@ def _env_int(key: str, default: int) -> int:
 
 INITIAL_ELO: int = _env_int("ELO_INITIAL", 1200)
 DEFAULT_K_FACTOR: int = _env_int("ELO_K_FACTOR", 24)
+# Pre-match Elo gap at which a lower-rated winner counts as an upset. Mirrors
+# the engine's ELO_UPSET_MARGIN (constants.py).
+UPSET_MARGIN: int = _env_int("ELO_UPSET_MARGIN", 100)
 
 
 def expected_score(player_elo: float, opponent_elo: float) -> float:

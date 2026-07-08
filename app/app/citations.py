@@ -43,6 +43,11 @@ STATE_RANK: dict[str, int] = {
 }
 
 
+def empty_citation_summary() -> dict[str, int]:
+    """Return a zeroed state -> count summary covering every citation state."""
+    return {state.value: 0 for state in ALL_STATES}
+
+
 @dataclass
 class CitationRecord:
     """Inputs the classifier expects per evidence row."""

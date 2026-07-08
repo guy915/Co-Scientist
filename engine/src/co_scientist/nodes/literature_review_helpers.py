@@ -111,7 +111,7 @@ def build_article_from_metadata(
     used_in_analysis: bool = True,
 ) -> Article:
     """Build an Article object from MCP response metadata."""
-    year = _parse_year_from_metadata(metadata)
+    year = parse_year_from_metadata(metadata)
     url = _build_article_url(paper_id, metadata, source_name)
 
     return Article(
@@ -130,7 +130,7 @@ def build_article_from_metadata(
     )
 
 
-def _parse_year_from_metadata(metadata: dict[str, Any]) -> int | None:
+def parse_year_from_metadata(metadata: dict[str, Any]) -> int | None:
     """Parse year from metadata, handling multiple formats."""
     if "year" in metadata and metadata["year"]:
         try:

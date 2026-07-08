@@ -21,7 +21,8 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
-from app.citations import ALL_STATES, CitationRecord, classify_citation
+from app.citations import (CitationRecord, classify_citation,
+                           empty_citation_summary)
 from app.config import settings
 from app.elo import INITIAL_ELO
 from app.mock_workflow import run_mock_workflow
@@ -238,16 +239,15 @@ def _persist_final_state(
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        The report inputs only this provider knows: ``evidence_count``,
-        ``match_count`` (matches actually persisted), ``citation_summary``,
-        ``meta_review``, and ``research_overview``.
+        The report inputs only this provider knows: ``citation_summary``,
+        ``meta_review``, and ``research_overview``. Row counts are not
+        returned; ``finalize_report`` reads them from the store.
     """
     hyps: list[dict[str, Any]] = final_state.get("hypotheses") or []
     articles: list[dict[str, Any]] = final_state.get("articles") or []
     matchups: list[dict[str,
                         Any]] = final_state.get("tournament_matchups") or []
-    citation_summary = {state.value: 0 for state in ALL_STATES}
-    match_count = 0
+    citation_summary = empty_citation_summary()
 
     # Batch the whole drain into one transaction: a real run writes dozens of
     # rows here, and per-call connections would fsync each one individually.
@@ -423,11 +423,8 @@ def _persist_final_state(
                 tier=m.get("tier") or None,
                 conn=conn,
             )
-            match_count += 1
 
     return {
-        "evidence_count": len(articles),
-        "match_count": match_count,
         "citation_summary": citation_summary,
         "meta_review": final_state.get("meta_review") or {},
         "research_overview": final_state.get("research_overview") or {},
@@ -553,16 +550,17 @@ async def run_workflow(
         enable_literature_review = False
     initial_opts["enable_literature_review_node"] = enable_literature_review
 
+    # cfg went through resolved_run_config above, so every numeric key is
+    # present -- index directly rather than re-inventing defaults here.
     generator = HypothesisGenerator(
         model_name=settings.model_name,
         supervisor_model_name=settings.supervisor_model_name,
-        max_iterations=int(cfg.get("max_iterations", 1)),
-        initial_hypotheses_count=int(cfg.get("initial_hypotheses_count", 5)),
-        evolution_max_count=int(cfg.get("evolution_max_count", 2)),
-        tournament_pairs=int(cfg.get("tournament_pairs", 12)),
+        max_iterations=int(cfg["max_iterations"]),
+        initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
+        evolution_max_count=int(cfg["evolution_max_count"]),
+        tournament_pairs=int(cfg["tournament_pairs"]),
         literature_review_papers_count=int(
-            cfg.get("literature_review_papers_count",
-                    cfg.get("evidence_count", 8))),
+            cfg["literature_review_papers_count"]),
     )
 
     start = time.time()

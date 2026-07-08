@@ -1,11 +1,9 @@
 import {beforeEach, describe, expect, it} from 'vitest';
 import {
-  offlineAnswer,
   offlineCreateRun,
   offlineGetRun,
   offlineHypotheses,
   offlineListDemoRuns,
-  offlineListMessages,
   offlineListRuns,
   offlineReport,
   offlineStartRun,
@@ -52,23 +50,5 @@ describe('offline_runs', () => {
     expect(completed.summary.hypotheses).toBeGreaterThan(0);
     expect(offlineHypotheses(draft.id)[0].title).toMatch(/^H1:/);
     expect(offlineReport(draft.id)?.payload.leaderboard).not.toHaveLength(0);
-  });
-
-  it('stores offline Q&A messages with the generated answer', () => {
-    const run = offlineCreateRun({
-      research_goal: 'Find biofilm resistance mechanisms.',
-    });
-
-    const answer = offlineAnswer(run.id, 'What is the leading idea?');
-    const messages = offlineListMessages(run.id);
-
-    expect(answer.sender).toBe('system');
-    expect(messages).toHaveLength(2);
-    expect(messages[0]).toMatchObject({
-      sender: 'user',
-      content: 'What is the leading idea?',
-      kind: 'qa',
-    });
-    expect(messages[1].content).toContain('highest-Elo hypothesis');
   });
 });

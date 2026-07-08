@@ -34,10 +34,8 @@ async def generate_node(state: WorkflowState) -> dict[str, Any]:
     # Delegate to coordinator
     result = await generate_hypotheses(state)
 
-    # Add metrics
-    hypothesis_count = result.get("hypothesis_count",
-                                  len(result.get("hypotheses", [])))
-    metrics = create_metrics_update(hypothesis_count=hypothesis_count)
+    # Add metrics. The coordinator always returns hypothesis_count (or raises).
+    metrics = create_metrics_update(hypothesis_count=result["hypothesis_count"])
     result["metrics"] = metrics
 
     logger.info("Generate node complete: %s",

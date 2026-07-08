@@ -125,9 +125,12 @@ async def test_generate_node_attaches_metrics_and_passes_through(
     """generate_node merges coordinator output with a hypothesis-count metric."""
 
     async def fake_coordinator(_: Any) -> dict[str, Any]:
+        # Mirrors the real coordinator's contract, which always includes
+        # hypothesis_count alongside the hypotheses.
         return {
             "hypotheses": [make_hypothesis(text="h1"),
                            make_hypothesis(text="h2")],
+            "hypothesis_count": 2,
             "message": "generated 2 hypotheses",
         }
 

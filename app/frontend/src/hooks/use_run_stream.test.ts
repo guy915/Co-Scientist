@@ -49,19 +49,13 @@ describe('useRunStream', () => {
     const {result} = renderHook(() => useRunStream(null));
     expect(FakeEventSource.instances).toHaveLength(0);
     expect(result.current.events).toEqual([]);
-    expect(result.current.isOpen).toBe(false);
     expect(result.current.terminal).toBe(false);
-    expect(result.current.error).toBeNull();
   });
 
-  it('opens a stream against the run events URL and flips isOpen on open', () => {
-    const {result} = renderHook(() => useRunStream('run-1'));
+  it('opens a stream against the run events URL', () => {
+    renderHook(() => useRunStream('run-1'));
     const es = FakeEventSource.last();
     expect(es.url).toContain('/api/runs/run-1/events');
-
-    expect(result.current.isOpen).toBe(false);
-    act(() => es.onopen?.());
-    expect(result.current.isOpen).toBe(true);
   });
 
   it('accumulates streamed events and tracks the highest seq', async () => {
@@ -125,8 +119,6 @@ describe('useRunStream', () => {
     await emit(es, {type: '_terminal', payload: {}});
 
     expect(result.current.terminal).toBe(true);
-    expect(result.current.isOpen).toBe(false);
-    expect(result.current.error).toBeNull();
     expect(es.close).toHaveBeenCalledOnce();
     // The terminal sentinel itself is not appended to the timeline.
     expect(result.current.events).toHaveLength(1);
@@ -150,20 +142,6 @@ describe('useRunStream', () => {
     expect(es.close).toHaveBeenCalledOnce();
   });
 
-  it('surfaces a connection error and clears isOpen on error', () => {
-    const {result} = renderHook(() => useRunStream('run-1'));
-    const es = FakeEventSource.last();
-
-    act(() => es.onopen?.());
-    expect(result.current.isOpen).toBe(true);
-
-    act(() => es.onerror?.());
-    expect(result.current.error).toBe(
-      'Connection lost; events may be incomplete.',
-    );
-    expect(result.current.isOpen).toBe(false);
-  });
-
   it('ignores malformed event payloads without crashing', async () => {
     const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const {result} = renderHook(() => useRunStream('run-1'));
@@ -175,7 +153,6 @@ describe('useRunStream', () => {
     });
 
     expect(result.current.events).toEqual([]);
-    expect(result.current.error).toBeNull();
     consoleSpy.mockRestore();
   });
 
