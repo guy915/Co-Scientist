@@ -592,9 +592,8 @@ async def _phase2_5_fetch_content(
     if not content_config:
         return
 
-    if content_config:
-        logger.info("Content retrieval configured for %s source(s)",
-                    len(content_config))
+    logger.info("Content retrieval configured for %s source(s)",
+                len(content_config))
 
     papers_needing_content = get_papers_needing_content(
         all_paper_metadata,

@@ -499,8 +499,10 @@ def create_run(
     )
 
 
-def get_run(run_id: str, db_path: str | None = None) -> RunRow | None:
-    with connect(db_path) as conn:
+def get_run(run_id: str,
+            db_path: str | None = None,
+            conn: sqlite3.Connection | None = None) -> RunRow | None:
+    with _use_conn(conn, db_path) as conn:
         row = conn.execute("SELECT * FROM runs WHERE id = ?",
                            (run_id,)).fetchone()
         return _row_to_run(row) if row else None
@@ -706,7 +708,9 @@ def list_events(
         return out
 
 
-def summary_counts(run_id: str, db_path: str | None = None) -> dict[str, int]:
+def summary_counts(run_id: str,
+                   db_path: str | None = None,
+                   conn: sqlite3.Connection | None = None) -> dict[str, int]:
     """Return per-table row counts for a run in a single connection.
 
     Uses COUNT(*) per table rather than materializing and parsing whole tables.
@@ -714,6 +718,7 @@ def summary_counts(run_id: str, db_path: str | None = None) -> dict[str, int]:
     Args:
         run_id: Identifier of the run to summarize.
         db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
 
     Returns:
         Mapping of summary field name to row count.
@@ -725,7 +730,7 @@ def summary_counts(run_id: str, db_path: str | None = None) -> dict[str, int]:
         "matches": "matches",
         "reviews": "reviews",
     }
-    with connect(db_path) as conn:
+    with _use_conn(conn, db_path) as conn:
         return {
             field:
                 conn.execute(

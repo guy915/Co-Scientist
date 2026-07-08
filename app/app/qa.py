@@ -22,7 +22,8 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 
-def _sse(event: dict[str, Any]) -> str:
+def sse_frame(event: dict[str, Any]) -> str:
+    """Format an event dict as a Server-Sent Events data frame."""
     return f"data: {json.dumps(event)}\n\n"
 
 
@@ -178,7 +179,7 @@ async def stream_answer(
         import litellm  # pylint: disable=import-outside-toplevel
 
         if manifest:
-            yield _sse({"type": "sources", "sources": manifest})
+            yield sse_frame({"type": "sources", "sources": manifest})
 
         full: list[str] = []
         response = await litellm.acompletion(
@@ -200,7 +201,7 @@ async def stream_answer(
                      "") if chunk.choices else ""
             if delta:
                 full.append(delta)
-                yield _sse({"type": "chunk", "content": delta})
+                yield sse_frame({"type": "chunk", "content": delta})
 
         answer = "".join(full)
         store.append_message(run_id,
@@ -208,9 +209,9 @@ async def stream_answer(
                              answer,
                              "qa",
                              meta={"sources": manifest} if manifest else None)
-        yield _sse({"type": "done", "question_id": question_id})
+        yield sse_frame({"type": "done", "question_id": question_id})
     except Exception as exc:  # pylint: disable=broad-exception-caught
         logger.error("Q&A stream error for run %s: %s", run_id, exc)
         fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."  # pylint: disable=line-too-long
         store.append_message(run_id, "system", fallback, "qa")
-        yield _sse({"type": "error", "message": fallback})
+        yield sse_frame({"type": "error", "message": fallback})

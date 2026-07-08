@@ -354,8 +354,7 @@ async def run_mock_workflow(
         "setup":
             cfg.get("setup", {}),
         "setup_guidance":
-            setup_guidance(cfg.get("setup")) if isinstance(
-                cfg.get("setup"), dict) else "",
+            setup_guidance(cfg.get("setup")),
         "narrative": (
             "Plan the canonical hypothesis-generation run for the research goal. Allocate compute across literature, "  # pylint: disable=line-too-long
             f"generation ({cfg['initial_hypotheses_count']} candidates), {cfg['max_iterations']} "  # pylint: disable=line-too-long
@@ -369,7 +368,6 @@ async def run_mock_workflow(
 
     # ---- 3. Literature review ----
     evidence_count = cfg["evidence_count"]
-    evidence_ids: list[str] = []
     evidence_payload: list[dict[str, Any]] = []
     with store.transaction(db_path) as conn:
         for i in range(evidence_count):
@@ -385,7 +383,6 @@ async def run_mock_workflow(
                 available=ev["available"],
                 conn=conn,
             )
-            evidence_ids.append(ev_id)
             evidence_payload.append({"id": ev_id, **ev})
     yield await emit(
         "literature_review",

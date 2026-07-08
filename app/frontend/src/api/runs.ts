@@ -15,15 +15,12 @@ import type {
   RunWithSummary,
 } from './run_types';
 export type {
-  CitationRow,
   Evidence,
   Hypothesis,
   JsonPrimitive,
   JsonValue,
   LegacyRunProfile,
   MatchRow,
-  Message,
-  MessageMeta,
   Report,
   ReportPayload,
   ResearchOverview,
@@ -37,9 +34,6 @@ export type {
   RunSummary,
   RunTier,
   RunWithSummary,
-  SafetyDecision,
-  SourceRef,
-  SystemStatus,
 } from './run_types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
@@ -63,6 +57,14 @@ const ACTIVE_STATUSES: readonly RunStatus[] = [
  */
 export function isActiveStatus(status: RunStatus | undefined): boolean {
   return Boolean(status && ACTIVE_STATUSES.includes(status));
+}
+
+/**
+ * The run's effective goal: the durable setup goal when set, else the
+ * top-level research goal. Returns '' when the run is not yet loaded.
+ */
+export function runGoal(run: Run | null | undefined): string {
+  return run?.config.setup?.goal ?? run?.research_goal ?? '';
 }
 
 async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {

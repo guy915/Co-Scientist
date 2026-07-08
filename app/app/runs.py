@@ -25,8 +25,8 @@ backend restarts.
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
+import sqlite3
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -101,8 +101,8 @@ class AskRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _run_or_404(run_id: str) -> RunRow:
-    run = store.get_run(run_id)
+def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:
+    run = store.get_run(run_id, conn=conn)
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
     return run
@@ -204,8 +204,11 @@ async def list_demo_runs() -> dict[str, Any]:
 
 @router.get("/{run_id}")
 async def get_run(run_id: str) -> dict[str, Any]:
-    run = _run_or_404(run_id)
-    return {**run.to_dict(), "summary": store.summary_counts(run_id)}
+    # One connection shared across the run lookup and its summary counts.
+    with store.connect() as conn:
+        run = _run_or_404(run_id, conn=conn)
+        summary = store.summary_counts(run_id, conn=conn)
+    return {**run.to_dict(), "summary": summary}
 
 
 @router.post("/{run_id}/start")
@@ -308,12 +311,12 @@ async def stream_events(
         history = store.list_events(run_id, after_seq=last_seq)
         for ev in history:
             last_seq = ev["seq"]
-            yield _sse(ev)
+            yield qa.sse_frame(ev)
 
         # If terminal already, send a final marker and return.
         terminal = run.status in TERMINAL_STATUSES
         if terminal:
-            yield _sse({
+            yield qa.sse_frame({
                 "type": "_terminal",
                 "payload": {
                     "status": run.status
@@ -352,7 +355,7 @@ async def stream_events(
             terminal_status: str | None = None
             for ev in new_events:
                 last_seq = ev["seq"]
-                yield _sse(ev)
+                yield qa.sse_frame(ev)
                 if ev["type"] == "status":
                     status = (ev.get("payload") or {}).get("status")
                     if status in TERMINAL_STATUSES:
@@ -367,7 +370,7 @@ async def stream_events(
                 if current and current.status in TERMINAL_STATUSES:
                     terminal_status = current.status
             if terminal_status is not None:
-                yield _sse({
+                yield qa.sse_frame({
                     "type": "_terminal",
                     "payload": {
                         "status": terminal_status
@@ -385,10 +388,6 @@ async def stream_events(
             "X-Accel-Buffering": "no",
         },
     )
-
-
-def _sse(event: dict[str, Any]) -> str:
-    return f"data: {json.dumps(event)}\n\n"
 
 
 # ---------------------------------------------------------------------------

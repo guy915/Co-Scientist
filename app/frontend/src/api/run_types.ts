@@ -157,24 +157,6 @@ export interface Review {
   overall: number | null;
 }
 
-/** A safety-gate decision recorded at a given stage of the pipeline. */
-export interface SafetyDecision {
-  stage: 'intake' | 'final';
-  decision: 'allow' | 'redact' | 'block';
-  reason: string;
-  matches: string[];
-  created_at: number;
-}
-
-/** A link between a hypothesis claim and the evidence verifying it. */
-export interface CitationRow {
-  id: number;
-  hypothesis_id: string;
-  evidence_id: string;
-  claim: string;
-  state: 'verified' | 'partial' | 'unsupported' | 'unavailable';
-}
-
 /**
  * Structured contents of a run's final synthesis report. One canonical shape
  * for every provider, built server-side by `report_render.build_report_payload`.
@@ -217,45 +199,4 @@ export interface Report {
   payload: ReportPayload;
   markdown_path: string;
   created_at: number;
-}
-
-/** A cited source attached to a grounded Q&A answer (the `[n]` references). */
-export interface SourceRef {
-  n: number;
-  evidence_id: string;
-  title: string;
-  url?: string | null;
-  source?: string | null;
-  year?: number | null;
-  state: string;
-}
-
-export interface MessageMeta {
-  sources?: SourceRef[];
-}
-
-/** A chat message exchanged with a run (steering, Q&A, or milestone). */
-export interface Message {
-  id: number;
-  run_id: string;
-  sender: 'user' | 'system';
-  content: string;
-  kind: 'steering' | 'qa' | 'milestone';
-  created_at: number;
-  applied: boolean;
-  status?: string;
-  meta?: MessageMeta | null;
-}
-
-/** Backend diagnostics describing provider and tool availability. */
-export interface SystemStatus {
-  mcp_available: boolean;
-  pubmed_available: boolean;
-  literature_review_available: boolean;
-  mcp_server_url: string;
-  provider: 'mock' | 'engine';
-  mock_mode: boolean;
-  has_provider_key: boolean;
-  engine_importable: boolean;
-  model_name: string;
 }

@@ -12,6 +12,7 @@ import {
   type MatchRow,
   type Report,
   type Review,
+  runGoal,
   type RunWithSummary,
 } from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
@@ -253,11 +254,7 @@ export function RunDetail() {
   // available width via TruncatedLabel rather than being pre-shortened.
   const title = useMemo(() => {
     if (!run) return 'Goal report';
-    return (
-      domainTitleOverride(run.research_goal) ??
-      run.config.setup?.goal ??
-      run.research_goal
-    );
+    return domainTitleOverride(run.research_goal) ?? runGoal(run);
   }, [run]);
 
   useEffect(() => {
@@ -287,8 +284,6 @@ export function RunDetail() {
 
   if (!id) return null;
 
-  const activeTabIndex = TABS.indexOf(activeTab);
-
   return (
     <div className={REPORT_PAGE_CLASSES}>
       <header className={REPORT_TITLEBAR_CLASSES}>
@@ -306,12 +301,12 @@ export function RunDetail() {
       </header>
 
       <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
-        {TABS.map((tabName, index) => (
+        {TABS.map(tabName => (
           <button
             key={tabName}
             type="button"
-            className={reportTabButtonClass(index === activeTabIndex)}
-            aria-current={index === activeTabIndex ? 'page' : undefined}
+            className={reportTabButtonClass(tabName === activeTab)}
+            aria-current={tabName === activeTab ? 'page' : undefined}
             onClick={() => onTabChange(tabName)}
           >
             <Icon
@@ -338,10 +333,7 @@ export function RunDetail() {
         <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
           {activeTab === 'details' && <GoalDetailsView run={run} />}
           {activeTab === 'learning' && (
-            <LearningView
-              goal={run?.config.setup?.goal ?? run?.research_goal ?? ''}
-              evidence={evidence}
-            />
+            <LearningView goal={runGoal(run)} evidence={evidence} />
           )}
           {activeTab === 'overview' && (
             <ResearchOverviewView
@@ -377,7 +369,7 @@ function reportTabButtonClass(selected: boolean): string {
 
 function GoalDetailsView({run}: {run: RunWithSummary | null}) {
   const setup = run?.config.setup;
-  const goal = setup?.goal ?? run?.research_goal ?? 'Loading...';
+  const goal = runGoal(run) || 'Loading...';
 
   return (
     <ReportDocument

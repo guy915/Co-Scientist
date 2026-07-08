@@ -66,7 +66,7 @@ def _token_overlap(claim: str, abstract: str) -> float:
     b = {t for t in abstract.lower().split() if len(t) > 3}
     if not a or not b:
         return 0.0
-    return len(a & b) / max(1, len(a | b))
+    return len(a & b) / len(a | b)
 
 
 def classify_citation(record: CitationRecord) -> CitationState:

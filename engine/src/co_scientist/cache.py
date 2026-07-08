@@ -29,6 +29,38 @@ def _hash_key(key_data: dict[str, Any]) -> str:
     return hashlib.sha256(key_string.encode()).hexdigest()
 
 
+def _clear_cache_files(cache_dir: Path, enabled: bool, pattern: str,
+                       label: str) -> int:
+    """Delete every cache file matching pattern; return the count deleted."""
+    if not enabled or not cache_dir.exists():
+        return 0
+
+    count = 0
+    for cache_file in cache_dir.glob(pattern):
+        cache_file.unlink()
+        count += 1
+
+    logger.info("Cleared %s %s", count, label)
+    return count
+
+
+def _cache_dir_stats(cache_dir: Path, enabled: bool,
+                     pattern: str) -> dict[str, Any]:
+    """Summarize a cache directory's file count and total size in MB."""
+    if not enabled or not cache_dir.exists():
+        return {"enabled": False, "cache_files": 0, "total_size_mb": 0.0}
+
+    cache_files = list(cache_dir.glob(pattern))
+    total_size = sum(f.stat().st_size for f in cache_files)
+
+    return {
+        "enabled": True,
+        "cache_files": len(cache_files),
+        "total_size_mb": total_size / (1024 * 1024),
+        "cache_dir": str(cache_dir),
+    }
+
+
 class LLMCache:
     """Simple file-based cache for LLM responses."""
 
@@ -222,16 +254,8 @@ class LLMCache:
         Returns:
             Number of cache files deleted
         """
-        if not self.enabled or not self.cache_dir.exists():
-            return 0
-
-        count = 0
-        for cache_file in self.cache_dir.glob("*.json"):
-            cache_file.unlink()
-            count += 1
-
-        logger.info("Cleared %s cached responses", count)
-        return count
+        return _clear_cache_files(self.cache_dir, self.enabled, "*.json",
+                                  "cached responses")
 
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics.
@@ -239,18 +263,7 @@ class LLMCache:
         Returns:
             Dictionary with cache statistics
         """
-        if not self.enabled or not self.cache_dir.exists():
-            return {"enabled": False, "cache_files": 0, "total_size_mb": 0.0}
-
-        cache_files = list(self.cache_dir.glob("*.json"))
-        total_size = sum(f.stat().st_size for f in cache_files)
-
-        return {
-            "enabled": True,
-            "cache_files": len(cache_files),
-            "total_size_mb": total_size / (1024 * 1024),
-            "cache_dir": str(self.cache_dir),
-        }
+        return _cache_dir_stats(self.cache_dir, self.enabled, "*.json")
 
 
 class NullCache:
@@ -428,16 +441,8 @@ class NodeCache:
         Returns:
             Number of cache files deleted
         """
-        if not self.enabled or not self.cache_dir.exists():
-            return 0
-
-        count = 0
-        for cache_file in self.cache_dir.glob("*.pkl"):
-            cache_file.unlink()
-            count += 1
-
-        logger.info("Cleared %s cached node outputs", count)
-        return count
+        return _clear_cache_files(self.cache_dir, self.enabled, "*.pkl",
+                                  "cached node outputs")
 
     def get_stats(self) -> dict[str, Any]:
         """Get node cache statistics.
@@ -445,18 +450,7 @@ class NodeCache:
         Returns:
             Dictionary with cache statistics
         """
-        if not self.enabled or not self.cache_dir.exists():
-            return {"enabled": False, "cache_files": 0, "total_size_mb": 0.0}
-
-        cache_files = list(self.cache_dir.glob("*.pkl"))
-        total_size = sum(f.stat().st_size for f in cache_files)
-
-        return {
-            "enabled": True,
-            "cache_files": len(cache_files),
-            "total_size_mb": total_size / (1024 * 1024),
-            "cache_dir": str(self.cache_dir),
-        }
+        return _cache_dir_stats(self.cache_dir, self.enabled, "*.pkl")
 
 
 # Global node cache instance

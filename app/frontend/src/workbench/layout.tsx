@@ -125,7 +125,6 @@ export function Layout({children}: {children: ReactNode}) {
     SIDE_CONTENT_CLASSES,
     navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
   ].join(' ');
-  const chatListClasses = CHAT_LIST_CLASSES;
   const workspaceClasses = isRunRoute
     ? REPORT_WORKSPACE_CLASSES
     : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
@@ -279,7 +278,7 @@ export function Layout({children}: {children: ReactNode}) {
           </nav>
           <div className={sideContentClasses}>
             <p className={SIDE_HEADING_CLASSES}>Chats</p>
-            <div className={chatListClasses}>
+            <div className={CHAT_LIST_CLASSES}>
               {visibleHistory.map(run => {
                 const isActive = run.id === activeRunId;
                 return (

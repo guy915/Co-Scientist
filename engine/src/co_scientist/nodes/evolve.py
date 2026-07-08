@@ -316,9 +316,6 @@ DO:
     refinement_summary = response.get("refinement_summary",
                                       "no refinement summary provided")
 
-    # Preserve original literature_grounding (not re-generated during evolution)
-    literature_grounding = hypothesis.literature_grounding
-
     # Check if hypothesis actually changed
     if refined_text == hypothesis.text:
         logger.warning("Evolution returned unchanged hypothesis")
@@ -347,7 +344,6 @@ DO:
     original_text = hypothesis.text
     hypothesis.text = refined_text
     hypothesis.explanation = explanation
-    hypothesis.literature_grounding = literature_grounding
     hypothesis.experiment = experiment
     hypothesis.evolution_history.append(original_text)
     # The text changed materially, so any prior deep-verification probes now

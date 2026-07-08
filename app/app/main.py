@@ -31,12 +31,9 @@ logging.basicConfig(
 # Set application loggers (viewer and co_scientist) to DEBUG if debug mode is enabled  # pylint: disable=line-too-long
 logger = logging.getLogger(__name__)
 coscientist_logger = logging.getLogger("co_scientist")
-if settings.debug:
-    logger.setLevel(logging.DEBUG)
-    coscientist_logger.setLevel(logging.DEBUG)
-else:
-    logger.setLevel(logging.INFO)
-    coscientist_logger.setLevel(logging.INFO)
+_app_log_level = logging.DEBUG if settings.debug else logging.INFO
+logger.setLevel(_app_log_level)
+coscientist_logger.setLevel(_app_log_level)
 
 # Set environment variables for the LLM engine
 # LiteLLM uses provider-specific env vars (GEMINI_API_KEY, OPENAI_API_KEY, etc.)
@@ -203,8 +200,7 @@ async def get_system_status() -> dict[str, Any]:
         mcp_available, pubmed_available = await asyncio.gather(
             check_mcp_available(), check_pubmed_available_via_mcp())
     except Exception:  # pragma: no cover - engine optional in mock mode  # pylint: disable=broad-exception-caught
-        mcp_available = False
-        pubmed_available = False
+        pass  # both probes default to False (set above)
 
     adapter_status = engine_adapter.system_status()
 

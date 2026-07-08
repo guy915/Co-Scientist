@@ -72,25 +72,16 @@ export function useChatSession({
     Boolean(confirmedSpec) ||
     Boolean(startedSession);
 
-  function appendAssistant(content: string, createdAt = Date.now() / 1000) {
+  function appendMessage(
+    role: 'assistant' | 'user',
+    content: string,
+    createdAt = Date.now() / 1000,
+  ) {
     setMessages(prev => [
       ...prev,
       {
-        id: makePrefixedId('assistant'),
-        role: 'assistant',
-        content,
-        created_at: createdAt,
-      },
-    ]);
-    return createdAt;
-  }
-
-  function appendUser(content: string, createdAt = Date.now() / 1000) {
-    setMessages(prev => [
-      ...prev,
-      {
-        id: makePrefixedId('user'),
-        role: 'user',
+        id: makePrefixedId(role),
+        role,
         content,
         created_at: createdAt,
       },
@@ -126,7 +117,7 @@ export function useChatSession({
   }, [clearSessionState]);
 
   function handleRetryMessage(message: ChatEntry) {
-    appendAssistant(message.content);
+    appendMessage('assistant', message.content);
   }
 
   function handleEditMessage(message: ChatEntry) {
@@ -199,10 +190,11 @@ export function useChatSession({
     setToast(null);
 
     if (draftSpec) {
-      const sentAt = appendUser(text);
+      const sentAt = appendMessage('user', text);
       const next = reviseRunSpec(draftSpec, text);
       stageDraftSpec(next, sentAt + 0.001);
-      appendAssistant(
+      appendMessage(
+        'assistant',
         'I updated the run setup. Start it when the spec looks right.',
         sentAt + 0.002,
       );
@@ -214,7 +206,7 @@ export function useChatSession({
       return;
     }
 
-    const sentAt = appendUser(text);
+    const sentAt = appendMessage('user', text);
     const next = inferRunSpec(text);
     stageDraftSpec(next, sentAt + 0.001);
     emitDiagnosticEvent({
