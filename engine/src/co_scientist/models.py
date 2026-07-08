@@ -222,6 +222,31 @@ class ExecutionMetrics:
     phase_times: dict[str, float] = field(default_factory=dict)
 
 
+def _merge_phase_times(existing_phase_times: dict[str, float],
+                       new_phase_times: dict[str, float]) -> dict[str, float]:
+    """Merge two phase-timing dicts, summing seconds for phases in both.
+
+    Args:
+        existing_phase_times: Phase times already accumulated in state.
+        new_phase_times: Phase times from a node's metrics delta.
+
+    Returns:
+        A new dict with combined wall-clock seconds per phase.
+    """
+    merged_phase_times = {}
+
+    for phase, time_val in existing_phase_times.items():
+        merged_phase_times[phase] = time_val
+
+    for phase, time_val in new_phase_times.items():
+        if phase in merged_phase_times:
+            merged_phase_times[phase] += time_val
+        else:
+            merged_phase_times[phase] = time_val
+
+    return merged_phase_times
+
+
 def merge_metrics(existing: ExecutionMetrics,
                   new: ExecutionMetrics) -> ExecutionMetrics:
     """State reducer that merges metrics from multiple nodes.
@@ -241,17 +266,8 @@ def merge_metrics(existing: ExecutionMetrics,
     # a "metrics" key; "new" is that node's create_metrics_update(...)
     # output (deltas only, per its docstring), not a cumulative snapshot.
     # Create a NEW metrics object (don't mutate existing!)
-    merged_phase_times = {}
-
-    # Merge phase times from both existing and new
-    for phase, time_val in existing.phase_times.items():
-        merged_phase_times[phase] = time_val
-
-    for phase, time_val in new.phase_times.items():
-        if phase in merged_phase_times:
-            merged_phase_times[phase] += time_val
-        else:
-            merged_phase_times[phase] = time_val
+    merged_phase_times = _merge_phase_times(existing.phase_times,
+                                            new.phase_times)
 
     # Per-field merge policy, matched to what create_metrics_update
     # produces: hypothesis_count is the node's reported running *total*

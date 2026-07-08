@@ -276,6 +276,7 @@ def test_engine_adapter_emits_canonical_event_types(
     CI only exercises the mock path, so this fake-driven test is the sole guard
     on the node→type mapping and the frontend-facing payload shape.
     """
+    # pylint: disable=unused-argument  # isolated_db is a side-effect fixture.
     # Resolve the lazy ``from co_scientist import HypothesisGenerator`` to the
     # fake regardless of whether the real engine is installed.
     fake_module = types.SimpleNamespace(HypothesisGenerator=_FakeGenerator)

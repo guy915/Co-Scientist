@@ -65,7 +65,7 @@ def test_reconcile_is_idempotent(isolated_db: str) -> None:
     rid = _make_run("g", isolated_db)
     store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
     assert store.reconcile_interrupted_runs(db_path=isolated_db) == [rid]
-    assert store.reconcile_interrupted_runs(db_path=isolated_db) == []
+    assert not store.reconcile_interrupted_runs(db_path=isolated_db)
 
 
 def test_reconciled_run_is_restartable(isolated_db: str) -> None:

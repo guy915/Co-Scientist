@@ -62,6 +62,17 @@ def get_research_overview_prompt(
     )
 
 
+def _format_bullet_list(items: list[str] | None) -> str:
+    """Render items as a "- " bullet list, or "None provided" when empty.
+
+    Shared by the constraints/criteria/user_hypotheses/user_literature
+    variables below, which otherwise repeat this same ternary four times.
+    """
+    if not items:
+        return "None provided"
+    return "\n".join(f"- {item}" for item in items)
+
+
 # Renders prompts/supervisor.md for nodes/supervisor.py, the planning call
 # at the head of the graph. Every user-supplied run input (preferences,
 # constraints, seed hypotheses/literature, count knobs) is normalized to a
@@ -100,14 +111,10 @@ def get_supervisor_prompt(
         "research_goal": research_goal,
         "preferences": preferences or "None provided",
         "attributes": ", ".join(attributes) if attributes else "None provided",
-        "constraints": ("\n".join(
-            f"- {c}" for c in constraints) if constraints else "None provided"),
-        "criteria": ("\n".join(
-            f"- {c}" for c in criteria) if criteria else "None provided"),
-        "user_hypotheses": ("\n".join(f"- {h}" for h in user_hypotheses)
-                            if user_hypotheses else "None provided"),
-        "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
-                            if user_literature else "None provided"),
+        "constraints": _format_bullet_list(constraints),
+        "criteria": _format_bullet_list(criteria),
+        "user_hypotheses": _format_bullet_list(user_hypotheses),
+        "user_literature": _format_bullet_list(user_literature),
         "initial_hypotheses_count": initial_hypotheses_count or "not specified",
         "max_iterations": max_iterations or "not specified",
         "evolution_max_count": evolution_max_count or "not specified",

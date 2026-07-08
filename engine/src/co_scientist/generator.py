@@ -58,6 +58,165 @@ _STREAMED_STATE_KEYS = (
 )
 
 
+def _after_ranking(state: WorkflowState) -> str:
+    """Decide what to do after ranking based on workflow state."""
+    current_iteration = state.get("current_iteration", 0)
+    max_iterations = state.get("max_iterations", 0)
+    # Check if we've already run meta_review (indicates we're in
+    # iteration cycle)
+    has_meta_review = bool(state.get("meta_review", {}))
+
+    if not has_meta_review:
+        # First ranking - check if we should start iterating
+        if current_iteration < max_iterations:
+            logger.info("Starting iteration %s/%s", current_iteration + 1,
+                        max_iterations)
+            return "iterate"
+        else:
+            logger.info("No iterations needed, ending workflow")
+            return "end"
+    else:
+        # We're in an iteration cycle - go through proximity for
+        # deduplication
+        logger.info("Going through proximity check")
+        return "proximity"
+
+
+def _after_proximity(state: WorkflowState) -> str:
+    """Check if should continue after proximity deduplication."""
+    # Note: proximity node increments current_iteration
+    current_iteration = state.get("current_iteration", 0)
+    max_iterations = state.get("max_iterations", 0)
+
+    if current_iteration < max_iterations:
+        logger.info("Continuing to iteration %s/%s", current_iteration + 1,
+                    max_iterations)
+        return "iterate"
+    else:
+        logger.info("All iterations complete after deduplication")
+        return "end"
+
+
+def _resolve_tool_calling_generation(
+    opts: dict[str, Any],
+    mcp_available: bool,
+    enable_literature_review_node: bool,
+) -> bool:
+    """Determines whether tool-calling generation should be enabled.
+
+    Tool-calling generation requires MCP availability and the literature
+    review node; this validates the user's request against both,
+    disabling (or raising) when the requirement isn't met.
+
+    Args:
+        opts: Caller-supplied generation options.
+        mcp_available: Whether the MCP server is available.
+        enable_literature_review_node: Whether the literature review node
+            will run for this call.
+
+    Returns:
+        Whether tool-calling generation should be enabled.
+
+    Raises:
+        ValueError: If the user explicitly disabled the literature review
+            node while requesting tool-calling generation.
+    """
+    # Determine if generate node should use tool-calling generation
+    # user can override via opts, default False
+    enable_tool_calling_generation = opts.get("enable_tool_calling_generation",
+                                              False)
+    if not enable_tool_calling_generation:
+        return False
+
+    # Check MCP availability first - if unavailable, disable tool calling
+    if not mcp_available:
+        logger.warning("enable_tool_calling_generation=True but MCP server"
+                       " unavailable - disabling tool-calling mode")
+        return False
+
+    # Then check if literature review node is enabled
+    if enable_literature_review_node:
+        return True
+
+    # Only raise error if user explicitly disabled literature review but
+    # enabled tool calling
+    if opts.get("enable_literature_review_node") is False:
+        raise ValueError("enable_tool_calling_generation requires"
+                         " enable_literature_review_node=True. "
+                         "Tool-calling generation needs literature context"
+                         " from the review node.")
+
+    # Literature review was disabled due to MCP unavailability, disable
+    # tool calling
+    logger.warning("enable_tool_calling_generation=True but literature"
+                   " review node unavailable - disabling tool-calling mode")
+    return False
+
+
+def _merge_node_state_into_cumulative(
+    cumulative_state: dict[str, Any],
+    node_state: dict[str, Any],
+) -> None:
+    """Applies one LangGraph node's incremental update to cumulative state.
+
+    LangGraph's astream only yields the fields updated by each node, not the
+    full state, so the caller keeps a running ``cumulative_state`` across the
+    stream and merges each node's update into it. Most fields are plain
+    last-write-wins copies; two are special-cased: ``supervisor_guidance``
+    (renamed to ``research_plan``) and ``metrics`` (merged, not replaced).
+
+    Args:
+        cumulative_state: Streaming state accumulated across nodes so far;
+            updated in place.
+        node_state: The incremental state returned by the node that just ran.
+    """
+    for key in _STREAMED_STATE_KEYS:
+        if key in node_state:
+            cumulative_state[key] = node_state[key]
+            logger.debug("updated %s", key)
+    if "supervisor_guidance" in node_state:
+        cumulative_state["research_plan"] = node_state["supervisor_guidance"]
+        logger.debug("updated research_plan")
+    if "metrics" in node_state:
+        cumulative_state["metrics"] = merge_metrics(cumulative_state["metrics"],
+                                                    node_state["metrics"])
+        logger.debug(
+            "merged metrics: reviews=%s, "
+            "tournaments=%s, evolutions=%s, llm_calls=%s",
+            cumulative_state["metrics"].reviews_count,
+            cumulative_state["metrics"].tournaments_count,
+            cumulative_state["metrics"].evolutions_count,
+            cumulative_state["metrics"].llm_calls,
+        )
+
+
+def _build_stream_state_dict(
+        cumulative_state: dict[str, Any]) -> dict[str, Any]:
+    """Shapes cumulative streaming state into a per-node yield payload.
+
+    Args:
+        cumulative_state: Streaming state accumulated across nodes so far.
+
+    Returns:
+        The dict yielded to the caller alongside the completed node's name.
+    """
+    metrics = cumulative_state["metrics"]
+    state_dict = {key: cumulative_state[key] for key in _STREAMED_STATE_KEYS}
+    state_dict.update({
+        "hypotheses": [h.to_dict() for h in cumulative_state["hypotheses"]],
+        "articles": [a.to_dict() for a in cumulative_state["articles"]],
+        "research_plan": cumulative_state["research_plan"],
+        "metrics": {
+            "hypothesis_count": metrics.hypothesis_count,
+            "reviews_count": metrics.reviews_count,
+            "tournaments_count": metrics.tournaments_count,
+            "evolutions_count": metrics.evolutions_count,
+            "llm_calls": metrics.llm_calls,
+        },
+    })
+    return state_dict
+
+
 class HypothesisGenerator:
     """Async wrapper for hypothesis generation using LangGraph.
 
@@ -119,15 +278,14 @@ class HypothesisGenerator:
         # result process-wide, so this only takes effect if the generator is
         # constructed before any LLM call happens elsewhere in the process.
         # Configure cache if specified
-        if enable_cache is not None:
+        if enable_cache is not None or cache_dir is not None:
             import os  # pylint: disable=import-outside-toplevel
 
-            val = "true" if enable_cache else "false"
-            os.environ["COSCIENTIST_CACHE_ENABLED"] = val
-        if cache_dir is not None:
-            import os  # pylint: disable=import-outside-toplevel
-
-            os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
+            if enable_cache is not None:
+                val = "true" if enable_cache else "false"
+                os.environ["COSCIENTIST_CACHE_ENABLED"] = val
+            if cache_dir is not None:
+                os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
 
         # Initialize tool registry if tools_config or disable_tools specified
         self._tool_registry = None
@@ -219,56 +377,19 @@ class HypothesisGenerator:
 
         # Note: review → ranking already defined above
 
-        # Conditional: after tournament, decide next step
-        def after_ranking(state: WorkflowState) -> str:
-            """Decide what to do after ranking based on workflow state."""
-            current_iteration = state.get("current_iteration", 0)
-            max_iterations = state.get("max_iterations", 0)
-            # Check if we've already run meta_review (indicates we're in
-            # iteration cycle)
-            has_meta_review = bool(state.get("meta_review", {}))
-
-            if not has_meta_review:
-                # First ranking - check if we should start iterating
-                if current_iteration < max_iterations:
-                    logger.info("Starting iteration %s/%s",
-                                current_iteration + 1, max_iterations)
-                    return "iterate"
-                else:
-                    logger.info("No iterations needed, ending workflow")
-                    return "end"
-            else:
-                # We're in an iteration cycle - go through proximity for
-                # deduplication
-                logger.info("Going through proximity check")
-                return "proximity"
-
         # Deep-verification runs on the top-ranked hypotheses after ranking,
-        # then the same post-ranking routing decision is made one node later.
+        # then the same post-ranking routing decision (_after_ranking) is
+        # made one node later.
         workflow.add_edge("ranking", "deep_verification")
         workflow.add_conditional_edges(
-            "deep_verification", after_ranking, {
+            "deep_verification", _after_ranking, {
                 "iterate": "meta_review",
                 "proximity": "proximity",
                 "end": "research_overview"
             })
 
         # After proximity, check if we should continue iterating
-        def after_proximity(state: WorkflowState) -> str:
-            """Check if should continue after proximity deduplication."""
-            # Note: proximity node increments current_iteration
-            current_iteration = state.get("current_iteration", 0)
-            max_iterations = state.get("max_iterations", 0)
-
-            if current_iteration < max_iterations:
-                logger.info("Continuing to iteration %s/%s",
-                            current_iteration + 1, max_iterations)
-                return "iterate"
-            else:
-                logger.info("All iterations complete after deduplication")
-                return "end"
-
-        workflow.add_conditional_edges("proximity", after_proximity, {
+        workflow.add_conditional_edges("proximity", _after_proximity, {
             "iterate": "meta_review",
             "end": "research_overview"
         })
@@ -278,6 +399,58 @@ class HypothesisGenerator:
         workflow.add_edge("research_overview", END)
 
         return workflow.compile()
+
+    async def _resolve_literature_review_settings(
+        self,
+        opts: dict[str, Any],
+    ) -> tuple[bool, bool, bool]:
+        """Determines literature-review/MCP availability for this call.
+
+        Checks are cached per instance (on ``self._mcp_available`` and
+        ``self._pubmed_available``) and skipped entirely when the caller has
+        explicitly disabled the literature review node.
+
+        Args:
+            opts: Caller-supplied generation options.
+
+        Returns:
+            Tuple of (mcp_available, pubmed_available,
+            enable_literature_review_node).
+        """
+        # Check if explicitly set in opts first to avoid unnecessary MCP
+        # checks
+        if opts.get("enable_literature_review_node") is False:
+            # Literature review explicitly disabled, no need to check MCP
+            return False, False, False
+
+        # Check system availability (cached per instance)
+        from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp  # pylint: disable=import-outside-toplevel
+
+        # Lazy init: check once per instance on first call
+        # Only check if we're running with literature review
+        if self._mcp_available is None:
+            self._mcp_available = await check_mcp_available(
+                tool_registry=self._tool_registry)
+        if self._pubmed_available is None:
+            self._pubmed_available = await check_pubmed_available_via_mcp(
+                tool_registry=self._tool_registry)
+
+        # Use cached values
+        mcp_available = self._mcp_available
+        pubmed_available = self._pubmed_available
+
+        # Determine if literature review node should be included
+        # user can override via opts, otherwise auto-detect based on MCP
+        # availability
+        enable_literature_review_node = opts.get(
+            "enable_literature_review_node", mcp_available)
+
+        if not mcp_available and enable_literature_review_node:
+            logger.warning("Literature review node requested but MCP server"
+                           " unavailable - disabling")
+            enable_literature_review_node = False
+
+        return mcp_available, pubmed_available, enable_literature_review_node
 
     async def _prepare_generation(
         self,
@@ -305,81 +478,12 @@ class HypothesisGenerator:
         opts = opts or {}
         user_inputs = opts.get("user_inputs") or {}
 
-        # Determine if literature review node should be included
-        # Check if explicitly set in opts first to avoid unnecessary MCP checks
-        enable_literature_review_node_opt = opts.get(
-            "enable_literature_review_node")
-
-        # Only check MCP availability if literature review node is requested
-        # (explicitly or by default) If explicitly False, skip MCP checks
-        # entirely
-        if enable_literature_review_node_opt is False:
-            # Literature review explicitly disabled, no need to check MCP
-            mcp_available = False
-            pubmed_available = False
-            enable_literature_review_node = False
-        else:
-            # Check system availability (cached per instance)
-            from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp  # pylint: disable=import-outside-toplevel
-
-            # Lazy init: check once per instance on first call
-            # Only check if we're running with literature review
-            if self._mcp_available is None:
-                self._mcp_available = await check_mcp_available(
-                    tool_registry=self._tool_registry)
-            if self._pubmed_available is None:
-                self._pubmed_available = await check_pubmed_available_via_mcp(
-                    tool_registry=self._tool_registry)
-
-            # Use cached values
-            mcp_available = self._mcp_available
-            pubmed_available = self._pubmed_available
-
-            # Determine if literature review node should be included
-            # user can override via opts, otherwise auto-detect based on MCP
-            # availability
-            enable_literature_review_node = opts.get(
-                "enable_literature_review_node", mcp_available)
-
-            if not mcp_available and enable_literature_review_node:
-                logger.warning("Literature review node requested but MCP server"
-                               " unavailable - disabling")
-                enable_literature_review_node = False
-
-        # Determine if generate node should use tool-calling generation
-        # user can override via opts, default False
-        enable_tool_calling_generation = opts.get(
-            "enable_tool_calling_generation", False)
-
-        # Validate: tool-calling generation requires literature review node +
-        # MCP
-        if enable_tool_calling_generation:
-            # Check MCP availability first - if unavailable, disable tool
-            # calling
-            if not mcp_available:
-                logger.warning(
-                    "enable_tool_calling_generation=True but MCP server"
-                    " unavailable - disabling tool-calling mode")
-                enable_tool_calling_generation = False
-            # Then check if literature review node is enabled
-            # Only raise error if user explicitly disabled literature review but
-            # enabled tool calling
-            elif not enable_literature_review_node:
-                # Check if literature review was explicitly disabled by user
-                if enable_literature_review_node_opt is False:
-                    raise ValueError(
-                        "enable_tool_calling_generation requires"
-                        " enable_literature_review_node=True. "
-                        "Tool-calling generation needs literature context"
-                        " from the review node.")
-                else:
-                    # Literature review was disabled due to MCP unavailability,
-                    # disable tool calling
-                    logger.warning(
-                        "enable_tool_calling_generation=True but literature"
-                        " review node unavailable - disabling tool-calling mode"
-                    )
-                    enable_tool_calling_generation = False
+        # Determine literature review node / MCP availability, then whether
+        # tool-calling generation can run (it requires both).
+        (mcp_available, pubmed_available, enable_literature_review_node) = (
+            await self._resolve_literature_review_settings(opts))
+        enable_tool_calling_generation = _resolve_tool_calling_generation(
+            opts, mcp_available, enable_literature_review_node)
 
         # This block only reads the flag and logs; it is threaded through to
         # initial_state below and the consuming nodes branch on it directly.
@@ -718,52 +822,11 @@ class HypothesisGenerator:
                 for node_name, node_state in chunk.items():
                     logger.debug("streaming node: %s", node_name)
 
-                    # Update cumulative state with fields from this node.
-                    # Most fields are plain last-write-wins copies; the two
-                    # exceptions are supervisor_guidance (renamed to
-                    # research_plan) and metrics (merged, not replaced).
-                    for key in _STREAMED_STATE_KEYS:
-                        if key in node_state:
-                            cumulative_state[key] = node_state[key]
-                            logger.debug("updated %s", key)
-                    if "supervisor_guidance" in node_state:
-                        cumulative_state["research_plan"] = node_state[
-                            "supervisor_guidance"]
-                        logger.debug("updated research_plan")
-                    if "metrics" in node_state:
-                        cumulative_state["metrics"] = merge_metrics(
-                            cumulative_state["metrics"], node_state["metrics"])
-                        logger.debug(
-                            "merged metrics: reviews=%s, "
-                            "tournaments=%s, evolutions=%s, llm_calls=%s",
-                            cumulative_state['metrics'].reviews_count,
-                            cumulative_state['metrics'].tournaments_count,
-                            cumulative_state['metrics'].evolutions_count,
-                            cumulative_state['metrics'].llm_calls,
-                        )
+                    _merge_node_state_into_cumulative(cumulative_state,
+                                                      node_state)
 
                     # Yield the node name and CUMULATIVE state
-                    metrics = cumulative_state["metrics"]
-                    state_dict = {
-                        key: cumulative_state[key]
-                        for key in _STREAMED_STATE_KEYS
-                    }
-                    state_dict.update({
-                        "hypotheses": [
-                            h.to_dict() for h in cumulative_state["hypotheses"]
-                        ],
-                        "articles": [
-                            a.to_dict() for a in cumulative_state["articles"]
-                        ],
-                        "research_plan": cumulative_state["research_plan"],
-                        "metrics": {
-                            "hypothesis_count": metrics.hypothesis_count,
-                            "reviews_count": metrics.reviews_count,
-                            "tournaments_count": metrics.tournaments_count,
-                            "evolutions_count": metrics.evolutions_count,
-                            "llm_calls": metrics.llm_calls,
-                        },
-                    })
+                    state_dict = _build_stream_state_dict(cumulative_state)
 
                     logger.debug("yielding state for node: %s", node_name)
 

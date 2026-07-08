@@ -27,6 +27,45 @@ def sse_frame(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
+def _rank_cited_evidence(
+    citations: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+) -> tuple[list[str], dict[str, str]]:
+    """Resolve each cited evidence id's manifest position and best state.
+
+    An item's position is fixed by its first citation; a later citation of
+    the same item can only upgrade its recorded state (never move it),
+    keeping manifest numbering stable across the citation list.
+
+    Args:
+        citations: Citation rows for the run.
+        by_id: Evidence rows for the run, keyed by string id.
+
+    Returns:
+        A ``(cited_order, cited_state)`` pair: the evidence ids in first-cited
+        order, and the strongest citation state seen for each id.
+    """
+    cited_state: dict[str, str] = {}
+    cited_order: list[str] = []
+    for citation in citations:
+        raw_eid = citation.get("evidence_id")
+        if raw_eid is None:
+            continue
+        eid = str(raw_eid)
+        if eid not in by_id:
+            continue  # Citation points at evidence we do not have; skip.
+        state = str(citation.get("state") or "")
+        if eid not in cited_state:
+            # First citation of this item fixes its manifest position.
+            cited_order.append(eid)
+            cited_state[eid] = state
+        elif STATE_RANK.get(state, -1) > STATE_RANK.get(cited_state[eid], -1):
+            # Cited again with a stronger state: upgrade the state only,
+            # keeping the original position so numbering stays stable.
+            cited_state[eid] = state
+    return cited_order, cited_state
+
+
 def build_evidence_manifest(
     evidence: list[dict[str, Any]],
     citations: list[dict[str, Any]],
@@ -50,24 +89,7 @@ def build_evidence_manifest(
     by_id: dict[str, dict[str, Any]] = {
         str(e["id"]): e for e in evidence if e.get("id") is not None
     }
-    cited_state: dict[str, str] = {}
-    cited_order: list[str] = []
-    for citation in citations:
-        raw_eid = citation.get("evidence_id")
-        if raw_eid is None:
-            continue
-        eid = str(raw_eid)
-        if eid not in by_id:
-            continue  # Citation points at evidence we do not have; skip.
-        state = str(citation.get("state") or "")
-        if eid not in cited_state:
-            # First citation of this item fixes its manifest position.
-            cited_order.append(eid)
-            cited_state[eid] = state
-        elif STATE_RANK.get(state, -1) > STATE_RANK.get(cited_state[eid], -1):
-            # Cited again with a stronger state: upgrade the state only,
-            # keeping the original position so numbering stays stable.
-            cited_state[eid] = state
+    cited_order, cited_state = _rank_cited_evidence(citations, by_id)
     # Uncited evidence trails the cited items, in retrieval (dict) order.
     ordered_ids = cited_order + [eid for eid in by_id if eid not in cited_state]
     manifest: list[dict[str, Any]] = []
@@ -159,6 +181,46 @@ def build_system_prompt(
         f"statement is supported by a listed source, cite it inline as [n].")
 
 
+async def _stream_llm_deltas(
+    model: str,
+    system_prompt: str,
+    question: str,
+) -> AsyncGenerator[str, None]:
+    """Call litellm with streaming enabled and yield plain text deltas.
+
+    Deferred import keeps module import cheap and lets the caller's except
+    branch turn a missing/broken litellm into the Q&A fallback message.
+
+    Args:
+        model: The model name to complete with.
+        system_prompt: The assembled grounding prompt.
+        question: The user's question.
+
+    Yields:
+        Non-empty text deltas from the streaming completion.
+    """
+    import litellm  # pylint: disable=import-outside-toplevel
+
+    response = await litellm.acompletion(
+        model=model,
+        messages=[
+            {
+                "role": "system",
+                "content": system_prompt
+            },
+            {
+                "role": "user",
+                "content": question
+            },
+        ],
+        stream=True,
+    )
+    async for chunk in response:
+        delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""
+        if delta:
+            yield delta
+
+
 async def stream_answer(
     run_id: str,
     question: str,
@@ -186,38 +248,17 @@ async def stream_answer(
     # cheap one), falling back to the app-wide default model.
     model = settings.chat_model_name or settings.model_name
     try:
-        # Deferred import keeps module import cheap and lets the except
-        # branch turn a missing/broken litellm into the fallback message.
-        import litellm  # pylint: disable=import-outside-toplevel
-
         # Sources frame goes out before any text so the UI can resolve [n]
         # citation markers while the answer is still streaming.
         if manifest:
             yield sse_frame({"type": "sources", "sources": manifest})
 
-        full: list[str] = []
-        response = await litellm.acompletion(
-            model=model,
-            messages=[
-                {
-                    "role": "system",
-                    "content": system_prompt
-                },
-                {
-                    "role": "user",
-                    "content": question
-                },
-            ],
-            stream=True,
-        )
         # Relay each token delta as its own SSE frame, accumulating the
         # full text so the complete answer can be persisted at the end.
-        async for chunk in response:
-            delta = (chunk.choices[0].delta.content or
-                     "") if chunk.choices else ""
-            if delta:
-                full.append(delta)
-                yield sse_frame({"type": "chunk", "content": delta})
+        full: list[str] = []
+        async for delta in _stream_llm_deltas(model, system_prompt, question):
+            full.append(delta)
+            yield sse_frame({"type": "chunk", "content": delta})
 
         # Persist the answer (with its sources) before signalling `done`,
         # so a reload right after completion still shows the exchange.

@@ -15,7 +15,7 @@ from app.run_modes import (
     resolved_run_config,
     setup_config,
 )
-from app.store import DEMO_CLIENT_ID
+from app.store import DEMO_CLIENT_ID, RunRow
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,45 @@ _DEMO_GOALS: list[str] = [
     "What are the key molecular regulators of ferroptosis in pancreatic cancer "
     "cells, and how might their modulation enhance chemotherapy sensitivity?",
 ]
+
+
+async def _seed_demo_run(
+    goal: str,
+    run: RunRow | None,
+    db_path: str | None,
+) -> None:
+    """Create (if needed) and drive the mock workflow for one demo goal.
+
+    Args:
+        goal: The demo research goal to seed.
+        run: The existing run row for this goal, or None to create one.
+        db_path: Optional override for the SQLite database path.
+    """
+    config = resolved_run_config({"setup": setup_config(research_goal=goal)})
+    if run is None:
+        run = store.create_run(
+            research_goal=goal,
+            profile=CANONICAL_RUN_MODE,
+            provider="mock",
+            config=config,
+            client_id=DEMO_CLIENT_ID,
+            db_path=db_path,
+        )
+    # force_provider="mock" pins demo seeding to the deterministic
+    # workflow even when a real LLM key is configured, so startup
+    # never spends API budget and demo content is reproducible.
+    # sleep_seconds=0.0 skips the mock's synthetic event pacing so
+    # seeding finishes immediately rather than over several seconds.
+    async for _ in engine_adapter.run_workflow(
+            run_id=run.id,
+            research_goal=goal,
+            config=config,
+            db_path=db_path,
+            sleep_seconds=0.0,
+            force_provider="mock",
+    ):
+        pass  # events are persisted as a side effect; drain and drop.
+    logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)
 
 
 async def seed_demo_runs(db_path: str | None = None) -> None:
@@ -56,32 +95,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
                 run.id[:8],
             )
         try:
-            config = resolved_run_config(
-                {"setup": setup_config(research_goal=goal)})
-            if run is None:
-                run = store.create_run(
-                    research_goal=goal,
-                    profile=CANONICAL_RUN_MODE,
-                    provider="mock",
-                    config=config,
-                    client_id=DEMO_CLIENT_ID,
-                    db_path=db_path,
-                )
-            # force_provider="mock" pins demo seeding to the deterministic
-            # workflow even when a real LLM key is configured, so startup
-            # never spends API budget and demo content is reproducible.
-            # sleep_seconds=0.0 skips the mock's synthetic event pacing so
-            # seeding finishes immediately rather than over several seconds.
-            async for _ in engine_adapter.run_workflow(
-                    run_id=run.id,
-                    research_goal=goal,
-                    config=config,
-                    db_path=db_path,
-                    sleep_seconds=0.0,
-                    force_provider="mock",
-            ):
-                pass  # events are persisted as a side effect; drain and drop.
-            logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)
+            await _seed_demo_run(goal, run, db_path)
         except Exception:  # pylint: disable=broad-exception-caught
             # A failed seed must not take down app startup; log and move on
             # to the next demo goal.

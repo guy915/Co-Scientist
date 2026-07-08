@@ -54,6 +54,50 @@ def _declared_field_kwargs(
     return {key: value for key, value in data.items() if key in names}
 
 
+def _substitute_placeholders(value: str, context: dict[str, Any],
+                             placeholder_pattern: "re.Pattern[str]", *,
+                             preserve_type: bool) -> Any:
+    """Replace every known {placeholder} in value with its context value.
+
+    Args:
+        value: String value, possibly containing one or more {name}
+            placeholders.
+        context: Runtime values keyed by placeholder name.
+        placeholder_pattern: Compiled pattern matching a bare placeholder.
+        preserve_type: When True and value is *exactly* one placeholder
+            (e.g. "{research_goal}"), returns the context value verbatim,
+            preserving its original type (e.g. a list stays a list).
+            Otherwise substitution always goes through str.replace, so the
+            result is a string.
+
+    Returns:
+        value with its known placeholders substituted; unknown
+        placeholders (absent from context) are left untouched.
+    """
+    matches = placeholder_pattern.findall(value)
+    if not matches:
+        return value
+
+    resolved_value: Any = value
+    for match in matches:
+        if match not in context:
+            continue
+        context_val = context[match]
+        # A value that is *only* "{placeholder}" preserves the context
+        # value's original type (e.g. a list stays a list); a placeholder
+        # embedded in a larger string is necessarily stringified via
+        # str.replace.
+        if preserve_type and value == f"{{{match}}}":
+            resolved_value = context_val
+        else:
+            resolved_value = resolved_value.replace(
+                f"{{{match}}}",
+                str(context_val)
+                if not isinstance(context_val, str) else context_val)
+
+    return resolved_value
+
+
 def resolve_content_params(params: dict[str, Any],
                            context: dict[str, Any]) -> dict[str, Any]:
     """Resolve content params by substituting {placeholders} with context.
@@ -82,48 +126,19 @@ def resolve_content_params(params: dict[str, Any],
     # passes through unchanged; nested dicts are not recursed into.
     for key, value in params.items():
         if isinstance(value, str):
-            # Check for placeholders like {research_goal}
-            matches = placeholder_pattern.findall(value)
-            if matches:
-                resolved_value = value
-                for match in matches:
-                    if match in context:
-                        context_val = context[match]
-                        # Handle full replacement vs partial
-                        # A value that is *only* "{placeholder}" preserves the
-                        # context value's original type (e.g. a list stays a
-                        # list); a placeholder embedded in a larger string is
-                        # necessarily stringified via str.replace.
-                        if value == f"{{{match}}}":
-                            resolved_value = context_val
-                        else:
-                            resolved_value = resolved_value.replace(
-                                f"{{{match}}}",
-                                str(context_val)
-                                if not isinstance(context_val, str) else
-                                context_val)
-                resolved[key] = resolved_value
-            else:
-                resolved[key] = value
+            resolved[key] = _substitute_placeholders(value,
+                                                     context,
+                                                     placeholder_pattern,
+                                                     preserve_type=True)
         elif isinstance(value, list):
-            # Resolve each item in list
-            # Note: unlike the string branch above, list items are always
-            # stringified via str.replace (no whole-value type
-            # preservation), since a list of placeholders is inherently a
-            # list of strings.
-            resolved_list = []
-            for item in value:
-                if isinstance(item, str) and placeholder_pattern.search(item):
-                    matches = placeholder_pattern.findall(item)
-                    resolved_item = item
-                    for match in matches:
-                        if match in context:
-                            resolved_item = resolved_item.replace(
-                                f"{{{match}}}", str(context[match]))
-                    resolved_list.append(resolved_item)
-                else:
-                    resolved_list.append(item)
-            resolved[key] = resolved_list
+            # Resolve each item in list. Note: unlike the string case above,
+            # list items never preserve_type, since a list of placeholders
+            # is inherently a list of strings.
+            resolved[key] = [
+                _substitute_placeholders(
+                    item, context, placeholder_pattern, preserve_type=False)
+                if isinstance(item, str) else item for item in value
+            ]
         else:
             resolved[key] = value
 

@@ -67,6 +67,33 @@ def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
 # =============================================================================
 
 
+def _rekey_list_response_by_id(
+    papers: list[Any],
+    tool_config: "ToolConfig",
+) -> dict[str, Any]:
+    """Re-key a list-shaped response (e.g. arXiv) by each paper's id field.
+
+    Falls back through the configured id field -> arxiv_id -> generic id ->
+    positional index, since sources disagree on which field holds the id.
+    """
+    source_id_field = tool_config.response_format.field_mapping.get(
+        "source_id", "source_id")
+    # "@..." expressions are the field_mapping transform syntax used
+    # elsewhere; here it just signals "use the source's native id field"
+    # rather than an actual key to look up on each paper.
+    if source_id_field.startswith("@"):
+        source_id_field = "arxiv_id"
+
+    normalized: dict[str, Any] = {}
+    for paper in papers:
+        # Fall back through configured field -> arxiv_id -> generic id ->
+        # positional index, since sources disagree on the id field.
+        paper_id = (paper.get(source_id_field) or paper.get("arxiv_id") or
+                    paper.get("id") or str(len(normalized)))
+        normalized[paper_id] = paper
+    return normalized
+
+
 def normalize_search_response(
     result_data: Any,
     tool_config: Optional["ToolConfig"],
@@ -98,22 +125,7 @@ def normalize_search_response(
     # List responses (e.g. arXiv) need to be re-keyed by an id field so
     # downstream phases can address papers by a stable paper_id.
     if isinstance(result_data, list):
-        source_id_field = tool_config.response_format.field_mapping.get(
-            "source_id", "source_id")
-        # "@..." expressions are the field_mapping transform syntax used
-        # elsewhere; here it just signals "use the source's native id field"
-        # rather than an actual key to look up on each paper.
-        if source_id_field.startswith("@"):
-            source_id_field = "arxiv_id"
-
-        normalized: dict[str, Any] = {}
-        for paper in result_data:
-            # Fall back through configured field -> arxiv_id -> generic id
-            # -> positional index, since sources disagree on the id field.
-            paper_id = (paper.get(source_id_field) or paper.get("arxiv_id") or
-                        paper.get("id") or str(len(normalized)))
-            normalized[paper_id] = paper
-        return normalized
+        return _rekey_list_response_by_id(result_data, tool_config)
 
     return result_data if isinstance(result_data, dict) else {}
 

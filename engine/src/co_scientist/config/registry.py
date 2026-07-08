@@ -39,6 +39,37 @@ USER_CONFIG_PATHS = [
 ]
 
 
+def _substitute_env_vars_in_string(value: str) -> str:
+    """Replace ${VAR} / ${VAR:-default} references in a single string.
+
+    Args:
+        value: String possibly containing ${VAR} or ${VAR:-default}
+            placeholders.
+
+    Returns:
+        value with each placeholder replaced by the environment variable's
+        value, its default, or an empty string (with a warning logged) when
+        neither is available.
+    """
+    # Pattern: ${VAR} or ${VAR:-default}
+    pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
+
+    def replacer(match: "re.Match[str]") -> str:
+        var_name = match.group(1)
+        default = match.group(2)
+        env_value = os.environ.get(var_name)
+        if env_value is not None:
+            return env_value
+        if default is not None:
+            return default
+        # Return empty string if no env var and no default
+        logger.warning(
+            "environment variable %s not set and no default provided", var_name)
+        return ""
+
+    return re.sub(pattern, replacer, value)
+
+
 def substitute_env_vars(value: Any) -> Any:
     """Substitute environment variables in a value.
 
@@ -53,24 +84,7 @@ def substitute_env_vars(value: Any) -> Any:
         Value with environment variables substituted
     """
     if isinstance(value, str):
-        # Pattern: ${VAR} or ${VAR:-default}
-        pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
-
-        def replacer(match: "re.Match[str]") -> str:
-            var_name = match.group(1)
-            default = match.group(2)
-            env_value = os.environ.get(var_name)
-            if env_value is not None:
-                return env_value
-            if default is not None:
-                return default
-            # Return empty string if no env var and no default
-            logger.warning(
-                "environment variable %s not set and no default provided",
-                var_name)
-            return ""
-
-        return re.sub(pattern, replacer, value)
+        return _substitute_env_vars_in_string(value)
 
     elif isinstance(value, dict):
         # Recurse into nested dicts/lists so ${VAR} substitution reaches
@@ -136,25 +150,8 @@ class ToolRegistry:
                            DEFAULT_CONFIG_PATH)
             default_data = {}
 
-        # Load user config if exists
-        user_data = None
-        if not self._skip_user_config:
-            for user_path in USER_CONFIG_PATHS:
-                user_data = self._load_yaml_file(user_path)
-                if user_data is not None:
-                    logger.info("loaded user config from %s", user_path)
-                    break
-
-        # Load custom config if specified
-        custom_data = None
-        if self._custom_config_path:
-            custom_data = self._load_yaml_file(Path(self._custom_config_path))
-            if custom_data is not None:
-                logger.info("loaded custom config from %s",
-                            self._custom_config_path)
-            else:
-                logger.warning("custom config not found at %s",
-                               self._custom_config_path)
+        user_data = self._load_user_config()
+        custom_data = self._load_custom_config()
 
         # Merge configs
         merged_data = self._merge_configs(default_data, user_data, custom_data)
@@ -174,6 +171,43 @@ class ToolRegistry:
         logger.info("Tool registry initialized: %s servers, %s enabled tools",
                     len(self._config.servers),
                     len(self._config.get_enabled_tools()))
+
+    def _load_user_config(self) -> dict[str, Any] | None:
+        """Load the first existing user config from USER_CONFIG_PATHS.
+
+        Returns:
+            The parsed YAML dict of the first existing path, or None if
+            skip_user_config is set or no user config file exists.
+        """
+        if self._skip_user_config:
+            return None
+
+        for user_path in USER_CONFIG_PATHS:
+            user_data = self._load_yaml_file(user_path)
+            if user_data is not None:
+                logger.info("loaded user config from %s", user_path)
+                return user_data
+
+        return None
+
+    def _load_custom_config(self) -> dict[str, Any] | None:
+        """Load the custom config path passed to __init__, if any.
+
+        Returns:
+            The parsed YAML dict, or None if no custom config path was
+            given or the file could not be loaded.
+        """
+        if not self._custom_config_path:
+            return None
+
+        custom_data = self._load_yaml_file(Path(self._custom_config_path))
+        if custom_data is not None:
+            logger.info("loaded custom config from %s",
+                        self._custom_config_path)
+        else:
+            logger.warning("custom config not found at %s",
+                           self._custom_config_path)
+        return custom_data
 
     def _load_yaml_file(self, path: Path) -> dict[str, Any] | None:
         """Load a YAML file, returning None if not found."""

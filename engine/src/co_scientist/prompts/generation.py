@@ -218,6 +218,47 @@ def get_validation_synthesis_prompt_with_tools(
     )
 
 
+def _format_supervisor_guidance_for_debate(
+        supervisor_guidance: dict[str, Any] | None) -> str:
+    """Format supervisor guidance for the debate generation prompt.
+
+    Args:
+        supervisor_guidance: Supervisor guidance dict from workflow state.
+
+    Returns:
+        A guidance section combining key research areas and generation-phase
+        focus areas, or an empty string when neither is present.
+    """
+    if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
+        return ""
+
+    guidance_sections = []
+    has_content = False
+
+    goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
+    key_areas = goal_analysis.get("key_areas", [])
+    if key_areas:
+        if not has_content:
+            guidance_sections.append("Key research areas to consider:\n")
+            has_content = True
+        for area in key_areas:
+            guidance_sections.append(f"- {area}\n")
+
+    workflow_plan = supervisor_guidance.get("workflow_plan", {})
+    generation_phase = workflow_plan.get("generation_phase", {})
+    if generation_phase:
+        if not has_content:
+            guidance_sections.append("Generation guidance:\n")
+            has_content = True
+        if generation_phase.get("focus_areas"):
+            focus_areas = generation_phase["focus_areas"]
+            if isinstance(focus_areas, list):
+                focus_areas = ", ".join(focus_areas)
+            guidance_sections.append(f"Focus on: {focus_areas}\n")
+
+    return "".join(guidance_sections) if has_content else ""
+
+
 # Called by nodes/generation/debate.py once per debate turn. Template
 # choice depends on literature availability
 # (generation_debate_and_literature vs generation_after_debate), and the
@@ -292,35 +333,8 @@ def get_debate_generation_prompt(
         reference_list or "")
 
     # Format supervisor guidance if available
-    if supervisor_guidance and isinstance(supervisor_guidance, dict):
-        guidance_sections = []
-        has_content = False
-
-        goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
-        key_areas = goal_analysis.get("key_areas", [])
-        if key_areas:
-            if not has_content:
-                guidance_sections.append("Key research areas to consider:\n")
-                has_content = True
-            for area in key_areas:
-                guidance_sections.append(f"- {area}\n")
-
-        workflow_plan = supervisor_guidance.get("workflow_plan", {})
-        generation_phase = workflow_plan.get("generation_phase", {})
-        if generation_phase:
-            if not has_content:
-                guidance_sections.append("Generation guidance:\n")
-                has_content = True
-            if generation_phase.get("focus_areas"):
-                focus_areas = generation_phase["focus_areas"]
-                if isinstance(focus_areas, list):
-                    focus_areas = ", ".join(focus_areas)
-                guidance_sections.append(f"Focus on: {focus_areas}\n")
-
-        variables["supervisor_guidance"] = "".join(
-            guidance_sections) if has_content else ""
-    else:
-        variables["supervisor_guidance"] = ""
+    variables["supervisor_guidance"] = _format_supervisor_guidance_for_debate(
+        supervisor_guidance)
 
     # Add meta-review context if available (blank on iteration 1).
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
@@ -508,6 +522,30 @@ def _build_citation_reference_section(reference_list: str) -> str:
             "\n")
 
 
+def _format_tool_entry(tool_config: Any) -> list[str]:
+    """Format one tool's markdown bullet entry, plus its indented snippet.
+
+    Args:
+        tool_config: A ToolConfig with ``mcp_tool_name``, ``description``,
+            and an optional ``prompt_snippet``.
+
+    Returns:
+        Lines for this tool's entry, ending with a blank line separating it
+        from the next tool.
+    """
+    lines = [f"- `{tool_config.mcp_tool_name}`: {tool_config.description}"]
+
+    # Add prompt snippet if available
+    # prompt_snippet is per-tool usage guidance authored in the YAML
+    # config, indented here so it nests under the tool's list entry.
+    if tool_config.prompt_snippet:
+        snippet_lines = tool_config.prompt_snippet.strip().split("\n")
+        lines.extend(f"  {line}" for line in snippet_lines)
+
+    lines.append("")  # blank line between tools
+    return lines
+
+
 def build_tool_instructions(
     tool_ids: list[str],
     tool_registry: Any | None = None,
@@ -545,21 +583,7 @@ def build_tool_instructions(
         tool_config = tool_registry.get_tool(tool_id)
         if not tool_config or not tool_config.enabled:
             continue
-
-        # Add tool entry
-        sections.append(
-            f"- `{tool_config.mcp_tool_name}`: {tool_config.description}")
-
-        # Add prompt snippet if available
-        # prompt_snippet is per-tool usage guidance authored in the YAML
-        # config, indented here so it nests under the tool's list entry.
-        if tool_config.prompt_snippet:
-            # Indent the snippet
-            snippet_lines = tool_config.prompt_snippet.strip().split("\n")
-            for line in snippet_lines:
-                sections.append(f"  {line}")
-
-        sections.append("")  # blank line between tools
+        sections.extend(_format_tool_entry(tool_config))
 
     if not sections:
         return "No tools available."

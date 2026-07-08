@@ -63,6 +63,124 @@ const FAQ: Array<{question: string; answer: string}> = [
   },
 ];
 
+// Appearance section: theme mode segmented control (system/light/dark).
+function AppearanceSection({
+  mode,
+  setMode,
+}: {
+  mode: ThemeMode;
+  setMode: (mode: ThemeMode) => void;
+}) {
+  return (
+    <section className="ucs-settings-card">
+      <h3 className="ucs-settings-card-title">Theme</h3>
+      <div
+        className="ucs-theme-segment ucs-theme-segment--dialog"
+        role="group"
+        aria-label="Theme"
+      >
+        {THEME_MODES.map(option => (
+          <button
+            key={option.mode}
+            type="button"
+            className={
+              mode === option.mode
+                ? 'ucs-theme-button ucs-theme-button--dialog selected'
+                : 'ucs-theme-button ucs-theme-button--dialog'
+            }
+            aria-pressed={mode === option.mode}
+            onClick={() => setMode(option.mode)}
+          >
+            <Icon
+              aria-hidden="true"
+              className="ucs-theme-button-icon"
+              name={option.icon}
+            />
+            <span>{option.label}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Model section: browser-local API key entry, saved on blur or Enter.
+function ModelSection({
+  apiKey,
+  onApiKeyChange,
+  onSave,
+}: {
+  apiKey: string;
+  onApiKeyChange: (value: string) => void;
+  onSave: () => void;
+}) {
+  return (
+    <section className="ucs-settings-card">
+      <h3 className="ucs-settings-card-title">Model</h3>
+      <label
+        className="ucs-settings-field-label"
+        htmlFor="cosci-settings-api-key"
+      >
+        DeepSeek API key
+      </label>
+      <input
+        id="cosci-settings-api-key"
+        className="ucs-settings-field-input"
+        type="password"
+        autoComplete="off"
+        placeholder="Paste your DeepSeek API key"
+        value={apiKey}
+        onChange={event => onApiKeyChange(event.target.value)}
+        onBlur={onSave}
+        onKeyDown={event => {
+          if (event.key === 'Enter') onSave();
+        }}
+      />
+      <p className="ucs-settings-field-hint">
+        <a
+          className="ucs-settings-field-link"
+          href="https://platform.deepseek.com/api_keys"
+          target="_blank"
+          rel="noreferrer"
+        >
+          Get a DeepSeek API key
+          <Icon aria-hidden="true" name="open_in_new" />
+        </a>
+      </p>
+    </section>
+  );
+}
+
+// Help section: static product blurb plus a collapsible FAQ list.
+function HelpSection() {
+  return (
+    <section className="ucs-settings-card">
+      <h3 className="ucs-settings-card-title">Help</h3>
+      <p className="ucs-settings-card-copy">
+        Co-Scientist is a multi-agent workspace for generating and
+        pressure-testing research hypotheses. Set a research goal and a team
+        of agents proposes ideas, reviews them, and ranks the strongest
+        directions tournament-style.
+      </p>
+      <div className="ucs-faq">
+        {FAQ.map(item => (
+          <details key={item.question} className="ucs-faq-item">
+            <summary className="ucs-faq-question">
+              <span>{item.question}</span>
+              <Icon
+                aria-hidden="true"
+                className="ucs-faq-chevron"
+                name="expand_more"
+              />
+            </summary>
+            <p className="ucs-faq-answer">{item.answer}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 /**
  * Centered Settings dialog with a section rail (Appearance, Model, Help),
  * matching the reference product's settings window.
@@ -167,101 +285,17 @@ export function SettingsDialog({
             })}
           </nav>
           <div className="ucs-settings-dialog-panel">
-            {/* Appearance: theme mode segmented control (system/light/dark). */}
             {section === 'appearance' && (
-              <section className="ucs-settings-card">
-                <h3 className="ucs-settings-card-title">Theme</h3>
-                <div
-                  className="ucs-theme-segment ucs-theme-segment--dialog"
-                  role="group"
-                  aria-label="Theme"
-                >
-                  {THEME_MODES.map(option => (
-                    <button
-                      key={option.mode}
-                      type="button"
-                      className={
-                        mode === option.mode
-                          ? 'ucs-theme-button ucs-theme-button--dialog selected'
-                          : 'ucs-theme-button ucs-theme-button--dialog'
-                      }
-                      aria-pressed={mode === option.mode}
-                      onClick={() => setMode(option.mode)}
-                    >
-                      <Icon
-                        aria-hidden="true"
-                        className="ucs-theme-button-icon"
-                        name={option.icon}
-                      />
-                      <span>{option.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </section>
+              <AppearanceSection mode={mode} setMode={setMode} />
             )}
-            {/* Model: browser-local API key entry, saved on blur or Enter. */}
             {section === 'model' && (
-              <section className="ucs-settings-card">
-                <h3 className="ucs-settings-card-title">Model</h3>
-                <label
-                  className="ucs-settings-field-label"
-                  htmlFor="cosci-settings-api-key"
-                >
-                  DeepSeek API key
-                </label>
-                <input
-                  id="cosci-settings-api-key"
-                  className="ucs-settings-field-input"
-                  type="password"
-                  autoComplete="off"
-                  placeholder="Paste your DeepSeek API key"
-                  value={apiKey}
-                  onChange={event => setApiKey(event.target.value)}
-                  onBlur={saveApiKey}
-                  onKeyDown={event => {
-                    if (event.key === 'Enter') saveApiKey();
-                  }}
-                />
-                <p className="ucs-settings-field-hint">
-                  <a
-                    className="ucs-settings-field-link"
-                    href="https://platform.deepseek.com/api_keys"
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Get a DeepSeek API key
-                    <Icon aria-hidden="true" name="open_in_new" />
-                  </a>
-                </p>
-              </section>
+              <ModelSection
+                apiKey={apiKey}
+                onApiKeyChange={setApiKey}
+                onSave={saveApiKey}
+              />
             )}
-            {/* Help: static product blurb plus a collapsible FAQ list. */}
-            {section === 'help' && (
-              <section className="ucs-settings-card">
-                <h3 className="ucs-settings-card-title">Help</h3>
-                <p className="ucs-settings-card-copy">
-                  Co-Scientist is a multi-agent workspace for generating and
-                  pressure-testing research hypotheses. Set a research goal and
-                  a team of agents proposes ideas, reviews them, and ranks the
-                  strongest directions tournament-style.
-                </p>
-                <div className="ucs-faq">
-                  {FAQ.map(item => (
-                    <details key={item.question} className="ucs-faq-item">
-                      <summary className="ucs-faq-question">
-                        <span>{item.question}</span>
-                        <Icon
-                          aria-hidden="true"
-                          className="ucs-faq-chevron"
-                          name="expand_more"
-                        />
-                      </summary>
-                      <p className="ucs-faq-answer">{item.answer}</p>
-                    </details>
-                  ))}
-                </div>
-              </section>
-            )}
+            {section === 'help' && <HelpSection />}
           </div>
         </div>
         {savedToast && (

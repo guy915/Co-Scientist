@@ -268,7 +268,30 @@ async def review_comparative_batch(
         },
     )
 
-    # Extract reviews from response
+    return _parse_batch_review_response(response, hypotheses, run_id)
+
+
+def _parse_batch_review_response(
+    response: dict[str, Any],
+    hypotheses: list[Hypothesis],
+    run_id: str | None,
+) -> list[HypothesisReview]:
+    """Parses a batch-review LLM response into per-hypothesis reviews.
+
+    Logs the response shape for debugging and, if the LLM under-produced
+    reviews (e.g. by hitting output token limits), pads the missing entries
+    with an "unavailable" placeholder rather than raising here -- review_node
+    detects that placeholder via its review_summary text and raises instead
+    of silently scoring the hypothesis at 0.
+
+    Args:
+        response: raw LLM JSON response from the batch review call.
+        hypotheses: hypotheses that were reviewed, for count/logging only.
+        run_id: optional run ID, referenced in the mismatch log message.
+
+    Returns:
+        List of reviews, one per hypothesis, in the same order.
+    """
     reviews_data = response.get("reviews", [])
 
     # Debug logging
@@ -297,9 +320,6 @@ async def review_comparative_batch(
             reviews.append(_review_from_response(reviews_data[i]))
         else:
             # Missing review - create empty one
-            # review_node's validation step below detects this placeholder
-            # via its review_summary text and raises rather than silently
-            # scoring the hypothesis at 0.
             logger.error("No review data for hypothesis %s", i)
             reviews.append(
                 HypothesisReview(
@@ -312,6 +332,57 @@ async def review_comparative_batch(
                 ))
 
     return reviews
+
+
+def _select_review_strategy(num_hypotheses: int) -> tuple[bool, str]:
+    """Chooses the review strategy for a batch of hypotheses.
+
+    Comparative batch review puts every hypothesis in one prompt so the
+    judge can differentiate scores relative to its peers, but a single
+    response has a token ceiling; above the threshold, parallel individual
+    review trades that relative differentiation for scalability (one
+    bounded-size call per hypothesis, no shared token budget).
+
+    Args:
+        num_hypotheses: number of hypotheses to be reviewed.
+
+    Returns:
+        Tuple of (use_comparative, strategy_name).
+    """
+    use_comparative = num_hypotheses <= COMPARATIVE_BATCH_THRESHOLD
+    if use_comparative:
+        logger.info("Reviewing %s hypotheses via comparative batch (≤%s)",
+                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
+        strategy_name = "comparative batch"
+    else:
+        logger.info("Reviewing %s hypotheses via parallel individual (>%s)",
+                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
+        strategy_name = "parallel"
+    return use_comparative, strategy_name
+
+
+def _validate_reviews(reviews: list[HypothesisReview]) -> None:
+    """Raises if any review is an unavailable placeholder.
+
+    Unlike reflection_node/proximity_node, which degrade gracefully on
+    partial LLM failures, a hypothesis reaching ranking without a real
+    review would silently rank at score 0.0, so this fails loudly instead.
+
+    Args:
+        reviews: reviews to validate.
+
+    Raises:
+        GenerationError: if one or more reviews is unavailable.
+    """
+    invalid_reviews = [
+        i for i, r in enumerate(reviews)
+        if r.review_summary == "Review unavailable"
+    ]
+    if invalid_reviews:
+        error_msg = (f"review node failed: {len(invalid_reviews)}"
+                     f"/{len(reviews)} reviews invalid")
+        logger.error(error_msg)
+        raise GenerationError(error_msg)
 
 
 async def review_node(state: WorkflowState) -> dict[str, Any]:
@@ -335,22 +406,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Reviewing %s hypotheses", num_hypotheses)
 
     # Choose strategy based on count
-    # Comparative batch review puts every hypothesis in one prompt so the
-    # judge can differentiate scores relative to its peers, but a single
-    # response has a token ceiling; above the threshold, parallel
-    # individual review trades that relative differentiation for
-    # scalability (one bounded-size call per hypothesis, no shared token
-    # budget).
-    use_comparative = num_hypotheses <= COMPARATIVE_BATCH_THRESHOLD
-
-    if use_comparative:
-        logger.info("Reviewing %s hypotheses via comparative batch (≤%s)",
-                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
-        strategy_name = "comparative batch"
-    else:
-        logger.info("Reviewing %s hypotheses via parallel individual (>%s)",
-                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
-        strategy_name = "parallel"
+    use_comparative, strategy_name = _select_review_strategy(num_hypotheses)
 
     # Emit progress
     await emit_progress(state, "review_start",
@@ -394,19 +450,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
         llm_calls = num_hypotheses  # One call per hypothesis
 
     # Validate reviews before continuing
-    # Unlike reflection_node/proximity_node, which degrade gracefully on
-    # partial LLM failures, a hypothesis reaching ranking without a real
-    # review would silently rank at score 0.0, so this node fails loudly
-    # instead by raising GenerationError.
-    invalid_reviews = [
-        i for i, r in enumerate(reviews)
-        if r.review_summary == "Review unavailable"
-    ]
-    if invalid_reviews:
-        error_msg = (f"review node failed: {len(invalid_reviews)}"
-                     f"/{len(reviews)} reviews invalid")
-        logger.error(error_msg)
-        raise GenerationError(error_msg)
+    _validate_reviews(reviews)
 
     # Attach reviews to hypotheses
     for hypothesis, review in zip(hypotheses, reviews):

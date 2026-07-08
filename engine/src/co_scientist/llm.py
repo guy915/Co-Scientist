@@ -10,7 +10,7 @@ import asyncio
 import functools
 import json
 import logging
-from typing import Any, cast
+from typing import Any, NoReturn, cast
 from collections.abc import Awaitable, Callable
 import warnings
 
@@ -157,6 +157,70 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
             "(all required fields must be present):\n" + schema_str)
 
 
+def _build_completion_args(
+    prompt: str,
+    model_name: str,
+    max_tokens: int,
+    temperature: float,
+    force_json: bool,
+    json_schema: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Builds the keyword arguments for a ``litellm.acompletion`` call.
+
+    Args:
+        prompt: The prompt to send to the LLM.
+        model_name: Model name in litellm format.
+        max_tokens: Maximum tokens in response.
+        temperature: Sampling temperature.
+        force_json: If True, try to force JSON mode (model support varies).
+        json_schema: Optional JSON schema to constrain the response format.
+
+    Returns:
+        Keyword arguments ready to pass to ``litellm.acompletion``.
+    """
+    completion_args: dict[str, Any] = {
+        "model": model_name,
+        "messages": [{
+            "role": "user",
+            "content": prompt
+        }],
+        "max_tokens": max_tokens,
+        "temperature": temperature,
+        # Silently drop params a provider doesn't accept instead of
+        # raising, since not every model/provider supports every arg.
+        "drop_params": True,
+    }
+
+    # Try to add response_format based on schema or force_json
+    if json_schema:
+        if _supports_json_schema_response_format(model_name):
+            completion_args["response_format"] = {
+                "type": "json_schema",
+                "json_schema": json_schema,
+            }
+        else:
+            # Provider-capability shim: this model rejects the
+            # json_schema response format, so downgrade this call to
+            # json_object and restate the schema in the prompt. The
+            # cache keys above stay on the original prompt.
+            logger.debug(
+                "model %s does not support json_schema response format;"
+                " downgrading to json_object with schema in prompt", model_name)
+            completion_args["messages"] = [{
+                "role": "user",
+                "content": _inject_schema_into_prompt(prompt, json_schema),
+            }]
+            completion_args["response_format"] = {"type": "json_object"}
+    elif force_json:
+        try:
+            completion_args["response_format"] = {"type": "json_object"}
+        except Exception:  # pylint: disable=broad-exception-caught
+            # Some models/providers don't support this, silently continue
+            pass
+
+    return completion_args
+
+
 async def call_llm(
     prompt: str,
     model_name: str,
@@ -213,47 +277,9 @@ async def call_llm(
                  '...' if len(prompt) > 200 else '')
 
     try:
-        # Build completion args
-        completion_args = {
-            "model": model_name,
-            "messages": [{
-                "role": "user",
-                "content": prompt
-            }],
-            "max_tokens": max_tokens,
-            "temperature": temperature,
-            # Silently drop params a provider doesn't accept instead of
-            # raising, since not every model/provider supports every arg.
-            "drop_params": True,
-        }
-
-        # Try to add response_format based on schema or force_json
-        if json_schema:
-            if _supports_json_schema_response_format(model_name):
-                completion_args["response_format"] = {
-                    "type": "json_schema",
-                    "json_schema": json_schema,
-                }
-            else:
-                # Provider-capability shim: this model rejects the
-                # json_schema response format, so downgrade this call to
-                # json_object and restate the schema in the prompt. The
-                # cache keys above stay on the original prompt.
-                logger.debug(
-                    "model %s does not support json_schema response format;"
-                    " downgrading to json_object with schema in prompt",
-                    model_name)
-                completion_args["messages"] = [{
-                    "role": "user",
-                    "content": _inject_schema_into_prompt(prompt, json_schema),
-                }]
-                completion_args["response_format"] = {"type": "json_object"}
-        elif force_json:
-            try:
-                completion_args["response_format"] = {"type": "json_object"}
-            except Exception:  # pylint: disable=broad-exception-caught
-                # Some models/providers don't support this, silently continue
-                pass
+        completion_args = _build_completion_args(prompt, model_name, max_tokens,
+                                                 temperature, force_json,
+                                                 json_schema)
 
         response = await litellm.acompletion(**completion_args)
 
@@ -287,6 +313,153 @@ async def call_llm(
         logger.error("LLM call failed: %s", e)
         logger.error("Model: %s, max_tokens: %s", model_name, max_tokens)
         raise
+
+
+def _parse_or_repair_json(
+    response_text: str,
+    is_final_attempt: bool,
+) -> tuple[dict[str, Any] | None, bool, bool, Exception | None]:
+    """Parses response text as JSON, falling back to repair strategies.
+
+    Args:
+        response_text: Raw (fence-stripped) LLM response text.
+        is_final_attempt: Whether this is the last retry attempt; major
+            (truncation-indicating) repairs are only attempted then.
+
+    Returns:
+        Tuple of (parsed result or None, was_major_repair, was_repaired,
+        parse_error). ``parse_error`` is the original parse failure, used by
+        the caller only when every repair attempt also fails.
+    """
+    result: dict[str, Any] | None = None
+    parse_error: Exception | None = None
+    try:
+        result = json.loads(response_text)
+        if not isinstance(result, dict):
+            parse_error = ValueError("Parsed JSON is not a dictionary")
+            result = None
+    except json.JSONDecodeError as e:
+        parse_error = e
+        result = None
+
+    was_major_repair = False
+    repaired = False
+    if result is None:
+        result, was_major_repair = attempt_json_repair(
+            response_text, allow_major_repairs=is_final_attempt)
+        repaired = result is not None
+
+    return result, was_major_repair, repaired, parse_error
+
+
+def _backfill_and_validate(
+    result: dict[str, Any],
+    json_schema: dict[str, Any],
+    model_name: str,
+) -> None:
+    """Applies the provider-capability shim backfill, then validates.
+
+    Args:
+        result: Parsed JSON dict to validate (and possibly back-fill).
+        json_schema: JSON schema dict (may have a nested "schema" key).
+        model_name: Model name in litellm format, used to decide whether the
+            json_object provider-capability shim applies.
+
+    Raises:
+        ValidationError: If ``result`` doesn't match ``json_schema``.
+    """
+    # Provider-capability shim: calls downgraded to json_object have no
+    # server-side schema enforcement, so back-fill missing required fields
+    # with empty defaults before validating. Keyed on the same condition as
+    # the downgrade in call_llm.
+    if not _supports_json_schema_response_format(model_name):
+        _backfill_required_fields(result,
+                                  json_schema.get("schema", json_schema))
+    validate_json_schema(result, json_schema)
+
+
+def _log_json_parse_failure_diagnostics(last_response_text: str) -> None:
+    """Logs diagnostic detail about an unparseable LLM JSON response.
+
+    Args:
+        last_response_text: The last raw response text that failed to parse
+            (after fence-stripping and repair attempts).
+    """
+    # Log the full response for debugging
+    logger.error("Failed to parse JSON response after all repair attempts.")
+    logger.error("Response length: %s chars", len(last_response_text))
+    logger.error("First 500 chars: %s", last_response_text[:500])
+    logger.error("Last 500 chars: %s", last_response_text[-500:])
+
+    # Log middle section too (where errors often are)
+    if len(last_response_text) > 1000:
+        mid_point = len(last_response_text) // 2
+        logger.error("Middle 500 chars (around char %s): %s", mid_point,
+                     last_response_text[mid_point - 250:mid_point + 250])
+
+    # Try to find where JSON is broken
+    try:
+        # Count braces
+        open_braces = last_response_text.count("{")
+        close_braces = last_response_text.count("}")
+        logger.error("Brace count: { = %s, } = %s", open_braces, close_braces)
+
+        # Try to find first JSON error position
+        for i in range(0, len(last_response_text), 100):
+            chunk = last_response_text[:i + 100]
+            try:
+                json.loads(chunk)
+            except json.JSONDecodeError as e:
+                if i > len(last_response_text) - 200:  # Near the end
+                    logger.error("JSON error near position %s: %s", e.pos,
+                                 e.msg)
+                    logger.error(
+                        "Context around error: ...%s...",
+                        last_response_text[max(0, e.pos - 100):e.pos + 100])
+                    break
+    except Exception as debug_err:  # pylint: disable=broad-exception-caught
+        logger.error("Error during debugging: %s", debug_err)
+
+
+def _raise_json_parse_error(
+    last_error: Exception | None,
+    last_response_text: str | None,
+    max_attempts: int,
+) -> NoReturn:
+    """Raises the final error after all JSON parse/repair retries fail.
+
+    Args:
+        last_error: The most recent validation or parse error, if any.
+        last_response_text: The last raw response text, if any was received.
+        max_attempts: Total number of attempts made.
+
+    Raises:
+        ValidationError: If ``last_error`` was a schema validation failure.
+        json.JSONDecodeError: Otherwise (parse failure, or no error captured).
+    """
+    if isinstance(last_error, ValidationError):
+        raise ValidationError(
+            f"Schema validation failed after {max_attempts} attempts: "
+            f"{last_error.message}",
+            instance=last_error.instance,
+            schema=last_error.schema,
+            schema_path=last_error.schema_path,
+            path=last_error.path,
+        )
+    elif isinstance(last_error, json.JSONDecodeError):
+        raise json.JSONDecodeError(
+            f"Could not parse LLM response as JSON after "
+            f"{max_attempts} attempts",
+            last_response_text or "",
+            last_error.pos if hasattr(last_error, "pos") else 0,
+        )
+    else:
+        raise json.JSONDecodeError(
+            f"Could not parse LLM response as JSON after "
+            f"{max_attempts} attempts",
+            last_response_text or "",
+            0,
+        )
 
 
 async def call_llm_json(
@@ -390,41 +563,17 @@ async def call_llm_json(
 
             last_response_text = response_text
 
-            # Step 1: Try simple parse first
-            result = None
-            parse_error = None
-            try:
-                result = json.loads(response_text)
-                if not isinstance(result, dict):
-                    parse_error = ValueError("Parsed JSON is not a dictionary")
-                    result = None
-            except json.JSONDecodeError as e:
-                parse_error = e
-                result = None
-
-            # Step 2: If parsing failed, attempt repairs (minor only unless
-            # final attempt)
-            was_major_repair = False
-            repaired = False
-            if result is None:
-                result, was_major_repair = attempt_json_repair(
-                    response_text, allow_major_repairs=is_final_attempt)
-                repaired = result is not None
+            # Steps 1-2: parse response text as JSON, repairing if needed
+            # (minor repairs always tried, major repairs only on the final
+            # attempt).
+            result, was_major_repair, repaired, parse_error = (
+                _parse_or_repair_json(response_text, is_final_attempt))
 
             # Step 3: Validate against the schema (when given), cache, return
             if result is not None:
                 try:
                     if json_schema is not None:
-                        # Provider-capability shim: calls downgraded to
-                        # json_object have no server-side schema enforcement,
-                        # so back-fill missing required fields with empty
-                        # defaults before validating. Keyed on the same
-                        # condition as the downgrade in call_llm.
-                        if not _supports_json_schema_response_format(
-                                model_name):
-                            _backfill_required_fields(
-                                result, json_schema.get("schema", json_schema))
-                        validate_json_schema(result, json_schema)
+                        _backfill_and_validate(result, json_schema, model_name)
                     cache.set(
                         prompt,
                         model_name,
@@ -477,66 +626,40 @@ async def call_llm_json(
 
     # No fallback available - raise appropriate error
     if last_response_text:
-        # Log the full response for debugging
-        logger.error("Failed to parse JSON response after all repair attempts.")
-        logger.error("Response length: %s chars", len(last_response_text))
-        logger.error("First 500 chars: %s", last_response_text[:500])
-        logger.error("Last 500 chars: %s", last_response_text[-500:])
+        _log_json_parse_failure_diagnostics(last_response_text)
 
-        # Log middle section too (where errors often are)
-        if len(last_response_text) > 1000:
-            mid_point = len(last_response_text) // 2
-            logger.error("Middle 500 chars (around char %s): %s", mid_point,
-                         last_response_text[mid_point - 250:mid_point + 250])
+    _raise_json_parse_error(last_error, last_response_text, max_attempts)
 
-        # Try to find where JSON is broken
-        try:
-            # Count braces
-            open_braces = last_response_text.count("{")
-            close_braces = last_response_text.count("}")
-            logger.error("Brace count: { = %s, } = %s", open_braces,
-                         close_braces)
 
-            # Try to find first JSON error position
-            for i in range(0, len(last_response_text), 100):
-                chunk = last_response_text[:i + 100]
-                try:
-                    json.loads(chunk)
-                except json.JSONDecodeError as e:
-                    if i > len(last_response_text) - 200:  # Near the end
-                        logger.error("JSON error near position %s: %s", e.pos,
-                                     e.msg)
-                        logger.error(
-                            "Context around error: ...%s...",
-                            last_response_text[max(0, e.pos - 100):e.pos + 100])
-                        break
-        except Exception as debug_err:  # pylint: disable=broad-exception-caught
-            logger.error("Error during debugging: %s", debug_err)
+def _message_to_history_dict(message: Any) -> dict[str, Any]:
+    """Converts a litellm assistant message into a plain history dict.
 
-    # Raise appropriate error
-    if isinstance(last_error, ValidationError):
-        raise ValidationError(
-            f"Schema validation failed after {max_attempts} attempts: "
-            f"{last_error.message}",
-            instance=last_error.instance,
-            schema=last_error.schema,
-            schema_path=last_error.schema_path,
-            path=last_error.path,
-        )
-    elif isinstance(last_error, json.JSONDecodeError):
-        raise json.JSONDecodeError(
-            f"Could not parse LLM response as JSON after "
-            f"{max_attempts} attempts",
-            last_response_text or "",
-            last_error.pos if hasattr(last_error, "pos") else 0,
-        )
-    else:
-        raise json.JSONDecodeError(
-            f"Could not parse LLM response as JSON after "
-            f"{max_attempts} attempts",
-            last_response_text or "",
-            0,
-        )
+    litellm's message object is a Pydantic model, not a plain dict; this
+    converts it so it can be cached and replayed as message history.
+
+    Args:
+        message: The assistant message from a litellm completion response.
+
+    Returns:
+        A plain dict representation, including tool_calls when present.
+    """
+    message_dict: dict[str, Any] = {
+        "role": message.role,
+        "content": message.content,
+    }
+
+    # Add tool calls if present
+    if hasattr(message, "tool_calls") and message.tool_calls:
+        message_dict["tool_calls"] = [{
+            "id": tc.id,
+            "type": "function",
+            "function": {
+                "name": tc.function.name,
+                "arguments": tc.function.arguments
+            }
+        } for tc in message.tool_calls]
+
+    return message_dict
 
 
 async def call_llm_with_tools(
@@ -620,27 +743,7 @@ async def call_llm_with_tools(
             )
 
             message = response.choices[0].message
-
-            # litellm's message object is a Pydantic model, not a plain
-            # dict; convert it so it can be cached and replayed as message
-            # history.
-            # Convert message to dict format for history
-            message_dict = {
-                "role": message.role,
-                "content": message.content,
-            }
-
-            # Add tool calls if present
-            if hasattr(message, "tool_calls") and message.tool_calls:
-                message_dict["tool_calls"] = [{
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments
-                    }
-                } for tc in message.tool_calls]
-
+            message_dict = _message_to_history_dict(message)
             messages.append(message_dict)
 
             # Check if LLM wants to call tools

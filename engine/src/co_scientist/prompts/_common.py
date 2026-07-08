@@ -1,7 +1,42 @@
 """Formatting helpers shared by several prompt-builder modules."""
 # pylint: disable=inconsistent-quotes
 
-from typing import Any
+from typing import Any, Callable
+
+
+def _format_bullet_section(header: str,
+                           items: list[Any],
+                           format_item: Callable[[Any], str] = str) -> str:
+    """Render a "**header:**" line followed by one bullet per item.
+
+    Shared by the common-strengths/common-weaknesses/strategic-
+    recommendations blocks of `_format_meta_review_context`, which are
+    otherwise identical apart from the header text and how each item is
+    turned into display text.
+
+    Args:
+        header: Bolded sub-header introducing the bullet list (without the
+            surrounding `**` or trailing colon).
+        items: Items to render as bullets; an empty list renders nothing.
+        format_item: Callable turning one item into its bullet text.
+
+    Returns:
+        The header and bullet lines followed by a trailing blank line, or
+        an empty string when `items` is empty.
+    """
+    if not items:
+        return ""
+    lines = [f"**{header}:**\n"]
+    lines.extend(f"- {format_item(item)}\n" for item in items)
+    lines.append("\n")
+    return "".join(lines)
+
+
+def _format_recommendation(rec: Any) -> str:
+    """Format one strategic-recommendation entry as bullet text."""
+    if isinstance(rec, dict):
+        return str(rec.get("recommendation", str(rec)))
+    return str(rec)
 
 
 # Reads the state dict shaped by nodes/meta_review.py (which renames the
@@ -21,30 +56,16 @@ def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
         "The following insights were synthesized from previous reviews"
         " of all hypotheses:\n\n")
 
-    common_strengths = meta_review.get("common_strengths", [])
-    if common_strengths:
-        sections.append("**Common Strengths Across Hypotheses:**\n")
-        for strength in common_strengths:
-            sections.append(f"- {strength}\n")
-        sections.append("\n")
-
-    common_weaknesses = meta_review.get("common_weaknesses", [])
-    if common_weaknesses:
-        sections.append("**Common Weaknesses to Watch For:**\n")
-        for weakness in common_weaknesses:
-            sections.append(f"- {weakness}\n")
-        sections.append("\n")
-
-    strategic_recommendations = meta_review.get("strategic_recommendations", [])
-    if strategic_recommendations:
-        sections.append("**Strategic Recommendations:**\n")
-        for rec in strategic_recommendations:
-            if isinstance(rec, dict):
-                rec_text = rec.get("recommendation", str(rec))
-            else:
-                rec_text = str(rec)
-            sections.append(f"- {rec_text}\n")
-        sections.append("\n")
+    sections.append(
+        _format_bullet_section("Common Strengths Across Hypotheses",
+                               meta_review.get("common_strengths", [])))
+    sections.append(
+        _format_bullet_section("Common Weaknesses to Watch For",
+                               meta_review.get("common_weaknesses", [])))
+    sections.append(
+        _format_bullet_section("Strategic Recommendations",
+                               meta_review.get("strategic_recommendations", []),
+                               _format_recommendation))
 
     sections.append(
         "Use these insights to provide more informed and consistent reviews.\n")

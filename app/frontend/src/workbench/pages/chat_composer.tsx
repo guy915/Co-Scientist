@@ -250,81 +250,13 @@ export function Composer({
           remove button (Escape/click elsewhere doesn't affect this). */}
       {attachments.length > 0 ? (
         <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
-          {attachments.map(attachment =>
-            attachment.isImage && attachment.previewUrl ? (
-              <div
-                className={tooltipClassNames({
-                  className: ATTACHMENT_IMAGE_CARD_CLASSES,
-                  placement: 'top',
-                  wrap: true,
-                  alignStart: true,
-                })}
-                key={attachment.id}
-                data-tooltip={attachment.name}
-              >
-                <img
-                  src={attachment.previewUrl}
-                  alt={attachment.name}
-                  className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
-                />
-                <button
-                  type="button"
-                  className={tooltipClassNames({
-                    className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
-                    placement: 'top',
-                  })}
-                  aria-label={`Remove ${attachment.name}`}
-                  data-tooltip={`Remove ${attachment.name}`}
-                  onClick={() => removeAttachment(attachment.id)}
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className={ATTACHMENT_REMOVE_ICON_CLASSES}
-                    name="close"
-                  />
-                </button>
-              </div>
-            ) : (
-              <div
-                className={tooltipClassNames({
-                  className: ATTACHMENT_CARD_CLASSES,
-                  placement: 'top',
-                  wrap: true,
-                  alignStart: true,
-                })}
-                key={attachment.id}
-                data-tooltip={attachment.name}
-              >
-                <div className={ATTACHMENT_TEXT_CLASSES}>
-                  <strong className={ATTACHMENT_NAME_CLASSES}>
-                    {attachment.name}
-                  </strong>
-                  <span className={ATTACHMENT_META_CLASSES}>
-                    <span className={ATTACHMENT_EXTENSION_CLASSES}>
-                      {attachment.badge}
-                    </span>
-                    {attachment.kind}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className={tooltipClassNames({
-                    className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
-                    placement: 'top',
-                  })}
-                  aria-label={`Remove ${attachment.name}`}
-                  data-tooltip={`Remove ${attachment.name}`}
-                  onClick={() => removeAttachment(attachment.id)}
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className={ATTACHMENT_REMOVE_ICON_CLASSES}
-                    name="close"
-                  />
-                </button>
-              </div>
-            ),
-          )}
+          {attachments.map(attachment => (
+            <AttachmentCard
+              key={attachment.id}
+              attachment={attachment}
+              onRemove={removeAttachment}
+            />
+          ))}
         </div>
       ) : null}
       {/* Floating label + lock icon, hidden once the user has typed
@@ -466,6 +398,80 @@ export function Composer({
         </button>
       </div>
     </form>
+  );
+}
+
+// Renders one staged attachment: an image card with a cropped preview, or a
+// file card with name + kind badge. Both variants share the same hover-reveal
+// remove button.
+function AttachmentCard({
+  attachment,
+  onRemove,
+}: {
+  attachment: ComposerAttachment;
+  onRemove: (id: string) => void;
+}) {
+  const removeButton = (
+    <button
+      type="button"
+      className={tooltipClassNames({
+        className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
+        placement: 'top',
+      })}
+      aria-label={`Remove ${attachment.name}`}
+      data-tooltip={`Remove ${attachment.name}`}
+      onClick={() => onRemove(attachment.id)}
+    >
+      <Icon
+        aria-hidden="true"
+        className={ATTACHMENT_REMOVE_ICON_CLASSES}
+        name="close"
+      />
+    </button>
+  );
+
+  if (attachment.isImage && attachment.previewUrl) {
+    return (
+      <div
+        className={tooltipClassNames({
+          className: ATTACHMENT_IMAGE_CARD_CLASSES,
+          placement: 'top',
+          wrap: true,
+          alignStart: true,
+        })}
+        data-tooltip={attachment.name}
+      >
+        <img
+          src={attachment.previewUrl}
+          alt={attachment.name}
+          className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
+        />
+        {removeButton}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={tooltipClassNames({
+        className: ATTACHMENT_CARD_CLASSES,
+        placement: 'top',
+        wrap: true,
+        alignStart: true,
+      })}
+      data-tooltip={attachment.name}
+    >
+      <div className={ATTACHMENT_TEXT_CLASSES}>
+        <strong className={ATTACHMENT_NAME_CLASSES}>{attachment.name}</strong>
+        <span className={ATTACHMENT_META_CLASSES}>
+          <span className={ATTACHMENT_EXTENSION_CLASSES}>
+            {attachment.badge}
+          </span>
+          {attachment.kind}
+        </span>
+      </div>
+      {removeButton}
+    </div>
   );
 }
 

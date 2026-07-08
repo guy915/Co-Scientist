@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import sqlite3
 import sys
 import time
 from collections.abc import AsyncIterator
@@ -27,6 +28,7 @@ from app.config import settings
 from app.elo import INITIAL_ELO
 from app.mock_workflow import run_mock_workflow
 from app.report_render import (
+    EmitFn,
     article_stub,
     finalize_report,
     format_deep_verification_critique,
@@ -228,6 +230,242 @@ def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _persist_engine_evidence(
+    run_id: str,
+    articles: list[dict[str, Any]],
+    conn: sqlite3.Connection,
+) -> tuple[dict[str, str], dict[str, str]]:
+    """Persist retrieved articles as evidence rows.
+
+    Returns:
+        A tuple of (evidence id by title, abstract by title) lookups the
+        hypothesis/citation pass needs: the citation_map carries no abstract
+        of its own, so a cited source is classified against its evidence
+        row's abstract via this title-keyed map.
+    """
+    ev_id_by_title: dict[str, str] = {}
+    abstract_by_title: dict[str, str] = {}
+    for art in articles:
+        ev_id = store.add_evidence(
+            run_id,
+            art.get("title", "Untitled"),
+            source=art.get("source", "engine"),
+            url=art.get("url") or "",
+            authors=art.get("authors") or [],
+            year=art.get("year"),
+            abstract=art.get("abstract") or "",
+            available=True,
+            conn=conn,
+        )
+        ev_id_by_title[art.get("title", "")] = ev_id
+        abstract_by_title[art.get("title", "")] = art.get("abstract") or ""
+    return ev_id_by_title, abstract_by_title
+
+
+def _persist_engine_hypothesis_row(
+    run_id: str,
+    h: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> tuple[str, str | None]:
+    """Persist one engine hypothesis's row and mutable state (Elo/wins/losses).
+
+    The engine's stable hypothesis id is passed straight through as the store
+    row id, so identity holds end-to-end (engine -> DB -> API -> UI) and
+    matchups resolve by id rather than by fragile text-prefix matching.
+
+    Returns:
+        A tuple of (persisted store row id, the engine's own id or None).
+    """
+    is_evolved = bool(h.get("evolution_history"))
+    generation = 1 if is_evolved else 0
+    agent = "evolution" if is_evolved else "generation"
+    # Derive a short title from the first sentence / 120 chars.
+    text = h.get("text", "")
+    title = text.split(".")[0][:120] or text[:120]
+    engine_id = h.get("id") or None
+    hyp_id = store.add_hypothesis(
+        run_id=run_id,
+        title=title,
+        statement=text,
+        hypothesis_id=engine_id,
+        category=h.get("category") or None,
+        mechanism=h.get("literature_grounding") or "",
+        expected_effect=h.get("explanation") or "",
+        experimental_context=h.get("experiment") or "",
+        generation=generation,
+        created_by_agent=agent,
+        conn=conn,
+    )
+    # Update mutable state: Elo, wins, losses, scores.
+    store.update_hypothesis_state(
+        hyp_id,
+        elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
+        win_delta=int(h.get("win_count", 0)),
+        loss_delta=int(h.get("loss_count", 0)),
+        novelty=float(h.get("score", 0) or 0) or None,
+        conn=conn,
+    )
+    return hyp_id, engine_id
+
+
+def _persist_engine_reviews(
+    run_id: str,
+    hyp_id: str,
+    h: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist a hypothesis's per-review rows plus its deep-verification row."""
+    for rv in h.get("reviews") or []:
+        store.add_review(
+            run_id=run_id,
+            hypothesis_id=hyp_id,
+            reviewer_agent="review",
+            summary=rv.get("review_summary", ""),
+            critique=rv.get("constructive_feedback", ""),
+            novelty=float(rv.get("scores", {}).get("novelty", 0) or 0) or None,
+            plausibility=float(
+                rv.get("scores", {}).get("scientific_soundness", 0) or 0) or
+            None,
+            testability=float(rv.get("scores", {}).get("testability", 0) or
+                              0) or None,
+            overall=float(rv.get("overall_score", 0) or 0) or None,
+            conn=conn,
+        )
+
+    # Persist deep-verification probes as a dedicated review row.
+    probes = h.get("deep_verification_probes") or []
+    if probes:
+        summary, critique = format_deep_verification_critique(
+            probes, h.get("deep_verification_verdict"))
+        store.add_review(
+            run_id=run_id,
+            hypothesis_id=hyp_id,
+            reviewer_agent="deep_verification",
+            summary=summary,
+            critique=critique,
+            conn=conn,
+        )
+
+
+def _persist_engine_citations(
+    run_id: str,
+    hyp_id: str,
+    h: dict[str, Any],
+    ev_id_by_title: dict[str, str],
+    abstract_by_title: dict[str, str],
+    citation_summary: dict[str, int],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist a hypothesis's citations, classifying each via the shared path.
+
+    Route each through the shared classifier (the same path the mock uses)
+    rather than hardcoding a state, so the four-state citation UI reflects
+    real runs. The hypothesis grounding is the claim the citation supports;
+    it is matched against the cited paper's abstract (when the source was
+    retrieved), and a source with no resolvable URL (e.g. a knowledge-graph
+    statement) falls out as "unavailable".
+
+    Mutates `ev_id_by_title` (a citation may add evidence for its source on
+    the fly) and `citation_summary` (running citation-state counts) in place.
+    """
+    grounding = str(h.get("literature_grounding") or h.get("text") or "")
+    for cite_key, cite_info in (h.get("citation_map") or {}).items():
+        cite_title = cite_info.get("title", cite_key)
+        cite_url = cite_info.get("url") or ""
+        cite_ev_id = ev_id_by_title.get(cite_title)
+        if cite_ev_id is None:
+            # Add evidence on the fly for this citation source.
+            cite_ev_id = store.add_evidence(
+                run_id,
+                cite_title,
+                source=cite_info.get("type", "engine"),
+                url=cite_url,
+                authors=cite_info.get("authors") or [],
+                year=cite_info.get("year"),
+                abstract="",
+                available=True,
+                conn=conn,
+            )
+            ev_id_by_title[cite_title] = cite_ev_id
+        claim = f"[{cite_key}] cited in hypothesis"
+        state = classify_citation(
+            CitationRecord(
+                url=cite_url,
+                abstract=abstract_by_title.get(cite_title, ""),
+                claim=grounding,
+                available=True,
+            ))
+        citation_summary[state] += 1
+        store.add_citation(run_id, hyp_id, cite_ev_id, claim, state, conn=conn)
+
+
+def _persist_engine_hypothesis(
+    run_id: str,
+    h: dict[str, Any],
+    ev_id_by_title: dict[str, str],
+    abstract_by_title: dict[str, str],
+    store_id_by_engine_id: dict[str, str],
+    citation_summary: dict[str, int],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist one engine hypothesis: its row, state, reviews, and citations.
+
+    Mutates `store_id_by_engine_id` (engine id -> persisted row id),
+    `ev_id_by_title` (a citation may add evidence for its source on the fly),
+    and `citation_summary` (running citation-state counts) in place.
+    """
+    hyp_id, engine_id = _persist_engine_hypothesis_row(run_id, h, conn)
+    if engine_id:
+        store_id_by_engine_id[engine_id] = hyp_id
+    _persist_engine_reviews(run_id, hyp_id, h, conn)
+    _persist_engine_citations(run_id, hyp_id, h, ev_id_by_title,
+                              abstract_by_title, citation_summary, conn)
+
+
+def _persist_engine_matches(
+    run_id: str,
+    matchups: list[dict[str, Any]],
+    store_id_by_engine_id: dict[str, str],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist tournament matches, resolving each side by engine id.
+
+    Matchups may legitimately reference hypotheses that were dropped from the
+    final set (evolve discards lower-ranked ones), so an unresolved id is
+    expected rather than an error — logged and skipped.
+    """
+    for m in matchups:
+        a_engine_id = m.get("hypothesis_a_id")
+        b_engine_id = m.get("hypothesis_b_id")
+        winner_engine_id = m.get("winner_id")
+
+        loser_engine_id = (b_engine_id
+                           if winner_engine_id == a_engine_id else a_engine_id)
+
+        winner_id = store_id_by_engine_id.get(winner_engine_id or "")
+        loser_id = store_id_by_engine_id.get(loser_engine_id or "")
+        if not winner_id or not loser_id:
+            logger.warning(
+                "skipping matchup: unresolved hypothesis id "
+                "(winner=%s, loser=%s) — likely a hypothesis dropped "
+                "during evolution", winner_engine_id, loser_engine_id)
+            continue
+
+        store.add_match(
+            run_id=run_id,
+            iteration=0,
+            winner_id=winner_id,
+            loser_id=loser_id,
+            winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
+            winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
+            loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
+            loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
+            rationale=m.get("reasoning", ""),
+            tier=m.get("tier") or None,
+            conn=conn,
+        )
+
+
 def _persist_final_state(
     *,
     run_id: str,
@@ -257,186 +495,213 @@ def _persist_final_state(
     matchups: list[dict[str,
                         Any]] = final_state.get("tournament_matchups") or []
     citation_summary = empty_citation_summary()
+    store_id_by_engine_id: dict[str, str] = {}
 
     # Batch the whole drain into one transaction: a real run writes dozens of
     # rows here, and per-call connections would fsync each one individually.
     with store.transaction(db_path) as conn:
-        # 1. Evidence: persist retrieved articles. Keep each article's abstract
-        # keyed by title so the citation pass can classify a cited source
-        # against it (the citation_map carries no abstract of its own).
-        ev_id_by_title: dict[str, str] = {}
-        abstract_by_title: dict[str, str] = {}
-        for art in articles:
-            ev_id = store.add_evidence(
-                run_id,
-                art.get("title", "Untitled"),
-                source=art.get("source", "engine"),
-                url=art.get("url") or "",
-                authors=art.get("authors") or [],
-                year=art.get("year"),
-                abstract=art.get("abstract") or "",
-                available=True,
-                conn=conn,
-            )
-            ev_id_by_title[art.get("title", "")] = ev_id
-            abstract_by_title[art.get("title", "")] = art.get("abstract") or ""
+        # 1. Evidence: persist retrieved articles.
+        ev_id_by_title, abstract_by_title = _persist_engine_evidence(
+            run_id, articles, conn)
 
-        # 2. Hypotheses: persist in generation order; mark evolved ones. The
-        # engine's stable hypothesis id is passed straight through as the store
-        # row id, so identity holds end-to-end (engine -> DB -> API -> UI) and
-        # matchups resolve by id rather than by fragile text-prefix matching.
-        store_id_by_engine_id: dict[str, str] = {}
+        # 2. Hypotheses: persist in generation order; mark evolved ones.
         for h in hyps:
-            is_evolved = bool(h.get("evolution_history"))
-            generation = 1 if is_evolved else 0
-            agent = "evolution" if is_evolved else "generation"
-            # Derive a short title from the first sentence / 120 chars.
-            text = h.get("text", "")
-            title = text.split(".")[0][:120] or text[:120]
-            engine_id = h.get("id") or None
-            hyp_id = store.add_hypothesis(
-                run_id=run_id,
-                title=title,
-                statement=text,
-                hypothesis_id=engine_id,
-                category=h.get("category") or None,
-                mechanism=h.get("literature_grounding") or "",
-                expected_effect=h.get("explanation") or "",
-                experimental_context=h.get("experiment") or "",
-                generation=generation,
-                created_by_agent=agent,
-                conn=conn,
-            )
-            if engine_id:
-                store_id_by_engine_id[engine_id] = hyp_id
-
-            # Update mutable state: Elo, wins, losses, scores.
-            store.update_hypothesis_state(
-                hyp_id,
-                elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
-                win_delta=int(h.get("win_count", 0)),
-                loss_delta=int(h.get("loss_count", 0)),
-                novelty=float(h.get("score", 0) or 0) or None,
-                conn=conn,
-            )
-
-            # Persist per-hypothesis reviews.
-            for rv in h.get("reviews") or []:
-                store.add_review(
-                    run_id=run_id,
-                    hypothesis_id=hyp_id,
-                    reviewer_agent="review",
-                    summary=rv.get("review_summary", ""),
-                    critique=rv.get("constructive_feedback", ""),
-                    novelty=float(rv.get("scores", {}).get("novelty", 0) or
-                                  0) or None,
-                    plausibility=float(
-                        rv.get("scores", {}).get("scientific_soundness", 0) or
-                        0) or None,
-                    testability=float(
-                        rv.get("scores", {}).get("testability", 0) or 0) or
-                    None,
-                    overall=float(rv.get("overall_score", 0) or 0) or None,
-                    conn=conn,
-                )
-
-            # Persist deep-verification probes as a dedicated review row.
-            probes = h.get("deep_verification_probes") or []
-            if probes:
-                summary, critique = format_deep_verification_critique(
-                    probes, h.get("deep_verification_verdict"))
-                store.add_review(
-                    run_id=run_id,
-                    hypothesis_id=hyp_id,
-                    reviewer_agent="deep_verification",
-                    summary=summary,
-                    critique=critique,
-                    conn=conn,
-                )
-
-            # Persist citations from the hypothesis citation_map. Route each
-            # through the shared classifier (the same path the mock uses) rather
-            # than hardcoding a state, so the four-state citation UI reflects
-            # real runs. The hypothesis grounding is the claim the citation
-            # supports; it is matched against the cited paper's abstract (when
-            # the source was retrieved), and a source with no resolvable URL
-            # (e.g. a knowledge-graph statement) falls out as "unavailable".
-            grounding = str(
-                h.get("literature_grounding") or h.get("text") or "")
-            for cite_key, cite_info in (h.get("citation_map") or {}).items():
-                cite_title = cite_info.get("title", cite_key)
-                cite_url = cite_info.get("url") or ""
-                cite_ev_id = ev_id_by_title.get(cite_title)
-                if cite_ev_id is None:
-                    # Add evidence on the fly for this citation source.
-                    cite_ev_id = store.add_evidence(
-                        run_id,
-                        cite_title,
-                        source=cite_info.get("type", "engine"),
-                        url=cite_url,
-                        authors=cite_info.get("authors") or [],
-                        year=cite_info.get("year"),
-                        abstract="",
-                        available=True,
-                        conn=conn,
-                    )
-                    ev_id_by_title[cite_title] = cite_ev_id
-                claim = f"[{cite_key}] cited in hypothesis"
-                state = classify_citation(
-                    CitationRecord(
-                        url=cite_url,
-                        abstract=abstract_by_title.get(cite_title, ""),
-                        claim=grounding,
-                        available=True,
-                    ))
-                citation_summary[state] += 1
-                store.add_citation(run_id,
-                                   hyp_id,
-                                   cite_ev_id,
-                                   claim,
-                                   state,
-                                   conn=conn)
+            _persist_engine_hypothesis(run_id, h, ev_id_by_title,
+                                       abstract_by_title, store_id_by_engine_id,
+                                       citation_summary, conn)
 
         # 3. Tournament matches: resolve each side by the engine's stable
-        # hypothesis id. Matchups may legitimately reference hypotheses that
-        # were dropped from the final set (evolve discards lower-ranked ones),
-        # so an unresolved id is expected rather than an error — log and skip.
-        for m in matchups:
-            a_engine_id = m.get("hypothesis_a_id")
-            b_engine_id = m.get("hypothesis_b_id")
-            winner_engine_id = m.get("winner_id")
-
-            loser_engine_id = (b_engine_id if winner_engine_id == a_engine_id
-                               else a_engine_id)
-
-            winner_id = store_id_by_engine_id.get(winner_engine_id or "")
-            loser_id = store_id_by_engine_id.get(loser_engine_id or "")
-            if not winner_id or not loser_id:
-                logger.warning(
-                    "skipping matchup: unresolved hypothesis id "
-                    "(winner=%s, loser=%s) — likely a hypothesis dropped "
-                    "during evolution", winner_engine_id, loser_engine_id)
-                continue
-
-            store.add_match(
-                run_id=run_id,
-                iteration=0,
-                winner_id=winner_id,
-                loser_id=loser_id,
-                winner_before=int(m.get("winner_elo_before", INITIAL_ELO)),
-                winner_after=int(m.get("winner_elo_after", INITIAL_ELO)),
-                loser_before=int(m.get("loser_elo_before", INITIAL_ELO)),
-                loser_after=int(m.get("loser_elo_after", INITIAL_ELO)),
-                rationale=m.get("reasoning", ""),
-                tier=m.get("tier") or None,
-                conn=conn,
-            )
+        # hypothesis id.
+        _persist_engine_matches(run_id, matchups, store_id_by_engine_id, conn)
 
     return {
         "citation_summary": citation_summary,
         "meta_review": final_state.get("meta_review") or {},
         "research_overview": final_state.get("research_overview") or {},
     }
+
+
+async def _stream_mock_provider(
+    run_id: str,
+    research_goal: str,
+    cfg: dict[str, Any],
+    *,
+    db_path: str | None,
+    cancelled: asyncio.Event | None,
+    sleep_seconds: float,
+) -> AsyncIterator[dict[str, Any]]:
+    """Drain pre-run steering, then stream the mock workflow with milestones.
+
+    Forwards every mock event on the SSE stream, additionally surfacing
+    select event types as a user-facing chat message.
+    """
+    # Drain any steering queued before the run started (e.g. via the
+    # composer) so it is not left "pending" and re-applied later inside
+    # run_mock_workflow's own per-iteration steering check.
+    pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
+    if pre_run_steering:
+        store.mark_steering_applied([m.id for m in pre_run_steering],
+                                    db_path=db_path)
+
+    async for event in run_mock_workflow(
+            run_id=run_id,
+            research_goal=research_goal,
+            config=cfg,
+            db_path=db_path,
+            cancelled=cancelled,
+            sleep_seconds=sleep_seconds,
+    ):
+        # In addition to forwarding the raw event on the SSE stream, surface
+        # select event types as a user-facing chat message.
+        milestone = _format_milestone(event.get("type", ""),
+                                      event.get("payload", {}))
+        if milestone:
+            store.append_message(run_id,
+                                 "system",
+                                 milestone,
+                                 "milestone",
+                                 db_path=db_path)
+        yield event
+
+
+def _import_hypothesis_generator() -> Any | None:
+    """Import the engine's `HypothesisGenerator`, or None if unavailable."""
+    try:
+        from co_scientist import HypothesisGenerator  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
+        return HypothesisGenerator
+    # pylint: disable-next=broad-exception-caught
+    except Exception as e:  # pragma: no cover (defensive)
+        logger.error("engine import failed: %s — falling back to mock", e)
+        return None
+
+
+def _build_engine_opts(cfg: dict[str, Any], run_id: str,
+                       db_path: str | None) -> dict[str, Any]:
+    """Translate a run's durable config into the engine's `opts` vocabulary.
+
+    Folds the composer "setup" (focus/attributes/requirements/criteria), any
+    queued user steering, and the literature-review toggle into one opts
+    dict. Steering consumed here is marked applied so a later iteration does
+    not replay the same message.
+    """
+    # Translate the durable run "setup" (captured from the composer UI) into
+    # the engine's opts vocabulary. Note "requirements" (UI/store term) maps
+    # to "constraints" (engine term) -- the only renamed key in this block.
+    initial_opts: dict[str, Any] = {}
+    setup = cfg.get("setup")
+    if isinstance(setup, dict):
+        focus = normalize_run_focus(setup.get("focus"))
+        setup_text = setup_guidance(setup)
+        initial_opts["run_focus_guidance"] = focus_guidance(focus)
+        initial_opts["run_setup_guidance"] = setup_text
+        initial_opts["attributes"] = clean_string_list(
+            [str(value) for value in setup.get("attributes") or []])
+        initial_opts["constraints"] = clean_string_list(
+            [str(value) for value in setup.get("requirements") or []])
+        initial_opts["criteria"] = clean_string_list(
+            [str(value) for value in setup.get("criteria") or []])
+
+    # Fold setup guidance and any queued user steering messages into a single
+    # free-text "preferences" opt the engine's supervisor/generate prompts
+    # read.
+    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
+    preference_parts: list[str] = []
+    setup_text = str(initial_opts.get("run_setup_guidance") or "")
+    if setup_text:
+        preference_parts.append(setup_text)
+    if pending_steering:
+        guidance = "\n".join(f"- {m.content}" for m in pending_steering)
+        preference_parts.append(f"User steering guidance:\n{guidance}")
+        store.mark_steering_applied([m.id for m in pending_steering],
+                                    db_path=db_path)
+    if preference_parts:
+        initial_opts["preferences"] = "\n\n".join(preference_parts)
+
+    # Literature grounding defaults on but is user-controlled per run (the
+    # PubMed connector toggle in the composer). The engine still degrades
+    # gracefully to LLM-only if MCP is unreachable, so a down MCP never breaks
+    # a run. FORCE_LITERATURE_REVIEW=0 is a hard kill switch for tests/dev
+    # that must run without it, regardless of the per-run setting.
+    enable_literature_review = bool(cfg.get("enable_literature_review", True))
+    if os.getenv("FORCE_LITERATURE_REVIEW") == "0":
+        enable_literature_review = False
+    initial_opts["enable_literature_review_node"] = enable_literature_review
+
+    return initial_opts
+
+
+def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
+    """Construct a fresh `HypothesisGenerator` from the run's resolved config.
+
+    A fresh generator is constructed per run rather than reused, so each
+    run's model/tier settings apply independently of any other run. `cfg`
+    went through `resolved_run_config` upstream, so every numeric key is
+    present -- index directly rather than re-inventing defaults here.
+    """
+    return generator_cls(
+        model_name=settings.model_name,
+        supervisor_model_name=settings.supervisor_model_name,
+        max_iterations=int(cfg["max_iterations"]),
+        initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
+        evolution_max_count=int(cfg["evolution_max_count"]),
+        tournament_pairs=int(cfg["tournament_pairs"]),
+        # ``evidence_count`` is the single literature-budget knob in the tier
+        # table; map it to the engine's parameter name at this translation
+        # boundary rather than persisting a second synced key.
+        literature_review_papers_count=int(cfg["evidence_count"]),
+    )
+
+
+async def _stream_engine_nodes(
+    generator: Any,
+    research_goal: str,
+    run_id: str,
+    initial_opts: dict[str, Any] | None,
+    final_state: dict[str, Any],
+    *,
+    cancelled: asyncio.Event | None,
+    db_path: str | None,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Stream the engine's per-node events, updating `final_state` in place.
+
+    Normalizes each node to the canonical mock event vocabulary, emits it
+    (with a milestone side-message for key events), and yields the streamed
+    event. On cancellation, yields a final "cancelled" status event and
+    returns early; the caller checks `cancelled.is_set()` once this generator
+    is exhausted to distinguish that from a natural finish.
+    """
+    async for node_name, state in generator.generate_hypotheses(
+            research_goal=research_goal,
+            stream=True,
+            run_id=run_id,
+            opts=initial_opts,
+    ):
+        if cancelled and cancelled.is_set():
+            store.update_run_status(run_id,
+                                    RunStatus.CANCELLED,
+                                    db_path=db_path)
+            yield await emit("status", {"status": "cancelled"})
+            return
+
+        # Update final_state from each yielded cumulative snapshot.
+        for key in ("hypotheses", "articles", "tournament_matchups",
+                    "meta_review", "research_overview"):
+            if state.get(key) is not None:
+                final_state[key] = state[key]
+
+        # Normalize the engine node to the canonical mock event vocabulary so
+        # every downstream consumer reads one shape (no engine.* types).
+        node_type = _canonical_event_type(node_name)
+        payload = _canonical_engine_payload(node_name, node_type, state)
+        milestone = _format_milestone(node_type, payload)
+        if milestone:
+            store.append_message(run_id,
+                                 "system",
+                                 milestone,
+                                 "milestone",
+                                 db_path=db_path)
+        yield await emit(node_type, payload)
 
 
 async def run_workflow(
@@ -474,41 +739,20 @@ async def run_workflow(
         return
 
     if provider == "mock":
-        # Drain any steering queued before the run started (e.g. via the
-        # composer) so it is not left "pending" and re-applied later inside
-        # run_mock_workflow's own per-iteration steering check.
-        pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
-        if pre_run_steering:
-            store.mark_steering_applied([m.id for m in pre_run_steering],
-                                        db_path=db_path)
-
-        async for event in run_mock_workflow(
-                run_id=run_id,
-                research_goal=research_goal,
-                config=cfg,
+        async for event in _stream_mock_provider(
+                run_id,
+                research_goal,
+                cfg,
                 db_path=db_path,
                 cancelled=cancelled,
                 sleep_seconds=sleep_seconds,
         ):
-            # In addition to forwarding the raw event on the SSE stream,
-            # surface select event types as a user-facing chat message.
-            milestone = _format_milestone(event.get("type", ""),
-                                          event.get("payload", {}))
-            if milestone:
-                store.append_message(run_id,
-                                     "system",
-                                     milestone,
-                                     "milestone",
-                                     db_path=db_path)
             yield event
         return
 
     # Real engine path — bridge engine streaming events into our event log.
-    try:
-        from co_scientist import HypothesisGenerator  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
-    # pylint: disable-next=broad-exception-caught
-    except Exception as e:  # pragma: no cover (defensive)
-        logger.error("engine import failed: %s — falling back to mock", e)
+    generator_cls = _import_hypothesis_generator()
+    if generator_cls is None:
         async for event in run_mock_workflow(
                 run_id=run_id,
                 research_goal=research_goal,
@@ -526,66 +770,8 @@ async def run_workflow(
     store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     yield await emit("status", {"status": "running"})
 
-    # Translate the durable run "setup" (captured from the composer UI) into
-    # the engine's opts vocabulary. Note "requirements" (UI/store term) maps
-    # to "constraints" (engine term) -- the only renamed key in this block.
-    initial_opts: dict[str, Any] = {}
-    setup = cfg.get("setup")
-    if isinstance(setup, dict):
-        focus = normalize_run_focus(setup.get("focus"))
-        setup_text = setup_guidance(setup)
-        initial_opts["run_focus_guidance"] = focus_guidance(focus)
-        initial_opts["run_setup_guidance"] = setup_text
-        initial_opts["attributes"] = clean_string_list(
-            [str(value) for value in setup.get("attributes") or []])
-        initial_opts["constraints"] = clean_string_list(
-            [str(value) for value in setup.get("requirements") or []])
-        initial_opts["criteria"] = clean_string_list(
-            [str(value) for value in setup.get("criteria") or []])
-
-    # Fold setup guidance and any queued user steering messages into a single
-    # free-text "preferences" opt the engine's supervisor/generate prompts
-    # read. Steering consumed here is marked applied so a later iteration
-    # does not replay the same message.
-    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
-    preference_parts: list[str] = []
-    setup_text = str(initial_opts.get("run_setup_guidance") or "")
-    if setup_text:
-        preference_parts.append(setup_text)
-    if pending_steering:
-        guidance = "\n".join(f"- {m.content}" for m in pending_steering)
-        preference_parts.append(f"User steering guidance:\n{guidance}")
-        store.mark_steering_applied([m.id for m in pending_steering],
-                                    db_path=db_path)
-    if preference_parts:
-        initial_opts["preferences"] = "\n\n".join(preference_parts)
-
-    # Literature grounding defaults on but is user-controlled per run (the
-    # PubMed connector toggle in the composer). The engine still degrades
-    # gracefully to LLM-only if MCP is unreachable, so a down MCP never breaks
-    # a run. FORCE_LITERATURE_REVIEW=0 is a hard kill switch for tests/dev
-    # that must run without it, regardless of the per-run setting.
-    enable_literature_review = bool(cfg.get("enable_literature_review", True))
-    if os.getenv("FORCE_LITERATURE_REVIEW") == "0":
-        enable_literature_review = False
-    initial_opts["enable_literature_review_node"] = enable_literature_review
-
-    # cfg went through resolved_run_config above, so every numeric key is
-    # present -- index directly rather than re-inventing defaults here.
-    # A fresh generator is constructed per run rather than reused, so each
-    # run's model/tier settings apply independently of any other run.
-    generator = HypothesisGenerator(
-        model_name=settings.model_name,
-        supervisor_model_name=settings.supervisor_model_name,
-        max_iterations=int(cfg["max_iterations"]),
-        initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
-        evolution_max_count=int(cfg["evolution_max_count"]),
-        tournament_pairs=int(cfg["tournament_pairs"]),
-        # ``evidence_count`` is the single literature-budget knob in the tier
-        # table; map it to the engine's parameter name at this translation
-        # boundary rather than persisting a second synced key.
-        literature_review_papers_count=int(cfg["evidence_count"]),
-    )
+    initial_opts = _build_engine_opts(cfg, run_id, db_path)
+    generator = _build_generator(generator_cls, cfg)
 
     start = time.time()
     # Accumulate the full final state across all streamed nodes.
@@ -597,37 +783,21 @@ async def run_workflow(
         "research_overview": {},
     }
     try:
-        async for node_name, state in generator.generate_hypotheses(
-                research_goal=research_goal,
-                stream=True,
-                run_id=run_id,
-                opts=initial_opts if initial_opts else None,
+        async for event in _stream_engine_nodes(
+                generator,
+                research_goal,
+                run_id,
+                initial_opts if initial_opts else None,
+                final_state,
+                cancelled=cancelled,
+                db_path=db_path,
+                emit=emit,
         ):
-            if cancelled and cancelled.is_set():
-                store.update_run_status(run_id,
-                                        RunStatus.CANCELLED,
-                                        db_path=db_path)
-                yield await emit("status", {"status": "cancelled"})
-                return
-
-            # Update final_state from each yielded cumulative snapshot.
-            for key in ("hypotheses", "articles", "tournament_matchups",
-                        "meta_review", "research_overview"):
-                if state.get(key) is not None:
-                    final_state[key] = state[key]
-
-            # Normalize the engine node to the canonical mock event vocabulary
-            # so every downstream consumer reads one shape (no engine.* types).
-            node_type = _canonical_event_type(node_name)
-            payload = _canonical_engine_payload(node_name, node_type, state)
-            milestone = _format_milestone(node_type, payload)
-            if milestone:
-                store.append_message(run_id,
-                                     "system",
-                                     milestone,
-                                     "milestone",
-                                     db_path=db_path)
-            yield await emit(node_type, payload)
+            yield event
+        if cancelled and cancelled.is_set():
+            # _stream_engine_nodes already emitted the "cancelled" status
+            # event; skip draining/reporting on a cancelled run.
+            return
 
         # ---- Drain final state into the store ----
         report_inputs = _persist_final_state(

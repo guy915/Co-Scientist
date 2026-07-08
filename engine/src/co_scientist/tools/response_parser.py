@@ -89,9 +89,29 @@ class ResponseParser:
             logger.warning("results_path returned None")
             return []
 
+        articles = self._map_results(results, self.response_format.is_dict)
+
+        logger.debug("parsed %s articles from response", len(articles))
+        return articles
+
+    def _map_results(self, results: Any, is_dict: bool) -> list[Article]:
+        """Map raw results (a dict or a list) to Article objects.
+
+        Each item is mapped independently, so one malformed item is logged
+        and skipped rather than aborting the whole response.
+
+        Args:
+            results: The value found at results_path: a dict keyed by
+                source id (e.g. PubMed PMIDs) when is_dict is True, or a
+                list (or single item, coerced to a one-item list).
+            is_dict: Whether results is expected to be a dict.
+
+        Returns:
+            List of successfully-mapped Article objects.
+        """
         articles = []
 
-        if self.response_format.is_dict:
+        if is_dict:
             # Results is a dict {key: item}
             # Some sources (e.g. PubMed, keyed by PMID) return a mapping
             # rather than a list, and the key itself is needed for
@@ -122,7 +142,6 @@ class ResponseParser:
                 except Exception as e:  # pylint: disable=broad-exception-caught
                     logger.error("failed to map item %s: %s", i, e)
 
-        logger.debug("parsed %s articles from response", len(articles))
         return articles
 
     def _navigate_path(self, data: Any, path: str) -> Any:
@@ -182,24 +201,7 @@ class ResponseParser:
             logger.warning("expected dict item but got %s", type(item))
             return None
 
-        mapping = self.response_format.field_mapping
-
-        # Build kwargs for Article
-        kwargs: dict[str, Any] = {}
-
-        # Map each field
-        # Each field is evaluated independently so a single malformed
-        # expression (bad transform, missing nested key) degrades to a
-        # None value for that field instead of dropping the article.
-        for article_field, expr in mapping.items():
-            try:
-                value = self._evaluate_expression(expr, item, dict_key)
-                kwargs[article_field] = value
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.debug("failed to evaluate %s=%s: %s", article_field,
-                             expr, e)
-                # Use None for failed mappings
-                kwargs[article_field] = None
+        kwargs = self._map_fields(item, dict_key)
 
         # Ensure required field (title)
         if not kwargs.get("title"):
@@ -223,6 +225,37 @@ class ResponseParser:
             pdf_links=kwargs.get("pdf_links", []),
             used_in_analysis=True,
         )
+
+    def _map_fields(self, item: dict[str, Any],
+                    dict_key: str | None) -> dict[str, Any]:
+        """Evaluate every field_mapping expression against item.
+
+        Each field is evaluated independently so a single malformed
+        expression (bad transform, missing nested key) degrades to a None
+        value for that field instead of dropping the article.
+
+        Args:
+            item: Result item dict.
+            dict_key: Optional dict key (for is_dict=True results).
+
+        Returns:
+            Dict of Article field name to evaluated value (kwargs suitable
+            for Article construction).
+        """
+        mapping = self.response_format.field_mapping
+        kwargs: dict[str, Any] = {}
+
+        for article_field, expr in mapping.items():
+            try:
+                kwargs[article_field] = self._evaluate_expression(
+                    expr, item, dict_key)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.debug("failed to evaluate %s=%s: %s", article_field,
+                             expr, e)
+                # Use None for failed mappings
+                kwargs[article_field] = None
+
+        return kwargs
 
     def _evaluate_expression(self,
                              expr: str,

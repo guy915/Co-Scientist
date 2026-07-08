@@ -65,6 +65,71 @@ def _cache_dir_stats(cache_dir: Path, enabled: bool,
     }
 
 
+def _read_llm_cache_entry(cache_file: Path,
+                          cache_key: str) -> dict[str, Any] | None:
+    """Read a single cached LLM response, self-healing on corruption.
+
+    Args:
+        cache_file: Path to the ``.json`` cache entry to read.
+        cache_key: The entry's cache key, used only for log messages.
+
+    Returns:
+        The cached response dict on a clean read, otherwise None.
+    """
+    try:
+        # Use atomic read: if file is being written, this will either
+        # read the old complete file or fail gracefully
+        with open(cache_file, encoding="utf-8") as f:
+            cached_data = json.load(f)
+        logger.debug("cache HIT for key %s...", cache_key[:8])
+        response: dict[str, Any] = cached_data["response"]
+        return response
+    except (json.JSONDecodeError, KeyError, OSError) as e:
+        # Handle race conditions: file might be partially written or locked
+        logger.debug(
+            "cache read failed for %s... (may be concurrent write): %s",
+            cache_key[:8], e)
+        # Don't remove file on IOError - it might just be locked by another
+        # process
+        if isinstance(e, (json.JSONDecodeError, KeyError)):
+            # Only remove on actual corruption, not on I/O errors
+            try:
+                cache_file.unlink()
+            except OSError:
+                pass  # File might have been removed by another process
+        return None
+
+
+def _write_cache_file_atomically(cache_file: Path, cache_key: str,
+                                 cache_data: dict[str, Any]) -> None:
+    """Write cache_data to cache_file via a temp-file-then-rename swap.
+
+    Args:
+        cache_file: Destination path for the cache entry.
+        cache_key: The entry's cache key, used only for log messages.
+        cache_data: JSON-serializable payload to write.
+    """
+    # Use atomic write: write to temp file, then rename (atomic on most
+    # filesystems) This prevents race conditions when multiple processes
+    # write the same cache file
+    temp_file = cache_file.with_suffix(".tmp")
+    try:
+        with open(temp_file, "w", encoding="utf-8") as f:
+            json.dump(cache_data, f, indent=2)
+        # Atomic rename - if this fails, temp file will be cleaned up on
+        # next access
+        temp_file.replace(cache_file)
+        logger.debug("cached response for key %s...", cache_key[:8])
+    except OSError as e:
+        # If rename fails (e.g., file locked), remove temp file and continue
+        try:
+            temp_file.unlink()
+        except OSError:
+            pass
+        logger.debug("cache write conflict for %s... (concurrent write): %s",
+                     cache_key[:8], e)
+
+
 class LLMCache:
     """Simple file-based cache for LLM responses."""
 
@@ -165,29 +230,7 @@ class LLMCache:
         cache_file = self.cache_dir / f"{cache_key}.json"
 
         if cache_file.exists():
-            try:
-                # Use atomic read: if file is being written, this will either
-                # read the old complete file or fail gracefully
-                with open(cache_file, encoding="utf-8") as f:
-                    cached_data = json.load(f)
-                logger.debug("cache HIT for key %s...", cache_key[:8])
-                response: dict[str, Any] = cached_data["response"]
-                return response
-            except (json.JSONDecodeError, KeyError, OSError) as e:
-                # Handle race conditions: file might be partially written or
-                # locked
-                logger.debug(
-                    "cache read failed for %s... (may be concurrent write): %s",
-                    cache_key[:8], e)
-                # Don't remove file on IOError - it might just be locked by
-                # another process
-                if isinstance(e, (json.JSONDecodeError, KeyError)):
-                    # Only remove on actual corruption, not on I/O errors
-                    try:
-                        cache_file.unlink()
-                    except OSError:
-                        pass  # File might have been removed by another process
-                return None
+            return _read_llm_cache_entry(cache_file, cache_key)
 
         logger.debug("cache MISS for key %s...", cache_key[:8])
         return None
@@ -233,28 +276,7 @@ class LLMCache:
                 },
                 "response": response,
             }
-
-            # Use atomic write: write to temp file, then rename (atomic on most
-            # filesystems) This prevents race conditions when multiple processes
-            # write the same cache file
-            temp_file = cache_file.with_suffix(".tmp")
-            try:
-                with open(temp_file, "w", encoding="utf-8") as f:
-                    json.dump(cache_data, f, indent=2)
-                # Atomic rename - if this fails, temp file will be cleaned up on
-                # next access
-                temp_file.replace(cache_file)
-                logger.debug("cached response for key %s...", cache_key[:8])
-            except OSError as e:
-                # If rename fails (e.g., file locked), remove temp file and
-                # continue
-                try:
-                    temp_file.unlink()
-                except OSError:
-                    pass
-                logger.debug(
-                    "cache write conflict for %s... (concurrent write): %s",
-                    cache_key[:8], e)
+            _write_cache_file_atomically(cache_file, cache_key, cache_data)
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.warning("Failed to cache response: %s", e)
 

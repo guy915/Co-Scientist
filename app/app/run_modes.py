@@ -184,6 +184,46 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def _apply_run_config_override(base: dict[str, Any], key: str,
+                               raw_value: Any) -> None:
+    """Merge one (key, raw_value) override pair into `base`, in place.
+
+    Args:
+        base: The run config being assembled; mutated with the resolved key.
+        key: The override key, e.g. 'focus' or a numeric knob name.
+        raw_value: The raw override value, as received from the caller.
+    """
+    if key == "setup":
+        # The setup block is carried through verbatim.
+        base[key] = raw_value
+        return
+    if key == "tier":
+        # Resolved once, before this call; the final assignment always wins,
+        # so skip the numeric path (int("standard") would raise anyway).
+        return
+    if key == "focus":
+        base[key] = normalize_run_focus(
+            raw_value if isinstance(raw_value, str) else None)
+        return
+    if key == "enable_literature_review":
+        base[key] = bool(raw_value)
+        return
+    if raw_value is None:
+        return
+    # Remaining keys are numeric knobs; non-coercible values are dropped
+    # rather than failing run creation.
+    try:
+        value = int(raw_value)
+    except (ValueError, TypeError):
+        return
+    if key in base:
+        # Overrides may only raise a tier baseline, never lower it, so
+        # picking a bigger tier is never undone by a small knob.
+        base[key] = max(base[key], value)
+    else:
+        base[key] = value
+
+
 def resolved_run_config(
         overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     """Resolve run config defaults plus user-provided numeric overrides."""
@@ -201,35 +241,7 @@ def resolved_run_config(
     base: dict[str, Any] = dict(RUN_TIER_DEFAULTS[tier])
     if overrides:
         for key, raw_value in overrides.items():
-            if key == "setup":
-                # The setup block is carried through verbatim.
-                base[key] = raw_value
-                continue
-            if key == "tier":
-                # Resolved once, above; the final assignment below always wins,
-                # so skip the numeric path (int("standard") would raise anyway).
-                continue
-            if key == "focus":
-                base[key] = normalize_run_focus(
-                    raw_value if isinstance(raw_value, str) else None)
-                continue
-            if key == "enable_literature_review":
-                base[key] = bool(raw_value)
-                continue
-            if raw_value is None:
-                continue
-            # Remaining keys are numeric knobs; non-coercible values are
-            # dropped rather than failing run creation.
-            try:
-                value = int(raw_value)
-            except (ValueError, TypeError):
-                continue
-            if key in base:
-                # Overrides may only raise a tier baseline, never lower it,
-                # so picking a bigger tier is never undone by a small knob.
-                base[key] = max(base[key], value)
-            else:
-                base[key] = value
+            _apply_run_config_override(base, key, raw_value)
     base["tier"] = tier
     # Guarantee a focus key: prefer the explicit override (handled above),
     # then the setup block's focus, then the global default.

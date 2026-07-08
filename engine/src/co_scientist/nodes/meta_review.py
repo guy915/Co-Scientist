@@ -14,6 +14,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.models import Hypothesis
 from co_scientist.models import phase_message
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_meta_review_prompt
@@ -46,30 +47,7 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
                         PROGRESS_META_REVIEW_START)
 
     # Collect all reviews
-    # Build a compact per-hypothesis summary for the LLM: only the latest
-    # review is used (earlier reviews are superseded), plus current
-    # tournament standing and verification status, so the synthesis can
-    # correlate review feedback with how a hypothesis actually performed.
-    all_reviews = []
-    for i, hyp in enumerate(hypotheses):
-        if not hyp.reviews:
-            continue
-
-        # Get the latest review for each hypothesis
-        latest_review = hyp.reviews[-1]
-
-        review_data = {
-            "hypothesis_index": i,
-            "hypothesis_text": truncate(hyp.text),
-            "overall_score": latest_review.overall_score,
-            "review_summary": latest_review.review_summary,
-            "scores": latest_review.scores,
-            "constructive_feedback": latest_review.constructive_feedback,
-            "elo_rating": hyp.elo_rating,
-            "win_loss_record": f"{hyp.win_count}W-{hyp.loss_count}L",
-            "deep_verification_verdict": hyp.deep_verification_verdict,
-        }
-        all_reviews.append(review_data)
+    all_reviews = _collect_review_summaries(hypotheses)
 
     # Edge case: no hypothesis has been reviewed yet (e.g. review node was
     # skipped or failed for all hypotheses). Skip the LLM call and return a
@@ -123,32 +101,7 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         },
     )
 
-    # Schema returns recurring_themes as objects {theme, description,
-    # frequency}; flatten to strings.
-    # The isinstance check tolerates a model that ignores the schema and
-    # returns bare strings instead of {theme, description, frequency}
-    # objects, coercing either shape into a plain string list.
-    recurring_themes = response.get("recurring_themes", [])
-    emerging_themes = [
-        t["theme"] if isinstance(t, dict) else str(t) for t in recurring_themes
-    ]
-
-    # This dict becomes state["meta_review"], consumed downstream by the
-    # evolve node (to steer refinement) and by ranking's judge_matchup
-    # (included in the tournament-judging prompt), so its shape is a
-    # de facto cross-node contract.
-    meta_review = {
-        "summary":
-            response.get("meta_review_summary", ""),
-        "common_strengths":
-            response.get("strengths", []),
-        "common_weaknesses":
-            response.get("weaknesses", []),
-        "emerging_themes":
-            emerging_themes,
-        "strategic_recommendations":
-            response.get("strategic_recommendations", []),
-    }
+    meta_review = _build_meta_review(response)
 
     logger.info("Meta-review complete")
     logger.info("Common strengths: %s", len(meta_review['common_strengths']))
@@ -176,4 +129,80 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
             phase_message("meta_review",
                           "Synthesized meta-review from all hypotheses",
                           themes=len(meta_review.get("emerging_themes", []))),
+    }
+
+
+def _collect_review_summaries(
+        hypotheses: list[Hypothesis]) -> list[dict[str, Any]]:
+    """Builds a compact per-hypothesis review summary for the LLM.
+
+    Only the latest review is used (earlier reviews are superseded), plus
+    current tournament standing and verification status, so the synthesis
+    can correlate review feedback with how a hypothesis actually performed.
+
+    Args:
+        hypotheses: hypotheses to summarize.
+
+    Returns:
+        List of review summary dicts, one per reviewed hypothesis
+        (hypotheses with no reviews are skipped).
+    """
+    all_reviews = []
+    for i, hyp in enumerate(hypotheses):
+        if not hyp.reviews:
+            continue
+
+        # Get the latest review for each hypothesis
+        latest_review = hyp.reviews[-1]
+
+        review_data = {
+            "hypothesis_index": i,
+            "hypothesis_text": truncate(hyp.text),
+            "overall_score": latest_review.overall_score,
+            "review_summary": latest_review.review_summary,
+            "scores": latest_review.scores,
+            "constructive_feedback": latest_review.constructive_feedback,
+            "elo_rating": hyp.elo_rating,
+            "win_loss_record": f"{hyp.win_count}W-{hyp.loss_count}L",
+            "deep_verification_verdict": hyp.deep_verification_verdict,
+        }
+        all_reviews.append(review_data)
+    return all_reviews
+
+
+def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
+    """Assembles the meta_review state dict from the LLM response.
+
+    This dict becomes state["meta_review"], consumed downstream by the
+    evolve node (to steer refinement) and by ranking's judge_matchup
+    (included in the tournament-judging prompt), so its shape is a de
+    facto cross-node contract.
+
+    Args:
+        response: raw LLM JSON response from the meta-review call.
+
+    Returns:
+        The assembled meta_review dict.
+    """
+    # Schema returns recurring_themes as objects {theme, description,
+    # frequency}; flatten to strings.
+    # The isinstance check tolerates a model that ignores the schema and
+    # returns bare strings instead of {theme, description, frequency}
+    # objects, coercing either shape into a plain string list.
+    recurring_themes = response.get("recurring_themes", [])
+    emerging_themes = [
+        t["theme"] if isinstance(t, dict) else str(t) for t in recurring_themes
+    ]
+
+    return {
+        "summary":
+            response.get("meta_review_summary", ""),
+        "common_strengths":
+            response.get("strengths", []),
+        "common_weaknesses":
+            response.get("weaknesses", []),
+        "emerging_themes":
+            emerging_themes,
+        "strategic_recommendations":
+            response.get("strategic_recommendations", []),
     }

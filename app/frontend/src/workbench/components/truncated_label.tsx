@@ -1,5 +1,46 @@
 import {useLayoutEffect, useRef} from 'react';
 
+// True when the node's content no longer fits its box on the axis being
+// tested for the current `lines` setting (a 1px slack absorbs subpixel
+// rounding so borderline fits don't falsely register as overflow).
+function overflows(node: HTMLSpanElement, lines: number): boolean {
+  return lines > 1
+    ? node.scrollHeight > node.clientHeight + 1
+    : node.scrollWidth > node.clientWidth + 1;
+}
+
+// Rewrites `node.textContent` to `text`, or if that overflows, to the
+// longest word-truncated "word…" prefix of `text` that fits. Binary-searches
+// the word count. Every probe forces a synchronous reflow (write textContent,
+// read scroll size), so the search must be O(log words), not one word at a
+// time — long labels in long lists (the ideas rank list) otherwise stack
+// hundreds of reflows into a single commit and stall tab switches for ~a
+// second.
+function fitTruncatedText(
+  node: HTMLSpanElement,
+  text: string,
+  lines: number,
+): void {
+  node.textContent = text;
+  if (!overflows(node, lines)) return;
+  const words = text.split(/\s+/).filter(Boolean);
+  let lo = 1;
+  let hi = words.length - 1;
+  let best = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    node.textContent = `${words.slice(0, mid).join(' ')}…`;
+    if (overflows(node, lines)) {
+      hi = mid - 1;
+    } else {
+      best = mid;
+      lo = mid + 1;
+    }
+  }
+  // best === 0: even the first word alone is too wide — clip it.
+  node.textContent = `${words.slice(0, Math.max(best, 1)).join(' ')}…`;
+}
+
 /**
  * Label that truncates on word boundaries: when the text does not fit its
  * container it drops whole trailing words and appends a single ellipsis, so the
@@ -39,40 +80,10 @@ export function TruncatedLabel({
     const el = ref.current;
     if (!el) return;
 
-    // True when the node's content no longer fits its box on the axis being
-    // tested for the current `lines` setting (a 1px slack absorbs subpixel
-    // rounding so borderline fits don't falsely register as overflow).
-    const overflows = (node: HTMLSpanElement) =>
-      lines > 1
-        ? node.scrollHeight > node.clientHeight + 1
-        : node.scrollWidth > node.clientWidth + 1;
-
     function fit() {
       const node = ref.current;
       if (!node) return;
-      node.textContent = text;
-      if (!overflows(node)) return;
-      // Binary-search the longest word prefix that fits. Every probe forces a
-      // synchronous reflow (write textContent, read scroll size), so the
-      // search must be O(log words), not one word at a time — long labels in
-      // long lists (the ideas rank list) otherwise stack hundreds of reflows
-      // into a single commit and stall tab switches for ~a second.
-      const words = text.split(/\s+/).filter(Boolean);
-      let lo = 1;
-      let hi = words.length - 1;
-      let best = 0;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        node.textContent = `${words.slice(0, mid).join(' ')}…`;
-        if (overflows(node)) {
-          hi = mid - 1;
-        } else {
-          best = mid;
-          lo = mid + 1;
-        }
-      }
-      // best === 0: even the first word alone is too wide — clip it.
-      node.textContent = `${words.slice(0, Math.max(best, 1)).join(' ')}…`;
+      fitTruncatedText(node, text, lines);
     }
 
     // Fit synchronously, again on the next frame (the first paint can measure

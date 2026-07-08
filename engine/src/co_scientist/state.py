@@ -16,6 +16,88 @@ from co_scientist.models import (Article, ExecutionMetrics, Hypothesis,
 logger = logging.getLogger(__name__)
 
 
+def _resolve_hypothesis_pool(existing: list[Hypothesis],
+                             new: list[Hypothesis]) -> list[Hypothesis]:
+    """Decide whether `new` replaces or extends the existing hypothesis pool.
+
+    Nodes use the reducer for two different purposes:
+     - Updating nodes (ranking.py, proximity.py, evolve.py) return
+       already-known hypotheses -- possibly re-scored, pruned to a subset,
+       or rewritten by evolution -- and mean "this is the pool now".
+     - Producing nodes (generate.py) return genuinely new hypotheses that
+       should be appended to the existing pool.
+    The primary discriminator is identity: if every incoming hypothesis id
+    already exists in state, the update targets known hypotheses and is a
+    replacement. Text overlap is kept as a secondary signal for callers
+    (and tests) that rebuild equivalent hypotheses as fresh objects.
+    Without the id check, evolve.py's rewritten texts would fail the
+    overlap test and be merged as additions, resurrecting the lower-ranked
+    hypotheses evolution had intentionally discarded.
+
+    Args:
+        existing: Existing hypotheses in state.
+        new: New hypotheses being added or replacing existing.
+
+    Returns:
+        `new` alone for a replacement, or `existing + new` for an addition
+        (neither deduplicated yet).
+    """
+    existing_ids = {hyp.id for hyp in existing}
+    new_ids = {hyp.id for hyp in new}
+    existing_texts = {hyp.text.strip().lower() for hyp in existing}
+    new_texts = {hyp.text.strip().lower() for hyp in new}
+
+    overlap = existing_texts & new_texts
+    if new_ids <= existing_ids or len(overlap) > len(new) * 0.5:
+        # Replacement operation - use new list as-is but deduplicate within it
+        return new
+    # Addition operation - merge and deduplicate
+    return existing + new
+
+
+def _dedupe_by_text(all_hyps: list[Hypothesis],
+                    new_count: int) -> list[Hypothesis]:
+    """Drop hypotheses whose normalized text already appeared earlier.
+
+    Identity here is by normalized text, not id: within `all_hyps`, the first
+    hypothesis with a given text wins. For a replacement, that is always the
+    incoming (re-scored) version, since `all_hyps` is exactly the new list;
+    for an addition, it is whichever of existing/new was appended first, so
+    a genuinely duplicate new hypothesis is dropped in favor of the one
+    already in state.
+
+    Args:
+        all_hyps: The candidate pool to deduplicate (existing+new, or just
+            new for a replacement).
+        new_count: Length of the reducer's original `new` argument, used
+            only to decide whether a dropped duplicate is worth a warning
+            (see the comment below).
+
+    Returns:
+        `all_hyps` with later duplicates by normalized text removed.
+    """
+    seen = set()
+    deduplicated = []
+
+    for hyp in all_hyps:
+        # Use text hash for exact duplicate detection
+        text_key = hyp.text.strip().lower()
+        if text_key not in seen:
+            seen.add(text_key)
+            deduplicated.append(hyp)
+        else:
+            # Only log if this is truly a duplicate (not from replacement)
+            # For a pure replacement, all_hyps is new itself, so this is
+            # always false there; it only fires for real existing+new
+            # duplicates found during an addition.
+            if len(all_hyps) > new_count:
+                logger.warning(
+                    "Automatic dedup: Removed duplicate hypothesis: %s...",
+                    hyp.text[:80])
+
+    return deduplicated
+
+
 # This is the LangGraph reducer wired to WorkflowState.hypotheses (see
 # `Annotated[list[Hypothesis], deduplicate_hypotheses]` below): every node
 # that returns a "hypotheses" key in its state update triggers this
@@ -40,59 +122,8 @@ def deduplicate_hypotheses(existing: list[Hypothesis],
     if not new:
         return existing
 
-    # Nodes use this reducer for two different purposes:
-    #  - Updating nodes (ranking.py, proximity.py, evolve.py) return
-    #    already-known hypotheses -- possibly re-scored, pruned to a subset,
-    #    or rewritten by evolution -- and mean "this is the pool now".
-    #  - Producing nodes (generate.py) return genuinely new hypotheses that
-    #    should be appended to the existing pool.
-    # The primary discriminator is identity: if every incoming hypothesis id
-    # already exists in state, the update targets known hypotheses and is a
-    # replacement. Text overlap is kept as a secondary signal for callers
-    # (and tests) that rebuild equivalent hypotheses as fresh objects.
-    # Without the id check, evolve.py's rewritten texts would fail the
-    # overlap test and be merged as additions, resurrecting the lower-ranked
-    # hypotheses evolution had intentionally discarded.
-    existing_ids = {hyp.id for hyp in existing}
-    new_ids = {hyp.id for hyp in new}
-    existing_texts = {hyp.text.strip().lower() for hyp in existing}
-    new_texts = {hyp.text.strip().lower() for hyp in new}
-
-    overlap = existing_texts & new_texts
-    if new_ids <= existing_ids or len(overlap) > len(new) * 0.5:
-        # Replacement operation - use new list as-is but deduplicate within it
-        all_hyps = new
-    else:
-        # Addition operation - merge and deduplicate
-        all_hyps = existing + new
-
-    # Identity here is by normalized text, not id: within `all_hyps`, the
-    # first hypothesis with a given text wins. For a replacement, that is
-    # always the incoming (re-scored) version, since all_hyps is exactly
-    # `new`; for an addition, it is whichever of existing/new was appended
-    # first, so a genuinely duplicate new hypothesis is dropped in favor of
-    # the one already in state.
-    # Deduplicate
-    seen = set()
-    deduplicated = []
-
-    for hyp in all_hyps:
-        # Use text hash for exact duplicate detection
-        text_key = hyp.text.strip().lower()
-        if text_key not in seen:
-            seen.add(text_key)
-            deduplicated.append(hyp)
-        else:
-            # Only log if this is truly a duplicate (not from replacement)
-            # For a pure replacement, all_hyps is new itself, so this is
-            # always false there; it only fires for real existing+new
-            # duplicates found during an addition.
-            if len(all_hyps) > len(new):
-                logger.warning(
-                    "Automatic dedup: Removed duplicate hypothesis: %s...",
-                    hyp.text[:80])
-
-    return deduplicated
+    all_hyps = _resolve_hypothesis_pool(existing, new)
+    return _dedupe_by_text(all_hyps, len(new))
 
 
 # Fields wrapped in Annotated[T, reducer] use `reducer` to combine a node's

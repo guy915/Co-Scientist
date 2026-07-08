@@ -153,6 +153,40 @@ def _client_id(request: Request) -> str:
     return request.headers.get("X-Client-ID", "")
 
 
+def _run_overrides_from_request(req: CreateRunRequest, *, focus: str, tier: str,
+                                setup: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``resolved_run_config`` overrides for a create-run request.
+
+    Only explicitly-sent numeric knobs become overrides; absent fields keep
+    the tier defaults applied by ``resolved_run_config``.
+
+    Args:
+        req: The validated create-run request body.
+        focus: The normalized research focus for this run.
+        tier: The normalized run tier for this run.
+        setup: The durable planning block persisted inside config_json.
+
+    Returns:
+        The overrides dict to pass to ``resolved_run_config``.
+    """
+    overrides: dict[str, Any] = {
+        "tier": tier,
+        "focus": focus,
+        "setup": setup,
+    }
+    if req.initial_hypotheses_count is not None:
+        overrides["initial_hypotheses_count"] = req.initial_hypotheses_count
+    if req.max_iterations is not None:
+        overrides["max_iterations"] = req.max_iterations
+    if req.evolution_max_count is not None:
+        overrides["evolution_max_count"] = req.evolution_max_count
+    if req.k_factor is not None:
+        overrides["k_factor"] = req.k_factor
+    if req.enable_literature_review is not None:
+        overrides["enable_literature_review"] = req.enable_literature_review
+    return overrides
+
+
 @router.post("")
 async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
     """Create a new run for the requesting client and return it.
@@ -179,23 +213,10 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         focus=focus,
         tier=tier,
     )
-    overrides: dict[str, Any] = {
-        "tier": tier,
-        "focus": focus,
-        "setup": setup,
-    }
-    # Only explicitly-sent numeric knobs become overrides; absent fields
-    # keep the tier defaults applied by resolved_run_config.
-    if req.initial_hypotheses_count is not None:
-        overrides["initial_hypotheses_count"] = req.initial_hypotheses_count
-    if req.max_iterations is not None:
-        overrides["max_iterations"] = req.max_iterations
-    if req.evolution_max_count is not None:
-        overrides["evolution_max_count"] = req.evolution_max_count
-    if req.k_factor is not None:
-        overrides["k_factor"] = req.k_factor
-    if req.enable_literature_review is not None:
-        overrides["enable_literature_review"] = req.enable_literature_review
+    overrides = _run_overrides_from_request(req,
+                                            focus=focus,
+                                            tier=tier,
+                                            setup=setup)
     config = resolved_run_config(overrides)
     # The run is persisted in DRAFT; nothing executes until /start is called.
     run = store.create_run(
@@ -248,6 +269,49 @@ async def get_run(run_id: str) -> dict[str, Any]:
     return {**run.to_dict(), "summary": summary}
 
 
+async def _run_workflow_task(
+    run_id: str,
+    research_goal: str,
+    config: dict[str, Any],
+    force_provider: str | None,
+    handle: _RunHandle,
+) -> None:
+    """Drive a run's workflow to completion as a background task.
+
+    Args:
+        run_id: Identifier of the run to drive.
+        research_goal: The run's research goal, passed through to the engine.
+        config: The run's resolved configuration.
+        force_provider: Optional provider override ('mock' or 'engine').
+        handle: The run's registry handle for cancellation/new-event signals.
+    """
+    try:
+        # The adapter persists each event itself; this loop only pulses
+        # new_event so any in-process SSE stream wakes immediately.
+        async for _ in engine_adapter.run_workflow(
+                run_id=run_id,
+                research_goal=research_goal,
+                config=config,
+                cancelled=handle.cancelled,
+                force_provider=force_provider,
+        ):
+            handle.new_event.set()
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Catch-all so an unexpected workflow crash still lands the run
+        # in a terminal FAILED state with a status event for the UI.
+        logger.exception("workflow failed: %s", e)
+        store.update_run_status(run_id, RunStatus.FAILED, error=str(e))
+        store.append_event(run_id, "status", {
+            "status": "failed",
+            "error": str(e)
+        })
+        handle.new_event.set()
+    finally:
+        # Always release the active-run slot so the run can be restarted.
+        async with _active_lock:
+            _active.pop(run_id, None)
+
+
 @router.post("/{run_id}/start")
 async def start_run(run_id: str, req: StartRunRequest,
                     background: BackgroundTasks) -> dict[str, Any]:
@@ -286,36 +350,9 @@ async def start_run(run_id: str, req: StartRunRequest,
     store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(run_id, "lifecycle", {"event": "queued"})
 
-    async def runner() -> None:
-        """Drive the workflow to completion as a background task."""
-        try:
-            # The adapter persists each event itself; this loop only pulses
-            # new_event so any in-process SSE stream wakes immediately.
-            async for _ in engine_adapter.run_workflow(
-                    run_id=run_id,
-                    research_goal=run.research_goal,
-                    config=run.config,
-                    cancelled=handle.cancelled,
-                    force_provider=req.force_provider,
-            ):
-                handle.new_event.set()
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            # Catch-all so an unexpected workflow crash still lands the run
-            # in a terminal FAILED state with a status event for the UI.
-            logger.exception("workflow failed: %s", e)
-            store.update_run_status(run_id, RunStatus.FAILED, error=str(e))
-            store.append_event(run_id, "status", {
-                "status": "failed",
-                "error": str(e)
-            })
-            handle.new_event.set()
-        finally:
-            # Always release the active-run slot so the run can be restarted.
-            async with _active_lock:
-                _active.pop(run_id, None)
-
-    # Returns immediately; FastAPI runs `runner` after the response is sent.
-    background.add_task(runner)
+    # Returns immediately; FastAPI runs the task after the response is sent.
+    background.add_task(_run_workflow_task, run_id, run.research_goal,
+                        run.config, req.force_provider, handle)
     return {"id": run_id, "status": "queued"}
 
 
@@ -342,6 +379,20 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # SSE events
 # ---------------------------------------------------------------------------
+
+
+def _terminal_frame(status: str, seq: int) -> str:
+    """Format the synthetic ``_terminal`` SSE frame that ends a stream.
+
+    This frame is never persisted; it only tells clients to close.
+    """
+    return qa.sse_frame({
+        "type": "_terminal",
+        "payload": {
+            "status": status
+        },
+        "seq": seq
+    })
 
 
 @router.get("/{run_id}/events")
@@ -375,17 +426,9 @@ async def stream_events(
             yield qa.sse_frame(ev)
 
         # If terminal already, send a final marker and return.
-        # `_terminal` is a synthetic frame (never persisted) telling
-        # clients to close.
         terminal = run.status in TERMINAL_STATUSES
         if terminal:
-            yield qa.sse_frame({
-                "type": "_terminal",
-                "payload": {
-                    "status": run.status
-                },
-                "seq": last_seq
-            })
+            yield _terminal_frame(run.status, last_seq)
             return
 
         # Handle is present only when this process runs the workflow; other
@@ -439,13 +482,7 @@ async def stream_events(
                 if current and current.status in TERMINAL_STATUSES:
                     terminal_status = current.status
             if terminal_status is not None:
-                yield qa.sse_frame({
-                    "type": "_terminal",
-                    "payload": {
-                        "status": terminal_status
-                    },
-                    "seq": last_seq
-                })
+                yield _terminal_frame(terminal_status, last_seq)
                 return
 
     return StreamingResponse(

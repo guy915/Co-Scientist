@@ -72,56 +72,70 @@ export function LearningView({
 
   return (
     <ReportDocument title="Learning">
-      {sections.map(section => {
-        const expanded = expandedSectionIds.includes(section.id);
-        return (
-          <section
-            key={section.id}
-            id={section.id}
-            className={REPORT_SECTION_CLASSES}
-          >
-            {/* renderInlineHtml sanitizes before this is trusted as HTML, so
-                titles/details carrying inline emphasis markup render safely. */}
-            <h3
-              className={REPORT_H3_CLASSES}
-              dangerouslySetInnerHTML={{
-                __html: renderInlineHtml(section.title),
-              }}
-            />
-            <h4 className={REPORT_H4_CLASSES}>Summary</h4>
-            <AbstractBody text={section.summary} />
-            {expanded && (
-              <>
-                <h4 className={REPORT_H4_CLASSES}>Details</h4>
-                <p
-                  dangerouslySetInnerHTML={{
-                    __html: renderInlineHtml(section.detail),
-                  }}
-                />
-              </>
-            )}
-            <button
-              type="button"
-              className={REPORT_INLINE_ACTION_CLASSES}
-              aria-expanded={expanded}
-              onClick={() => toggleSection(section.id)}
-            >
-              <span>{expanded ? 'Show less' : 'Show more'}</span>
-              <Icon
-                className={REPORT_INLINE_ACTION_ICON_CLASSES}
-                aria-hidden="true"
-                name={expanded ? 'expand_less' : 'expand_more'}
-              />
-            </button>
-          </section>
-        );
-      })}
+      {sections.map(section => (
+        <LearningSectionBlock
+          key={section.id}
+          section={section}
+          expanded={expandedSectionIds.includes(section.id)}
+          onToggle={() => toggleSection(section.id)}
+        />
+      ))}
       <ReferencesBlock
         evidence={filteredReferences}
         query={query}
         onQueryChange={setQuery}
       />
     </ReportDocument>
+  );
+}
+
+// One "Learning" tab summary section: title, summary body, an optional
+// expanded "Details" block, and the toggle button that drives `expanded`.
+function LearningSectionBlock({
+  section,
+  expanded,
+  onToggle,
+}: {
+  section: LearningSectionItem;
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <section id={section.id} className={REPORT_SECTION_CLASSES}>
+      {/* renderInlineHtml sanitizes before this is trusted as HTML, so
+          titles/details carrying inline emphasis markup render safely. */}
+      <h3
+        className={REPORT_H3_CLASSES}
+        dangerouslySetInnerHTML={{
+          __html: renderInlineHtml(section.title),
+        }}
+      />
+      <h4 className={REPORT_H4_CLASSES}>Summary</h4>
+      <AbstractBody text={section.summary} />
+      {expanded && (
+        <>
+          <h4 className={REPORT_H4_CLASSES}>Details</h4>
+          <p
+            dangerouslySetInnerHTML={{
+              __html: renderInlineHtml(section.detail),
+            }}
+          />
+        </>
+      )}
+      <button
+        type="button"
+        className={REPORT_INLINE_ACTION_CLASSES}
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        <span>{expanded ? 'Show less' : 'Show more'}</span>
+        <Icon
+          className={REPORT_INLINE_ACTION_ICON_CLASSES}
+          aria-hidden="true"
+          name={expanded ? 'expand_less' : 'expand_more'}
+        />
+      </button>
+    </section>
   );
 }
 
@@ -216,11 +230,23 @@ function ReferencesBlock({
   );
 }
 
+// One synthesized Learning-tab section, as built by learningSections and
+// rendered by LearningSectionBlock.
+interface LearningSectionItem {
+  id: string;
+  title: string;
+  summary: string;
+  detail: string;
+}
+
 // Builds up to three display sections (title/summary/detail) from the run's
 // evidence. When no evidence has been gathered yet (early in a run), a single
 // placeholder item is used instead so the tab still shows meaningful copy
 // rather than an empty page.
-function learningSections(goal: string, evidence: Evidence[]) {
+function learningSections(
+  goal: string,
+  evidence: Evidence[],
+): LearningSectionItem[] {
   const fallbackGoal =
     goal ||
     'the biological mechanisms and experimental systems relevant to this research goal';

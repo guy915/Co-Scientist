@@ -72,6 +72,91 @@ def _append_diversity_instruction(preferences: str | None,
     return instruction
 
 
+async def _run_final_debate_turn(
+    state: WorkflowState,
+    prompt: str,
+    schema: Any,
+    debate_id: int | None,
+    debate_label: str,
+    turn: int,
+    articles_with_reasoning: str | None,
+    ref_idx: ReferenceIndex,
+) -> Hypothesis:
+    """Run the final debate turn and build the resulting Hypothesis.
+
+    The final turn is constrained to structured JSON output (unlike earlier
+    free-form turns), which this parses into a single Hypothesis.
+
+    Args:
+        state: current workflow state
+        prompt: final-turn prompt built from the accumulated transcript
+        schema: JSON schema the final turn's structured output must match
+        debate_id: id for this debate (used for tracking/identification)
+        debate_label: human-readable label for this debate, used in errors
+        turn: turn number this call represents (for prompt metadata/logging)
+        articles_with_reasoning: optional literature review context
+        ref_idx: citation key → source mapping for structured citations
+
+    Returns:
+        The Hypothesis built from the final turn's structured output.
+
+    Raises:
+        GenerationError: if the final turn produced no hypothesis.
+    """
+    count = 1  # each debate generates exactly 1 hypothesis
+    # count is always 1 here (one hypothesis per debate), so this evaluates
+    # to a fixed budget (base + one per_item increment) rather than truly
+    # scaling with batch size, unlike other scaled_max_tokens call sites
+    # that pass a variable count.
+    final_max_tokens = scaled_max_tokens(
+        EXTENDED_MAX_TOKENS,
+        count,
+        per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
+        cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
+    )
+
+    response = await call_llm_json(
+        prompt=prompt,
+        model_name=state["model_name"],
+        max_tokens=final_max_tokens,
+        temperature=HIGH_TEMPERATURE,
+        json_schema=schema,
+        # Generation is stochastic and diversity-critical: never cache it,
+        # so parallel debates and re-runs stay diverse regardless of cache
+        # state.
+        use_cache=False,
+        run_id=state.get("run_id"),
+        prompt_name=f"generate_debate_{debate_id}_final",
+        prompt_metadata={
+            "debate_id": debate_id,
+            "turn": turn,
+            "has_literature": articles_with_reasoning is not None,
+            "reference_keys": list(ref_idx.sources.keys()),
+            "prompt_length_chars": len(prompt),
+        },
+    )
+
+    # The schema wraps a single hypothesis in a list to keep the response
+    # shape consistent with other generation paths' schemas (e.g. batch
+    # tool-based generation), even though a debate only ever produces one.
+    hypotheses_data = response.get("hypotheses", [])
+    if not hypotheses_data:
+        raise GenerationError(f"{debate_label} failed to generate hypothesis")
+
+    hyp_data = hypotheses_data[0]
+
+    # Shared constructor (also used by the literature_tools validate phase)
+    # resolves citation keys against ref_idx.sources and stamps debate_id so
+    # downstream tournament/ranking can trace a hypothesis back to the
+    # debate that produced it.
+    return hypothesis_from_llm_output(
+        hyp_data,
+        ref_idx.sources,
+        GenerationMethod.DEBATE,
+        debate_id=debate_id,
+    )
+
+
 async def _run_single_debate(
     state: WorkflowState,
     debate_id: int | None = None,
@@ -135,60 +220,16 @@ async def _run_single_debate(
         )
 
         if is_final:
-            # count is always 1 here (one hypothesis per debate), so this
-            # evaluates to a fixed budget (base + one per_item increment)
-            # rather than truly scaling with batch size, unlike other
-            # scaled_max_tokens call sites that pass a variable count.
-            final_max_tokens = scaled_max_tokens(
-                EXTENDED_MAX_TOKENS,
-                count,
-                per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
-                cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
+            hypothesis = await _run_final_debate_turn(
+                state,
+                prompt,
+                schema,
+                debate_id,
+                debate_label,
+                turn,
+                articles_with_reasoning,
+                ref_idx,
             )
-
-            response = await call_llm_json(
-                prompt=prompt,
-                model_name=state["model_name"],
-                max_tokens=final_max_tokens,
-                temperature=HIGH_TEMPERATURE,
-                json_schema=schema,
-                # Generation is stochastic and diversity-critical: never cache
-                # it, so parallel debates and re-runs stay diverse regardless of
-                # cache state.
-                use_cache=False,
-                run_id=state.get("run_id"),
-                prompt_name=f"generate_debate_{debate_id}_final",
-                prompt_metadata={
-                    "debate_id": debate_id,
-                    "turn": turn,
-                    "has_literature": articles_with_reasoning is not None,
-                    "reference_keys": list(ref_idx.sources.keys()),
-                    "prompt_length_chars": len(prompt),
-                },
-            )
-
-            # The schema wraps a single hypothesis in a list to keep the
-            # response shape consistent with other generation paths' schemas
-            # (e.g. batch tool-based generation), even though a debate only
-            # ever produces one.
-            hypotheses_data = response.get("hypotheses", [])
-            if not hypotheses_data:
-                raise GenerationError(
-                    f"{debate_label} failed to generate hypothesis")
-
-            hyp_data = hypotheses_data[0]
-
-            # Shared constructor (also used by the literature_tools validate
-            # phase) resolves citation keys against ref_idx.sources and
-            # stamps debate_id so downstream tournament/ranking can trace a
-            # hypothesis back to the debate that produced it.
-            hypothesis = hypothesis_from_llm_output(
-                hyp_data,
-                ref_idx.sources,
-                GenerationMethod.DEBATE,
-                debate_id=debate_id,
-            )
-
             return hypothesis, transcript
         else:
             # Intermediate turns are unconstrained free text (no JSON

@@ -103,6 +103,215 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
     return len(intersection) / len(union) if union else 0.0
 
 
+def _log_meta_review_debug(meta_review: dict[str, Any]) -> None:
+    """Logs meta-review signals used during evolution, for debugging.
+
+    The same fields are also formatted into the prompt itself (see
+    _build_meta_review_insights); this only logs them for visibility.
+
+    Args:
+        meta_review: Meta-review insights for strategic guidance.
+    """
+    logger.debug("\n=== evolve single hypothesis ===")
+    logger.debug("using meta review for evolution")
+
+    common_strengths = meta_review.get("common_strengths", [])
+    common_weaknesses = meta_review.get("common_weaknesses", [])
+    strategic_recommendations = meta_review.get("strategic_recommendations", [])
+    emerging_themes = meta_review.get("emerging_themes", [])
+
+    if common_strengths:
+        logger.debug("common Strengths (%s):", len(common_strengths))
+        for strength in common_strengths[:3]:  # Show first 3
+            logger.debug("- %s%s", strength[:100],
+                         '...' if len(strength) > 100 else '')
+
+    if common_weaknesses:
+        logger.debug("common Weaknesses (%s):", len(common_weaknesses))
+        for weakness in common_weaknesses[:3]:  # Show first 3
+            logger.debug("- %s%s", weakness[:100],
+                         '...' if len(weakness) > 100 else '')
+
+    if strategic_recommendations:
+        logger.debug("strategic Recommendations (%s):",
+                     len(strategic_recommendations))
+        for rec in strategic_recommendations[:3]:  # Show first 3
+            logger.debug("- %s", rec)
+
+    if emerging_themes:
+        logger.debug("emerging Themes (%s):", len(emerging_themes))
+        for theme in emerging_themes[:3]:  # Show first 3
+            logger.debug("- %s", theme)
+
+
+def _build_review_feedback(hypothesis: Hypothesis) -> str:
+    """Formats a hypothesis's latest review as evolution-prompt context.
+
+    Surfaces the most recent review's scores/feedback as context so the
+    LLM addresses concrete critique rather than refining blind.
+
+    Args:
+        hypothesis: Hypothesis being evolved.
+
+    Returns:
+        JSON-formatted review feedback, or an empty string if the
+        hypothesis has no reviews yet.
+    """
+    if not hypothesis.reviews:
+        return ""
+    latest_review = hypothesis.reviews[-1]
+    return json.dumps(
+        {
+            "overall_score": latest_review.overall_score,
+            "review_summary": latest_review.review_summary,
+            "constructive_feedback": latest_review.constructive_feedback,
+            "scores": latest_review.scores,
+        },
+        indent=2,
+    )
+
+
+def _build_meta_review_insights(meta_review: dict[str, Any]) -> str:
+    """Formats meta-review insights for the evolution prompt.
+
+    Args:
+        meta_review: Meta-review insights for strategic guidance.
+
+    Returns:
+        JSON-formatted meta-review insights.
+    """
+    return json.dumps(
+        {
+            "common_strengths":
+                meta_review.get("common_strengths", []),
+            "common_weaknesses":
+                meta_review.get("common_weaknesses", []),
+            "strategic_recommendations":
+                meta_review.get("strategic_recommendations", []),
+            "emerging_themes":
+                meta_review.get("emerging_themes", []),
+        },
+        indent=2,
+    )
+
+
+def _build_supervisor_guidance_text(
+        supervisor_guidance: dict[str, Any] | None) -> str:
+    """Formats the evolution-phase slice of supervisor guidance.
+
+    Only the evolution_phase slice of the supervisor's workflow_plan is
+    relevant here; other phases (e.g. generation) are ignored.
+
+    Args:
+        supervisor_guidance: Optional supervisor guidance for evolution phase.
+
+    Returns:
+        Formatted supervisor guidance text, or an empty string if there is
+        no evolution-phase guidance to surface.
+    """
+    if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
+        return ""
+    workflow_plan = supervisor_guidance.get("workflow_plan", {})
+    evolution_phase = workflow_plan.get("evolution_phase", {})
+    if not evolution_phase:
+        return ""
+
+    guidance_sections = []
+    guidance_sections.append("## Supervisor Guidance for Evolution\n")
+    if evolution_phase.get("refinement_priorities"):
+        priorities = evolution_phase["refinement_priorities"]
+        if isinstance(priorities, list):
+            priorities = ", ".join(priorities)
+        guidance_sections.append(f"**Refinement Priorities:** {priorities}\n")
+    if evolution_phase.get("iteration_strategy"):
+        strat = evolution_phase['iteration_strategy']
+        guidance_sections.append(f"**Iteration Strategy:** {strat}\n")
+    guidance_sections.append("\nUse this guidance to align your refinement"
+                             " with the research plan.\n")
+    return "".join(guidance_sections)
+
+
+def _format_diversity_instruction(other_hypotheses_texts: list[str],
+                                  removed_duplicates: list[str]) -> str:
+    """Builds the anti-convergence directive appended to the evolution prompt.
+
+    Appended after the schema-driven prompt (not merged into its
+    variables) as an explicit anti-convergence directive: without this,
+    independently evolved hypotheses tend to drift toward the same winning
+    idea.
+
+    Args:
+        other_hypotheses_texts: Strategically sampled subset of other
+            hypotheses (max 15).
+        removed_duplicates: Previously removed duplicate texts to avoid.
+
+    Returns:
+        Diversity-instruction text to append to the evolution prompt.
+    """
+    # Truncate each listed hypothesis to 200 chars: enough for the LLM to
+    # recognize overlap without materially growing the prompt.
+    other_hyps_formatted = "\n".join(
+        [f"- {text[:200]}..." for text in other_hypotheses_texts])
+    # Only the 5 most recently removed duplicates are shown, keeping this
+    # section bounded regardless of how many duplicates accumulate over a
+    # run.
+    removed_dups_formatted = "\n".join(
+        [f"- {text[:200]}..." for text in removed_duplicates[-5:]])  # Last 5
+
+    return f"""
+
+## CRITICAL: Preserve Diversity
+
+**Other hypotheses being evolved simultaneously:**
+{other_hyps_formatted if other_hyps_formatted else "None"}
+
+**Previously removed duplicates (DO NOT recreate these):**
+{removed_dups_formatted if removed_dups_formatted else "None"}
+
+**CRITICAL REQUIREMENT:** Your refined hypothesis MUST remain DISTINCT from:
+1. All other hypotheses listed above
+2. Previously removed duplicates
+
+DO NOT:
+- Use the same biomarker/methodology as other hypotheses
+- Make only trivial wording changes
+- Converge toward similar concepts
+
+DO:
+- Maintain the unique aspects of this hypothesis
+- Explore different mechanisms or approaches
+- Preserve conceptual diversity
+"""
+
+
+def _find_most_similar(
+        refined_text: str,
+        other_hypotheses_texts: list[str]) -> tuple[float, str | None]:
+    """Finds the other hypothesis text most similar to the refined text.
+
+    Guards against evolution converging this hypothesis toward one of the
+    peers it was shown as diversity context, using the same word-overlap
+    metric as calculate_text_similarity.
+
+    Args:
+        refined_text: The newly evolved hypothesis text.
+        other_hypotheses_texts: Strategically sampled subset of other
+            hypotheses (max 15).
+
+    Returns:
+        Tuple of (max_similarity, most_similar_text); most_similar_text is
+        None if other_hypotheses_texts is empty.
+    """
+    max_similarity = 0.0
+    most_similar_text = None
+    for other_text in other_hypotheses_texts:
+        similarity = calculate_text_similarity(refined_text, other_text)
+        if similarity > max_similarity:
+            max_similarity = similarity
+            most_similar_text = other_text
+    return max_similarity, most_similar_text
+
+
 async def evolve_single_hypothesis(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
@@ -142,98 +351,16 @@ async def evolve_single_hypothesis(
     Returns:
         Updated hypothesis with evolved text
     """
-    # The following block only logs meta-review signals (common
+    # The following call only logs meta-review signals (common
     # strengths/weaknesses, strategic recommendations, emerging themes)
     # for debugging; the same fields are formatted into the prompt itself
-    # further below via meta_review_insights.
-    # Log meta review usage with colorful output
-    logger.debug("\n=== evolve single hypothesis ===")
-    logger.debug("using meta review for evolution")
+    # further below via _build_meta_review_insights.
+    _log_meta_review_debug(meta_review)
 
-    # Display meta review details
-    common_strengths = meta_review.get("common_strengths", [])
-    common_weaknesses = meta_review.get("common_weaknesses", [])
-    strategic_recommendations = meta_review.get("strategic_recommendations", [])
-    emerging_themes = meta_review.get("emerging_themes", [])
-
-    if common_strengths:
-        logger.debug("common Strengths (%s):", len(common_strengths))
-        for strength in common_strengths[:3]:  # Show first 3
-            logger.debug("- %s%s", strength[:100],
-                         '...' if len(strength) > 100 else '')
-
-    if common_weaknesses:
-        logger.debug("common Weaknesses (%s):", len(common_weaknesses))
-        for weakness in common_weaknesses[:3]:  # Show first 3
-            logger.debug("- %s%s", weakness[:100],
-                         '...' if len(weakness) > 100 else '')
-
-    if strategic_recommendations:
-        logger.debug("strategic Recommendations (%s):",
-                     len(strategic_recommendations))
-        for rec in strategic_recommendations[:3]:  # Show first 3
-            logger.debug("- %s", rec)
-
-    if emerging_themes:
-        logger.debug("emerging Themes (%s):", len(emerging_themes))
-        for theme in emerging_themes[:3]:  # Show first 3
-            logger.debug("- %s", theme)
-
-    # Surface the most recent review's scores/feedback as context so the
-    # LLM addresses concrete critique rather than refining blind.
-    # Get latest review feedback
-    review_feedback = ""
-    if hypothesis.reviews:
-        latest_review = hypothesis.reviews[-1]
-        review_feedback = json.dumps(
-            {
-                "overall_score": latest_review.overall_score,
-                "review_summary": latest_review.review_summary,
-                "constructive_feedback": latest_review.constructive_feedback,
-                "scores": latest_review.scores,
-            },
-            indent=2,
-        )
-
-    # Format meta-review insights
-    meta_review_insights = json.dumps(
-        {
-            "common_strengths":
-                meta_review.get("common_strengths", []),
-            "common_weaknesses":
-                meta_review.get("common_weaknesses", []),
-            "strategic_recommendations":
-                meta_review.get("strategic_recommendations", []),
-            "emerging_themes":
-                meta_review.get("emerging_themes", []),
-        },
-        indent=2,
-    )
-
-    # Format supervisor guidance for evolution
-    # Only the evolution_phase slice of the supervisor's workflow_plan is
-    # relevant here; other phases (e.g. generation) are ignored.
-    supervisor_guidance_text = ""
-    if supervisor_guidance and isinstance(supervisor_guidance, dict):
-        workflow_plan = supervisor_guidance.get("workflow_plan", {})
-        evolution_phase = workflow_plan.get("evolution_phase", {})
-
-        if evolution_phase:
-            guidance_sections = []
-            guidance_sections.append("## Supervisor Guidance for Evolution\n")
-            if evolution_phase.get("refinement_priorities"):
-                priorities = evolution_phase["refinement_priorities"]
-                if isinstance(priorities, list):
-                    priorities = ", ".join(priorities)
-                guidance_sections.append(
-                    f"**Refinement Priorities:** {priorities}\n")
-            if evolution_phase.get("iteration_strategy"):
-                strat = evolution_phase['iteration_strategy']
-                guidance_sections.append(f"**Iteration Strategy:** {strat}\n")
-            guidance_sections.append(
-                "\nUse this guidance to align your refinement"
-                " with the research plan.\n")
-            supervisor_guidance_text = "".join(guidance_sections)
+    review_feedback = _build_review_feedback(hypothesis)
+    meta_review_insights = _build_meta_review_insights(meta_review)
+    supervisor_guidance_text = _build_supervisor_guidance_text(
+        supervisor_guidance)
 
     # Build context-aware evolution prompt with domain variables
     # Unlike most nodes, evolve has no dedicated get_evolution_prompt()
@@ -261,45 +388,8 @@ async def evolve_single_hypothesis(
     prompt, schema = load_prompt_with_schema("evolution", variables)
 
     # Add critical diversity instruction
-    # Truncate each listed hypothesis to 200 chars: enough for the LLM to
-    # recognize overlap without materially growing the prompt.
-    other_hyps_formatted = "\n".join(
-        [f"- {text[:200]}..." for text in other_hypotheses_texts])
-    # Only the 5 most recently removed duplicates are shown, keeping this
-    # section bounded regardless of how many duplicates accumulate over a
-    # run.
-    removed_dups_formatted = "\n".join(
-        [f"- {text[:200]}..." for text in removed_duplicates[-5:]])  # Last 5
-
-    # Appended after the schema-driven prompt (not merged into its
-    # variables) as an explicit anti-convergence directive: without this,
-    # independently evolved hypotheses tend to drift toward the same
-    # winning idea.
-    diversity_instruction = f"""
-
-## CRITICAL: Preserve Diversity
-
-**Other hypotheses being evolved simultaneously:**
-{other_hyps_formatted if other_hyps_formatted else "None"}
-
-**Previously removed duplicates (DO NOT recreate these):**
-{removed_dups_formatted if removed_dups_formatted else "None"}
-
-**CRITICAL REQUIREMENT:** Your refined hypothesis MUST remain DISTINCT from:
-1. All other hypotheses listed above
-2. Previously removed duplicates
-
-DO NOT:
-- Use the same biomarker/methodology as other hypotheses
-- Make only trivial wording changes
-- Converge toward similar concepts
-
-DO:
-- Maintain the unique aspects of this hypothesis
-- Explore different mechanisms or approaches
-- Preserve conceptual diversity
-"""
-
+    diversity_instruction = _format_diversity_instruction(
+        other_hypotheses_texts, removed_duplicates)
     full_prompt = prompt + diversity_instruction
 
     # Fixed token budget since we strategically sample max 15 context
@@ -355,16 +445,8 @@ DO:
         return hypothesis, None  # Keep original, no evolution details
 
     # Check similarity to other hypotheses
-    # Guard against evolution converging this hypothesis toward one of the
-    # peers it was shown as diversity context, using the same word-overlap
-    # metric as calculate_text_similarity above.
-    max_similarity = 0.0
-    most_similar_text = None
-    for other_text in other_hypotheses_texts:
-        similarity = calculate_text_similarity(refined_text, other_text)
-        if similarity > max_similarity:
-            max_similarity = similarity
-            most_similar_text = other_text
+    max_similarity, most_similar_text = _find_most_similar(
+        refined_text, other_hypotheses_texts)
 
     # If too similar, keep original
     # DUPLICATE_SIMILARITY_THRESHOLD (0.95) is the same bound proximity.py

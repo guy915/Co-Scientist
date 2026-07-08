@@ -131,6 +131,173 @@ def _deep_verification_summary(hypothesis: Hypothesis) -> dict[str, Any] | None:
     }
 
 
+def _log_reflection_coverage(hypotheses: list[Hypothesis]) -> None:
+    """Logs how many hypotheses arrived with reflection notes attached.
+
+    Diagnostic-only bookkeeping: does not affect tournament behavior, only
+    the debug logging (helps spot upstream nodes that failed to populate
+    reflection_notes before ranking runs).
+
+    Args:
+        hypotheses: All hypotheses entering the ranking tournament.
+    """
+    hypotheses_with_reflection = sum(
+        1 for h in hypotheses if h.reflection_notes)
+    logger.debug("\n=== ranking tournament debug ===")
+    logger.debug("total hypotheses: %s", len(hypotheses))
+    logger.debug("hypotheses with reflection notes: %s/%s",
+                 hypotheses_with_reflection, len(hypotheses))
+
+    if hypotheses_with_reflection == 0:
+        logger.debug("warning: No hypotheses have reflection notes!")
+    elif hypotheses_with_reflection < len(hypotheses):
+        logger.debug("warning: Some hypotheses missing reflection notes")
+    else:
+        logger.debug("all hypotheses have reflection notes")
+
+
+def _build_tournament_pairings(
+        hypotheses: list[Hypothesis], tournament_rounds: int,
+        research_goal: str,
+        current_iteration: int) -> list[tuple[Hypothesis, Hypothesis]]:
+    """Builds deterministic random pairwise matchups for one tournament.
+
+    The random seed is derived from research_goal and current_iteration to
+    ensure cache consistency across runs: identical inputs produce
+    identical tournament pairings, enabling proper cache hits in
+    subsequent iterations. Uses hashlib instead of hash() so the seed is
+    deterministic across python processes.
+
+    random.sample(hypotheses, 2) draws two distinct hypotheses without
+    replacement for each round, but rounds themselves are independent, so
+    the same hypothesis can appear in multiple pairings (or none) and this
+    is not a round-robin/Swiss-style schedule -- coverage is probabilistic.
+
+    Args:
+        hypotheses: All hypotheses eligible for pairing.
+        tournament_rounds: Number of pairings to generate.
+        research_goal: Research goal, used to seed the deterministic RNG.
+        current_iteration: Current workflow iteration, used to seed the
+            deterministic RNG.
+
+    Returns:
+        List of (hypothesis_a, hypothesis_b) pairings, one per round.
+    """
+    seed_string = f"{research_goal}_{current_iteration}"
+    seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)
+    random.seed(seed)
+
+    pairings: list[tuple[Hypothesis, Hypothesis]] = []
+    for _ in range(tournament_rounds):
+        hyp_a, hyp_b = random.sample(hypotheses, 2)
+        pairings.append((hyp_a, hyp_b))
+    return pairings
+
+
+def _extract_reasoning(response: dict[str, Any]) -> str:
+    """Extracts the judge's reasoning text from a matchup response.
+
+    Args:
+        response: Full LLM response from judge_matchup.
+
+    Returns:
+        Reasoning text: decision_summary if present, otherwise a
+        judgment_explanation fallback, otherwise a placeholder.
+    """
+    reasoning: str = response.get("decision_summary", "")
+    if not reasoning and "judgment_explanation" in response:
+        # Fallback: combine judgment details if decision_summary is missing
+        judgment = response["judgment_explanation"]
+        reasoning = " | ".join([f"{k}: {v}" for k, v in judgment.items() if v])
+    if not reasoning:
+        reasoning = "No reasoning provided"
+    return reasoning
+
+
+def _apply_matchup_results(
+        pairings: list[tuple[Hypothesis, Hypothesis]],
+        results: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
+    """Applies Elo updates for judged matchups and collects their details.
+
+    Judgments are computed concurrently by the caller (independent of Elo,
+    since judge_matchup only sees text/reviews/etc.), but ratings are
+    applied here sequentially in pairing order, so a hypothesis appearing
+    in multiple pairings picks up each prior update before the next one is
+    scored. Hypothesis objects are mutated in place (elo_rating and
+    win/loss counters).
+
+    Args:
+        pairings: Per-round (hypothesis_a, hypothesis_b) pairs.
+        results: Per-round (winner, response) judgments, aligned with
+            pairings.
+
+    Returns:
+        List of matchup detail dicts, one per round, for the UI's
+        "Performance against other ideas" view.
+    """
+    matchup_details = []
+
+    for (hyp_a, hyp_b), (winner, response) in zip(pairings, results):
+        # Resolve which Hypothesis object actually won this pairing based on
+        # the "a"/"b" side the judge picked.
+        winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b,
+                                                                      hyp_a)
+        old_winner_elo = winner_hyp.elo_rating
+        old_loser_elo = loser_hyp.elo_rating
+
+        new_winner_elo, new_loser_elo = calculate_elo_update(
+            winner_elo=winner_hyp.elo_rating, loser_elo=loser_hyp.elo_rating)
+        logger.debug("Matchup result: Winner %s -> %s, Loser %s -> %s",
+                     winner_hyp.elo_rating, new_winner_elo,
+                     loser_hyp.elo_rating, new_loser_elo)
+
+        reasoning = _extract_reasoning(response)
+
+        matchup_details.append({
+            "hypothesis_a":
+                truncate(hyp_a.text),
+            "hypothesis_b":
+                truncate(hyp_b.text),
+            # Stable ids alongside the truncated text so downstream
+            # consumers can resolve identity exactly instead of by
+            # text-prefix matching.
+            "hypothesis_a_id":
+                hyp_a.id,
+            "hypothesis_b_id":
+                hyp_b.id,
+            "winner_id":
+                winner_hyp.id,
+            "winner":
+                winner,
+            "reasoning":
+                reasoning,
+            "confidence":
+                response.get("confidence_level", "Unknown"),
+            "tier":
+                match_tier(old_winner_elo, old_loser_elo,
+                           response.get("confidence_level", "")),
+            "winner_elo_before":
+                old_winner_elo,
+            "winner_elo_after":
+                new_winner_elo,
+            "loser_elo_before":
+                old_loser_elo,
+            "loser_elo_after":
+                new_loser_elo,
+        })
+
+        # Hypothesis objects are mutated in place here (elo_rating and
+        # win/loss counters), so these updates are visible on the same
+        # objects held in the `hypotheses` list without needing to rebuild
+        # it -- rank_by_elo below only reorders, it does not recreate them.
+        winner_hyp.elo_rating = new_winner_elo
+        loser_hyp.elo_rating = new_loser_elo
+        winner_hyp.win_count += 1
+        loser_hyp.loss_count += 1
+
+    return matchup_details
+
+
 def _log_reflection_debug(label: str, reflection_notes: str | None) -> None:
     """Logs reflection-note availability for one side of a matchup.
 
@@ -283,23 +450,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Starting ranking tournament with %s hypotheses",
                 len(hypotheses))
 
-    # Diagnostic-only bookkeeping: how many hypotheses reached this node
-    # with reflection notes attached. Does not affect tournament behavior,
-    # only the debug logging below (helps spot upstream nodes that failed
-    # to populate reflection_notes before ranking runs).
-    hypotheses_with_reflection = sum(
-        1 for h in hypotheses if h.reflection_notes)
-    logger.debug("\n=== ranking tournament debug ===")
-    logger.debug("total hypotheses: %s", len(hypotheses))
-    logger.debug("hypotheses with reflection notes: %s/%s",
-                 hypotheses_with_reflection, len(hypotheses))
-
-    if hypotheses_with_reflection == 0:
-        logger.debug("warning: No hypotheses have reflection notes!")
-    elif hypotheses_with_reflection < len(hypotheses):
-        logger.debug("warning: Some hypotheses missing reflection notes")
-    else:
-        logger.debug("all hypotheses have reflection notes")
+    _log_reflection_coverage(hypotheses)
 
     # Edge case: a tournament requires at least two hypotheses to pair up.
     # With fewer, skip the tournament entirely and pass the list through
@@ -341,24 +492,11 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     run_setup_guidance = state.get("run_setup_guidance")
     run_focus_guidance = state.get("run_focus_guidance")
 
-    # Set deterministic random seed based on research goal and iteration
-    # this ensures same inputs produce same tournament pairings for cache
-    # consistency use hashlib instead of hash() for deterministic results across
-    # python processes
+    # Prepare all random pairwise matchups and judge them in parallel
     research_goal = state["research_goal"]
     current_iteration = state.get("current_iteration", 0)
-    seed_string = f"{research_goal}_{current_iteration}"
-    seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)
-    random.seed(seed)
-
-    # Prepare all random pairwise matchups and judge them in parallel
-    # random.sample(hypotheses, 2) draws two distinct hypotheses without
-    # replacement for each round, but rounds themselves are independent, so
-    # the same hypothesis can appear in multiple pairings (or none) and this
-    # is not a round-robin/Swiss-style schedule -- coverage is probabilistic.
-    pairings = [
-        tuple(random.sample(hypotheses, 2)) for _ in range(tournament_rounds)
-    ]
+    pairings = _build_tournament_pairings(hypotheses, tournament_rounds,
+                                          research_goal, current_iteration)
     # Fire all matchup judgments concurrently; judge_matchup's semaphore
     # caps how many LLM calls are actually in flight at once.
     results = await asyncio.gather(*[
@@ -378,81 +516,8 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     ])
 
     # Apply Elo updates based on judged results and collect matchup details
-    # Judgments were computed concurrently above (independent of Elo, since
-    # judge_matchup only sees text/reviews/etc.), but ratings are applied
-    # here sequentially in pairing order, so a hypothesis appearing in
-    # multiple pairings picks up each prior update before the next one is
-    # scored.
     llm_calls = tournament_rounds
-    matchup_details = []
-
-    for (hyp_a, hyp_b), (winner, response) in zip(pairings, results):
-        # Resolve which Hypothesis object actually won this pairing based on
-        # the "a"/"b" side the judge picked.
-        winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b,
-                                                                      hyp_a)
-        old_winner_elo = winner_hyp.elo_rating
-        old_loser_elo = loser_hyp.elo_rating
-
-        new_winner_elo, new_loser_elo = calculate_elo_update(
-            winner_elo=winner_hyp.elo_rating, loser_elo=loser_hyp.elo_rating)
-        logger.debug("Matchup result: Winner %s -> %s, Loser %s -> %s",
-                     winner_hyp.elo_rating, new_winner_elo,
-                     loser_hyp.elo_rating, new_loser_elo)
-
-        # Store matchup details for display
-        # Extract reasoning from response (can be decision_summary or
-        # judgment_explanation)
-        reasoning = response.get("decision_summary", "")
-        if not reasoning and "judgment_explanation" in response:
-            # Fallback: combine judgment details if decision_summary is missing
-            judgment = response["judgment_explanation"]
-            reasoning = " | ".join(
-                [f"{k}: {v}" for k, v in judgment.items() if v])
-        if not reasoning:
-            reasoning = "No reasoning provided"
-
-        matchup_details.append({
-            "hypothesis_a":
-                truncate(hyp_a.text),
-            "hypothesis_b":
-                truncate(hyp_b.text),
-            # Stable ids alongside the truncated text so downstream
-            # consumers can resolve identity exactly instead of by
-            # text-prefix matching.
-            "hypothesis_a_id":
-                hyp_a.id,
-            "hypothesis_b_id":
-                hyp_b.id,
-            "winner_id":
-                winner_hyp.id,
-            "winner":
-                winner,
-            "reasoning":
-                reasoning,
-            "confidence":
-                response.get("confidence_level", "Unknown"),
-            "tier":
-                match_tier(old_winner_elo, old_loser_elo,
-                           response.get("confidence_level", "")),
-            "winner_elo_before":
-                old_winner_elo,
-            "winner_elo_after":
-                new_winner_elo,
-            "loser_elo_before":
-                old_loser_elo,
-            "loser_elo_after":
-                new_loser_elo,
-        })
-
-        # Hypothesis objects are mutated in place here (elo_rating and
-        # win/loss counters), so these updates are visible on the same
-        # objects held in the `hypotheses` list without needing to rebuild
-        # it -- rank_by_elo below only reorders, it does not recreate them.
-        winner_hyp.elo_rating = new_winner_elo
-        loser_hyp.elo_rating = new_loser_elo
-        winner_hyp.win_count += 1
-        loser_hyp.loss_count += 1
+    matchup_details = _apply_matchup_results(pairings, results)
 
     # Sort hypotheses by Elo rating (highest first), with score then text as
     # deterministic tiebreakers when Elo ratings are equal.

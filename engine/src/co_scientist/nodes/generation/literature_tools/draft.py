@@ -29,6 +29,110 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _log_lit_review_context(articles_with_reasoning: str | None,
+                            articles: list[Any]) -> None:
+    """Log whether warm-started literature-review context is available.
+
+    Args:
+        articles_with_reasoning: lit review summary text, if any.
+        articles: articles already fetched by the literature review (used to
+            report the warm-start paper count).
+    """
+    if articles_with_reasoning:
+        logger.info("Including lit review summary as context for drafting")
+        logger.info(
+            "Warm start: corpus already populated with %s papers"
+            " from literature review", len(articles))
+    else:
+        logger.warning("No lit review summary available"
+                       " - agent will examine papers directly")
+
+
+def _setup_draft_tool_provider(
+    mcp_client: Any,
+    tool_registry: Optional["ToolRegistry"],
+) -> tuple[MCPToolProvider, list[Any], Optional["ToolRegistry"]]:
+    """Resolve the tool registry/whitelist and init the draft tool provider.
+
+    Fallback chain: passed-in registry (threaded from WorkflowState) ->
+    process-global registry (covers standalone/dev scripts that never thread
+    one through state) -> no whitelist at all (provider uses every
+    available tool).
+
+    Args:
+        mcp_client: MCP client for tool access.
+        tool_registry: optional ToolRegistry for config-driven tool
+            selection; resolved from the global registry when None.
+
+    Returns:
+        Tuple of (provider, openai_tools, resolved tool_registry).
+    """
+    if tool_registry is None:
+        try:
+            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
+
+            tool_registry = get_tool_registry()
+            logger.info("Using global tool registry")
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            logger.warning("Failed to get tool registry: %s", e)
+
+    provider = MCPToolProvider(mcp_client=mcp_client)
+
+    if tool_registry:
+        tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
+        mcp_whitelist = tool_registry.get_mcp_tool_names(tool_ids)
+        logger.info("Using tool registry whitelist: %s", mcp_whitelist)
+    else:
+        # No registry available - let provider use all available tools
+        mcp_whitelist = None
+        logger.warning("No tool registry - using all available MCP tools")
+
+    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
+    logger.info("Initialized draft provider with %s tools", len(tools_dict))
+
+    return provider, openai_tools, tool_registry
+
+
+def _parse_draft_response(final_response: str) -> list[dict[str, str]]:
+    """Parse the draft agent's final response into draft hypothesis dicts.
+
+    Args:
+        final_response: the draft agent's final tool-call-loop response.
+
+    Returns:
+        List of draft dicts with text, gap_reasoning, literature_sources.
+
+    Raises:
+        ResponseParseError: if the response cannot be parsed as JSON even
+            after repair attempts.
+    """
+    # Parse JSON response (strip markdown if present, then use repair logic)
+    response_text = extract_response_json(final_response)
+
+    # Use attempt_json_repair for robust parsing
+    # allow_major_repairs=True: tool-calling loop final responses are more
+    # prone to truncated/malformed JSON than single-shot calls (llm.py).
+    response_data, was_repaired = attempt_json_repair(response_text,
+                                                      allow_major_repairs=True)
+
+    if response_data is None:
+        logger.error(
+            "Failed to parse draft JSON response after all repair attempts")
+        logger.error("Response: %s...", final_response[:500])
+        # Hard failure instead of returning an empty draft list: silently
+        # skipping to an empty Phase 1 would make Phase 2 a silent no-op too.
+        raise ResponseParseError(
+            "Draft phase returned invalid JSON that could not be repaired")
+
+    if was_repaired:
+        logger.warning(
+            "Draft JSON response required major repairs (possible truncation)")
+
+    drafts: list[dict[str, str]] = response_data.get("drafts", [])
+    logger.info("Parsed %s draft hypotheses", len(drafts))
+    return drafts
+
+
 async def draft_hypotheses(
     state: WorkflowState,
     count: int,
@@ -71,44 +175,11 @@ async def draft_hypotheses(
     shared_slug = corpus_slug(research_goal)
     logger.info("Using shared corpus slug: %s", shared_slug)
 
-    # Log lit review context
-    if articles_with_reasoning:
-        logger.info("Including lit review summary as context for drafting")
-        logger.info(
-            "Warm start: corpus already populated with %s papers"
-            " from literature review", len(articles))
-    else:
-        logger.warning("No lit review summary available"
-                       " - agent will examine papers directly")
+    _log_lit_review_context(articles_with_reasoning, articles)
 
     # Initialize hybrid tool provider with draft-specific whitelist
-    provider = MCPToolProvider(mcp_client=mcp_client)
-
-    # Get tool whitelist from registry or try global registry
-    # Fallback chain: passed-in registry (threaded from WorkflowState) ->
-    # process-global registry (covers standalone/dev scripts that never
-    # thread one through state) -> no whitelist at all.
-    if tool_registry is None:
-        try:
-            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
-
-            tool_registry = get_tool_registry()
-            logger.info("Using global tool registry")
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning("Failed to get tool registry: %s", e)
-
-    if tool_registry:
-        tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
-        mcp_whitelist = tool_registry.get_mcp_tool_names(tool_ids)
-        logger.info("Using tool registry whitelist: %s", mcp_whitelist)
-    else:
-        # No registry available - let provider use all available tools
-        mcp_whitelist = None
-        logger.warning("No tool registry - using all available MCP tools")
-
-    tools_dict, openai_tools = provider.get_tools(mcp_whitelist=mcp_whitelist)
-
-    logger.info("Initialized draft provider with %s tools", len(tools_dict))
+    provider, openai_tools, tool_registry = _setup_draft_tool_provider(
+        mcp_client, tool_registry)
 
     # Calculate dynamic iteration budget based on hypotheses count
     max_iterations = get_draft_max_iterations(count)
@@ -185,28 +256,4 @@ async def draft_hypotheses(
     logger.info("Draft phase complete: %s tool calls (%s)", total_calls,
                 calls_summary)
 
-    # Parse JSON response (strip markdown if present, then use repair logic)
-    response_text = extract_response_json(final_response)
-
-    # Use attempt_json_repair for robust parsing
-    # allow_major_repairs=True: tool-calling loop final responses are more
-    # prone to truncated/malformed JSON than single-shot calls (llm.py).
-    response_data, was_repaired = attempt_json_repair(response_text,
-                                                      allow_major_repairs=True)
-
-    if response_data is None:
-        logger.error(
-            "Failed to parse draft JSON response after all repair attempts")
-        logger.error("Response: %s...", final_response[:500])
-        # Hard failure instead of returning an empty draft list: silently
-        # skipping to an empty Phase 1 would make Phase 2 a silent no-op too.
-        raise ResponseParseError(
-            "Draft phase returned invalid JSON that could not be repaired")
-
-    if was_repaired:
-        logger.warning(
-            "Draft JSON response required major repairs (possible truncation)")
-
-    drafts: list[dict[str, str]] = response_data.get("drafts", [])
-    logger.info("Parsed %s draft hypotheses", len(drafts))
-    return drafts
+    return _parse_draft_response(final_response)

@@ -27,6 +27,7 @@ from co_scientist.mcp_client import (
     get_mcp_client,
     check_literature_source_available,
 )
+from co_scientist.models import Article
 from co_scientist.state import WorkflowState
 
 from co_scientist.nodes.progress import emit_progress
@@ -87,6 +88,23 @@ def _describe_exc(exc: BaseException) -> str:
 # =============================================================================
 
 
+def _resolve_papers_to_read_count(state: WorkflowState) -> tuple[int, bool]:
+    """Resolve the papers-to-read budget and dev-mode status for this run.
+
+    Dev mode uses a far smaller paper budget for fast iteration; a per-run
+    override in state takes priority over the default when not in dev mode.
+
+    Returns:
+        A (papers_to_read_count, is_dev_mode) tuple.
+    """
+    is_dev_mode = parse_bool_env(os.getenv("COSCIENTIST_DEV_MODE", "false"))
+    run_papers_count = state.get("literature_review_papers_count")
+    papers_to_read_count = (LITERATURE_REVIEW_PAPERS_COUNT_DEV if is_dev_mode
+                            else int(run_papers_count or
+                                     LITERATURE_REVIEW_PAPERS_COUNT))
+    return papers_to_read_count, is_dev_mode
+
+
 def _get_search_config(state: WorkflowState) -> SearchConfig:
     """Extract search configuration from state and tool registry."""
     tool_registry = state.get("tool_registry")
@@ -117,15 +135,7 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
             logger.info("Single-source mode: %s (source: %s)", search_tool_name,
                         source_name)
 
-    # Dev mode detection
-    # Dev mode uses a far smaller paper budget for fast iteration; a
-    # per-run override in state takes priority over the default when not in
-    # dev mode.
-    is_dev_mode = parse_bool_env(os.getenv("COSCIENTIST_DEV_MODE", "false"))
-    run_papers_count = state.get("literature_review_papers_count")
-    papers_to_read_count = (LITERATURE_REVIEW_PAPERS_COUNT_DEV if is_dev_mode
-                            else int(run_papers_count or
-                                     LITERATURE_REVIEW_PAPERS_COUNT))
+    papers_to_read_count, is_dev_mode = _resolve_papers_to_read_count(state)
 
     return SearchConfig(
         tool_registry=tool_registry,
@@ -137,6 +147,131 @@ def _get_search_config(state: WorkflowState) -> SearchConfig:
         papers_to_read_count=papers_to_read_count,
         is_dev_mode=is_dev_mode,
     )
+
+
+# =============================================================================
+# Result and diagnostics helpers
+#
+# Each helper below covers one self-contained step of literature_review_node
+# (a diagnostic side effect or an early-exit result), factored out purely to
+# keep the orchestrator's phase sequence readable.
+# =============================================================================
+
+
+async def _emit_empty_search_diagnostics(
+    state: WorkflowState,
+    queries: list[str],
+    search_errors: list[str],
+) -> None:
+    """Log and report progress when Phase 2 collected zero papers.
+
+    Distinguishes a genuinely empty search from one where every call
+    errored: both otherwise surface as zero articles with no trace of the
+    cause.
+    """
+    if search_errors:
+        logger.error(
+            "Literature review found no papers: %s of %s search call(s) "
+            "errored: %s", len(search_errors), len(queries),
+            "; ".join(search_errors[:5]))
+        await emit_progress(state,
+                            "literature_review_error",
+                            "Literature search failed (no papers retrieved)",
+                            0.2,
+                            queries_count=len(queries),
+                            search_errors_count=len(search_errors),
+                            search_error_sample=search_errors[:5])
+    else:
+        logger.warning(
+            "Literature review found no papers: all %s query/queries "
+            "returned zero results (no errors)", len(queries))
+        await emit_progress(state,
+                            "literature_review_empty",
+                            "Literature search returned no results",
+                            0.2,
+                            queries_count=len(queries),
+                            search_errors_count=0)
+
+
+async def _handle_no_papers_found(
+    state: WorkflowState,
+    queries: list[str],
+) -> dict[str, Any]:
+    """Build the failure result when Phase 2 collected zero papers."""
+    logger.warning("No papers collected")
+    await emit_progress(state, "literature_review_complete",
+                        "Literature review completed (no papers found)", 0.2)
+    return make_failure_result("no papers found", queries=queries)
+
+
+async def _handle_no_fulltext_available(
+    state: WorkflowState,
+    all_paper_metadata: dict[str, dict[str, Any]],
+    queries: list[str],
+    source_name: str,
+) -> dict[str, Any]:
+    """Build the failure result when no collected paper has usable content.
+
+    Papers were found but none have any usable content (fulltext or
+    abstract fallback) for Phase 3 analysis. Still returns the collected
+    metadata as `articles` (used_in_analysis defaults True in
+    build_article_from_metadata) so callers retain the paper list even
+    though the review itself failed.
+    """
+    logger.error("No papers have fulltexts available - cannot perform analysis")
+    n = len(all_paper_metadata)
+    await emit_progress(
+        state,
+        "literature_review_complete",
+        f"Literature review failed ({n} papers found but none"
+        " have fulltexts)",
+        0.2,
+    )
+    articles = build_articles_from_metadata(all_paper_metadata, source_name)
+    return make_failure_result(
+        f"{n} papers found but none have fulltexts for analysis",
+        queries=queries,
+        articles=articles,
+    )
+
+
+def _log_sample_papers(all_paper_metadata: dict[str, dict[str, Any]]) -> None:
+    """Debug-log a small sample of collected papers before Phase 3 analysis."""
+    for paper_id, meta in list(all_paper_metadata.items())[:3]:
+        has_ft = bool(
+            meta.get("pmc_full_text_id") or meta.get("fulltext") or
+            meta.get("pdf_url"))
+        logger.debug("Paper %s: title='%s...' has_fulltext=%s", paper_id,
+                     meta.get('title', '')[:60], has_ft)
+
+
+def _append_kg_evidence_section(
+    synthesis: str,
+    articles: list[Article],
+    context_enrichment_sources: list[dict[str, Any]],
+) -> str:
+    """Append knowledge graph evidence with [C*] keys to the synthesis text.
+
+    Keys start after the analyzed papers so they match what
+    build_reference_index will assign at generation time, giving the
+    generation LLM explicit handles to cite.
+    """
+    if not context_enrichment_sources or synthesis == LITERATURE_REVIEW_FAILED:
+        return synthesis
+
+    # used_paper_count must match the number of [C*] keys
+    # build_reference_index will assign to papers at generation time, so the
+    # KG section's keys start immediately after them.
+    used_paper_count = sum(
+        1 for a in articles if getattr(a, "used_in_analysis", False))
+    kg_section = _format_kg_section_with_keys(context_enrichment_sources,
+                                              used_paper_count)
+    if not kg_section:
+        return synthesis
+
+    logger.info("Appended %s KG source(s) with [C%s...] keys to synthesis",
+                len(context_enrichment_sources), used_paper_count + 1)
+    return synthesis + kg_section
 
 
 # =============================================================================
@@ -228,32 +363,8 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
                                                        config, mcp_client,
                                                        search_errors))
 
-    # Distinguish a genuinely empty search from one where every call errored:
-    # both otherwise surface as zero articles with no trace of the cause.
     if not all_paper_metadata:
-        if search_errors:
-            logger.error(
-                "Literature review found no papers: %s of %s search call(s) "
-                "errored: %s", len(search_errors), len(queries),
-                "; ".join(search_errors[:5]))
-            await emit_progress(
-                state,
-                "literature_review_error",
-                "Literature search failed (no papers retrieved)",
-                0.2,
-                queries_count=len(queries),
-                search_errors_count=len(search_errors),
-                search_error_sample=search_errors[:5])
-        else:
-            logger.warning(
-                "Literature review found no papers: all %s query/queries "
-                "returned zero results (no errors)", len(queries))
-            await emit_progress(state,
-                                "literature_review_empty",
-                                "Literature search returned no results",
-                                0.2,
-                                queries_count=len(queries),
-                                search_errors_count=0)
+        await _emit_empty_search_diagnostics(state, queries, search_errors)
 
     # Phase 2.4: discover PDF links
     # Mutates all_paper_metadata in place (no-op when no pdf_discovery_tool
@@ -287,43 +398,13 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     # Zero papers collected is a hard failure (nothing to analyze or
     # synthesize from).
     if len(all_paper_metadata) == 0:
-        logger.warning("No papers collected")
-        await emit_progress(state, "literature_review_complete",
-                            "Literature review completed (no papers found)",
-                            0.2)
-        return make_failure_result("no papers found", queries=queries)
+        return await _handle_no_papers_found(state, queries)
 
-    # Papers were found but none have any usable content (fulltext or
-    # abstract fallback) for Phase 3 analysis. Still return the collected
-    # metadata as `articles` (used_in_analysis defaults True in
-    # build_article_from_metadata) so callers retain the paper list even
-    # though the review itself failed.
     if with_fulltext == 0:
-        logger.error(
-            "No papers have fulltexts available - cannot perform analysis")
-        n = len(all_paper_metadata)
-        await emit_progress(
-            state,
-            "literature_review_complete",
-            f"Literature review failed ({n} papers found but none"
-            " have fulltexts)",
-            0.2,
-        )
-        articles = build_articles_from_metadata(all_paper_metadata,
-                                                config.source_name)
-        return make_failure_result(
-            f"{n} papers found but none have fulltexts for analysis",
-            queries=queries,
-            articles=articles,
-        )
+        return await _handle_no_fulltext_available(state, all_paper_metadata,
+                                                   queries, config.source_name)
 
-    # Log sample papers for debugging
-    for paper_id, meta in list(all_paper_metadata.items())[:3]:
-        has_ft = bool(
-            meta.get("pmc_full_text_id") or meta.get("fulltext") or
-            meta.get("pdf_url"))
-        logger.debug("Paper %s: title='%s...' has_fulltext=%s", paper_id,
-                     meta.get('title', '')[:60], has_ft)
+    _log_sample_papers(all_paper_metadata)
 
     # Phase 3: analyze papers
     paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
@@ -348,22 +429,9 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Created %s article objects", len(articles))
 
     # Append knowledge graph evidence with [C*] keys aligned to the reference
-    # index. keys start after the analyzed papers so they match what
-    # build_reference_index will assign at generation time — giving the
-    # generation LLM explicit handles to cite.
-    if context_enrichment_sources and synthesis != LITERATURE_REVIEW_FAILED:
-        # used_paper_count must match the number of [C*] keys
-        # build_reference_index will assign to papers at generation time, so
-        # the KG section's keys start immediately after them.
-        used_paper_count = sum(
-            1 for a in articles if getattr(a, "used_in_analysis", False))
-        kg_section = _format_kg_section_with_keys(context_enrichment_sources,
-                                                  used_paper_count)
-        if kg_section:
-            synthesis = synthesis + kg_section
-            logger.info(
-                "Appended %s KG source(s) with [C%s...] keys to synthesis",
-                len(context_enrichment_sources), used_paper_count + 1)
+    # index (see _append_kg_evidence_section for why the keys line up).
+    synthesis = _append_kg_evidence_section(synthesis, articles,
+                                            context_enrichment_sources)
 
     # Emit completion
     await emit_progress(

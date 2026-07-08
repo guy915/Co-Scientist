@@ -197,6 +197,46 @@ async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts,
                         PROGRESS_GENERATE_START, **extra)
 
 
+def _unpack_generation_results(
+    tasks: list[tuple[str, Coroutine[Any, Any, Any]]],
+    results: list[Any],
+) -> GenerationResults:
+    """Route gathered task results back into their per-strategy buckets.
+
+    Args:
+        tasks: the (task_type, coroutine) pairs passed to asyncio.gather, in
+            the same order as results (task_type distinguishes the tools
+            path's plain hypothesis list from the two debate paths'
+            (hypotheses, transcripts) tuples).
+        results: asyncio.gather's return value for those tasks.
+
+    Returns:
+        GenerationResults with each strategy's hypotheses/transcripts routed
+        to the right field.
+    """
+    tools_hypotheses: list[Hypothesis] = []
+    debate_with_lit_hypotheses: list[Hypothesis] = []
+    debate_only_hypotheses: list[Hypothesis] = []
+    debate_transcripts: list[dict[str, Any]] = []
+
+    for i, (task_type, _) in enumerate(tasks):
+        if task_type == "tools":
+            tools_hypotheses = results[i]
+        elif task_type == "debate_lit":
+            debate_with_lit_hypotheses, transcripts = results[i]
+            debate_transcripts.extend(transcripts)
+        elif task_type == "debate_only":
+            debate_only_hypotheses, transcripts = results[i]
+            debate_transcripts.extend(transcripts)
+
+    return GenerationResults(
+        tools_hypotheses=tools_hypotheses,
+        debate_with_lit_hypotheses=debate_with_lit_hypotheses,
+        debate_only_hypotheses=debate_only_hypotheses,
+        debate_transcripts=debate_transcripts,
+    )
+
+
 async def _execute_generation_tasks(
     state: WorkflowState,
     counts: GenerationCounts,
@@ -204,11 +244,6 @@ async def _execute_generation_tasks(
     reference_index: ReferenceIndex,
 ) -> GenerationResults:
     """Execute parallel generation tasks and return results."""
-    tools_hypotheses: list[Hypothesis] = []
-    debate_with_lit_hypotheses: list[Hypothesis] = []
-    debate_only_hypotheses: list[Hypothesis] = []
-    debate_transcripts: list[dict[str, Any]] = []
-
     # Collect tasks to run in parallel. Each entry pairs a tag with its
     # coroutine so results can be routed back to the right bucket after
     # asyncio.gather() returns them in call order (order is not otherwise
@@ -252,28 +287,11 @@ async def _execute_generation_tasks(
         ))
 
     # Run all tasks in parallel; gather preserves the order tasks were
-    # appended in, which is what the index-based unpack below relies on.
+    # appended in, which is what the index-based unpack in
+    # _unpack_generation_results relies on.
     results = await asyncio.gather(*[task for _, task in tasks])
 
-    # Unpack results. task_type distinguishes between the tools path (a
-    # plain hypothesis list) and the two debate paths (a
-    # (hypotheses, transcripts) tuple).
-    for i, (task_type, _) in enumerate(tasks):
-        if task_type == "tools":
-            tools_hypotheses = results[i]
-        elif task_type == "debate_lit":
-            debate_with_lit_hypotheses, transcripts = results[i]
-            debate_transcripts.extend(transcripts)
-        elif task_type == "debate_only":
-            debate_only_hypotheses, transcripts = results[i]
-            debate_transcripts.extend(transcripts)
-
-    return GenerationResults(
-        tools_hypotheses=tools_hypotheses,
-        debate_with_lit_hypotheses=debate_with_lit_hypotheses,
-        debate_only_hypotheses=debate_only_hypotheses,
-        debate_transcripts=debate_transcripts,
-    )
+    return _unpack_generation_results(tasks, results)
 
 
 def _apply_degraded_mode_fallback(hypotheses: list[Hypothesis]) -> None:
@@ -357,6 +375,51 @@ async def _emit_complete_progress(state: WorkflowState,
 # Enrichment
 
 
+async def _enrich_one_hypothesis(
+    hyp: Hypothesis,
+    enrichment: EnrichmentConfig,
+    tool_config: ToolConfig,
+    output_key: str,
+    mcp_client: Any,
+    semaphore: asyncio.Semaphore,
+) -> None:
+    """Run one enrichment tool call for one hypothesis, best-effort.
+
+    Args:
+        hyp: the hypothesis to enrich; the result is stored on
+            hyp.enrichments[output_key].
+        enrichment: the enrichment config (input field, tool, result shape).
+        tool_config: the resolved tool config for enrichment.tool.
+        output_key: key under which the result is stored on
+            hyp.enrichments.
+        mcp_client: MCP client used to call the enrichment tool.
+        semaphore: shared concurrency limiter across all enrichment calls.
+    """
+    # input_field selects which hypothesis attribute to query with (e.g. its
+    # explanation instead of its text); falls back to text.
+    input_value = getattr(hyp, enrichment.input_field, hyp.text)
+    try:
+        async with semaphore:
+            result = await mcp_client.call_tool(
+                tool_config.mcp_tool_name,
+                topic=input_value,
+                max_results=enrichment.max_results,
+            )
+        parsed = parse_mcp_result(result)
+        # Extract nested array via results_path (e.g., "results" for
+        # NvdSearchResponse)
+        if enrichment.results_path and isinstance(parsed, dict):
+            parsed = parsed.get(enrichment.results_path, parsed)
+        hyp.enrichments[output_key] = parsed
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # Enrichment is supplementary, not load-bearing: a failure here must
+        # not fail hypothesis generation, so it is recorded on the
+        # hypothesis instead of being raised.
+        logger.warning("enrichment '%s' failed for hypothesis: %s", output_key,
+                       e)
+        hyp.enrichments[output_key] = {"error": str(e)}
+
+
 async def _enrich_hypotheses(
     hypotheses: list[Hypothesis],
     state: WorkflowState,
@@ -383,33 +446,6 @@ async def _enrich_hypotheses(
     # MCP requests and avoids adding a second constant for the same purpose.
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
-    # Runs one enrichment tool call for one hypothesis, best-effort.
-    async def enrich_one(hyp: Hypothesis, enrichment: EnrichmentConfig,
-                         tool_config: ToolConfig, output_key: str) -> None:
-        # input_field selects which hypothesis attribute to query with (e.g.
-        # its explanation instead of its text); falls back to text.
-        input_value = getattr(hyp, enrichment.input_field, hyp.text)
-        try:
-            async with semaphore:
-                result = await mcp_client.call_tool(
-                    tool_config.mcp_tool_name,
-                    topic=input_value,
-                    max_results=enrichment.max_results,
-                )
-            parsed = parse_mcp_result(result)
-            # Extract nested array via results_path (e.g., "results" for
-            # NvdSearchResponse)
-            if enrichment.results_path and isinstance(parsed, dict):
-                parsed = parsed.get(enrichment.results_path, parsed)
-            hyp.enrichments[output_key] = parsed
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            # Enrichment is supplementary, not load-bearing: a failure here
-            # must not fail hypothesis generation, so it is recorded on the
-            # hypothesis instead of being raised.
-            logger.warning("enrichment '%s' failed for hypothesis: %s",
-                           output_key, e)
-            hyp.enrichments[output_key] = {"error": str(e)}
-
     for enrichment in enrichment_configs:
         tool_config = tool_registry.get_tool(enrichment.tool)
         if not tool_config:
@@ -422,10 +458,10 @@ async def _enrich_hypotheses(
                     output_key, tool_config.mcp_tool_name, len(hypotheses))
 
         # Fan out one call per hypothesis for this enrichment config; the
-        # semaphore inside enrich_one bounds actual concurrency.
-        await asyncio.gather(
-            *(enrich_one(hyp, enrichment, tool_config, output_key)
-              for hyp in hypotheses))
+        # semaphore inside _enrich_one_hypothesis bounds actual concurrency.
+        await asyncio.gather(*(_enrich_one_hypothesis(
+            hyp, enrichment, tool_config, output_key, mcp_client, semaphore)
+                               for hyp in hypotheses))
 
 
 # Main coordinator function

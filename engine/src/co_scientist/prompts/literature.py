@@ -8,6 +8,32 @@ from co_scientist.prompts._common import _format_year
 from co_scientist.prompts.loading import load_prompt
 
 
+def _format_query_generation_variables(
+    research_goal: str,
+    preferences: str | None,
+    attributes: list[str] | None,
+    user_literature: list[str] | None,
+    user_hypotheses: list[str] | None,
+) -> dict[str, Any]:
+    """Build the shared template variables for query-generation prompts.
+
+    Identical across the PubMed-specific and source-aware query-generation
+    getters below, so it is defined once here.
+    """
+    return {
+        "research_goal":
+            research_goal,
+        "preferences":
+            preferences if preferences else "None provided",
+        "attributes":
+            ", ".join(attributes) if attributes else "None provided",
+        "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
+                            if user_literature else "None provided"),
+        "user_hypotheses": ("\n".join(f"- {hyp}" for hyp in user_hypotheses)
+                            if user_hypotheses else "None provided"),
+    }
+
+
 # PubMed-specific variant kept for backwards compatibility; production code
 # goes through the source-aware getter below, which dispatches to the same
 # template when source_type is "pubmed".
@@ -21,18 +47,9 @@ def get_literature_review_query_generation_pubmed_prompt(
     """Get the PubMed query generation prompt."""
     return load_prompt(
         "literature_review_query_generation_pubmed",
-        {
-            "research_goal":
-                research_goal,
-            "preferences":
-                preferences if preferences else "None provided",
-            "attributes":
-                ", ".join(attributes) if attributes else "None provided",
-            "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
-                                if user_literature else "None provided"),
-            "user_hypotheses": ("\n".join(f"- {hyp}" for hyp in user_hypotheses)
-                                if user_hypotheses else "None provided"),
-        },
+        _format_query_generation_variables(research_goal, preferences,
+                                           attributes, user_literature,
+                                           user_hypotheses),
     )
 
 
@@ -76,18 +93,9 @@ def get_literature_review_query_generation_prompt(
 
     return load_prompt(
         template_name,
-        {
-            "research_goal":
-                research_goal,
-            "preferences":
-                preferences if preferences else "None provided",
-            "attributes":
-                ", ".join(attributes) if attributes else "None provided",
-            "user_literature": ("\n".join(f"- {lit}" for lit in user_literature)
-                                if user_literature else "None provided"),
-            "user_hypotheses": ("\n".join(f"- {hyp}" for hyp in user_hypotheses)
-                                if user_hypotheses else "None provided"),
-        },
+        _format_query_generation_variables(research_goal, preferences,
+                                           attributes, user_literature,
+                                           user_hypotheses),
     )
 
 
@@ -111,17 +119,17 @@ def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
     )
 
 
-# Renders prompts/literature_review_synthesis.md for
-# nodes/literature_review.py: flattens the per-paper analyses into one
-# markdown block and optionally appends knowledge-graph background as a
-# "Mechanistic Background" section (empty string when unavailable).
-def get_literature_review_synthesis_prompt(
-    research_goal: str,
-    paper_analyses: list[dict[str, Any]],
-    background_context: str = "",
-) -> str:
-    """Get the prompt for synthesizing paper analyses."""
-    # Format paper analyses as structured text
+def _format_paper_analyses(paper_analyses: list[dict[str, Any]]) -> str:
+    """Render each paper's metadata and analysis as a numbered markdown
+    section.
+
+    Args:
+        paper_analyses: Per-paper entries, each with a ``metadata`` dict and
+            an ``analysis`` dict of the fields analyzed for that paper.
+
+    Returns:
+        The formatted block, sections joined by blank lines.
+    """
     analyses_text = []
     for i, analysis_data in enumerate(paper_analyses, 1):
         metadata = analysis_data.get("metadata", {})
@@ -145,6 +153,19 @@ def get_literature_review_synthesis_prompt(
 """
         analyses_text.append(paper_section)
 
+    return "\n\n".join(analyses_text)
+
+
+# Renders prompts/literature_review_synthesis.md for
+# nodes/literature_review.py: flattens the per-paper analyses into one
+# markdown block and optionally appends knowledge-graph background as a
+# "Mechanistic Background" section (empty string when unavailable).
+def get_literature_review_synthesis_prompt(
+    research_goal: str,
+    paper_analyses: list[dict[str, Any]],
+    background_context: str = "",
+) -> str:
+    """Get the prompt for synthesizing paper analyses."""
     background_context_section = (
         "\n## Mechanistic Background (Knowledge Graph)\n\n"
         "The following structured evidence was retrieved from external"
@@ -159,7 +180,7 @@ def get_literature_review_synthesis_prompt(
         "literature_review_synthesis",
         {
             "research_goal": research_goal,
-            "paper_analyses": "\n\n".join(analyses_text),
+            "paper_analyses": _format_paper_analyses(paper_analyses),
             "background_context_section": background_context_section,
         },
     )

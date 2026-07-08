@@ -113,6 +113,65 @@ def format_deep_verification_critique(probes: list[dict[str, Any]],
     return summary, critique
 
 
+def _render_overview_section(ov: dict[str, Any]) -> list[str]:
+    """Render the 'Research Overview' section, or nothing when data absent."""
+    lines: list[str] = []
+    if not isinstance(ov, dict):
+        return lines
+    summary = ov.get("summary")
+    directions = ov.get("research_directions") or []
+    if not (summary or directions):
+        return lines
+    lines.append("\n## Research Overview\n")
+    if summary:
+        lines.append(f"{summary}\n")
+    for direction in directions:
+        if not isinstance(direction, dict):
+            continue
+        title = direction.get("title", "")
+        importance = direction.get("importance", "")
+        experiments = direction.get("suggested_experiments") or []
+        lines.append(f"### {title}\n")
+        if importance:
+            lines.append(f"{importance}\n")
+        if experiments:
+            lines.append("Suggested experiments:\n")
+            for experiment in experiments:
+                lines.append(f"- {experiment}")
+            lines.append("")
+    return lines
+
+
+def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
+    """Render the 'NIH Specific Aims' section, or nothing when data absent."""
+    lines: list[str] = []
+    if not isinstance(aims_section, dict):
+        return lines
+    introduction = aims_section.get("introduction")
+    aims = aims_section.get("aims") or []
+    impact = aims_section.get("impact")
+    if not (introduction or aims or impact):
+        return lines
+    lines.append("\n## NIH Specific Aims\n")
+    if introduction:
+        lines.append(f"{introduction}\n")
+    for aim in aims:
+        if not isinstance(aim, dict):
+            continue
+        aim_text = aim.get("aim", "")
+        rationale = aim.get("rationale", "")
+        approach = aim.get("approach", "")
+        lines.append(f"### {aim_text}\n")
+        if rationale:
+            lines.append(f"**Rationale:** {rationale}\n")
+        if approach:
+            lines.append(f"**Approach:** {approach}\n")
+    if impact:
+        lines.append("### Impact\n")
+        lines.append(f"{impact}\n")
+    return lines
+
+
 def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
     """Render the research overview + NIH Specific Aims as markdown lines.
 
@@ -125,60 +184,15 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
         A list of markdown lines. Empty when no renderable content exists, so
         callers never emit bare section headers.
     """
-    lines: list[str] = []
-    # The isinstance guards throughout this function are defensive: this
-    # payload can originate from LLM-produced structured output (engine
-    # path), which is schema-validated but still worth guarding defensively
-    # against a malformed or missing sub-shape rather than raising here.
+    # The isinstance guard here (and inside each section renderer) is
+    # defensive: this payload can originate from LLM-produced structured
+    # output (engine path), which is schema-validated but still worth
+    # guarding defensively against a malformed or missing sub-shape rather
+    # than raising here.
     if not isinstance(overview, dict):
-        return lines
-
-    ov = overview.get("overview") or {}
-    if isinstance(ov, dict):
-        summary = ov.get("summary")
-        directions = ov.get("research_directions") or []
-        if summary or directions:
-            lines.append("\n## Research Overview\n")
-            if summary:
-                lines.append(f"{summary}\n")
-            for direction in directions:
-                if not isinstance(direction, dict):
-                    continue
-                title = direction.get("title", "")
-                importance = direction.get("importance", "")
-                experiments = direction.get("suggested_experiments") or []
-                lines.append(f"### {title}\n")
-                if importance:
-                    lines.append(f"{importance}\n")
-                if experiments:
-                    lines.append("Suggested experiments:\n")
-                    for experiment in experiments:
-                        lines.append(f"- {experiment}")
-                    lines.append("")
-
-    aims_section = overview.get("nih_specific_aims") or {}
-    if isinstance(aims_section, dict):
-        introduction = aims_section.get("introduction")
-        aims = aims_section.get("aims") or []
-        impact = aims_section.get("impact")
-        if introduction or aims or impact:
-            lines.append("\n## NIH Specific Aims\n")
-            if introduction:
-                lines.append(f"{introduction}\n")
-            for aim in aims:
-                if not isinstance(aim, dict):
-                    continue
-                aim_text = aim.get("aim", "")
-                rationale = aim.get("rationale", "")
-                approach = aim.get("approach", "")
-                lines.append(f"### {aim_text}\n")
-                if rationale:
-                    lines.append(f"**Rationale:** {rationale}\n")
-                if approach:
-                    lines.append(f"**Approach:** {approach}\n")
-            if impact:
-                lines.append("### Impact\n")
-                lines.append(f"{impact}\n")
+        return []
+    lines = _render_overview_section(overview.get("overview") or {})
+    lines += _render_nih_aims_section(overview.get("nih_specific_aims") or {})
     return lines
 
 
@@ -269,6 +283,28 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _render_top_hypotheses_markdown(
+        top_hypotheses: list[dict[str, Any]]) -> list[str]:
+    """Render the numbered 'Top hypotheses' section."""
+    lines: list[str] = ["## Top hypotheses", ""]
+    for i, hyp in enumerate(top_hypotheses, 1):
+        # "title"/"statement" are store row field names; "text" is the raw
+        # engine hypothesis field name -- fall back across both so this
+        # renders whichever shape the caller happens to pass in.
+        title = hyp.get("title") or hyp.get("text") or "Untitled"
+        lines.append(f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_")
+        statement = hyp.get("statement") or hyp.get("text") or ""
+        if statement:
+            lines += [statement, ""]
+        mechanism = hyp.get("mechanism")
+        if mechanism:
+            lines += [f"**Mechanism:** {mechanism}", ""]
+        expected_effect = hyp.get("expected_effect")
+        if expected_effect:
+            lines += [f"**Expected effect:** {expected_effect}", ""]
+    return lines
+
+
 def render_report_markdown(
     *,
     research_goal: str,
@@ -308,23 +344,7 @@ def render_report_markdown(
     if summary:
         lines += ["## Summary", summary, ""]
 
-    lines += ["## Top hypotheses", ""]
-    for i, hyp in enumerate(top_hypotheses, 1):
-        # "title"/"statement" are store row field names; "text" is the raw
-        # engine hypothesis field name -- fall back across both so this
-        # renders whichever shape the caller happens to pass in.
-        title = hyp.get("title") or hyp.get("text") or "Untitled"
-        lines.append(f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_")
-        statement = hyp.get("statement") or hyp.get("text") or ""
-        if statement:
-            lines += [statement, ""]
-        mechanism = hyp.get("mechanism")
-        if mechanism:
-            lines += [f"**Mechanism:** {mechanism}", ""]
-        expected_effect = hyp.get("expected_effect")
-        if expected_effect:
-            lines += [f"**Expected effect:** {expected_effect}", ""]
-
+    lines += _render_top_hypotheses_markdown(top_hypotheses)
     lines += _render_meta_review_markdown(meta_review or {})
 
     if citation_summary:

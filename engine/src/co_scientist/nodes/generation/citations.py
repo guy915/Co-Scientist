@@ -39,35 +39,28 @@ class ReferenceIndex:
         return not self.sources
 
 
-def build_reference_index(
+def _paper_reference_entries(
     articles: list[Any] | None,
-    context_enrichment_sources: list[dict[str, Any]] | None,
-) -> ReferenceIndex:
-    """Build a sequential reference index from lit-review articles and sources.
+    start_counter: int,
+) -> tuple[list[str], dict[str, dict[str, Any]], int]:
+    """Build [C*] reference lines/sources for analyzed lit-review articles.
 
-    All sources share a single [C*] key namespace — domain-agnostic.
-    Papers come first (they're the primary grounding), enrichment sources
-    follow.
-    Only includes articles with used_in_analysis=True.
+    Only includes articles with used_in_analysis=True — only papers actually
+    read/analyzed (not just found by search) are trustworthy enough to
+    ground a hypothesis.
 
     Args:
-        articles: Article objects from state.articles
-        context_enrichment_sources: Structured items from
-            state.context_enrichment_sources
+        articles: Article objects from state.articles.
+        start_counter: First [C*] key number to assign.
 
     Returns:
-        ReferenceIndex with formatted text and sources dict
+        Tuple of (formatted lines, key -> source dict, next free counter).
     """
     sources: dict[str, dict[str, Any]] = {}
     lines: list[str] = []
-    # counter increments across both loops below so papers and enrichment
-    # sources share one continuous [C*] key sequence.
-    counter = 1
+    counter = start_counter
 
-    # Papers first
     for article in articles or []:
-        # Only papers actually read/analyzed (not just found by search) are
-        # trustworthy enough to ground a hypothesis.
         if not getattr(article, "used_in_analysis", False):
             continue
         key = f"C{counter}"
@@ -91,9 +84,31 @@ def build_reference_index(
         }
         counter += 1
 
-    # External enrichment sources (e.g. INDRA statements, CVE entries)
-    # These come from domain-specific tool integrations run earlier in
-    # the pipeline; "display" is a pre-formatted, human-readable summary.
+    return lines, sources, counter
+
+
+def _enrichment_reference_entries(
+    context_enrichment_sources: list[dict[str, Any]] | None,
+    start_counter: int,
+) -> tuple[list[str], dict[str, dict[str, Any]], int]:
+    """Build [C*] reference lines/sources for external enrichment sources.
+
+    These come from domain-specific tool integrations run earlier in the
+    pipeline (e.g. INDRA statements, CVE entries); "display" is a
+    pre-formatted, human-readable summary.
+
+    Args:
+        context_enrichment_sources: Structured items from
+            state.context_enrichment_sources.
+        start_counter: First [C*] key number to assign.
+
+    Returns:
+        Tuple of (formatted lines, key -> source dict, next free counter).
+    """
+    sources: dict[str, dict[str, Any]] = {}
+    lines: list[str] = []
+    counter = start_counter
+
     for item in context_enrichment_sources or []:
         key = f"C{counter}"
         display = item.get("display", "External source")
@@ -106,7 +121,38 @@ def build_reference_index(
         }
         counter += 1
 
-    return ReferenceIndex(text="\n".join(lines), sources=sources)
+    return lines, sources, counter
+
+
+def build_reference_index(
+    articles: list[Any] | None,
+    context_enrichment_sources: list[dict[str, Any]] | None,
+) -> ReferenceIndex:
+    """Build a sequential reference index from lit-review articles and sources.
+
+    All sources share a single [C*] key namespace — domain-agnostic.
+    Papers come first (they're the primary grounding), enrichment sources
+    follow.
+    Only includes articles with used_in_analysis=True.
+
+    Args:
+        articles: Article objects from state.articles
+        context_enrichment_sources: Structured items from
+            state.context_enrichment_sources
+
+    Returns:
+        ReferenceIndex with formatted text and sources dict
+    """
+    # Papers first; the returned counter continues into the enrichment pass
+    # below so papers and enrichment sources share one continuous [C*] key
+    # sequence.
+    paper_lines, sources, counter = _paper_reference_entries(articles, 1)
+    enrichment_lines, enrichment_sources, _ = _enrichment_reference_entries(
+        context_enrichment_sources, counter)
+    sources.update(enrichment_sources)
+
+    return ReferenceIndex(text="\n".join(paper_lines + enrichment_lines),
+                          sources=sources)
 
 
 def resolve_citation_keys(

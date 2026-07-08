@@ -9,13 +9,16 @@ unless the workflow lists ``context_enrichment_tools``.
 import asyncio
 import json
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState
 
 from co_scientist.nodes.reflection_helpers import extract_entity_names
 from co_scientist.nodes.literature_review.helpers import SearchConfig
+
+if TYPE_CHECKING:
+    from co_scientist.config import ToolConfig, ToolRegistry, WorkflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +44,44 @@ async def _call_enrichment_tool_for_entity(
         return None
 
 
+def _format_generic_items(
+    items: list[Any],) -> tuple[str, list[dict[str, Any]]]:
+    """Format a generic list of result items as (display_text, structured).
+
+    Shared by the "results"-wrapped dict shape and the bare-list shape in
+    `_parse_enrichment_result`: both just cap the list, stringify each item
+    for display, and carry the raw payload through (when it's a dict).
+    """
+    capped = items[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]
+    text = "\n".join(str(item)[:120] for item in capped)
+    structured = [{
+        "display": str(item)[:120],
+        "data": item if isinstance(item, dict) else {}
+    } for item in capped]
+    return text, structured
+
+
+def _format_indra_statements(
+    stmts: list[dict[str, Any]],) -> tuple[str, list[dict[str, Any]]]:
+    """Format INDRA subject/object/relation statements as causal-edge text."""
+    lines = []
+    items = []
+    for s in stmts[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]:
+        # INDRA statements encode subject/object/relation triples with a
+        # belief score; format as a readable causal edge for the synthesis
+        # prompt.
+        subj = (s.get("subj") or {}).get("name", "")
+        obj = (s.get("obj") or {}).get("name", "")
+        rel = s.get("type", "")
+        belief = s.get("belief", 0)
+        if subj and obj:
+            display = (f"{subj} \u2192 {obj} [{rel}]"
+                       f" (belief: {belief:.2f})")
+            lines.append(f"- {display}")
+            items.append({"display": f"INDRA: {display}", "data": s})
+    return "\n".join(lines), items
+
+
 def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
     """Extract formatted text AND structured items from an enrichment result.
 
@@ -63,34 +104,13 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
             stmts = data.get("statements", [])
             if not stmts:
                 return "", []  # entity had no results - skip cleanly
-            lines = []
-            items = []
-            for s in stmts[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]:
-                # INDRA statements encode subject/object/relation triples
-                # with a belief score; format as a readable causal edge for
-                # the synthesis prompt.
-                subj = (s.get("subj") or {}).get("name", "")
-                obj = (s.get("obj") or {}).get("name", "")
-                rel = s.get("type", "")
-                belief = s.get("belief", 0)
-                if subj and obj:
-                    display = (f"{subj} \u2192 {obj} [{rel}]"
-                               f" (belief: {belief:.2f})")
-                    lines.append(f"- {display}")
-                    items.append({"display": f"INDRA: {display}", "data": s})
-            return "\n".join(lines), items
+            return _format_indra_statements(stmts)
 
         # Generic "results" list shape (non-INDRA tools that wrap their
         # payload in a results key).
         results = data.get("results", [])
         if results:
-            capped = results[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]
-            text = "\n".join(str(r)[:120] for r in capped)
-            items = [{
-                "display": str(r)[:120],
-                "data": r if isinstance(r, dict) else {}
-            } for r in capped]
-            return text, items
+            return _format_generic_items(results)
 
         # Fallback: no "statements" or "results" key, so just stringify the
         # whole dict (truncated) as a single display item.
@@ -99,13 +119,7 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
 
     if isinstance(data, list):
         # Generic bare-list response shape.
-        capped = data[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]
-        text = "\n".join(str(item)[:120] for item in capped)
-        items = [{
-            "display": str(item)[:120],
-            "data": item if isinstance(item, dict) else {}
-        } for item in capped]
-        return text, items
+        return _format_generic_items(data)
 
     # Scalar (or falsy) result: stringify directly.
     text = str(data)[:300] if data else ""
@@ -159,6 +173,57 @@ async def _call_enrichment_tool_for_entities(
     return "\n\n".join(text_lines), all_items
 
 
+def _resolve_enrichment_tool_configs(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+    mcp_client: MCPToolClient,
+) -> list["ToolConfig"]:
+    """Resolve the enabled, available context-enrichment tool configs.
+
+    Stashes the originating YAML tool_id onto each resolved config (via
+    ``_yaml_tool_id``) for downstream citation building.
+    """
+    tool_configs = []
+    for tool_id in workflow.context_enrichment_tools:
+        tc = tool_registry.get_tool(tool_id)
+        if tc and tc.enabled and mcp_client.has_tool(tc.mcp_tool_name):
+            tc._yaml_tool_id = tool_id  # pylint: disable=protected-access
+            tool_configs.append(tc)
+        else:
+            logger.debug(
+                "context enrichment: tool '%s' unavailable or disabled",
+                tool_id)
+    return tool_configs
+
+
+def _aggregate_enrichment_results(
+    tool_configs: list["ToolConfig"],
+    tool_results: list[Any],
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Aggregate per-tool enrichment results into display sections and items.
+
+    ``tool_results`` may contain exceptions (from
+    ``asyncio.gather(..., return_exceptions=True)``); those tools are
+    skipped and logged rather than aborting aggregation for the rest.
+    """
+    sections: list[str] = []
+    all_structured: list[dict[str, Any]] = []
+    for tc, result in zip(tool_configs, tool_results):
+        if isinstance(result, BaseException):
+            logger.debug("context enrichment: %s raised %s", tc.mcp_tool_name,
+                         result)
+            continue
+        text, items = result
+        if text:
+            sections.append(f"**{tc.display_name}**\n{text}")
+        # Tag items with the yaml tool_id
+        yaml_tool_id = getattr(tc, "_yaml_tool_id", tc.mcp_tool_name)
+        for item in items:
+            item["tool_id"] = yaml_tool_id
+        all_structured.extend(items)
+    return sections, all_structured
+
+
 async def _phase2_6_fetch_context_enrichment(
     state: WorkflowState,
     config: SearchConfig,
@@ -201,18 +266,8 @@ async def _phase2_6_fetch_context_enrichment(
         "Phase 2.6: fetching context enrichment for entities %s via %s tool(s)",
         entities, len(workflow.context_enrichment_tools))
 
-    tool_configs = []
-    for tool_id in workflow.context_enrichment_tools:
-        tc = tool_registry.get_tool(tool_id)
-        if tc and tc.enabled and mcp_client.has_tool(tc.mcp_tool_name):
-            # Stash the yaml tool_id for downstream citation building
-            tc._yaml_tool_id = tool_id  # pylint: disable=protected-access
-            tool_configs.append(tc)
-        else:
-            logger.debug(
-                "context enrichment: tool '%s' unavailable or disabled",
-                tool_id)
-
+    tool_configs = _resolve_enrichment_tool_configs(workflow, tool_registry,
+                                                    mcp_client)
     if not tool_configs:
         return empty
 
@@ -225,21 +280,8 @@ async def _phase2_6_fetch_context_enrichment(
     ]
     tool_results = await asyncio.gather(*tool_tasks, return_exceptions=True)
 
-    sections: list[str] = []
-    all_structured: list[dict[str, Any]] = []
-    for tc, result in zip(tool_configs, tool_results):
-        if isinstance(result, BaseException):
-            logger.debug("context enrichment: %s raised %s", tc.mcp_tool_name,
-                         result)
-            continue
-        text, items = result
-        if text:
-            sections.append(f"**{tc.display_name}**\n{text}")
-        # Tag items with the yaml tool_id
-        yaml_tool_id = getattr(tc, "_yaml_tool_id", tc.mcp_tool_name)
-        for item in items:
-            item["tool_id"] = yaml_tool_id
-        all_structured.extend(items)
+    sections, all_structured = _aggregate_enrichment_results(
+        tool_configs, tool_results)
 
     if not sections and not all_structured:
         return empty

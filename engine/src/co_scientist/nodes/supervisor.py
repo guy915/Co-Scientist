@@ -99,25 +99,7 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         },
     )
 
-    # Defensive .get() with empty-container defaults: even though the schema
-    # constrains the LLM output, this keeps downstream consumers (generate,
-    # debate, meta-review, etc.) safe from missing keys without needing their
-    # own None-checks. This dict becomes state["supervisor_guidance"], the
-    # steering context every later node reads to build its own prompts.
-    supervisor_guidance = {
-        "research_goal_analysis":
-            response.get("research_goal_analysis", {}),
-        "workflow_plan":
-            response.get("workflow_plan", {}),
-        "config_synthesis":
-            response.get("config_synthesis", {}),
-        "performance_assessment":
-            response.get("performance_assessment", {}),
-        "adjustment_recommendations":
-            response.get("adjustment_recommendations", []),
-        "output_preparation":
-            response.get("output_preparation", {}),
-    }
+    supervisor_guidance = _build_supervisor_guidance(response)
 
     logger.info("Supervisor plan created")
 
@@ -154,4 +136,36 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
             phase_message("supervisor",
                           "Created research plan and workflow guidance",
                           key_areas=len(key_areas)),
+    }
+
+
+def _build_supervisor_guidance(response: dict[str, Any]) -> dict[str, Any]:
+    """Assembles the supervisor_guidance state dict from the LLM response.
+
+    Uses defensive .get() with empty-container defaults: even though the
+    schema constrains the LLM output, this keeps downstream consumers
+    (generate, debate, meta-review, etc.) safe from missing keys without
+    needing their own None-checks. The result becomes
+    state["supervisor_guidance"], the steering context every later node
+    reads to build its own prompts.
+
+    Args:
+        response: raw LLM JSON response from the supervisor call.
+
+    Returns:
+        The assembled supervisor_guidance dict.
+    """
+    return {
+        "research_goal_analysis":
+            response.get("research_goal_analysis", {}),
+        "workflow_plan":
+            response.get("workflow_plan", {}),
+        "config_synthesis":
+            response.get("config_synthesis", {}),
+        "performance_assessment":
+            response.get("performance_assessment", {}),
+        "adjustment_recommendations":
+            response.get("adjustment_recommendations", []),
+        "output_preparation":
+            response.get("output_preparation", {}),
     }

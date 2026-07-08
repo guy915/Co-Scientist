@@ -190,26 +190,7 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     analysis_results = await asyncio.gather(*analysis_tasks)
 
     # Apply results to hypotheses
-    for hypothesis, result in zip(hypotheses, analysis_results):
-        if result:
-            classification = result.get("classification", "neutral")
-            reasoning = result.get("reasoning", "")
-            # The literal "Classification: <value>" suffix is a format
-            # contract: nodes/ranking.py parses it back out of
-            # reflection_notes (splitting on "Classification:") to show
-            # reflection context in tournament matchup prompts.
-            hypothesis.reflection_notes = (
-                f"{reasoning}\n\nClassification: {classification}")
-            # Store knowledge graph evidence in enrichments (yaml-driven,
-            # only present for biomedical configs)
-            enrichment_items = result.get("indra_enrichment_items", [])
-            if enrichment_items:
-                hypothesis.enrichments["indra_evidence"] = enrichment_items
-        else:
-            # Keep the same "Classification: neutral" suffix even on
-            # failure so the ranking.py parser above never breaks.
-            hypothesis.reflection_notes = (
-                "Analysis failed\n\nClassification: neutral")
+    _apply_reflection_results(hypotheses, analysis_results)
 
     # Emit progress
     await emit_progress(state,
@@ -233,6 +214,41 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
                 "reflection", f"completed reflection analysis for"
                 f" {len(hypotheses)} hypotheses"),
     }
+
+
+def _apply_reflection_results(
+    hypotheses: list[Hypothesis],
+    analysis_results: list[dict[str, Any] | None],
+) -> None:
+    """Applies per-hypothesis reflection results onto their hypotheses.
+
+    Mutates each hypothesis in place: sets reflection_notes (including the
+    "Classification: <value>" suffix that nodes/ranking.py later parses back
+    out of reflection_notes to show reflection context in tournament
+    matchup prompts) and, when present, merges INDRA enrichment items.
+
+    Args:
+        hypotheses: hypotheses analyzed, in the same order as
+            analysis_results.
+        analysis_results: per-hypothesis result dicts from
+            analyze_single_hypothesis, or None where analysis failed.
+    """
+    for hypothesis, result in zip(hypotheses, analysis_results):
+        if result:
+            classification = result.get("classification", "neutral")
+            reasoning = result.get("reasoning", "")
+            hypothesis.reflection_notes = (
+                f"{reasoning}\n\nClassification: {classification}")
+            # Store knowledge graph evidence in enrichments (yaml-driven,
+            # only present for biomedical configs)
+            enrichment_items = result.get("indra_enrichment_items", [])
+            if enrichment_items:
+                hypothesis.enrichments["indra_evidence"] = enrichment_items
+        else:
+            # Keep the same "Classification: neutral" suffix even on
+            # failure so the ranking.py parser above never breaks.
+            hypothesis.reflection_notes = (
+                "Analysis failed\n\nClassification: neutral")
 
 
 async def _fetch_indra_for_hypothesis(
