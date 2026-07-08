@@ -15,7 +15,6 @@ from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     GENERATE_LIT_TOOL_MAX_PAPERS,
     HIGH_TEMPERATURE,
-    INITIAL_ELO_RATING,
     VALIDATION_SYNTHESIS_BATCH_SIZE,
     VALIDATION_SYNTHESIS_MAX_TOKENS_CAP,
     VALIDATION_SYNTHESIS_TOKENS_PER_HYPOTHESIS,
@@ -36,7 +35,7 @@ from co_scientist.prompts import (
 )
 from co_scientist.schemas import (HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA)
 from co_scientist.state import WorkflowState
-from co_scientist.nodes.generation.citations import resolve_citation_keys
+from co_scientist.nodes.generation.citations import hypothesis_from_llm_output
 from co_scientist.tools.provider import MCPToolProvider
 from co_scientist.tools.response_parser import ResponseParser, parse_mcp_result
 
@@ -479,24 +478,11 @@ async def validate_hypotheses(
     hypotheses = []
     for i, hyp_data in enumerate(all_validated_hypotheses):
 
-        hypothesis_text = hyp_data.get("hypothesis") or hyp_data.get("text", "")
-        explanation = hyp_data.get("explanation")
-        literature_grounding = hyp_data.get("literature_grounding")
-        experiment = hyp_data.get("experiment")
-
-        citation_map = resolve_citation_keys(literature_grounding, ref_sources)
-
-        hypothesis = Hypothesis(
-            text=hypothesis_text,
-            category=hyp_data.get("category"),
-            explanation=explanation,
-            literature_grounding=literature_grounding,
-            experiment=experiment,
+        hypothesis = hypothesis_from_llm_output(
+            hyp_data,
+            ref_sources,
+            GenerationMethod.LITERATURE_TOOLS,
             novelty_validation=hyp_data.get("novelty_validation"),
-            score=0.0,
-            elo_rating=INITIAL_ELO_RATING,
-            generation_method=GenerationMethod.LITERATURE_TOOLS,
-            citation_map=citation_map,
         )
         hypotheses.append(hypothesis)
 

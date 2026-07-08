@@ -980,26 +980,20 @@ def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
     )
 
 
-def get_hypothesis_validation_synthesis_prompt(
-    research_goal: str,
-    hypotheses_with_analyses: list[dict[str, Any]],
-    articles: list[Any] | None = None,
-    tool_registry: Any | None = None,
-    reference_list: str = "",
-) -> str:
-    """Get the prompt for validation synthesis based on novelty analyses.
+def _format_hypotheses_with_novelty_analyses(
+        hypotheses_with_analyses: list[dict[str, Any]]) -> str:
+    """Render draft hypotheses and their per-paper novelty analyses.
+
+    Shared by both validation-synthesis prompt builders so the draft/analysis
+    layout has a single definition.
 
     Args:
-        research_goal: The research goal
-        hypotheses_with_analyses: List of draft hypotheses with novelty analyses
-        articles: Optional list of Article objects for citation metadata
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        reference_list: Optional citation reference list of `[C*]` keys
+        hypotheses_with_analyses: Draft hypotheses, each with a ``draft`` dict
+            and a ``novelty_analyses`` list of ``{paper_metadata, analysis}``.
 
     Returns:
-        Formatted prompt string
+        The formatted block, sections joined by blank lines.
     """
-    # Format hypotheses with their novelty analyses
     hypotheses_text = []
     for i, hyp_data in enumerate(hypotheses_with_analyses, 1):
         draft = hyp_data.get("draft", {})
@@ -1040,12 +1034,33 @@ def get_hypothesis_validation_synthesis_prompt(
             hyp_section += paper_analysis
 
         hypotheses_text.append(hyp_section)
+    return "\n\n".join(hypotheses_text)
 
+
+def get_hypothesis_validation_synthesis_prompt(
+    research_goal: str,
+    hypotheses_with_analyses: list[dict[str, Any]],
+    articles: list[Any] | None = None,
+    tool_registry: Any | None = None,
+    reference_list: str = "",
+) -> str:
+    """Get the prompt for validation synthesis based on novelty analyses.
+
+    Args:
+        research_goal: The research goal
+        hypotheses_with_analyses: List of draft hypotheses with novelty analyses
+        articles: Optional list of Article objects for citation metadata
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
+        reference_list: Optional citation reference list of `[C*]` keys
+
+    Returns:
+        Formatted prompt string
+    """
     variables = {
         "research_goal":
             research_goal,
         "hypotheses_with_analyses":
-            "\n\n".join(hypotheses_text),
+            _format_hypotheses_with_novelty_analyses(hypotheses_with_analyses),
         "articles_metadata":
             format_articles_metadata(articles or []),
         "citation_reference_section":
@@ -1115,53 +1130,11 @@ def get_validation_synthesis_prompt_with_tools(
     # Build dynamic tool instructions
     tool_instructions = build_tool_instructions(tool_ids, tool_registry)
 
-    # Format hypotheses with their novelty analyses (same as non-tool version)
-    hypotheses_text = []
-    for i, hyp_data in enumerate(hypotheses_with_analyses, 1):
-        draft = hyp_data.get("draft", {})
-        analyses = hyp_data.get("novelty_analyses", [])
-
-        hyp_section = f"""### draft hypothesis {i}
-**text:** {draft.get('text', 'Unknown')}
-**gap reasoning:** {draft.get('gap_reasoning', 'N/A')}
-**literature sources:** {draft.get('literature_sources', 'N/A')}
-
-**novelty analyses ({len(analyses)} papers examined):**
-"""
-
-        for j, analysis_data in enumerate(analyses, 1):
-            paper_meta = analysis_data.get("paper_metadata", {})
-            analysis = analysis_data.get("analysis", {})
-            p_title = paper_meta.get('title', 'Unknown')
-            p_year = paper_meta.get('year', 'N/A')
-
-            paper_analysis = (
-                f"\n**paper {j}:** {p_title} ({p_year})\n"
-                f"- methods used:"
-                f" {analysis.get('methods_used', 'N/A')}\n"
-                f"- populations studied:"
-                f" {analysis.get('populations_studied', 'N/A')}\n"
-                f"- mechanisms investigated:"
-                f" {analysis.get('mechanisms_investigated', 'N/A')}\n"
-                f"- key findings:"
-                f" {analysis.get('key_findings', 'N/A')}\n"
-                f"- stated limitations:"
-                f" {analysis.get('stated_limitations', 'N/A')}\n"
-                f"- future work suggested:"
-                f" {analysis.get('future_work_suggested', 'N/A')}\n"
-                f"- **novelty assessment:"
-                f" {analysis.get('novelty_assessment', 'N/A')}**\n"
-                f"- overlap explanation:"
-                f" {analysis.get('overlap_explanation', 'N/A')}\n")
-            hyp_section += paper_analysis
-
-        hypotheses_text.append(hyp_section)
-
     variables = {
         "research_goal":
             research_goal,
         "hypotheses_with_analyses":
-            "\n\n".join(hypotheses_text),
+            _format_hypotheses_with_novelty_analyses(hypotheses_with_analyses),
         "hypotheses_count":
             len(hypotheses_with_analyses),
         "articles_metadata":

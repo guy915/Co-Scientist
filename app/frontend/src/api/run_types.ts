@@ -247,14 +247,6 @@ export interface Message {
   meta?: MessageMeta | null;
 }
 
-/** A single timeline event emitted by the engine during a run. */
-export interface RunEvent {
-  seq: number;
-  type: string;
-  payload: Record<string, unknown>;
-  created_at: number;
-}
-
 /** Backend diagnostics describing provider and tool availability. */
 export interface SystemStatus {
   mcp_available: boolean;

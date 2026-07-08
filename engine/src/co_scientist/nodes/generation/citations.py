@@ -16,6 +16,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
+from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.models import GenerationMethod, Hypothesis
+
 
 @dataclass
 class ReferenceIndex:
@@ -117,3 +120,40 @@ def resolve_citation_keys(
             result[key] = sources[key]
             seen.add(key)
     return result
+
+
+def hypothesis_from_llm_output(
+    hyp_data: dict[str, Any],
+    sources: dict[str, dict[str, Any]],
+    generation_method: GenerationMethod,
+    **extra: Any,
+) -> Hypothesis:
+    """Build a Hypothesis from a raw LLM hypothesis dict.
+
+    Extracts the shared fields (text/category/explanation/literature_grounding/
+    experiment), resolves citation keys against ``sources``, and applies the
+    default score and initial Elo. ``extra`` supplies generation-path-specific
+    kwargs such as ``debate_id`` or ``novelty_validation``.
+
+    Args:
+        hyp_data: Raw hypothesis dict emitted by the LLM.
+        sources: Reference-index sources for citation-key resolution.
+        generation_method: The generation path that produced the hypothesis.
+        **extra: Additional Hypothesis kwargs specific to the caller.
+
+    Returns:
+        The constructed Hypothesis.
+    """
+    literature_grounding = hyp_data.get("literature_grounding")
+    return Hypothesis(
+        text=hyp_data.get("hypothesis") or hyp_data.get("text", ""),
+        category=hyp_data.get("category"),
+        explanation=hyp_data.get("explanation"),
+        literature_grounding=literature_grounding,
+        experiment=hyp_data.get("experiment"),
+        score=0.0,
+        elo_rating=INITIAL_ELO_RATING,
+        generation_method=generation_method,
+        citation_map=resolve_citation_keys(literature_grounding, sources),
+        **extra,
+    )

@@ -9,8 +9,8 @@ import logging
 from typing import Any
 
 from co_scientist.nodes.generation.citations import (
+    hypothesis_from_llm_output,
     ReferenceIndex,
-    resolve_citation_keys,
 )
 from co_scientist.constants import (
     DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
@@ -18,7 +18,6 @@ from co_scientist.constants import (
     DEBATE_MAX_TURNS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
-    INITIAL_ELO_RATING,
     scaled_max_tokens,
 )
 from co_scientist.exceptions import GenerationError
@@ -156,26 +155,11 @@ async def _run_single_debate(
 
             hyp_data = hypotheses_data[0]
 
-            hypothesis_text = hyp_data.get("hypothesis") or hyp_data.get(
-                "text", "")
-            explanation = hyp_data.get("explanation")
-            literature_grounding = hyp_data.get("literature_grounding")
-            experiment = hyp_data.get("experiment")
-
-            citation_map = resolve_citation_keys(literature_grounding,
-                                                 ref_idx.sources)
-
-            hypothesis = Hypothesis(
-                text=hypothesis_text,
-                category=hyp_data.get("category"),
-                explanation=explanation,
-                literature_grounding=literature_grounding,
-                experiment=experiment,
-                score=0.0,
-                elo_rating=INITIAL_ELO_RATING,
-                generation_method=GenerationMethod.DEBATE,
+            hypothesis = hypothesis_from_llm_output(
+                hyp_data,
+                ref_idx.sources,
+                GenerationMethod.DEBATE,
                 debate_id=debate_id,
-                citation_map=citation_map,
             )
 
             return hypothesis, transcript

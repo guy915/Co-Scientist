@@ -9,6 +9,7 @@ from typing import cast
 from fastapi.testclient import TestClient
 
 from app import store
+from tests._client import make_client as _client
 
 
 def test_append_and_list_messages(isolated_db: str) -> None:
@@ -124,11 +125,6 @@ def test_message_to_dict(isolated_db: str) -> None:
 # ---------------------------------------------------------------------------
 # API endpoint tests
 # ---------------------------------------------------------------------------
-
-
-def _client() -> TestClient:
-    from app.main import app  # pylint: disable=import-outside-toplevel
-    return TestClient(app)
 
 
 def _make_run(client: TestClient, goal: str = "test goal") -> str:

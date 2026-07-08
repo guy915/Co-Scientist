@@ -2,13 +2,8 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
 
-
-def _client() -> TestClient:
-    from app.main import app  # pylint: disable=import-outside-toplevel
-
-    return TestClient(app)
+from tests._client import make_client as _client
 
 
 def test_health_ok() -> None:

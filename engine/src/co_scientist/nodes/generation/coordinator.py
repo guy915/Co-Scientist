@@ -56,6 +56,12 @@ class GenerationResults:
     debate_only_hypotheses: list[Hypothesis]
     debate_transcripts: list[dict[str, Any]]
 
+    @property
+    def all_hypotheses(self) -> list[Hypothesis]:
+        """All generated hypotheses across every strategy, in method order."""
+        return (self.tools_hypotheses + self.debate_with_lit_hypotheses +
+                self.debate_only_hypotheses)
+
 
 # Helper functions
 
@@ -252,9 +258,7 @@ def _apply_degraded_mode_fallback(hypotheses: list[Hypothesis]) -> None:
 
 def _log_generation_summary(results: GenerationResults) -> None:
     """Log summary of generated hypotheses."""
-    total = (len(results.tools_hypotheses) +
-             len(results.debate_with_lit_hypotheses) +
-             len(results.debate_only_hypotheses))
+    total = len(results.all_hypotheses)
     logger.info(
         "Generated %s total hypotheses (%s tool-based,"
         " %s debate-with-lit, %s debate-only)", total,
@@ -301,9 +305,7 @@ async def _emit_complete_progress(state: WorkflowState,
         The human-readable generation summary message that was emitted.
     """
     parts = _build_summary_message_parts(results, counts)
-    all_hypotheses = (results.tools_hypotheses +
-                      results.debate_with_lit_hypotheses +
-                      results.debate_only_hypotheses)
+    all_hypotheses = results.all_hypotheses
 
     message = f"Generated {len(all_hypotheses)} hypotheses ({', '.join(parts)})"
 
@@ -435,9 +437,7 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
         _log_generation_summary(results)
         message_content = await _emit_complete_progress(state, results, counts)
 
-        all_hypotheses = (results.tools_hypotheses +
-                          results.debate_with_lit_hypotheses +
-                          results.debate_only_hypotheses)
+        all_hypotheses = results.all_hypotheses
 
         # Run post-generation enrichments (e.g., NVD CVE lookup)
         await _enrich_hypotheses(all_hypotheses, state)

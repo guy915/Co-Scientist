@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react';
-import {canUseOfflineRun, eventsStreamUrl, getRunEventsLog} from '@/api/runs';
+import {eventsStreamUrl} from '@/api/runs';
 
 /** A single event streamed from a run's SSE timeline. */
 export interface StreamEvent {
@@ -30,19 +30,6 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
     if (!runId) return;
     setEvents([]);
     setTerminal(false);
-
-    if (canUseOfflineRun(runId)) {
-      void getRunEventsLog(runId)
-        .then(items => {
-          setEvents(items);
-          setTerminal(true);
-        })
-        .catch(err => {
-          console.error('[useRunStream] offline events load failed', err);
-          setTerminal(true);
-        });
-      return;
-    }
 
     const es = new EventSource(eventsStreamUrl(runId));
 

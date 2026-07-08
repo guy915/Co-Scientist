@@ -6,11 +6,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-
-def _client() -> TestClient:
-    from app.main import app  # pylint: disable=import-outside-toplevel
-
-    return TestClient(app)
+from tests._client import make_client as _client
 
 
 def _wait_completed(client: TestClient,
@@ -94,6 +90,5 @@ def test_evolution_event_emitted(isolated_db: str) -> None:
 
     matches = client.get(f"/api/runs/{rid}/matches").json()["matches"]
     iterations = {m["iteration"] for m in matches}
-    assert len(
-        iterations
-    ) >= 2, "run should have >=2 ranking iterations (pre/post evolve)"
+    assert len(iterations
+              ) >= 2, "run should have >=2 ranking iterations (pre/post evolve)"

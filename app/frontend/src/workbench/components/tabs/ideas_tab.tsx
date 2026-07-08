@@ -244,6 +244,26 @@ function IdeaListItem({
   );
 }
 
+// Detail section titles, in render order. Single source of truth so the
+// section headings and the SectionsRail links can't drift apart.
+const SECTIONS = {
+  overview: 'Hypothesis overview',
+  description: 'Description',
+  reviewSummary: 'Review summary',
+  fullReview: 'Full review',
+  tournament: 'Tournament performance',
+  matchSummary: 'Match summary',
+} as const;
+
+// The rail links every section except "Match summary" (shown inline only).
+const RAIL_SECTIONS: readonly string[] = [
+  SECTIONS.overview,
+  SECTIONS.description,
+  SECTIONS.reviewSummary,
+  SECTIONS.fullReview,
+  SECTIONS.tournament,
+];
+
 function HypothesisDetail({
   hypothesis,
   reviews,
@@ -275,11 +295,11 @@ function HypothesisDetail({
       className={IDEA_DETAIL_PANE_CLASSES}
       aria-label="Hypothesis detail"
     >
-      <DetailSection title="Hypothesis overview" level={2}>
+      <DetailSection title={SECTIONS.overview} level={2}>
         <p>{hypothesis.statement}</p>
       </DetailSection>
 
-      <DetailSection title="Description" level={2}>
+      <DetailSection title={SECTIONS.description} level={2}>
         <h3>{hypothesis.title}</h3>
         {hypothesis.mechanism && (
           <p>
@@ -294,18 +314,18 @@ function HypothesisDetail({
         )}
       </DetailSection>
 
-      <DetailSection title="Review summary" level={2}>
+      <DetailSection title={SECTIONS.reviewSummary} level={2}>
         <p>
           {review?.summary ||
             'Reviewer notes will appear after the review node completes.'}
         </p>
       </DetailSection>
 
-      <DetailSection title="Full review" level={2}>
+      <DetailSection title={SECTIONS.fullReview} level={2}>
         <p>{review?.critique || 'No full review has been recorded yet.'}</p>
       </DetailSection>
 
-      <DetailSection title="Tournament performance" level={2}>
+      <DetailSection title={SECTIONS.tournament} level={2}>
         <p>
           {totalMatches
             ? `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches (${Math.round(
@@ -315,7 +335,7 @@ function HypothesisDetail({
         </p>
       </DetailSection>
 
-      <DetailSection title="Match summary" level={2}>
+      <DetailSection title={SECTIONS.matchSummary} level={2}>
         {latestMatch?.tier && (
           <p>
             <strong>Outcome:</strong>{' '}
@@ -358,13 +378,7 @@ function SectionsRail() {
     <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
       <span className={IDEA_SECTIONS_LABEL_CLASSES}>Sections</span>
       <nav className={IDEA_SECTIONS_LIST_CLASSES}>
-        {[
-          'Hypothesis overview',
-          'Description',
-          'Review summary',
-          'Full review',
-          'Tournament performance',
-        ].map(item => (
+        {RAIL_SECTIONS.map(item => (
           <a
             key={item}
             href={`#${sectionSlug(item)}`}

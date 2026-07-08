@@ -506,6 +506,25 @@ def get_run(run_id: str, db_path: str | None = None) -> RunRow | None:
         return _row_to_run(row) if row else None
 
 
+def run_exists(run_id: str, db_path: str | None = None) -> bool:
+    """Return whether a run exists, without materializing the row.
+
+    Cheaper than ``get_run`` for endpoints that only need a 404 guard: it skips
+    the ``SELECT *`` and the ``config_json`` decode that ``_row_to_run`` does.
+
+    Args:
+        run_id: Identifier of the run to probe.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True if a run row with this id exists.
+    """
+    with connect(db_path) as conn:
+        row = conn.execute("SELECT 1 FROM runs WHERE id = ?",
+                           (run_id,)).fetchone()
+        return row is not None
+
+
 def list_runs(client_id: str = "",
               limit: int = 100,
               db_path: str | None = None) -> list[RunRow]:
@@ -619,16 +638,19 @@ def _append_event(
     payload: dict[str, Any],
     created_at: float,
 ) -> int:
-    """Insert an event row on an open connection and return its seq."""
+    """Insert an event row on an open connection and return its seq.
+
+    Assigns the next per-run sequence number and inserts in a single statement
+    (a scalar subquery computes ``MAX(seq)+1``), so the run's hottest write
+    path makes one round-trip instead of a separate SELECT then INSERT.
+    """
     row = conn.execute(
-        "SELECT COALESCE(MAX(seq), 0) AS s FROM run_events WHERE run_id=?",
-        (run_id,)).fetchone()
-    seq = (row["s"] if row else 0) + 1
-    conn.execute(
-        "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) VALUES (?,?,?,?,?)",  # pylint: disable=line-too-long
-        (run_id, seq, type_, json.dumps(payload), created_at),
-    )
-    return seq
+        "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) "
+        "VALUES (?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM run_events "
+        "WHERE run_id=?), ?, ?, ?) RETURNING seq",
+        (run_id, run_id, type_, json.dumps(payload), created_at),
+    ).fetchone()
+    return int(row["seq"])
 
 
 def append_event(
@@ -1205,20 +1227,13 @@ def get_latest_report(run_id: str,
             (run_id,)).fetchone()
         if not row:
             return None
-        keys = row.keys()
         return {
-            "id":
-                row["id"],
-            "run_id":
-                row["run_id"],
-            "payload":
-                json.loads(row["payload_json"]),
-            "markdown_path":
-                row["markdown_path"],
-            "markdown_text":
-                row["markdown_text"] if "markdown_text" in keys else None,  # pylint: disable=line-too-long
-            "created_at":
-                row["created_at"],
+            "id": row["id"],
+            "run_id": row["run_id"],
+            "payload": json.loads(row["payload_json"]),
+            "markdown_path": row["markdown_path"],
+            "markdown_text": row["markdown_text"],
+            "created_at": row["created_at"],
         }
 
 
@@ -1299,10 +1314,7 @@ def append_message(
 
 
 def _parse_message_meta(row: sqlite3.Row) -> dict[str, Any] | None:
-    """Decode the optional meta_json column into a dict, tolerating absence."""
-    keys = row.keys()
-    if "meta_json" not in keys:
-        return None
+    """Decode the optional meta_json column into a dict."""
     raw = row["meta_json"]
     if not raw:
         return None

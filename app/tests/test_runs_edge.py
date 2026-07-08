@@ -5,11 +5,7 @@ import time
 
 from fastapi.testclient import TestClient
 
-
-def _client() -> TestClient:
-    from app.main import app  # pylint: disable=import-outside-toplevel
-
-    return TestClient(app)
+from tests._client import make_client as _client
 
 
 def _wait_status(client: TestClient,

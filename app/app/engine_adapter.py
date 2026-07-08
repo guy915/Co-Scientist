@@ -99,7 +99,7 @@ def system_status() -> dict[str, Any]:
         # model_name when supervisor_model_name is unset, so mirror that here.
         "supervisor_model_name": (settings.supervisor_model_name or
                                   settings.model_name),
-        "mcp_server_url": os.getenv("MCP_SERVER_URL", ""),
+        "mcp_server_url": settings.mcp_server_url,
     }
 
 

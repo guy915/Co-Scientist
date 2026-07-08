@@ -34,9 +34,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from app import engine_adapter, store
-from app.citations import STATE_RANK
-from app.config import settings
+from app import engine_adapter, qa, store
 from app.run_modes import (
     CANONICAL_RUN_MODE,
     RUN_FOCUS_PATTERN,
@@ -108,6 +106,16 @@ def _run_or_404(run_id: str) -> RunRow:
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
     return run
+
+
+def _require_run(run_id: str) -> None:
+    """404 if the run does not exist, without materializing the row.
+
+    Use this for endpoints that only need an existence guard; ``_run_or_404``
+    is for the few that read the run row itself.
+    """
+    if not store.run_exists(run_id):
+        raise HTTPException(status_code=404, detail="run not found")
 
 
 # ---------------------------------------------------------------------------
@@ -260,7 +268,7 @@ async def start_run(run_id: str, req: StartRunRequest,
 
 @router.post("/{run_id}/cancel")
 async def cancel_run(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     async with _active_lock:
         handle = _active.get(run_id)
     if not handle:
@@ -383,13 +391,6 @@ def _sse(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
-@router.get("/{run_id}/events/log")
-async def get_events_log(run_id: str) -> list[dict[str, Any]]:
-    """Return all stored events for a run as JSON (for the log console)."""
-    _run_or_404(run_id)
-    return store.list_events(run_id, after_seq=0)
-
-
 # ---------------------------------------------------------------------------
 # Read endpoints
 # ---------------------------------------------------------------------------
@@ -397,43 +398,43 @@ async def get_events_log(run_id: str) -> list[dict[str, Any]]:
 
 @router.get("/{run_id}/hypotheses")
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     return {"hypotheses": store.list_hypotheses(run_id)}
 
 
 @router.get("/{run_id}/evidence")
 async def get_evidence(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     return {"evidence": store.list_evidence(run_id)}
 
 
 @router.get("/{run_id}/matches")
 async def get_matches(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     return {"matches": store.list_matches(run_id)}
 
 
 @router.get("/{run_id}/reviews")
 async def get_reviews(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     return {"reviews": store.list_reviews(run_id)}
 
 
 @router.get("/{run_id}/safety")
 async def get_safety(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     return {"safety": store.list_safety_decisions(run_id)}
 
 
 @router.get("/{run_id}/citations")
 async def get_citations(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     return {"citations": store.list_citations(run_id)}
 
 
 @router.get("/{run_id}/report")
 async def get_report(run_id: str) -> dict[str, Any]:
-    _run_or_404(run_id)
+    _require_run(run_id)
     report = store.get_latest_report(run_id)
     if not report:
         raise HTTPException(status_code=404, detail="no report yet")
@@ -442,7 +443,7 @@ async def get_report(run_id: str) -> dict[str, Any]:
 
 @router.get("/{run_id}/report.md", response_class=PlainTextResponse)
 async def get_report_markdown(run_id: str) -> PlainTextResponse:
-    _run_or_404(run_id)
+    _require_run(run_id)
     md = store.read_report_markdown(run_id)
     if md is None:
         raise HTTPException(status_code=404, detail="no report yet")
@@ -462,7 +463,7 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
 @router.post("/{run_id}/messages")
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue a user steering message for the next iteration."""
-    _run_or_404(run_id)
+    _require_run(run_id)
     msg = store.append_message(run_id, "user", req.content, "steering")
     return {**msg.to_dict(), "status": "queued"}
 
@@ -470,81 +471,9 @@ async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
 @router.get("/{run_id}/messages")
 async def list_messages(run_id: str) -> dict[str, Any]:
     """Return all messages for a run in chronological order."""
-    _run_or_404(run_id)
+    _require_run(run_id)
     msgs = store.list_messages(run_id)
     return {"messages": [m.to_dict() for m in msgs]}
-
-
-def _build_evidence_manifest(
-    evidence: list[dict[str, Any]],
-    citations: list[dict[str, Any]],
-    cap: int = 12,
-) -> list[dict[str, Any]]:
-    """Build a numbered, deterministic source list for grounded Q&A.
-
-    Cited evidence comes first (in citation order, keeping the strongest state
-    when an item is cited by several claims), then any remaining evidence, all
-    capped to keep the prompt bounded. Each entry carries the fields the model
-    needs to cite and the UI needs to render a reference chip.
-
-    Args:
-        evidence: Evidence rows for the run.
-        citations: Citation rows for the run.
-        cap: Maximum number of sources to include.
-
-    Returns:
-        A list of ``{n, evidence_id, title, url, source, year, state}`` dicts.
-    """
-    by_id: dict[str, dict[str, Any]] = {
-        str(e["id"]): e for e in evidence if e.get("id") is not None
-    }
-    cited_state: dict[str, str] = {}
-    cited_order: list[str] = []
-    for citation in citations:
-        raw_eid = citation.get("evidence_id")
-        if raw_eid is None:
-            continue
-        eid = str(raw_eid)
-        if eid not in by_id:
-            continue
-        state = str(citation.get("state") or "")
-        if eid not in cited_state:
-            cited_order.append(eid)
-            cited_state[eid] = state
-        elif STATE_RANK.get(state, -1) > STATE_RANK.get(cited_state[eid], -1):
-            cited_state[eid] = state
-    ordered_ids = cited_order + [eid for eid in by_id if eid not in cited_state]
-    manifest: list[dict[str, Any]] = []
-    for n, eid in enumerate(ordered_ids[:cap], start=1):
-        row = by_id[eid]
-        entry_state = cited_state.get(eid)
-        if entry_state is None:
-            entry_state = ("available"
-                           if row.get("available", True) else "unavailable")
-        manifest.append({
-            "n": n,
-            "evidence_id": eid,
-            "title": row.get("title") or "Untitled source",
-            "url": row.get("url"),
-            "source": row.get("source"),
-            "year": row.get("year"),
-            "state": entry_state,
-        })
-    return manifest
-
-
-def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:
-    """Render the manifest as numbered lines for the system prompt."""
-    lines = []
-    for entry in manifest:
-        meta = ", ".join(
-            str(part)
-            for part in (entry.get("source"), entry.get("year"))
-            if part)
-        suffix = f" ({meta})" if meta else ""
-        lines.append(f"[{entry['n']}] {entry['title']}{suffix}"
-                     f" — {entry['state']}")
-    return "\n".join(lines)
 
 
 @router.post("/{run_id}/messages/ask")
@@ -562,83 +491,12 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         history = store.list_messages(run_id, conn=conn)[:-1]
         evidence = store.list_evidence(run_id, conn=conn)
         citations = store.list_citations(run_id, conn=conn)
-    manifest = _build_evidence_manifest(evidence, citations)
-    evidence_lines = _format_manifest_for_prompt(manifest)
 
-    # list_hypotheses already orders by Elo descending.
-    top_hyps = hypotheses[:5]
-    hyp_lines = "\n".join(
-        f"- [{h['title']}] Elo {h['elo_rating']}, {h['win_count']}W/{h['loss_count']}L"  # pylint: disable=line-too-long
-        for h in top_hyps)
-    review_lines = "\n".join(
-        f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"  # pylint: disable=line-too-long
-        for r in reviews[-5:])
-    match_lines = "\n".join(
-        f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — {(m.get('rationale') or '')[:100]}"  # pylint: disable=line-too-long
-        for m in matches[-3:])
-    conv_lines = "\n".join(
-        f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
-        for m in history[-10:])
-
-    system_prompt = (
-        f"You are a concise research assistant helping the user understand an ongoing "  # pylint: disable=line-too-long
-        f"AI-driven hypothesis generation run.\n\n"
-        f"Research goal: {run.research_goal}\n\n"
-        f"Top hypotheses by Elo:\n{hyp_lines or '(none yet)'}\n\n"
-        f"Recent reviews:\n{review_lines or '(none yet)'}\n\n"
-        f"Recent tournament matches:\n{match_lines or '(none yet)'}\n\n"
-        f"Evidence (cite supporting sources inline as [n] using ONLY this "
-        f"numbered list; never invent a citation):\n"
-        f"{evidence_lines or '(no evidence retrieved)'}\n\n"
-        f"Conversation history:\n{conv_lines or '(none)'}\n\n"
-        f"Answer concisely and accurately. Do not repeat the question. When a "
-        f"statement is supported by a listed source, cite it inline as [n].")
-
-    model = settings.chat_model_name or settings.model_name
-
-    async def _stream() -> AsyncGenerator[str, None]:
-        try:
-            import litellm  # pylint: disable=import-outside-toplevel
-
-            # Send the cited-source manifest first so the UI can resolve [n]
-            # references as the answer streams in.
-            if manifest:
-                yield _sse({"type": "sources", "sources": manifest})
-
-            full: list[str] = []
-            response = await litellm.acompletion(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt
-                    },
-                    {
-                        "role": "user",
-                        "content": req.question
-                    },
-                ],
-                stream=True,
-            )
-            async for chunk in response:
-                delta = (chunk.choices[0].delta.content or
-                         "") if chunk.choices else ""
-                if delta:
-                    full.append(delta)
-                    yield _sse({"type": "chunk", "content": delta})
-
-            answer = "".join(full)
-            store.append_message(
-                run_id,
-                "system",
-                answer,
-                "qa",
-                meta={"sources": manifest} if manifest else None)
-            yield _sse({"type": "done", "question_id": question_msg.id})
-        except Exception as exc:  # pylint: disable=broad-exception-caught
-            logger.error("Q&A stream error for run %s: %s", run_id, exc)
-            fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."  # pylint: disable=line-too-long
-            store.append_message(run_id, "system", fallback, "qa")
-            yield _sse({"type": "error", "message": fallback})
-
-    return StreamingResponse(_stream(), media_type="text/event-stream")
+    manifest = qa.build_evidence_manifest(evidence, citations)
+    system_prompt = qa.build_system_prompt(run.research_goal, hypotheses,
+                                           reviews, matches, history, manifest)
+    return StreamingResponse(
+        qa.stream_answer(run_id, req.question, question_msg.id, system_prompt,
+                         manifest),
+        media_type="text/event-stream",
+    )

@@ -1,20 +1,7 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
 import {getClientId} from '@/lib/client_id';
-import {
-  isOfflineRunId,
-  offlineCreateRun,
-  offlineEvents,
-  offlineEvidence,
-  offlineGetRun,
-  offlineHypotheses,
-  offlineListDemoRuns,
-  offlineListRuns,
-  offlineMatches,
-  offlineReport,
-  offlineReviews,
-  offlineStartRun,
-} from './offline_runs';
+import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {
   Evidence,
   Hypothesis,
@@ -22,7 +9,6 @@ import type {
   Report,
   Review,
   Run,
-  RunEvent,
   RunFocus,
   RunStatus,
   RunTier,
@@ -44,7 +30,6 @@ export type {
   Review,
   Run,
   RunConfig,
-  RunEvent,
   RunFocus,
   RunMode,
   RunSetupConfig,
@@ -58,8 +43,6 @@ export type {
 } from './run_types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
-const OFFLINE_FALLBACK_ENABLED =
-  (import.meta.env.VITE_ENABLE_OFFLINE_FALLBACK as string) === 'true';
 
 function clientHeaders(): Record<string, string> {
   return {'X-Client-ID': getClientId()};
@@ -82,16 +65,10 @@ export function isActiveStatus(status: RunStatus | undefined): boolean {
   return Boolean(status && ACTIVE_STATUSES.includes(status));
 }
 
-class ApiUnavailableError extends Error {
-  constructor() {
-    super('API unavailable');
-  }
-}
-
 async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    if (res.status === 500 && !text.trim()) throw new ApiUnavailableError();
+    if (res.status === 500 && !text.trim()) throw new Error('API unavailable');
     if (errorPrefix) throw new Error(`${errorPrefix} ${res.status}`);
     throw new Error(`${res.status} ${text || res.statusText}`);
   }
@@ -107,53 +84,22 @@ async function fetchJson<T>(
   return parseJson<T>(res, errorPrefix);
 }
 
-function isApiUnavailable(err: unknown): boolean {
-  return (
-    err instanceof ApiUnavailableError ||
-    (err instanceof TypeError &&
-      /fetch|network|load failed|failed to fetch/i.test(err.message))
-  );
-}
-
-function shouldUseOfflineFallback(err: unknown): boolean {
-  return OFFLINE_FALLBACK_ENABLED && isApiUnavailable(err);
-}
-
-async function withOfflineFallback<T>(
-  request: () => Promise<T>,
-  fallback: () => T | Promise<T>,
-): Promise<T> {
-  try {
-    return await request();
-  } catch (err) {
-    if (shouldUseOfflineFallback(err)) return await fallback();
-    throw err;
-  }
-}
-
-async function fetchWithFallback<T>(
-  path: string,
-  fallback: () => T | Promise<T>,
-  init?: RequestInit,
-  errorPrefix?: string,
-): Promise<T> {
-  return withOfflineFallback(
-    () => fetchJson<T>(path, init, errorPrefix),
-    fallback,
-  );
-}
-
-async function fetchFieldWithFallback<K extends string, T>(
+/**
+ * Fetches a `{[field]: T}` envelope and unwraps the named field.
+ *
+ * @param path Request path.
+ * @param field Response key to unwrap.
+ * @param init Optional fetch options (e.g. client headers).
+ * @param errorPrefix Optional prefix for error messages.
+ * @returns The unwrapped value.
+ */
+async function fetchField<K extends string, T>(
   path: string,
   field: K,
-  fallback: () => T | Promise<T>,
   init?: RequestInit,
   errorPrefix?: string,
 ): Promise<T> {
-  const data = await withOfflineFallback(
-    () => fetchJson<Record<K, T>>(path, init, errorPrefix),
-    async () => ({[field]: await fallback()}) as Record<K, T>,
-  );
+  const data = await fetchJson<Record<K, T>>(path, init, errorPrefix);
   return data[field];
 }
 
@@ -187,11 +133,7 @@ export async function createRun(input: {
   k_factor?: number;
   enable_literature_review?: boolean;
 }): Promise<Run> {
-  return fetchWithFallback(
-    '/api/runs',
-    () => offlineCreateRun(input),
-    jsonRequest(input, true),
-  );
+  return fetchJson('/api/runs', jsonRequest(input, true));
 }
 
 /**
@@ -202,15 +144,7 @@ export async function createRun(input: {
  */
 export async function listRuns(limit?: number): Promise<Run[]> {
   const query = limit === undefined ? '' : `?limit=${limit}`;
-  return fetchFieldWithFallback(
-    `/api/runs${query}`,
-    'runs',
-    () => {
-      const runs = offlineListRuns();
-      return limit === undefined ? runs : runs.slice(0, limit);
-    },
-    {headers: clientHeaders()},
-  );
+  return fetchField(`/api/runs${query}`, 'runs', {headers: clientHeaders()});
 }
 
 /**
@@ -219,7 +153,7 @@ export async function listRuns(limit?: number): Promise<Run[]> {
  * @returns The seeded demo runs.
  */
 export async function listDemoRuns(): Promise<Run[]> {
-  return fetchFieldWithFallback('/api/runs/demo', 'runs', offlineListDemoRuns);
+  return fetchField('/api/runs/demo', 'runs');
 }
 
 /**
@@ -235,9 +169,11 @@ export async function loadRunHistory(): Promise<Run[]> {
     listRuns().catch(() => [] as Run[]),
     listDemoRuns().catch(() => [] as Run[]),
   ]);
-  const byId = new Map<string, Run>();
-  for (const item of [...ownedRuns, ...demoRuns]) byId.set(item.id, item);
-  return [...byId.values()].sort((a, b) => b.updated_at - a.updated_at);
+  return mergeByIdNewestFirst(
+    [...ownedRuns, ...demoRuns],
+    run => run.id,
+    run => run.updated_at,
+  );
 }
 
 /**
@@ -247,7 +183,7 @@ export async function loadRunHistory(): Promise<Run[]> {
  * @returns The run and its aggregate counts.
  */
 export async function getRun(id: string): Promise<RunWithSummary> {
-  return fetchWithFallback(`/api/runs/${id}`, () => offlineGetRun(id));
+  return fetchJson(`/api/runs/${id}`);
 }
 
 /**
@@ -261,35 +197,28 @@ export async function startRun(
   id: string,
   body: {force_provider?: 'mock' | 'engine'} = {},
 ): Promise<{id: string; status: string}> {
-  return fetchWithFallback(
-    `/api/runs/${id}/start`,
-    () => offlineStartRun(id),
-    jsonRequest(body),
-  );
+  return fetchJson(`/api/runs/${id}/start`, jsonRequest(body));
 }
 
 /**
  * Fetches a run sub-resource `/api/runs/{id}/{key}` that the API returns
- * wrapped as `{[key]: T[]}`, with an offline fallback.
+ * wrapped as `{[key]: T[]}`.
  *
  * @param id Run identifier.
  * @param key Sub-resource path segment, doubling as the response key.
- * @param fallback Offline fallback producing the list.
  * @param init Optional fetch options (e.g. client headers).
  * @param errorPrefix Optional prefix for error messages.
  * @returns The unwrapped array.
  */
-async function getRunList<T>(
+function getRunList<T>(
   id: string,
   key: string,
-  fallback: () => T[] | Promise<T[]>,
   init?: RequestInit,
   errorPrefix?: string,
 ): Promise<T[]> {
-  return fetchFieldWithFallback(
+  return fetchField<string, T[]>(
     `/api/runs/${id}/${key}`,
     key,
-    fallback,
     init,
     errorPrefix,
   );
@@ -302,7 +231,7 @@ async function getRunList<T>(
  * @returns The run's hypotheses.
  */
 export function getHypotheses(id: string): Promise<Hypothesis[]> {
-  return getRunList<Hypothesis>(id, 'hypotheses', () => offlineHypotheses(id));
+  return getRunList<Hypothesis>(id, 'hypotheses');
 }
 
 /**
@@ -312,7 +241,7 @@ export function getHypotheses(id: string): Promise<Hypothesis[]> {
  * @returns The run's evidence records.
  */
 export function getEvidence(id: string): Promise<Evidence[]> {
-  return getRunList<Evidence>(id, 'evidence', () => offlineEvidence(id));
+  return getRunList<Evidence>(id, 'evidence');
 }
 
 /**
@@ -322,7 +251,7 @@ export function getEvidence(id: string): Promise<Evidence[]> {
  * @returns The run's match rows.
  */
 export function getMatches(id: string): Promise<MatchRow[]> {
-  return getRunList<MatchRow>(id, 'matches', () => offlineMatches(id));
+  return getRunList<MatchRow>(id, 'matches');
 }
 
 /**
@@ -332,7 +261,7 @@ export function getMatches(id: string): Promise<MatchRow[]> {
  * @returns The run's reviews.
  */
 export function getReviews(id: string): Promise<Review[]> {
-  return getRunList<Review>(id, 'reviews', () => offlineReviews(id));
+  return getRunList<Review>(id, 'reviews');
 }
 
 /**
@@ -342,14 +271,9 @@ export function getReviews(id: string): Promise<Review[]> {
  * @returns The report, or null when not yet generated.
  */
 export async function getReport(id: string): Promise<Report | null> {
-  return withOfflineFallback(
-    async () => {
-      const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
-      if (res.status === 404) return null;
-      return parseJson<Report>(res);
-    },
-    () => offlineReport(id),
-  );
+  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
+  if (res.status === 404) return null;
+  return parseJson<Report>(res);
 }
 
 /**
@@ -361,20 +285,4 @@ export async function getReport(id: string): Promise<Report | null> {
  */
 export function eventsStreamUrl(id: string): string {
   return `${API_BASE_URL}/api/runs/${id}/events`;
-}
-
-/**
- * Fetches the full persisted event log for a run.
- *
- * @param id Run identifier.
- * @returns The run's events in sequence order.
- */
-export async function getRunEventsLog(id: string): Promise<RunEvent[]> {
-  return fetchWithFallback(`/api/runs/${id}/events/log`, () =>
-    offlineEvents(id),
-  );
-}
-
-export function canUseOfflineRun(runId: string): boolean {
-  return OFFLINE_FALLBACK_ENABLED && isOfflineRunId(runId);
 }

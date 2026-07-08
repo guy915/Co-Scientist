@@ -47,7 +47,6 @@ from app.report_render import (
     finalize_report,
     format_deep_verification_critique,
     hypothesis_stub,
-    match_stub,
 )
 from app.run_modes import CANONICAL_RUN_MODE, setup_guidance
 from app.store import RunStatus
@@ -551,10 +550,9 @@ async def run_mock_workflow(
             {
                 "iteration":
                     itr,
-                "matches": [
-                    match_stub({"winner": m["winner_id"]})
-                    for m in round_matches
-                ],
+                "matches": [{
+                    "winner": str(m["winner_id"])
+                } for m in round_matches],
             },
         )
 
