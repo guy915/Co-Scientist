@@ -27,9 +27,6 @@ class Settings(BaseSettings):
     # MCP Server Configuration (optional, for literature review tools)
     mcp_server_url: str = "http://localhost:8888/mcp"
 
-    # Literature Review Configuration
-    coscientist_lit_review_papers_count: int = 10
-
     # Cache Configuration
     coscientist_cache_enabled: bool = True
     coscientist_cache_dir: str = "./cache"

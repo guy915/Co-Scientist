@@ -52,7 +52,6 @@ def empty_citation_summary() -> dict[str, int]:
 class CitationRecord:
     """Inputs the classifier expects per evidence row."""
 
-    title: str = ""
     url: str = ""
     abstract: str = ""
     claim: str = ""  # the inline claim cited from this source

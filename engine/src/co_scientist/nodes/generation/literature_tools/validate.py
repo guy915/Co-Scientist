@@ -11,6 +11,7 @@ import logging
 from typing import Any, Optional, TYPE_CHECKING, cast
 
 from co_scientist.constants import (
+    corpus_slug,
     EXTENDED_MAX_TOKENS,
     GENERATE_LIT_TOOL_MAX_PAPERS,
     HIGH_TEMPERATURE,
@@ -168,10 +169,7 @@ async def validate_hypotheses(
     shared_slug = state.get("generation_corpus_slug")
     if not shared_slug:
         # Fallback if draft phase didn't set it
-        import hashlib  # pylint: disable=import-outside-toplevel
-
-        shared_slug = "research_" + hashlib.md5(
-            research_goal.encode()).hexdigest()[:8]
+        shared_slug = corpus_slug(research_goal)
         logger.warning("Draft phase didn't set corpus slug, using fallback: %s",
                        shared_slug)
     else:

@@ -11,13 +11,13 @@ Orchestrates a multi-phase literature review process:
 # pylint: disable=inconsistent-quotes
 
 import asyncio
-import hashlib
 import json
 import logging
 import os
 from typing import Any, cast, Optional, TYPE_CHECKING
 
 from co_scientist.constants import (
+    corpus_slug,
     DEFAULT_MAX_TOKENS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
@@ -1073,8 +1073,7 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     queries = await _phase1_generate_queries(state, config, mcp_client)
 
     # Phase 2: collect papers
-    slug = "research_" + hashlib.md5(
-        state["research_goal"].encode()).hexdigest()[:8]
+    slug = corpus_slug(state["research_goal"])
 
     search_errors: list[str] = []
     if config.is_multi_source:

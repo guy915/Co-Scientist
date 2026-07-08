@@ -674,7 +674,6 @@ async def run_mock_workflow(
                 claim = f"Mechanism mentioned in {ev['title'][:30]} supports hypothesis"  # pylint: disable=line-too-long
                 state = classify_citation(
                     CitationRecord(
-                        title=ev["title"],
                         url=ev["url"],
                         abstract=ev["abstract"],
                         claim=claim,

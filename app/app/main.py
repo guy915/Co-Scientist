@@ -46,9 +46,6 @@ if settings.coscientist_cache_enabled:
     os.environ["COSCIENTIST_CACHE_ENABLED"] = "true"
 if settings.coscientist_cache_dir:
     os.environ["COSCIENTIST_CACHE_DIR"] = settings.coscientist_cache_dir
-if settings.coscientist_lit_review_papers_count:
-    os.environ["COSCIENTIST_LIT_REVIEW_PAPERS_COUNT"] = str(
-        settings.coscientist_lit_review_papers_count)
 
 # Set MCP server URL if available
 if settings.mcp_server_url:

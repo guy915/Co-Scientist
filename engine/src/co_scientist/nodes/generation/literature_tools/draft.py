@@ -4,11 +4,11 @@ This is the first phase of tool-based generation. The agent reads pre-curated
 papers using tools and drafts initial hypothesis ideas based on identified gaps.
 """
 
-import hashlib
 import logging
 from typing import Any, Optional, TYPE_CHECKING
 
 from co_scientist.constants import (
+    corpus_slug,
     DRAFT_MAX_TOKENS_CAP,
     DRAFT_TOKENS_PER_HYPOTHESIS,
     EXTENDED_MAX_TOKENS,
@@ -70,8 +70,7 @@ async def draft_hypotheses(
 
     # Create shared slug for corpus (reuse lit review slug for warm start)
     research_goal = state["research_goal"]
-    shared_slug = "research_" + hashlib.md5(
-        research_goal.encode()).hexdigest()[:8]
+    shared_slug = corpus_slug(research_goal)
     logger.info("Using shared corpus slug: %s", shared_slug)
 
     # Store slug in state for validation phase to reuse

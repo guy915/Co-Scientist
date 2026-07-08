@@ -15,8 +15,7 @@ def test_states_are_exactly_four() -> None:
 
 
 def test_unavailable_when_no_url() -> None:
-    r = CitationRecord(title="x",
-                       url="",
+    r = CitationRecord(url="",
                        abstract="anything",
                        claim="anything",
                        available=True)
@@ -24,8 +23,7 @@ def test_unavailable_when_no_url() -> None:
 
 
 def test_unavailable_when_flag_false() -> None:
-    r = CitationRecord(title="x",
-                       url="https://example.org",
+    r = CitationRecord(url="https://example.org",
                        abstract="anything",
                        claim="anything",
                        available=False)
@@ -34,7 +32,6 @@ def test_unavailable_when_flag_false() -> None:
 
 def test_verified_when_strong_overlap() -> None:
     r = CitationRecord(
-        title="x",
         url="https://example.org/1",
         abstract=
         "mitochondrial biogenesis brown adipose thermogenesis cold response",
@@ -46,7 +43,6 @@ def test_verified_when_strong_overlap() -> None:
 
 def test_partial_when_some_overlap() -> None:
     r = CitationRecord(
-        title="x",
         url="https://example.org/1",
         abstract=
         "mitochondrial biogenesis controls thermogenesis through a poorly understood pathway",  # pylint: disable=line-too-long
@@ -56,7 +52,6 @@ def test_partial_when_some_overlap() -> None:
     assert state in {"partial", "unsupported"}  # depends on tokenization
     # Force a stronger boundary case
     r2 = CitationRecord(
-        title="x",
         url="https://example.org/1",
         abstract="biogenesis thermogenesis mitochondrial cellular metabolism",
         claim=
@@ -67,7 +62,6 @@ def test_partial_when_some_overlap() -> None:
 
 def test_unsupported_when_no_overlap() -> None:
     r = CitationRecord(
-        title="x",
         url="https://example.org/1",
         abstract="this paper studies algebraic topology and category theory",
         claim="protein folding kinetics in chaperonin complexes",

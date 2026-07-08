@@ -57,21 +57,26 @@ logger.debug("API keys present: ENTREZ_EMAIL=%s", entrez_email_present)
 
 mcp = FastMCP("co-scientist-lit-review")
 
-# Register literature review tools
-mcp.tool(check_pubmed_available, name="check_pubmed_available")
-mcp.tool(search_pubmed, name="search_pubmed")
-mcp.tool(pubmed_search_with_fulltext, name="pubmed_search_with_fulltext")
-mcp.tool(search_openalex, name="search_openalex")
+# Registered MCP tools in advertised order: literature review followed by INDRA
+# CoGex knowledge-graph tools. The ``/`` handler derives its ``mcp_tools``
+# manifest from this same list so registration and manifest cannot drift.
+_MCP_TOOLS = (
+    (check_pubmed_available, "check_pubmed_available"),
+    (search_pubmed, "search_pubmed"),
+    (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
+    (search_openalex, "search_openalex"),
+    (query_gene_disease_network, "query_gene_disease_network"),
+    (query_gene_codependents, "query_gene_codependents"),
+    (query_drug_info, "query_drug_info"),
+    (query_clinical_trials, "query_clinical_trials"),
+    (query_pathways, "query_pathways"),
+    (query_causal_subnetwork, "query_causal_subnetwork"),
+    (query_mechanistic_statements, "query_mechanistic_statements"),
+    (run_enrichment_analysis, "run_enrichment_analysis"),
+)
 
-# Register INDRA CoGex knowledge graph tools
-mcp.tool(query_gene_disease_network, name="query_gene_disease_network")
-mcp.tool(query_gene_codependents, name="query_gene_codependents")
-mcp.tool(query_drug_info, name="query_drug_info")
-mcp.tool(query_clinical_trials, name="query_clinical_trials")
-mcp.tool(query_pathways, name="query_pathways")
-mcp.tool(query_causal_subnetwork, name="query_causal_subnetwork")
-mcp.tool(query_mechanistic_statements, name="query_mechanistic_statements")
-mcp.tool(run_enrichment_analysis, name="run_enrichment_analysis")
+for _tool_fn, _tool_name in _MCP_TOOLS:
+    mcp.tool(_tool_fn, name=_tool_name)
 
 mcp_http_app = mcp.http_app()
 app = FastAPI(lifespan=mcp_http_app.lifespan)
@@ -98,19 +103,7 @@ async def root() -> JSONResponse:
         "status": "running",
         "service": "coscientist-lit-review",
         "version": "0.1.0",
-        "mcp_tools": [
-            "check_pubmed_available",
-            "search_pubmed",
-            "pubmed_search_with_fulltext",
-            "query_gene_disease_network",
-            "query_gene_codependents",
-            "query_drug_info",
-            "query_clinical_trials",
-            "query_pathways",
-            "query_causal_subnetwork",
-            "query_mechanistic_statements",
-            "run_enrichment_analysis",
-        ],
+        "mcp_tools": [name for _, name in _MCP_TOOLS],
         "api_keys_configured": {
             "ENTREZ_EMAIL": entrez_email_present,
         },

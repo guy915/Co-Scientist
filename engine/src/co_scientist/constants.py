@@ -3,6 +3,7 @@
 Centralizes magic numbers and configuration values for better maintainability.
 """
 
+import hashlib
 import logging
 from typing import Final
 
@@ -117,8 +118,8 @@ caching).
 """
 
 LITERATURE_REVIEW_PAPERS_COUNT: Final = 10
-"""number of papers to collect from MCP servers/tools (configurable via env var)
-"""
+"""default number of papers to collect from MCP servers/tools when a run does
+not specify a per-run count."""
 
 LITERATURE_REVIEW_PAPERS_COUNT_DEV: Final = 4
 """number of papers in dev mode for faster iteration"""
@@ -216,6 +217,22 @@ def truncate(text: str, limit: int = 200, suffix: str = "...") -> str:
         characters followed by ``suffix``.
     """
     return text[:limit] + suffix if len(text) > limit else text
+
+
+def corpus_slug(research_goal: str) -> str:
+    """Derives the on-disk corpus slug for a research goal.
+
+    The literature-review and tool-based generation nodes share a warm PubMed
+    corpus keyed by this slug, so every caller must derive it identically or
+    the warm-start cache silently misses and papers are re-downloaded.
+
+    Args:
+        research_goal: The run's research goal text.
+
+    Returns:
+        A stable ``research_<hash>`` slug for the goal.
+    """
+    return "research_" + hashlib.md5(research_goal.encode()).hexdigest()[:8]
 
 
 REVIEW_BATCH_TOKENS_PER_HYPOTHESIS: Final = 1500

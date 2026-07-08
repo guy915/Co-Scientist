@@ -4,7 +4,6 @@
 import json
 import logging
 import os
-import ssl
 import traceback
 from time import sleep
 from typing import Any, cast
@@ -12,49 +11,10 @@ from urllib.error import HTTPError, URLError
 
 from Bio import Entrez
 
+from mcp_server.entrez import initialize_entrez
 from mcp_server.models import Article
 
 logger = logging.getLogger(__name__)
-
-_entrez_initialized = False
-
-
-def _initialize_entrez() -> None:
-    """Initializes Entrez with email and API key from environment.
-
-    Only logs warnings once on first call.
-    """
-    global _entrez_initialized  # pylint: disable=global-statement
-
-    if _entrez_initialized:
-        return
-
-    _entrez_initialized = True
-    ssl_verify = os.environ.get("DISABLE_SSL_VERIFY",
-                                "").lower() in ("true", "1", "yes")
-    logger.debug("SSL verification: %s", ssl_verify)
-
-    if not Entrez.email:
-        entrez_email = os.environ.get("ENTREZ_EMAIL")
-        if entrez_email:
-            Entrez.email = entrez_email
-            logger.info("Initialized Entrez with email: %s", entrez_email)
-        else:
-            logger.warning(
-                "ENTREZ_EMAIL not set - PubMed may have stricter rate limits")
-
-    if not Entrez.api_key:
-        entrez_key = os.environ.get("ENTREZ_API_KEY")
-        if entrez_key:
-            Entrez.api_key = entrez_key
-            logger.info("Initialized Entrez with API key")
-        else:
-            logger.info("ENTREZ_API_KEY not set - using default rate limits")
-
-    if not ssl_verify:
-        # Deliberate runtime monkeypatch to disable cert verification; the two
-        # SSL context factory signatures are interchangeable at call sites here.
-        ssl._create_default_https_context = ssl._create_unverified_context  # type: ignore[assignment]  # pylint: disable=protected-access
 
 
 def check_pubmed_available() -> str:
@@ -63,7 +23,7 @@ def check_pubmed_available() -> str:
     Returns:
         "true" if PubMed can be accessed successfully, "false" otherwise.
     """
-    _initialize_entrez()
+    initialize_entrez()
 
     entrez_email = os.environ.get("ENTREZ_EMAIL")
     if not entrez_email:
@@ -208,7 +168,7 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
     Returns:
         JSON string with list of articles for LLM agent consumption.
     """
-    _initialize_entrez()
+    initialize_entrez()
 
     logger.info("Searching PubMed with query: '%s' (max %s papers)", query,
                 max_papers)

@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, cast, Optional, TYPE_CHECKING
+from typing import Any, cast, NamedTuple, Optional, TYPE_CHECKING
 
 from co_scientist.tools.response_parser import parse_mcp_result
 
@@ -349,27 +349,49 @@ def _ev_count_str(ev_count: int) -> str:
     return f"{ev_count}+" if ev_count >= _EVIDENCE_LIMIT else str(ev_count)
 
 
+class _StatementCore(NamedTuple):
+    """Core fields shared by the two INDRA statement formatters."""
+
+    subj: str
+    obj: str
+    member_names: list[str]
+    rel_type: str
+    belief: float
+    ev_count: int
+
+
+def _parse_statement(stmt: dict[str, Any]) -> _StatementCore:
+    """Extract the fields both statement formatters render.
+
+    Owns the subject/object versus complex-members shape decision so the two
+    formatters differ only in how they lay the values out.
+    """
+    members = stmt.get("members", [])
+    return _StatementCore(
+        subj=_agent_name(stmt, "subj"),
+        obj=_agent_name(stmt, "obj"),
+        member_names=[
+            m.get("name", "?") for m in members if isinstance(m, dict)
+        ],
+        rel_type=stmt.get("type", "Unknown"),
+        belief=stmt.get("belief", 0),
+        ev_count=len(stmt.get("evidence", [])),
+    )
+
+
 def _format_single_statement(stmt: dict[str, Any]) -> str:
     """Format one INDRA statement as a concise line."""
-    rel_type = stmt.get("type", "Unknown")
-    belief = stmt.get("belief", 0)
-    ev_count = len(stmt.get("evidence", []))
-    ev_str = _ev_count_str(ev_count)
+    core = _parse_statement(stmt)
+    ev_str = _ev_count_str(core.ev_count)
 
-    subj = _agent_name(stmt, "subj")
-    obj = _agent_name(stmt, "obj")
-
-    if subj and obj:
-        return (f"- {subj} --[{rel_type}]--> {obj} "
-                f"(belief: {belief:.2f}, {ev_str} papers)")
+    if core.subj and core.obj:
+        return (f"- {core.subj} --[{core.rel_type}]--> {core.obj} "
+                f"(belief: {core.belief:.2f}, {ev_str} papers)")
 
     # complex/family statements have members instead of subj/obj
-    members = stmt.get("members", [])
-    if members:
-        names = [m.get("name", "?") for m in members if isinstance(m, dict)]
-        if names:
-            return (f"- Complex({', '.join(names)}) [{rel_type}] "
-                    f"(belief: {belief:.2f}, {ev_str} papers)")
+    if core.member_names:
+        return (f"- Complex({', '.join(core.member_names)}) [{core.rel_type}] "
+                f"(belief: {core.belief:.2f}, {ev_str} papers)")
 
     return ""
 
@@ -397,31 +419,23 @@ def _build_enrichment_items(
 def _statement_to_enrichment_item(
         stmt: dict[str, Any]) -> dict[str, str] | None:
     """Convert one INDRA statement into a flat dict for UI display."""
-    rel_type = stmt.get("type", "Unknown")
-    belief = stmt.get("belief", 0)
-    ev_count = len(stmt.get("evidence", []))
+    core = _parse_statement(stmt)
 
-    subj = _agent_name(stmt, "subj")
-    obj = _agent_name(stmt, "obj")
-
-    if subj and obj:
+    if core.subj and core.obj:
         return {
-            "relationship": f"{subj} \u2192 {obj}",
-            "type": rel_type,
-            "belief": f"{belief:.0%}",
-            "evidence_count": _ev_count_str(ev_count),
+            "relationship": f"{core.subj} \u2192 {core.obj}",
+            "type": core.rel_type,
+            "belief": f"{core.belief:.0%}",
+            "evidence_count": _ev_count_str(core.ev_count),
         }
 
-    members = stmt.get("members", [])
-    if members:
-        names = [m.get("name", "?") for m in members if isinstance(m, dict)]
-        if names:
-            return {
-                "relationship": f"Complex({', '.join(names)})",
-                "type": rel_type,
-                "belief": f"{belief:.0%}",
-                "evidence_count": _ev_count_str(ev_count),
-            }
+    if core.member_names:
+        return {
+            "relationship": f"Complex({', '.join(core.member_names)})",
+            "type": core.rel_type,
+            "belief": f"{core.belief:.0%}",
+            "evidence_count": _ev_count_str(core.ev_count),
+        }
 
     return None
 

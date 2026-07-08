@@ -375,7 +375,6 @@ def _persist_final_state(
                 claim = f"[{cite_key}] cited in hypothesis"
                 state = classify_citation(
                     CitationRecord(
-                        title=cite_title,
                         url=cite_url,
                         abstract=abstract_by_title.get(cite_title, ""),
                         claim=grounding,

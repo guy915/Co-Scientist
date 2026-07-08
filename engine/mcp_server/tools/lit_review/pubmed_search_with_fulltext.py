@@ -10,7 +10,6 @@ import os
 import logging
 from pathlib import Path
 from typing import Any
-from Bio import Entrez
 
 from mcp_server.literature_review import PubmedSource, LiteratureReviewAgent
 from mcp_server.text_extraction import extract_text_from_pmc_html
@@ -27,8 +26,7 @@ async def pubmed_search_with_fulltext(
     # pylint: disable=line-too-long
     """Searches PubMed and downloads fulltexts (HTML from PMC).
 
-    Initializes Entrez credentials from environment and performs search
-    with fulltext download. HTML-only implementation.
+    Performs search with fulltext download. HTML-only implementation.
 
     Uses shared pool architecture - papers stored in slug/shared/ and
     symlinked to slug/runs/{run_id}/ for per-run isolation.
@@ -44,15 +42,7 @@ async def pubmed_search_with_fulltext(
         Dict mapping paper_id to metadata (title, abstract, authors, doi, pmc_full_text_id, etc.).
     """
     # pylint: enable=line-too-long
-    # initialize entrez credentials
-    if (entrez_email := os.environ.get("ENTREZ_EMAIL", None)):
-        Entrez.email = entrez_email
-    else:
-        logger.warning("ENTREZ_EMAIL not set - pubmed may rate limit or fail")
-
-    if (entrez_key := os.environ.get("ENTREZ_API_KEY", None)):
-        Entrez.api_key = entrez_key
-
+    # Entrez credentials are configured at import time by literature_review.
     # Initialize literature review agent
     lit_review_dir = Path(
         os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review"))

@@ -11,15 +11,12 @@ import traceback
 import json
 from abc import ABC, abstractmethod
 
-Entrez.email = os.environ.get("ENTREZ_EMAIL", "")
-# Only assign a non-empty API key. Biopython appends whatever ``Entrez.api_key``
-# holds to every request URL, and NCBI rejects an empty ``api_key=`` with HTTP
-# 400 ("API key invalid") while accepting a request that omits it entirely.
-_entrez_api_key = os.environ.get("ENTREZ_API_KEY")
-if _entrez_api_key:
-    Entrez.api_key = _entrez_api_key
+from mcp_server.entrez import initialize_entrez
 
 logger = logging.getLogger(__name__)
+
+# Configure Entrez credentials at import so document sources are ready to query.
+initialize_entrez()
 
 
 class DocumentSource(ABC):
