@@ -48,7 +48,6 @@ _STREAMED_STATE_KEYS = (
     "research_overview",
     "tournament_matchups",
     "evolution_details",
-    "similarity_clusters",
     "current_iteration",
     "articles_with_reasoning",
     "literature_review_queries",
@@ -460,8 +459,6 @@ class HypothesisGenerator:
                 None,
             "articles":
                 None,
-            "generation_corpus_slug":
-                None,
             "debate_transcripts":
                 None,
             "context_enrichment_sources":
@@ -685,7 +682,6 @@ class HypothesisGenerator:
                 "research_plan": {},
                 "tournament_matchups": [],
                 "evolution_details": [],
-                "similarity_clusters": [],
                 "current_iteration": 0,
                 "metrics": ExecutionMetrics(),
                 "articles_with_reasoning": None,

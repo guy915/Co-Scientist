@@ -7,12 +7,10 @@ regression net for upcoming refactors. The parser performs no LLM or network
 calls, so the tests run deterministically with no mocking.
 """
 
-from typing import Any, cast
+from typing import Any
 
 from co_scientist.config.schema import ResponseFormat
 from co_scientist.config.schema import ToolConfig
-from co_scientist.models import Article
-from co_scientist.tools.response_parser import parse_tool_response
 from co_scientist.tools.response_parser import ResponseParser
 
 
@@ -206,10 +204,10 @@ def test_evaluate_transform_chain() -> None:
     assert result == 2023
 
 
-# --- parse_to_articles / parse_tool_response -------------------------------
+# --- parse_to_articles ------------------------------------------------------
 
 
-def test_parse_tool_response_list_search_maps_articles() -> None:
+def test_parse_to_articles_list_search_maps_articles() -> None:
     """A list search response maps each item to an Article via field_mapping."""
     rf = ResponseFormat(
         type="json",
@@ -235,7 +233,7 @@ def test_parse_tool_response_list_search_maps_articles() -> None:
             "authors": ["X Y"]
         }]
     }
-    articles = cast(list[Article], parse_tool_response(resp, tc))
+    articles = ResponseParser(tc).parse_to_articles(resp)
     assert len(articles) == 1
     art = articles[0]
     assert art.title == "Paper One"
@@ -245,7 +243,7 @@ def test_parse_tool_response_list_search_maps_articles() -> None:
     assert art.used_in_analysis is True
 
 
-def test_parse_tool_response_skips_items_without_title() -> None:
+def test_parse_to_articles_skips_items_without_title() -> None:
     """Items that map to an empty title are dropped from the result."""
     rf = ResponseFormat(
         type="json",
@@ -257,11 +255,11 @@ def test_parse_tool_response_skips_items_without_title() -> None:
                     category="search",
                     response_format=rf)
     resp = {"results": [{"name": "Has Title"}, {"no_name": "x"}]}
-    articles = cast(list[Article], parse_tool_response(resp, tc))
+    articles = ResponseParser(tc).parse_to_articles(resp)
     assert [a.title for a in articles] == ["Has Title"]
 
 
-def test_parse_tool_response_dict_results_with_key_mapping() -> None:
+def test_parse_to_articles_dict_results_with_key_mapping() -> None:
     """``is_dict`` results expose the dict key via ``@key`` mappings."""
     rf = ResponseFormat(
         type="json",
@@ -278,7 +276,7 @@ def test_parse_tool_response_dict_results_with_key_mapping() -> None:
                     category="search",
                     response_format=rf)
     resp = {"12345": {"title": "KG paper"}}
-    articles = cast(list[Article], parse_tool_response(resp, tc))
+    articles = ResponseParser(tc).parse_to_articles(resp)
     assert len(articles) == 1
     art = articles[0]
     assert art.title == "KG paper"
@@ -286,7 +284,7 @@ def test_parse_tool_response_dict_results_with_key_mapping() -> None:
     assert art.url == "https://pubmed.ncbi.nlm.nih.gov/12345/"
 
 
-def test_parse_tool_response_boolean_category() -> None:
+def test_parse_to_articles_boolean_category() -> None:
     """A ``boolean_string`` tool returns the decoded bool, not articles."""
     tc = ToolConfig(
         server="s",
@@ -294,16 +292,16 @@ def test_parse_tool_response_boolean_category() -> None:
         category="utility",
         response_format=ResponseFormat(type="boolean_string"),
     )
-    assert parse_tool_response("true", tc) is True
+    assert ResponseParser(tc).parse_response("true") is True
 
 
-def test_parse_tool_response_non_search_returns_raw() -> None:
+def test_parse_to_articles_non_search_returns_raw() -> None:
     """A non-search, non-boolean tool returns the raw parsed response."""
     tc = ToolConfig(server="s",
                     mcp_tool_name="t",
                     category="read",
                     response_format=ResponseFormat())
-    assert parse_tool_response('{"a": 1}', tc) == {"a": 1}
+    assert ResponseParser(tc).parse_response('{"a": 1}') == {"a": 1}
 
 
 def test_parse_to_articles_none_response_returns_empty() -> None:
@@ -313,4 +311,4 @@ def test_parse_to_articles_none_response_returns_empty() -> None:
                     mcp_tool_name="t",
                     category="search",
                     response_format=rf)
-    assert parse_tool_response("null", tc) == []
+    assert ResponseParser(tc).parse_to_articles("null") == []

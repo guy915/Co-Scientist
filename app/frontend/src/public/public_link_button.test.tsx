@@ -15,7 +15,7 @@ describe('PublicLinkButton', () => {
     expect(link).toHaveAttribute('href', '/');
   });
 
-  it('applies the filled variant classes by default', () => {
+  it('applies the button styling classes', () => {
     render(
       <MemoryRouter>
         <PublicLinkButton to="/">Home</PublicLinkButton>
@@ -24,20 +24,6 @@ describe('PublicLinkButton', () => {
     expect(screen.getByRole('link', {name: 'Home'})).toHaveClass(
       'bg-[var(--md-sys-color-primary)]',
       'text-[var(--md-sys-color-on-primary)]',
-    );
-  });
-
-  it('applies the outline variant classes when requested', () => {
-    render(
-      <MemoryRouter>
-        <PublicLinkButton to="/" variant="outline">
-          Home
-        </PublicLinkButton>
-      </MemoryRouter>,
-    );
-    expect(screen.getByRole('link', {name: 'Home'})).toHaveClass(
-      'border-[var(--md-sys-color-outline)]',
-      'text-[var(--md-sys-color-on-surface)]',
     );
   });
 });

@@ -12,6 +12,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.models import phase_message
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_supervisor_prompt
 from co_scientist.state import WorkflowState
@@ -128,12 +129,8 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
             supervisor_guidance,
         "metrics":
             metrics,
-        "messages": [{
-            "role": "assistant",
-            "content": "Created research plan and workflow guidance",
-            "metadata": {
-                "phase": "supervisor",
-                "key_areas": len(key_areas)
-            },
-        }],
+        "messages":
+            phase_message("supervisor",
+                          "Created research plan and workflow guidance",
+                          key_areas=len(key_areas)),
     }

@@ -15,7 +15,8 @@ from co_scientist.constants import (
     truncate,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update, rank_by_elo
+from co_scientist.models import (Hypothesis, create_metrics_update,
+                                 phase_message, rank_by_elo)
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_ranking_prompt
 from co_scientist.state import WorkflowState
@@ -423,13 +424,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
             matchup_details,
         "metrics":
             metrics,
-        "messages": [{
-            "role": "assistant",
-            "content": f"Completed {tournament_rounds} tournament rounds",
-            "metadata": {
-                "phase": "ranking",
-                "rounds": tournament_rounds,
-                "top_elo": hypotheses[0].elo_rating,
-            },
-        }],
+        "messages":
+            phase_message("ranking",
+                          f"Completed {tournament_rounds} tournament rounds",
+                          rounds=tournament_rounds,
+                          top_elo=hypotheses[0].elo_rating),
     }

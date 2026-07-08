@@ -18,7 +18,8 @@ from co_scientist.constants import (
     scaled_max_tokens,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update, rank_by_elo
+from co_scientist.models import (Hypothesis, create_metrics_update,
+                                 phase_message, rank_by_elo)
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.state import WorkflowState
@@ -478,12 +479,8 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
             evolution_details,
         "metrics":
             metrics,
-        "messages": [{
-            "role": "assistant",
-            "content": f"Evolved {len(evolved_hypotheses)} hypotheses",
-            "metadata": {
-                "phase": "evolve",
-                "evolved_count": len(evolved_hypotheses)
-            },
-        }],
+        "messages":
+            phase_message("evolve",
+                          f"Evolved {len(evolved_hypotheses)} hypotheses",
+                          evolved_count=len(evolved_hypotheses)),
     }

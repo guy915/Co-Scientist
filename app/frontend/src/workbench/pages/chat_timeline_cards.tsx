@@ -142,6 +142,34 @@ function MessageActionRow({
   );
 }
 
+/**
+ * Builds the retry/copy/download action set shown under an assistant response.
+ *
+ * @param onRetry Handler for regenerating the response.
+ * @param text The response text to copy or download.
+ * @param filename Download filename for the response.
+ * @returns The three-action array for a MessageActionRow.
+ */
+function responseActions(
+  onRetry: () => void,
+  text: string,
+  filename: string,
+): MessageAction[] {
+  return [
+    {icon: 'refresh', label: 'Retry response', onClick: onRetry},
+    {
+      icon: 'content_copy',
+      label: 'Copy response',
+      onClick: () => void copyText(text),
+    },
+    {
+      icon: 'download',
+      label: 'Download response',
+      onClick: () => downloadText(filename, text),
+    },
+  ];
+}
+
 const COLLAPSED_LINE_COUNT = 4;
 
 /**
@@ -338,20 +366,11 @@ export function ChatBubble({
         />
       ) : (
         <MessageActionRow
-          actions={[
-            {icon: 'refresh', label: 'Retry response', onClick: onRetry},
-            {
-              icon: 'content_copy',
-              label: 'Copy response',
-              onClick: () => void copyText(message.content),
-            },
-            {
-              icon: 'download',
-              label: 'Download response',
-              onClick: () =>
-                downloadText('co-scientist-response.md', message.content),
-            },
-          ]}
+          actions={responseActions(
+            onRetry,
+            message.content,
+            'co-scientist-response.md',
+          )}
         />
       )}
     </div>
@@ -462,20 +481,11 @@ export function RunSpecCard({
         </div>
       </div>
       <MessageActionRow
-        actions={[
-          {icon: 'refresh', label: 'Retry response', onClick: onRetry},
-          {
-            icon: 'content_copy',
-            label: 'Copy response',
-            onClick: () => void copyText(responseText),
-          },
-          {
-            icon: 'download',
-            label: 'Download response',
-            onClick: () =>
-              downloadText('co-scientist-research-plan.md', responseText),
-          },
-        ]}
+        actions={responseActions(
+          onRetry,
+          responseText,
+          'co-scientist-research-plan.md',
+        )}
       />
     </section>
   );
@@ -546,20 +556,11 @@ export function StartedSessionCard({
         </button>
       </div>
       <MessageActionRow
-        actions={[
-          {icon: 'refresh', label: 'Retry response', onClick: onRetry},
-          {
-            icon: 'content_copy',
-            label: 'Copy response',
-            onClick: () => void copyText(responseText),
-          },
-          {
-            icon: 'download',
-            label: 'Download response',
-            onClick: () =>
-              downloadText('co-scientist-session-started.md', responseText),
-          },
-        ]}
+        actions={responseActions(
+          onRetry,
+          responseText,
+          'co-scientist-session-started.md',
+        )}
       />
     </section>
   );

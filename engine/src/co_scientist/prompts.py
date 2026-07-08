@@ -568,50 +568,51 @@ def _format_supervisor_guidance_for_review(
     return "".join(sections) if sections else ""
 
 
-def _format_supervisor_guidance_for_ranking(
-        supervisor_guidance: dict[str, Any] | None) -> str:
-    """Format supervisor guidance for ranking prompts."""
+def _format_key_areas_guidance(supervisor_guidance: dict[str, Any] | None,
+                               header: str, trailer: str) -> str:
+    """Format the supervisor's key research areas as a guidance section.
+
+    Args:
+        supervisor_guidance: Supervisor guidance dict from workflow state.
+        header: Bolded sub-header introducing the key-areas list.
+        trailer: Sentence telling the node how to apply the key areas.
+
+    Returns:
+        A markdown guidance section, or an empty string without key areas.
+    """
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
-    sections = []
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
     key_areas = goal_analysis.get("key_areas", [])
+    if not key_areas:
+        return ""
 
-    if key_areas:
-        sections.append("## Supervisor Guidance\n")
-        sections.append("**Key Research Areas to Consider:**\n")
-        for area in key_areas:
-            sections.append(f"- {area}\n")
-        sections.append(
-            "\nWhen comparing hypotheses, prioritize those that better"
-            " address these key areas.\n")
+    sections = ["## Supervisor Guidance\n", f"**{header}:**\n"]
+    for area in key_areas:
+        sections.append(f"- {area}\n")
+    sections.append(f"\n{trailer}\n")
+    return "".join(sections)
 
-    return "".join(sections) if sections else ""
+
+def _format_supervisor_guidance_for_ranking(
+        supervisor_guidance: dict[str, Any] | None) -> str:
+    """Format supervisor guidance for ranking prompts."""
+    return _format_key_areas_guidance(
+        supervisor_guidance, "Key Research Areas to Consider",
+        "When comparing hypotheses, prioritize those that better"
+        " address these key areas.")
 
 
 def _format_supervisor_guidance_for_proximity(
         supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for proximity prompts."""
-    if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
-        return ""
-
-    sections = []
-    goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
-    key_areas = goal_analysis.get("key_areas", [])
-
-    if key_areas:
-        sections.append("## Supervisor Guidance\n")
-        sections.append("**Key Research Areas:**\n")
-        for area in key_areas:
-            sections.append(f"- {area}\n")
-        sections.append(
-            "\nWhen assessing similarity, consider whether hypotheses"
-            " explore different aspects of these key areas. Hypotheses"
-            " that address the same area with similar approaches should"
-            " be flagged as duplicates.\n")
-
-    return "".join(sections) if sections else ""
+    return _format_key_areas_guidance(
+        supervisor_guidance, "Key Research Areas",
+        "When assessing similarity, consider whether hypotheses"
+        " explore different aspects of these key areas. Hypotheses"
+        " that address the same area with similar approaches should"
+        " be flagged as duplicates.")
 
 
 def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:

@@ -18,7 +18,6 @@ from co_scientist.config.schema import (
     ResponseFormat,
     SearchSourceConfig,
     ServerConfig,
-    Settings,
     ToolConfig,
     ToolsConfig,
     WorkflowConfig,
@@ -148,14 +147,6 @@ def test_enrichment_config_minimal_dict_uses_dataclass_defaults() -> None:
     _assert_declared_defaults(config)
 
 
-def test_settings_minimal_dict_uses_dataclass_defaults() -> None:
-    """Empty and partial dicts fall back to the declared defaults."""
-    assert Settings.from_dict({}) == Settings()
-    partial = Settings.from_dict({"merge_strategy": "extend"})
-    assert partial.merge_strategy == "extend"
-    _assert_declared_defaults(partial, skip=("merge_strategy",))
-
-
 def test_prompts_config_minimal_dict_uses_dataclass_defaults() -> None:
     """Empty and partial dicts fall back to the declared defaults."""
     assert PromptsConfig.from_dict({}) == PromptsConfig()
@@ -183,8 +174,6 @@ def test_unknown_keys_are_ignored() -> None:
     })
     assert config.primary_search == "pubmed_search"
     assert not hasattr(config, "bogus_key")
-    settings = Settings.from_dict({"unknown": 1})
-    assert settings == Settings()
 
 
 def test_yaml_tool_id_is_not_read_from_yaml() -> None:

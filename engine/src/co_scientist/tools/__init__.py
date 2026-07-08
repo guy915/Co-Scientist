@@ -1,19 +1,13 @@
 """Tools module for co-scientist-engine.
 
-Provides hybrid tool system for exposing both MCP tools and Python functions
-as callable tools for LLM agents.
+Exposes MCP server tools as callable tools for LLM agents and parses their
+responses into engine models.
 """
 
-from co_scientist.tools.registry import PythonToolRegistry
-from co_scientist.tools.provider import HybridToolProvider
-from co_scientist.tools.response_parser import (
-    ResponseParser,
-    parse_tool_response,
-)
+from co_scientist.tools.provider import MCPToolProvider
+from co_scientist.tools.response_parser import ResponseParser
 
 __all__ = [
-    "PythonToolRegistry",
-    "HybridToolProvider",
+    "MCPToolProvider",
     "ResponseParser",
-    "parse_tool_response",
 ]

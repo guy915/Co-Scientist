@@ -115,6 +115,4 @@ workflows:
     availability_check: "check_pubmed"
 
 settings:
-  auto_discover: true
   merge_strategy: "override"
-  allow_disable_builtins: true

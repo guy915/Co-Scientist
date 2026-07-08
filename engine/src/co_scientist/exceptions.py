@@ -20,7 +20,3 @@ class GenerationError(CoScientistError):
 
 class ResponseParseError(CoScientistError):
     """An LLM response could not be parsed or repaired into expected JSON."""
-
-
-class ToolError(CoScientistError):
-    """A tool provider or tool execution failed (MCP or Python tools)."""

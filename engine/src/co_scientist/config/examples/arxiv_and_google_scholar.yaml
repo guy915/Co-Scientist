@@ -238,7 +238,6 @@ workflows:
         content_url_field: "pdf_url"
 
     # Strategy for combining results
-    multi_source_strategy: "parallel"
     deduplicate_across_sources: true
 
     # No availability check (no PubMed)
@@ -277,6 +276,4 @@ workflows:
 
 # Global Settings
 settings:
-  auto_discover: true
   merge_strategy: "replace"  # Replace default PubMed config entirely
-  allow_disable_builtins: true

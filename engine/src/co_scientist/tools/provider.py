@@ -1,121 +1,73 @@
-"""Hybrid tool provider for unified access to MCP and Python tools.
-
-Provides composition pattern wrapping MCPToolClient and PythonToolRegistry.
-"""
+"""Tool provider wrapping MCPToolClient for LLM tool calling."""
 # pylint: disable=inconsistent-quotes
 
 import json
 import logging
 from typing import Any, Awaitable, Callable
 
-from co_scientist.exceptions import ConfigError, ToolError
+from co_scientist.exceptions import ConfigError
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.tools.registry import PythonToolRegistry
 
 logger = logging.getLogger(__name__)
 
 
-class HybridToolProvider:
-    """Unified interface for MCP and Python tools.
+class MCPToolProvider:
+    """Uniform tool interface over an MCP client.
 
-    Routes tool calls to appropriate executor based on tool source.
+    Tracks the tools exposed via get_tools so execute_tool_call can reject
+    unknown names with an error tool-response instead of raising.
 
     example usage:
-        provider = HybridToolProvider(
-            mcp_client=mcp_client,
-            python_registry=my_python_registry,  # optional
-        )
+        provider = MCPToolProvider(mcp_client=mcp_client)
 
         tools_dict, openai_tools = provider.get_tools(
-            mcp_whitelist=["pubmed_search_with_fulltext"],
-            python_whitelist=["rank_papers_by_quality"]
-        )
+            mcp_whitelist=["pubmed_search_with_fulltext"])
 
         result = await provider.execute_tool_call(tool_call)
     """
 
-    def __init__(
-        self,
-        mcp_client: MCPToolClient | None = None,
-        python_registry: PythonToolRegistry | None = None,
-    ):
-        """Initialize hybrid tool provider.
+    def __init__(self, mcp_client: MCPToolClient | None = None):
+        """Initialize the tool provider.
 
         Args:
             mcp_client: optional MCP client for MCP tools
-            python_registry: optional Python tool registry
         """
         self.mcp_client = mcp_client
-        self.python_registry = python_registry
 
-        # Track tool sources for routing
-        self._tool_sources: dict[str, str] = {}  # tool_name → "mcp" or "python"
+        # Names exposed via get_tools; used to reject unknown tool calls.
+        self._tool_names: set[str] = set()
 
     def get_tools(
         self,
         mcp_whitelist: list[str] | None = None,
-        python_whitelist: list[str] | None = None,
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        """Get merged tools from MCP and Python sources.
+        """Get tools from the MCP client.
 
         Args:
             mcp_whitelist: optional list of MCP tool names to include
-            python_whitelist: optional list of Python tool names to include
 
         Returns:
             tuple of (tools_dict, openai_tools_list)
-            tools_dict is combined {tool_name: tool_object} for both sources
-            openai_tools_list is combined list of OpenAI-format tools
+            tools_dict is {tool_name: tool_object}
+            openai_tools_list is a list of OpenAI-format tools
         """
-        merged_tools_dict = {}
-        merged_openai_tools = []
+        tools_dict: dict[str, Any] = {}
+        openai_tools: list[dict[str, Any]] = []
 
-        # Get MCP tools
         if self.mcp_client is not None and mcp_whitelist is not None:
             try:
-                mcp_tools_dict, mcp_openai_tools = self.mcp_client.get_tools(
+                tools_dict, openai_tools = self.mcp_client.get_tools(
                     whitelist=mcp_whitelist)
-
-                # Track tool sources
-                for tool_name in mcp_tools_dict.keys():
-                    self._tool_sources[tool_name] = "mcp"
-
-                merged_tools_dict.update(mcp_tools_dict)
-                merged_openai_tools.extend(mcp_openai_tools)
-
-                logger.debug("added %s MCP tools", len(mcp_tools_dict))
+                self._tool_names.update(tools_dict.keys())
+                logger.debug("added %s MCP tools", len(tools_dict))
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning("Failed to get MCP tools: %s", e)
 
-        # Get Python tools
-        if self.python_registry is not None and python_whitelist is not None:
-            try:
-                python_functions, python_openai_tools = (
-                    self.python_registry.get_tools(whitelist=python_whitelist))
-
-                # Track tool sources
-                for tool_name in python_functions.keys():
-                    self._tool_sources[tool_name] = "python"
-
-                # Python tools stored as functions, not tool objects
-                # store them in merged dict for tracking
-                merged_tools_dict.update(python_functions)
-                merged_openai_tools.extend(python_openai_tools)
-
-                logger.debug("added %s Python tools", len(python_functions))
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.warning("Failed to get Python tools: %s", e)
-
-        logger.info(
-            "hybrid provider ready: %s total tools (%s MCP, %s Python)",
-            len(merged_tools_dict),
-            len([s for s in self._tool_sources.values() if s == 'mcp']),
-            len([s for s in self._tool_sources.values() if s == 'python']))
-
-        return merged_tools_dict, merged_openai_tools
+        logger.info("tool provider ready: %s tools", len(tools_dict))
+        return tools_dict, openai_tools
 
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
-        """Execute a tool call by routing to appropriate executor.
+        """Execute a tool call via the MCP client.
 
         Args:
             tool_call: LiteLLM tool call object with .id, .function.name,
@@ -128,27 +80,16 @@ class HybridToolProvider:
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
 
-        # Check tool source
-        tool_source = self._tool_sources.get(tool_name)
-
-        if tool_source is None:
+        if tool_name not in self._tool_names:
             error_msg = f"unknown tool: {tool_name}"
             logger.error(error_msg)
             return self._create_error_response(tool_name, tool_call_id,
                                                error_msg)
 
-        # Route to appropriate executor
         try:
-            if tool_source == "mcp":
-                return await self._execute_mcp_tool(tool_call)
-            elif tool_source == "python":
-                return await self._execute_python_tool(tool_call)
-            else:
-                error_msg = f"invalid tool source: {tool_source}"
-                logger.error(error_msg)
-                return self._create_error_response(tool_name, tool_call_id,
-                                                   error_msg)
-
+            if self.mcp_client is None:
+                raise ConfigError("MCP client not configured")
+            return await self.mcp_client.execute_tool_call(tool_call)
         except Exception as e:  # pylint: disable=broad-exception-caught
             error_msg = f"tool execution failed: {str(e)}"
             logger.error("%s error: %s", tool_name, error_msg)
@@ -178,64 +119,6 @@ class HybridToolProvider:
             return await self.execute_tool_call(tool_call)
 
         return executor, counts
-
-    async def _execute_mcp_tool(self, tool_call: Any) -> dict[str, Any]:
-        """Execute MCP tool call.
-
-        Args:
-            tool_call: LiteLLM tool call object
-
-        Returns:
-            tool response message dict
-        """
-        if self.mcp_client is None:
-            raise ConfigError("MCP client not configured")
-
-        # Delegate to MCP client
-        return await self.mcp_client.execute_tool_call(tool_call)
-
-    async def _execute_python_tool(self, tool_call: Any) -> dict[str, Any]:
-        """Execute Python tool call.
-
-        Args:
-            tool_call: LiteLLM tool call object
-
-        Returns:
-            tool response message dict
-        """
-        if self.python_registry is None:
-            raise ConfigError("Python registry not configured")
-
-        tool_name = tool_call.function.name
-        tool_call_id = tool_call.id
-
-        # Get function
-        func = self.python_registry.get_function(tool_name)
-        if func is None:
-            raise ToolError(f"Python function not found: {tool_name}")
-
-        # Parse arguments
-        try:
-            args_dict = json.loads(tool_call.function.arguments)
-        except json.JSONDecodeError as e:
-            raise ToolError(f"invalid JSON arguments: {e}") from e
-
-        logger.debug("calling Python tool: %s with args: %s", tool_name,
-                     args_dict)
-
-        # Call function
-        result = await func(**args_dict)
-
-        # Serialize result
-        result_json = json.dumps(result)
-
-        # Return tool message
-        return {
-            "role": "tool",
-            "name": tool_name,
-            "tool_call_id": tool_call_id,
-            "content": result_json,
-        }
 
     def _create_error_response(self, tool_name: str, tool_call_id: str,
                                error_msg: str) -> dict[str, Any]:

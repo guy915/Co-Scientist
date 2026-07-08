@@ -186,9 +186,6 @@ class WorkflowState(TypedDict):
     comparison).
     """
 
-    generation_corpus_slug: str | None
-    """Shared corpus slug for reuse across draft and validation phases."""
-
     debate_transcripts: list[dict[str, Any]] | None
     """Internal debate transcripts from parallel debates. Each entry:
     {debate_id, transcript, hypothesis_text}

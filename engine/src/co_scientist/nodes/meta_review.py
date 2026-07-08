@@ -14,6 +14,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.models import phase_message
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_meta_review_prompt
 from co_scientist.state import WorkflowState
@@ -151,12 +152,8 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
             meta_review,
         "metrics":
             metrics,
-        "messages": [{
-            "role": "assistant",
-            "content": "Synthesized meta-review from all hypotheses",
-            "metadata": {
-                "phase": "meta_review",
-                "themes": len(meta_review.get("emerging_themes", [])),
-            },
-        }],
+        "messages":
+            phase_message("meta_review",
+                          "Synthesized meta-review from all hypotheses",
+                          themes=len(meta_review.get("emerging_themes", []))),
     }

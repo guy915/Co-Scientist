@@ -362,28 +362,3 @@ def parse_mcp_result(result: Any) -> Any:
     if isinstance(result, str):
         return json.loads(result)
     return result
-
-
-def parse_tool_response(response: Any,
-                        tool_config: ToolConfig) -> list[Article] | bool | Any:
-    """Convenience function to parse a tool response.
-
-    Args:
-        response: Raw response from MCP tool
-        tool_config: Tool configuration
-
-    Returns:
-        Parsed response (List[Article] for search tools, bool for utility, etc.)
-    """
-    parser = ResponseParser(tool_config)
-
-    # For boolean responses
-    if tool_config.response_format.type == "boolean_string":
-        return parser.parse_response(response)
-
-    # For search tools, parse to articles
-    if tool_config.category in ("search", "search_with_content"):
-        return parser.parse_to_articles(response)
-
-    # For other tools, just parse the response
-    return parser.parse_response(response)

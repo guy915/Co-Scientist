@@ -10,7 +10,6 @@ export function NotFoundPage() {
       <Seo
         title="Page Not Found - Co-Scientist"
         description="The page you requested does not exist."
-        path={window.location.pathname}
         robots="noindex, nofollow"
       />
       <section className="mx-auto min-h-[70vh] w-[min(100%_-_3rem,76rem)] py-[clamp(5rem,12vw,9rem)]">

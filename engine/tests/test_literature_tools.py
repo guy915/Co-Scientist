@@ -15,7 +15,7 @@ Shared seams stubbed in both phases:
   * ``co_scientist.config.get_tool_registry`` -- patched to raise so the
     ``tool_registry=None`` "no registry" fallback path is taken (otherwise the
     real global default registry would load config from disk). With no
-    whitelist the ``HybridToolProvider`` skips MCP and yields zero tools.
+    whitelist the ``MCPToolProvider`` skips MCP and yields zero tools.
 ``attempt_json_repair`` is deliberately *not* stubbed: the tests rely on its
 real behavior.
 """
@@ -26,6 +26,7 @@ from typing import Any
 import pytest
 
 from co_scientist import config as config_mod
+from co_scientist.constants import corpus_slug
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.nodes.generation.literature_tools import draft as draft_mod
@@ -44,7 +45,7 @@ from tests._state import make_state
 class _FakeMcpClient:
     """Minimal MCP client whose paper search returns a canned dict.
 
-    ``HybridToolProvider`` only calls ``get_tools``/``execute_tool_call`` when a
+    ``MCPToolProvider`` only calls ``get_tools``/``execute_tool_call`` when a
     whitelist is supplied; with the registry disabled neither runs, so only
     ``call_tool`` (the legacy paper-search fallback) needs to exist.
     """
@@ -194,22 +195,11 @@ async def test_draft_unparseable_response_raises(
         )
 
 
-async def test_draft_records_corpus_slug(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    """The draft phase stores a deterministic corpus slug on the state."""
-    _disable_registry(monkeypatch)
-    _stub_draft_llm(monkeypatch, json.dumps({"drafts": []}))
-    state = make_state(research_goal="cure the common cold")
-
-    await draft_hypotheses(
-        state=state,
-        count=1,
-        mcp_client=_FakeMcpClient(),
-        tool_registry=None,
-    )
-
-    slug = state["generation_corpus_slug"]
-    assert slug is not None and slug.startswith("research_")
+def test_corpus_slug_is_deterministic() -> None:
+    """Draft and validation derive the same corpus slug from the goal."""
+    slug = corpus_slug("cure the common cold")
+    assert slug == corpus_slug("cure the common cold")
+    assert slug.startswith("research_")
     # Deterministic: derived from research_goal via md5, length "research_" + 8.
     assert len(slug) == len("research_") + 8
 

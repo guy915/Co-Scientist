@@ -328,7 +328,6 @@ workflows:
         content_url_field: "pdf_url"
 
     # Strategy for combining results
-    multi_source_strategy: "parallel"
     deduplicate_across_sources: true
 
     # Availability check (optional - set to null to skip)
@@ -369,6 +368,4 @@ workflows:
 
 # Global Settings
 settings:
-  auto_discover: true
   merge_strategy: "replace"  # replace default tools entirely (multi-source mode)
-  allow_disable_builtins: true

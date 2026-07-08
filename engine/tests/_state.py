@@ -81,7 +81,6 @@ def make_state(**overrides: Any) -> WorkflowState:
         "articles_with_reasoning": None,
         "literature_review_queries": None,
         "articles": None,
-        "generation_corpus_slug": None,
         "debate_transcripts": None,
         "mcp_available": False,
         "pubmed_available": False,

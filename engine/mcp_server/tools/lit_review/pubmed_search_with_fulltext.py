@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from mcp_server.literature_review import PubmedSource, LiteratureReviewAgent
+from mcp_server.literature_review import PubmedSource
 from mcp_server.text_extraction import extract_text_from_pmc_html
 
 logger = logging.getLogger(__name__)
@@ -43,22 +43,19 @@ async def pubmed_search_with_fulltext(
     """
     # pylint: enable=line-too-long
     # Entrez credentials are configured at import time by literature_review.
-    # Initialize literature review agent
     lit_review_dir = Path(
         os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review"))
     lit_review_dir.mkdir(parents=True, exist_ok=True)
 
-    agent = LiteratureReviewAgent(lit_review_dir)
-    pubmed_source = PubmedSource()
-    agent.add_source("pubmed", pubmed_source)
+    pubmed_source = PubmedSource(lit_review_dir / "pubmed")
 
     # Fetch papers with fulltexts (pass run_id for per-run tracking)
     logger.info(
         "Searching pubmed with query: %s, slug: %s, run_id: %s, "
         "max_papers: %s, recency_years: %s", query, slug, run_id, max_papers,
         recency_years)
-    results = await agent.fetch_for_query("pubmed", query, slug, max_papers,
-                                          recency_years, run_id)
+    results = await pubmed_source.pubmed_search(query, slug, max_papers,
+                                                recency_years, run_id)
 
     logger.info("Pubmed search complete - found %s papers", len(results))
 

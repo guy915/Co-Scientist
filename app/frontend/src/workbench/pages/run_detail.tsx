@@ -412,24 +412,31 @@ function ResearchOverviewView({
   // run is still in flight and has no persisted report yet.
   const ideaCount = report?.payload.hypothesis_count ?? hypotheses.length;
   const matchCount = report?.payload.match_count ?? matches.length;
-  const leadStat = researchOverviewLeadStat({
-    run,
-    leaderboard,
-    hypotheses,
-    ideaCount,
-    matchCount,
-  });
+  const leadStat = useMemo(
+    () =>
+      researchOverviewLeadStat({
+        run,
+        leaderboard,
+        hypotheses,
+        ideaCount,
+        matchCount,
+      }),
+    [run, leaderboard, hypotheses, ideaCount, matchCount],
+  );
 
   // Top ideas by Elo, normalized to one shape from whichever source is
   // available: the persisted report leaderboard, else the live hypotheses.
-  const winningIdeas: {id: string; title: string; elo: number}[] =
-    leaderboard.length
-      ? leaderboard
-          .slice(0, 5)
-          .map(item => ({id: item.id, title: item.title, elo: item.elo}))
-      : sortByEloDesc(hypotheses)
-          .slice(0, 5)
-          .map(h => ({id: h.id, title: h.title, elo: h.elo_rating}));
+  const winningIdeas: {id: string; title: string; elo: number}[] = useMemo(
+    () =>
+      leaderboard.length
+        ? leaderboard
+            .slice(0, 5)
+            .map(item => ({id: item.id, title: item.title, elo: item.elo}))
+        : sortByEloDesc(hypotheses)
+            .slice(0, 5)
+            .map(h => ({id: h.id, title: h.title, elo: h.elo_rating})),
+    [leaderboard, hypotheses],
+  );
 
   return (
     <ReportDocument title="Research overview">

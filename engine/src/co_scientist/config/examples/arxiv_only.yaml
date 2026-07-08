@@ -166,6 +166,4 @@ workflows:
 
 # Global Settings
 settings:
-  auto_discover: true
   merge_strategy: "replace"
-  allow_disable_builtins: true

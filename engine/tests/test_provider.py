@@ -1,11 +1,10 @@
-"""Tests for HybridToolProvider: tool merging, whitelisting, and routing.
+"""Tests for MCPToolProvider: tool listing, whitelisting, and execution.
 
-The provider composes an ``MCPToolClient`` (an external dependency, here
-replaced by a tiny in-memory fake that exposes only ``get_tools`` and
-``execute_tool_call``) with a real ``PythonToolRegistry`` holding genuinely
-registered async functions. These tests exercise the real merging,
-source-tracking, whitelisting, and routing logic - only the MCP client is
-faked. Tool-call objects are built with ``types.SimpleNamespace`` to mimic the
+The provider wraps an ``MCPToolClient`` (an external dependency, here replaced
+by a tiny in-memory fake that exposes only ``get_tools`` and
+``execute_tool_call``). These tests exercise the real name-tracking,
+whitelisting, and error-wrapping logic - only the MCP client is faked.
+Tool-call objects are built with ``types.SimpleNamespace`` to mimic the
 LiteLLM shape the provider reads (``.id``, ``.function.name``,
 ``.function.arguments``).
 """
@@ -15,8 +14,7 @@ import types
 from typing import Any, cast
 
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.tools.provider import HybridToolProvider
-from co_scientist.tools.registry import PythonToolRegistry
+from co_scientist.tools.provider import MCPToolProvider
 
 
 class FakeMCPClient:
@@ -65,24 +63,12 @@ class FakeMCPClient:
         }
 
 
-def fake_mcp(**kwargs: Any) -> MCPToolClient:
-    """Build a FakeMCPClient typed as the MCPToolClient the provider expects."""
-    return cast(MCPToolClient, FakeMCPClient(**kwargs))
+class FailingMCPClient(FakeMCPClient):
+    """Fake MCP client whose executor always raises."""
 
-
-def _make_registry() -> PythonToolRegistry:
-    """Build a registry with two genuinely registered async tools."""
-    registry = PythonToolRegistry()
-
-    @registry.register(name="echo_tool", description="echo the text back")
-    async def echo_tool(text: str) -> dict[str, Any]:  # pylint: disable=unused-variable
-        return {"echoed": text}
-
-    @registry.register(name="add_tool", description="add two integers")
-    async def add_tool(a: int, b: int) -> dict[str, Any]:  # pylint: disable=unused-variable
-        return {"sum": a + b}
-
-    return registry
+    async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
+        """Raise to simulate a tool execution failure."""
+        raise RuntimeError(f"server unavailable for {tool_call.function.name}")
 
 
 def _make_tool_call(name: str, arguments: str, call_id: str = "call-1") -> Any:
@@ -93,106 +79,63 @@ def _make_tool_call(name: str, arguments: str, call_id: str = "call-1") -> Any:
     )
 
 
-# --- get_tools: python whitelist -------------------------------------------
+def _make_provider(fake: FakeMCPClient) -> MCPToolProvider:
+    """Build a provider around a fake client typed as MCPToolClient."""
+    return MCPToolProvider(mcp_client=cast(MCPToolClient, fake))
 
 
-def test_get_tools_python_whitelist_filters_to_named_tool() -> None:
-    """A python whitelist returns only the named tool in dict and schemas."""
-    provider = HybridToolProvider(mcp_client=fake_mcp(),
-                                  python_registry=_make_registry())
-    tools_dict, openai_tools = provider.get_tools(python_whitelist=["echo_tool"])
-
-    assert set(tools_dict.keys()) == {"echo_tool"}
-    assert callable(tools_dict["echo_tool"])
-    schema_names = {t["function"]["name"] for t in openai_tools}
-    assert schema_names == {"echo_tool"}
+# --- get_tools: whitelisting ------------------------------------------------
 
 
-def test_get_tools_python_whitelist_multiple_tools() -> None:
-    """A whitelist of several tools includes exactly those tools."""
-    provider = HybridToolProvider(mcp_client=fake_mcp(),
-                                  python_registry=_make_registry())
+def test_get_tools_whitelist_filters_to_named_tool() -> None:
+    """A whitelist returns only the named tool in dict and schemas."""
+    fake = FakeMCPClient(tools={"pubmed_search": object(), "other": object()})
+    provider = _make_provider(fake)
     tools_dict, openai_tools = provider.get_tools(
-        python_whitelist=["echo_tool", "add_tool"])
+        mcp_whitelist=["pubmed_search"])
 
-    assert set(tools_dict.keys()) == {"echo_tool", "add_tool"}
+    assert set(tools_dict.keys()) == {"pubmed_search"}
     schema_names = {t["function"]["name"] for t in openai_tools}
-    assert schema_names == {"echo_tool", "add_tool"}
+    assert schema_names == {"pubmed_search"}
 
 
-def test_get_tools_no_python_whitelist_yields_no_python_tools() -> None:
-    """Omitting the python whitelist (None) excludes all python tools."""
-    provider = HybridToolProvider(mcp_client=fake_mcp(),
-                                  python_registry=_make_registry())
+def test_get_tools_no_whitelist_yields_no_tools() -> None:
+    """Omitting the whitelist (None) skips the MCP client entirely."""
+    fake = FakeMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
     tools_dict, openai_tools = provider.get_tools()
 
     assert tools_dict == {}
     assert openai_tools == []
+    assert fake.get_tools_calls == []
 
 
-def test_get_tools_empty_mcp_whitelist_adds_no_mcp_tools() -> None:
-    """An empty mcp whitelist returns no MCP tools while python tools merge."""
+def test_get_tools_empty_whitelist_adds_no_tools() -> None:
+    """An empty whitelist still calls the client but filters everything out."""
     fake = FakeMCPClient(tools={"pubmed_search": object()})
-    provider = HybridToolProvider(mcp_client=cast(MCPToolClient, fake),
-                                  python_registry=_make_registry())
-    tools_dict, _ = provider.get_tools(mcp_whitelist=[],
-                                       python_whitelist=["echo_tool"])
+    provider = _make_provider(fake)
+    tools_dict, _ = provider.get_tools(mcp_whitelist=[])
 
-    # Empty whitelist still calls the client, but filters everything out.
     assert fake.get_tools_calls == [[]]
-    assert set(tools_dict.keys()) == {"echo_tool"}
+    assert tools_dict == {}
 
 
-def test_get_tools_merges_mcp_and_python_sources() -> None:
-    """Both sources merge into one dict and source tracking is recorded."""
-    fake = FakeMCPClient(tools={"pubmed_search": object()})
-    provider = HybridToolProvider(mcp_client=cast(MCPToolClient, fake),
-                                  python_registry=_make_registry())
-    tools_dict, openai_tools = provider.get_tools(
-        mcp_whitelist=["pubmed_search"], python_whitelist=["add_tool"])
-
-    assert set(tools_dict.keys()) == {"pubmed_search", "add_tool"}
-    schema_names = {t["function"]["name"] for t in openai_tools}
-    assert schema_names == {"pubmed_search", "add_tool"}
-    # pylint: disable=protected-access
-    assert provider._tool_sources["pubmed_search"] == "mcp"
-    assert provider._tool_sources["add_tool"] == "python"
-
-
-def test_get_tools_mcp_whitelist_forwarded_to_client() -> None:
-    """The mcp whitelist is forwarded verbatim to the MCP client."""
+def test_get_tools_whitelist_forwarded_to_client() -> None:
+    """The whitelist is forwarded verbatim to the MCP client."""
     fake = FakeMCPClient(tools={"pubmed_search": object(), "other": object()})
-    provider = HybridToolProvider(mcp_client=cast(MCPToolClient, fake), python_registry=None)
+    provider = _make_provider(fake)
     provider.get_tools(mcp_whitelist=["pubmed_search"])
 
     assert fake.get_tools_calls == [["pubmed_search"]]
 
 
-# --- execute_tool_call: routing --------------------------------------------
+# --- execute_tool_call ------------------------------------------------------
 
 
-async def test_execute_routes_python_tool_to_registry_function() -> None:
-    """A python tool call runs the real registered function and serializes it."""
-    provider = HybridToolProvider(mcp_client=fake_mcp(),
-                                  python_registry=_make_registry())
-    provider.get_tools(python_whitelist=["add_tool"])
-
-    tool_call = _make_tool_call("add_tool",
-                                json.dumps({"a": 2, "b": 3}),
-                                call_id="call-add")
-    result = await provider.execute_tool_call(tool_call)
-
-    assert result["role"] == "tool"
-    assert result["name"] == "add_tool"
-    assert result["tool_call_id"] == "call-add"
-    assert json.loads(result["content"]) == {"sum": 5}
-
-
-async def test_execute_routes_mcp_tool_to_fake_client() -> None:
-    """An MCP tool call is delegated to the fake MCP client's executor."""
+async def test_execute_delegates_known_tool_to_client() -> None:
+    """A known tool call is delegated to the MCP client's executor."""
     fake = FakeMCPClient(tools={"pubmed_search": object()})
-    provider = HybridToolProvider(mcp_client=cast(MCPToolClient, fake),
-                                  python_registry=_make_registry())
+    provider = _make_provider(fake)
     provider.get_tools(mcp_whitelist=["pubmed_search"])
 
     tool_call = _make_tool_call("pubmed_search",
@@ -206,26 +149,10 @@ async def test_execute_routes_mcp_tool_to_fake_client() -> None:
     assert result["content"] == "mcp-result"
 
 
-async def test_execute_python_tool_passes_arguments_through() -> None:
-    """JSON arguments are decoded and passed as kwargs to the function."""
-    provider = HybridToolProvider(mcp_client=fake_mcp(),
-                                  python_registry=_make_registry())
-    provider.get_tools(python_whitelist=["echo_tool"])
-
-    tool_call = _make_tool_call("echo_tool", json.dumps({"text": "hello"}))
-    result = await provider.execute_tool_call(tool_call)
-
-    assert json.loads(result["content"]) == {"echoed": "hello"}
-
-
-# --- execute_tool_call: error / edge cases ---------------------------------
-
-
 async def test_execute_unknown_tool_returns_error_response() -> None:
-    """An unregistered tool name yields an error tool-response, not a raise."""
-    provider = HybridToolProvider(mcp_client=fake_mcp(),
-                                  python_registry=_make_registry())
-    # No get_tools call, so nothing is tracked as a known source.
+    """An unlisted tool name yields an error tool-response, not a raise."""
+    provider = _make_provider(FakeMCPClient())
+    # No get_tools call, so no tool names are tracked.
     tool_call = _make_tool_call("nope_tool", "{}", call_id="call-x")
     result = await provider.execute_tool_call(tool_call)
 
@@ -236,32 +163,48 @@ async def test_execute_unknown_tool_returns_error_response() -> None:
     assert payload["error"] == "unknown tool: nope_tool"
 
 
-async def test_execute_python_tool_invalid_json_returns_error_response() -> None:
-    """Malformed JSON arguments surface as an error response (ToolError caught)."""
-    provider = HybridToolProvider(mcp_client=fake_mcp(),
-                                  python_registry=_make_registry())
-    provider.get_tools(python_whitelist=["echo_tool"])
+async def test_execute_client_failure_returns_error_response() -> None:
+    """An exception from the MCP client surfaces as an error response."""
+    fake = FailingMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
 
-    tool_call = _make_tool_call("echo_tool", "{not valid json")
+    tool_call = _make_tool_call("pubmed_search", "{}")
     result = await provider.execute_tool_call(tool_call)
 
     payload = json.loads(result["content"])
     assert "tool execution failed" in payload["error"]
-    assert "invalid JSON arguments" in payload["error"]
+    assert "server unavailable" in payload["error"]
 
 
-async def test_execute_python_source_without_registry_errors() -> None:
-    """A python-routed call with no registry surfaces a ConfigError response."""
-    fake = FakeMCPClient()
-    provider = HybridToolProvider(mcp_client=cast(MCPToolClient, fake),
-                                  python_registry=_make_registry())
-    provider.get_tools(python_whitelist=["echo_tool"])
-    # Drop the registry after sources are tracked to force the None branch.
-    provider.python_registry = None
+async def test_execute_known_tool_without_client_errors() -> None:
+    """A tracked tool with no client surfaces a ConfigError response."""
+    fake = FakeMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
+    # Drop the client after names are tracked to force the None branch.
+    provider.mcp_client = None
 
-    tool_call = _make_tool_call("echo_tool", json.dumps({"text": "x"}))
+    tool_call = _make_tool_call("pubmed_search", "{}")
     result = await provider.execute_tool_call(tool_call)
 
     payload = json.loads(result["content"])
     assert "tool execution failed" in payload["error"]
-    assert "Python registry not configured" in payload["error"]
+    assert "MCP client not configured" in payload["error"]
+
+
+# --- tracked_executor -------------------------------------------------------
+
+
+async def test_tracked_executor_counts_calls_per_tool() -> None:
+    """The tracked executor counts calls per tool name as it delegates."""
+    fake = FakeMCPClient(tools={"pubmed_search": object()})
+    provider = _make_provider(fake)
+    provider.get_tools(mcp_whitelist=["pubmed_search"])
+    executor, counts = provider.tracked_executor("Draft")
+
+    await executor(_make_tool_call("pubmed_search", "{}"))
+    await executor(_make_tool_call("pubmed_search", "{}"))
+
+    assert counts == {"pubmed_search": 2}
+    assert len(fake.executed) == 2

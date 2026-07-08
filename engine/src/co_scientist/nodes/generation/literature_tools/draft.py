@@ -24,7 +24,7 @@ from co_scientist.llm import (
 )
 from co_scientist.prompts import get_draft_prompt_with_tools
 from co_scientist.state import WorkflowState
-from co_scientist.tools.provider import HybridToolProvider
+from co_scientist.tools.provider import MCPToolProvider
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
@@ -68,13 +68,11 @@ async def draft_hypotheses(
     user_hypotheses = state.get("starting_hypotheses")
     articles = state.get("articles") or []
 
-    # Create shared slug for corpus (reuse lit review slug for warm start)
+    # Shared slug for corpus (reuse lit review slug for warm start); the
+    # validation phase derives the same slug from the research goal.
     research_goal = state["research_goal"]
     shared_slug = corpus_slug(research_goal)
     logger.info("Using shared corpus slug: %s", shared_slug)
-
-    # Store slug in state for validation phase to reuse
-    state["generation_corpus_slug"] = shared_slug
 
     # Log lit review context
     if articles_with_reasoning:
@@ -87,7 +85,7 @@ async def draft_hypotheses(
                        " - agent will examine papers directly")
 
     # Initialize hybrid tool provider with draft-specific whitelist
-    provider = HybridToolProvider(mcp_client=mcp_client)
+    provider = MCPToolProvider(mcp_client=mcp_client)
 
     # Get tool whitelist from registry or try global registry
     if tool_registry is None:

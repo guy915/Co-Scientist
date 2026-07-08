@@ -334,7 +334,6 @@ class WorkflowConfig:
 
     # Multi-source mode
     search_sources: list[SearchSourceConfig] = field(default_factory=list)
-    multi_source_strategy: str = "parallel"  # parallel, sequential
     deduplicate_across_sources: bool = True
 
     # General tool lists
@@ -457,22 +456,6 @@ class EnrichmentConfig:
 
 
 @dataclass
-class Settings:
-    """Global settings for tool configuration."""
-
-    auto_discover: bool = True
-    merge_strategy: str = "override"  # override, extend, replace
-    allow_disable_builtins: bool = True
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "Settings":
-        """Create Settings from dictionary."""
-        if not data:
-            return cls()
-        return cls(**_declared_field_kwargs(cls, data))
-
-
-@dataclass
 class PromptsConfig:
     """Domain-specific prompt customizations via {{domain_*}} placeholders.
 
@@ -516,7 +499,6 @@ class ToolsConfig:
     servers: dict[str, ServerConfig] = field(default_factory=dict)
     tools: dict[str, dict[str, ToolConfig]] = field(default_factory=dict)
     workflows: dict[str, WorkflowConfig] = field(default_factory=dict)
-    settings: Settings = field(default_factory=Settings)
     prompts: PromptsConfig = field(default_factory=PromptsConfig)
     enrichments: list[EnrichmentConfig] = field(default_factory=list)
 
@@ -542,9 +524,6 @@ class ToolsConfig:
         for workflow_id, workflow_data in data.get("workflows", {}).items():
             workflows[workflow_id] = WorkflowConfig.from_dict(workflow_data)
 
-        # Parse settings
-        settings = Settings.from_dict(data.get("settings", {}))
-
         # Parse prompts
         prompts = PromptsConfig.from_dict(data.get("prompts", {}))
 
@@ -555,6 +534,8 @@ class ToolsConfig:
 
         # Every section above is parsed into nested dataclasses; only plain
         # scalar fields (currently just version) go through the generic path.
+        # The YAML settings section is read from the raw dict by the registry
+        # (merge_strategy), so it has no parsed counterpart here.
         kwargs = _declared_field_kwargs(cls,
                                         data,
                                         exclude=(
@@ -568,7 +549,6 @@ class ToolsConfig:
         return cls(servers=servers,
                    tools=tools,
                    workflows=workflows,
-                   settings=settings,
                    prompts=prompts,
                    enrichments=enrichments,
                    **kwargs)

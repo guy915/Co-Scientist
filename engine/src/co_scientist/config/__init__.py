@@ -12,7 +12,6 @@ from co_scientist.config.schema import (
     SearchSourceConfig,
     WorkflowConfig,
     ToolsConfig,
-    Settings,
 )
 from co_scientist.config.registry import ToolRegistry, get_tool_registry
 
@@ -25,7 +24,6 @@ __all__ = [
     "SearchSourceConfig",
     "WorkflowConfig",
     "ToolsConfig",
-    "Settings",
     "ToolRegistry",
     "get_tool_registry",
 ]

@@ -1,4 +1,4 @@
-"""Literature review agent and PubMed document source implementation."""
+"""PubMed document source with fulltext download from PMC."""
 # pylint: disable=inconsistent-quotes
 
 from Bio import Entrez
@@ -9,147 +9,38 @@ from pathlib import Path
 from typing import Any, cast
 import traceback
 import json
-from abc import ABC, abstractmethod
 
 from mcp_server.entrez import initialize_entrez
 
 logger = logging.getLogger(__name__)
 
-# Configure Entrez credentials at import so document sources are ready to query.
+# Configure Entrez credentials at import so the source is ready to query.
 initialize_entrez()
 
 
-class DocumentSource(ABC):
-    """Abstract base class for literature document sources."""
+def _symlink_into_run(run_dir: Path, filename: str) -> None:
+    """Links a shared-pool file into a per-run directory (idempotent).
 
-    # Folder name for papers
-    data_dir: str
-    # Set when added to LiteratureReviewAgent or manually
-    qualified_path: Path | None
-
-    @abstractmethod
-    async def fetch_for_query(self,
-                              query: str,
-                              slug: str = "",
-                              max_papers: int = 10,
-                              recency_years: int = 0,
-                              run_id: str | None = None) -> dict[str, Any]:
-        """Fetches papers for a given query and writes them to qualified_path.
-
-        Args:
-            query: Search query string.
-            slug: Identifier for organizing results.
-            max_papers: Maximum number of papers to retrieve.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            run_id: Unique run identifier for per-run tracking.
-
-        Returns:
-            Mapping of paper_id to metadata, in a source-specific format.
-        """
-        ...  # pylint: disable=unnecessary-ellipsis
+    Args:
+        run_dir: Per-run directory that should hold the symlink.
+        filename: Basename of the file under ``<slug>/shared/`` to link to.
+    """
+    symlink = run_dir / filename
+    if not symlink.exists():
+        symlink.symlink_to(f"../../shared/{filename}")
 
 
-class LiteratureReviewAgent:
-    """Orchestrates multiple document sources for literature review."""
-
-    source_root: Path
-    source_dirs: list[str]
-    sources: dict[str, DocumentSource]
-
-    def __init__(self, source_root: Path):
-        """Initializes the agent with a root directory for storing papers.
-
-        Args:
-            source_root: Root path where all source subdirectories are created.
-        """
-        self.source_root = source_root
-        self.source_dirs = []
-        self.sources = {}
-        logger.info("Initialized LiteratureReviewAgent with source root: %s",
-                    source_root)
-
-    def add_source(self, name: str, source: DocumentSource) -> None:
-        """Registers a document source under a given name.
-
-        Args:
-            name: Key used to refer to this source in fetch_for_query.
-            source: DocumentSource instance to register.
-        """
-        self.source_dirs.append(source.data_dir)
-        source.qualified_path = self.source_root / source.data_dir
-        self.sources[name] = source
-
-    async def fetch_for_query(self,
-                              source_name: str,
-                              query: str,
-                              slug: str,
-                              max_papers: int = 10,
-                              recency_years: int = 0,
-                              run_id: str | None = None) -> dict[str, Any]:
-        """Fetches papers from a named source for the given query.
-
-        Args:
-            source_name: Key of the registered source to query.
-            query: Search query string.
-            slug: Identifier for organizing results.
-            max_papers: Maximum number of papers to retrieve.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            run_id: Unique run identifier for per-run tracking.
-
-        Returns:
-            Source-specific result mapping.
-        """
-        return await self.sources[source_name].fetch_for_query(
-            query, slug, max_papers, recency_years, run_id)
-
-
-class PubmedSource(DocumentSource):
+class PubmedSource:
     """PubMed document source with fulltext download from PMC."""
 
-    def __init__(self, qualified_path: Path | None = None):
+    def __init__(self, qualified_path: Path):
         """Initializes the PubMed source.
 
         Args:
-            qualified_path: Optional path override; normally set by the agent.
+            qualified_path: Directory where this source stores papers (the
+                ``pubmed`` subdirectory of the literature-review root).
         """
-        self.data_dir = "pubmed"
         self.qualified_path = qualified_path
-
-    async def fetch_for_query(self,
-                              query: str,
-                              slug: str = "",
-                              max_papers: int = 10,
-                              recency_years: int = 0,
-                              run_id: str | None = None) -> dict[str, Any]:
-        """Fetches papers from PubMed for the given query.
-
-        Args:
-            query: PubMed boolean query string.
-            slug: Identifier for organizing results.
-            max_papers: Maximum papers to retrieve.
-            recency_years: Filter to papers from last N years (0 = no filter).
-            run_id: Unique run identifier for per-run tracking.
-
-        Returns:
-            Dict mapping paper_id to metadata.
-        """
-        return await self.pubmed_search(query, slug, max_papers, recency_years,
-                                        run_id)
-
-    def _assert_qualified_path(self) -> Path:
-        """Returns qualified_path, raising if it is unset.
-
-        Returns:
-            The qualified path for this source.
-
-        Raises:
-            ValueError: If qualified_path has not been set.
-        """
-        if self.qualified_path is None:
-            raise ValueError(
-                "Ensure qualified_path is set via initializer or from "
-                "LiteratureReviewAgent.")
-        return self.qualified_path
 
     def entrez_read(self, handle: Any) -> Any:
         """Reads an Entrez handle with rate-limit delay.
@@ -304,7 +195,7 @@ class PubmedSource(DocumentSource):
         """
         try:  # pylint: disable=broad-exception-caught
             # Check shared pool first
-            base_dir = self._assert_qualified_path() / slug
+            base_dir = self.qualified_path / slug
             shared_dir = base_dir / "shared"
             shared_dir.mkdir(parents=True, exist_ok=True)
             fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
@@ -319,12 +210,7 @@ class PubmedSource(DocumentSource):
                 if run_id:
                     run_dir = base_dir / "runs" / run_id
                     run_dir.mkdir(parents=True, exist_ok=True)
-                    run_fulltext_symlink = run_dir / f"{pmc_id}.fulltext.html"
-                    if not run_fulltext_symlink.exists():
-                        run_fulltext_symlink.symlink_to(
-                            f"../../shared/{pmc_id}.fulltext.html")
-                        logger.debug("Created symlink for %s in run %s", pmc_id,
-                                     run_id)
+                    _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
 
                 return contents
 
@@ -355,12 +241,7 @@ class PubmedSource(DocumentSource):
             if run_id:
                 run_dir = base_dir / "runs" / run_id
                 run_dir.mkdir(parents=True, exist_ok=True)
-                run_fulltext_symlink = run_dir / f"{pmc_id}.fulltext.html"
-                if not run_fulltext_symlink.exists():
-                    run_fulltext_symlink.symlink_to(
-                        f"../../shared/{pmc_id}.fulltext.html")
-                    logger.debug("Created symlink for %s in run %s", pmc_id,
-                                 run_id)
+                _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
 
             return contents
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -415,7 +296,7 @@ class PubmedSource(DocumentSource):
                                            recency_years=recency_years)
 
         # Create shared pool and run-specific directories
-        base_dir = self._assert_qualified_path() / slug
+        base_dir = self.qualified_path / slug
         shared_dir = base_dir / "shared"
         shared_dir.mkdir(parents=True, exist_ok=True)
 
@@ -442,10 +323,7 @@ class PubmedSource(DocumentSource):
             """Symlinks a shared-pool metadata file into the run directory."""
             if not run_dir:
                 return
-            run_metadata_symlink = run_dir / f"{paper_id}.metadata.json"
-            if not run_metadata_symlink.exists():
-                run_metadata_symlink.symlink_to(
-                    f"../../shared/{paper_id}.metadata.json")
+            _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
             current_run_papers.append(paper_id)
 
         async def fetch_paper_metadata(
@@ -610,19 +488,9 @@ class PubmedSource(DocumentSource):
 
                 # Create symlinks for supplemented papers
                 for paper_id, metadata in papers_to_supplement:
-                    # Symlink metadata
-                    run_metadata_symlink = (run_dir /
-                                            f"{paper_id}.metadata.json")
-                    if not run_metadata_symlink.exists():
-                        run_metadata_symlink.symlink_to(
-                            f"../../shared/{paper_id}.metadata.json")
-
-                    # Symlink fulltext
+                    _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
                     pmc_id = metadata['pmc_full_text_id']
-                    run_fulltext_symlink = run_dir / f"{pmc_id}.fulltext.html"
-                    if not run_fulltext_symlink.exists():
-                        run_fulltext_symlink.symlink_to(
-                            f"../../shared/{pmc_id}.fulltext.html")
+                    _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
 
                     # Add to results
                     papers_to_use.append(paper_id)

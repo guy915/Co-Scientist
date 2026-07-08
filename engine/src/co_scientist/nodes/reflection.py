@@ -13,6 +13,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis
+from co_scientist.models import phase_message
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_reflection_prompt
 from co_scientist.state import WorkflowState
@@ -192,14 +193,10 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     return {
         "hypotheses":
             hypotheses,
-        "messages": [{
-            "role": "assistant",
-            "content": (f"completed reflection analysis for"
-                        f" {len(hypotheses)} hypotheses"),
-            "metadata": {
-                "phase": "reflection"
-            },
-        }],
+        "messages":
+            phase_message(
+                "reflection", f"completed reflection analysis for"
+                f" {len(hypotheses)} hypotheses"),
     }
 
 

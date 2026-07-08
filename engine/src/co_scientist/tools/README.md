@@ -1,2 +1,6 @@
+# Tools
 
-The code in this folder isn't as useful, since we only use tools from mcp servers. It is being imported and used to instantiate a hybrid mcp + local tools registry. May be more useful in case we add local tools in the future.
+Exposes MCP server tools to the generation nodes (`MCPToolProvider`) and
+parses their responses into engine models (`ResponseParser`). Tool metadata
+and response-format mappings come from the YAML configs under
+`co_scientist/config/`.

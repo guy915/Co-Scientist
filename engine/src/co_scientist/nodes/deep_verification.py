@@ -12,6 +12,7 @@ from co_scientist.constants import PROGRESS_DEEP_VERIFICATION_COMPLETE
 from co_scientist.constants import PROGRESS_DEEP_VERIFICATION_START
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.models import phase_message
 from co_scientist.models import Hypothesis
 from co_scientist.models import rank_by_elo
 from co_scientist.nodes.progress import emit_progress
@@ -115,11 +116,7 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
             hypotheses,
         "metrics":
             metrics,
-        "messages": [{
-            "role": "assistant",
-            "content": f"Deep-verified {verified_count} top hypotheses",
-            "metadata": {
-                "phase": "deep_verification"
-            },
-        }],
+        "messages":
+            phase_message("deep_verification",
+                          f"Deep-verified {verified_count} top hypotheses"),
     }

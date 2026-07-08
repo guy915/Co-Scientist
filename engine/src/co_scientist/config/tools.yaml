@@ -155,14 +155,9 @@ workflows:
 
 # Global Settings
 settings:
-  # Auto-discover tools from connected MCP servers
-  auto_discover: true
-
   # How to merge user config with defaults:
   # - override: user values replace defaults for matching keys
   # - extend: user values add to defaults
   # - replace: user config completely replaces defaults
   merge_strategy: "override"
 
-  # Allow users to disable built-in tools
-  allow_disable_builtins: true

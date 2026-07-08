@@ -24,7 +24,7 @@ from co_scientist.cache import LLMCache, NullCache, get_cache
 logger = logging.getLogger(__name__)
 
 
-def _save_prompt_if_named(
+async def _save_prompt_if_named(
     prompt: str,
     run_id: str | None,
     prompt_name: str | None,
@@ -36,7 +36,8 @@ def _save_prompt_if_named(
     whenever ``prompt_name`` is provided, under ``run_id or "unknown"``.
     Every write is still globally gated by the ``COSCIENTIST_SAVE_PROMPTS``
     env check inside ``prompts.save_prompt_to_disk`` (which also emits the
-    canonical debug log for each saved prompt).
+    canonical debug log for each saved prompt). The blocking file write runs
+    in a worker thread so gathered LLM calls don't stall the event loop.
 
     ``save_prompt_to_disk`` is resolved through the ``prompts`` module at
     call time so tests can monkeypatch it there.
@@ -49,7 +50,8 @@ def _save_prompt_if_named(
     """
     if prompt_name is None:
         return
-    prompts.save_prompt_to_disk(
+    await asyncio.to_thread(
+        prompts.save_prompt_to_disk,
         run_id=run_id or "unknown",
         prompt_name=prompt_name,
         content=prompt,
@@ -491,7 +493,7 @@ async def call_llm(
     Raises:
         Exception: If the LLM call fails
     """
-    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
 
     temperature = _clamp_temperature(model_name, temperature)
 
@@ -641,7 +643,7 @@ async def call_llm_json(
             (for critical nodes)
         Exception: If the LLM call fails or returns empty response
     """
-    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
 
     # Clamp before the cache key is built so requested temperatures that
     # execute identically share one cache entry (matches call_llm and
@@ -891,7 +893,7 @@ async def call_llm_with_tools(
     Raises:
         Exception: If the LLM call fails or max iterations reached
     """
-    _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
 
     temperature = _clamp_temperature(model_name, temperature)
 

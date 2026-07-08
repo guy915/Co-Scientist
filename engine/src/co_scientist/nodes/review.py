@@ -27,6 +27,7 @@ from co_scientist.models import (
     Hypothesis,
     HypothesisReview,
     create_metrics_update,
+    phase_message,
 )
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_review_batch_prompt, get_review_prompt
@@ -393,12 +394,9 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
             hypotheses,
         "metrics":
             metrics,
-        "messages": [{
-            "role": "assistant",
-            "content": f"Reviewed {len(reviews)} hypotheses ({strategy_name})",
-            "metadata": {
-                "phase": "review",
-                "strategy": strategy_name
-            },
-        }],
+        "messages":
+            phase_message(
+                "review",
+                f"Reviewed {len(reviews)} hypotheses ({strategy_name})",
+                strategy=strategy_name),
     }

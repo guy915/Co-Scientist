@@ -165,15 +165,34 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _run_migrations(conn)
 
 
+def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str,
+                           coltype: str) -> bool:
+    """Adds a column to a table when absent, idempotently.
+
+    Args:
+        conn: Open SQLite connection.
+        table: Table to alter.
+        column: Column name to ensure exists.
+        coltype: Column type/constraint clause for the ADD COLUMN statement.
+
+    Returns:
+        True if the column was added, False if it already existed.
+    """
+    cols = {
+        row[1]
+        for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+    if column in cols:
+        return False
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+    logger.info("migration: added %s column to %s", column, table)
+    return True
+
+
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
-    cols = {
-        row[1] for row in conn.execute("PRAGMA table_info(runs)").fetchall()
-    }
-    if "client_id" not in cols:
-        conn.execute(
-            "ALTER TABLE runs ADD COLUMN client_id TEXT NOT NULL DEFAULT ''")
-        logger.info("migration: added client_id column to runs")
+    if _add_column_if_missing(conn, "runs", "client_id",
+                              "TEXT NOT NULL DEFAULT ''"):
         # One-time purge of runs that predate client isolation. This MUST run
         # only when the column is first added -- running it on every startup
         # would silently delete every header-less (empty client_id) run on each
@@ -181,35 +200,10 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM runs WHERE client_id = ''")
         logger.info("migration: purged pre-client-isolation runs")
 
-    report_cols = {
-        row[1] for row in conn.execute("PRAGMA table_info(reports)").fetchall()
-    }
-    if "markdown_text" not in report_cols:
-        conn.execute("ALTER TABLE reports ADD COLUMN markdown_text TEXT")
-        logger.info("migration: added markdown_text column to reports")
-
-    message_cols = {
-        row[1]
-        for row in conn.execute("PRAGMA table_info(messages)").fetchall()
-    }
-    if "meta_json" not in message_cols:
-        conn.execute("ALTER TABLE messages ADD COLUMN meta_json TEXT")
-        logger.info("migration: added meta_json column to messages")
-
-    hyp_cols = {
-        row[1]
-        for row in conn.execute("PRAGMA table_info(hypotheses)").fetchall()
-    }
-    if "category" not in hyp_cols:
-        conn.execute("ALTER TABLE hypotheses ADD COLUMN category TEXT")
-        logger.info("migration: added category column to hypotheses")
-
-    match_cols = {
-        row[1] for row in conn.execute("PRAGMA table_info(matches)").fetchall()
-    }
-    if "tier" not in match_cols:
-        conn.execute("ALTER TABLE matches ADD COLUMN tier TEXT")
-        logger.info("migration: added tier column to matches")
+    _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
+    _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
+    _add_column_if_missing(conn, "hypotheses", "category", "TEXT")
+    _add_column_if_missing(conn, "matches", "tier", "TEXT")
 
 
 # ---------------------------------------------------------------------------

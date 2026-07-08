@@ -37,7 +37,7 @@ from co_scientist.prompts import (
 from co_scientist.schemas import (HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA)
 from co_scientist.state import WorkflowState
 from co_scientist.nodes.generation.citations import resolve_citation_keys
-from co_scientist.tools.provider import HybridToolProvider
+from co_scientist.tools.provider import MCPToolProvider
 from co_scientist.tools.response_parser import ResponseParser, parse_mcp_result
 
 if TYPE_CHECKING:
@@ -165,15 +165,9 @@ async def validate_hypotheses(
     run_id = state.get("run_id")
     research_goal = state["research_goal"]
 
-    # Get shared slug from draft phase (warm corpus reuse)
-    shared_slug = state.get("generation_corpus_slug")
-    if not shared_slug:
-        # Fallback if draft phase didn't set it
-        shared_slug = corpus_slug(research_goal)
-        logger.warning("Draft phase didn't set corpus slug, using fallback: %s",
-                       shared_slug)
-    else:
-        logger.info("Reusing shared corpus from draft phase: %s", shared_slug)
+    # Same deterministic slug the draft phase used (warm corpus reuse).
+    shared_slug = corpus_slug(research_goal)
+    logger.info("Reusing shared corpus from draft phase: %s", shared_slug)
 
     # Stage 1: per-hypothesis novelty analysis
     hypotheses_with_analyses = []
@@ -305,7 +299,7 @@ async def validate_hypotheses(
             logger.warning("Failed to get tool registry: %s", e)
 
     # Initialize hybrid tool provider
-    provider = HybridToolProvider(mcp_client=mcp_client)
+    provider = MCPToolProvider(mcp_client=mcp_client)
 
     # Get tool whitelist from registry
     if tool_registry:

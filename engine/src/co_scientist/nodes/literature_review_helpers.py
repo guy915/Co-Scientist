@@ -15,6 +15,7 @@ from typing import Any, cast, Optional, TYPE_CHECKING
 
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.models import Article
+from co_scientist.models import phase_message
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolConfig, WorkflowConfig, ToolRegistry
@@ -248,14 +249,10 @@ def make_failure_result(
             queries or [],
         "articles":
             articles or [],
-        "messages": [{
-            "role": "assistant",
-            "content": f"literature review failed - {reason}",
-            "metadata": {
-                "phase": "literature_review",
-                "error": True
-            },
-        }],
+        "messages":
+            phase_message("literature_review",
+                          f"literature review failed - {reason}",
+                          error=True),
     }
 
 
@@ -272,14 +269,11 @@ def make_success_result(
             queries,
         "articles":
             articles,
-        "messages": [{
-            "role": "assistant",
-            "content": (f"completed literature review with {len(queries)}"
-                        f" queries, {len(articles)} articles analyzed"),
-            "metadata": {
-                "phase": "literature_review"
-            },
-        }],
+        "messages":
+            phase_message(
+                "literature_review",
+                f"completed literature review with {len(queries)}"
+                f" queries, {len(articles)} articles analyzed"),
     }
 
 

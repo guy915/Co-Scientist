@@ -294,6 +294,28 @@ def create_metrics_update(
     )
 
 
+def phase_message(phase: str, content: str,
+                  **metadata: Any) -> list[dict[str, Any]]:
+    """Build the one-message list a node returns in its state update.
+
+    Args:
+        phase: Workflow phase name recorded in the message metadata.
+        content: Human-readable summary of what the node did.
+        **metadata: Extra metadata fields merged alongside the phase.
+
+    Returns:
+        A single-element assistant-message list for the messages channel.
+    """
+    return [{
+        "role": "assistant",
+        "content": content,
+        "metadata": {
+            "phase": phase,
+            **metadata
+        },
+    }]
+
+
 @dataclass
 class Article:
     """A literature article with extracted content and metadata.

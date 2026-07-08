@@ -10,6 +10,7 @@ from co_scientist.constants import RESEARCH_OVERVIEW_TOP_K
 from co_scientist.constants import THINKING_MAX_TOKENS
 from co_scientist.llm import call_llm_json
 from co_scientist.models import create_metrics_update
+from co_scientist.models import phase_message
 from co_scientist.models import rank_by_elo
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_research_overview_prompt
@@ -72,11 +73,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
             research_overview,
         "metrics":
             metrics,
-        "messages": [{
-            "role": "assistant",
-            "content": "Synthesized research overview and Specific Aims",
-            "metadata": {
-                "phase": "research_overview"
-            },
-        }],
+        "messages":
+            phase_message("research_overview",
+                          "Synthesized research overview and Specific Aims"),
     }

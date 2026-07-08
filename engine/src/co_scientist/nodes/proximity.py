@@ -11,7 +11,8 @@ from co_scientist.constants import (
     PROGRESS_PROXIMITY_COMPLETE,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update, rank_by_elo
+from co_scientist.models import (Hypothesis, create_metrics_update,
+                                 phase_message, rank_by_elo)
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.state import WorkflowState
@@ -189,21 +190,14 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
             hypotheses_to_keep,
         "removed_duplicates":
             all_removed_duplicates,
-        "similarity_clusters":
-            similarity_clusters,
         "metrics":
             metrics,
         "current_iteration":
             next_iteration,
-        "messages": [{
-            "role": "assistant",
-            "content": (f"Deduplication: {len(hypotheses)}"
-                        f" → {len(hypotheses_to_keep)}"
-                        f" ({len(removed_duplicates)} removed)"),
-            "metadata": {
-                "phase": "proximity",
-                "duplicates_removed": len(removed_duplicates),
-                "clusters": len(similarity_clusters),
-            },
-        }],
+        "messages":
+            phase_message("proximity", f"Deduplication: {len(hypotheses)}"
+                          f" → {len(hypotheses_to_keep)}"
+                          f" ({len(removed_duplicates)} removed)",
+                          duplicates_removed=len(removed_duplicates),
+                          clusters=len(similarity_clusters)),
     }

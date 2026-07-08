@@ -344,7 +344,6 @@ workflows:
         content_tool: "read_pdf"
         content_url_field: "pdf_url"
 
-    multi_source_strategy: "parallel"
     deduplicate_across_sources: true
     availability_check: null
 
@@ -378,9 +377,7 @@ workflows:
 
 # Global Settings
 settings:
-  auto_discover: true
   merge_strategy: "replace"  # Replace default PubMed config entirely
-  allow_disable_builtins: true
 
 # Post-Generation Enrichments
 # Each enrichment calls a tool per hypothesis and attaches results to hypothesis.enrichments

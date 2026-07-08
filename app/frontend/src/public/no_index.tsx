@@ -10,7 +10,6 @@ export function NoIndex({title}: {title: string}) {
     <Seo
       title={`${title} - Co-Scientist`}
       description="Co-Scientist research workspace."
-      path={window.location.pathname}
       robots="noindex, nofollow"
     />
   );
