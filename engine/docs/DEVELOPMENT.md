@@ -39,11 +39,11 @@ engine/
 │       │       ├── papers.py           # Literature-informed generation
 │       │       ├── citations.py        # [C*] citation index and resolution
 │       │       └── literature_tools/   # Tool-calling generation (Mode 3)
-│       └── prompts/            # Markdown prompt templates
-│           ├── supervisor.md
-│           ├── generate.md
-│           ├── review.md
-│           └── ...
+│       └── prompts/            # Prompt builders grouped by consumer node
+│           └── templates/      # Markdown prompt templates
+│               ├── supervisor.md
+│               ├── review.md
+│               └── ...
 ├── examples/
 │   └── run.py                  # CLI example
 ├── mcp_server/                 # Reference MCP server implementation
@@ -118,7 +118,7 @@ async def my_node(state: WorkflowState) -> Dict[str, Any]:
 
 ### 2. Create Prompt Template
 
-Create `src/co_scientist/prompts/my_node.md`:
+Create `src/co_scientist/prompts/templates/my_node.md`:
 
 ```markdown
 # My Node Prompt
@@ -281,7 +281,7 @@ results = await asyncio.gather(*review_tasks)
 
 ### Prompt Engineering
 
-- Store prompts in `prompts/` as markdown files
+- Store prompts in `prompts/templates/` as markdown files
 - Use clear section headers
 - Include examples in prompts
 - Test prompts with multiple models

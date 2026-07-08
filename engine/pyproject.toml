@@ -51,7 +51,7 @@ where = ["src"]
 include = ["co_scientist*"]
 
 [tool.setuptools.package-data]
-co_scientist = ["prompts/*.md", "config/*.yaml", "py.typed"]
+co_scientist = ["prompts/templates/*.md", "config/*.yaml", "py.typed"]
 
 [tool.yapf]
 based_on_style = "google"

@@ -346,7 +346,7 @@ src/co_scientist/
 ├── mcp_client.py       # MCP server connection (langchain-mcp-adapters)
 ├── cache.py            # Disk-based LLM response cache
 ├── constants.py        # Elo params, token limits, workflow defaults
-├── prompts/            # Markdown prompt files (bundled as package data)
+├── prompts/            # Prompt builders; templates/ has the markdown files (bundled as package data)
 ├── config/             # ToolRegistry, YAML tool configs, domain examples
 └── nodes/
     ├── supervisor.py

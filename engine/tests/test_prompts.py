@@ -20,7 +20,6 @@ exercised in their plain (domain-agnostic) form.
 
 from typing import Any
 
-from co_scientist.prompts import _get_domain_variables
 from co_scientist.prompts import format_articles_metadata
 from co_scientist.prompts import get_debate_generation_prompt
 from co_scientist.prompts import get_deep_verification_prompt
@@ -43,6 +42,7 @@ from co_scientist.prompts import get_supervisor_prompt
 from co_scientist.prompts import (get_validation_synthesis_prompt_with_tools)
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.prompts import substitute_variables
+from co_scientist.prompts.loading import _get_domain_variables
 from tests._state import make_article
 
 # A supervisor_guidance dict shaped like the real planner output. Used to
