@@ -31,6 +31,7 @@ from app.report_render import (
     finalize_report,
     format_deep_verification_critique,
     hypothesis_stub,
+    make_emitter,
     match_stub,
 )
 from app.run_modes import (
@@ -452,14 +453,12 @@ async def run_workflow(
     logger.info("starting workflow run=%s provider=%s run_mode=%s", run_id,
                 provider, run_mode)
 
-    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        seq = store.append_event(run_id, type_, payload, db_path=db_path)
-        return {"seq": seq, "type": type_, "payload": payload}
+    emit = make_emitter(run_id, db_path=db_path)
 
     # Intake safety gate, shared by every provider. A hard block short-circuits
     # the run before any hypotheses are generated.
     intake = screen_intake(research_goal)
-    async for event in apply_safety_gate(run_id, intake, _emit,
+    async for event in apply_safety_gate(run_id, intake, emit,
                                          db_path=db_path):
         yield event
     if intake.decision == "block":
@@ -510,7 +509,7 @@ async def run_workflow(
     # engine path previously only emitted the event, leaving the run row stuck
     # at "queued" for the entire run (misleading status pill in the UI).
     store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
-    yield await _emit("status", {"status": "running"})
+    yield await emit("status", {"status": "running"})
 
     initial_opts: dict[str, Any] = {}
     setup = cfg.get("setup")
@@ -558,8 +557,10 @@ async def run_workflow(
         initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
         evolution_max_count=int(cfg["evolution_max_count"]),
         tournament_pairs=int(cfg["tournament_pairs"]),
-        literature_review_papers_count=int(
-            cfg["literature_review_papers_count"]),
+        # ``evidence_count`` is the single literature-budget knob in the tier
+        # table; map it to the engine's parameter name at this translation
+        # boundary rather than persisting a second synced key.
+        literature_review_papers_count=int(cfg["evidence_count"]),
     )
 
     start = time.time()
@@ -582,7 +583,7 @@ async def run_workflow(
                 store.update_run_status(run_id,
                                         RunStatus.CANCELLED,
                                         db_path=db_path)
-                yield await _emit("status", {"status": "cancelled"})
+                yield await emit("status", {"status": "cancelled"})
                 return
 
             # Update final_state from each yielded cumulative snapshot.
@@ -602,7 +603,7 @@ async def run_workflow(
                                      milestone,
                                      "milestone",
                                      db_path=db_path)
-            yield await _emit(node_type, payload)
+            yield await emit(node_type, payload)
 
         # ---- Drain final state into the store ----
         report_inputs = _persist_final_state(
@@ -619,7 +620,7 @@ async def run_workflow(
             research_goal=research_goal,
             run_mode=run_mode,
             provider="engine",
-            emit=_emit,
+            emit=emit,
             execution_time=time.time() - start,
             db_path=db_path,
             **report_inputs,
@@ -631,4 +632,4 @@ async def run_workflow(
                                 RunStatus.FAILED,
                                 error=str(e),
                                 db_path=db_path)
-        yield await _emit("status", {"status": "failed", "error": str(e)})
+        yield await emit("status", {"status": "failed", "error": str(e)})

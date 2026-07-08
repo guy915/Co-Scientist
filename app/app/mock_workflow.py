@@ -47,6 +47,7 @@ from app.report_render import (
     finalize_report,
     format_deep_verification_critique,
     hypothesis_stub,
+    make_emitter,
 )
 from app.run_modes import CANONICAL_RUN_MODE, setup_guidance
 from app.store import RunStatus
@@ -322,10 +323,7 @@ async def run_mock_workflow(
     def _check_cancel() -> bool:
         return bool(cancelled and cancelled.is_set())
 
-    async def emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
-        seq = store.append_event(run_id, type_, payload, db_path=db_path)
-        await asyncio.sleep(sleep_seconds)
-        return {"seq": seq, "type": type_, "payload": payload}
+    emit = make_emitter(run_id, db_path=db_path, sleep_seconds=sleep_seconds)
 
     # ---- 1. Mark running (intake screening runs at the shared boundary) ----
     store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
@@ -428,9 +426,8 @@ async def run_mock_workflow(
         for hid, h in zip(hyp_ids, hyp_payloads):
             critique = (
                 f"Reflection: '{h['title']}' offers a plausible mechanism but should be checked against "  # pylint: disable=line-too-long
-                "the {N} retrieved sources for prior work; novelty is moderate; testability is high if "  # pylint: disable=line-too-long
-                "the experimental context is constrained.").format(
-                    N=evidence_count)
+                f"the {evidence_count} retrieved sources for prior work; novelty is moderate; testability is high if "  # pylint: disable=line-too-long
+                "the experimental context is constrained.")
             store.add_review(
                 run_id,
                 hid,

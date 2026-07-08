@@ -48,7 +48,6 @@ export interface RunConfig {
   evolution_max_count?: number;
   tournament_pairs?: number;
   evidence_count?: number;
-  literature_review_papers_count?: number;
   enable_literature_review?: boolean;
   k_factor?: number;
   tier?: RunTier;

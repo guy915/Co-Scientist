@@ -30,7 +30,6 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 4,
         "tournament_pairs": 6,
         "evidence_count": 4,
-        "literature_review_papers_count": 4,
     },
     DEFAULT_RUN_TIER: {
         "initial_hypotheses_count": 8,
@@ -38,7 +37,6 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 8,
         "tournament_pairs": 12,
         "evidence_count": 8,
-        "literature_review_papers_count": 8,
     },
     "extended": {
         "initial_hypotheses_count": 12,
@@ -46,7 +44,6 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 12,
         "tournament_pairs": 20,
         "evidence_count": 12,
-        "literature_review_papers_count": 12,
     },
     "ultra": {
         "initial_hypotheses_count": 16,
@@ -54,7 +51,6 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "evolution_max_count": 16,
         "tournament_pairs": 32,
         "evidence_count": 16,
-        "literature_review_papers_count": 16,
     },
 }
 

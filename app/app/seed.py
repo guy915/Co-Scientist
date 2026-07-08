@@ -15,22 +15,13 @@ from app.store import DEMO_CLIENT_ID
 
 logger = logging.getLogger(__name__)
 
-_DEMO_GOALS: list[tuple[str, str]] = [
-    (
-        "What mechanisms drive antibiotic resistance in Staphylococcus aureus biofilms, "  # pylint: disable=line-too-long
-        "and which metabolic pathways could be targeted to restore susceptibility?",  # pylint: disable=line-too-long
-        CANONICAL_RUN_MODE,
-    ),
-    (
-        "How does synaptic pruning in the prefrontal cortex contribute to cognitive "  # pylint: disable=line-too-long
-        "flexibility during adolescent development?",
-        CANONICAL_RUN_MODE,
-    ),
-    (
-        "What are the key molecular regulators of ferroptosis in pancreatic cancer cells, "  # pylint: disable=line-too-long
-        "and how might their modulation enhance chemotherapy sensitivity?",
-        CANONICAL_RUN_MODE,
-    ),
+_DEMO_GOALS: list[str] = [
+    "What mechanisms drive antibiotic resistance in Staphylococcus aureus biofilms, "  # pylint: disable=line-too-long
+    "and which metabolic pathways could be targeted to restore susceptibility?",  # pylint: disable=line-too-long
+    "How does synaptic pruning in the prefrontal cortex contribute to cognitive "  # pylint: disable=line-too-long
+    "flexibility during adolescent development?",
+    "What are the key molecular regulators of ferroptosis in pancreatic cancer cells, "  # pylint: disable=line-too-long
+    "and how might their modulation enhance chemotherapy sensitivity?",
 ]
 
 
@@ -44,7 +35,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
     existing_by_goal = {r.research_goal: r for r in existing}
 
-    for goal, run_mode in _DEMO_GOALS:
+    for goal in _DEMO_GOALS:
         run = existing_by_goal.get(goal)
         if run is not None:
             # Check whether the report is readable; skip if it is.
@@ -63,7 +54,7 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
             if run is None:
                 run = store.create_run(
                     research_goal=goal,
-                    profile=run_mode,
+                    profile=CANONICAL_RUN_MODE,
                     provider="mock",
                     config={},
                     client_id=DEMO_CLIENT_ID,

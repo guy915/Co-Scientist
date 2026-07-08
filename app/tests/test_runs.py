@@ -106,7 +106,7 @@ def test_create_run_persists_setup_and_exact_tier_defaults(
     assert config["max_iterations"] == 1
     assert config["evolution_max_count"] == 4
     assert config["tournament_pairs"] == 6
-    assert config["literature_review_papers_count"] == 4
+    assert config["evidence_count"] == 4
     assert config["setup"] == {
         "goal": "Discover selective autophagy mechanisms",
         "requirements": ["Use primary literature"],

@@ -148,10 +148,7 @@ export function RunDetail() {
   // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
   // mobile master-detail selection back to the list.
   const [ideasViewKey, setIdeasViewKey] = useState(0);
-  const [toast, setToast] = useState<{
-    type: 'info' | 'error';
-    message: string;
-  } | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
   const {events, terminal} = useRunStream(id ?? null);
 
@@ -242,10 +239,7 @@ export function RunDetail() {
   useEffect(() => {
     if (!terminal || !run) return;
     if (run.status === 'failed' || run.status === 'blocked') {
-      setToast({
-        type: 'error',
-        message: `Run ${run.status}${run.error ? `: ${run.error}` : ''}`,
-      });
+      setToast(`Run ${run.status}${run.error ? `: ${run.error}` : ''}`);
     }
   }, [terminal, run]);
 
@@ -356,7 +350,7 @@ export function RunDetail() {
         </main>
       )}
 
-      {toast && <RunToast toast={toast} />}
+      {toast && <RunToast message={toast} />}
     </div>
   );
 }
@@ -570,10 +564,10 @@ function domainTitleOverride(goal: string): string | null {
   return null;
 }
 
-function RunToast({toast}: {toast: {type: 'info' | 'error'; message: string}}) {
+function RunToast({message}: {message: string}) {
   return (
     <div role="status" className={REPORT_TOAST_CLASSES}>
-      {toast.message}
+      {message}
     </div>
   );
 }
