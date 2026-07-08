@@ -34,12 +34,11 @@ logging.basicConfig(
 # libraries stay at the INFO default set above.
 logging.getLogger('mcp_server').setLevel(log_level)
 
-from mcp_server.tools.lit_review.search_pubmed import (  # pylint: disable=line-too-long
-    check_pubmed_available, search_pubmed)
-from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (  # pylint: disable=line-too-long
+from mcp_server.tools.lit_review.search_pubmed import (check_pubmed_available,
+                                                       search_pubmed)
+from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
     pubmed_search_with_fulltext)
-from mcp_server.tools.lit_review.openalex_search import (  # pylint: disable=line-too-long
-    search_openalex)
+from mcp_server.tools.lit_review.openalex_search import (search_openalex)
 from mcp_server.tools.indra_cogex import (
     query_gene_disease_network,
     query_gene_codependents,

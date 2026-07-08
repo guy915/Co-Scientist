@@ -112,7 +112,7 @@ def test_load_prompt_with_schema_none_for_unschemaed_prompt() -> None:
 
 
 def test_get_domain_variables_none_returns_string_dict() -> None:
-    """``_get_domain_variables(None)`` returns the expected keys, all strings."""
+    """``_get_domain_variables(None)`` returns expected keys, all strings."""
     variables = _get_domain_variables(None)
     expected_keys = {
         "domain_context",
@@ -239,7 +239,7 @@ def test_review_prompt_surfaces_synthesized_config() -> None:
 
 
 def test_review_prompt_meta_review_branch() -> None:
-    """Meta-review context surfaces common strengths/weaknesses in the prompt."""
+    """Meta-review context surfaces common strengths/weaknesses in prompt."""
     meta_review = {
         "common_strengths": ["clear mechanism"],
         "common_weaknesses": ["weak controls"],

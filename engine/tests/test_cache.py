@@ -49,15 +49,16 @@ _REQUEST: dict[str, Any] = {
 }
 _RESPONSE: dict[str, Any] = {"content": "the powerhouse of the cell"}
 
-
 # --- LLMCache: key derivation ----------------------------------------------
 
 
 def test_key_stable_for_same_inputs(tmp_path: Path) -> None:
     """The same request parameters always derive the same cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    key_a = cache_obj._generate_cache_key(**_REQUEST)  # pylint: disable=protected-access
-    key_b = cache_obj._generate_cache_key(**_REQUEST)  # pylint: disable=protected-access
+    key_a = cache_obj._generate_cache_key(  # pylint: disable=protected-access
+        **_REQUEST)
+    key_b = cache_obj._generate_cache_key(  # pylint: disable=protected-access
+        **_REQUEST)
     assert key_a == key_b
     # SHA256 hex digest.
     assert len(key_a) == 64
@@ -66,11 +67,16 @@ def test_key_stable_for_same_inputs(tmp_path: Path) -> None:
 def test_key_differs_for_different_inputs(tmp_path: Path) -> None:
     """Changing any request parameter changes the derived cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    base = cache_obj._generate_cache_key(**_REQUEST)  # pylint: disable=protected-access
-    other_prompt = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **{**_REQUEST, "prompt": "different prompt"})
-    other_temp = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **{**_REQUEST, "temperature": 0.9})
+    base = cache_obj._generate_cache_key(  # pylint: disable=protected-access
+        **_REQUEST)
+    # pylint: disable-next=protected-access
+    other_prompt = cache_obj._generate_cache_key(**{
+        **_REQUEST, "prompt": "different prompt"
+    })
+    # pylint: disable-next=protected-access
+    other_temp = cache_obj._generate_cache_key(**{
+        **_REQUEST, "temperature": 0.9
+    })
     assert base != other_prompt
     assert base != other_temp
     assert other_prompt != other_temp
@@ -79,11 +85,15 @@ def test_key_differs_for_different_inputs(tmp_path: Path) -> None:
 def test_key_changes_with_optional_params(tmp_path: Path) -> None:
     """Optional params (tools/json_schema/force_json) participate in the key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    base = cache_obj._generate_cache_key(**_REQUEST)  # pylint: disable=protected-access
-    with_tools = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST, tools=[{"name": "search"}])
-    with_force_json = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST, force_json=True)
+    base = cache_obj._generate_cache_key(  # pylint: disable=protected-access
+        **_REQUEST)
+    # pylint: disable-next=protected-access
+    with_tools = cache_obj._generate_cache_key(**_REQUEST,
+                                               tools=[{
+                                                   "name": "search"
+                                               }])
+    # pylint: disable-next=protected-access
+    with_force_json = cache_obj._generate_cache_key(**_REQUEST, force_json=True)
     assert base != with_tools
     assert base != with_force_json
 
@@ -137,7 +147,7 @@ def test_disabled_does_not_create_dir(tmp_path: Path) -> None:
 
 
 def test_stats_reflect_entries_and_clear_empties(tmp_path: Path) -> None:
-    """``get_stats`` counts entries; ``clear`` deletes them and returns count."""
+    """``get_stats`` counts entries; ``clear`` deletes them, returns count."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
     assert cache_obj.get_stats()["cache_files"] == 0
 
@@ -156,7 +166,7 @@ def test_stats_reflect_entries_and_clear_empties(tmp_path: Path) -> None:
 
 
 def test_disabled_stats_shape(tmp_path: Path) -> None:
-    """Disabled ``get_stats`` reports the disabled shape with no ``cache_dir``."""
+    """Disabled ``get_stats`` reports disabled shape with no ``cache_dir``."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=False)
     stats = cache_obj.get_stats()
     assert stats == {"enabled": False, "cache_files": 0, "total_size_mb": 0.0}
@@ -182,8 +192,7 @@ def test_get_cache_is_singleton(tmp_path: Path) -> None:
     assert first.cache_dir == tmp_path
 
 
-def test_get_cache_disabled_via_env(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_cache_disabled_via_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """``COSCIENTIST_CACHE_ENABLED=false`` disables the global LLM cache."""
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "false")
     monkeypatch.setattr(cache, "_global_cache", None)
@@ -279,7 +288,7 @@ def test_get_node_cache_is_singleton(tmp_path: Path) -> None:
 
 
 def test_module_level_node_stats_and_clear(tmp_path: Path) -> None:
-    """``get_node_cache_stats``/``clear_node_cache`` hit the global node cache."""
+    """``get_node_cache_stats``/``clear_node_cache`` hit global node cache."""
     node = cache.get_node_cache()
     node.set("literature_review", _NODE_OUTPUT, research_goal="cancer")
 

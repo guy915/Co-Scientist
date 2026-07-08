@@ -51,7 +51,8 @@ def create_run(
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO runs (id, research_goal, profile, status, provider, config_json, client_id, created_at, updated_at) "  # pylint: disable=line-too-long
+            "INSERT INTO runs (id, research_goal, profile, status, "
+            "provider, config_json, client_id, created_at, updated_at) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
             (run_id, research_goal, profile, RunStatus.DRAFT.value, provider,
              json.dumps(config), client_id, now, now),
@@ -144,7 +145,8 @@ def update_run_status(
     completed_at = now if status in TERMINAL_STATUSES else None
     with connect(db_path) as conn:
         conn.execute(
-            "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
+            "UPDATE runs SET status=?, error=?, updated_at=?, "
+            "completed_at=? WHERE id=?",
             (status.value, error, now, completed_at, run_id),
         )
 
@@ -180,7 +182,8 @@ def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
         for row in rows:
             rid = row["id"]
             conn.execute(
-                "UPDATE runs SET status=?, error=?, updated_at=?, completed_at=? WHERE id=?",  # pylint: disable=line-too-long
+                "UPDATE runs SET status=?, error=?, updated_at=?, "
+                "completed_at=? WHERE id=?",
                 (RunStatus.FAILED.value, reason, now, now, rid),
             )
             _append_event(conn, rid, "status", {

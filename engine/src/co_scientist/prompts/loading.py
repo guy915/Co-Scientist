@@ -109,7 +109,9 @@ def load_prompt(prompt_name: str,
         Formatted prompt string with variables substituted
 
     Example:
-        >>> load_prompt("generation", {"research_goal": "Cure cancer", "hypotheses_count": 5})  # pylint: disable=line-too-long
+        >>> load_prompt(
+        ...     "generation",
+        ...     {"research_goal": "Cure cancer", "hypotheses_count": 5})
     """
     prompt_template = _read_prompt_template(prompt_name)
 
@@ -154,7 +156,8 @@ def load_prompt_with_schema(
         Tuple of (formatted prompt string, JSON schema dict or None)
 
     Example:
-        >>> prompt, schema = load_prompt_with_schema("generation", {"research_goal": "Cure cancer"})  # pylint: disable=line-too-long
+        >>> prompt, schema = load_prompt_with_schema(
+        ...     "generation", {"research_goal": "Cure cancer"})
     """
     prompt = load_prompt(prompt_name, variables)
     # get_schema_for_prompt does a name-keyed lookup (see schemas.py) and

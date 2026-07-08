@@ -95,6 +95,8 @@ async def review_single_hypothesis(
         run_id: Optional run ID for saving prompts
         hypothesis_index: Optional index for naming saved prompts
         tool_registry: Optional ToolRegistry for dynamic tool instructions
+        run_setup_guidance: Optional run-setup guidance for the prompt
+        run_focus_guidance: Optional run-focus guidance for the prompt
 
     Returns:
         HypothesisReview object
@@ -161,6 +163,8 @@ async def review_parallel_individual(
         meta_review: Optional meta-review feedback for context
         run_id: Optional run ID for saving prompts
         tool_registry: Optional ToolRegistry for dynamic tool instructions
+        run_setup_guidance: Optional run-setup guidance for the prompt
+        run_focus_guidance: Optional run-focus guidance for the prompt
 
     Returns:
         List of reviews (one per hypothesis)
@@ -211,6 +215,8 @@ async def review_comparative_batch(
         meta_review: Optional meta-review feedback for context
         run_id: Optional run ID for saving prompts
         tool_registry: Optional ToolRegistry for dynamic tool instructions
+        run_setup_guidance: Optional run-setup guidance for the prompt
+        run_focus_guidance: Optional run-focus guidance for the prompt
 
     Returns:
         List of reviews (one per hypothesis)

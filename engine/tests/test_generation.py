@@ -19,8 +19,7 @@ from co_scientist.nodes.generation.debate import generate_with_debate
 from tests._state import make_hypothesis, make_state
 
 
-def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch,
-                     final_text: str) -> None:
+def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
     """Stub debate turns (call_llm) and the final hypothesis (call_llm_json)."""
 
     async def fake_call_llm(**_: Any) -> str:
@@ -76,14 +75,10 @@ async def test_parallel_debates_receive_distinct_focus_prompts(
         debate_number = len(final_prompts)
         return {
             "hypotheses": [{
-                "hypothesis":
-                    f"hypothesis from debate {debate_number}",
-                "explanation":
-                    "because the mechanism fits",
-                "literature_grounding":
-                    None,
-                "experiment":
-                    "run the assay",
+                "hypothesis": f"hypothesis from debate {debate_number}",
+                "explanation": "because the mechanism fits",
+                "literature_grounding": None,
+                "experiment": "run the assay",
             }]
         }
 
@@ -122,14 +117,16 @@ async def test_empty_final_response_raises_generation_error(
 
 async def test_generate_node_attaches_metrics_and_passes_through(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """generate_node merges coordinator output with a hypothesis-count metric."""
+    """generate_node merges coordinator output with hypothesis-count metric."""
 
     async def fake_coordinator(_: Any) -> dict[str, Any]:
         # Mirrors the real coordinator's contract, which always includes
         # hypothesis_count alongside the hypotheses.
         return {
-            "hypotheses": [make_hypothesis(text="h1"),
-                           make_hypothesis(text="h2")],
+            "hypotheses": [
+                make_hypothesis(text="h1"),
+                make_hypothesis(text="h2")
+            ],
             "hypothesis_count": 2,
             "message": "generated 2 hypotheses",
         }

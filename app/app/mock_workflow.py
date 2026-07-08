@@ -113,19 +113,20 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
     target = rng.choice(targets)
     category = categories[angle_index]
     title = f"H{idx + 1}: {angle.capitalize()} {target}".strip()
-    statement = (
-        f"In the context of '{goal[:120]}', we hypothesise that {angle} {target} will "  # pylint: disable=line-too-long
-        "produce a measurable effect via a mechanism distinct from current consensus."  # pylint: disable=line-too-long
-    )
+    statement = (f"In the context of '{goal[:120]}', we hypothesise that "
+                 f"{angle} {target} will produce a measurable effect via a "
+                 "mechanism distinct from current consensus.")
     mechanism = (
-        f"The proposed pathway operates by {angle} {target}, with feedback at two checkpoints; "  # pylint: disable=line-too-long
-        "the predicted intermediate state is detectable by standard assays.")
-    expected = (
-        "We expect a dose-dependent effect with a saturating response curve, distinguishable "  # pylint: disable=line-too-long
-        "from baseline within standard error bounds.")
+        f"The proposed pathway operates by {angle} {target}, with "
+        "feedback at two checkpoints; the predicted intermediate state "
+        "is detectable by standard assays.")
+    expected = ("We expect a dose-dependent effect with a saturating response "
+                "curve, distinguishable from baseline within standard error "
+                "bounds.")
     experiment = (
-        "Run a controlled in-vitro perturbation series with three replicates per condition; "  # pylint: disable=line-too-long
-        "validate top hits in an orthogonal model system.")
+        "Run a controlled in-vitro perturbation series with three "
+        "replicates per condition; validate top hits in an orthogonal "
+        "model system.")
     return {
         "title": title,
         "category": category,
@@ -150,10 +151,12 @@ def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
         "url": f"https://example.org/mock/{idx + 1}" if available else "",
         "authors": [f"Author{idx + 1}.A.", f"Author{idx + 1}.B."],
         "year": year,
-        "abstract": (
-            f"This mock abstract discusses {keyword} dynamics, mechanism, regulatory feedback, "  # pylint: disable=line-too-long
-            "and a measurable effect under controlled perturbation. It is provided in mock mode "  # pylint: disable=line-too-long
-            "so the workflow can be exercised without external network calls."),
+        "abstract":
+            (f"This mock abstract discusses {keyword} dynamics, "
+             "mechanism, regulatory feedback, and a measurable effect "
+             "under controlled perturbation. It is provided in mock mode "
+             "so the workflow can be exercised without external network "
+             "calls."),
         "available": available,
     }
 
@@ -365,10 +368,12 @@ async def run_mock_workflow(
             cfg.get("setup", {}),
         "setup_guidance":
             setup_guidance(cfg.get("setup")),
-        "narrative": (
-            "Plan the canonical hypothesis-generation run for the research goal. Allocate compute across literature, "  # pylint: disable=line-too-long
-            f"generation ({cfg['initial_hypotheses_count']} candidates), {cfg['max_iterations']} "  # pylint: disable=line-too-long
-            "iterations of reflect/rank/evolve, then synthesize a report."),
+        "narrative":
+            ("Plan the canonical hypothesis-generation run for the "
+             "research goal. Allocate compute across literature, "
+             f"generation ({cfg['initial_hypotheses_count']} candidates), "
+             f"{cfg['max_iterations']} iterations of reflect/rank/evolve, "
+             "then synthesize a report."),
     }
     yield await emit("supervisor.plan", plan)
     if _check_cancel():
@@ -436,10 +441,11 @@ async def run_mock_workflow(
     # ---- 5. Reflection ----
     with store.transaction(db_path) as conn:
         for hid, h in zip(hyp_ids, hyp_payloads):
-            critique = (
-                f"Reflection: '{h['title']}' offers a plausible mechanism but should be checked against "  # pylint: disable=line-too-long
-                f"the {evidence_count} retrieved sources for prior work; novelty is moderate; testability is high if "  # pylint: disable=line-too-long
-                "the experimental context is constrained.")
+            critique = (f"Reflection: '{h['title']}' offers a plausible "
+                        "mechanism but should be checked against "
+                        f"the {evidence_count} retrieved sources for prior "
+                        "work; novelty is moderate; testability is high if "
+                        "the experimental context is constrained.")
             store.add_review(
                 run_id,
                 hid,
@@ -483,7 +489,8 @@ async def run_mock_workflow(
             (run_id + a_title + b_title).encode()).hexdigest() < hashlib.sha256(
                 (run_id + b_title + a_title).encode()).hexdigest():
             return a, b, "Mock judge: 'a' has stronger mechanistic specificity."
-        return b, a, "Mock judge: 'b' presents a more decisive experimental test."  # pylint: disable=line-too-long
+        return b, a, ("Mock judge: 'b' presents a more decisive "
+                      "experimental test.")
 
     pairs = []
     pair_count = cfg["tournament_pairs"]
@@ -587,12 +594,14 @@ async def run_mock_workflow(
                         continue
                     child_h = _hypothesis_seed(rng, research_goal,
                                                len(hyp_ids) + len(children))
-                    child_h[
-                        "title"] = f"{child_h['title']} (evolved from {parent['title'][:30]}...)"  # pylint: disable=line-too-long
+                    child_h["title"] = (
+                        f"{child_h['title']} "
+                        f"(evolved from {parent['title'][:30]}...)")
                     child_h["statement"] = (
-                        f"Evolved variant of '{parent['title']}': {child_h['statement']} "  # pylint: disable=line-too-long
-                        "Carries forward the parent's mechanistic frame with sharpened predictions."  # pylint: disable=line-too-long
-                    )
+                        f"Evolved variant of '{parent['title']}': "
+                        f"{child_h['statement']} Carries forward the "
+                        "parent's mechanistic frame with sharpened "
+                        "predictions.")
                     child_id = store.add_hypothesis(
                         run_id,
                         title=child_h["title"],
@@ -622,9 +631,10 @@ async def run_mock_workflow(
 
             # ---- 9. Meta-review (per iteration) ----
             mr_critique = (
-                f"Meta-review (iter {itr}): the leading hypotheses cluster around the same mechanistic "  # pylint: disable=line-too-long
-                "frame; recommend diversifying the experimental context in the next round and "  # pylint: disable=line-too-long
-                "tightening the citation grounding for the top three.")
+                f"Meta-review (iter {itr}): the leading hypotheses "
+                "cluster around the same mechanistic frame; recommend "
+                "diversifying the experimental context in the next round "
+                "and tightening the citation grounding for the top three.")
             store.add_review(
                 run_id,
                 top_k[0][0] if top_k else hyp_ids[0],
@@ -682,7 +692,8 @@ async def run_mock_workflow(
             # Link first 2 evidence items to each hypothesis as supporting
             # citations
             for ev in evidence_payload[:2]:
-                claim = f"Mechanism mentioned in {ev['title'][:30]} supports hypothesis"  # pylint: disable=line-too-long
+                claim = (f"Mechanism mentioned in {ev['title'][:30]} "
+                         "supports hypothesis")
                 state = classify_citation(
                     CitationRecord(
                         url=ev["url"],

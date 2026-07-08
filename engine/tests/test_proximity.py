@@ -35,7 +35,7 @@ async def test_single_hypothesis_skips_analysis() -> None:
 
 async def test_high_similarity_duplicate_removed_keeping_best_elo(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """Within a high-similarity cluster, only the top-Elo hypothesis survives."""
+    """Within a high-similarity cluster, only the top-Elo hypothesis wins."""
     low = make_hypothesis(text="alpha pathway drives tumor growth",
                           elo_rating=1200)
     high = make_hypothesis(text="beta pathway drives tumor growth",
@@ -44,7 +44,8 @@ async def test_high_similarity_duplicate_removed_keeping_best_elo(
     _stub_clusters(
         monkeypatch, {
             "similarity_clusters": [{
-                "cluster_id": "c1",
+                "cluster_id":
+                    "c1",
                 "similar_hypotheses": [
                     {
                         "text": "alpha pathway drives tumor growth",
@@ -73,10 +74,17 @@ async def test_low_similarity_keeps_all(
     _stub_clusters(
         monkeypatch, {
             "similarity_clusters": [{
-                "cluster_id": "c1",
+                "cluster_id":
+                    "c1",
                 "similar_hypotheses": [
-                    {"text": "aaa", "similarity_degree": "low"},
-                    {"text": "bbb", "similarity_degree": "medium"},
+                    {
+                        "text": "aaa",
+                        "similarity_degree": "low"
+                    },
+                    {
+                        "text": "bbb",
+                        "similarity_degree": "medium"
+                    },
                 ],
             }]
         })

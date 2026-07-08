@@ -164,10 +164,12 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
     # guaranteed; a non-dict just contributes no guidance.
     if not isinstance(setup, dict):
         return ""
+    focus = focus_guidance(str(setup.get("focus") or ""))
+    tier = normalize_run_tier(str(setup.get("tier") or ""))
     lines = [
         "Run setup:",
-        f"- Focus: {focus_guidance(str(setup.get('focus') or ''))}",
-        f"- Tier: {normalize_run_tier(str(setup.get('tier') or ''))}",
+        f"- Focus: {focus}",
+        f"- Tier: {tier}",
     ]
     for title, key in (
         ("Requirements", "requirements"),

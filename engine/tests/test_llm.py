@@ -117,8 +117,8 @@ def test_single_quoted_json_is_not_repaired() -> None:
     strategy; the input stays unparseable in both modes.
     """
     assert attempt_json_repair("{'a': 1}") == (None, False)
-    assert attempt_json_repair("{'a': 1}", allow_major_repairs=True) == (None,
-                                                                         False)
+    assert attempt_json_repair("{'a': 1}",
+                               allow_major_repairs=True) == (None, False)
 
 
 # --- attempt_json_repair: the major-repair gate ----------------------------
@@ -132,13 +132,12 @@ def test_truncated_object_repaired_only_with_major_repairs() -> None:
     holds and nothing is returned.
     """
     truncated = '{"a": 1, "b": 2'
+    assert attempt_json_repair(truncated, allow_major_repairs=True) == ({
+        "a": 1,
+        "b": 2
+    }, True)
     assert attempt_json_repair(truncated,
-                               allow_major_repairs=True) == ({
-                                   "a": 1,
-                                   "b": 2
-                               }, True)
-    assert attempt_json_repair(truncated, allow_major_repairs=False) == (None,
-                                                                         False)
+                               allow_major_repairs=False) == (None, False)
 
 
 def test_truncated_object_default_does_not_major_repair() -> None:
@@ -148,10 +147,9 @@ def test_truncated_object_default_does_not_major_repair() -> None:
 
 def test_unterminated_string_value_closed_with_major_repairs() -> None:
     """An unterminated string value is closed under major repairs."""
-    assert attempt_json_repair('{"a": "hello',
-                               allow_major_repairs=True) == ({
-                                   "a": "hello"
-                               }, True)
+    assert attempt_json_repair('{"a": "hello', allow_major_repairs=True) == ({
+        "a": "hello"
+    }, True)
 
 
 def test_truncated_array_value_closed_with_major_repairs() -> None:
@@ -164,18 +162,16 @@ def test_truncated_array_value_closed_with_major_repairs() -> None:
 
 def test_nested_truncated_object_closed_with_major_repairs() -> None:
     """A truncated nested object gets both braces added under major repairs."""
-    assert attempt_json_repair('{"a": {"b": 1',
-                               allow_major_repairs=True) == ({
-                                   "a": {
-                                       "b": 1
-                                   }
-                               }, True)
+    assert attempt_json_repair('{"a": {"b": 1', allow_major_repairs=True) == ({
+        "a": {
+            "b": 1
+        }
+    }, True)
 
 
 def test_truncated_root_array_closed_with_major_repairs() -> None:
     """A truncated top-level array is closed and returned as a list (major)."""
-    parsed, repaired = attempt_json_repair("[1, 2, 3",
-                                           allow_major_repairs=True)
+    parsed, repaired = attempt_json_repair("[1, 2, 3", allow_major_repairs=True)
     assert isinstance(parsed, list)
     assert parsed == [1, 2, 3]
     assert repaired is True
@@ -188,10 +184,9 @@ def test_json_object_embedded_in_prose_extracted_only_with_major() -> None:
     out of the text; without major repairs the input is left unparsed.
     """
     text = 'Here is the answer: {"a": 1} thanks'
-    assert attempt_json_repair(text,
-                               allow_major_repairs=True) == ({
-                                   "a": 1
-                               }, True)
+    assert attempt_json_repair(text, allow_major_repairs=True) == ({
+        "a": 1
+    }, True)
     assert attempt_json_repair(text, allow_major_repairs=False) == (None, False)
 
 
@@ -251,7 +246,7 @@ def test_validate_json_schema_none_schema_skips_validation() -> None:
 
 
 def test_validate_json_schema_unwraps_nested_schema_key() -> None:
-    """A schema wrapped under a ``schema`` key is unwrapped before validating."""
+    """A schema wrapped under a ``schema`` key is unwrapped before use."""
     nested = {"name": "node", "schema": _SCHEMA}
     validate_json_schema({"a": 5}, nested)  # no exception == valid
 

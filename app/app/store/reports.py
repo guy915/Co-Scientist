@@ -52,7 +52,8 @@ def save_report(
     with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO reports "
-            "(id, run_id, payload_json, markdown_path, markdown_text, created_at) "  # pylint: disable=line-too-long
+            "(id, run_id, payload_json, markdown_path, "
+            "markdown_text, created_at) "
             "VALUES (?,?,?,?,?,?)",
             (report_id, run_id, json.dumps(payload), str(md_path), markdown,
              _now()),
@@ -65,8 +66,8 @@ def get_latest_report(run_id: str,
     """Return the most recent report row for a run, or None."""
     with connect(db_path) as conn:
         row = conn.execute(
-            "SELECT * FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1",  # pylint: disable=line-too-long
-            (run_id,)).fetchone()
+            "SELECT * FROM reports WHERE run_id=? "
+            "ORDER BY created_at DESC LIMIT 1", (run_id,)).fetchone()
         if not row:
             return None
         return {

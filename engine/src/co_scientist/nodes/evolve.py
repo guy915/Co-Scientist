@@ -240,7 +240,7 @@ async def evolve_single_hypothesis(
     # wrapper in prompts.py, so it calls load_prompt_with_schema directly
     # below and must pull in these normally-internal helpers itself to
     # build the same run-guidance/domain variables the wrappers assemble.
-    from co_scientist.prompts import _format_run_guidance, _get_domain_variables  # pylint: disable=import-outside-toplevel,line-too-long
+    from co_scientist.prompts import _format_run_guidance, _get_domain_variables  # pylint: disable=import-outside-toplevel
 
     variables = {
         "original_hypothesis":

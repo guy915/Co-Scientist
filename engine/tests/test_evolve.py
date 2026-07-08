@@ -210,7 +210,7 @@ async def test_respects_evolution_max_count(
 
 async def test_empty_hypotheses_returns_empty(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """With no hypotheses, the node returns empty results without calling LLM."""
+    """With no hypotheses, node returns empty results without calling LLM."""
 
     async def never(**_: Any) -> dict[str, Any]:
         raise AssertionError("call_llm_json must not run with no hypotheses")

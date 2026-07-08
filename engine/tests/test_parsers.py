@@ -36,7 +36,7 @@ def test_parse_response_valid_json_string() -> None:
 
 def test_parse_response_strips_whitespace_before_decode() -> None:
     """Surrounding whitespace is stripped before decoding."""
-    assert _parser().parse_response('  [1, 2]  ') == [1, 2]
+    assert _parser().parse_response("  [1, 2]  ") == [1, 2]
 
 
 def test_parse_response_invalid_json_returns_raw_string() -> None:
@@ -137,7 +137,7 @@ def test_transform_float_valid() -> None:
 
 
 def test_transform_default_on_none_coerces_int() -> None:
-    """``default:0`` on None returns the int 0 (the int-first coercion quirk)."""
+    """``default:0`` on None returns int 0 (the int-first coercion quirk)."""
     result = _parser()._apply_transform("default:0", None)
     assert result == 0
     assert isinstance(result, int)

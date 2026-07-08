@@ -151,7 +151,8 @@ def test_send_message_endpoint(isolated_db: str) -> None:
 
 
 def test_send_message_always_stores_as_steering(isolated_db: str) -> None:
-    """POST /messages always stores as steering; Q&A routing is the frontend's job."""  # pylint: disable=line-too-long
+    """POST /messages always stores as steering; Q&A routing is the
+    frontend's job."""
     client = _client()
     run_id = _make_run(client)
 
@@ -183,7 +184,8 @@ def test_list_messages_404_on_unknown_run(isolated_db: str) -> None:
 
 
 def test_steering_messages_applied_after_run(isolated_db: str) -> None:
-    """Steering messages sent before a run starts should be marked applied when the run completes."""  # pylint: disable=line-too-long
+    """Steering messages sent before a run starts should be marked applied
+    when the run completes."""
     client = _client()
     run_id = _make_run(client, goal="test steering injection")
 

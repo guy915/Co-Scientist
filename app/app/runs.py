@@ -559,7 +559,8 @@ async def list_messages(run_id: str) -> dict[str, Any]:
 
 @router.post("/{run_id}/messages/ask")
 async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
-    """Answer a question about the run using a fast LLM, streaming the response."""  # pylint: disable=line-too-long
+    """Answer a question about the run using a fast LLM, streaming the
+    response."""
     run = _run_or_404(run_id)
 
     # Persist the question first so history survives even if streaming fails.

@@ -1,4 +1,5 @@
-"""Storage-layer invariants: append-only event log, evidence/citation linkage, reports survive."""  # pylint: disable=line-too-long
+"""Storage-layer invariants: append-only event log, evidence/citation
+linkage, reports survive."""
 # pylint: disable=unused-argument,redefined-outer-name
 from __future__ import annotations
 

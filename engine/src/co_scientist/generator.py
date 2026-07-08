@@ -551,14 +551,17 @@ class HypothesisGenerator:
                 "metrics": {...}
             }
 
-            If stream=True: AsyncIterator yielding (node_name, state_dict) tuples
+            If stream=True: AsyncIterator yielding (node_name, state_dict)
+            tuples
 
         Example:
             >>> # Non-streaming
-            >>> result = await generator.generate_hypotheses(research_goal="...", stream=False)  # pylint: disable=line-too-long
+            >>> result = await generator.generate_hypotheses(
+            ...     research_goal="...", stream=False)
             >>>
             >>> # Streaming
-            >>> async for node_name, state in generator.generate_hypotheses(research_goal="...", stream=True):  # pylint: disable=line-too-long
+            >>> async for node_name, state in generator.generate_hypotheses(
+            ...         research_goal="...", stream=True):
             >>>     print(f"Completed {node_name}")
         """
         if stream:

@@ -36,7 +36,6 @@ from co_scientist.nodes.generation.literature_tools.validate import (
     validate_hypotheses,)
 from tests._state import make_state
 
-
 # -----------------------------------------------------------------------------
 # Shared fixtures / fakes
 # -----------------------------------------------------------------------------
@@ -82,7 +81,8 @@ def _disable_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config_mod, "get_tool_registry", _raise)
 
 
-def _stub_draft_llm(monkeypatch: pytest.MonkeyPatch, final_response: str) -> None:
+def _stub_draft_llm(monkeypatch: pytest.MonkeyPatch,
+                    final_response: str) -> None:
     """Stub ``draft.call_llm_with_tools`` to return a fixed final response."""
 
     async def fake(**_: Any) -> tuple[str, list[Any]]:
@@ -96,8 +96,7 @@ def _stub_draft_llm(monkeypatch: pytest.MonkeyPatch, final_response: str) -> Non
 # -----------------------------------------------------------------------------
 
 
-async def test_draft_parses_plain_json(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_draft_parses_plain_json(monkeypatch: pytest.MonkeyPatch) -> None:
     """A bare JSON object yields the parsed list of draft dicts verbatim."""
     _disable_registry(monkeypatch)
     drafts = [
@@ -126,8 +125,7 @@ async def test_draft_parses_plain_json(
     assert result[1]["gap_reasoning"] == "beta understudied"
 
 
-async def test_draft_strips_json_fence(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_draft_strips_json_fence(monkeypatch: pytest.MonkeyPatch) -> None:
     """A ```json fenced response is unwrapped before parsing."""
     _disable_registry(monkeypatch)
     drafts = [{"text": "fenced hypothesis", "gap_reasoning": "gap"}]
@@ -181,7 +179,7 @@ async def test_draft_missing_drafts_key_defaults_empty(
 
 async def test_draft_unparseable_response_raises(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """A response that survives every repair attempt raises ResponseParseError."""
+    """A response surviving every repair attempt raises ResponseParseError."""
     _disable_registry(monkeypatch)
     # No braces anywhere: attempt_json_repair cannot recover a dict.
     _stub_draft_llm(monkeypatch, "the agent failed to emit any json output")
@@ -255,8 +253,14 @@ async def test_validate_builds_literature_tools_hypotheses(
     ]
     _stub_synthesis_llm(monkeypatch, synthesis)
     drafts = [
-        {"text": "draft one", "gap_reasoning": "gap a"},
-        {"text": "draft two", "gap_reasoning": "gap b"},
+        {
+            "text": "draft one",
+            "gap_reasoning": "gap a"
+        },
+        {
+            "text": "draft two",
+            "gap_reasoning": "gap b"
+        },
     ]
 
     result = await validate_hypotheses(
@@ -309,7 +313,9 @@ async def test_validate_runs_novelty_pass_when_papers_found(
 
     result = await validate_hypotheses(
         state=make_state(),
-        draft_hypotheses=[{"text": "alpha draft"}],
+        draft_hypotheses=[{
+            "text": "alpha draft"
+        }],
         mcp_client=_FakeMcpClient(papers=papers),
         tool_registry=None,
     )
@@ -357,7 +363,9 @@ async def test_validate_text_fallback_key(
 
     result = await validate_hypotheses(
         state=make_state(),
-        draft_hypotheses=[{"text": "d"}],
+        draft_hypotheses=[{
+            "text": "d"
+        }],
         mcp_client=_FakeMcpClient(papers={}),
         tool_registry=None,
     )
@@ -379,12 +387,17 @@ async def test_validate_resolves_citation_map(
     }])
     ref_index = _FakeReferenceIndex(
         text="[C1] Smith 2020",
-        sources={"C1": {"type": "paper", "title": "Smith 2020"}},
+        sources={"C1": {
+            "type": "paper",
+            "title": "Smith 2020"
+        }},
     )
 
     result = await validate_hypotheses(
         state=make_state(),
-        draft_hypotheses=[{"text": "d"}],
+        draft_hypotheses=[{
+            "text": "d"
+        }],
         mcp_client=_FakeMcpClient(papers={}),
         tool_registry=None,
         reference_index=ref_index,
@@ -392,5 +405,8 @@ async def test_validate_resolves_citation_map(
 
     assert len(result) == 1
     assert result[0].citation_map == {
-        "C1": {"type": "paper", "title": "Smith 2020"}
+        "C1": {
+            "type": "paper",
+            "title": "Smith 2020"
+        }
     }

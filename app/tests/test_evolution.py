@@ -64,7 +64,8 @@ def test_evolution_creates_new_rows_with_parent_lineage(
 
 
 def test_evolution_event_emitted(isolated_db: str) -> None:
-    """The evolve agent emits at least one event; the citation/audit step follows."""  # pylint: disable=line-too-long
+    """The evolve agent emits at least one event; the citation/audit step
+    follows."""
     client = _client()
     rid = client.post(
         "/api/runs",
@@ -78,8 +79,8 @@ def test_evolution_event_emitted(isolated_db: str) -> None:
 
     # Pull the event log via SSE replay — quick text check.
     res = client.get(f"/api/runs/{rid}/events")
-    # SSE response is a stream; TestClient returns 200 + text. Just hit the read endpoints
-    # for stronger assertions.
+    # SSE response is a stream; TestClient returns 200 + text. Just hit the
+    # read endpoints for stronger assertions.
     assert res.status_code == 200
 
     matches = client.get(f"/api/runs/{rid}/matches").json()["matches"]

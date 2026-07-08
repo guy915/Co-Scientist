@@ -7,15 +7,18 @@ class Settings(BaseSettings):
     """Application settings loaded from environment variables."""
 
     # LLM Configuration
-    # model_name: worker model — generate, review, ranking, reflection, evolve, proximity,  # pylint: disable=line-too-long
-    #   literature_review. High-volume, runs many times per iteration. Use a fast/cheap model.  # pylint: disable=line-too-long
+    # model_name: worker model — generate, review, ranking, reflection, evolve,
+    # proximity, literature_review. High-volume, runs many times per iteration.
+    # Use a fast/cheap model.
     model_name: str = "gemini/gemini-2.5-flash"
-    # supervisor_model_name: strategic model — supervisor (research planning) and meta_review  # pylint: disable=line-too-long
-    #   (final report synthesis). Runs once or twice per iteration. Use a stronger model.  # pylint: disable=line-too-long
-    #   If None, falls back to model_name (single-model mode for testing / cost saving).  # pylint: disable=line-too-long
+    # supervisor_model_name: strategic model — supervisor (research planning)
+    # and meta_review (final report synthesis). Runs once or twice per
+    # iteration. Use a stronger model. If None, falls back to model_name
+    # (single-model mode for testing / cost saving).
     supervisor_model_name: str | None = None
     # chat_model_name: model used for Q&A responses in the Chat tab.
-    # Defaults to model_name if not set. Use a cheaper/faster model for snappy answers.  # pylint: disable=line-too-long
+    # Defaults to model_name if not set. Use a cheaper/faster model for
+    # snappy answers.
     chat_model_name: str | None = None
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.

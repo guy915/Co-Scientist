@@ -143,7 +143,8 @@ def extract_text_from_pmc_html(html_content: str,
             if len(text) > max_chars:
                 text = text[:max_chars] + "\n\n[... truncated for length ...]"
             return text
-        except Exception as fallback_error:  # pylint: disable=broad-exception-caught
+        # pylint: disable-next=broad-exception-caught
+        except Exception as fallback_error:
             logger.error("Fallback text extraction also failed: %s",
                          fallback_error)
             return "[error: could not extract text from HTML]"

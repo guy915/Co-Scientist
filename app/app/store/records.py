@@ -54,7 +54,8 @@ def add_evidence(
     ev_id = str(uuid.uuid4())
     with _use_conn(conn, db_path) as conn:
         conn.execute(
-            "INSERT INTO evidence (id, run_id, title, source, url, authors_json, year, abstract, available, created_at) "  # pylint: disable=line-too-long
+            "INSERT INTO evidence (id, run_id, title, source, url, "
+            "authors_json, year, abstract, available, created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 ev_id,
@@ -121,7 +122,8 @@ def add_citation(
     """Insert a classified claim-to-evidence citation link."""
     with _use_conn(conn, db_path) as conn:
         conn.execute(
-            "INSERT INTO citations (run_id, hypothesis_id, evidence_id, claim, state, created_at) "  # pylint: disable=line-too-long
+            "INSERT INTO citations (run_id, hypothesis_id, evidence_id, "
+            "claim, state, created_at) "
             "VALUES (?,?,?,?,?,?)",
             (run_id, hypothesis_id, evidence_id, claim, state.value, _now()),
         )
@@ -172,8 +174,10 @@ def add_review(
     """
     with _use_conn(conn, db_path) as conn:
         conn.execute(
-            "INSERT INTO reviews (run_id, hypothesis_id, reviewer_agent, summary, critique, "  # pylint: disable=line-too-long
-            "novelty, plausibility, testability, overall, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)",  # pylint: disable=line-too-long
+            "INSERT INTO reviews (run_id, hypothesis_id, "
+            "reviewer_agent, summary, critique, "
+            "novelty, plausibility, testability, overall, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 hypothesis_id,
@@ -235,8 +239,9 @@ def add_match(
     """
     with _use_conn(conn, db_path) as conn:
         conn.execute(
-            "INSERT INTO matches (run_id, iteration, winner_id, loser_id, winner_elo_before, "  # pylint: disable=line-too-long
-            "winner_elo_after, loser_elo_before, loser_elo_after, rationale, tier, created_at) "  # pylint: disable=line-too-long
+            "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
+            "winner_elo_before, winner_elo_after, loser_elo_before, "
+            "loser_elo_after, rationale, tier, created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
@@ -279,7 +284,8 @@ def add_safety_decision(
     """Record a safety-gate decision ('intake' or 'final') for a run."""
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO safety_decisions (run_id, stage, decision, reason, matches_json, created_at) "  # pylint: disable=line-too-long
+            "INSERT INTO safety_decisions (run_id, stage, decision, reason, "
+            "matches_json, created_at) "
             "VALUES (?,?,?,?,?,?)",
             (run_id, stage, decision, reason, json.dumps(matches), _now()),
         )

@@ -46,7 +46,8 @@ def default_db_path() -> str | None:
 
 
 def _resolved_db_path(path: str | None = None) -> str:
-    # Read env on every call so test fixtures and runtime overrides are picked up.  # pylint: disable=line-too-long
+    # Read env on every call so test fixtures and runtime overrides are
+    # picked up.
     return path or default_db_path() or "./coscientist.db"
 
 
@@ -209,10 +210,13 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     research_goal TEXT NOT NULL,
-    profile TEXT NOT NULL,           -- canonical run mode; column name kept for legacy clients
-    status TEXT NOT NULL,            -- draft|queued|running|synthesizing|completed|failed|blocked|cancelled
+    -- canonical run mode; column name kept for legacy clients
+    profile TEXT NOT NULL,
+    -- draft|queued|running|synthesizing|completed|failed|blocked|cancelled
+    status TEXT NOT NULL,
     provider TEXT NOT NULL,          -- 'mock' | 'engine'
-    config_json TEXT NOT NULL,       -- JSON: initial_count, iterations, evolution_count, k_factor, ...
+    -- JSON: initial_count, iterations, evolution_count, k_factor, ...
+    config_json TEXT NOT NULL,
     client_id TEXT NOT NULL DEFAULT '',
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
@@ -228,7 +232,8 @@ CREATE TABLE IF NOT EXISTS run_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
     seq INTEGER NOT NULL,            -- per-run monotonic sequence number
-    type TEXT NOT NULL,              -- agent name, 'status', 'log', 'metric', ...
+    -- agent name, 'status', 'log', 'metric', ...
+    type TEXT NOT NULL,
     payload_json TEXT NOT NULL,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
@@ -303,7 +308,8 @@ CREATE TABLE IF NOT EXISTS citations (
     hypothesis_id TEXT NOT NULL,
     evidence_id TEXT NOT NULL,
     claim TEXT NOT NULL,
-    state TEXT NOT NULL,             -- verified | partial | unsupported | unavailable
+    -- verified | partial | unsupported | unavailable
+    state TEXT NOT NULL,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE,
@@ -344,7 +350,8 @@ CREATE TABLE IF NOT EXISTS matches (
     loser_elo_before INTEGER NOT NULL,
     loser_elo_after INTEGER NOT NULL,
     rationale TEXT,
-    tier TEXT,                       -- decisiveness class: upset|decisive|clear|narrow
+    -- decisiveness class: upset|decisive|clear|narrow
+    tier TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
@@ -369,9 +376,11 @@ CREATE TABLE IF NOT EXISTS safety_decisions (
 CREATE TABLE IF NOT EXISTS reports (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
-    payload_json TEXT NOT NULL,      -- structured report (Overview, Ideas, Tournament, Citations, Safety)
+    -- structured report (Overview, Ideas, Tournament, Citations, Safety)
+    payload_json TEXT NOT NULL,
     markdown_path TEXT,
-    markdown_text TEXT,              -- full markdown stored in DB for durability across restarts
+    -- full markdown stored in DB for durability across restarts
+    markdown_text TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );

@@ -58,7 +58,7 @@ async def _analyze_single_paper(
         )
 
         logger.debug("Analyzed paper %s: %s", paper_id,
-                     metadata.get('title', 'Unknown')[:60])
+                     metadata.get("title", "Unknown")[:60])
         return {
             "paper_id": paper_id,
             "metadata": metadata,
@@ -110,6 +110,6 @@ async def _phase3_analyze_papers(
     if analyses:
         first = analyses[0]
         logger.debug("Sample analysis structure - keys: %s",
-                     list(first.get('analysis', {}).keys()))
+                     list(first.get("analysis", {}).keys()))
 
     return analyses

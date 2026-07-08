@@ -79,14 +79,15 @@ async def test_hypotheses_get_reflection_notes(
     result = await reflection_node(state)
 
     returned = result["hypotheses"]
+    expected_notes = "fills a gap\n\nClassification: missing piece"
     assert len(returned) == 2
     for hyp in returned:
-        assert hyp.reflection_notes == "fills a gap\n\nClassification: missing piece"
+        assert hyp.reflection_notes == expected_notes
         # LLM-only path: no INDRA enrichment was fetched.
         assert "indra_evidence" not in hyp.enrichments
     # The node mutates the same Hypothesis objects in place.
-    assert hyp_a.reflection_notes == "fills a gap\n\nClassification: missing piece"
-    assert hyp_b.reflection_notes == "fills a gap\n\nClassification: missing piece"
+    assert hyp_a.reflection_notes == expected_notes
+    assert hyp_b.reflection_notes == expected_notes
     # A reflection-phase assistant message is appended.
     assert result["messages"][0]["metadata"]["phase"] == "reflection"
 

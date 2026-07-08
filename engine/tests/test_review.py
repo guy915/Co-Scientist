@@ -24,8 +24,8 @@ from co_scientist.nodes.review import review_node
 from tests._state import make_hypothesis, make_state
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch,
-              response: dict[str, Any]) -> None:
+def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
+                                                              Any]) -> None:
     """Patch review's call_llm_json to return a fixed response for every call.
 
     The same response is returned regardless of arguments, so in the parallel
@@ -55,7 +55,9 @@ def _batch_entry(scores: dict[str, int]) -> dict[str, Any]:
         "review_summary": "batch summary",
         "scores": scores,
         "safety_ethical_concerns": "none noted",
-        "detailed_feedback": {"novelty": "ok"},
+        "detailed_feedback": {
+            "novelty": "ok"
+        },
         "constructive_feedback": "tighten the experiment",
     }
 
@@ -78,9 +80,18 @@ async def test_comparative_batch_attaches_reviews(
         monkeypatch,
         {
             "reviews": [
-                _batch_entry({"soundness": 8, "novelty": 6}),  # mean 7.0
-                _batch_entry({"soundness": 4, "novelty": 6}),  # mean 5.0
-                _batch_entry({"soundness": 9, "novelty": 9}),  # mean 9.0
+                _batch_entry({
+                    "soundness": 8,
+                    "novelty": 6
+                }),  # mean 7.0
+                _batch_entry({
+                    "soundness": 4,
+                    "novelty": 6
+                }),  # mean 5.0
+                _batch_entry({
+                    "soundness": 9,
+                    "novelty": 9
+                }),  # mean 9.0
             ]
         },
     )
@@ -121,9 +132,14 @@ async def test_parallel_individual_attaches_reviews(
         monkeypatch,
         {
             "review_summary": "individual summary",
-            "scores": {"soundness": 7, "novelty": 5},  # mean 6.0
+            "scores": {
+                "soundness": 7,
+                "novelty": 5
+            },  # mean 6.0
             "safety_ethical_concerns": "no concerns",
-            "detailed_feedback": {"relevance": "strong"},
+            "detailed_feedback": {
+                "relevance": "strong"
+            },
             "constructive_feedback": "add controls",
         },
     )

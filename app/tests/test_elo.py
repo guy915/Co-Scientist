@@ -1,4 +1,5 @@
-"""Elo invariants: initial rating, expected score, configurable K factor, symmetric update."""  # pylint: disable=line-too-long
+"""Elo invariants: initial rating, expected score, configurable K factor,
+symmetric update."""
 from __future__ import annotations
 
 from app.elo import DEFAULT_K_FACTOR, INITIAL_ELO, expected_score, update_pair

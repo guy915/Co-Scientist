@@ -312,7 +312,7 @@ def test_execution_metrics_phase_times_not_shared() -> None:
 
 
 def test_article_minimal_construction_defaults() -> None:
-    """Only ``title`` is required; ``citations`` and ``source`` have defaults."""
+    """Only ``title`` required; ``citations`` and ``source`` have defaults."""
     art = Article(title="A paper")
     assert art.title == "A paper"
     assert art.url is None

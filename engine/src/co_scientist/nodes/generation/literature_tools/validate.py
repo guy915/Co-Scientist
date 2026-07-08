@@ -229,7 +229,8 @@ async def validate_hypotheses(
 
             # Get analysis prompt
             prompt = get_hypothesis_novelty_analysis_prompt(
-                hypothesis_text=hypothesis_text,  # pylint: disable=cell-var-from-loop
+                # pylint: disable-next=cell-var-from-loop
+                hypothesis_text=hypothesis_text,
                 title=title,
                 authors=authors,
                 year=year,

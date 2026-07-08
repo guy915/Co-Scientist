@@ -92,11 +92,10 @@ class PubmedSource:
         # is consumed with elsewhere (e.g. field_mapping "date_revised|
         # split:/|index:0|int" to pull out just the year).
         date_revised_raw = citation["DateRevised"]
-        date_revised = "{}/{}/{}".format(  # pylint: disable=consider-using-f-string
-            *[
-                str(date_revised_raw[field])
-                for field in ["Year", "Month", "Day"]
-            ])
+        # pylint: disable-next=consider-using-f-string
+        date_revised = "{}/{}/{}".format(*[
+            str(date_revised_raw[field]) for field in ["Year", "Month", "Day"]
+        ])
         try:
             # Some articles split the abstract into multiple labeled
             # sections (Background, Methods, ...); join them into one
@@ -111,16 +110,11 @@ class PubmedSource:
         # where either name was missing (marked "<invalid>" above) rather
         # than emitting a name with a literal "<invalid>" token in it.
         authors = list(
-            filter(
-                lambda author: '<invalid>' not in author,
-                [
-                    f"{author.get('ForeName', '<invalid>')} "
-                    f"{author.get('LastName', '<invalid>')}"
-                    for author in [
-                        dict(author_data)
-                        for author_data in article['AuthorList']
-                    ]
-                ]))
+            filter(lambda author: '<invalid>' not in author, [
+                f"{author.get('ForeName', '<invalid>')} "
+                f"{author.get('LastName', '<invalid>')}" for author in
+                [dict(author_data) for author_data in article['AuthorList']]
+            ]))
 
         try:
             # ArticleIdList mixes several ID types (pubmed, doi, pmc, ...);
@@ -129,8 +123,8 @@ class PubmedSource:
             doi = [
                 str(element) for element in filter(
                     lambda xml_string: xml_string.attributes.get(
-                        "IdType", None) == 'doi',
-                    pubmed_article['PubmedData']['ArticleIdList'])
+                        "IdType", None) == 'doi', pubmed_article['PubmedData']
+                    ['ArticleIdList'])
             ][0]
         except IndexError:
             doi = "<not found>"
@@ -183,7 +177,8 @@ class PubmedSource:
         # Add recency filter if specified
         if recency_years > 0:
             # Imported locally since it is only needed for this branch.
-            from datetime import datetime  # pylint: disable=import-outside-toplevel
+            # pylint: disable-next=import-outside-toplevel
+            from datetime import datetime
             current_year = datetime.now().year
             min_year = current_year - recency_years
             search_params["mindate"] = f"{min_year}/01/01"
@@ -501,7 +496,8 @@ class PubmedSource:
                             if fulltext_file.exists():
                                 supplement_candidates.append(
                                     (paper_id, metadata))
-                    except Exception as e:  # pylint: disable=broad-exception-caught
+                    # pylint: disable-next=broad-exception-caught
+                    except Exception as e:
                         # Corrupt/partial metadata file: skip this
                         # candidate rather than aborting the whole scan.
                         logger.debug("Failed to read shared pool paper %s: %s",
@@ -549,11 +545,8 @@ class PubmedSource:
                     "(total: %s/%s)", len(papers_to_supplement),
                     len(papers_to_use), max_papers)
             else:
-                # pylint: disable=line-too-long
-                logger.warning(
-                    "No suitable papers found in shared pool for supplementation"
-                )
-                # pylint: enable=line-too-long
+                logger.warning("No suitable papers found in shared pool for "
+                               "supplementation")
 
         # Save manifest for this run if run_id provided
         # Records exactly which papers (including any shared-pool

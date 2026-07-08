@@ -296,7 +296,7 @@ async def test_mcp_available_enables_lit_review_graph(
 
 async def test_mcp_unavailable_uses_simplified_graph(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """Without MCP, lit review is dropped and the flags reflect unavailability."""
+    """Without MCP, lit review is dropped and flags reflect unavailability."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation("goal")
@@ -346,7 +346,7 @@ async def test_explicit_disable_skips_mcp_probe(
 
 async def test_tool_calling_honored_when_mcp_available(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """Tool-calling generation is kept on when MCP + lit review are available."""
+    """Tool-calling generation stays on when MCP + lit review are available."""
     _stub_mcp(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
@@ -391,7 +391,8 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
 def test_graph_includes_deep_verification_node() -> None:
     """The graph registers a deep_verification node after ranking."""
     gen = HypothesisGenerator(model_name="test/model")
-    graph = gen._build_graph(enable_literature_review_node=False)  # pylint: disable=protected-access
+    graph = gen._build_graph(  # pylint: disable=protected-access
+        enable_literature_review_node=False)
     assert "deep_verification" in graph.nodes
 
 
@@ -399,5 +400,6 @@ def test_graph_includes_research_overview_node_and_terminates_through_it(
 ) -> None:
     """The graph registers a terminal research_overview node."""
     gen = HypothesisGenerator(model_name="test/model")
-    graph = gen._build_graph(enable_literature_review_node=False)  # pylint: disable=protected-access
+    graph = gen._build_graph(  # pylint: disable=protected-access
+        enable_literature_review_node=False)
     assert "research_overview" in graph.nodes

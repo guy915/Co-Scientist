@@ -226,7 +226,7 @@ def test_build_index_skips_unused_articles() -> None:
 
 
 def test_build_index_papers_numbered_before_enrichment() -> None:
-    """Papers occupy the leading keys; enrichment sources follow in one space."""
+    """Papers occupy leading keys; enrichment sources follow in one space."""
     art = _used_article(title="Use", authors=["C D"], year=2001)
     enrichment = [{
         "display": "INDRA: KRAS -> RAF1",

@@ -59,8 +59,9 @@ def add_hypothesis(
     now = _now()
     with _use_conn(conn, db_path) as conn:
         conn.execute(
-            "INSERT INTO hypotheses (id, run_id, parent_id, generation, category, title, statement, mechanism, "  # pylint: disable=line-too-long
-            "expected_effect, experimental_context, created_by_agent, created_at) "
+            "INSERT INTO hypotheses (id, run_id, parent_id, generation, "
+            "category, title, statement, mechanism, expected_effect, "
+            "experimental_context, created_by_agent, created_at) "
             "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 hyp_id,
@@ -78,7 +79,8 @@ def add_hypothesis(
             ),
         )
         conn.execute(
-            "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, updated_at) VALUES (?,?,?)",  # pylint: disable=line-too-long
+            "INSERT INTO hypothesis_state (hypothesis_id, elo_rating, "
+            "updated_at) VALUES (?,?,?)",
             (hyp_id, INITIAL_ELO, now),
         )
     return hyp_id
@@ -136,7 +138,7 @@ def update_hypothesis_state(
     set_clause = ", ".join(sets)
     with _use_conn(conn, db_path) as conn:
         conn.execute(
-            f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",  # pylint: disable=line-too-long
+            f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",
             params,
         )
 

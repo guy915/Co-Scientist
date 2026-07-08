@@ -54,7 +54,8 @@ def _other_text_pos(prompt: str, winner_text: str) -> int:
 
     Both hypothesis texts appear exactly once in the matchup prompt. Removing
     the winner's occurrence leaves the opponent's; this finds the opponent's
-    position by scanning for the first text block index that is not the winner's.
+    position by scanning for the first text block index that is not
+    the winner's.
 
     Args:
         prompt: The matchup prompt containing both hypothesis texts.
@@ -162,7 +163,7 @@ async def test_matchups_carry_hypothesis_ids(
 
 async def test_malformed_judge_response_defaults_to_slot_a(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """An empty judge response defaults the winner to slot 'a' with fallbacks."""
+    """An empty judge response defaults winner to slot 'a' with fallbacks."""
 
     async def fake(**_: Any) -> dict[str, Any]:
         return {}

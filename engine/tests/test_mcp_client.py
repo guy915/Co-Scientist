@@ -206,7 +206,7 @@ def _make_tool_call(name: str, arguments: str, call_id: str = "call-1") -> Any:
 
 
 def test_init_legacy_default_server_url_from_env(
-    monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch) -> None:
     """With no args and no env var, the URL defaults to localhost:8888."""
     monkeypatch.delenv("MCP_SERVER_URL", raising=False)
     client = MCPToolClient()
@@ -214,7 +214,7 @@ def test_init_legacy_default_server_url_from_env(
 
 
 def test_init_legacy_reads_mcp_server_url_env(
-    monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch) -> None:
     """The legacy path reads MCP_SERVER_URL from the environment."""
     monkeypatch.setenv("MCP_SERVER_URL", "http://example.test:9999/mcp")
     client = MCPToolClient()
@@ -222,7 +222,7 @@ def test_init_legacy_reads_mcp_server_url_env(
 
 
 def test_init_explicit_server_url_overrides_env(
-    monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch: pytest.MonkeyPatch) -> None:
     """An explicit server_url takes precedence over the environment."""
     monkeypatch.setenv("MCP_SERVER_URL", "http://ignored.test/mcp")
     client = MCPToolClient(server_url="http://explicit.test/mcp")
@@ -232,7 +232,10 @@ def test_init_explicit_server_url_overrides_env(
 def test_init_server_configs_used_directly() -> None:
     """Provided server_configs are used and surfaced via server_url."""
     configs = {
-        "s1": {"transport": "streamable_http", "url": "http://s1.test/mcp"},
+        "s1": {
+            "transport": "streamable_http",
+            "url": "http://s1.test/mcp"
+        },
     }
     client = MCPToolClient(server_configs=configs)
     assert client.server_url == "http://s1.test/mcp"
@@ -249,7 +252,7 @@ def test_available_tools_empty_before_initialize() -> None:
 
 
 async def test_initialize_populates_tools_and_openai_schemas(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """initialize fetches tools, builds the lookup dict and OpenAI schemas."""
     _patch_mcp_seam.tools = [
         _string_tool("pubmed_search", "{}"),
@@ -258,20 +261,17 @@ async def test_initialize_populates_tools_and_openai_schemas(
     client = MCPToolClient(server_url="http://x.test/mcp")
     await client.initialize()
 
-    assert set(client.available_tools) == {
-        "pubmed_search", "check_pubmed_available"
-    }
+    assert set(
+        client.available_tools) == {"pubmed_search", "check_pubmed_available"}
     assert client.has_tool("pubmed_search") is True
     tools_dict, openai_tools = client.get_tools()
-    assert set(tools_dict.keys()) == {
-        "pubmed_search", "check_pubmed_available"
-    }
+    assert set(tools_dict.keys()) == {"pubmed_search", "check_pubmed_available"}
     schema_names = {t["function"]["name"] for t in openai_tools}
     assert schema_names == {"pubmed_search", "check_pubmed_available"}
 
 
 async def test_initialize_is_idempotent_single_construction(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A second initialize on the same client does not rebuild the transport."""
     _patch_mcp_seam.tools = [_string_tool("t1", "ok")]
     client = MCPToolClient(server_url="http://x.test/mcp")
@@ -288,7 +288,7 @@ def test_get_tools_before_initialize_raises() -> None:
 
 
 async def test_get_tools_whitelist_filters(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A whitelist restricts both the returned dict and the OpenAI schemas."""
     _patch_mcp_seam.tools = [
         _string_tool("keep_me", "{}"),
@@ -314,7 +314,7 @@ async def test_call_tool_before_initialize_raises() -> None:
 
 
 async def test_call_tool_unknown_name_raises_value_error(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """Calling an unregistered tool name raises ValueError."""
     _patch_mcp_seam.tools = [_string_tool("known", "ok")]
     client = MCPToolClient(server_url="http://x.test/mcp")
@@ -324,7 +324,7 @@ async def test_call_tool_unknown_name_raises_value_error(
 
 
 async def test_call_tool_returns_string_result_verbatim(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A string-returning tool's result is returned unchanged."""
     _patch_mcp_seam.tools = [_string_tool("echo", "plain-string-result")]
     client = MCPToolClient(server_url="http://x.test/mcp")
@@ -334,10 +334,13 @@ async def test_call_tool_returns_string_result_verbatim(
 
 
 async def test_call_tool_unwraps_list_of_text_dicts(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A ``[{"text": ...}]`` result is unwrapped to the inner text string."""
     _patch_mcp_seam.tools = [
-        _string_tool("blocks", [{"text": "inner-text", "type": "text"}]),
+        _string_tool("blocks", [{
+            "text": "inner-text",
+            "type": "text"
+        }]),
     ]
     client = MCPToolClient(server_url="http://x.test/mcp")
     await client.initialize()
@@ -357,14 +360,15 @@ async def test_execute_tool_call_before_initialize_raises() -> None:
 
 
 async def test_execute_tool_call_returns_tool_response_message(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A tool call is dispatched and wrapped as a role=tool response message."""
     _patch_mcp_seam.tools = [_string_tool("pubmed_search", "search-result")]
     client = MCPToolClient(server_url="http://x.test/mcp")
     await client.initialize()
 
-    call = _make_tool_call(
-        "pubmed_search", json.dumps({"query": "cancer"}), call_id="call-42")
+    call = _make_tool_call("pubmed_search",
+                           json.dumps({"query": "cancer"}),
+                           call_id="call-42")
     result = await client.execute_tool_call(call)
 
     assert result["role"] == "tool"
@@ -377,21 +381,21 @@ async def test_execute_tool_call_returns_tool_response_message(
 
 
 async def test_check_mcp_available_true_when_tools_present(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A server that returns at least one tool is reported available."""
     _patch_mcp_seam.tools = [_string_tool("t1", "ok")]
     assert await check_mcp_available(server_url="http://x.test/mcp") is True
 
 
 async def test_check_mcp_available_false_when_no_tools(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
-    """A server that responds with an empty tool list is reported unavailable."""
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+    """A server responding with an empty tool list is reported unavailable."""
     _patch_mcp_seam.tools = []
     assert await check_mcp_available(server_url="http://x.test/mcp") is False
 
 
 async def test_check_mcp_available_false_on_connection_error(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A transport error degrades gracefully to False, no exception escapes."""
     _patch_mcp_seam.error = ConnectionError("boom")
     assert await check_mcp_available(server_url="http://x.test/mcp") is False
@@ -401,7 +405,7 @@ async def test_check_mcp_available_false_on_connection_error(
 
 
 async def test_literature_source_true_when_check_tool_returns_true_string(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """The default check tool returning the string "true" yields True."""
     _patch_mcp_seam.tools = [
         _string_tool("check_pubmed_available", "true"),
@@ -412,7 +416,7 @@ async def test_literature_source_true_when_check_tool_returns_true_string(
 
 
 async def test_literature_source_true_when_check_tool_returns_bool(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A check tool returning a real bool True yields True."""
     _patch_mcp_seam.tools = [
         _string_tool("check_pubmed_available", True),
@@ -422,7 +426,7 @@ async def test_literature_source_true_when_check_tool_returns_bool(
 
 
 async def test_literature_source_false_when_check_tool_returns_false_string(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A check tool returning "false" yields False."""
     _patch_mcp_seam.tools = [
         _string_tool("check_pubmed_available", "false"),
@@ -432,7 +436,7 @@ async def test_literature_source_false_when_check_tool_returns_false_string(
 
 
 async def test_literature_source_false_when_check_tool_absent(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """If the default check tool is missing from the server, returns False."""
     _patch_mcp_seam.tools = [_string_tool("some_other_tool", "{}")]
     assert await check_literature_source_available(
@@ -440,7 +444,7 @@ async def test_literature_source_false_when_check_tool_absent(
 
 
 async def test_literature_source_false_when_server_has_no_tools(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """If the MCP server reports no tools, the source is unavailable."""
     _patch_mcp_seam.tools = []
     assert await check_literature_source_available(
@@ -448,7 +452,7 @@ async def test_literature_source_false_when_server_has_no_tools(
 
 
 async def test_literature_source_false_on_connection_error(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A transport error degrades gracefully to False."""
     _patch_mcp_seam.error = RuntimeError("down")
     assert await check_literature_source_available(
@@ -459,27 +463,27 @@ async def test_literature_source_false_on_connection_error(
 
 
 async def test_pubmed_alias_delegates_true(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """The deprecated alias returns True when the source is available."""
     _patch_mcp_seam.tools = [_string_tool("check_pubmed_available", "true")]
-    assert await check_pubmed_available_via_mcp(
-        server_url="http://x.test/mcp") is True
+    assert await check_pubmed_available_via_mcp(server_url="http://x.test/mcp"
+                                               ) is True
 
 
 async def test_pubmed_alias_delegates_false(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """The deprecated alias returns False when the source is unavailable."""
     _patch_mcp_seam.error = ConnectionError("boom")
-    assert await check_pubmed_available_via_mcp(
-        server_url="http://x.test/mcp") is False
+    assert await check_pubmed_available_via_mcp(server_url="http://x.test/mcp"
+                                               ) is False
 
 
 # --- get_mcp_client / global caching ----------------------------------------
 
 
 async def test_get_mcp_client_caches_single_instance(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
-    """Repeated get_mcp_client calls return the same cached, initialized client."""
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+    """Repeated get_mcp_client calls return the same cached client."""
     _patch_mcp_seam.tools = [_string_tool("t1", "ok")]
     first = await get_mcp_client(server_url="http://x.test/mcp")
     second = await get_mcp_client(server_url="http://x.test/mcp")
@@ -492,18 +496,19 @@ async def test_get_mcp_client_caches_single_instance(
 
 
 async def test_get_mcp_client_force_new_rebuilds(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """force_new builds a fresh client and a fresh transport connection."""
     _patch_mcp_seam.tools = [_string_tool("t1", "ok")]
     first = await get_mcp_client(server_url="http://x.test/mcp")
-    second = await get_mcp_client(server_url="http://x.test/mcp", force_new=True)
+    second = await get_mcp_client(server_url="http://x.test/mcp",
+                                  force_new=True)
 
     assert first is not second
     assert _patch_mcp_seam.instances_created == 2
 
 
 async def test_reset_mcp_client_clears_global(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """After reset, the next get_mcp_client builds a brand-new client."""
     _patch_mcp_seam.tools = [_string_tool("t1", "ok")]
     first = await get_mcp_client(server_url="http://x.test/mcp")
@@ -529,7 +534,7 @@ def test_init_with_registry_uses_registry_server_configs() -> None:
 
 
 async def test_initialize_with_registry_tracks_tool_to_server(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """Registry-driven initialize records the server that provides each tool."""
     _patch_mcp_seam.tools = [
         _string_tool("pubmed_search", "{}"),
@@ -545,14 +550,14 @@ async def test_initialize_with_registry_tracks_tool_to_server(
 
 
 async def test_check_mcp_available_with_registry_true(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """check_mcp_available works through the registry multi-server path."""
     _patch_mcp_seam.tools = [_string_tool("t1", "ok")]
     assert await check_mcp_available(tool_registry=_registry()) is True
 
 
 async def test_literature_source_registry_explicit_check_tool_true(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """An explicit availability_check tool that returns "true" yields True."""
     _patch_mcp_seam.tools = [
         _string_tool("check_pubmed_available", "true"),
@@ -560,22 +565,22 @@ async def test_literature_source_registry_explicit_check_tool_true(
     ]
     registry = _registry(availability_check="check_avail",
                          check_mcp_tool_name="check_pubmed_available")
-    assert await check_literature_source_available(
-        tool_registry=registry) is True
+    assert await check_literature_source_available(tool_registry=registry
+                                                  ) is True
 
 
 async def test_literature_source_registry_check_tool_missing_returns_false(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """A configured check tool absent from the live server yields False."""
     _patch_mcp_seam.tools = [_string_tool("pubmed_search", "{}")]
     registry = _registry(availability_check="check_avail",
                          check_mcp_tool_name="check_pubmed_available")
-    assert await check_literature_source_available(
-        tool_registry=registry) is False
+    assert await check_literature_source_available(tool_registry=registry
+                                                  ) is False
 
 
 async def test_literature_source_registry_null_check_assumes_available(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """``availability_check: null`` returns True without calling any check tool.
 
     The only requirement is that the MCP server is up (returns tools); no
@@ -583,14 +588,14 @@ async def test_literature_source_registry_null_check_assumes_available(
     """
     _patch_mcp_seam.tools = [_string_tool("pubmed_search", "{}")]
     registry = _registry(availability_check=None)
-    assert await check_literature_source_available(
-        tool_registry=registry) is True
+    assert await check_literature_source_available(tool_registry=registry
+                                                  ) is True
 
 
 async def test_literature_source_registry_false_when_mcp_down(
-    _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
+        _patch_mcp_seam: type[FakeMultiServerMCPClient]) -> None:
     """With a registry but no live MCP server, the source is unavailable."""
     _patch_mcp_seam.error = ConnectionError("down")
     registry = _registry(availability_check=None)
-    assert await check_literature_source_available(
-        tool_registry=registry) is False
+    assert await check_literature_source_available(tool_registry=registry
+                                                  ) is False

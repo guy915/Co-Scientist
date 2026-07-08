@@ -233,8 +233,12 @@ def test_format_single_statement_subject_object() -> None:
         "type": "Activation",
         "belief": 0.9,
         "evidence": [1, 2],
-        "subj": {"name": "KRAS"},
-        "obj": {"name": "BRAF"},
+        "subj": {
+            "name": "KRAS"
+        },
+        "obj": {
+            "name": "BRAF"
+        },
     })
     assert line == "- KRAS --[Activation]--> BRAF (belief: 0.90, 2 papers)"
 
@@ -245,7 +249,11 @@ def test_format_single_statement_complex_members() -> None:
         "type": "Complex",
         "belief": 0.8,
         "evidence": [],
-        "members": [{"name": "A"}, {"name": "B"}],
+        "members": [{
+            "name": "A"
+        }, {
+            "name": "B"
+        }],
     })
     assert line == "- Complex(A, B) [Complex] (belief: 0.80, 0 papers)"
 
@@ -266,14 +274,22 @@ def test_build_enrichment_items_injects_queried_entities_on_first() -> None:
                 "type": "Activation",
                 "belief": 0.9,
                 "evidence": [1, 2],
-                "subj": {"name": "KRAS"},
-                "obj": {"name": "BRAF"},
+                "subj": {
+                    "name": "KRAS"
+                },
+                "obj": {
+                    "name": "BRAF"
+                },
             },
             {
                 "type": "Complex",
                 "belief": 0.8,
                 "evidence": [],
-                "members": [{"name": "A"}, {"name": "B"}],
+                "members": [{
+                    "name": "A"
+                }, {
+                    "name": "B"
+                }],
             },
         ],
         ["KRAS", "TREM2"],

@@ -38,8 +38,8 @@ def _resolve_safety_mode() -> SafetyMode:
 SAFETY_MODE = _resolve_safety_mode()
 
 # Hard-block patterns: production of weaponized agents, mass-casualty intent.
-# These are deliberately narrow keyword combinations to avoid blocking legitimate  # pylint: disable=line-too-long
-# defensive / educational research.
+# These are deliberately narrow keyword combinations to avoid blocking
+# legitimate defensive / educational research.
 _BLOCK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     re.compile(p, re.IGNORECASE) for p in (
         r"\b(synthes(?:is|e|ize)|engineer|weaponize)\b.{0,40}\b(nerve agent|sarin|vx|tabun|novichok)\b",  # pylint: disable=line-too-long
@@ -97,8 +97,8 @@ def screen_intake(goal: str) -> SafetyDecision:
         return SafetyDecision(
             stage="intake",
             decision="block",
-            reason=
-            "Input matches a hard-block pattern (weaponization or mass-casualty intent).",  # pylint: disable=line-too-long
+            reason=("Input matches a hard-block pattern (weaponization or "
+                    "mass-casualty intent)."),
             matches=blocked,
         )
     flagged = _scan(text, _REDACT_PATTERNS)
@@ -124,8 +124,8 @@ def screen_final(report_markdown: str) -> SafetyDecision:
         return SafetyDecision(
             stage="final",
             decision="block",
-            reason=
-            "Generated report contains a hard-block pattern; refusing to publish.",  # pylint: disable=line-too-long
+            reason=("Generated report contains a hard-block pattern; "
+                    "refusing to publish."),
             matches=blocked,
         )
     flagged = _scan(text, _REDACT_PATTERNS)

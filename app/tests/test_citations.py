@@ -45,7 +45,8 @@ def test_partial_when_some_overlap() -> None:
     r = CitationRecord(
         url="https://example.org/1",
         abstract=
-        "mitochondrial biogenesis controls thermogenesis through a poorly understood pathway",  # pylint: disable=line-too-long
+        "mitochondrial biogenesis controls thermogenesis through a poorly "
+        "understood pathway",
         claim="mitochondrial biogenesis affects something unrelated entirely",
     )
     state = classify_citation(r)

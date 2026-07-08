@@ -177,6 +177,8 @@ async def judge_matchup(
         matchup_index: Optional index for naming saved prompts
         tool_registry: Optional ToolRegistry for dynamic tool instructions
         meta_review: Optional cross-iteration meta-review feedback
+        run_setup_guidance: Optional run-setup guidance for the prompt
+        run_focus_guidance: Optional run-focus guidance for the prompt
 
     Returns:
         Tuple of (winner, full_response) where winner is "a" or "b"
@@ -415,8 +417,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
                 truncate(hyp_a.text),
             "hypothesis_b":
                 truncate(hyp_b.text),
-            # Stable ids alongside the truncated text so downstream consumers can
-            # resolve identity exactly instead of by text-prefix matching.
+            # Stable ids alongside the truncated text so downstream
+            # consumers can resolve identity exactly instead of by
+            # text-prefix matching.
             "hypothesis_a_id":
                 hyp_a.id,
             "hypothesis_b_id":

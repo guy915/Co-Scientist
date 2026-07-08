@@ -30,7 +30,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
-# Set application loggers (viewer and co_scientist) to DEBUG if debug mode is enabled  # pylint: disable=line-too-long
+# Set application loggers (viewer and co_scientist) to DEBUG if debug mode is
+# enabled
 logger = logging.getLogger(__name__)
 coscientist_logger = logging.getLogger("co_scientist")
 _app_log_level = logging.DEBUG if settings.debug else logging.INFO
@@ -214,7 +215,8 @@ async def get_system_status() -> dict[str, Any]:
         # The two probes are independent network round-trips; overlap them.
         mcp_available, pubmed_available = await asyncio.gather(
             check_mcp_available(), check_pubmed_available_via_mcp())
-    except Exception:  # pragma: no cover - engine optional in mock mode  # pylint: disable=broad-exception-caught
+    # pylint: disable-next=broad-exception-caught
+    except Exception:  # pragma: no cover - engine optional in mock mode
         pass  # both probes default to False (set above)
 
     adapter_status = engine_adapter.system_status()

@@ -246,11 +246,12 @@ def _persist_and_finalize(run: Any, final_state: dict[str, Any],
     returns the report inputs, and ``finalize_report`` builds/screens/saves the
     report. Uses a plain-dict emitter, so no event log is needed.
     """
-    report_inputs = engine_adapter._persist_final_state(  # pylint: disable=protected-access
-        run_id=run.id,
-        final_state=final_state,
-        db_path=db_path,
-    )
+    report_inputs = (
+        engine_adapter._persist_final_state(  # pylint: disable=protected-access
+            run_id=run.id,
+            final_state=final_state,
+            db_path=db_path,
+        ))
 
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         return {"type": type_, "payload": payload}

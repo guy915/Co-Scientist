@@ -41,7 +41,8 @@ def append_message(
     meta_json = json.dumps(meta) if meta is not None else None
     with connect(db_path) as conn:
         cur = conn.execute(
-            "INSERT INTO messages (run_id, sender, content, kind, created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",  # pylint: disable=line-too-long
+            "INSERT INTO messages (run_id, sender, content, kind, "
+            "created_at, applied, meta_json) VALUES (?,?,?,?,?,0,?)",
             (run_id, sender, content, kind, now, meta_json),
         )
         msg_id = cur.lastrowid or 0

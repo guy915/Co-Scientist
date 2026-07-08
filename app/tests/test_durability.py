@@ -20,9 +20,11 @@ def _make_run(goal: str, isolated_db: str) -> str:
 
 
 def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
-    """Queued/running/synthesizing runs become failed; terminal runs are left."""
+    """Queued/running/synthesizing runs become failed; terminal runs left."""
     running = _make_run("running goal", isolated_db)
-    store.update_run_status(running, store.RunStatus.RUNNING, db_path=isolated_db)
+    store.update_run_status(running,
+                            store.RunStatus.RUNNING,
+                            db_path=isolated_db)
     queued = _make_run("queued goal", isolated_db)
     store.update_run_status(queued, store.RunStatus.QUEUED, db_path=isolated_db)
     synth = _make_run("synth goal", isolated_db)

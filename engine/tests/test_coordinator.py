@@ -90,11 +90,17 @@ async def test_missing_supervisor_guidance_raises() -> None:
 async def test_condition_a_splits_tools_and_debate(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """Literature + tool-calling routes 50/50 to tools and debate-with-lit."""
-    tools = _ToolsRecorder([make_hypothesis(text="t1"),
-                            make_hypothesis(text="t2")])
+    tools = _ToolsRecorder(
+        [make_hypothesis(text="t1"),
+         make_hypothesis(text="t2")])
     debate = _DebateRecorder(
-        [make_hypothesis(text="d1"), make_hypothesis(text="d2")],
-        [{"hypothesis_text": "d1"}, {"hypothesis_text": "d2"}],
+        [make_hypothesis(text="d1"),
+         make_hypothesis(text="d2")],
+        [{
+            "hypothesis_text": "d1"
+        }, {
+            "hypothesis_text": "d2"
+        }],
     )
     _install(monkeypatch, tools, debate)
 
@@ -143,12 +149,17 @@ async def test_condition_a_single_count_collapses_to_tools_only(
 
 async def test_condition_c_debate_with_lit_only(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """Literature present but tool-calling off routes 100% to debate-with-lit."""
+    """Literature present but tool-calling off routes all to debate-with-lit."""
     tools = _ToolsRecorder([make_hypothesis(text="should-not-appear")])
     debate = _DebateRecorder(
-        [make_hypothesis(text="d1"), make_hypothesis(text="d2"),
-         make_hypothesis(text="d3")],
-        [{"hypothesis_text": "d1"}],
+        [
+            make_hypothesis(text="d1"),
+            make_hypothesis(text="d2"),
+            make_hypothesis(text="d3")
+        ],
+        [{
+            "hypothesis_text": "d1"
+        }],
     )
     _install(monkeypatch, tools, debate)
 
@@ -175,9 +186,15 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
     tools = _ToolsRecorder([])
     # Debate-only hypotheses arrive without literature_grounding.
     debate = _DebateRecorder(
-        [make_hypothesis(text="d1", literature_grounding=None),
-         make_hypothesis(text="d2", literature_grounding="stale")],
-        [{"hypothesis_text": "d1"}, {"hypothesis_text": "d2"}],
+        [
+            make_hypothesis(text="d1", literature_grounding=None),
+            make_hypothesis(text="d2", literature_grounding="stale")
+        ],
+        [{
+            "hypothesis_text": "d1"
+        }, {
+            "hypothesis_text": "d2"
+        }],
     )
     _install(monkeypatch, tools, debate)
 
@@ -228,9 +245,11 @@ async def test_failed_lit_review_marker_is_degraded(
 async def test_dev_isolation_routes_all_to_tools(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """Dev isolation mode sends every hypothesis to tools, skipping debate."""
-    tools = _ToolsRecorder([make_hypothesis(text="t1"),
-                            make_hypothesis(text="t2"),
-                            make_hypothesis(text="t3")])
+    tools = _ToolsRecorder([
+        make_hypothesis(text="t1"),
+        make_hypothesis(text="t2"),
+        make_hypothesis(text="t3")
+    ])
     debate = _DebateRecorder([], [])
     _install(monkeypatch, tools, debate)
 
@@ -252,10 +271,11 @@ async def test_dev_isolation_routes_all_to_tools(
 
 async def test_result_dict_shape_and_message_format(
         monkeypatch: pytest.MonkeyPatch) -> None:
-    """The result dict carries the expected keys and 'Generated N ...' message."""
+    """The result dict carries expected keys and 'Generated N ...' message."""
     tools = _ToolsRecorder([make_hypothesis(text="t1")])
-    debate = _DebateRecorder([make_hypothesis(text="d1")],
-                             [{"hypothesis_text": "d1"}])
+    debate = _DebateRecorder([make_hypothesis(text="d1")], [{
+        "hypothesis_text": "d1"
+    }])
     _install(monkeypatch, tools, debate)
 
     state = make_state(
@@ -281,8 +301,9 @@ async def test_progress_callback_emits_start_and_complete(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """A progress_callback receives start and complete generation events."""
     tools = _ToolsRecorder([])
-    debate = _DebateRecorder([make_hypothesis(text="d1")],
-                             [{"hypothesis_text": "d1"}])
+    debate = _DebateRecorder([make_hypothesis(text="d1")], [{
+        "hypothesis_text": "d1"
+    }])
     _install(monkeypatch, tools, debate)
 
     events: list[tuple[str, dict[str, Any]]] = []

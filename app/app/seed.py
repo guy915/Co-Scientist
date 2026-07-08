@@ -20,12 +20,13 @@ from app.store import DEMO_CLIENT_ID
 logger = logging.getLogger(__name__)
 
 _DEMO_GOALS: list[str] = [
-    "What mechanisms drive antibiotic resistance in Staphylococcus aureus biofilms, "  # pylint: disable=line-too-long
-    "and which metabolic pathways could be targeted to restore susceptibility?",  # pylint: disable=line-too-long
-    "How does synaptic pruning in the prefrontal cortex contribute to cognitive "  # pylint: disable=line-too-long
-    "flexibility during adolescent development?",
-    "What are the key molecular regulators of ferroptosis in pancreatic cancer cells, "  # pylint: disable=line-too-long
-    "and how might their modulation enhance chemotherapy sensitivity?",
+    "What mechanisms drive antibiotic resistance in Staphylococcus aureus "
+    "biofilms, and which metabolic pathways could be targeted to restore "
+    "susceptibility?",
+    "How does synaptic pruning in the prefrontal cortex contribute to "
+    "cognitive flexibility during adolescent development?",
+    "What are the key molecular regulators of ferroptosis in pancreatic cancer "
+    "cells, and how might their modulation enhance chemotherapy sensitivity?",
 ]
 
 

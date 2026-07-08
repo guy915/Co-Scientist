@@ -23,7 +23,6 @@ async def pubmed_search_with_fulltext(
         max_papers: int = 10,
         recency_years: int = 0,
         run_id: str | None = None) -> dict[str, Any]:
-    # pylint: disable=line-too-long
     """Searches PubMed and downloads fulltexts (HTML from PMC).
 
     Performs search with fulltext download. HTML-only implementation.
@@ -36,12 +35,13 @@ async def pubmed_search_with_fulltext(
         slug: Snake_case identifier for organizing results (research goal hash).
         max_papers: Maximum papers to retrieve.
         recency_years: Filter to papers from last N years (0 = no filter).
-        run_id: Unique run identifier for this execution (enables per-run tracking).
+        run_id: Unique run identifier for this execution (enables per-run
+            tracking).
 
     Returns:
-        Dict mapping paper_id to metadata (title, abstract, authors, doi, pmc_full_text_id, etc.).
+        Dict mapping paper_id to metadata (title, abstract, authors, doi,
+        pmc_full_text_id, etc.).
     """
-    # pylint: enable=line-too-long
     # Entrez credentials are configured at import time by literature_review.
     lit_review_dir = Path(
         os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review"))

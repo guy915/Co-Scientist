@@ -131,22 +131,22 @@ def build_system_prompt(
     # matches, last 10 messages) to keep the prompt bounded on long runs.
     # list_hypotheses already orders by Elo descending.
     top_hyps = hypotheses[:5]
-    hyp_lines = "\n".join(
-        f"- [{h['title']}] Elo {h['elo_rating']}, {h['win_count']}W/{h['loss_count']}L"  # pylint: disable=line-too-long
-        for h in top_hyps)
+    hyp_lines = "\n".join(f"- [{h['title']}] Elo {h['elo_rating']}, "
+                          f"{h['win_count']}W/{h['loss_count']}L"
+                          for h in top_hyps)
     review_lines = "\n".join(
-        f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: {r['summary'][:120]}"  # pylint: disable=line-too-long
-        for r in reviews[-5:])
+        f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: "
+        f"{r['summary'][:120]}" for r in reviews[-5:])
     match_lines = "\n".join(
-        f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — {(m.get('rationale') or '')[:100]}"  # pylint: disable=line-too-long
-        for m in matches[-3:])
+        f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — "
+        f"{(m.get('rationale') or '')[:100]}" for m in matches[-3:])
     conv_lines = "\n".join(
         f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
         for m in history[-10:])
 
     return (
-        f"You are a concise research assistant helping the user understand an ongoing "  # pylint: disable=line-too-long
-        f"AI-driven hypothesis generation run.\n\n"
+        f"You are a concise research assistant helping the user understand "
+        f"an ongoing AI-driven hypothesis generation run.\n\n"
         f"Research goal: {research_goal}\n\n"
         f"Top hypotheses by Elo:\n{hyp_lines or '(none yet)'}\n\n"
         f"Recent reviews:\n{review_lines or '(none yet)'}\n\n"
@@ -233,6 +233,7 @@ async def stream_answer(
         # the stream with a persisted fallback so the chat history stays
         # consistent with what the user saw.
         logger.error("Q&A stream error for run %s: %s", run_id, exc)
-        fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."  # pylint: disable=line-too-long
+        fallback = ("Q&A requires a language model API key "
+                    "(set CHAT_MODEL_NAME or MODEL_NAME).")
         store.append_message(run_id, "system", fallback, "qa")
         yield sse_frame({"type": "error", "message": fallback})

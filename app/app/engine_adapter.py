@@ -506,7 +506,8 @@ async def run_workflow(
     # Real engine path — bridge engine streaming events into our event log.
     try:
         from co_scientist import HypothesisGenerator  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
-    except Exception as e:  # pragma: no cover (defensive)  # pylint: disable=broad-exception-caught
+    # pylint: disable-next=broad-exception-caught
+    except Exception as e:  # pragma: no cover (defensive)
         logger.error("engine import failed: %s — falling back to mock", e)
         async for event in run_mock_workflow(
                 run_id=run_id,
@@ -596,7 +597,7 @@ async def run_workflow(
         "research_overview": {},
     }
     try:
-        async for node_name, state in generator.generate_hypotheses(  # pylint: disable=line-too-long
+        async for node_name, state in generator.generate_hypotheses(
                 research_goal=research_goal,
                 stream=True,
                 run_id=run_id,

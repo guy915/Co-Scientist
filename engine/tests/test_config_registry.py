@@ -142,16 +142,14 @@ def test_unknown_tool_returns_none(registry: ToolRegistry) -> None:
 # --- Server queries -------------------------------------------------------
 
 
-def test_get_enabled_servers_filters_disabled(
-        registry: ToolRegistry) -> None:
+def test_get_enabled_servers_filters_disabled(registry: ToolRegistry) -> None:
     """Only servers with ``enabled: true`` are returned."""
     assert set(registry.get_enabled_servers()) == {"myserver"}
     off = registry.get_server("offserver")
     assert off is not None and off.enabled is False
 
 
-def test_server_configs_for_langchain_shape(
-        registry: ToolRegistry) -> None:
+def test_server_configs_for_langchain_shape(registry: ToolRegistry) -> None:
     """Langchain mapping contains transport+url for enabled servers only."""
     assert registry.get_server_configs_for_langchain() == {
         "myserver": {
@@ -164,8 +162,7 @@ def test_server_configs_for_langchain_shape(
 # --- Enabled-tool queries -------------------------------------------------
 
 
-def test_get_enabled_tools_excludes_disabled(
-        registry: ToolRegistry) -> None:
+def test_get_enabled_tools_excludes_disabled(registry: ToolRegistry) -> None:
     """``beta_search`` is disabled and must not appear in enabled tools."""
     assert set(registry.get_enabled_tools()) == {"alpha_search", "gamma_util"}
 
@@ -196,8 +193,7 @@ def test_get_tools_for_unknown_workflow_returns_empty(
     assert registry.get_tools_for_workflow("does_not_exist") == []
 
 
-def test_get_workflow_returns_config_or_none(
-        registry: ToolRegistry) -> None:
+def test_get_workflow_returns_config_or_none(registry: ToolRegistry) -> None:
     """``get_workflow`` returns the parsed WorkflowConfig or None."""
     workflow = registry.get_workflow("literature_review")
     assert workflow is not None
@@ -219,8 +215,7 @@ def test_get_mcp_tool_names_maps_and_drops_disabled(
     assert names == ["search_alpha", "util_gamma"]
 
 
-def test_get_mcp_tool_names_ignores_unknown_ids(
-        registry: ToolRegistry) -> None:
+def test_get_mcp_tool_names_ignores_unknown_ids(registry: ToolRegistry) -> None:
     """Unknown tool ids are silently skipped."""
     assert registry.get_mcp_tool_names(["nope", "alpha_search"]) == [
         "search_alpha",
@@ -287,8 +282,7 @@ def test_disabled_tools_argument_flips_enabled(tmp_path: Path) -> None:
 # --- override merge strategy (default) ------------------------------------
 
 
-def test_override_merge_keeps_defaults_and_adds_custom(
-        tmp_path: Path) -> None:
+def test_override_merge_keeps_defaults_and_adds_custom(tmp_path: Path) -> None:
     """Without ``replace``, custom tools are added on top of the defaults."""
     custom = textwrap.dedent("""
         tools:
@@ -419,8 +413,7 @@ def test_parse_bool_env_truthy_and_falsy() -> None:
 # --- global registry singleton --------------------------------------------
 
 
-def test_get_tool_registry_caches_and_force_reloads(
-        tmp_path: Path) -> None:
+def test_get_tool_registry_caches_and_force_reloads(tmp_path: Path) -> None:
     """The module-global registry is cached and rebuilt on force_reload.
 
     Identity is asserted (not contents) so the test stays deterministic even

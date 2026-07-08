@@ -46,7 +46,8 @@ def _message(content: str | None,
         content: The assistant message text (``None`` mirrors an empty
             completion).
         tool_calls: Optional list of tool-call namespaces; ``None`` ends the
-            tool loop because the wrapper guards with ``and message.tool_calls``.
+            tool loop because the wrapper guards with
+            ``and message.tool_calls``.
         role: The message role echoed back into the message history.
 
     Returns:
@@ -129,15 +130,13 @@ _INT_SCHEMA: dict[str, Any] = {
     "required": ["a"],
 }
 
+
 # --- call_llm --------------------------------------------------------------
-
-
 async def test_call_llm_returns_message_content(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """``call_llm`` returns the assistant message content verbatim."""
     _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch,
-                       [_completion(_message("the answer text"))])
+    _patch_acompletion(monkeypatch, [_completion(_message("the answer text"))])
 
     result = await call_llm("a prompt", "test-model")
 
@@ -157,8 +156,7 @@ async def test_call_llm_empty_content_raises(
         await call_llm("a prompt", "test-model")
 
 
-async def test_call_llm_invoked_once(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_call_llm_invoked_once(monkeypatch: pytest.MonkeyPatch) -> None:
     """``call_llm`` makes exactly one completion call on the happy path."""
     _disable_cache(monkeypatch)
     state = _patch_acompletion(monkeypatch, [_completion(_message("hi"))])
@@ -175,8 +173,8 @@ async def test_call_llm_json_parses_clean_object(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """Clean JSON content is parsed into a dict and returned."""
     _disable_cache(monkeypatch)
-    _patch_acompletion(
-        monkeypatch, [_completion(_message('{"a": 1, "b": "x"}'))])
+    _patch_acompletion(monkeypatch,
+                       [_completion(_message('{"a": 1, "b": "x"}'))])
 
     result = await call_llm_json("a prompt", "test-model")
 
@@ -325,16 +323,15 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
         called["ran"] = True
         return {"role": "tool", "content": ""}
 
-    final_text, history = await call_llm_with_tools(
-        "a prompt",
-        "test-model",
-        tools=[{
-            "type": "function",
-            "function": {
-                "name": "search"
-            }
-        }],
-        tool_executor=tool_executor)
+    final_text, history = await call_llm_with_tools("a prompt",
+                                                    "test-model",
+                                                    tools=[{
+                                                        "type": "function",
+                                                        "function": {
+                                                            "name": "search"
+                                                        }
+                                                    }],
+                                                    tool_executor=tool_executor)
 
     assert final_text == "direct answer"
     assert called["ran"] is False

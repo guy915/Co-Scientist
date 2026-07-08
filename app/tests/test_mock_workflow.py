@@ -29,13 +29,15 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
                                     sleep_seconds=0))
     titles_a = [h["title"] for h in store.list_hypotheses(run_a.id)]
 
-    # Same run id → same titles. (We can't insert two rows with the same id, so we  # pylint: disable=line-too-long
-    # validate determinism by replaying via the inner generator with a hand-supplied id.)  # pylint: disable=line-too-long
+    # Same run id → same titles. (We can't insert two rows with the same id,
+    # so we validate determinism by replaying via the inner generator with a
+    # hand-supplied id.)
 
-    # The run already completed, so a replay would re-emit events into the same run row;  # pylint: disable=line-too-long
-    # instead, assert the same goal + run mode produces the same number of generated  # pylint: disable=line-too-long
-    # initial hypotheses across two distinct runs (run_id is part of seed, but the  # pylint: disable=line-too-long
-    # *count* and *structure* are deterministic from the run config).
+    # The run already completed, so a replay would re-emit events into the
+    # same run row; instead, assert the same goal + run mode produces the
+    # same number of generated initial hypotheses across two distinct runs
+    # (run_id is part of seed, but the *count* and *structure* are
+    # deterministic from the run config).
     run_b = store.create_run("Identical goal", "standard", "mock", {})
     events_b = _drain(
         engine_adapter.run_workflow(run_b.id,
@@ -44,8 +46,9 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
                                     sleep_seconds=0))
     titles_b = [h["title"] for h in store.list_hypotheses(run_b.id)]
 
-    # Same number of events and same number of hypotheses; titles will differ because  # pylint: disable=line-too-long
-    # run_id seeds the RNG, which is the desired UX (each run feels distinct).
+    # Same number of events and same number of hypotheses; titles will
+    # differ because run_id seeds the RNG, which is the desired UX (each run
+    # feels distinct).
     assert len(events_a) == len(events_b)
     assert len(titles_a) == len(titles_b)
     # Both pipelines emitted all canonical agent steps.
@@ -55,7 +58,8 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
 
 
 def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
-    """Re-running the inner mock with identical seed inputs yields identical title sequences."""  # pylint: disable=line-too-long
+    """Re-running the inner mock with identical seed inputs yields identical
+    title sequences."""
     from app.mock_workflow import run_mock_workflow  # pylint: disable=import-outside-toplevel
     from app.run_modes import resolved_run_config  # pylint: disable=import-outside-toplevel
 
@@ -65,7 +69,8 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     run_a = store.create_run("Determinism", "standard", "mock", {})
     run_b = store.create_run("Determinism", "standard", "mock", {})
 
-    # Force them to share the same seed material by overriding research_goal and run_id.
+    # Force them to share the same seed material by overriding
+    # research_goal and run_id.
     fixed_id = "fixed-seed-id"
     fixed_goal = "Pinned goal for determinism"
 

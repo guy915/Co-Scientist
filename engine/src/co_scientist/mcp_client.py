@@ -447,11 +447,9 @@ async def check_mcp_available(
         await test_client.initialize()
 
         # Check if we got any tools
-        if test_client._tools_dict and len(test_client._tools_dict) > 0:  # pylint: disable=protected-access
-            logger.info(
-                "MCP server available with %s tools",
-                len(test_client._tools_dict)  # pylint: disable=protected-access
-            )
+        tools_dict = test_client._tools_dict  # pylint: disable=protected-access
+        if tools_dict and len(tools_dict) > 0:
+            logger.info("MCP server available with %s tools", len(tools_dict))
             return True
         else:
             logger.warning("MCP server responded but provided no tools")

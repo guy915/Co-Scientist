@@ -63,4 +63,8 @@ def initialize_entrez() -> None:
     if not ssl_verify:
         # Deliberate runtime monkeypatch to disable cert verification; the two
         # SSL context factory signatures are interchangeable at call sites here.
-        ssl._create_default_https_context = ssl._create_unverified_context  # type: ignore[assignment]  # pylint: disable=protected-access
+        # pylint: disable=protected-access
+        ssl._create_default_https_context = (
+            ssl._create_unverified_context  # type: ignore[assignment]
+        )
+        # pylint: enable=protected-access

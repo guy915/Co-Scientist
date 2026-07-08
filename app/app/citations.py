@@ -2,11 +2,12 @@
 
 Each citation is mapped to one of four states the UI surfaces:
 
-- `verified`    — the source exists, has a stable identifier, and the inline claim  # pylint: disable=line-too-long
-                  appears in the abstract / extracted excerpt.
-- `partial`     — the source exists but only partially supports the claim, or the  # pylint: disable=line-too-long
-                  claim is paraphrased beyond what the abstract states.
-- `unsupported` — the source exists and contradicts or fails to mention the claim.  # pylint: disable=line-too-long
+- `verified`    — the source exists, has a stable identifier, and the inline
+                  claim appears in the abstract / extracted excerpt.
+- `partial`     — the source exists but only partially supports the claim, or
+                  the claim is paraphrased beyond what the abstract states.
+- `unsupported` — the source exists and contradicts or fails to mention the
+                  claim.
 - `unavailable` — no resolvable source (broken URL, retracted, no metadata).
 
 In the absence of a real verification corpus the mock implementation uses
