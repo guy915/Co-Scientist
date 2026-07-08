@@ -175,17 +175,22 @@ export interface CitationRow {
   state: 'verified' | 'partial' | 'unsupported' | 'unavailable';
 }
 
-/** Structured contents of a run's final synthesis report. */
+/**
+ * Structured contents of a run's final synthesis report. One canonical shape
+ * for every provider, built server-side by `report_render.build_report_payload`.
+ */
 export interface ReportPayload {
   research_goal: string;
   run_mode?: RunMode;
-  profile?: LegacyRunProfile;
   provider: string;
-  leaderboard: {id: string; title: string; elo: number}[];
-  citation_summary?: Record<string, number>;
+  hypothesis_count?: number;
   evidence_count?: number;
-  matches_count?: number;
+  match_count?: number;
+  citation_summary?: Record<string, number>;
+  leaderboard: {id: string; title: string; elo: number}[];
+  meta_review?: Record<string, unknown>;
   research_overview?: ResearchOverview;
+  execution_time?: number;
 }
 
 /** Synthesized roadmap and NIH Specific Aims for a run's top hypotheses. */

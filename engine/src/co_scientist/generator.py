@@ -19,7 +19,7 @@ from co_scientist.constants import (
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_EVOLUTION_MAX_COUNT,
 )
-from co_scientist.models import ExecutionMetrics
+from co_scientist.models import ExecutionMetrics, merge_metrics
 from co_scientist.nodes.generate import generate_node
 from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.nodes.reflection import reflection_node
@@ -38,6 +38,23 @@ logger = logging.getLogger(__name__)
 # Compiled LangGraph workflow. The fourth type parameter (StateT) is left
 # loose because langgraph's compile() leaks an unbound type variable.
 CompiledWorkflow = CompiledStateGraph[Any, Any, Any, Any]
+
+# State fields streamed to callers as plain last-write-wins copies. Two
+# streamed fields are handled separately in _handle_streaming: metrics
+# (merged across nodes) and supervisor_guidance (renamed to research_plan).
+_STREAMED_STATE_KEYS = (
+    "hypotheses",
+    "meta_review",
+    "research_overview",
+    "tournament_matchups",
+    "evolution_details",
+    "similarity_clusters",
+    "current_iteration",
+    "articles_with_reasoning",
+    "literature_review_queries",
+    "articles",
+    "debate_transcripts",
+)
 
 
 class HypothesisGenerator:
@@ -684,48 +701,19 @@ class HypothesisGenerator:
                 for node_name, node_state in chunk.items():
                     logger.debug("streaming node: %s", node_name)
 
-                    # Update cumulative state with fields from this node
-                    if "hypotheses" in node_state:
-                        cumulative_state["hypotheses"] = node_state[
-                            "hypotheses"]
-                        logger.debug("updated hypotheses: %s items",
-                                     len(node_state['hypotheses']))
-                    if "meta_review" in node_state:
-                        cumulative_state["meta_review"] = node_state[
-                            "meta_review"]
-                        logger.debug("updated meta_review")
-                    if "research_overview" in node_state:
-                        cumulative_state["research_overview"] = node_state[
-                            "research_overview"]
-                        logger.debug("updated research_overview")
+                    # Update cumulative state with fields from this node.
+                    # Most fields are plain last-write-wins copies; the two
+                    # exceptions are supervisor_guidance (renamed to
+                    # research_plan) and metrics (merged, not replaced).
+                    for key in _STREAMED_STATE_KEYS:
+                        if key in node_state:
+                            cumulative_state[key] = node_state[key]
+                            logger.debug("updated %s", key)
                     if "supervisor_guidance" in node_state:
                         cumulative_state["research_plan"] = node_state[
                             "supervisor_guidance"]
                         logger.debug("updated research_plan")
-                    if "tournament_matchups" in node_state:
-                        cumulative_state["tournament_matchups"] = node_state[
-                            "tournament_matchups"]
-                        logger.debug("updated tournament_matchups: %s items",
-                                     len(node_state['tournament_matchups']))
-                    if "evolution_details" in node_state:
-                        cumulative_state["evolution_details"] = node_state[
-                            "evolution_details"]
-                        logger.debug("updated evolution_details: %s items",
-                                     len(node_state['evolution_details']))
-                    if "similarity_clusters" in node_state:
-                        cumulative_state["similarity_clusters"] = node_state[
-                            "similarity_clusters"]
-                        logger.debug("updated similarity_clusters")
-                    if "current_iteration" in node_state:
-                        cumulative_state["current_iteration"] = node_state[
-                            "current_iteration"]
-                        logger.debug("updated current_iteration: %s",
-                                     node_state['current_iteration'])
                     if "metrics" in node_state:
-                        # Import merge_metrics to properly combine metrics
-                        # (don't just replace!)
-                        from co_scientist.models import merge_metrics  # pylint: disable=import-outside-toplevel
-
                         cumulative_state["metrics"] = merge_metrics(
                             cumulative_state["metrics"], node_state["metrics"])
                         logger.debug(
@@ -736,74 +724,29 @@ class HypothesisGenerator:
                             cumulative_state['metrics'].evolutions_count,
                             cumulative_state['metrics'].llm_calls,
                         )
-                    if "articles_with_reasoning" in node_state:
-                        cumulative_state[
-                            "articles_with_reasoning"] = node_state[
-                                "articles_with_reasoning"]
-                        chars = (len(node_state["articles_with_reasoning"]) if
-                                 node_state["articles_with_reasoning"] else 0)
-                        logger.debug(
-                            "updated articles_with_reasoning: %s chars", chars)
-                    if "literature_review_queries" in node_state:
-                        cumulative_state[
-                            "literature_review_queries"] = node_state[
-                                "literature_review_queries"]
-                        logger.debug(
-                            "updated literature_review_queries: %s queries",
-                            len(node_state['literature_review_queries']))
-                    if "articles" in node_state:
-                        cumulative_state["articles"] = node_state["articles"]
-                        logger.debug("updated articles: %s items",
-                                     len(node_state['articles']))
-                    if "debate_transcripts" in node_state:
-                        cumulative_state["debate_transcripts"] = node_state[
-                            "debate_transcripts"]
-                        count = (len(node_state["debate_transcripts"])
-                                 if node_state["debate_transcripts"] else 0)
-                        logger.debug("updated debate_transcripts: %s debates",
-                                     count)
 
                     # Yield the node name and CUMULATIVE state
+                    metrics = cumulative_state["metrics"]
                     state_dict = {
+                        key: cumulative_state[key]
+                        for key in _STREAMED_STATE_KEYS
+                    }
+                    state_dict.update({
                         "hypotheses": [
                             h.to_dict() for h in cumulative_state["hypotheses"]
                         ],
-                        "meta_review":
-                            cumulative_state["meta_review"],
-                        "research_overview":
-                            cumulative_state["research_overview"],
-                        "research_plan":
-                            cumulative_state["research_plan"],
-                        "tournament_matchups":
-                            cumulative_state["tournament_matchups"],
-                        "evolution_details":
-                            cumulative_state["evolution_details"],
-                        "similarity_clusters":
-                            cumulative_state["similarity_clusters"],
-                        "current_iteration":
-                            cumulative_state["current_iteration"],
-                        "articles_with_reasoning":
-                            cumulative_state["articles_with_reasoning"],
-                        "literature_review_queries":
-                            cumulative_state["literature_review_queries"],
                         "articles": [
                             a.to_dict() for a in cumulative_state["articles"]
                         ],
-                        "debate_transcripts":
-                            cumulative_state["debate_transcripts"],
+                        "research_plan": cumulative_state["research_plan"],
                         "metrics": {
-                            "hypothesis_count":
-                                cumulative_state["metrics"].hypothesis_count,
-                            "reviews_count":
-                                cumulative_state["metrics"].reviews_count,
-                            "tournaments_count":
-                                cumulative_state["metrics"].tournaments_count,
-                            "evolutions_count":
-                                cumulative_state["metrics"].evolutions_count,
-                            "llm_calls":
-                                cumulative_state["metrics"].llm_calls,
+                            "hypothesis_count": metrics.hypothesis_count,
+                            "reviews_count": metrics.reviews_count,
+                            "tournaments_count": metrics.tournaments_count,
+                            "evolutions_count": metrics.evolutions_count,
+                            "llm_calls": metrics.llm_calls,
                         },
-                    }
+                    })
 
                     logger.debug("yielding state for node: %s", node_name)
 

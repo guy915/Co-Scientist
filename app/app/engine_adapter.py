@@ -21,16 +21,16 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
-from app.citations import CitationRecord, classify_citation
+from app.citations import ALL_STATES, CitationRecord, classify_citation
 from app.config import settings
-from app.elo import INITIAL_ELO, live_leaderboard
+from app.elo import INITIAL_ELO
 from app.mock_workflow import run_mock_workflow
 from app.report_render import (
     article_stub,
+    finalize_report,
     format_deep_verification_critique,
     hypothesis_stub,
     match_stub,
-    render_research_overview_markdown,
 )
 from app.run_modes import (
     CANONICAL_RUN_MODE,
@@ -40,7 +40,7 @@ from app.run_modes import (
     resolved_run_config,
     setup_guidance,
 )
-from app.safety import apply_safety_gate, screen_final, screen_intake
+from app.safety import apply_safety_gate, screen_intake
 from app.store import RunStatus
 
 # Editable-install .pth files aren't always processed in Python 3.12 venvs.
@@ -221,35 +221,33 @@ def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
 def _persist_final_state(
     *,
     run_id: str,
-    research_goal: str,
-    run_mode: str,
     final_state: dict[str, Any],
-    execution_time: float,
     db_path: str | None = None,
 ) -> dict[str, Any]:
-    """Drain an engine final state into the store and persist the report.
+    """Drain an engine final state into the store.
 
     Writes evidence, hypotheses (with reviews, deep-verification reviews, and
-    citations), tournament matches, and the report (payload + markdown). The
-    research overview rides the report payload and markdown; deep-verification
-    probes ride the reviews table as ``reviewer_agent="deep_verification"``
-    rows.
+    citations), and tournament matches. Deep-verification probes ride the
+    reviews table as ``reviewer_agent="deep_verification"`` rows. The report
+    itself is built and persisted separately by ``finalize_report``; this helper
+    returns the provider-specific inputs that path needs.
 
     Args:
         run_id: Identifier of the run being drained.
-        research_goal: The natural-language research goal.
-        run_mode: Canonical run mode persisted on the report.
         final_state: Accumulated engine final state.
-        execution_time: Wall-clock seconds the run took.
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        The report payload that was persisted.
+        The report inputs only this provider knows: ``evidence_count``,
+        ``match_count`` (matches actually persisted), ``citation_summary``,
+        ``meta_review``, and ``research_overview``.
     """
     hyps: list[dict[str, Any]] = final_state.get("hypotheses") or []
     articles: list[dict[str, Any]] = final_state.get("articles") or []
     matchups: list[dict[str,
                         Any]] = final_state.get("tournament_matchups") or []
+    citation_summary = {state.value: 0 for state in ALL_STATES}
+    match_count = 0
 
     # Batch the whole drain into one transaction: a real run writes dozens of
     # rows here, and per-call connections would fsync each one individually.
@@ -383,6 +381,7 @@ def _persist_final_state(
                         claim=grounding,
                         available=True,
                     ))
+                citation_summary[state] += 1
                 store.add_citation(run_id,
                                    hyp_id,
                                    cite_ev_id,
@@ -424,68 +423,15 @@ def _persist_final_state(
                 tier=m.get("tier") or None,
                 conn=conn,
             )
+            match_count += 1
 
-    # 4. Build and persist the report.
-    leaderboard = live_leaderboard(hyps)
-    research_overview = final_state.get("research_overview") or {}
-    report_payload = {
-        "research_goal": research_goal,
-        "run_mode": run_mode,
-        "provider": "engine",
-        "execution_time": execution_time,
-        "hypothesis_count": len(hyps),
+    return {
         "evidence_count": len(articles),
-        "match_count": len(matchups),
-        "leaderboard": leaderboard,
+        "match_count": match_count,
+        "citation_summary": citation_summary,
         "meta_review": final_state.get("meta_review") or {},
-        "research_overview": research_overview,
+        "research_overview": final_state.get("research_overview") or {},
     }
-    md_lines = [
-        f"# Co-Scientist Run — {research_goal}",
-        f"\n**Provider:** engine | **Hypotheses:** {len(hyps)}",
-        "\n## Top hypotheses by Elo\n",
-    ]
-    for entry in leaderboard:
-        md_lines.append(
-            f"{entry['rank']}. **{entry['title']}** — Elo {entry['elo']}")
-    meta = final_state.get("meta_review") or {}
-    if meta and isinstance(meta, dict):
-        md_lines.append("\n## Meta-review insights\n")
-
-        if meta.get("summary"):
-            md_lines.append(f"{meta['summary']}\n")
-
-        for section_key, heading in (
-            ("common_strengths", "### Common strengths"),
-            ("common_weaknesses", "### Common weaknesses"),
-            ("emerging_themes", "### Emerging themes"),
-            ("areas_for_improvement", "### Areas for improvement"),
-        ):
-            items = meta.get(section_key) or []
-            if items:
-                md_lines.append(f"\n{heading}\n")
-                for item in items:
-                    md_lines.append(f"- {item}")
-
-        recs = meta.get("strategic_recommendations") or []
-        if recs:
-            md_lines.append("\n### Strategic recommendations\n")
-            for rec in recs:
-                if isinstance(rec, dict):
-                    area = rec.get("focus_area", "")
-                    recommendation = rec.get("recommendation", "")
-                    justification = rec.get("justification", "")
-                    md_lines.append(f"**{area}**: {recommendation}")
-                    if justification:
-                        md_lines.append(f"  *{justification}*")
-                else:
-                    md_lines.append(f"- {rec}")
-
-    md_lines.extend(render_research_overview_markdown(research_overview))
-    markdown = "\n".join(md_lines)
-
-    store.save_report(run_id, report_payload, markdown, db_path=db_path)
-    return report_payload
 
 
 async def run_workflow(
@@ -662,30 +608,26 @@ async def run_workflow(
             yield await _emit(node_type, payload)
 
         # ---- Drain final state into the store ----
-        report_payload = _persist_final_state(
+        report_inputs = _persist_final_state(
             run_id=run_id,
-            research_goal=research_goal,
-            run_mode=run_mode,
             final_state=final_state,
-            execution_time=time.time() - start,
             db_path=db_path,
         )
 
-        # Final-output safety gate. Screens the rendered report and records the
-        # decision so the engine path is gated on the same terms as the mock.
-        final = screen_final(
-            store.read_report_markdown(run_id, db_path=db_path) or "")
-        async for event in apply_safety_gate(run_id,
-                                             final,
-                                             _emit,
-                                             db_path=db_path):
+        # Build, screen, persist, and emit the report through the shared
+        # finalize path (final safety gate included), so the engine is gated
+        # and reported on exactly the same terms as the mock.
+        async for event in finalize_report(
+            run_id=run_id,
+            research_goal=research_goal,
+            run_mode=run_mode,
+            provider="engine",
+            emit=_emit,
+            execution_time=time.time() - start,
+            db_path=db_path,
+            **report_inputs,
+        ):
             yield event
-        if final.decision == "block":
-            return
-
-        yield await _emit("report", report_payload)
-        store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
-        yield await _emit("status", {"status": "completed"})
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.exception("engine run failed: %s", e)
         store.update_run_status(run_id,

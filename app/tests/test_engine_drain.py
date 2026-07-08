@@ -3,8 +3,10 @@
 The drain runs only on the real-engine branch, which the mock-forced test
 fixtures never reach. To keep it verifiable without an LLM, the drain is a
 module-level helper (`_persist_final_state`) that takes a synthetic final
-state and writes hypotheses, evidence, matches, reviews, and the report into
-the store. These tests exercise the two canonical-fidelity additions:
+state and writes hypotheses, evidence, matches, and reviews into the store,
+returning the report inputs. The report itself is built and persisted by the
+shared ``report_render.finalize_report`` path. These tests exercise the
+canonical-fidelity additions:
 
 - The research overview is written into the report payload and markdown.
 - Each hypothesis's deep-verification probes are written into the reviews
@@ -20,7 +22,7 @@ from typing import Any
 
 import pytest
 
-from app import engine_adapter, store
+from app import engine_adapter, report_render, store
 
 
 def _final_state_with_features() -> dict[str, Any]:
@@ -236,6 +238,36 @@ def _drain(gen: AsyncIterator[Any]) -> list[Any]:
     return asyncio.run(_run())
 
 
+def _persist_and_finalize(run: Any, final_state: dict[str, Any],
+                          db_path: str) -> None:
+    """Drain a synthetic final state, then build + persist its report.
+
+    Mirrors the engine branch of ``run_workflow``: the drain writes rows and
+    returns the report inputs, and ``finalize_report`` builds/screens/saves the
+    report. Uses a plain-dict emitter, so no event log is needed.
+    """
+    report_inputs = engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        final_state=final_state,
+        db_path=db_path,
+    )
+
+    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"type": type_, "payload": payload}
+
+    _drain(
+        report_render.finalize_report(
+            run_id=run.id,
+            research_goal=run.research_goal,
+            run_mode="standard",
+            provider="engine",
+            emit=_emit,
+            execution_time=1.0,
+            db_path=db_path,
+            **report_inputs,
+        ))
+
+
 def test_engine_adapter_emits_canonical_event_types(
         isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """The real-engine branch emits the canonical vocabulary, never engine.*.
@@ -315,14 +347,7 @@ def test_engine_adapter_generates_canonical_milestones(
 def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     """The research overview rides the report payload and markdown."""
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
-        run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
-        final_state=_final_state_with_features(),
-        execution_time=1.0,
-        db_path=isolated_db,
-    )
+    _persist_and_finalize(run, _final_state_with_features(), isolated_db)
 
     report = store.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
@@ -345,10 +370,7 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     run = store.create_run("CSC goal", "standard", "engine", {})
     engine_adapter._persist_final_state(  # pylint: disable=protected-access
         run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
         final_state=_final_state_with_features(),
-        execution_time=1.0,
         db_path=isolated_db,
     )
 
@@ -371,10 +393,7 @@ def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
     run = store.create_run("CSC goal", "standard", "engine", {})
     engine_adapter._persist_final_state(  # pylint: disable=protected-access
         run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
         final_state=_final_state_with_features(),
-        execution_time=1.0,
         db_path=isolated_db,
     )
 
@@ -398,10 +417,7 @@ def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
     run = store.create_run("CSC goal", "standard", "engine", {})
     engine_adapter._persist_final_state(  # pylint: disable=protected-access
         run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
         final_state=state,
-        execution_time=1.0,
         db_path=isolated_db,
     )
 
@@ -429,10 +445,7 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
     run = store.create_run("CSC goal", "standard", "engine", {})
     engine_adapter._persist_final_state(  # pylint: disable=protected-access
         run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
         final_state=state,
-        execution_time=1.0,
         db_path=isolated_db,
     )
 
@@ -444,14 +457,7 @@ def test_persist_handles_missing_research_overview(isolated_db: str) -> None:
     state = _final_state_with_features()
     del state["research_overview"]
     run = store.create_run("No overview", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
-        run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
-        final_state=state,
-        execution_time=1.0,
-        db_path=isolated_db,
-    )
+    _persist_and_finalize(run, state, isolated_db)
 
     report = store.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
@@ -465,14 +471,7 @@ def test_persist_handles_empty_research_overview(isolated_db: str) -> None:
     state = _final_state_with_features()
     state["research_overview"] = {"overview": {}, "nih_specific_aims": {}}
     run = store.create_run("Empty overview", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
-        run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
-        final_state=state,
-        execution_time=1.0,
-        db_path=isolated_db,
-    )
+    _persist_and_finalize(run, state, isolated_db)
 
     report = store.get_latest_report(run.id, db_path=isolated_db)
     assert report is not None
@@ -542,10 +541,7 @@ def test_persist_classifies_citations_via_shared_classifier(
     run = store.create_run("CSC goal", "standard", "engine", {})
     engine_adapter._persist_final_state(  # pylint: disable=protected-access
         run_id=run.id,
-        research_goal=run.research_goal,
-        run_mode="standard",
         final_state=_final_state_with_citations(),
-        execution_time=1.0,
         db_path=isolated_db,
     )
 

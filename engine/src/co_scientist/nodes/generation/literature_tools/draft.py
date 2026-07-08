@@ -17,7 +17,11 @@ from co_scientist.constants import (
     scaled_max_tokens,
 )
 from co_scientist.exceptions import ResponseParseError
-from co_scientist.llm import call_llm_with_tools, attempt_json_repair
+from co_scientist.llm import (
+    attempt_json_repair,
+    call_llm_with_tools,
+    extract_response_json,
+)
 from co_scientist.prompts import get_draft_prompt_with_tools
 from co_scientist.state import WorkflowState
 from co_scientist.tools.provider import HybridToolProvider
@@ -134,20 +138,8 @@ async def draft_hypotheses(
     )
 
     # Track tool calls in draft phase
-    tool_call_counts: dict[str, int] = {}
-
-    # Create tracked executor for draft phase
-    async def draft_tracked_executor(tool_call: Any) -> dict[str, Any]:
-        """Track and execute tool calls for draft phase."""
-        tool_name = tool_call.function.name
-
-        # Track all tool calls
-        tool_call_counts[tool_name] = tool_call_counts.get(tool_name, 0) + 1
-        call_num = tool_call_counts[tool_name]
-        logger.info("Draft: %s call #%s", tool_name, call_num)
-
-        # Execute tool
-        return await provider.execute_tool_call(tool_call)
+    draft_tracked_executor, tool_call_counts = provider.tracked_executor(
+        "Draft")
 
     # Call LLM with tools for drafting
     # scale token budget based on hypotheses count (~200 tokens per hypothesis)
@@ -191,32 +183,7 @@ async def draft_hypotheses(
                 calls_summary)
 
     # Parse JSON response (strip markdown if present, then use repair logic)
-    response_text = final_response.strip()
-
-    # Handle markdown code blocks (case-insensitive)
-    response_lower = response_text.lower()
-    if "```json" in response_lower:
-        # Find ```json (case-insensitive)
-        start_idx = response_lower.find("```json")
-        json_start = start_idx + 7  # length of "```json"
-        # Find closing ``` after the opening
-        json_end = response_text.find("```", json_start)
-        if json_end == -1:
-            # No closing ``` found, use rest of text
-            response_text = response_text[json_start:].strip()
-        else:
-            response_text = response_text[json_start:json_end].strip()
-    elif "```" in response_text:
-        # Plain code block without "json"
-        json_start = response_text.find("```") + 3
-        json_end = response_text.find("```", json_start)
-        if json_end == -1:
-            response_text = response_text[json_start:].strip()
-        else:
-            response_text = response_text[json_start:json_end].strip()
-
-    # Additional cleanup - remove leading/trailing whitespace and newlines
-    response_text = response_text.strip().strip("\n").strip()
+    response_text = extract_response_json(final_response)
 
     # Use attempt_json_repair for robust parsing
     response_data, was_repaired = attempt_json_repair(response_text,

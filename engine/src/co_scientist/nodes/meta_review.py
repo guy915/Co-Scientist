@@ -116,9 +116,6 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         t["theme"] if isinstance(t, dict) else str(t) for t in recurring_themes
     ]
 
-    # process_assessment covers generation/review/evolution process notes.
-    process = response.get("process_assessment") or {}
-
     meta_review = {
         "summary":
             response.get("meta_review_summary", ""),
@@ -130,12 +127,6 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
             emerging_themes,
         "strategic_recommendations":
             response.get("strategic_recommendations", []),
-        "diversity_assessment":
-            process.get("generation_process", ""),
-        "top_performers_analysis":
-            process.get("review_process", ""),
-        "areas_for_improvement":
-            response.get("weaknesses", []),
     }
 
     logger.info("Meta-review complete")

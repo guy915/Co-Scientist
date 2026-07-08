@@ -239,7 +239,7 @@ export function offlineSendMessage(
     sender: 'user',
     content,
     kind,
-    created_at: Date.now() / 1000,
+    created_at: nowSeconds(),
     applied: kind === 'steering',
     status: kind === 'steering' ? 'applied' : undefined,
   };
@@ -260,7 +260,7 @@ export function offlineAnswer(runId: string, question: string): Message {
     sender: 'user',
     content: question,
     kind: 'qa',
-    created_at: Date.now() / 1000,
+    created_at: nowSeconds(),
     applied: false,
   };
   const message: Message = {
@@ -269,7 +269,7 @@ export function offlineAnswer(runId: string, question: string): Message {
     sender: 'system',
     content: answer,
     kind: 'qa',
-    created_at: Date.now() / 1000,
+    created_at: nowSeconds(),
     applied: false,
   };
   all[runId] = [...list, questionMessage, message];

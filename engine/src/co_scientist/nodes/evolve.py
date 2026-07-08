@@ -362,8 +362,6 @@ DO:
         "original": original_text,
         "evolved": refined_text,
         "rationale": refinement_summary,
-        "changes": [],  # Not in evolution.md prompt format
-        "improvements": [],  # Not in evolution.md prompt format
     }
 
     return hypothesis, evolution_detail

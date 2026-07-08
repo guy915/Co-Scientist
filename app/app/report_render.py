@@ -1,15 +1,26 @@
-"""Shared report-rendering and event-payload helpers.
+"""Shared report-rendering, finalization, and event-payload helpers.
 
 Homed here (rather than inside a single provider) so both the real-engine
-drain (``engine_adapter``) and the deterministic mock (``mock_workflow``) render
-the research overview, deep-verification critique, and event-payload stubs
-through one implementation -- keeping the persisted report and the streamed
-event shapes identical across providers.
+drain (``engine_adapter``) and the deterministic mock (``mock_workflow``) build
+the report payload, render its markdown, run the final safety gate, and emit the
+report/completed events through one implementation -- keeping the persisted
+report, the final-gate policy, and the streamed event shapes identical across
+providers.
 """
+# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
+
+from app import store
+from app.elo import live_leaderboard
+from app.safety import apply_safety_gate, screen_final
+from app.store import RunStatus
+
+# Emitter both providers pass in: records an event and returns its stub.
+EmitFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
 
 
 def hypothesis_stub(h: dict[str, Any]) -> dict[str, str]:
@@ -131,3 +142,236 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
                 lines.append("### Impact\n")
                 lines.append(f"{impact}\n")
     return lines
+
+
+def build_report_payload(
+    *,
+    research_goal: str,
+    run_mode: str,
+    provider: str,
+    leaderboard: list[dict[str, Any]],
+    hypothesis_count: int,
+    evidence_count: int,
+    match_count: int,
+    citation_summary: dict[str, int] | None,
+    meta_review: dict[str, Any] | None,
+    research_overview: dict[str, Any] | None,
+    execution_time: float | None = None,
+) -> dict[str, Any]:
+    """Assemble the canonical report payload shared by every provider.
+
+    Both providers emit the same field set so the persisted report -- and the
+    frontend ``ReportPayload`` type reading it -- has one shape regardless of
+    which provider ran.
+
+    Args:
+        research_goal: The natural-language research goal.
+        run_mode: Canonical run mode.
+        provider: ``"engine"`` or ``"mock"``.
+        leaderboard: Elo standings snapshot from ``live_leaderboard``.
+        hypothesis_count: Number of hypotheses persisted for the run.
+        evidence_count: Number of evidence rows persisted.
+        match_count: Number of tournament matches persisted.
+        citation_summary: Citation state -> count, or None when unavailable.
+        meta_review: Meta-review synthesis dict, or None.
+        research_overview: Research-overview payload, or None.
+        execution_time: Wall-clock seconds, when the provider tracks it.
+
+    Returns:
+        The canonical report payload dict.
+    """
+    payload: dict[str, Any] = {
+        "research_goal": research_goal,
+        "run_mode": run_mode,
+        "provider": provider,
+        "hypothesis_count": hypothesis_count,
+        "evidence_count": evidence_count,
+        "match_count": match_count,
+        "citation_summary": citation_summary or {},
+        "leaderboard": leaderboard,
+        "meta_review": meta_review or {},
+        "research_overview": research_overview or {},
+    }
+    if execution_time is not None:
+        payload["execution_time"] = execution_time
+    return payload
+
+
+def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
+    """Render the meta-review insights section, or nothing when absent."""
+    if not meta_review:
+        return []
+    lines = ["\n## Meta-review insights\n"]
+    if meta_review.get("summary"):
+        lines.append(f"{meta_review['summary']}\n")
+    for section_key, heading in (
+        ("common_strengths", "### Common strengths"),
+        ("common_weaknesses", "### Common weaknesses"),
+        ("emerging_themes", "### Emerging themes"),
+    ):
+        items = meta_review.get(section_key) or []
+        if items:
+            lines.append(f"\n{heading}\n")
+            lines.extend(f"- {item}" for item in items)
+    recs = meta_review.get("strategic_recommendations") or []
+    if recs:
+        lines.append("\n### Strategic recommendations\n")
+        for rec in recs:
+            if isinstance(rec, dict):
+                area = rec.get("focus_area", "")
+                recommendation = rec.get("recommendation", "")
+                justification = rec.get("justification", "")
+                lines.append(f"**{area}**: {recommendation}")
+                if justification:
+                    lines.append(f"  *{justification}*")
+            else:
+                lines.append(f"- {rec}")
+    return lines
+
+
+def render_report_markdown(
+    *,
+    research_goal: str,
+    provider: str,
+    top_hypotheses: list[dict[str, Any]],
+    meta_review: dict[str, Any] | None,
+    citation_summary: dict[str, int] | None,
+    research_overview: dict[str, Any] | None,
+    summary: str | None = None,
+) -> str:
+    """Render a run's report markdown from one skeleton for every provider.
+
+    Sections populate only when their data is present, so a provider that omits
+    meta-review, citations, or a research overview simply skips those headings
+    rather than emitting empty ones.
+
+    Args:
+        research_goal: The natural-language research goal.
+        provider: ``"engine"`` or ``"mock"``.
+        top_hypotheses: Elo-ordered store hypothesis rows (title, statement,
+            mechanism, expected_effect, elo_rating).
+        meta_review: Meta-review synthesis dict, or None.
+        citation_summary: Citation state -> count, or None.
+        research_overview: Research-overview payload, or None.
+        summary: Optional lead paragraph rendered under a ``## Summary``
+            heading (e.g. the mock's deterministic-mode disclaimer).
+
+    Returns:
+        The rendered markdown document.
+    """
+    lines: list[str] = [
+        f"# Research Report — {research_goal}",
+        "",
+        f"_Provider: **{provider}**_",
+        "",
+    ]
+    if summary:
+        lines += ["## Summary", summary, ""]
+
+    lines += ["## Top hypotheses", ""]
+    for i, hyp in enumerate(top_hypotheses, 1):
+        title = hyp.get("title") or hyp.get("text") or "Untitled"
+        lines.append(f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_")
+        statement = hyp.get("statement") or hyp.get("text") or ""
+        if statement:
+            lines += [statement, ""]
+        mechanism = hyp.get("mechanism")
+        if mechanism:
+            lines += [f"**Mechanism:** {mechanism}", ""]
+        expected_effect = hyp.get("expected_effect")
+        if expected_effect:
+            lines += [f"**Expected effect:** {expected_effect}", ""]
+
+    lines += _render_meta_review_markdown(meta_review or {})
+
+    if citation_summary:
+        lines.append("## Citation audit")
+        lines.extend(
+            f"- {state}: {count}" for state, count in citation_summary.items())
+        lines.append("")
+
+    lines.extend(render_research_overview_markdown(research_overview or {}))
+    return "\n".join(lines)
+
+
+async def finalize_report(
+    *,
+    run_id: str,
+    research_goal: str,
+    run_mode: str,
+    provider: str,
+    evidence_count: int,
+    match_count: int,
+    citation_summary: dict[str, int] | None,
+    meta_review: dict[str, Any] | None,
+    research_overview: dict[str, Any] | None,
+    emit: EmitFn,
+    execution_time: float | None = None,
+    summary: str | None = None,
+    db_path: str | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Build, screen, persist, and emit a run's final report.
+
+    This is the single finalize path both providers invoke after their drain,
+    so the final safety gate and the report/completed emission live in one
+    place. Leaderboard, top hypotheses, and the hypothesis count are read from
+    the store, so callers only supply the counts they alone know.
+
+    Order matches the shared contract: build payload -> render markdown ->
+    screen_final + apply_safety_gate -> (unless blocked) save report -> emit
+    report -> mark completed. A hard block records the blocked status via the
+    safety gate and returns without persisting a report.
+
+    Args:
+        run_id: Identifier of the run being finalized.
+        research_goal: The natural-language research goal.
+        run_mode: Canonical run mode.
+        provider: ``"engine"`` or ``"mock"``.
+        evidence_count: Number of evidence rows persisted for the run.
+        match_count: Number of tournament matches persisted for the run.
+        citation_summary: Citation state -> count, or None.
+        meta_review: Meta-review synthesis dict, or None.
+        research_overview: Research-overview payload, or None.
+        emit: The provider's event emitter, called as ``emit(type, payload)``.
+        execution_time: Wall-clock seconds, when the provider tracks it.
+        summary: Optional lead paragraph for the markdown ``## Summary``.
+        db_path: Optional override for the SQLite database path.
+
+    Yields:
+        Event dicts to forward on the workflow's event stream.
+    """
+    hyps = store.list_hypotheses(run_id, db_path=db_path)
+    leaderboard = live_leaderboard(hyps)
+    payload = build_report_payload(
+        research_goal=research_goal,
+        run_mode=run_mode,
+        provider=provider,
+        leaderboard=leaderboard,
+        hypothesis_count=len(hyps),
+        evidence_count=evidence_count,
+        match_count=match_count,
+        citation_summary=citation_summary,
+        meta_review=meta_review,
+        research_overview=research_overview,
+        execution_time=execution_time,
+    )
+    markdown = render_report_markdown(
+        research_goal=research_goal,
+        provider=provider,
+        top_hypotheses=hyps[:5],
+        meta_review=meta_review,
+        citation_summary=citation_summary,
+        research_overview=research_overview,
+        summary=summary,
+    )
+
+    final = screen_final(markdown)
+    async for event in apply_safety_gate(run_id, final, emit, db_path=db_path):
+        yield event
+    if final.decision == "block":
+        return
+
+    saved = store.save_report(run_id, payload, markdown, db_path=db_path)
+    yield await emit("report", {**payload, "report_id": saved["id"]})
+    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
+    yield await emit("status", {"status": "completed"})

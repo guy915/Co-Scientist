@@ -100,12 +100,12 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 | `config.py` | Pydantic settings (model names, API keys, DB path, Elo tuning, safety mode) |
 | `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group) |
 | `store.py` | SQLite persistence layer (WAL mode, append-only event log) |
-| `engine_adapter.py` | Engine/mock provider selection; owns the shared workflow boundary (intake/final safety gates, event streaming) |
+| `engine_adapter.py` | Engine/mock provider selection; runs the intake safety gate at the shared `run_workflow` boundary and streams events |
 | `mock_workflow.py` | Deterministic mock workflow (full agent-equivalent sequence) |
-| `report_render.py` | Shared report-markdown + event-payload-stub helpers used by both the engine drain and the mock |
+| `report_render.py` | Shared report payload/markdown builders, the `finalize_report` path (final safety gate + report/completed emission), and event-payload stubs used by both providers |
 | `elo.py` | Elo rating utilities |
 | `citations.py` | Citation classification (verified, partial, unsupported, unavailable) |
-| `safety.py` | Intake/final-output screening; both gates run at the shared `run_workflow` boundary for every provider |
+| `safety.py` | Intake/final-output screening; the intake gate runs at the shared `run_workflow` boundary and the final gate in the shared `report_render.finalize_report` path, so both are shared across providers |
 | `run_modes.py` | Run tier/focus normalization + durable setup/config resolution |
 | `seed.py` | Startup demo run seeder |
 

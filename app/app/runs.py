@@ -84,7 +84,6 @@ class CreateRunRequest(BaseModel):
     evolution_max_count: int | None = None
     k_factor: int | None = None
     enable_literature_review: bool | None = None
-    notes: str | None = None
 
 
 class StartRunRequest(BaseModel):
@@ -342,22 +341,28 @@ async def stream_events(
                 continue
 
             new_events = store.list_events(run_id, after_seq=last_seq)
+            terminal_status: str | None = None
             for ev in new_events:
                 last_seq = ev["seq"]
                 yield _sse(ev)
+                if ev["type"] == "status":
+                    status = (ev.get("payload") or {}).get("status")
+                    if status in TERMINAL_STATUSES:
+                        terminal_status = status
 
-            # Re-check run status; exit on terminal. A terminal transition
-            # normally rides on a new event (all workflow paths append a
-            # `status` event), so idle ticks skip the query; the every-10th
-            # tick check covers terminal writes that append no event.
-            if not new_events and tick % 10 != 9:
-                continue
-            current = store.get_run(run_id)
-            if current and current.status in TERMINAL_STATUSES:
+            # Exit on terminal. A terminal transition normally rides on a new
+            # event (all workflow paths append a `status` event), so ticks
+            # without one skip the run-row query; the every-10th tick check
+            # covers terminal writes that append no event.
+            if terminal_status is None and tick % 10 == 9:
+                current = store.get_run(run_id)
+                if current and current.status in TERMINAL_STATUSES:
+                    terminal_status = current.status
+            if terminal_status is not None:
                 yield _sse({
                     "type": "_terminal",
                     "payload": {
-                        "status": current.status
+                        "status": terminal_status
                     },
                     "seq": last_seq
                 })
@@ -560,7 +565,8 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     manifest = _build_evidence_manifest(evidence, citations)
     evidence_lines = _format_manifest_for_prompt(manifest)
 
-    top_hyps = sorted(hypotheses, key=lambda h: -int(h["elo_rating"]))[:5]
+    # list_hypotheses already orders by Elo descending.
+    top_hyps = hypotheses[:5]
     hyp_lines = "\n".join(
         f"- [{h['title']}] Elo {h['elo_rating']}, {h['win_count']}W/{h['loss_count']}L"  # pylint: disable=line-too-long
         for h in top_hyps)

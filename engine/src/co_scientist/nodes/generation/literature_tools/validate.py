@@ -23,9 +23,10 @@ from co_scientist.constants import (
 )
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.llm import (
+    attempt_json_repair,
     call_llm_json,
     call_llm_with_tools,
-    attempt_json_repair,
+    extract_response_json,
 )
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
@@ -336,21 +337,6 @@ async def validate_hypotheses(
     # -------------------------------------------------------------------------
     # helpers
     # -------------------------------------------------------------------------
-
-    def _extract_response_json(raw: str) -> str:
-        """Strip markdown code fences and whitespace from an LLM response."""
-        text = raw.strip()
-        lower = text.lower()
-        if "```json" in lower:
-            start = lower.find("```json") + 7
-            end = text.find("```", start)
-            text = text[start:] if end == -1 else text[start:end]
-        elif "```" in text:
-            start = text.find("```") + 3
-            end = text.find("```", start)
-            text = text[start:] if end == -1 else text[start:end]
-        return text.strip().strip("\n").strip()
-
     async def _call_synthesis(
         batch: list[dict[str, Any]],
         batch_label: str,
@@ -382,14 +368,8 @@ async def validate_hypotheses(
         logger.debug("Batch %s token budget: %s for %s hypotheses", batch_label,
                      synthesis_max_tokens, batch_size)
 
-        tool_call_counts: dict[str, int] = {}
-
-        async def tracked_executor(tool_call: Any) -> dict[str, Any]:
-            name = tool_call.function.name
-            tool_call_counts[name] = tool_call_counts.get(name, 0) + 1
-            logger.info("Validation batch %s: %s call #%s", batch_label, name,
-                        tool_call_counts[name])
-            return await provider.execute_tool_call(tool_call)
+        tracked_executor, tool_call_counts = provider.tracked_executor(
+            f"Validation batch {batch_label}")
 
         final_response, _ = await call_llm_with_tools(
             prompt=synthesis_prompt,
@@ -421,7 +401,7 @@ async def validate_hypotheses(
             logger.info("Batch %s: %s tool calls (%s)", batch_label,
                         total_calls, calls_summary)
 
-        response_text = _extract_response_json(final_response)
+        response_text = extract_response_json(final_response)
         response_data, was_repaired = attempt_json_repair(
             response_text, allow_major_repairs=True)
 

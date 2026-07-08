@@ -245,13 +245,6 @@ export function useChatSession({
         focus: specToStart.focus,
         tier: specToStart.tier,
         enable_literature_review: pubmedEnabled,
-        notes: [
-          `Requirements: ${specToStart.requirements.join(' | ')}`,
-          `Attributes: ${specToStart.attributes.join(' | ')}`,
-          `Criteria: ${specToStart.criteria.join(' | ')}`,
-          `Focus: ${specToStart.focus}`,
-          `Tier: ${specToStart.tier}`,
-        ].join('\n'),
       });
       const session: StartedSession = {
         id: created.id,

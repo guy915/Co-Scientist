@@ -19,14 +19,12 @@ import {
 import type {
   Evidence,
   Hypothesis,
-  LegacyRunProfile,
   MatchRow,
   Report,
   Review,
   Run,
   RunEvent,
   RunFocus,
-  RunMode,
   RunStatus,
   RunTier,
   RunWithSummary,
@@ -179,8 +177,6 @@ function jsonRequest(body: unknown, includeClientId = false): RequestInit {
  */
 export async function createRun(input: {
   research_goal: string;
-  run_mode?: RunMode;
-  profile?: LegacyRunProfile;
   requirements?: string[];
   attributes?: string[];
   criteria?: string[];
@@ -191,7 +187,6 @@ export async function createRun(input: {
   evolution_max_count?: number;
   k_factor?: number;
   enable_literature_review?: boolean;
-  notes?: string;
 }): Promise<Run> {
   return fetchWithFallback(
     '/api/runs',

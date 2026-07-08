@@ -65,6 +65,31 @@ warnings.filterwarnings("ignore",
                         category=UserWarning)
 
 
+def extract_response_json(raw: str) -> str:
+    """Strip markdown code fences and whitespace from an LLM response.
+
+    Handles ```json and plain ``` fences case-insensitively, including
+    responses whose closing fence was truncated away.
+
+    Args:
+        raw: Raw LLM response text.
+
+    Returns:
+        The fenced payload (or the stripped text when no fence is present).
+    """
+    text = raw.strip()
+    lower = text.lower()
+    if "```json" in lower:
+        start = lower.find("```json") + 7
+        end = text.find("```", start)
+        text = text[start:] if end == -1 else text[start:end]
+    elif "```" in text:
+        start = text.find("```") + 3
+        end = text.find("```", start)
+        text = text[start:] if end == -1 else text[start:end]
+    return text.strip()
+
+
 def attempt_json_repair(
         json_str: str,
         allow_major_repairs: bool = False
@@ -671,14 +696,7 @@ async def call_llm_json(
                     "Check API keys, rate limits, and model availability.")
 
             # Try to extract JSON from markdown code blocks if present
-            if "```json" in response_text:
-                json_start = response_text.find("```json") + 7
-                json_end = response_text.find("```", json_start)
-                response_text = response_text[json_start:json_end].strip()
-            elif "```" in response_text:
-                json_start = response_text.find("```") + 3
-                json_end = response_text.find("```", json_start)
-                response_text = response_text[json_start:json_end].strip()
+            response_text = extract_response_json(response_text)
 
             last_response_text = response_text
 
@@ -728,10 +746,10 @@ async def call_llm_json(
                     return result
                 except ValidationError as e:
                     last_error = e
-                    logger.warning("Schema validation failed%s on attempt"
-                                   " %s: %s",
-                                   " after repair" if repaired else "", attempt,
-                                   e.message)
+                    logger.warning(
+                        "Schema validation failed%s on attempt"
+                        " %s: %s", " after repair" if repaired else "", attempt,
+                        e.message)
 
                     # Add validation feedback to prompt for next retry
                     if not is_final_attempt:

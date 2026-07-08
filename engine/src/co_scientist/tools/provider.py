@@ -6,7 +6,7 @@ Provides composition pattern wrapping MCPToolClient and PythonToolRegistry.
 
 import json
 import logging
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from co_scientist.exceptions import ConfigError, ToolError
 from co_scientist.mcp_client import MCPToolClient
@@ -154,6 +154,30 @@ class HybridToolProvider:
             logger.error("%s error: %s", tool_name, error_msg)
             return self._create_error_response(tool_name, tool_call_id,
                                                error_msg)
+
+    def tracked_executor(
+        self,
+        label: str,
+    ) -> tuple[Callable[[Any], Awaitable[dict[str, Any]]], dict[str, int]]:
+        """Wrap execute_tool_call with per-tool-name call counting.
+
+        Args:
+            label: Log prefix identifying the calling phase, e.g. "Draft".
+
+        Returns:
+            An (executor, counts) pair. The executor delegates to
+            execute_tool_call; counts maps tool name to call count and is
+            updated in place as the executor runs.
+        """
+        counts: dict[str, int] = {}
+
+        async def executor(tool_call: Any) -> dict[str, Any]:
+            name = tool_call.function.name
+            counts[name] = counts.get(name, 0) + 1
+            logger.info("%s: %s call #%s", label, name, counts[name])
+            return await self.execute_tool_call(tool_call)
+
+        return executor, counts
 
     async def _execute_mcp_tool(self, tool_call: Any) -> dict[str, Any]:
         """Execute MCP tool call.

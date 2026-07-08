@@ -366,11 +366,16 @@ function ResearchOverviewView({
 }) {
   const overview = report?.payload.research_overview;
   const leaderboard = report?.payload.leaderboard ?? [];
+  // Prefer the report's canonical counts; fall back to the live rows while a
+  // run is still in flight and has no persisted report yet.
+  const ideaCount = report?.payload.hypothesis_count ?? hypotheses.length;
+  const matchCount = report?.payload.match_count ?? matches.length;
   const leadStat = researchOverviewLeadStat({
     run,
     leaderboard,
     hypotheses,
-    matches,
+    ideaCount,
+    matchCount,
   });
 
   // Top ideas by Elo, normalized to one shape from whichever source is
@@ -473,14 +478,15 @@ function researchOverviewLeadStat({
   run,
   leaderboard,
   hypotheses,
-  matches,
+  ideaCount,
+  matchCount,
 }: {
   run: RunWithSummary | null;
   leaderboard: {elo: number}[];
   hypotheses: Hypothesis[];
-  matches: MatchRow[];
+  ideaCount: number;
+  matchCount: number;
 }): string {
-  const ideaCount = hypotheses.length;
   if (!ideaCount) return '';
 
   const duration = runDurationPhrase(run);
@@ -489,7 +495,6 @@ function researchOverviewLeadStat({
     ...leaderboard.map(item => item.elo),
     ...hypotheses.map(hypothesis => hypothesis.elo_rating),
   );
-  const matchCount = matches.length;
 
   const ideaLabel = ideaCount === 1 ? 'idea was' : 'ideas were';
   let sentence = `A total of ${ideaCount} ${ideaLabel} explored`;

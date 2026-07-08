@@ -260,8 +260,8 @@ export function artifactsFor(run: Run): OfflineRunRecord {
     payload: {
       research_goal: run.research_goal,
       run_mode: 'default',
-      profile: 'default',
       provider: 'mock',
+      hypothesis_count: hypotheses.length,
       leaderboard: hypotheses.map(h => ({
         id: h.id,
         title: h.title,
@@ -269,7 +269,7 @@ export function artifactsFor(run: Run): OfflineRunRecord {
       })),
       citation_summary: {verified: 4, partial: 8},
       evidence_count: evidence.length,
-      matches_count: matches.length,
+      match_count: matches.length,
       research_overview: {
         overview: {
           summary: `Synthesizing the top hypotheses for '${run.research_goal}', a coherent research program emerges around ${hypotheses[0].title.toLowerCase()}.`,

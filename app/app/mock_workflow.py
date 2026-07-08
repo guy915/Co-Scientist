@@ -40,16 +40,15 @@ from typing import Any
 
 from app import store
 from app.citations import ALL_STATES, CitationRecord, classify_citation
-from app.elo import INITIAL_ELO, live_leaderboard, update_pair
+from app.elo import INITIAL_ELO, update_pair
 from app.report_render import (
     article_stub,
+    finalize_report,
     format_deep_verification_critique,
     hypothesis_stub,
     match_stub,
-    render_research_overview_markdown,
 )
-from app.run_modes import CANONICAL_RUN_MODE, resolved_run_config, setup_guidance
-from app.safety import apply_safety_gate, screen_final
+from app.run_modes import CANONICAL_RUN_MODE, setup_guidance
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -154,6 +153,12 @@ def _cluster_id(idx: int) -> str:
 # Number of top-ranked hypotheses subjected to deep verification. Hardcoded
 # because the mock is offline and must not import the engine constant.
 DEEP_VERIFICATION_TOP_K = 3
+
+# Lead paragraph for the mock report, flagging its artefacts as illustrative.
+_MOCK_SUMMARY = (
+    "This run was executed in deterministic mock mode. Hypotheses, citations, "
+    "and tournament results below are illustrative artefacts produced without "
+    "any LLM provider.")
 
 
 def _deep_verification_seed(rng: random.Random, title: str) -> dict[str, Any]:
@@ -307,9 +312,11 @@ async def run_mock_workflow(
 
     Intake safety screening is applied upstream at the shared workflow boundary
     (``engine_adapter.run_workflow``); this generator assumes intake passed.
+    ``config`` must already be resolved via ``resolved_run_config`` — the
+    shared boundary does this for every provider.
     """
     run_mode = CANONICAL_RUN_MODE
-    cfg = resolved_run_config(config)
+    cfg = config
     rng = _seeded_rng("mock", run_id, research_goal, run_mode)
 
     def _check_cancel() -> bool:
@@ -628,26 +635,27 @@ async def run_mock_workflow(
         hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])
     ]
     dv_entries: list[dict[str, Any]] = []
-    for hid in leaderboard_ids[:DEEP_VERIFICATION_TOP_K]:
-        hyp = store.get_hypothesis(hid, db_path=db_path)
-        if not hyp:
-            continue
-        dv = _deep_verification_seed(rng, hyp["title"])
-        summary, critique = format_deep_verification_critique(
-            dv["probes"], dv["verdict"])
-        store.add_review(
-            run_id,
-            hid,
-            "deep_verification",
-            summary=summary,
-            critique=critique,
-            db_path=db_path,
-        )
-        dv_entries.append({
-            "hypothesis_id": hid,
-            "verdict": dv["verdict"],
-            "probes": dv["probes"],
-        })
+    with store.transaction(db_path) as conn:
+        for hid in leaderboard_ids[:DEEP_VERIFICATION_TOP_K]:
+            hyp = store.get_hypothesis(hid, conn=conn)
+            if not hyp:
+                continue
+            dv = _deep_verification_seed(rng, hyp["title"])
+            summary, critique = format_deep_verification_critique(
+                dv["probes"], dv["verdict"])
+            store.add_review(
+                run_id,
+                hid,
+                "deep_verification",
+                summary=summary,
+                critique=critique,
+                conn=conn,
+            )
+            dv_entries.append({
+                "hypothesis_id": hid,
+                "verdict": dv["verdict"],
+                "probes": dv["probes"],
+            })
     yield await emit("deep_verification", {
         "verified": len(dv_entries),
         "probes": dv_entries,
@@ -655,32 +663,34 @@ async def run_mock_workflow(
 
     # ---- 11. Citation audit ----
     cit_summary = {state.value: 0 for state in ALL_STATES}
-    for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
-        # Link first 2 evidence items to each hypothesis as supporting citations
-        for ev in evidence_payload[:2]:
-            claim = f"Mechanism mentioned in {ev['title'][:30]} supports hypothesis"  # pylint: disable=line-too-long
-            state = classify_citation(
-                CitationRecord(
-                    title=ev["title"],
-                    url=ev["url"],
-                    abstract=ev["abstract"],
-                    claim=claim,
-                    available=ev["available"],
-                ))
-            cit_summary[state] += 1
-            store.add_citation(run_id,
-                               hid,
-                               ev["id"],
-                               claim,
-                               state,
-                               db_path=db_path)
+    with store.transaction(db_path) as conn:
+        for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
+            # Link first 2 evidence items to each hypothesis as supporting
+            # citations
+            for ev in evidence_payload[:2]:
+                claim = f"Mechanism mentioned in {ev['title'][:30]} supports hypothesis"  # pylint: disable=line-too-long
+                state = classify_citation(
+                    CitationRecord(
+                        title=ev["title"],
+                        url=ev["url"],
+                        abstract=ev["abstract"],
+                        claim=claim,
+                        available=ev["available"],
+                    ))
+                cit_summary[state] += 1
+                store.add_citation(run_id,
+                                   hid,
+                                   ev["id"],
+                                   claim,
+                                   state,
+                                   conn=conn)
     yield await emit("citation_audit", cit_summary)
 
     # ---- 12. Final safety + report ----
-    top_hypotheses_raw = [
-        store.get_hypothesis(hid, db_path=db_path)
-        for hid in leaderboard_ids[:5]
-    ]
+    with store.connect(db_path) as conn:
+        top_hypotheses_raw = [
+            store.get_hypothesis(hid, conn=conn) for hid in leaderboard_ids[:5]
+        ]
     top_hypotheses = [h for h in top_hypotheses_raw if h]
 
     # ---- 13. Research overview + NIH Specific Aims ----
@@ -689,61 +699,19 @@ async def run_mock_workflow(
     yield await emit("research_overview",
                      {"research_overview": research_overview})
 
-    md_lines: list[str] = []
-    md_lines.append(f"# Research Report — {research_goal}")
-    md_lines.append("")
-    md_lines.append("_Provider: **mock**_")
-    md_lines.append("")
-    md_lines.append("## Summary")
-    md_lines.append(
-        "This run was executed in deterministic mock mode. Hypotheses, citations, and tournament "  # pylint: disable=line-too-long
-        "results below are illustrative artefacts produced without any LLM provider."
-    )
-    md_lines.append("")
-    md_lines.append("## Top hypotheses")
-    for i, h in enumerate(top_hypotheses, 1):
-        md_lines.append(f"### {i}. {h['title']}  _Elo: {h['elo_rating']}_")
-        md_lines.append(h["statement"])
-        md_lines.append("")
-        md_lines.append(f"**Mechanism:** {h['mechanism']}")
-        md_lines.append("")
-        md_lines.append(f"**Expected effect:** {h['expected_effect']}")
-        md_lines.append("")
-    md_lines.append("## Citation audit")
-    for cit_state, count in cit_summary.items():
-        md_lines.append(f"- {cit_state}: {count}")
-    md_lines.append("")
-    md_lines.append("## Notes")
-    md_lines.append(
-        "- Append-only evolution: evolved hypotheses appear as new rows with `parent_id`."  # pylint: disable=line-too-long
-    )
-    md_lines.append(f"- Elo: initial {INITIAL_ELO}, K = " +
-                    str(cfg["k_factor"]) + ", standard formula.")
-    md_lines.append("")
-    md_lines.extend(render_research_overview_markdown(research_overview))
-    markdown = "\n".join(md_lines)
-
-    final_safety = screen_final(markdown)
-    async for event in apply_safety_gate(run_id,
-                                         final_safety,
-                                         emit,
-                                         db_path=db_path):
+    # ---- 14. Final safety + report, via the shared finalize path ----
+    async for event in finalize_report(
+        run_id=run_id,
+        research_goal=research_goal,
+        run_mode=run_mode,
+        provider="mock",
+        evidence_count=len(evidence_payload),
+        match_count=len(pairs) * (cfg["max_iterations"] + 1),
+        citation_summary=cit_summary,
+        meta_review=None,
+        research_overview=research_overview,
+        emit=emit,
+        summary=_MOCK_SUMMARY,
+        db_path=db_path,
+    ):
         yield event
-    if final_safety.decision == "block":
-        return
-
-    payload = {
-        "research_goal": research_goal,
-        "run_mode": run_mode,
-        "provider": "mock",
-        "leaderboard": live_leaderboard(top_hypotheses),
-        "citation_summary": cit_summary,
-        "evidence_count": len(evidence_payload),
-        "matches_count": len(pairs) * (cfg["max_iterations"] + 1),
-        "research_overview": research_overview,
-    }
-    saved = store.save_report(run_id, payload, markdown, db_path=db_path)
-    yield await emit("report", {**payload, "report_id": saved["id"]})
-
-    store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
-    yield await emit("status", {"status": "completed"})

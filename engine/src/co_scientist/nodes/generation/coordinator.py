@@ -288,16 +288,18 @@ def _build_summary_message_parts(results: GenerationResults,
         parts.append(
             f"{len(results.debate_with_lit_hypotheses)} debate-with-literature")
     if counts.debate_only_count > 0:
-        suffix = ""
-        parts.append(
-            f"{len(results.debate_only_hypotheses)} debate-only{suffix}")
+        parts.append(f"{len(results.debate_only_hypotheses)} debate-only")
     return parts
 
 
 async def _emit_complete_progress(state: WorkflowState,
                                   results: GenerationResults,
-                                  counts: GenerationCounts) -> None:
-    """Emit progress callback for generation complete."""
+                                  counts: GenerationCounts) -> str:
+    """Emit progress callback for generation complete.
+
+    Returns:
+        The human-readable generation summary message that was emitted.
+    """
     parts = _build_summary_message_parts(results, counts)
     all_hypotheses = (results.tools_hypotheses +
                       results.debate_with_lit_hypotheses +
@@ -310,6 +312,7 @@ async def _emit_complete_progress(state: WorkflowState,
                         message,
                         PROGRESS_GENERATE_COMPLETE,
                         hypotheses_count=len(all_hypotheses))
+    return message
 
 
 # Enrichment
@@ -368,8 +371,9 @@ async def _enrich_hypotheses(
         logger.info("running enrichment '%s' via %s for %s hypotheses",
                     output_key, tool_config.mcp_tool_name, len(hypotheses))
 
-        await asyncio.gather(*(enrich_one(hyp, enrichment, tool_config,
-                                          output_key) for hyp in hypotheses))
+        await asyncio.gather(
+            *(enrich_one(hyp, enrichment, tool_config, output_key)
+              for hyp in hypotheses))
 
 
 # Main coordinator function
@@ -429,7 +433,7 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
             _apply_degraded_mode_fallback(results.debate_only_hypotheses)
 
         _log_generation_summary(results)
-        await _emit_complete_progress(state, results, counts)
+        message_content = await _emit_complete_progress(state, results, counts)
 
         all_hypotheses = (results.tools_hypotheses +
                           results.debate_with_lit_hypotheses +
@@ -437,10 +441,6 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
 
         # Run post-generation enrichments (e.g., NVD CVE lookup)
         await _enrich_hypotheses(all_hypotheses, state)
-
-        parts = _build_summary_message_parts(results, counts)
-        message_content = (f"Generated {len(all_hypotheses)} hypotheses"
-                           f" ({', '.join(parts)})")
 
         return {
             "hypotheses": all_hypotheses,

@@ -108,9 +108,9 @@ async def test_with_reviews_maps_response_fields(
             "strategic_recommendations": ["broaden the cohort"],
             "recurring_themes": [],
         })
-    state = make_state(
-        hypotheses=[make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
-                   ])
+    state = make_state(hypotheses=[
+        make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
+    ])
 
     result = await meta_review_node(state)
 
@@ -120,8 +120,6 @@ async def test_with_reviews_maps_response_fields(
     assert mr["common_strengths"] == ["clear mechanism", "testable"]
     assert mr["common_weaknesses"] == ["narrow scope"]
     assert mr["strategic_recommendations"] == ["broaden the cohort"]
-    # weaknesses is reused for areas_for_improvement.
-    assert mr["areas_for_improvement"] == ["narrow scope"]
     # The with-reviews branch carries metrics and a message.
     assert "metrics" in result
     assert result["messages"][0]["metadata"]["phase"] == "meta_review"
@@ -136,7 +134,8 @@ async def test_recurring_themes_flattened_to_emerging_themes(
     """
     _stub_llm(
         monkeypatch, {
-            "meta_review_summary": "summary",
+            "meta_review_summary":
+                "summary",
             "recurring_themes": [
                 {
                     "theme": "mitochondrial dysfunction",
@@ -146,9 +145,9 @@ async def test_recurring_themes_flattened_to_emerging_themes(
                 "oxidative stress",
             ],
         })
-    state = make_state(
-        hypotheses=[make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
-                   ])
+    state = make_state(hypotheses=[
+        make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
+    ])
 
     result = await meta_review_node(state)
 
