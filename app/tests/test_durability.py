@@ -7,6 +7,7 @@ forever when the server is restarted mid-run.
 from __future__ import annotations
 
 from app import store
+from app.store import db as store_db
 
 
 def _make_run(goal: str, isolated_db: str) -> str:
@@ -101,6 +102,6 @@ def test_headerless_run_survives_restart(isolated_db: str) -> None:
                            db_path=isolated_db)
     # Simulate a server restart re-running migrations on the existing DB.
     with store.connect(isolated_db) as conn:
-        store._run_migrations(conn)  # pylint: disable=protected-access
+        store_db._run_migrations(conn)  # pylint: disable=protected-access
     rows = store.list_runs(client_id="", db_path=isolated_db)
     assert any(r.id == run.id for r in rows)
