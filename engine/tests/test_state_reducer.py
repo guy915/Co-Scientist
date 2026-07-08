@@ -9,6 +9,8 @@ when texts collide. The tests below pin both branches, the dedup key, and the
 edge cases.
 """
 
+import copy
+
 from co_scientist.models import Hypothesis
 from co_scientist.state import deduplicate_hypotheses
 
@@ -212,3 +214,32 @@ def test_replacement_drops_existing_not_in_new() -> None:
     result = deduplicate_hypotheses(existing, new)
     assert [h.text for h in result] == ["A"]
     assert result[0].score == 2.0
+
+
+# --- Replacement branch: known ids (evolve.py's rewritten pool) --------------
+
+
+def test_known_ids_with_rewritten_text_is_replacement() -> None:
+    """Rewritten copies of existing hypotheses replace the pool by id.
+
+    This is evolve.py's shape: it returns copies of the top-k hypotheses
+    whose ids are unchanged but whose texts were rewritten by evolution.
+    Text overlap alone would classify that as an addition and resurrect the
+    discarded lower-ranked hypotheses; the id check must classify it as a
+    replacement so the pool shrinks to exactly the evolved list.
+    """
+    existing = [
+        make_hypothesis("A"),
+        make_hypothesis("B"),
+        make_hypothesis("C"),
+        make_hypothesis("D"),
+    ]
+    evolved = [copy.deepcopy(existing[0]), copy.deepcopy(existing[1])]
+    evolved[0].text = "A evolved beyond textual recognition"
+    evolved[1].text = "B evolved beyond textual recognition"
+    result = deduplicate_hypotheses(existing, evolved)
+    assert [h.text for h in result] == [
+        "A evolved beyond textual recognition",
+        "B evolved beyond textual recognition",
+    ]
+    assert {h.id for h in result} == {existing[0].id, existing[1].id}

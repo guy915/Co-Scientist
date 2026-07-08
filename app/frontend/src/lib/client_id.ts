@@ -1,4 +1,4 @@
-const KEY = 'co_scientist_client_id';
+const KEY = 'co_scientist_client_id'; // localStorage key; sent as X-Client-ID to scope owned runs
 
 /**
  * Returns the persistent client id, generating and storing one on first use.

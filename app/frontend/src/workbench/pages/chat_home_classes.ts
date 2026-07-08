@@ -4,10 +4,13 @@
 // surfaces only. See DESIGN.md > Layout & Spacing ("Reference-matched surfaces
 // do not use the 8px grid").
 
+// Outermost workspace shell (ChatWorkspace's root <div>/<main>).
 export const HOME_WORKSPACE_CLASSES = 'reference-workspace';
 
 export const HOME_WORKSPACE_MAIN_CLASSES = 'reference-workspace-main';
 
+// Session-home stage layout: the centered greeting/suggestions/composer
+// column (HOME_MAIN_CLASSES) plus its title, inside HOME_STAGE_CLASSES.
 export const HOME_STAGE_CLASSES = 'reference-home-stage';
 
 export const HOME_MAIN_CLASSES = 'reference-home-main';
@@ -18,6 +21,9 @@ export const HOME_TITLE_CLASSES = 'reference-home-title';
 // header); hidden on desktop, where the header lockup carries it.
 export const HOME_LOGO_CLASSES = 'reference-home-logo';
 
+// Desktop-only 1-2-3 onboarding timeline (see HomeStage's SESSION_STEPS):
+// the ordered list, each step item (with center/end position variants for
+// the connecting line), its numbered badge, heading, and body copy.
 export const HOME_STEP_TIMELINE_CLASSES = 'reference-step-timeline';
 
 export const HOME_STEP_ITEM_CLASSES = 'reference-step-item';
@@ -32,6 +38,10 @@ export const HOME_STEP_NUMBER_CLASSES = 'reference-step-number';
 
 export const HOME_STEP_HEADING_CLASSES = 'reference-step-heading';
 
+// Suggestion prompt cards on the home stage (see HomeStage's SUGGESTIONS):
+// the row of slots, each button (with a "previewed" state while hovered),
+// its hover/focus preview bubble (positioned start/center/end per column),
+// and the button's own truncated text.
 export const HOME_SUGGESTION_ROW_CLASSES = 'reference-suggestion-row';
 
 export const HOME_SUGGESTION_BUTTON_CLASSES = 'reference-suggestion-button';
@@ -59,11 +69,15 @@ export const HOME_SUGGESTION_TEXT_CLASSES = 'reference-suggestion-text';
 // card layout). Distinct per prompt, in the spirit of the reference home.
 export const HOME_SUGGESTION_ICON_CLASSES = 'reference-suggestion-icon';
 
+// Home-stage sizing overrides applied to the shared Composer when rendered
+// with `large` (roomier padding/min-height than the in-conversation composer).
 export const HOME_COMPOSER_CLASSES = 'reference-home-composer';
 
 export const HOME_COMPOSER_TEXTAREA_CLASSES =
   'reference-home-composer-textarea';
 
+// Recents panel (HomeRecentsPanel): the aside container, its list, the
+// heading row, and the "show more/less" load-more control.
 export const HOME_RECENTS_PANEL_CLASSES = 'reference-recents-panel';
 
 export const HOME_RECENTS_LIST_CLASSES = 'reference-recents-list';
@@ -87,6 +101,7 @@ export const HOME_TOAST_ACTION_CLASSES =
   'cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] ' +
   'font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline';
 
+// Composer shell: the bordered pill container itself.
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border ' +
   'border-cosci-composer-border bg-cosci-composer-bg ' +
@@ -115,10 +130,14 @@ export const COMPOSER_TEXTAREA_CLASSES =
   'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
   'leading-6 text-cosci-composer-text outline-none';
 
+// Bottom action row (source controls + submit), absolutely positioned over
+// the textarea; pointer-events-none on the row itself so it doesn't block
+// clicks into the textarea outside its children, which opt back in.
 export const COMPOSER_ACTIONS_CLASSES =
   'reference-composer-actions pointer-events-none absolute right-5 bottom-3 ' +
   'left-5 flex items-end justify-between gap-3';
 
+// File-upload and connectors buttons, plus the connectors dropdown anchor.
 export const COMPOSER_SOURCE_CONTROLS_CLASSES =
   'reference-composer-source-controls pointer-events-auto relative flex ' +
   'min-w-[4.6rem] items-center gap-[0.45rem]';
@@ -139,6 +158,8 @@ export const ICON_BUTTON_CLASSES =
   'enabled:focus-visible:bg-cosci-icon-button-hover-bg ' +
   'focus-visible:outline-none disabled:cursor-default';
 
+// Round source-control button (Files, Connectors), built on ICON_BUTTON_CLASSES;
+// stays visibly "on" via aria-expanded while its menu is open.
 export const COMPOSER_SOURCE_BUTTON_CLASSES =
   ICON_BUTTON_CLASSES +
   ' reference-composer-source-button size-8 text-cosci-source-button ' +
@@ -149,11 +170,15 @@ export const COMPOSER_SOURCE_BUTTON_CLASSES =
 
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 
+// Round send button; dims via a distinct disabled-text color while the
+// composer has no input or is otherwise disabled.
 export const COMPOSER_SUBMIT_BUTTON_CLASSES =
   ICON_BUTTON_CLASSES +
   ' size-10 text-cosci-composer-submit ' +
   'disabled:text-cosci-composer-submit-disabled';
 
+// Connectors dropdown: the floating menu panel, its header row, and each
+// selectable connector row (see CONNECTOR_* below for the row's contents).
 export const CONNECTORS_MENU_CLASSES =
   'reference-connectors-menu pointer-events-auto absolute bottom-[2.45rem] ' +
   'left-[2.35rem] z-10 w-56 overflow-hidden rounded-[0.9rem] border ' +
@@ -172,6 +197,8 @@ export const CONNECTORS_MENU_ROW_CLASSES =
   'bg-transparent px-[0.9rem] py-[0.45rem] text-left font-[inherit] ' +
   'text-[0.9rem] text-inherit focus-visible:outline-none';
 
+// Per-row connector icon and the on/off toggle switch (track + knob),
+// selected between CONNECTOR_TOGGLE_ON_CLASSES / _OFF_CLASSES by state.
 export const CONNECTOR_ICON_CLASSES =
   'reference-connector-icon text-[1.15rem] text-cosci-menu-icon';
 

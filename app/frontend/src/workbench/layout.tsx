@@ -13,8 +13,17 @@ import {DiagnosticsControl} from './layout_diagnostics';
 import {isMobileViewport} from './hooks/use_is_mobile';
 import {tooltipClassNames} from './tooltip';
 
+// Which header popover is open. Only one of the two can be open at a time
+// (see togglePanel below), and either is dismissed by an outside click,
+// Escape, or navigation.
 type ShellPanel = 'settings' | 'logs';
 
+// The constants below pair a CSS class for the "open" shell state with one
+// for the "collapsed"/default state; each pair is selected at render time by
+// a single boolean (navOpen, or the active-route checks further down). The
+// actual responsive behavior (desktop icon rail vs mobile off-canvas drawer,
+// iOS-safe viewport sizing) lives in shell_surface.css, keyed off the
+// `nav-open` / `nav-collapsed` shell classes and the ~700px breakpoint.
 const WORKSPACE_CLASSES = 'ucs-workspace';
 
 const WORKSPACE_RESPONSIVE_CLASSES = 'ucs-workspace--rounded-bottom';
@@ -103,15 +112,27 @@ const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
+  // Title shown in the header bar; pages opt in by dispatching the
+  // `cosci-header-title` CustomEvent (see the listener effect below). Empty
+  // string means "no override" for the current route.
   const [overrideTitle, setOverrideTitle] = useState('');
+  // Sidebar chat history; kept as local state (rather than derived from a
+  // hook) so it can be refreshed imperatively from multiple triggers below.
   const [history, setHistory] = useState<Run[]>([]);
   // Collapsed icon rail by default, matching the reference product; the
-  // hamburger expands it.
+  // hamburger expands it. On mobile this same flag toggles an off-canvas
+  // drawer instead (see shell_surface.css's <=700px breakpoint).
   const [navOpen, setNavOpen] = useState(false);
+  // Which header popover (Settings menu or the Logs panel) is currently
+  // shown, if any; the two are mutually exclusive via togglePanel.
   const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  // Non-null renders the full-screen SettingsDialog overlay for that section.
   const [settingsSection, setSettingsSection] =
     useState<SettingsSection | null>(null);
+  // Sidebar chat list is capped to the 10 most recent entries until expanded.
   const [showAllChats, setShowAllChats] = useState(false);
+  // Anchors for the outside-pointerdown handler below: a click landing
+  // outside both refs closes whichever popover is open.
   const settingsControlRef = useRef<HTMLDivElement>(null);
   const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
@@ -134,11 +155,20 @@ export function Layout({children}: {children: ReactNode}) {
     : isHomeRoute
       ? HOME_PAGE_CLASSES
       : PAGE_CLASSES;
+  // `nav-open`/`nav-collapsed` is the class shell_surface.css keys its
+  // responsive rules off: on desktop (>700px) it toggles the rail's grid
+  // column width; on mobile (<=700px) both variants collapse to a single
+  // full-width column and the rail instead becomes a fixed, off-canvas
+  // drawer that slides over the content (see the scrim below and the
+  // ~700px breakpoint in shell_surface.css for the iOS-safe dvh sizing).
   const shellClass = [
     'ucs-app-shell',
     isRunRoute ? 'report-shell' : 'home-shell',
     navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
   ].join(' ');
+  // The remaining nav* variants below all key off the same navOpen flag to
+  // swap each rail sub-region between its expanded (label + icon) and
+  // collapsed (icon-only) presentation.
   const navPanelClasses = navOpen
     ? NAV_PANEL_OPEN_CLASSES
     : NAV_PANEL_COLLAPSED_CLASSES;
@@ -162,15 +192,21 @@ export function Layout({children}: {children: ReactNode}) {
     // Only dismiss the mobile drawer; on desktop the expanded rail is a user
     // preference and clicking Home or New chat should leave it untouched.
     if (isMobileViewport()) setNavOpen(false);
+    // Lets the chat workspace page (mounted separately) know to reset its own
+    // session state; see ChatWorkspace's listener for 'cosci-new-chat'.
     window.dispatchEvent(new Event('cosci-new-chat'));
     void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
 
+  // Flips the rail between expanded/collapsed (desktop) or open/closed
+  // (mobile drawer), and closes any open popover since its anchor may move.
   function toggleNav() {
     setNavOpen(open => !open);
     setActivePanel(null);
   }
 
+  // Opens `panel`, or closes it if it's already the active one (so the same
+  // trigger button acts as both opener and toggle-closer).
   function togglePanel(panel: ShellPanel) {
     setActivePanel(current => (current === panel ? null : panel));
   }
@@ -214,6 +250,12 @@ export function Layout({children}: {children: ReactNode}) {
     setOverrideTitle('');
   }, [titleContextKey]);
 
+  // Only attaches the listener while a popover is actually open (skipped
+  // via the early return otherwise), and detaches it on close/unmount so
+  // idle renders of the shell don't pay for a document-wide pointerdown
+  // listener. `activePanel` is a dep both to gate the effect and because the
+  // handler closure reads settingsControlRef/logsControlRef via refs (stable
+  // across renders, so they don't need to be deps themselves).
   useEffect(() => {
     if (!activePanel) return;
     function onPointerDown(event: PointerEvent) {
@@ -228,6 +270,10 @@ export function Layout({children}: {children: ReactNode}) {
     };
   }, [activePanel]);
 
+  // Page components (e.g. RunDetail) set the header title by dispatching a
+  // `cosci-header-title` CustomEvent<string> rather than via props, since the
+  // header lives in this shell above the routed page content. Registered
+  // once for the shell's lifetime (no deps) and torn down on unmount.
   useEffect(() => {
     function onHeaderTitle(event: Event) {
       const custom = event as CustomEvent<string>;
@@ -239,6 +285,8 @@ export function Layout({children}: {children: ReactNode}) {
     };
   }, []);
 
+  // Stable identity via useCallback (no deps) so it can safely be both an
+  // effect dependency and an event listener reference below.
   const loadHistory = useCallback(async () => {
     setHistory(await loadRunHistory());
   }, []);
@@ -357,6 +405,9 @@ export function Layout({children}: {children: ReactNode}) {
           </div>
         </div>
       </aside>
+      {/* Backdrop behind the off-canvas drawer on mobile; only rendered while
+          the drawer is open, and a tap on it dismisses it. On desktop the
+          rail never overlaps content, so this has no visible effect there. */}
       {navOpen && (
         <div
           className="ucs-scrim"
@@ -420,6 +471,10 @@ export function Layout({children}: {children: ReactNode}) {
   );
 }
 
+// A single rail action (Menu/hamburger, New chat): an icon plus a label that
+// is visually collapsed to icon-only via `labelClassName` when the rail is
+// collapsed, with the full label still exposed to assistive tech through
+// aria-label/data-tooltip.
 function NavActionButton({
   label,
   icon,
@@ -453,6 +508,8 @@ function NavActionButton({
   );
 }
 
+// One row inside the Settings popover menu (Appearance/Model/Help); onClick
+// is wired by the caller to openSettings(section).
 function SettingsMenuButton({
   label,
   icon,
@@ -479,6 +536,8 @@ function SettingsMenuButton({
   );
 }
 
+// Shared popover shell for both the Settings menu and the Logs panel; the
+// caller supplies extra positioning/sizing classes via `className`.
 function ShellPopover({
   children,
   className,

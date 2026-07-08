@@ -88,6 +88,9 @@ async def draft_hypotheses(
     provider = MCPToolProvider(mcp_client=mcp_client)
 
     # Get tool whitelist from registry or try global registry
+    # Fallback chain: passed-in registry (threaded from WorkflowState) ->
+    # process-global registry (covers standalone/dev scripts that never
+    # thread one through state) -> no whitelist at all.
     if tool_registry is None:
         try:
             from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
@@ -116,6 +119,8 @@ async def draft_hypotheses(
                 count)
 
     # Build draft prompt with lit review summary as context
+    # reference_index.text is the formatted [C*] list (see citations.py);
+    # injecting it lets the draft LLM cite sources by key.
     ref_text = reference_index.text if reference_index else ""
     prompt, _ = get_draft_prompt_with_tools(
         research_goal=state["research_goal"],
@@ -170,6 +175,10 @@ async def draft_hypotheses(
             },
         )
     except Exception as e:
+        # No fallback: Phase 1 failing means there are no drafts to pass to
+        # Phase 2, so this re-raises rather than degrading gracefully (unlike
+        # the enhancement-node fallbacks in llm.py's
+        # _ENHANCEMENT_NODE_FALLBACKS).
         logger.error("Draft phase failed: %s", e)
         raise
 
@@ -183,6 +192,8 @@ async def draft_hypotheses(
     response_text = extract_response_json(final_response)
 
     # Use attempt_json_repair for robust parsing
+    # allow_major_repairs=True: tool-calling loop final responses are more
+    # prone to truncated/malformed JSON than single-shot calls (llm.py).
     response_data, was_repaired = attempt_json_repair(response_text,
                                                       allow_major_repairs=True)
 
@@ -190,6 +201,8 @@ async def draft_hypotheses(
         logger.error(
             "Failed to parse draft JSON response after all repair attempts")
         logger.error("Response: %s...", final_response[:500])
+        # Hard failure instead of returning an empty draft list: silently
+        # skipping to an empty Phase 1 would make Phase 2 a silent no-op too.
         raise ResponseParseError(
             "Draft phase returned invalid JSON that could not be repaired")
 

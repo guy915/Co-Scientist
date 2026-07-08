@@ -51,6 +51,8 @@ const SUGGESTIONS: ReadonlyArray<{text: string; icon: IconName}> = [
   },
 ];
 
+// Copy for the desktop-only 1-2-3 onboarding timeline rendered below the
+// title (hidden on mobile to save vertical space; see the `!isMobile` guard).
 const SESSION_STEPS: ReadonlyArray<{
   n: number;
   title: string;
@@ -73,6 +75,23 @@ const SESSION_STEPS: ReadonlyArray<{
   },
 ];
 
+/**
+ * Renders the session-home surface shown before any conversation has
+ * started: the greeting title, the desktop onboarding timeline, the
+ * suggestion prompt row, the composer (in its roomy `large` mode), and the
+ * desktop-only recents panel (HomeRecentsPanel). Rendered by ChatWorkspace
+ * when `hasConversation` is false.
+ *
+ * @param input Controlled composer value, owned by the parent session state.
+ * @param setInput Updates the controlled composer value.
+ * @param pubmedEnabled Whether the PubMed connector toggle is on.
+ * @param onPubmedEnabledChange Callback fired when the PubMed toggle changes.
+ * @param onSubmit Form submit handler for the composer.
+ * @param runs Recent runs to list in the recents panel.
+ * @param scoresByRunId Top Elo score per run id, keyed for the recents panel.
+ * @param showAllRecents Whether the recents panel is expanded past the cap.
+ * @param onToggleShowAll Toggles the recents panel's expanded state.
+ */
 export function HomeStage({
   input,
   setInput,
@@ -94,6 +113,9 @@ export function HomeStage({
   showAllRecents: boolean;
   onToggleShowAll: () => void;
 }) {
+  // Tracks which suggestion (by its full text, used as the identity key) is
+  // currently hovered/focused, to show that suggestion's full-text preview
+  // bubble and its "previewed" button styling.
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
   );
@@ -142,6 +164,9 @@ export function HomeStage({
         <div className={HOME_SUGGESTION_ROW_CLASSES}>
           {SUGGESTIONS.map((suggestion, index) => {
             const isPreviewed = hoveredSuggestion === suggestion.text;
+            // The preview bubble anchors differently per column (start/center/
+            // end) so it stays roughly centered over the row rather than
+            // overflowing past the viewport edge for the first/last card.
             const previewPositionClass =
               index === 0
                 ? HOME_SUGGESTION_PREVIEW_START_CLASSES
@@ -173,12 +198,17 @@ export function HomeStage({
                   ]
                     .filter(Boolean)
                     .join(' ')}
+                  // Mouse/pointer and focus/blur handlers both drive the same
+                  // preview state, so touch/keyboard users get the same
+                  // full-text preview that mouse hover provides.
                   onMouseEnter={() => setHoveredSuggestion(suggestion.text)}
                   onMouseLeave={() => setHoveredSuggestion(null)}
                   onPointerEnter={() => setHoveredSuggestion(suggestion.text)}
                   onPointerLeave={() => setHoveredSuggestion(null)}
                   onFocus={() => setHoveredSuggestion(suggestion.text)}
                   onBlur={() => setHoveredSuggestion(null)}
+                  // Clicking a suggestion fills the composer with its full
+                  // text rather than submitting immediately.
                   onClick={() => {
                     setInput(suggestion.text);
                     setHoveredSuggestion(null);

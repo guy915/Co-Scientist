@@ -11,6 +11,9 @@ from co_scientist.mcp_client import MCPToolClient
 logger = logging.getLogger(__name__)
 
 
+# Thin wrapper used by the tool-calling generation nodes (draft/validate/
+# debate agents) so they interact with a small, stable interface regardless
+# of what the underlying MCPToolClient looks like.
 class MCPToolProvider:
     """Uniform tool interface over an MCP client.
 
@@ -44,7 +47,9 @@ class MCPToolProvider:
         """Get tools from the MCP client.
 
         Args:
-            mcp_whitelist: optional list of MCP tool names to include
+            mcp_whitelist: optional list of MCP tool names to include.
+                None exposes every tool the MCP client offers; an empty
+                list is a valid "no tools" request.
 
         Returns:
             tuple of (tools_dict, openai_tools_list)
@@ -54,13 +59,17 @@ class MCPToolProvider:
         tools_dict: dict[str, Any] = {}
         openai_tools: list[dict[str, Any]] = []
 
-        if self.mcp_client is not None and mcp_whitelist is not None:
+        # The whitelist is forwarded as-is: MCPToolClient.get_tools treats
+        # None as "all tools" and an empty list filters everything out.
+        if self.mcp_client is not None:
             try:
                 tools_dict, openai_tools = self.mcp_client.get_tools(
                     whitelist=mcp_whitelist)
                 self._tool_names.update(tools_dict.keys())
                 logger.debug("added %s MCP tools", len(tools_dict))
             except Exception as e:  # pylint: disable=broad-exception-caught
+                # Degrade gracefully: a transient MCP outage should not
+                # crash the caller, just leave it with no tools available.
                 logger.warning("Failed to get MCP tools: %s", e)
 
         logger.info("tool provider ready: %s tools", len(tools_dict))
@@ -80,6 +89,10 @@ class MCPToolProvider:
         tool_name = tool_call.function.name
         tool_call_id = tool_call.id
 
+        # Reject names never advertised via get_tools(), rather than letting
+        # the LLM invoke arbitrary/hallucinated tool names against the MCP
+        # client. The model still gets a tool-response message back (with an
+        # error payload) so the conversation loop can continue normally.
         if tool_name not in self._tool_names:
             error_msg = f"unknown tool: {tool_name}"
             logger.error(error_msg)
@@ -87,15 +100,24 @@ class MCPToolProvider:
                                                error_msg)
 
         try:
+            # Defensive: _tool_names is only populated when a client exists,
+            # so this branch should be unreachable in practice.
             if self.mcp_client is None:
                 raise ConfigError("MCP client not configured")
             return await self.mcp_client.execute_tool_call(tool_call)
         except Exception as e:  # pylint: disable=broad-exception-caught
+            # Any failure (network error, malformed args, tool-side
+            # exception) becomes a tool-role error message rather than a
+            # raised exception, so one bad call cannot crash the multi-turn
+            # tool-calling loop.
             error_msg = f"tool execution failed: {str(e)}"
             logger.error("%s error: %s", tool_name, error_msg)
             return self._create_error_response(tool_name, tool_call_id,
                                                error_msg)
 
+    # Used by the draft and validate literature-tools agents (each passes its
+    # own phase label, e.g. "Draft") to log and cap per-tool call volume
+    # across a multi-iteration tool-calling loop.
     def tracked_executor(
         self,
         label: str,
@@ -120,6 +142,8 @@ class MCPToolProvider:
 
         return executor, counts
 
+    # Shape matches the OpenAI/LiteLLM "tool" role message so downstream
+    # code can treat error responses the same as successful tool results.
     def _create_error_response(self, tool_name: str, tool_call_id: str,
                                error_msg: str) -> dict[str, Any]:
         """Create error response message for failed tool call.

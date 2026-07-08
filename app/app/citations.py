@@ -63,6 +63,8 @@ class CitationRecord:
 def _content_tokens(text: str) -> frozenset[str]:
     """Cache the token set for a string; claims repeat across a hypothesis's
     citations, so this collapses their re-tokenization to a single pass."""
+    # Words of length <= 3 (articles, prepositions, etc.) are dropped as noise
+    # that would inflate overlap without indicating real semantic match.
     return frozenset(t for t in text.lower().split() if len(t) > 3)
 
 
@@ -74,6 +76,7 @@ def _token_overlap(claim: str, abstract: str) -> float:
     b = _content_tokens(abstract)
     if not a or not b:
         return 0.0
+    # Jaccard similarity: intersection over union of the two token sets.
     return len(a & b) / len(a | b)
 
 
@@ -86,6 +89,8 @@ def classify_citation(record: CitationRecord) -> CitationState:
     - Overlap >= 0.10 → partial.
     - Otherwise → unsupported.
     """
+    # Availability is checked first so an unresolved source short-circuits
+    # before spending a token-overlap computation on it.
     if not record.available or not record.url:
         return CitationState.UNAVAILABLE
     overlap = _token_overlap(record.claim, record.abstract)

@@ -51,8 +51,15 @@ def _review_from_response(data: dict[str, Any]) -> HypothesisReview:
     """
     scores = data.get("scores", {})
     if scores:
+        # Deriving overall_score as the mean of the per-criterion scores
+        # (rather than trusting an LLM-supplied overall_score) keeps the
+        # value internally consistent with the criteria shown to the user,
+        # even if the model's own aggregate judgment drifts from them.
         overall_score = sum(scores.values()) / len(scores)
     else:
+        # No structured criterion scores at all (e.g. a malformed
+        # response): fall back to whatever overall_score the payload
+        # provides, defaulting to 0.0 if that is also absent.
         overall_score = data.get("overall_score", 0.0)
 
     return HypothesisReview(
@@ -104,8 +111,15 @@ async def review_single_hypothesis(
         run_focus_guidance=run_focus_guidance,
     )
 
+    # prompt_name distinguishes each hypothesis's saved prompt artifact on
+    # disk (when COSCIENTIST_SAVE_PROMPTS is enabled) for debugging.
     prompt_name = (f"review_individual_{hypothesis_index}"
                    if hypothesis_index is not None else "review_individual")
+    # Unlike analyze_single_hypothesis in reflection.py, this call is not
+    # wrapped in a try/except: a failure here (e.g. exhausted retries)
+    # raises out of this coroutine and, via asyncio.gather in
+    # review_parallel_individual, aborts the whole review batch rather than
+    # degrading to a per-hypothesis fallback.
     response = await call_llm_json(
         prompt=prompt,
         model_name=model_name,
@@ -151,6 +165,10 @@ async def review_parallel_individual(
     Returns:
         List of reviews (one per hypothesis)
     """
+    # No concurrency semaphore is applied here, so every per-hypothesis
+    # review is dispatched at once; the count-based strategy in review_node
+    # is what bounds fan-out. gather preserves input order, so the returned
+    # reviews line up positionally with `hypotheses`.
     review_tasks = [
         review_single_hypothesis(
             hypothesis_text=hyp.text,
@@ -264,12 +282,18 @@ async def review_comparative_batch(
             len(reviews_data), run_id)
 
     # Convert to HypothesisReview objects
+    # Iterates by index over `hypotheses` (not `reviews_data`) so every
+    # hypothesis gets a review object even if the LLM under-produced
+    # entries after hitting the mismatch case logged above.
     reviews = []
     for i in range(len(hypotheses)):
         if i < len(reviews_data):
             reviews.append(_review_from_response(reviews_data[i]))
         else:
             # Missing review - create empty one
+            # review_node's validation step below detects this placeholder
+            # via its review_summary text and raises rather than silently
+            # scoring the hypothesis at 0.
             logger.error("No review data for hypothesis %s", i)
             reviews.append(
                 HypothesisReview(
@@ -305,6 +329,12 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Reviewing %s hypotheses", num_hypotheses)
 
     # Choose strategy based on count
+    # Comparative batch review puts every hypothesis in one prompt so the
+    # judge can differentiate scores relative to its peers, but a single
+    # response has a token ceiling; above the threshold, parallel
+    # individual review trades that relative differentiation for
+    # scalability (one bounded-size call per hypothesis, no shared token
+    # budget).
     use_comparative = num_hypotheses <= COMPARATIVE_BATCH_THRESHOLD
 
     if use_comparative:
@@ -358,6 +388,10 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
         llm_calls = num_hypotheses  # One call per hypothesis
 
     # Validate reviews before continuing
+    # Unlike reflection_node/proximity_node, which degrade gracefully on
+    # partial LLM failures, a hypothesis reaching ranking without a real
+    # review would silently rank at score 0.0, so this node fails loudly
+    # instead by raising GenerationError.
     invalid_reviews = [
         i for i, r in enumerate(reviews)
         if r.review_summary == "Review unavailable"

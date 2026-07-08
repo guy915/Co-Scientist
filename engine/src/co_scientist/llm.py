@@ -87,6 +87,7 @@ def extract_response_json(raw: str) -> str:
         end = text.find("```", start)
         text = text[start:] if end == -1 else text[start:end]
     elif "```" in text:
+        # Fallback: a plain ``` fence with no "json" language tag.
         start = text.find("```") + 3
         end = text.find("```", start)
         text = text[start:] if end == -1 else text[start:end]
@@ -268,6 +269,11 @@ def validate_json_schema(result: dict[str, Any],
         # No schema provided, skip validation
         return
 
+    # Schema dicts may be either a bare JSON Schema or the LiteLLM
+    # json_schema response-format wrapper ({"name": ..., "schema": {...}}
+    # from call_llm); this normalizes to the bare schema either way. The
+    # same unwrap pattern is repeated in _inject_schema_into_prompt and
+    # _backfill_required_fields below.
     # Extract actual schema from nested structure if present
     actual_schema = json_schema.get("schema", json_schema)
 
@@ -442,6 +448,8 @@ def _backfill_required_fields(obj: Any, schema: Any) -> None:
     if not isinstance(obj, dict) or not isinstance(schema, dict):
         return
     props = schema.get("properties", {})
+    # Step 1: fill any required field missing from obj with a type-neutral
+    # default so the schema's "required" check passes on validation.
     for field in schema.get("required", []):
         if field not in obj and field in props:
             field_schema = props[field]
@@ -457,6 +465,9 @@ def _backfill_required_fields(obj: Any, schema: Any) -> None:
                 obj[field] = 0
             else:
                 obj[field] = ""
+    # Step 2: recurse into every property present in obj -- both fields that
+    # were already there and ones just backfilled above -- so nested
+    # required fields at any depth get the same treatment.
     for key, value in obj.items():
         if key in props:
             _backfill_required_fields(value, props[key])
@@ -527,6 +538,8 @@ async def call_llm(
             }],
             "max_tokens": max_tokens,
             "temperature": temperature,
+            # Silently drop params a provider doesn't accept instead of
+            # raising, since not every model/provider supports every arg.
             "drop_params": True,
         }
 
@@ -582,6 +595,11 @@ async def call_llm(
         return cast(str, content)
 
     except Exception as e:
+        # call_llm never falls back or retries itself; it fails loud and
+        # leaves that policy to its callers (call_llm_json's retry loop,
+        # get_fallback_response for non-critical nodes). Nothing is cached
+        # here, so a failed call is retried fresh next time, not replayed
+        # from a broken cache entry.
         logger.error("LLM call failed: %s", e)
         logger.error("Model: %s, max_tokens: %s", model_name, max_tokens)
         raise
@@ -917,6 +935,8 @@ async def call_llm_with_tools(
     logger.debug("cache miss for prompt: %s%s", prompt[:200],
                  '...' if len(prompt) > 200 else '')
 
+    # Running conversation history: grows with each assistant/tool turn and
+    # is resent in full to acompletion on every iteration below.
     messages = [{"role": "user", "content": prompt}]
 
     for iteration in range(max_iterations):
@@ -936,6 +956,9 @@ async def call_llm_with_tools(
 
             message = response.choices[0].message
 
+            # litellm's message object is a Pydantic model, not a plain
+            # dict; convert it so it can be cached and replayed as message
+            # history.
             # Convert message to dict format for history
             message_dict = {
                 "role": message.role,

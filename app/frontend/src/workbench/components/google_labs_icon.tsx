@@ -12,6 +12,8 @@ export function GoogleLabsIcon(props: SVGProps<SVGSVGElement>) {
       viewBox="0 0 14 13"
       fill="none"
       focusable="false"
+      // Spread after the fixed attributes so callers can still override any
+      // of them (e.g. className, aria-hidden) via props.
       {...props}
     >
       <path

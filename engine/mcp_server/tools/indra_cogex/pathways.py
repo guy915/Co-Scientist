@@ -35,11 +35,14 @@ async def query_pathways(
         mode = "shared" if len(curies) > 1 else "single"
 
         if len(curies) == 1:
+            # Single gene: all pathways it participates in.
             raw = await indra_post(
                 "/api/get_pathways_for_gene",
                 {"gene": curies[0]},
             )
         else:
+            # Multiple genes: intersection of pathways common to all of
+            # them, useful for finding shared functional context.
             raw = await indra_post(
                 "/api/get_shared_pathways_for_genes",
                 {"genes": curies},
@@ -86,11 +89,15 @@ async def query_causal_subnetwork(
         curies = [parse_id(nid) for nid in node_ids]
 
         if find_mediators:
+            # Search for indirect paths A -> X -> B through an unlisted
+            # intermediate node X, ranked by supporting evidence count.
             raw = await indra_post("/api/indra_mediated_subnetwork", {
                 "nodes": curies,
                 "order_by_ev_count": True,
             })
         else:
+            # Only direct statements between the given nodes, including
+            # evidence sourced from curated pathway databases.
             raw = await indra_post("/api/indra_subnetwork_relations", {
                 "nodes": curies,
                 "include_db_evidence": True,

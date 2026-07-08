@@ -58,19 +58,25 @@ def build_evidence_manifest(
             continue
         eid = str(raw_eid)
         if eid not in by_id:
-            continue
+            continue  # Citation points at evidence we do not have; skip.
         state = str(citation.get("state") or "")
         if eid not in cited_state:
+            # First citation of this item fixes its manifest position.
             cited_order.append(eid)
             cited_state[eid] = state
         elif STATE_RANK.get(state, -1) > STATE_RANK.get(cited_state[eid], -1):
+            # Cited again with a stronger state: upgrade the state only,
+            # keeping the original position so numbering stays stable.
             cited_state[eid] = state
+    # Uncited evidence trails the cited items, in retrieval (dict) order.
     ordered_ids = cited_order + [eid for eid in by_id if eid not in cited_state]
     manifest: list[dict[str, Any]] = []
+    # 1-based numbering matches the [n] citation markers in the prompt.
     for n, eid in enumerate(ordered_ids[:cap], start=1):
         row = by_id[eid]
         entry_state = cited_state.get(eid)
         if entry_state is None:
+            # Uncited items get a state from their availability flag.
             entry_state = ("available"
                            if row.get("available", True) else "unavailable")
         manifest.append({
@@ -121,6 +127,8 @@ def build_system_prompt(
         The system prompt string.
     """
     evidence_lines = _format_manifest_for_prompt(manifest)
+    # Each section is truncated (top 5 hypotheses, last 5 reviews, last 3
+    # matches, last 10 messages) to keep the prompt bounded on long runs.
     # list_hypotheses already orders by Elo descending.
     top_hyps = hypotheses[:5]
     hyp_lines = "\n".join(
@@ -174,10 +182,16 @@ async def stream_answer(
     Yields:
         SSE ``data:`` frames.
     """
+    # Q&A uses the dedicated chat model when configured (typically a fast/
+    # cheap one), falling back to the app-wide default model.
     model = settings.chat_model_name or settings.model_name
     try:
+        # Deferred import keeps module import cheap and lets the except
+        # branch turn a missing/broken litellm into the fallback message.
         import litellm  # pylint: disable=import-outside-toplevel
 
+        # Sources frame goes out before any text so the UI can resolve [n]
+        # citation markers while the answer is still streaming.
         if manifest:
             yield sse_frame({"type": "sources", "sources": manifest})
 
@@ -196,6 +210,8 @@ async def stream_answer(
             ],
             stream=True,
         )
+        # Relay each token delta as its own SSE frame, accumulating the
+        # full text so the complete answer can be persisted at the end.
         async for chunk in response:
             delta = (chunk.choices[0].delta.content or
                      "") if chunk.choices else ""
@@ -203,6 +219,8 @@ async def stream_answer(
                 full.append(delta)
                 yield sse_frame({"type": "chunk", "content": delta})
 
+        # Persist the answer (with its sources) before signalling `done`,
+        # so a reload right after completion still shows the exchange.
         answer = "".join(full)
         store.append_message(run_id,
                              "system",
@@ -211,6 +229,9 @@ async def stream_answer(
                              meta={"sources": manifest} if manifest else None)
         yield sse_frame({"type": "done", "question_id": question_id})
     except Exception as exc:  # pylint: disable=broad-exception-caught
+        # Any failure (missing key, provider error, mid-stream drop) ends
+        # the stream with a persisted fallback so the chat history stays
+        # consistent with what the user saw.
         logger.error("Q&A stream error for run %s: %s", run_id, exc)
         fallback = "Q&A requires a language model API key (set CHAT_MODEL_NAME or MODEL_NAME)."  # pylint: disable=line-too-long
         store.append_message(run_id, "system", fallback, "qa")

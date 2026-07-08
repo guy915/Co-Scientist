@@ -36,15 +36,18 @@ from co_scientist.nodes.progress import emit_progress
 logger = logging.getLogger(__name__)
 
 
+# Bundles the three-way count split (and the two special-mode flags) so the
+# helper functions below can pass one object around instead of five loose
+# parameters.
 @dataclass
 class GenerationCounts:
     """Encapsulates hypothesis count allocation across generation methods."""
 
-    tools_count: int
-    debate_with_lit_count: int
-    debate_only_count: int
-    is_dev_isolation: bool = False
-    is_degraded_mode: bool = False
+    tools_count: int  # hypotheses via tool-based draft/validate flow
+    debate_with_lit_count: int  # hypotheses via debate, with lit context
+    debate_only_count: int  # hypotheses via debate, no literature at all
+    is_dev_isolation: bool = False  # dev/test: force tools-only allocation
+    is_degraded_mode: bool = False  # no literature review was available
 
 
 @dataclass
@@ -54,6 +57,8 @@ class GenerationResults:
     tools_hypotheses: list[Hypothesis]
     debate_with_lit_hypotheses: list[Hypothesis]
     debate_only_hypotheses: list[Hypothesis]
+    # One entry per debate run (both debate_with_lit and debate_only feed
+    # this); tool-based generation has no transcript equivalent.
     debate_transcripts: list[dict[str, Any]]
 
     @property
@@ -69,6 +74,11 @@ class GenerationResults:
 def _check_literature_availability(articles_with_reasoning: str | None,
                                    mcp_available: bool) -> bool:
     """Determine if literature review is available and valid."""
+    # articles_with_reasoning is None before the literature review node has
+    # run; it is set to the LITERATURE_REVIEW_FAILED sentinel when that node
+    # ran but errored out. mcp_available must also be true here so we do not
+    # try to run tool-based generation against a lit review summary that was
+    # produced without live MCP tool access.
     return (articles_with_reasoning is not None and
             articles_with_reasoning != LITERATURE_REVIEW_FAILED and
             mcp_available)
@@ -78,6 +88,9 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
                                  has_literature: bool,
                                  enable_tool_calling: bool) -> GenerationCounts:
     """Determine how many hypotheses to generate with each method."""
+    # Dev/test escape hatch: route everything through the tool-based path in
+    # isolation so its behavior can be exercised without debate generation
+    # mixed in. Takes priority over the normal 3-condition strategy below.
     if state.get("dev_test_lit_tools_isolation", False):
         return GenerationCounts(
             tools_count=total_count,
@@ -86,7 +99,10 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
             is_dev_isolation=True,
         )
 
-    # Condition (a)
+    # Condition (a): literature review succeeded and tool calling is enabled
+    # for generation - split the workload between the two literature-aware
+    # strategies so results benefit from both a tool-driven read/validate
+    # loop and a debate that has the same literature context.
     if has_literature and enable_tool_calling:
         # Split 50/50, but ensure we don't exceed total_count
         tools_count = max(1, total_count // 2)
@@ -101,7 +117,9 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
             debate_only_count=0,
         )
 
-    # Condition (c)
+    # Condition (c): literature review succeeded but tool calling is off for
+    # generation (e.g. model/config does not support it) - fall back to
+    # debate-with-literature for the full count.
     if has_literature and not enable_tool_calling:
         return GenerationCounts(
             tools_count=0,
@@ -109,7 +127,9 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
             debate_only_count=0,
         )
 
-    # Condition (b)
+    # Condition (b): no usable literature review at all - degrade to debate
+    # generation from the model's latent knowledge only. Flagged so callers
+    # can attach an explicit "no literature" warning to every hypothesis.
     return GenerationCounts(
         tools_count=0,
         debate_with_lit_count=0,
@@ -121,6 +141,8 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
 def _log_generation_strategy(counts: GenerationCounts,
                              total_count: int) -> None:
     """Log which generation strategy is being used."""
+    # Mirrors the branch order of _determine_generation_counts so the log
+    # line always names the condition that actually produced these counts.
     if counts.is_dev_isolation:
         logger.info("Dev isolation mode: allocating all hypotheses"
                     " to lit tools generation (no debate)")
@@ -145,6 +167,9 @@ def _log_generation_strategy(counts: GenerationCounts,
 async def _emit_start_progress(state: WorkflowState, counts: GenerationCounts,
                                total_count: int) -> None:
     """Emit progress callback for generation start."""
+    # Builds a human-readable message plus optional extra payload fields for
+    # the SSE progress event; branch order again follows the same conditions
+    # as _determine_generation_counts.
     extra: dict[str, Any] = {}
     if counts.is_dev_isolation:
         message = (f"Generating {total_count} hypotheses with lit"
@@ -184,7 +209,10 @@ async def _execute_generation_tasks(
     debate_only_hypotheses: list[Hypothesis] = []
     debate_transcripts: list[dict[str, Any]] = []
 
-    # Collect tasks to run in parallel
+    # Collect tasks to run in parallel. Each entry pairs a tag with its
+    # coroutine so results can be routed back to the right bucket after
+    # asyncio.gather() returns them in call order (order is not otherwise
+    # recoverable once the coroutines are unpacked into gather()).
     tasks: list[tuple[str, Coroutine[Any, Any, Any]]] = []
 
     if counts.tools_count > 0:
@@ -215,15 +243,21 @@ async def _execute_generation_tasks(
             generate_with_debate(
                 state=state,
                 count=counts.debate_only_count,
+                # Passed explicitly rather than omitted, so degraded-mode
+                # debates never accidentally pick up literature context from
+                # a caller-supplied default.
                 articles_with_reasoning=None,  # explicitly no literature
                 reference_index=ReferenceIndex(text="", sources={}),
             ),
         ))
 
-    # Run all tasks in parallel
+    # Run all tasks in parallel; gather preserves the order tasks were
+    # appended in, which is what the index-based unpack below relies on.
     results = await asyncio.gather(*[task for _, task in tasks])
 
-    # Unpack results
+    # Unpack results. task_type distinguishes between the tools path (a
+    # plain hypothesis list) and the two debate paths (a
+    # (hypotheses, transcripts) tuple).
     for i, (task_type, _) in enumerate(tasks):
         if task_type == "tools":
             tools_hypotheses = results[i]
@@ -247,7 +281,10 @@ def _apply_degraded_mode_fallback(hypotheses: list[Hypothesis]) -> None:
     literature review.
     """
     for hyp in hypotheses:
-        # Always overwrite in non-lit-mcp mode to prevent hallucinated citations
+        # Always overwrite in non-lit-mcp mode to prevent hallucinated
+        # citations: even if the model produced its own literature_grounding
+        # text (it was told not to have literature), replace it so the
+        # user-facing field never implies grounding that does not exist.
         hyp.literature_grounding = (
             "No literature review available. This hypothesis is based"
             " on the model's latent knowledge and has not been"
@@ -330,6 +367,8 @@ async def _enrich_hypotheses(
     the specified tool with each hypothesis's input_field value and stores
     the result in hypothesis.enrichments[output_key].
     """
+    # No-op unless the domain's tool config declares enrichment tools (e.g.
+    # a CVE lookup for a cyber domain) - most domains have none configured.
     tool_registry = state.get("tool_registry")
     if not tool_registry:
         return
@@ -339,10 +378,16 @@ async def _enrich_hypotheses(
         return
 
     mcp_client = await get_mcp_client(tool_registry=tool_registry)
+    # Reuse the same concurrency cap as LLM calls even though these are tool
+    # calls, not LLM calls - it is a reasonable shared limit on outstanding
+    # MCP requests and avoids adding a second constant for the same purpose.
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
+    # Runs one enrichment tool call for one hypothesis, best-effort.
     async def enrich_one(hyp: Hypothesis, enrichment: EnrichmentConfig,
                          tool_config: ToolConfig, output_key: str) -> None:
+        # input_field selects which hypothesis attribute to query with (e.g.
+        # its explanation instead of its text); falls back to text.
         input_value = getattr(hyp, enrichment.input_field, hyp.text)
         try:
             async with semaphore:
@@ -358,6 +403,9 @@ async def _enrich_hypotheses(
                 parsed = parsed.get(enrichment.results_path, parsed)
             hyp.enrichments[output_key] = parsed
         except Exception as e:  # pylint: disable=broad-exception-caught
+            # Enrichment is supplementary, not load-bearing: a failure here
+            # must not fail hypothesis generation, so it is recorded on the
+            # hypothesis instead of being raised.
             logger.warning("enrichment '%s' failed for hypothesis: %s",
                            output_key, e)
             hyp.enrichments[output_key] = {"error": str(e)}
@@ -373,6 +421,8 @@ async def _enrich_hypotheses(
         logger.info("running enrichment '%s' via %s for %s hypotheses",
                     output_key, tool_config.mcp_tool_name, len(hypotheses))
 
+        # Fan out one call per hypothesis for this enrichment config; the
+        # semaphore inside enrich_one bounds actual concurrency.
         await asyncio.gather(
             *(enrich_one(hyp, enrichment, tool_config, output_key)
               for hyp in hypotheses))
@@ -404,6 +454,9 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
         state.get("enable_tool_calling_generation", False))
     total_count = state["initial_hypotheses_count"]
 
+    # supervisor_guidance drives prompt assembly in every downstream
+    # generation path, so its absence is treated as a hard precondition
+    # failure rather than something to silently work around.
     if not supervisor_guidance:
         raise GenerationError(
             "No supervisor_guidance in state for node=generation")
@@ -413,15 +466,22 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
     counts = _determine_generation_counts(state, total_count, has_literature,
                                           enable_tool_calling)
 
+    # Built once up front and threaded through every strategy below so all
+    # hypotheses generated in this call share one [C*] citation-key
+    # namespace, regardless of which method produced them.
     reference_index = build_reference_index(
         articles=state.get("articles"),
         context_enrichment_sources=state.get("context_enrichment_sources"),
     )
     if not reference_index.is_empty():
+        # Keys are uniformly "C<n>"; the paper/KG split lives in each
+        # source's "type" field (see build_reference_index).
         logger.info(
             "Built reference index: %s paper(s), %s KG source(s)",
-            sum(1 for k in reference_index.sources if k.startswith('P')),
-            sum(1 for k in reference_index.sources if k.startswith('KG')))
+            sum(1 for s in reference_index.sources.values()
+                if s.get("type") == "paper"),
+            sum(1 for s in reference_index.sources.values()
+                if s.get("type") == "knowledge_graph"))
 
     _log_generation_strategy(counts, total_count)
     await _emit_start_progress(state, counts, total_count)
@@ -431,6 +491,10 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
                                                   articles_with_reasoning,
                                                   reference_index)
 
+        # Only debate_only_hypotheses need the fallback message: tools_ and
+        # debate_with_lit_hypotheses are only populated when has_literature
+        # was true, so is_degraded_mode and those lists are mutually
+        # exclusive by construction.
         if counts.is_degraded_mode:
             _apply_degraded_mode_fallback(results.debate_only_hypotheses)
 
@@ -450,5 +514,8 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
         }
 
     except Exception as e:
+        # Log with full context here (this is the top-level entry point),
+        # then re-raise so the caller (generate_node) treats generation
+        # failure as a hard error rather than a partial/degraded result.
         logger.error("Generation failed: %s", e)
         raise

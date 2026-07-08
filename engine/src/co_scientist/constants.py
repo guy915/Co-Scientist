@@ -10,15 +10,22 @@ from typing import Final
 logger = logging.getLogger(__name__)
 
 # Literature review status markers
+# Sentinel string stored in place of a synthesis when the literature-review
+# node fails outright; downstream generation nodes check for this value to
+# skip citation/grounding logic rather than treating the marker as content.
 LITERATURE_REVIEW_FAILED: Final = "__LIT_REVIEW_FAILED__"
 """Marker indicating literature review failed and should not be used for
 generation.
 """
 
 # Elo rating system parameters
+# Seed rating assigned to every newly generated hypothesis (nodes/generation/
+# citations.py) before it has played any tournament matches in ranking.py.
 INITIAL_ELO_RATING: Final = 1200
 """Initial Elo rating for new hypotheses."""
 
+# Standard chess-style K-factor: how much a single match win/loss moves a
+# hypothesis's Elo rating. Consumed by ranking.calculate_elo_update.
 ELO_K_FACTOR: Final = 24
 """K-factor for Elo rating updates (higher = more volatile ratings)."""
 
@@ -27,6 +34,9 @@ ELO_UPSET_MARGIN: Final = 100
 judged matchup to be classified an "upset" (see ``ranking.match_tier``)."""
 
 # LLM API parameters
+# These four token budgets are the base values that scaled_max_tokens() below
+# scales up for count-dependent calls (e.g. batch review, evolution); simple
+# single-hypothesis calls use them directly.
 DEFAULT_MAX_TOKENS: Final = 4000
 """Default max tokens for standard LLM calls."""
 
@@ -52,12 +62,18 @@ review).
 """
 
 # Review strategy threshold
+# review.py picks its strategy from this: at or below the threshold, all
+# hypotheses are reviewed together in one comparative call (cheaper, and
+# lets the model contrast them); above it, each hypothesis is reviewed
+# independently and in parallel to keep any single call's output bounded.
 COMPARATIVE_BATCH_THRESHOLD: Final = 5
 """Maximum hypotheses for comparative batch review. Above this, use parallel
 individual reviews.
 """
 
 # Concurrency limits
+# Shared semaphore bound for ranking, deep-verification, and generation
+# coordinator fan-out so parallel LLM calls do not trip provider rate limits.
 MAX_CONCURRENT_LLM_CALLS: Final = 5
 """Maximum concurrent LLM API calls to avoid rate limits."""
 
@@ -66,6 +82,8 @@ DEFAULT_MAX_ITERATIONS: Final = 1
 """Default number of refinement iterations."""
 
 # Debate generation parameters
+# Generation via multi-turn expert debate (nodes/generation/debate.py) stops
+# after this many turns if the model does not converge earlier.
 DEBATE_MAX_TURNS: Final = 5
 """Default number of debate turns (can be up to 10)."""
 
@@ -76,6 +94,8 @@ DEFAULT_EVOLUTION_MAX_COUNT: Final = 3
 """Default number of top hypotheses to evolve and keep."""
 
 # Deep-verification review (probing questions on the most promising hypotheses).
+# deep_verification.py ranks hypotheses by Elo and only probes the leaders,
+# since the LLM-driven questioning is expensive relative to review/ranking.
 DEEP_VERIFICATION_TOP_K: Final = 3
 """Number of top-Elo hypotheses to subject to deep verification."""
 
@@ -84,11 +104,17 @@ RESEARCH_OVERVIEW_TOP_K: Final = 10
 """Number of top-Elo hypotheses to synthesize into the research overview."""
 
 # Similarity thresholds
+# Used by evolve.py's dedup check: hypotheses whose similarity to an existing
+# one exceeds this are treated as redundant rather than a genuine variant.
 DUPLICATE_SIMILARITY_THRESHOLD: Final = 0.95
 """Similarity threshold above which hypotheses are considered duplicates (0-1).
 """
 
 # Progress tracking
+# Percent-complete checkpoints (0-100) each node emits as progress events.
+# Values are not strictly monotonic across a run: the graph runs
+# deep-verification (81-84) between ranking and proximity (75-85), so
+# reported progress steps back from 84 to 75 when proximity starts.
 PROGRESS_SUPERVISOR_START: Final = 5
 PROGRESS_SUPERVISOR_COMPLETE: Final = 10
 PROGRESS_GENERATE_START: Final = 15
@@ -109,6 +135,8 @@ PROGRESS_RESEARCH_OVERVIEW_START: Final = 95
 PROGRESS_RESEARCH_OVERVIEW_COMPLETE: Final = 99
 
 # Cache defaults
+# Overridable via COSCIENTIST_CACHE_DIR / COSCIENTIST_CACHE_ENABLED (see
+# cache.py); caching covers both raw LLM responses and node-level results.
 DEFAULT_CACHE_DIR: Final = ".coscientist_cache"
 """Default directory for LLM response caching."""
 
@@ -117,6 +145,9 @@ DEFAULT_CACHE_ENABLED: Final = True
 caching).
 """
 
+# Selected in nodes/literature_review.py based on the COSCIENTIST_DEV_MODE
+# env var; dev mode ignores any per-run override and always uses the
+# smaller _DEV budget for faster iteration.
 LITERATURE_REVIEW_PAPERS_COUNT: Final = 10
 """default number of papers to collect from MCP servers/tools when a run does
 not specify a per-run count."""
@@ -128,6 +159,10 @@ LITERATURE_REVIEW_RECENCY_YEARS: Final = 7
 """filter papers to last N years for better relevance (0 = no filter)"""
 
 # Generate node literature tool usage parameters
+# The next two functions size the tool-calling agent's iteration budget for
+# the two-phase (draft, then validate) generation-with-literature-tools flow
+# in nodes/generation/literature_tools/. Each LLM tool call, whether it reads
+# a paper or emits a draft, counts as one iteration.
 
 
 def get_draft_max_iterations(hypotheses_count: int) -> int:

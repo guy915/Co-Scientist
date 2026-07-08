@@ -27,6 +27,9 @@ def _symlink_into_run(run_dir: Path, filename: str) -> None:
     """
     symlink = run_dir / filename
     if not symlink.exists():
+        # Relative symlink: run_dir is <slug>/runs/<run_id>/, so two levels
+        # up reaches <slug>/, from which "shared/<filename>" resolves. Kept
+        # relative so the whole <slug> tree stays portable if moved/copied.
         symlink.symlink_to(f"../../shared/{filename}")
 
 
@@ -54,6 +57,9 @@ class PubmedSource:
         Returns:
             Parsed result from Entrez.read() (dict-like or list-like).
         """
+        # NCBI's documented courtesy limit is at most ~3 requests/second
+        # without an API key; a fixed delay per call is a simple way to
+        # stay under that across many sequential/concurrent calls.
         sleep(0.25)  # rate limits - recommended by entrez docs
         results = Entrez.read(handle)
         handle.close()
@@ -73,11 +79,18 @@ class PubmedSource:
         Returns:
             Metadata dict for the paper (title, abstract, authors, doi, etc.).
         """
+        # efetch returns a PubmedArticleSet; a single-id request still comes
+        # back as a one-element list, hence the [0] below.
         results = self.entrez_read(Entrez.efetch(db="pubmed", id=paper_id))
         pubmed_article = results["PubmedArticle"][0]
         citation = pubmed_article["MedlineCitation"]
         article = citation["Article"]
 
+        # Entrez.read parses DateRevised into a dict-like with separate
+        # Year/Month/Day string fields; join them into "YYYY/M/D" (no
+        # zero-padding) to match the split-and-index expression this field
+        # is consumed with elsewhere (e.g. field_mapping "date_revised|
+        # split:/|index:0|int" to pull out just the year).
         date_revised_raw = citation["DateRevised"]
         date_revised = "{}/{}/{}".format(  # pylint: disable=consider-using-f-string
             *[
@@ -85,12 +98,18 @@ class PubmedSource:
                 for field in ["Year", "Month", "Day"]
             ])
         try:
+            # Some articles split the abstract into multiple labeled
+            # sections (Background, Methods, ...); join them into one
+            # string. Articles with no abstract omit the key entirely.
             abstract = " ".join(article["Abstract"]["AbstractText"])
         except KeyError:
             abstract = "<not found>"
 
         title = article["ArticleTitle"]
 
+        # Build "Forename Lastname" for each author, then drop any entry
+        # where either name was missing (marked "<invalid>" above) rather
+        # than emitting a name with a literal "<invalid>" token in it.
         authors = list(
             filter(
                 lambda author: '<invalid>' not in author,
@@ -104,6 +123,9 @@ class PubmedSource:
                 ]))
 
         try:
+            # ArticleIdList mixes several ID types (pubmed, doi, pmc, ...);
+            # filter down to the one tagged IdType="doi". IndexError (empty
+            # list after filtering) means no DOI was assigned.
             doi = [
                 str(element) for element in filter(
                     lambda xml_string: xml_string.attributes.get(
@@ -116,6 +138,10 @@ class PubmedSource:
         publication = article['Journal']['Title']
 
         try:
+            # elink cross-references PubMed IDs to PMC IDs; a paper only has
+            # a usable PMC fulltext if this link exists. Any failure here
+            # (no link, malformed response) just means fulltext is
+            # unavailable, not a fatal error for the caller.
             related = self.entrez_read(
                 Entrez.elink(dbfrom="pubmed", db="pmc", id=paper_id))
             pmc_full_text = related[0]["LinkSetDb"][0]["Link"][0]["Id"]
@@ -156,6 +182,7 @@ class PubmedSource:
 
         # Add recency filter if specified
         if recency_years > 0:
+            # Imported locally since it is only needed for this branch.
             from datetime import datetime  # pylint: disable=import-outside-toplevel
             current_year = datetime.now().year
             min_year = current_year - recency_years
@@ -167,6 +194,9 @@ class PubmedSource:
 
         logger.debug("searching pubmed with sort=pub_date (most recent first)")
         results = self.entrez_read(Entrez.esearch(**search_params))
+        # esearch's IdList is empty (not absent) when nothing matches, so
+        # the truthiness check also covers that case, not just a missing
+        # key.
         if (id_list := results.get("IdList", None)):
             return [str(paper_id) for paper_id in id_list]
         logger.warning("No results found for query: %s", query)
@@ -215,6 +245,12 @@ class PubmedSource:
                 return contents
 
             # Download fulltext
+            # NCBI caps the size of a single efetch response and signals
+            # this either on the response handle itself or in the body
+            # text; when that happens, page through the rest of the
+            # document by re-issuing efetch with retstart advanced past
+            # what has already been read, accumulating chunks until a
+            # response comes back with no truncation marker.
             text = []
             cursor = 0
             while True:
@@ -284,6 +320,9 @@ class PubmedSource:
         Returns:
             Dict mapping paper_id to metadata for papers with fulltext.
         """
+        # Imported locally so importing this module does not require an
+        # event loop / asyncio setup unless this async method is actually
+        # called.
         import asyncio  # pylint: disable=import-outside-toplevel
 
         # Request 3x papers to account for ~33% fulltext availability
@@ -312,19 +351,17 @@ class PubmedSource:
                 "No run_id provided - papers will only go to shared pool "
                 "without run tracking")
 
-        # Track papers belonging to this run for manifest
-        current_run_papers = []
-
         # Semaphore to limit concurrent entrez API calls (respect rate limits)
         # allow 3 concurrent (conservative, can increase to 10 with API key)
         semaphore = asyncio.Semaphore(3)
 
         def link_to_run(paper_id: str) -> None:
             """Symlinks a shared-pool metadata file into the run directory."""
+            # No-op without a run_id: metadata still lands in the shared
+            # pool, it just is not exposed under a per-run directory.
             if not run_dir:
                 return
             _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
-            current_run_papers.append(paper_id)
 
         async def fetch_paper_metadata(
                 paper_id: str) -> tuple[str, dict[str, Any] | None]:
@@ -387,7 +424,10 @@ class PubmedSource:
                      len(all_details), len(paper_ids))
 
         # Filter to papers with PMC IDs and take first max_papers
-        # (most recent, thanks to sort)
+        # (most recent, thanks to sort). asyncio.gather preserves input
+        # order regardless of completion order, and dicts preserve
+        # insertion order, so all_details still iterates in the same
+        # most-recent-first order as paper_ids.
         papers_with_pmc = [
             paper_id for paper_id in all_details
             if all_details[paper_id].get('pmc_full_text_id') is not None
@@ -432,6 +472,9 @@ class PubmedSource:
                 *[download_fulltext(pid) for pid in papers_to_use])
 
         # If short of target, supplement from shared pool
+        # Requires run_dir because supplementing only makes sense when
+        # building a per-run view (symlinks below need somewhere to go);
+        # without a run_id there is no per-run result set to top up.
         if fulltext_shortfall > 0 and run_dir:
             logger.info("attempting to supplement %s papers from shared pool",
                         fulltext_shortfall)
@@ -448,7 +491,10 @@ class PubmedSource:
                             metadata = json.load(f)
                         # Only consider papers with PMC fulltext
                         if metadata.get('pmc_full_text_id'):
-                            # Check if fulltext exists in shared pool
+                            # Check if fulltext exists in shared pool. Only
+                            # papers already downloaded qualify here; this
+                            # supplement path deliberately avoids issuing
+                            # new PMC downloads for a shortfall.
                             pmc_id = metadata['pmc_full_text_id']
                             fulltext_file = (shared_dir /
                                              f"{pmc_id}.fulltext.html")
@@ -456,6 +502,8 @@ class PubmedSource:
                                 supplement_candidates.append(
                                     (paper_id, metadata))
                     except Exception as e:  # pylint: disable=broad-exception-caught
+                        # Corrupt/partial metadata file: skip this
+                        # candidate rather than aborting the whole scan.
                         logger.debug("Failed to read shared pool paper %s: %s",
                                      paper_id, e)
 
@@ -495,7 +543,6 @@ class PubmedSource:
                     # Add to results
                     papers_to_use.append(paper_id)
                     all_details[paper_id] = metadata
-                    current_run_papers.append(paper_id)
 
                 logger.info(
                     "Supplemented %s papers from shared pool "
@@ -509,6 +556,10 @@ class PubmedSource:
                 # pylint: enable=line-too-long
 
         # Save manifest for this run if run_id provided
+        # Records exactly which papers (including any shared-pool
+        # supplements) this run ended up analyzing, independent of the
+        # per-paper symlinks, so a run's final selection can be audited or
+        # replayed later.
         if run_id and run_dir:
             manifest = {
                 "run_id": run_id,
@@ -519,6 +570,8 @@ class PubmedSource:
                     if all_details[pid].get("pmc_full_text_id")
                 ],
                 "query": query,
+                # Directory mtime as a coarse "when was this run's data
+                # last touched" timestamp, not a precise search time.
                 "timestamp": os.path.getmtime(str(run_dir))
             }
             manifest_file = run_dir / ".manifest.json"

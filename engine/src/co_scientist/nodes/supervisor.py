@@ -46,6 +46,8 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     user_literature = state.get("literature")
 
     # Extract user configuration for workflow
+    # These may be unset (None) if the run relies on engine defaults; the
+    # prompt builder below falls back to "not specified" text in that case.
     initial_hypotheses_count = state.get("initial_hypotheses_count")
     max_iterations = state.get("max_iterations")
     evolution_max_count = state.get("evolution_max_count")
@@ -53,11 +55,16 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     pubmed_available = bool(state.get("pubmed_available", False))
 
     # Emit progress
+    # This is the first node in the graph, so this also marks the start of
+    # the entire workflow from the UI's perspective.
     await emit_progress(state, "supervisor_start",
                         "Analyzing research goal and creating plan...",
                         PROGRESS_SUPERVISOR_START)
 
     # Call llm to create research plan with all context
+    # mcp_available and pubmed_available let the prompt honestly describe
+    # whether literature review will actually run, rather than assuming it
+    # always will.
     prompt, schema = get_supervisor_prompt(
         research_goal=research_goal,
         preferences=preferences,
@@ -76,6 +83,9 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         run_focus_guidance=state.get("run_focus_guidance"),
     )
 
+    # call_llm_json validates the response against schema, so downstream
+    # nodes can trust supervisor_guidance has the expected shape without
+    # re-checking types.
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
@@ -89,6 +99,11 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
         },
     )
 
+    # Defensive .get() with empty-container defaults: even though the schema
+    # constrains the LLM output, this keeps downstream consumers (generate,
+    # debate, meta-review, etc.) safe from missing keys without needing their
+    # own None-checks. This dict becomes state["supervisor_guidance"], the
+    # steering context every later node reads to build its own prompts.
     supervisor_guidance = {
         "research_goal_analysis":
             response.get("research_goal_analysis", {}),
@@ -107,6 +122,9 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Supervisor plan created")
 
     # Log key insights from supervisor
+    # Guard with isinstance since research_goal_analysis is only loosely
+    # typed as dict[str, Any] and the LLM could in principle return an
+    # unexpected shape despite the schema.
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
     key_areas = goal_analysis.get("key_areas", []) if isinstance(
         goal_analysis, dict) else []
@@ -115,6 +133,8 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
                     ', '.join(key_areas[:3]))
 
     # Emit progress
+    # key_areas count is surfaced to the UI as extra context alongside the
+    # phase completion.
     await emit_progress(state,
                         "supervisor_complete",
                         "Research plan created",
@@ -122,6 +142,7 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
                         key_areas=len(key_areas))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
+    # This node makes exactly one LLM call, so the delta is always 1.
     metrics = create_metrics_update(llm_calls_delta=1)
 
     return {

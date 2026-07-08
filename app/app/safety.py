@@ -68,6 +68,7 @@ class SafetyDecision:
     matches: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, str | list[str]]:
+        """Serialize this decision for the `safety.{stage}` event payload."""
         return {
             "stage": self.stage,
             "decision": self.decision,
@@ -77,8 +78,11 @@ class SafetyDecision:
 
 
 def _scan(text: str, patterns: Iterable[re.Pattern[str]]) -> list[str]:
+    """Return the matched substring for each pattern that hits `text`."""
     hits: list[str] = []
     for pat in patterns:
+        # Only the first match per pattern is kept; `matches` is a diagnostic
+        # trail for the safety decision, not an exhaustive occurrence count.
         m = pat.search(text or "")
         if m:
             hits.append(m.group(0))
@@ -98,6 +102,9 @@ def screen_intake(goal: str) -> SafetyDecision:
             matches=blocked,
         )
     flagged = _scan(text, _REDACT_PATTERNS)
+    # Unlike screen_final below, intake only redacts under strict mode: a
+    # dual-use-sounding research goal is allowed through by default so a
+    # run is not blocked purely on vocabulary before any content exists.
     if flagged and SAFETY_MODE == SafetyMode.STRICT:
         return SafetyDecision(
             stage="intake",
@@ -122,6 +129,9 @@ def screen_final(report_markdown: str) -> SafetyDecision:
             matches=blocked,
         )
     flagged = _scan(text, _REDACT_PATTERNS)
+    # Final output always flags dual-use language, regardless of SAFETY_MODE:
+    # a generated report is finished content, not an ambiguous ask, so it
+    # gets the stricter treatment intake reserves for strict mode only.
     if flagged:
         return SafetyDecision(
             stage="final",

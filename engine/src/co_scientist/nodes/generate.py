@@ -32,9 +32,19 @@ async def generate_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Starting generate node")
 
     # Delegate to coordinator
+    # This does all the real work: choosing a generation strategy (tool-
+    # based / debate-with-literature / debate-only) based on literature and
+    # tool-calling availability, running it, and returning a dict with
+    # hypotheses, debate_transcripts, hypothesis_count, and message. Any
+    # failure inside the coordinator propagates as an exception rather than
+    # a partial result.
     result = await generate_hypotheses(state)
 
     # Add metrics. The coordinator always returns hypothesis_count (or raises).
+    # create_metrics_update wraps it as a metrics delta; hypothesis_count
+    # uses max() in the merge_metrics reducer (it's a running total, not
+    # additive), so passing the coordinator's total here is correct even
+    # across iterations that re-invoke this node.
     metrics = create_metrics_update(hypothesis_count=result["hypothesis_count"])
     result["metrics"] = metrics
 

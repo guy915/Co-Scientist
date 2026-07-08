@@ -20,6 +20,8 @@ from co_scientist.constants import (
     DEFAULT_EVOLUTION_MAX_COUNT,
 )
 from co_scientist.models import ExecutionMetrics, merge_metrics
+# Node callables, one per LangGraph node; see _build_graph below for how
+# they are wired into the workflow graph.
 from co_scientist.nodes.generate import generate_node
 from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.nodes.reflection import reflection_node
@@ -103,6 +105,8 @@ class HypothesisGenerator:
             disable_tools: List of tool IDs to disable
                 (None = use all enabled tools)
         """
+        # Constructor arguments become per-instance defaults that seed the
+        # initial workflow state on every generate_hypotheses() call below.
         self.model_name = model_name
         self.supervisor_model_name = supervisor_model_name or model_name
         self.max_iterations = max_iterations
@@ -111,6 +115,9 @@ class HypothesisGenerator:
         self.tournament_pairs = tournament_pairs
         self.literature_review_papers_count = literature_review_papers_count
 
+        # Note: cache.get_cache() reads these env vars once and memoizes the
+        # result process-wide, so this only takes effect if the generator is
+        # constructed before any LLM call happens elsewhere in the process.
         # Configure cache if specified
         if enable_cache is not None:
             import os  # pylint: disable=import-outside-toplevel
@@ -171,6 +178,8 @@ class HypothesisGenerator:
         """
         workflow = StateGraph(WorkflowState)
 
+        # These run unconditionally; the literature review and reflection
+        # nodes are added conditionally further below.
         # Add all nodes
         workflow.add_node("supervisor", supervisor_node)
         workflow.add_node("generate", generate_node)
@@ -372,6 +381,8 @@ class HypothesisGenerator:
                     )
                     enable_tool_calling_generation = False
 
+        # This block only reads the flag and logs; it is threaded through to
+        # initial_state below and the consuming nodes branch on it directly.
         # Dev isolation mode: force cache on lit review, allocate all to lit
         # tools
         dev_test_lit_tools_isolation = opts.get("dev_test_lit_tools_isolation",
@@ -467,6 +478,9 @@ class HypothesisGenerator:
 
         return initial_state
 
+    # Two @overload stubs give type checkers a precise return type per
+    # stream value; the un-decorated implementation below (with a union
+    # return type) is what actually runs.
     @overload
     def generate_hypotheses(
         self,
@@ -675,6 +689,10 @@ class HypothesisGenerator:
             # Maintain cumulative state across nodes
             # LangGraph's astream only yields fields updated by each node, not
             # full state
+            # Seeds every field a caller might read before its node has run
+            # yet. "research_plan" is not in _STREAMED_STATE_KEYS because it
+            # is derived from supervisor_guidance below rather than copied
+            # directly.
             cumulative_state: dict[str, Any] = {
                 "hypotheses": [],
                 "meta_review": {},

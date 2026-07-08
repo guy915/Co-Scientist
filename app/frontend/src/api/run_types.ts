@@ -35,7 +35,9 @@ export interface RunSetupConfig {
   tier: RunTier;
 }
 
+/** A JSON scalar: string, number, boolean, or null. */
 export type JsonPrimitive = string | number | boolean | null;
+/** Any valid JSON value, recursively defined for arbitrary nesting. */
 export type JsonValue =
   | JsonPrimitive
   | JsonValue[]
@@ -53,6 +55,9 @@ export interface RunConfig {
   tier?: RunTier;
   focus?: RunFocus;
   setup?: RunSetupConfig;
+  // RunSetupConfig is included alongside JsonValue because the `setup` key
+  // above is typed as RunSetupConfig (not a plain JsonValue); the index
+  // signature has to cover every declared property, including that one.
   [key: string]: JsonValue | RunSetupConfig | undefined;
 }
 
@@ -63,7 +68,7 @@ export interface Run {
   run_mode?: RunMode;
   profile: LegacyRunProfile;
   status: RunStatus;
-  provider: 'mock' | 'engine';
+  provider: 'mock' | 'engine'; // which backend produced this run's data
   config: RunConfig;
   is_demo?: boolean;
   created_at: number;
@@ -95,25 +100,25 @@ export interface RunWithSummary extends Run {
 export interface Hypothesis {
   id: string;
   run_id: string;
-  parent_id: string | null;
-  generation: number;
+  parent_id: string | null; // id of the hypothesis this one evolved from, if any
+  generation: number; // 0 for an initial hypothesis, incremented by each evolve pass
   category: string | null;
   title: string;
   statement: string;
   mechanism: string | null;
   expected_effect: string | null;
   experimental_context: string | null;
-  created_by_agent: string;
+  created_by_agent: string; // node/agent name that produced it, e.g. "generate", "evolve"
   created_at: number;
-  elo_rating: number;
+  elo_rating: number; // current tournament rating; see app/elo.py
   win_count: number;
   loss_count: number;
   novelty_score: number | null;
   plausibility_score: number | null;
   testability_score: number | null;
-  safety_status: string | null;
-  status: string | null;
-  cluster_id: string | null;
+  safety_status: string | null; // outcome of the safety screening gate, if run
+  status: string | null; // lifecycle state, e.g. active vs. superseded by a later generation
+  cluster_id: string | null; // proximity/dedup cluster this hypothesis was grouped into
 }
 
 /** A literature record cited as supporting or contextual evidence. */
@@ -125,7 +130,7 @@ export interface Evidence {
   authors: string[];
   year: number | null;
   abstract: string;
-  available: boolean;
+  available: boolean; // whether the full source was reachable when evidence was gathered
 }
 
 /** One pairwise tournament match and the Elo changes it produced. */
@@ -139,7 +144,7 @@ export interface MatchRow {
   loser_elo_before: number;
   loser_elo_after: number;
   rationale: string;
-  tier: string | null;
+  tier: string | null; // tournament bracket this match was played in, if tiered
   created_at: number;
 }
 
@@ -167,7 +172,7 @@ export interface ReportPayload {
   hypothesis_count?: number;
   evidence_count?: number;
   match_count?: number;
-  citation_summary?: Record<string, number>;
+  citation_summary?: Record<string, number>; // counts by classification, e.g. verified/partial/unsupported/unavailable
   leaderboard: {id: string; title: string; elo: number}[];
   meta_review?: Record<string, unknown>;
   research_overview?: ResearchOverview;

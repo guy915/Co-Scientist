@@ -3,16 +3,16 @@ import {eventsStreamUrl} from '@/api/runs';
 
 /** A single event streamed from a run's SSE timeline. */
 export interface StreamEvent {
-  seq: number;
-  type: string;
-  payload: Record<string, unknown>;
+  seq: number; // monotonically increasing position in the run's event log
+  type: string; // event kind, e.g. node/agent lifecycle names from the backend
+  payload: Record<string, unknown>; // type-specific body; consumers narrow it
   created_at?: number;
 }
 
 /** State returned by {@link useRunStream}. */
 export interface UseRunStreamResult {
-  events: StreamEvent[];
-  terminal: boolean;
+  events: StreamEvent[]; // full ordered timeline received so far
+  terminal: boolean; // true once the backend sent the end-of-stream sentinel
 }
 
 /**
@@ -27,7 +27,9 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
   const [terminal, setTerminal] = useState(false);
 
   useEffect(() => {
-    if (!runId) return;
+    if (!runId) return; // nothing to stream until a run is selected
+    // Reset state when switching runs: the previous run's timeline must not
+    // bleed into the new subscription (which replays from seq=0 anyway).
     setEvents([]);
     setTerminal(false);
 
@@ -52,6 +54,8 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
     es.onmessage = msg => {
       try {
         const ev = JSON.parse(msg.data) as StreamEvent;
+        // '_terminal' is a synthetic end-of-stream sentinel from the backend,
+        // not a real run event; it is consumed here and never surfaced.
         if (ev.type === '_terminal') {
           // Drain anything still buffered before marking terminal so no
           // event is lost when the stream closes.
@@ -62,8 +66,10 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
           return;
         }
         buffer.push(ev);
+        // Schedule at most one flush at a time (0 means no timer pending).
         if (flushTimer === 0) flushTimer = window.setTimeout(flush, 0);
       } catch (e) {
+        // A malformed frame is logged and skipped; the stream keeps going.
         console.error('[useRunStream] parse failed', e);
       }
     };

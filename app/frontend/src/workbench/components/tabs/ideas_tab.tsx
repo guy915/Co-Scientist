@@ -119,9 +119,13 @@ export function IdeasTab({
   reviews: Review[];
   matches?: MatchRow[];
 }) {
+  // Explicitly selected hypothesis id (set by tapping a row); null means "use
+  // the default" - see `selected` below for what that resolves to per layout.
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const isMobile = useIsMobile();
 
+  // Canonical ranking: highest Elo first, shared with the research-overview
+  // tab's "Winning ideas" list via the same sortByEloDesc helper.
   const sorted = useMemo(() => sortByEloDesc(hypotheses), [hypotheses]);
 
   const selected = useMemo(() => {
@@ -200,6 +204,8 @@ export function IdeasTab({
   );
 }
 
+// A single row in the ranked hypothesis list: rank badge, Elo chip, title,
+// and a truncated statement preview.
 function IdeaListItem({
   rank,
   hypothesis,
@@ -264,6 +270,10 @@ const RAIL_SECTIONS: readonly string[] = [
   SECTIONS.tournament,
 ];
 
+// Detail pane for one hypothesis: overview/description, review summary and
+// full critique, tournament win/loss record, and the most recent match's
+// outcome and rationale. Renders an empty-state placeholder when nothing is
+// selected (e.g. no hypotheses yet).
 function HypothesisDetail({
   hypothesis,
   reviews,
@@ -284,7 +294,10 @@ function HypothesisDetail({
     );
   }
 
+  // At most one review per hypothesis is expected; find() is fine here.
   const review = reviews.find(r => r.hypothesis_id === hypothesis.id) ?? null;
+  // Most recent match involving this hypothesis on either side, used for the
+  // "Match summary" section's outcome/rationale.
   const latestMatch = matches
     .filter(m => m.winner_id === hypothesis.id || m.loser_id === hypothesis.id)
     .sort((a, b) => b.created_at - a.created_at)[0];
@@ -355,6 +368,10 @@ function sectionSlug(title: string): string {
   return title.toLowerCase().replaceAll(' ', '-');
 }
 
+// One titled block within the detail pane. `id` (from sectionSlug) is the
+// anchor target for SectionsRail's links and the deep-link hash. `level`
+// selects h2 vs h3 for the heading's own semantic weight independent of the
+// rail's flat link list.
 function DetailSection({
   title,
   children,
@@ -373,6 +390,9 @@ function DetailSection({
   );
 }
 
+// Right-hand jump-to-section links (desktop only, see
+// IDEA_SECTIONS_RAIL_CLASSES). Built from RAIL_SECTIONS, so it always mirrors
+// the actual DetailSection ids without needing to be kept in sync by hand.
 function SectionsRail() {
   return (
     <aside className={IDEA_SECTIONS_RAIL_CLASSES} aria-label="Sections">
@@ -393,6 +413,9 @@ function SectionsRail() {
   );
 }
 
+// Intercepts a rail-link click to smooth-scroll to its section (with a 16px
+// offset) instead of the browser's default instant-jump anchor navigation.
+// Falls through to the default behavior when the target isn't found.
 function smoothSectionClick(
   event: MouseEvent<HTMLAnchorElement>,
   sectionId: string,

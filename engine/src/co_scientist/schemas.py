@@ -6,7 +6,21 @@ to constrain LLM outputs to specific formats.
 
 from typing import Any
 
+# Schemas below are grouped roughly by pipeline stage: generation, review,
+# evolution, ranking, meta-review, deep verification, research overview,
+# supervisor planning, and literature review. Most schemas share a name with
+# a markdown prompt template in prompts/ and are wired to it through
+# get_schema_for_prompt() at the bottom of this file (called from
+# prompts.load_prompt_with_schema); a few (literature query generation,
+# paper analysis, novelty analysis) are instead imported directly by the
+# node modules that call the LLM, bypassing the name-based lookup.
+#
 # Generation schema
+# Shapes the final-turn output of the debate-based generation node
+# (nodes/generation/debate.py) for both the
+# "generation_debate_and_literature" and "generation_after_debate" prompt
+# templates. One hypothesis per array entry with its explanation, literature
+# grounding, and proposed experiment.
 GENERATION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_generation",
     "strict": False,
@@ -78,6 +92,12 @@ GENERATION_SCHEMA: dict[str, Any] = {
 }
 
 # Generation draft schema (Phase 1: drafting without validation)
+# Shapes the output of the "generation_draft_with_tools" prompt, consumed by
+# the tool-using draft step in nodes/generation/literature_tools/draft.py.
+# Each draft still needs a novelty-validation pass (see
+# HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA below) before it becomes a final
+# Hypothesis, so this schema omits literature_grounding/novelty_validation
+# and instead requires gap_reasoning/literature_sources to justify the draft.
 GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_draft",
     "strict": False,
@@ -150,6 +170,15 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
 }
 
 # Hypothesis validation synthesis schema (Phase 2)
+# Shapes the output of the "hypothesis_validation_synthesis" and
+# "hypothesis_validation_synthesis_with_tools" prompts. The with-tools
+# variant is the one actually invoked, by
+# nodes/generation/literature_tools/validate.py (get_validation_synthesis_
+# prompt_with_tools in prompts.py); the tool-less variant and its prompt
+# getter (get_hypothesis_validation_synthesis_prompt) have no production
+# caller and are only exercised directly by tests. novelty_validation.decision
+# records whether the draft passed through unchanged ("approved"), was
+# adjusted ("refined"), or was redirected to different territory ("pivoted").
 HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_validation_synthesis",
     "strict": False,
@@ -235,6 +264,15 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
 }
 
 # Review schema
+# Shapes the "review" prompt output, consumed by the single-hypothesis
+# review path in nodes/review.py. Six fixed criteria (scientific_soundness,
+# novelty, relevance, testability, clarity, potential_impact) appear twice,
+# once as an integer score and once as prose feedback under the matching
+# key in detailed_feedback. overall_score is expected to be the average of
+# the six scores in "scores"; nodes/review.py stores it as
+# hypothesis.score, and it is later surfaced as prompt context for ranking,
+# evolution, and meta-review (it does not feed the Elo rating math itself,
+# which is driven solely by tournament win/loss outcomes).
 REVIEW_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_review",
     "strict": False,
@@ -363,6 +401,13 @@ REVIEW_SCHEMA: dict[str, Any] = {
 }
 
 # Batch review schema - for reviewing multiple hypotheses together
+# Shapes the "review_batch" prompt output, consumed by the comparative
+# batch review path in nodes/review.py. Per-item structure mirrors
+# REVIEW_SCHEMA above (same six criteria) plus a comparative_notes field.
+# Note: hypothesis_index is informational only; nodes/review.py matches
+# each response entry back to its source hypothesis by array position
+# (reviews_data[i]), not by reading this field, so a wrong index value from
+# the LLM does not break the mapping.
 REVIEW_BATCH_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_batch_review",
     "strict": False,
@@ -517,6 +562,10 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
 }
 
 # Evolution schema
+# Shapes the "evolution" prompt output, consumed by the
+# hypothesis-refinement step in nodes/evolve.py. Represents a single refined
+# hypothesis (evolution runs one hypothesis at a time); refinement_summary
+# is a human-readable diff-style note, not used for further LLM prompting.
 EVOLUTION_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_evolution",
     "strict": False,
@@ -564,6 +613,16 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
 }
 
 # Meta-review schema
+# Shapes the "meta_review" prompt output, consumed by
+# nodes/meta_review.py after a full review pass across all hypotheses.
+# Synthesizes cross-hypothesis patterns (recurring_themes, strengths,
+# weaknesses), assesses each pipeline stage (process_assessment), and
+# proposes both concrete next-iteration guidance
+# (strategic_recommendations) and cross-hypothesis synthesis opportunities
+# (potential_connections). Downstream nodes re-inject this output as
+# guidance text for later prompts via _format_meta_review_context() in
+# prompts.py (review, ranking, reflection, research-overview, and debate
+# generation prompts all accept it).
 META_REVIEW_SCHEMA: dict[str, Any] = {
     "name": "meta_review",
     "strict": False,
@@ -684,6 +743,12 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
 }
 
 # Ranking schema
+# Shapes the "ranking" prompt output, consumed by the pairwise tournament
+# comparison in nodes/ranking.py. "winner" drives the Elo update
+# (calculate_elo_update) for the pair; judgment_explanation breaks the
+# comparison down per criterion (mirroring the review criteria, plus
+# feasibility) but is not itself parsed by ranking logic beyond
+# display/logging.
 RANKING_SCHEMA: dict[str, Any] = {
     "name": "ranking_judgment",
     "strict": False,
@@ -762,6 +827,12 @@ RANKING_SCHEMA: dict[str, Any] = {
 }
 
 # Proximity schema
+# Shapes the "proximity" prompt output, consumed by nodes/proximity.py to
+# cluster near-duplicate hypotheses before deduplication.
+# nodes/proximity.py matches each similar_hypotheses entry back to a
+# Hypothesis object by comparing the first 100 characters of "text" (not by
+# array position or an id), then groups hypotheses by cluster_id and keeps
+# only the strongest of each "high" similarity_degree group.
 PROXIMITY_SCHEMA: dict[str, Any] = {
     "name": "proximity_analysis",
     "strict": False,
@@ -829,6 +900,11 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
 }
 
 # Reflection schema
+# Shapes the "reflection_observations" prompt output, consumed by
+# nodes/reflection.py, which checks each hypothesis against retrieved
+# literature/knowledge-graph evidence. "classification" is a closed enum
+# the rest of the pipeline treats as a categorical verdict (e.g. surfaced
+# verbatim in reflection notes shown to ranking/evolution).
 REFLECTION_SCHEMA: dict[str, Any] = {
     "name": "reflection_observations",
     "strict": False,
@@ -864,6 +940,12 @@ REFLECTION_SCHEMA: dict[str, Any] = {
 }
 
 # Deep-verification schema
+# Shapes the "deep_verification" prompt output, consumed by
+# nodes/deep_verification.py, which probes a hypothesis's fundamental
+# assumptions with targeted questions. "verdict" is a closed enum
+# ("holds"/"weakened"/"undermined") read back later by
+# _format_deep_verification_context() in prompts.py to inject this
+# hypothesis's probing history into subsequent ranking (tournament) prompts.
 DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
     "name": "deep_verification",
     "schema": {
@@ -912,6 +994,11 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
 }
 
 # Research-overview schema
+# Shapes the "research_overview" prompt output, consumed by
+# nodes/research_overview.py at the end of a run to synthesize the
+# top-ranked hypotheses into a narrative summary plus an NIH-style
+# "Specific Aims" writeup (introduction / aims / impact), mirroring the
+# structure NIH grant applications use for the Specific Aims page.
 RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
     "name": "research_overview",
     "schema": {
@@ -994,12 +1081,25 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
 }
 
 # Supervisor schema
+# Shapes the "supervisor" prompt output, consumed by nodes/supervisor.py at
+# the start (and, for iterative runs, between rounds) of a run. This is the
+# largest/most structured schema in the file because the supervisor is a
+# single planning call whose output threads through nearly every later
+# node: research_goal_analysis and workflow_plan feed the various
+# "supervisor guidance" formatting helpers in prompts.py
+# (_format_supervisor_guidance_for_review/_ranking/_proximity/
+# _meta_review, format_supervisor_guidance_for_generation), while
+# config_synthesis is the normalized run configuration (preferences,
+# review_instructions, attributes) that both generation and review draw on.
 SUPERVISOR_SCHEMA: dict[str, Any] = {
     "name": "supervisor_guidance",
     "strict": False,
     "schema": {
         "type": "object",
         "properties": {
+            # Restates and decomposes the research goal; key_areas feeds
+            # the "Key Research Areas" guidance blocks used by ranking,
+            # proximity, and meta-review prompts.
             "research_goal_analysis": {
                 "type": "object",
                 "properties": {
@@ -1036,6 +1136,12 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 ],
                 "additionalProperties": False,
             },
+            # Per-phase strategic guidance (generation/review/ranking/
+            # evolution). generation_phase.focus_areas is read inline by
+            # get_debate_generation_prompt; review_phase and
+            # evolution_phase are read by _format_supervisor_guidance_for_
+            # review/_meta_review in prompts.py. ranking_phase is captured
+            # for completeness but has no reader today.
             "workflow_plan": {
                 "type": "object",
                 "properties": {
@@ -1132,6 +1238,10 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 ],
                 "additionalProperties": False,
             },
+            # Read by _format_supervisor_guidance_for_review in prompts.py.
+            # Despite the "used by BOTH generation and review" language in
+            # the preferences description below, only the review prompt
+            # path currently reads config_synthesis back out.
             "config_synthesis": {
                 "type": "object",
                 "description":
@@ -1192,6 +1302,10 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 ],
                 "additionalProperties": False,
             },
+            # performance_assessment, adjustment_recommendations, and
+            # output_preparation below are stored on workflow state
+            # (nodes/supervisor.py) for observability/debugging but are not
+            # currently re-read by any prompt-formatting helper.
             "performance_assessment": {
                 "type": "object",
                 "properties": {
@@ -1328,6 +1442,12 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
 }
 
 # Literature review query generation schema
+# Imported directly (not via get_schema_for_prompt) by
+# nodes/literature_review.py, which pairs it with whichever of the three
+# query-generation prompt templates
+# (literature_review_query_generation_pubmed/_indra/_generic) source-type
+# detection selects; the schema itself is source-agnostic, it just wants a
+# flat list of search-query strings.
 LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
     "name": "pubmed_query_generation",
     "strict": False,
@@ -1353,6 +1473,11 @@ LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
 }
 
 # Literature review paper analysis schema
+# Imported directly (not via get_schema_for_prompt) by
+# nodes/literature_review.py to structure the per-paper analysis produced
+# for each fetched article (used later when synthesizing the literature
+# review and, via get_literature_review_synthesis_prompt, when assembling
+# the "Papers Analyzed" section of downstream generation prompts).
 LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "paper_analysis",
     "strict": False,
@@ -1399,6 +1524,12 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
 }
 
 # Hypothesis novelty analysis schema
+# Imported directly (not via get_schema_for_prompt) by
+# nodes/generation/literature_tools/validate.py, which pairs it with
+# get_hypothesis_novelty_analysis_prompt to check one draft hypothesis
+# against one paper at a time. novelty_assessment is a closed enum the
+# validation-synthesis step reads back to judge whether a draft still
+# stakes out new territory relative to the literature.
 HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
     "name": "hypothesis_novelty_analysis",
     "strict": False,
@@ -1471,6 +1602,11 @@ def get_schema_for_prompt(prompt_name: str) -> dict[str, Any] | None:
     Returns:
         JSON schema dict or None if no schema is defined for this prompt
     """
+    # Keys are the prompt template's filename stem (matching prompts/*.md,
+    # without the extension), not the schema's own "name" field. Templates
+    # with no entry here (e.g. the three query-generation variants, which
+    # are conversational/plain-text) legitimately return None so
+    # load_prompt_with_schema in prompts.py yields a schema-less call.
     schema_map = {
         "generation_draft_with_tools":
             GENERATION_DRAFT_SCHEMA,

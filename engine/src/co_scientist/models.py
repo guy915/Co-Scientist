@@ -112,6 +112,10 @@ class Hypothesis:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
+        # Includes the derived total_matches/win_rate properties for API
+        # consumers; from_dict() below strips both back out on the way in,
+        # since they are recomputed from win_count/loss_count, not stored
+        # state.
         generation_method = (self.generation_method.value
                              if self.generation_method else None)
         return {
@@ -181,6 +185,9 @@ class Hypothesis:
         return cls(**payload)
 
 
+# Canonical ranking helper reused by ranking.py, evolve.py, proximity.py,
+# deep_verification.py, and research_overview.py, so "top-k hypotheses"
+# means the same thing everywhere in the workflow.
 def rank_by_elo(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
     """Return hypotheses ordered by Elo rating, strongest first.
 
@@ -210,6 +217,8 @@ class ExecutionMetrics:
     tournaments_count: int = 0
     evolutions_count: int = 0
     llm_calls: int = 0  # Total LLM calls made
+    # Keyed by workflow phase/node name (e.g. "generate", "review");
+    # wall-clock seconds spent in that phase, summed across calls.
     phase_times: dict[str, float] = field(default_factory=dict)
 
 
@@ -228,6 +237,9 @@ def merge_metrics(existing: ExecutionMetrics,
     Returns:
         Merged metrics (new object, does not mutate inputs)
     """
+    # LangGraph invokes this reducer whenever a node's state update includes
+    # a "metrics" key; "new" is that node's create_metrics_update(...)
+    # output (deltas only, per its docstring), not a cumulative snapshot.
     # Create a NEW metrics object (don't mutate existing!)
     merged_phase_times = {}
 
@@ -241,6 +253,11 @@ def merge_metrics(existing: ExecutionMetrics,
         else:
             merged_phase_times[phase] = time_val
 
+    # Per-field merge policy, matched to what create_metrics_update
+    # produces: hypothesis_count is the node's reported running *total*
+    # rather than a delta, so max() keeps the larger observed count instead
+    # of double-counting; total_time only overwrites when a node actually
+    # measured one (> 0); the rest are straightforward additive deltas.
     merged = ExecutionMetrics(
         hypothesis_count=max(existing.hypothesis_count, new.hypothesis_count),
         reviews_count=existing.reviews_count + new.reviews_count,

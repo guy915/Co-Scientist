@@ -46,6 +46,10 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
                         PROGRESS_META_REVIEW_START)
 
     # Collect all reviews
+    # Build a compact per-hypothesis summary for the LLM: only the latest
+    # review is used (earlier reviews are superseded), plus current
+    # tournament standing and verification status, so the synthesis can
+    # correlate review feedback with how a hypothesis actually performed.
     all_reviews = []
     for i, hyp in enumerate(hypotheses):
         if not hyp.reviews:
@@ -67,6 +71,11 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         }
         all_reviews.append(review_data)
 
+    # Edge case: no hypothesis has been reviewed yet (e.g. review node was
+    # skipped or failed for all hypotheses). Skip the LLM call and return a
+    # minimal meta_review instead; downstream readers (evolve, ranking
+    # prompts) use dict.get() with defaults, so the omitted
+    # "emerging_themes" key here is still handled safely.
     if not all_reviews:
         logger.warning("No reviews available for meta-review")
         return {
@@ -95,6 +104,10 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         run_focus_guidance=state.get("run_focus_guidance"),
     )
 
+    # Uses supervisor_model_name (the stronger strategic model), not the
+    # regular worker model_name used by ranking/review -- synthesizing
+    # cross-hypothesis insights that steer evolution benefits from the more
+    # capable model.
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
@@ -112,11 +125,18 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
 
     # Schema returns recurring_themes as objects {theme, description,
     # frequency}; flatten to strings.
+    # The isinstance check tolerates a model that ignores the schema and
+    # returns bare strings instead of {theme, description, frequency}
+    # objects, coercing either shape into a plain string list.
     recurring_themes = response.get("recurring_themes", [])
     emerging_themes = [
         t["theme"] if isinstance(t, dict) else str(t) for t in recurring_themes
     ]
 
+    # This dict becomes state["meta_review"], consumed downstream by the
+    # evolve node (to steer refinement) and by ranking's judge_matchup
+    # (included in the tournament-judging prompt), so its shape is a
+    # de facto cross-node contract.
     meta_review = {
         "summary":
             response.get("meta_review_summary", ""),

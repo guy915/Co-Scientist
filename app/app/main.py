@@ -14,6 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 # Load .env file before importing settings
+# pydantic-settings reads env vars at Settings() construction time (module
+# import below), so .env must be loaded into os.environ before that import.
 load_dotenv()
 
 from app import engine_adapter, store  # pylint: disable=wrong-import-position
@@ -37,6 +39,9 @@ coscientist_logger.setLevel(_app_log_level)
 
 # Set environment variables for the LLM engine
 # LiteLLM uses provider-specific env vars (GEMINI_API_KEY, OPENAI_API_KEY, etc.)
+# This bridges values that arrived via Settings/.env back into os.environ,
+# since the engine and LiteLLM read the environment directly and know
+# nothing about this app's pydantic-settings object.
 if settings.gemini_api_key:
     os.environ["GEMINI_API_KEY"] = settings.gemini_api_key
 if settings.coscientist_cache_enabled:
@@ -45,6 +50,8 @@ if settings.coscientist_cache_dir:
     os.environ["COSCIENTIST_CACHE_DIR"] = settings.coscientist_cache_dir
 
 # Set MCP server URL if available
+# Same bridging rationale as above: the engine's MCP client reads
+# MCP_SERVER_URL from the environment rather than accepting it as a param.
 if settings.mcp_server_url:
     os.environ["MCP_SERVER_URL"] = settings.mcp_server_url
     logger.info("mcp_server_url configured: %s", settings.mcp_server_url)
@@ -65,6 +72,8 @@ async def lifespan(
     else:
         logger.info("Tools config: not set (generator defaults)")
 
+    # Logged once at startup so ops can tell at a glance whether this process
+    # will run the real engine or fall back to the deterministic mock.
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
 
@@ -76,6 +85,8 @@ async def lifespan(
         logger.info("Reconciled %s interrupted run(s) to failed: %s",
                     len(interrupted), ", ".join(r[:8] for r in interrupted))
 
+    # No-op after the first successful startup; see seed.py for the
+    # per-goal skip/re-seed logic.
     await seed_demo_runs()
 
     yield
@@ -94,6 +105,10 @@ app = FastAPI(
 )
 
 # CORS middleware
+# ALLOWED_ORIGINS is a comma-separated allowlist (e.g. the production
+# frontend origin); unset falls back to "*" for local/dev use. In practice
+# browsers ignore credentialed requests against a literal "*" origin, so
+# ALLOWED_ORIGINS should be set explicitly wherever cookies/auth matter.
 _allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
 _allowed_origins = ([
     o.strip() for o in _allowed_origins_env.split(",") if o.strip()
@@ -207,12 +222,17 @@ async def get_system_status() -> dict[str, Any]:
     return {
         "mcp_available": mcp_available,
         "pubmed_available": pubmed_available,
+        # Gated on mcp_available alone: an MCP server that is up is assumed
+        # to serve literature review even if the pubmed sub-check fails.
         "literature_review_available": mcp_available,
+        # provider/mock_mode/model_name/etc. from engine_adapter.system_status
         **adapter_status,
     }
 
 
 if __name__ == "__main__":
+    # Direct `python -m app.main` entry point; `make dev` instead invokes
+    # uvicorn's own CLI directly against app.main:app, bypassing this block.
     uvicorn.run(
         "app.main:app",
         host=settings.host,

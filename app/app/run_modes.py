@@ -11,7 +11,11 @@ from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
 
+# The single run mode stored in runs.profile for every new run.
 CANONICAL_RUN_MODE = "default"
+# Tier controls run size/depth; focus controls ranking emphasis. The
+# *_PATTERN regexes are used by the API's pydantic Field validation, so
+# invalid values 422 at the edge while None falls through to the defaults.
 DEFAULT_RUN_TIER = "standard"
 RUN_TIER_PATTERN = "^(express|standard|extended|ultra)$"
 DEFAULT_RUN_FOCUS = "balance"
@@ -44,6 +48,9 @@ DEFAULT_CRITERIA: tuple[str, ...] = (
     "Translational feasibility",
 )
 
+# Numeric baseline per tier; every knob scales up together from express to
+# ultra. resolved_run_config starts from the selected tier's dict and lets
+# explicit user overrides raise (never lower) these values.
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
     "express": {
         "initial_hypotheses_count": 4,
@@ -76,6 +83,9 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
 }
 
 
+# Normalization is deliberately forgiving: unknown or missing values fall
+# back to the default rather than raising, so persisted rows from older
+# builds and loosely-validated callers keep working.
 def normalize_run_tier(tier: str | None = None) -> str:
     """Return a supported run tier, defaulting to Standard."""
     if tier in RUN_TIER_DEFAULTS:
@@ -110,6 +120,8 @@ def setup_config(
     seeded demo) fall back to the client-independent planning baseline so the
     engine always receives guidance regardless of which client created the run.
     """
+    # `or` also covers lists that become empty after cleaning, so a caller
+    # sending only blank strings still gets the baseline defaults.
     return {
         "goal":
             research_goal.strip(),
@@ -148,6 +160,8 @@ def focus_guidance(focus: str | None) -> str:
 
 def setup_guidance(setup: dict[str, Any] | None) -> str:
     """Render durable setup fields as prompt-ready run guidance."""
+    # Setup blocks come from persisted config JSON, so shape is not
+    # guaranteed; a non-dict just contributes no guidance.
     if not isinstance(setup, dict):
         return ""
     lines = [
@@ -171,6 +185,9 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
 def resolved_run_config(
         overrides: dict[str, Any] | None = None) -> dict[str, Any]:
     """Resolve run config defaults plus user-provided numeric overrides."""
+    # Resolve the tier first since it selects the numeric baseline. A
+    # top-level 'tier' key wins; otherwise fall back to the tier recorded
+    # in the durable setup block, then to the default.
     tier = None
     if overrides:
         tier = overrides.get("tier")
@@ -178,10 +195,12 @@ def resolved_run_config(
         if tier is None and isinstance(setup, dict):
             tier = setup.get("tier")
     tier = normalize_run_tier(tier if isinstance(tier, str) else None)
+    # Copy so tier defaults are never mutated across runs.
     base: dict[str, Any] = dict(RUN_TIER_DEFAULTS[tier])
     if overrides:
         for key, raw_value in overrides.items():
             if key == "setup":
+                # The setup block is carried through verbatim.
                 base[key] = raw_value
                 continue
             if key == "tier":
@@ -197,21 +216,29 @@ def resolved_run_config(
                 continue
             if raw_value is None:
                 continue
+            # Remaining keys are numeric knobs; non-coercible values are
+            # dropped rather than failing run creation.
             try:
                 value = int(raw_value)
             except (ValueError, TypeError):
                 continue
             if key in base:
+                # Overrides may only raise a tier baseline, never lower it,
+                # so picking a bigger tier is never undone by a small knob.
                 base[key] = max(base[key], value)
             else:
                 base[key] = value
     base["tier"] = tier
+    # Guarantee a focus key: prefer the explicit override (handled above),
+    # then the setup block's focus, then the global default.
     if "focus" not in base:
         setup = base.get("setup")
         if isinstance(setup, dict):
             base["focus"] = normalize_run_focus(setup.get("focus"))
         else:
             base["focus"] = DEFAULT_RUN_FOCUS
+    # Elo K-factor and literature review are always present in the final
+    # config so downstream consumers need no fallbacks of their own.
     base.setdefault("k_factor", DEFAULT_K_FACTOR)
     base.setdefault("enable_literature_review", True)
     return base

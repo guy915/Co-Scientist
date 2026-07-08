@@ -4,16 +4,23 @@ import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
 import {useToast} from '../hooks/use_toast';
 import {useTheme} from '../theme_context';
 
+// The dialog's section rail options; also the type of the currently-open
+// section, controlled by the parent (see the `section`/`onSectionChange`
+// props below).
 export type SettingsSection = 'appearance' | 'model' | 'help';
 
 type ThemeMode = 'system' | 'light' | 'dark';
 
+// Options rendered in the Appearance section's theme segmented control.
+// Selecting one calls useTheme()'s setMode, which persists the choice (see
+// theme_context.tsx) and updates the resolved MD3 theme immediately.
 const THEME_MODES: Array<{mode: ThemeMode; icon: IconName; label: string}> = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
 ];
 
+// Section-rail entries, in display order.
 const SECTIONS: Array<{
   section: SettingsSection;
   icon: IconName;
@@ -24,6 +31,8 @@ const SECTIONS: Array<{
   {section: 'help', icon: 'help', label: 'Help'},
 ];
 
+// Static question/answer copy rendered as collapsible <details> in the Help
+// section.
 const FAQ: Array<{question: string; answer: string}> = [
   {
     question: 'What is Co-Scientist?',
@@ -71,13 +80,18 @@ export function SettingsDialog({
 }) {
   const {mode, setMode} = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
+  // Local editable copy of the persisted key; only written back to storage on
+  // blur/Enter (see saveApiKey), not on every keystroke.
   const [apiKey, setApiKey] = useState(getStoredApiKey);
   const {toast: savedToast, setToast: setSavedToast} = useToast(2400);
 
+  // Move focus to the close button on open, so keyboard/screen-reader users
+  // land inside the dialog rather than on whatever was focused behind it.
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
 
+  // Global Escape-to-close, active for as long as the dialog is mounted.
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape') onClose();
@@ -88,6 +102,9 @@ export function SettingsDialog({
     };
   }, [onClose]);
 
+  // Persists the API key (trimmed; a blank value clears it, see
+  // setStoredApiKey) only when it actually changed, then re-syncs local state
+  // from storage and shows a brief confirmation toast.
   function saveApiKey() {
     if (apiKey.trim() === getStoredApiKey()) return;
     setStoredApiKey(apiKey);
@@ -150,6 +167,7 @@ export function SettingsDialog({
             })}
           </nav>
           <div className="ucs-settings-dialog-panel">
+            {/* Appearance: theme mode segmented control (system/light/dark). */}
             {section === 'appearance' && (
               <section className="ucs-settings-card">
                 <h3 className="ucs-settings-card-title">Theme</h3>
@@ -181,6 +199,7 @@ export function SettingsDialog({
                 </div>
               </section>
             )}
+            {/* Model: browser-local API key entry, saved on blur or Enter. */}
             {section === 'model' && (
               <section className="ucs-settings-card">
                 <h3 className="ucs-settings-card-title">Model</h3>
@@ -216,6 +235,7 @@ export function SettingsDialog({
                 </p>
               </section>
             )}
+            {/* Help: static product blurb plus a collapsible FAQ list. */}
             {section === 'help' && (
               <section className="ucs-settings-card">
                 <h3 className="ucs-settings-card-title">Help</h3>

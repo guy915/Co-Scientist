@@ -88,9 +88,15 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
     words1 = set(text1.lower().split())
     words2 = set(text2.lower().split())
 
+    # Degenerate case: an empty text has no words to overlap with, so
+    # treat it as maximally dissimilar rather than dividing by zero below.
     if not words1 or not words2:
         return 0.0
 
+    # Jaccard similarity: size of the word-set intersection over the
+    # word-set union. Cheap and order-insensitive, but purely lexical (no
+    # synonym/paraphrase awareness) -- see the TODO above about upgrading
+    # to embeddings.
     intersection = words1.intersection(words2)
     union = words1.union(words2)
 
@@ -136,6 +142,10 @@ async def evolve_single_hypothesis(
     Returns:
         Updated hypothesis with evolved text
     """
+    # The following block only logs meta-review signals (common
+    # strengths/weaknesses, strategic recommendations, emerging themes)
+    # for debugging; the same fields are formatted into the prompt itself
+    # further below via meta_review_insights.
     # Log meta review usage with colorful output
     logger.debug("\n=== evolve single hypothesis ===")
     logger.debug("using meta review for evolution")
@@ -169,6 +179,8 @@ async def evolve_single_hypothesis(
         for theme in emerging_themes[:3]:  # Show first 3
             logger.debug("- %s", theme)
 
+    # Surface the most recent review's scores/feedback as context so the
+    # LLM addresses concrete critique rather than refining blind.
     # Get latest review feedback
     review_feedback = ""
     if hypothesis.reviews:
@@ -199,6 +211,8 @@ async def evolve_single_hypothesis(
     )
 
     # Format supervisor guidance for evolution
+    # Only the evolution_phase slice of the supervisor's workflow_plan is
+    # relevant here; other phases (e.g. generation) are ignored.
     supervisor_guidance_text = ""
     if supervisor_guidance and isinstance(supervisor_guidance, dict):
         workflow_plan = supervisor_guidance.get("workflow_plan", {})
@@ -222,6 +236,10 @@ async def evolve_single_hypothesis(
             supervisor_guidance_text = "".join(guidance_sections)
 
     # Build context-aware evolution prompt with domain variables
+    # Unlike most nodes, evolve has no dedicated get_evolution_prompt()
+    # wrapper in prompts.py, so it calls load_prompt_with_schema directly
+    # below and must pull in these normally-internal helpers itself to
+    # build the same run-guidance/domain variables the wrappers assemble.
     from co_scientist.prompts import _format_run_guidance, _get_domain_variables  # pylint: disable=import-outside-toplevel,line-too-long
 
     variables = {
@@ -243,11 +261,20 @@ async def evolve_single_hypothesis(
     prompt, schema = load_prompt_with_schema("evolution", variables)
 
     # Add critical diversity instruction
+    # Truncate each listed hypothesis to 200 chars: enough for the LLM to
+    # recognize overlap without materially growing the prompt.
     other_hyps_formatted = "\n".join(
         [f"- {text[:200]}..." for text in other_hypotheses_texts])
+    # Only the 5 most recently removed duplicates are shown, keeping this
+    # section bounded regardless of how many duplicates accumulate over a
+    # run.
     removed_dups_formatted = "\n".join(
         [f"- {text[:200]}..." for text in removed_duplicates[-5:]])  # Last 5
 
+    # Appended after the schema-driven prompt (not merged into its
+    # variables) as an explicit anti-convergence directive: without this,
+    # independently evolved hypotheses tend to drift toward the same
+    # winning idea.
     diversity_instruction = f"""
 
 ## CRITICAL: Preserve Diversity
@@ -309,6 +336,9 @@ DO:
     )
 
     # Extract fields from response (match evolution.md prompt format)
+    # Prefer the canonical "hypothesis" key; fall back to the legacy
+    # "refined_hypothesis_text" name, and finally to the pre-evolution text
+    # if the LLM response omits both (defensive against malformed output).
     refined_text = response.get("hypothesis") or response.get(
         "refined_hypothesis_text", hypothesis.text)
     explanation = response.get("explanation", hypothesis.explanation)
@@ -317,11 +347,17 @@ DO:
                                       "no refinement summary provided")
 
     # Check if hypothesis actually changed
+    # The LLM sometimes echoes the input back verbatim (e.g. it judges no
+    # refinement is warranted); treat this as a no-op rather than
+    # recording a spurious evolution_detail entry for identical text.
     if refined_text == hypothesis.text:
         logger.warning("Evolution returned unchanged hypothesis")
         return hypothesis, None  # Keep original, no evolution details
 
     # Check similarity to other hypotheses
+    # Guard against evolution converging this hypothesis toward one of the
+    # peers it was shown as diversity context, using the same word-overlap
+    # metric as calculate_text_similarity above.
     max_similarity = 0.0
     most_similar_text = None
     for other_text in other_hypotheses_texts:
@@ -331,6 +367,10 @@ DO:
             most_similar_text = other_text
 
     # If too similar, keep original
+    # DUPLICATE_SIMILARITY_THRESHOLD (0.95) is the same bound proximity.py
+    # uses for its high-similarity duplicate clusters; crossing it here
+    # means the refinement converged onto a peer, so the evolution is
+    # rejected and the pre-evolution hypothesis is kept unchanged.
     if max_similarity > DUPLICATE_SIMILARITY_THRESHOLD:
         logger.warning(
             "Evolution created near-duplicate! Similarity: %.2f."
@@ -341,10 +381,15 @@ DO:
         return hypothesis, None  # Keep original, no evolution details
 
     # Update hypothesis
+    # Mutates the same Hypothesis object in place (its stable uuid `id` is
+    # unaffected, since it is excluded from equality) rather than
+    # constructing a new one.
     original_text = hypothesis.text
     hypothesis.text = refined_text
     hypothesis.explanation = explanation
     hypothesis.experiment = experiment
+    # Record the pre-evolution text so evolution_history accumulates the
+    # lineage of prior phrasings for this hypothesis.
     hypothesis.evolution_history.append(original_text)
     # The text changed materially, so any prior deep-verification probes now
     # describe stale text. Clear them so the next deep_verification pass
@@ -355,6 +400,8 @@ DO:
     logger.debug("evolved hypothesis (max similarity: %.2f)", max_similarity)
 
     # Return both hypothesis and evolution details
+    # evolution_detail feeds evolution_details in evolve_node's state
+    # delta below, which the UI surfaces as the rationale for each change.
     evolution_detail = {
         "original": original_text,
         "evolved": refined_text,
@@ -382,6 +429,9 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
 
     # Calculate actual number to evolve (may be less than max if fewer
     # hypotheses available)
+    # evolution_max_count doubles as the size of the pool going forward
+    # (see "Keep ONLY the evolved hypotheses" below), so clamp it to the
+    # available count rather than evolving hypotheses that do not exist.
     actual_count = min(len(hypotheses), evolution_max_count)
 
     logger.info("Evolving top %s hypotheses", actual_count)
@@ -392,6 +442,9 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
                         PROGRESS_EVOLVE_START)
 
     # Get top-k hypotheses
+    # hypotheses arrives already sorted by descending Elo rating (set by
+    # ranking_node's return), so a plain slice selects the top performers
+    # without needing to re-sort here.
     top_k = hypotheses[:evolution_max_count]
 
     logger.info(
@@ -399,6 +452,9 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
         "(max 15 context hypotheses per evolution)", len(top_k))
 
     # Get previously removed duplicates
+    # Flatten proximity.py's removed_duplicates dicts down to bare text;
+    # used below to steer evolution away from recreating hypotheses that
+    # were already pruned as duplicates in an earlier iteration.
     removed_duplicates = [
         dup.get("text", "") for dup in state.get("removed_duplicates", [])
     ]
@@ -412,6 +468,10 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     evolution_tasks = [
         evolve_single_hypothesis(
             hypothesis=hyp,
+            # Context is sampled from top_k (the peers also being evolved
+            # this round), not the full hypothesis pool, so the diversity
+            # check is scoped to hypotheses that could end up adjacent in
+            # the final kept-only-evolved pool.
             other_hypotheses_texts=sample_context_hypotheses(
                 all_hypotheses=top_k,
                 exclude_hypothesis=hyp,
@@ -438,11 +498,17 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
 
     for hyp, detail in results:
         evolved_hypotheses.append(hyp)
+        # detail is None when evolve_single_hypothesis rejected the
+        # refinement (unchanged text or near-duplicate); only genuine
+        # changes are recorded in evolution_details.
         if detail is not None:  # Only add if hypothesis actually evolved
             evolution_details.append(detail)
 
     # Keep ONLY the evolved hypotheses (discard lower-ranked ones)
     # This makes evolution_max_count the final pool size
+    # Hypotheses ranked below top_k are not carried forward here; this is
+    # how the pool shrinks across iterations rather than growing without
+    # bound.
     original_count = len(hypotheses)
     hypotheses = evolved_hypotheses
     discarded_count = original_count - len(evolved_hypotheses)
@@ -461,6 +527,9 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
                         evolved_count=len(evolved_hypotheses))
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
+    # Both deltas count every hypothesis attempted, not just those whose
+    # evolution was accepted: evolve_single_hypothesis always calls the
+    # LLM once before deciding whether to keep the refinement.
     metrics = create_metrics_update(
         llm_calls_delta=len(evolved_hypotheses),
         evolutions_count_delta=len(evolved_hypotheses))
@@ -468,6 +537,10 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
         "evolve node creating metrics delta: evolutions=%s, llm_calls=%s",
         len(evolved_hypotheses), len(evolved_hypotheses))
 
+    # deduplicate_hypotheses (state.py) recognizes this as a replacement
+    # because every returned hypothesis id already exists in state, so the
+    # pool reliably shrinks to just the evolved list even when evolution
+    # rewrote every text.
     return {
         "hypotheses":
             hypotheses,

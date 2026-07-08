@@ -28,6 +28,10 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+# Angles cycled through parallel debates (via debate_id modulo the list
+# length in _debate_diversity_instruction) so concurrent debates on the
+# same research goal explore different facets instead of converging on
+# the same obvious hypothesis.
 _DEBATE_DIVERSITY_ANGLES = [
     "a direct causal molecular or mechanistic intervention",
     "an upstream regulatory or control-system mechanism",
@@ -43,6 +47,8 @@ _DEBATE_DIVERSITY_ANGLES = [
 def _debate_diversity_instruction(debate_id: int | None,
                                   total_debates: int) -> str | None:
     """Return a debate-specific angle for parallel hypothesis diversity."""
+    # A single, non-parallel debate has no sibling to diverge from, so no
+    # diversity nudge is needed.
     if debate_id is None or total_debates <= 1:
         return None
     angle = _DEBATE_DIVERSITY_ANGLES[debate_id % len(_DEBATE_DIVERSITY_ANGLES)]
@@ -57,6 +63,8 @@ def _debate_diversity_instruction(debate_id: int | None,
 def _append_diversity_instruction(preferences: str | None,
                                   instruction: str | None) -> str | None:
     """Append the parallel-debate diversity instruction to preferences."""
+    # Augments, rather than replaces, any user-supplied preferences so both
+    # constraints are honored together in the generation prompt.
     if not instruction:
         return preferences
     if preferences:
@@ -85,6 +93,9 @@ async def _run_single_debate(
     Returns:
         Tuple of (single generated Hypothesis object, debate transcript string)
     """
+    # Callers may omit reference_index (e.g. the debate-only path in
+    # coordinator.py), so fall back to an empty index; citation resolution
+    # then simply yields no citation_map entries.
     ref_idx = reference_index or ReferenceIndex(text="", sources={})
     count = 1  # each debate generates exactly 1 hypothesis
     debate_label = f"debate {debate_id}" if debate_id is not None else "debate"
@@ -99,6 +110,10 @@ async def _run_single_debate(
 
     transcript = ""
 
+    # Earlier turns produce free-form adversarial dialogue that accumulates
+    # into transcript, giving each subsequent turn's prompt the full debate
+    # history so far. Only the final turn is constrained to structured JSON
+    # output that becomes the resulting Hypothesis.
     for turn in range(1, num_turns + 1):
         is_final = turn == num_turns
 
@@ -120,6 +135,10 @@ async def _run_single_debate(
         )
 
         if is_final:
+            # count is always 1 here (one hypothesis per debate), so this
+            # evaluates to a fixed budget (base + one per_item increment)
+            # rather than truly scaling with batch size, unlike other
+            # scaled_max_tokens call sites that pass a variable count.
             final_max_tokens = scaled_max_tokens(
                 EXTENDED_MAX_TOKENS,
                 count,
@@ -148,6 +167,10 @@ async def _run_single_debate(
                 },
             )
 
+            # The schema wraps a single hypothesis in a list to keep the
+            # response shape consistent with other generation paths' schemas
+            # (e.g. batch tool-based generation), even though a debate only
+            # ever produces one.
             hypotheses_data = response.get("hypotheses", [])
             if not hypotheses_data:
                 raise GenerationError(
@@ -155,6 +178,10 @@ async def _run_single_debate(
 
             hyp_data = hypotheses_data[0]
 
+            # Shared constructor (also used by the literature_tools validate
+            # phase) resolves citation keys against ref_idx.sources and
+            # stamps debate_id so downstream tournament/ranking can trace a
+            # hypothesis back to the debate that produced it.
             hypothesis = hypothesis_from_llm_output(
                 hyp_data,
                 ref_idx.sources,
@@ -164,6 +191,9 @@ async def _run_single_debate(
 
             return hypothesis, transcript
         else:
+            # Intermediate turns are unconstrained free text (no JSON
+            # schema) - this is where the adversarial back-and-forth
+            # dialogue that gets folded into transcript actually happens.
             response_text = await call_llm(
                 prompt=prompt,
                 model_name=state["model_name"],
@@ -174,6 +204,9 @@ async def _run_single_debate(
 
             transcript += f"\n\nTurn {turn}:\n{response_text}"
 
+    # Unreachable under normal DEBATE_MAX_TURNS configuration, since the
+    # loop always hits is_final on its last iteration; this guards against
+    # a misconfigured num_turns <= 0.
     raise GenerationError(f"{debate_label} ended without final turn")
 
 
@@ -196,11 +229,17 @@ async def generate_with_debate(
     Returns:
         tuple of (debate_hypotheses, debate_transcripts)
     """
+    # coordinator.py may allocate 0 hypotheses to this path (e.g. condition
+    # (a)/(c) giving 0 to debate-only); skip the gather/log overhead entirely
+    # rather than running it with an empty task list.
     if count == 0:
         return [], []
 
     logger.info("Running %s parallel debates", count)
 
+    # debate_id=i doubles as both a diversity-angle selector (see
+    # _debate_diversity_instruction) and a stable identifier for pairing
+    # each resulting hypothesis back to its transcript below.
     debate_tasks = [
         _run_single_debate(
             state,
@@ -214,6 +253,8 @@ async def generate_with_debate(
     debate_results = await asyncio.gather(*debate_tasks)
 
     debate_hypotheses = [hyp for hyp, _ in debate_results]
+    # Shape matches the debate_transcripts entries expected in
+    # WorkflowState: {debate_id, transcript, hypothesis_text}.
     debate_transcripts = [{
         "debate_id": i,
         "transcript": transcript,

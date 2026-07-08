@@ -9,6 +9,20 @@ from dataclasses import dataclass, field, fields
 from typing import Any
 
 
+# Overview: this module defines the typed, validated shape of tools.yaml
+# (and any domain-specific overrides layered on top of it by registry.py's
+# merge logic). Each dataclass below mirrors one YAML section (servers,
+# tools, workflows, prompts, enrichments) and exposes a from_dict()
+# classmethod that turns a raw parsed-YAML dict into the dataclass,
+# filling in defaults for absent keys and silently dropping unrecognized
+# ones. ToolsConfig is the root: registry.py assembles a single merged
+# dict from the default/user/custom YAML files, substitutes environment
+# variables, and calls ToolsConfig.from_dict() once to produce the final
+# object the rest of the engine (nodes, prompt builders) consumes.
+#
+# Shared by every dataclass's from_dict() below so YAML keys that don't map
+# to a declared field (typos, deprecated keys) are silently dropped instead
+# of raising, and fields the caller fills in specially are not double-set.
 def _declared_field_kwargs(
         cls: type[Any],
         data: dict[str, Any],
@@ -34,6 +48,8 @@ def _declared_field_kwargs(
     Returns:
         Mapping of field name to raw value, suitable for ``cls(**kwargs)``.
     """
+    # Field names declared on the dataclass, minus the ones the caller
+    # handles itself; only keys matching this set are forwarded.
     names = {f.name for f in fields(cls)} - set(exclude)
     return {key: value for key, value in data.items() if key in names}
 
@@ -61,6 +77,9 @@ def resolve_content_params(params: dict[str, Any],
     resolved: dict[str, Any] = {}
     placeholder_pattern = re.compile(r'\{(\w+)\}')
 
+    # Dispatch by value type: strings may embed placeholders, lists resolve
+    # placeholders item-by-item, and anything else (numbers, bools, dicts)
+    # passes through unchanged; nested dicts are not recursed into.
     for key, value in params.items():
         if isinstance(value, str):
             # Check for placeholders like {research_goal}
@@ -71,6 +90,10 @@ def resolve_content_params(params: dict[str, Any],
                     if match in context:
                         context_val = context[match]
                         # Handle full replacement vs partial
+                        # A value that is *only* "{placeholder}" preserves the
+                        # context value's original type (e.g. a list stays a
+                        # list); a placeholder embedded in a larger string is
+                        # necessarily stringified via str.replace.
                         if value == f"{{{match}}}":
                             resolved_value = context_val
                         else:
@@ -84,6 +107,10 @@ def resolve_content_params(params: dict[str, Any],
                 resolved[key] = value
         elif isinstance(value, list):
             # Resolve each item in list
+            # Note: unlike the string branch above, list items are always
+            # stringified via str.replace (no whole-value type
+            # preservation), since a list of placeholders is inherently a
+            # list of strings.
             resolved_list = []
             for item in value:
                 if isinstance(item, str) and placeholder_pattern.search(item):
@@ -119,6 +146,9 @@ class ServerConfig:
                    **_declared_field_kwargs(cls, data, exclude=("url",)))
 
 
+# Consumed by tools/response_parser.py's ResponseParser: type/results_path/
+# is_dict locate the results in a raw MCP response, and field_mapping's
+# expression language (see response_parser.py) builds Article objects.
 @dataclass
 class ResponseFormat:
     """Configuration for parsing tool responses.
@@ -149,6 +179,10 @@ class ResponseFormat:
 class ParameterConfig:
     """Configuration for a tool parameter."""
 
+    # Per-parameter metadata attached to a ToolConfig.parameters entry.
+    # type/required/description document the parameter's contract in YAML;
+    # default is the value ToolConfig.from_dict() applies when a YAML
+    # parameter entry is a bare scalar rather than a nested mapping.
     type: str = "string"
     default: Any | None = None
     required: bool = False
@@ -233,6 +267,10 @@ class ToolConfig:
                    parameters=parameters,
                    **kwargs)
 
+    # Called by literature_review.py and validate.py just before invoking an
+    # MCP tool, so nodes can build requests in canonical terms while each
+    # tool config supplies the translation to that server's actual
+    # parameter names.
     def map_parameters(self, canonical_params: dict[str,
                                                     Any]) -> dict[str, Any]:
         """Map canonical parameter names to tool-specific parameter names.
@@ -327,6 +365,10 @@ class WorkflowConfig:
     multi-source (search_sources) configurations.
     """
 
+    # is_multi_source() below is the branch point literature_review.py uses
+    # to pick which of the two field groups (this one or search_sources) to
+    # read; only one mode is active per workflow, chosen by whether
+    # search_sources is non-empty.
     # Single-source mode (legacy/simple)
     primary_search: str | None = None
     fallback_search: str | None = None
@@ -455,6 +497,9 @@ class EnrichmentConfig:
                    **_declared_field_kwargs(cls, data, exclude=("tool",)))
 
 
+# Read by prompts.py's _get_domain_variables() via
+# ToolRegistry.get_prompts_config() and merged into most node prompt
+# variables as the domain_* placeholders referenced below.
 @dataclass
 class PromptsConfig:
     """Domain-specific prompt customizations via {{domain_*}} placeholders.
@@ -495,6 +540,10 @@ class ToolsConfig:
     This is the top-level structure parsed from tools.yaml.
     """
 
+    # tools is keyed first by category (e.g. search_tools, read_tools,
+    # utility_tools, matching the top-level grouping in tools.yaml) and then
+    # by tool id, so a tool id must be unique across categories for
+    # get_tool()/get_all_tools() below to resolve it unambiguously.
     version: str = "1.0"
     servers: dict[str, ServerConfig] = field(default_factory=dict)
     tools: dict[str, dict[str, ToolConfig]] = field(default_factory=dict)

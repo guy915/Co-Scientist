@@ -11,6 +11,7 @@
  * escaped and is rendered by the browser as plain text.
  */
 
+// Tags allowed to survive sanitization, attribute-less; anything else stays escaped.
 const INLINE_TAGS = ['i', 'b', 'em', 'strong', 'sub', 'sup', 'u'] as const;
 
 const ESCAPE_MAP: Record<string, string> = {
@@ -19,6 +20,7 @@ const ESCAPE_MAP: Record<string, string> = {
   '>': '&gt;',
 };
 
+/** Escapes `&`, `<`, `>` so the input can never be interpreted as markup. */
 function escapeHtml(value: string): string {
   return value.replace(/[&<>]/g, char => ESCAPE_MAP[char]);
 }
@@ -32,6 +34,9 @@ function escapeHtml(value: string): string {
  */
 export function renderInlineHtml(raw: string): string {
   let out = escapeHtml(raw);
+  // Un-escape only exact, bare `<tag>`/`</tag>` sequences. A tag written with
+  // attributes (e.g. `<i onclick=...>`) does not match these literals, so it
+  // remains escaped text.
   for (const tag of INLINE_TAGS) {
     out = out
       .replaceAll(`&lt;${tag}&gt;`, `<${tag}>`)

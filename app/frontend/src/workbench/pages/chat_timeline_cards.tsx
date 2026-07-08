@@ -66,6 +66,7 @@ import {
   USER_COLLAPSE_BUTTON_CLASSES,
 } from './chat_setup_classes';
 
+/** One rendered chat-timeline message (either the user's or the assistant's). */
 export interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
@@ -73,18 +74,25 @@ export interface ChatEntry {
   created_at: number;
 }
 
+/** A run that has been started, as shown by the timeline's terminal card. */
 export interface StartedSession {
   id: string;
   title: string;
   at: number;
 }
 
+// One icon-button entry in a MessageActionRow (e.g. retry/copy/download).
 interface MessageAction {
   icon: IconName;
   label: string;
   onClick: () => void;
 }
 
+/**
+ * Derives the display title shown atop a run-spec/plan card for a given
+ * research goal, special-casing the liver-fibrosis demo goal to a fixed
+ * title and otherwise falling back to a generic concise title.
+ */
 export function referenceSetupTitle(goal: string): string {
   if (isLiverFibrosisGoal(goal)) {
     return 'Reversing MASLD/MASH Fibrosis Hypothesis';
@@ -92,6 +100,10 @@ export function referenceSetupTitle(goal: string): string {
   return conciseTitle(goal);
 }
 
+// Triggers a browser file download for arbitrary text content by wrapping it
+// in a Blob, pointing a throwaway anchor at an object URL, and programmatically
+// clicking it; the object URL is revoked immediately after since the download
+// has already been handed off to the browser.
 function downloadText(
   filename: string,
   text: string,
@@ -106,6 +118,10 @@ function downloadText(
   URL.revokeObjectURL(url);
 }
 
+// Renders a row of icon-button actions under a message/card. `align: 'end'`
+// switches to the floating, hover-revealed treatment used for a user bubble's
+// edit/copy row (MESSAGE_ACTIONS_END_CLASSES); `align: 'start'` (default) is
+// the plain inline row used under assistant responses and cards.
 function MessageActionRow({
   actions,
   align = 'start',
@@ -218,6 +234,18 @@ function prefersReducedMotion() {
   );
 }
 
+/**
+ * Renders one chat-timeline message: a user request bubble (right-aligned,
+ * filled, collapsible past four lines with an edit/copy action row) or an
+ * assistant response (left-aligned, unstyled, with a retry/copy/download
+ * action row). Used as the per-message node inside ChatWorkspace's timeline.
+ *
+ * @param message The message to render.
+ * @param onEdit Handler to re-open a user message for editing.
+ * @param onCopyRequest Handler to copy a user message's text.
+ * @param onRetry Handler to regenerate an assistant response, or re-submit a
+ *   user message.
+ */
 export function ChatBubble({
   message,
   onEdit,
@@ -231,14 +259,22 @@ export function ChatBubble({
 }) {
   const isUser = message.role === 'user';
   const textRef = useRef<HTMLSpanElement>(null);
+  // Whether this bubble's content is long enough to need the collapse/expand
+  // affordance at all (only ever true for user bubbles).
   const [canCollapse, setCanCollapse] = useState(false);
+  // Whether the user has expanded a collapsible bubble to its full height.
   const [expanded, setExpanded] = useState(false);
   // `clamped` gates the ellipsis; `settled` drops the max-height cap once a
   // request is fully open so it never clips after a resize.
   const [clamped, setClamped] = useState(false);
   const [settled, setSettled] = useState(false);
+  // Cached collapsed/full pixel heights from the last measurement, used to
+  // drive the animated max-height transition (see bubbleTextStyle below).
   const [heights, setHeights] = useState({collapsed: 0, full: 0});
 
+  // Re-measures whenever the message content changes (or role flips), and
+  // resets to the collapsed state so switching messages doesn't inherit a
+  // stale expanded/settled state from a previous bubble reusing this node.
   useLayoutEffect(() => {
     if (!isUser || !textRef.current) {
       setCanCollapse(false);
@@ -253,6 +289,8 @@ export function ChatBubble({
     setClamped(exceeds);
   }, [isUser, message.content]);
 
+  // Flips the collapsed/expanded state, re-measuring first in case content
+  // metrics (e.g. a font load) shifted since the last measurement.
   function toggleExpanded() {
     const element = textRef.current;
     if (element) setHeights(measureBubbleHeights(element));
@@ -280,6 +318,9 @@ export function ChatBubble({
     }
   }
 
+  // Fires when the animated max-height transition finishes: locks in the
+  // clamp (collapse) or drops the cap entirely via `settled` (expand) so the
+  // final state matches toggleExpanded's intent rather than a mid-animation one.
   function handleBubbleTransitionEnd(event: TransitionEvent<HTMLSpanElement>) {
     if (event.propertyName !== 'max-height') return;
     if (expanded) {
@@ -291,6 +332,8 @@ export function ChatBubble({
 
   const bubbleClassName = isUser ? USER_BUBBLE_CLASSES : MODEL_BUBBLE_CLASSES;
   const collapsible = isUser && canCollapse;
+  // Collapsible bubbles pick the clamp/ellipsis classes while clamped and not
+  // expanded, otherwise the open (pre-wrap, no clamp) classes.
   const bubbleTextClassName = collapsible
     ? `${USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES} ${
         clamped && !expanded
@@ -298,6 +341,9 @@ export function ChatBubble({
           : USER_BUBBLE_TEXT_OPEN_CLASSES
       }`
     : USER_BUBBLE_TEXT_CLASSES;
+  // Inline max-height drives the animation: collapsed height while closed,
+  // the measured full height while opening, and no cap at all once `settled`
+  // so a later window resize can't leave the bubble clipped.
   const bubbleTextStyle: CSSProperties | undefined = collapsible
     ? {
         maxHeight: expanded
@@ -377,6 +423,25 @@ export function ChatBubble({
   );
 }
 
+/**
+ * Renders the inferred research-plan card shown in the timeline once a
+ * request has been parsed into an {@link InferredRunSpec}: the goal/
+ * requirements/attributes/criteria breakdown, editable Focus/Tier option
+ * groups, and the cancel/start actions. Also used, via `locked`, to show a
+ * previously-confirmed spec read-only.
+ *
+ * @param spec The inferred (or confirmed) run specification to display.
+ * @param isStarting Whether a start-run request is in flight, disabling
+ *   the actions and swapping the start button's label.
+ * @param locked When true, renders read-only: option groups are disabled,
+ *   Cancel is hidden, and Start is disabled (used for a confirmed spec).
+ * @param onFocusChange Handler for changing the Focus option.
+ * @param onTierChange Handler for changing the Tier option.
+ * @param onCancel Handler to discard the draft spec.
+ * @param onEdit Handler to reopen the originating message for editing.
+ * @param onRetry Handler to regenerate/re-stage this spec.
+ * @param onStart Handler to start the research run with this spec.
+ */
 export function RunSpecCard({
   spec,
   isStarting,
@@ -491,6 +556,17 @@ export function RunSpecCard({
   );
 }
 
+/**
+ * Renders the terminal timeline card shown once a research run has actually
+ * been started: confirmation copy, a clickable card linking to the run's
+ * detail page, and "what next" actions (open details, or start a new topic).
+ *
+ * @param session The started session (id, title, start timestamp) to display.
+ * @param onOpen Handler to navigate to the run's detail page.
+ * @param onRetry Handler to re-timestamp/re-surface this card (see its call
+ *   site for why: bumping `at` re-sorts it to the current time).
+ * @param onNewTopic Handler to reset the workspace and start a fresh topic.
+ */
 export function StartedSessionCard({
   session,
   onOpen,
@@ -566,6 +642,8 @@ export function StartedSessionCard({
   );
 }
 
+// Renders the run spec card's content as a Markdown document, used for the
+// card's copy/download actions (see responseActions).
 function formatRunSpecResponse(spec: InferredRunSpec): string {
   return [
     `# ${referenceSetupTitle(spec.goal)}`,
@@ -590,6 +668,8 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
   ].join('\n');
 }
 
+// Renders the started-session card's content as a Markdown document, used
+// for the card's copy/download actions (see responseActions).
 function formatStartedSessionResponse(session: StartedSession): string {
   return [
     `# ${session.title}`,
@@ -604,6 +684,8 @@ function formatStartedSessionResponse(session: StartedSession): string {
   ].join('\n');
 }
 
+// Looks up an option's display label by id (e.g. FOCUS_OPTIONS/TIER_OPTIONS),
+// falling back to the raw value if the id isn't recognized.
 function runOptionLabel(
   options: ReadonlyArray<{id: string; label: string}>,
   value: string,
@@ -611,6 +693,7 @@ function runOptionLabel(
   return options.find(option => option.id === value)?.label || value;
 }
 
+// One term/detail row in the spec definition list (dt/dd pair).
 function SpecRow({label, children}: {label: string; children: ReactNode}) {
   return (
     <div className={SPEC_ROW_CLASSES}>
@@ -620,6 +703,8 @@ function SpecRow({label, children}: {label: string; children: ReactNode}) {
   );
 }
 
+// A spec row whose value is rendered as a bulleted list (Requirements/
+// Attributes/Criteria) rather than plain text (Goal).
 function SpecList({label, values}: {label: string; values: string[]}) {
   return (
     <SpecRow label={label}>
@@ -632,6 +717,9 @@ function SpecList({label, values}: {label: string; values: string[]}) {
   );
 }
 
+// Renders one radio-card group (Focus or Tier) inside RunSpecCard: a native
+// radio input per option (visually hidden; OPTION_INPUT_CLASSES) paired with
+// a styled marker/label/description card that reflects the checked state.
 function RunOptionGroup({
   label,
   name,

@@ -38,9 +38,13 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     hypotheses = state["hypotheses"]
     logger.info("Analyzing proximity of %s hypotheses", len(hypotheses))
 
+    # proximity_node runs once per workflow iteration; advance the counter
+    # here unconditionally, regardless of whether clustering runs below.
     current_iteration = state.get("current_iteration", 0)
     next_iteration = current_iteration + 1
 
+    # Similarity clustering needs at least two hypotheses to compare, so
+    # skip the LLM call entirely for an empty or singleton pool.
     if len(hypotheses) <= 1:
         logger.info("Not enough hypotheses for proximity analysis")
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
@@ -52,6 +56,9 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
         PROGRESS_PROXIMITY_START)
 
     # Prepare hypotheses for similarity analysis
+    # Send only the fields the clustering prompt needs, plus a positional
+    # `index` used only for prompt authoring; matching responses back to
+    # Hypothesis objects below is done by text prefix, not this index.
     hypotheses_for_analysis = [{
         "text": hyp.text,
         "score": hyp.score,
@@ -63,6 +70,8 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     supervisor_guidance = state.get("supervisor_guidance")
 
     # Call LLM to cluster by similarity
+    # A single call analyzes the whole pool at once; LOW_TEMPERATURE keeps
+    # clustering decisions consistent across cache-hit reruns.
     prompt, schema = get_proximity_prompt(
         hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
 
@@ -82,12 +91,19 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
 
     similarity_clusters = response.get("similarity_clusters", [])
 
+    # Malformed or empty LLM output: skip deduplication for this iteration
+    # rather than raising, so a bad response degrades gracefully instead
+    # of failing the whole run.
     if not similarity_clusters:
         logger.warning(
             "No similarity clusters returned, skipping deduplication")
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
     # Assign cluster IDs to hypotheses
+    # The LLM echoes back hypothesis text per cluster rather than an
+    # index, so hypotheses are re-matched below by comparing the first
+    # 100 chars of text -- cheap, and robust to minor whitespace or
+    # formatting drift the LLM may introduce when quoting.
     for cluster in similarity_clusters:
         cluster_id = cluster.get("cluster_id", "unknown")
         similar_hypotheses = cluster.get("similar_hypotheses", [])
@@ -102,6 +118,10 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
                 if hyp.text[:100] == hyp_text[:100]:
                     hyp.similarity_cluster_id = cluster_id
                     # Store similarity degree (only set if not already set)
+                    # First match wins: if the LLM's clusters overlap and a
+                    # hypothesis appears more than once, its degree is
+                    # fixed by whichever cluster is processed first rather
+                    # than being overwritten by later matches.
                     if hyp.similarity_degree is None:
                         hyp.similarity_degree = similarity_degree
                     break
@@ -111,6 +131,10 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     hypotheses_to_keep: list[Hypothesis] = []
 
     # Group by cluster
+    # Rebuilt from each hypothesis's own similarity_cluster_id (rather
+    # than reusing the LLM's similarity_clusters list directly), so every
+    # hypothesis -- including any the LLM left unclustered -- is
+    # accounted for exactly once below.
     clusters_dict: dict[str, list[Hypothesis]] = {}
     for hyp in hypotheses:
         cluster_id = hyp.similarity_cluster_id or "unclustered"
@@ -126,6 +150,9 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
             continue
 
         # Separate by similarity degree
+        # Only hypotheses tagged "high" are candidates for removal;
+        # "medium"/"low" degree hypotheses in the same cluster are related
+        # but distinct enough to keep both.
         high_similarity = [
             h for h in cluster_hypotheses if h.similarity_degree == "high"
         ]
@@ -146,6 +173,11 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
             hypotheses_to_keep.append(best)
 
             # Remove the rest
+            # Every other high-similarity hypothesis in the cluster is
+            # dropped; record what was removed, why, and what was kept
+            # instead for the removed_duplicates audit trail (state.py),
+            # which evolve.py later reads to avoid recreating them and the
+            # UI surfaces for transparency.
             for duplicate in high_similarity[1:]:
                 removed_duplicates.append({
                     "text": duplicate.text,
@@ -182,9 +214,17 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     metrics = create_metrics_update(llm_calls_delta=1)
 
     # Update removed duplicates list
+    # Appended onto the running list rather than replacing it, so
+    # removed_duplicates accumulates the full history across iterations.
     all_removed_duplicates = state.get("removed_duplicates",
                                        []) + removed_duplicates
 
+    # hypotheses_to_keep is a strict subset of the incoming hypotheses
+    # (same text, no new hypotheses introduced), so this update is always
+    # >50% overlap with existing state and deduplicate_hypotheses
+    # (state.py) treats it as a replacement rather than an addition --
+    # unlike evolve.py's return, there is no risk of discarded duplicates
+    # resurfacing via the reducer's merge path.
     return {
         "hypotheses":
             hypotheses_to_keep,

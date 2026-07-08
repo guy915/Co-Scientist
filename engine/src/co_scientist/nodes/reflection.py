@@ -83,12 +83,17 @@ async def analyze_single_hypothesis(
             },
         )
 
+        # Default to "neutral"/empty if the LLM response omits a field,
+        # since json_schema validation may still let optional keys through.
         classification = response.get("classification", "neutral")
         reasoning = response.get("reasoning", "")
 
         logger.debug("hypothesis %s classification: %s", hypothesis_index,
                      classification)
 
+        # indra_enrichment_items rides alongside the classification so the
+        # caller can merge it into hypothesis.enrichments separately from
+        # the reflection_notes text below.
         return {
             "classification": classification,
             "reasoning": reasoning,
@@ -96,6 +101,9 @@ async def analyze_single_hypothesis(
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
+        # Isolate this hypothesis's failure: return None instead of
+        # raising, so the asyncio.gather in reflection_node still
+        # completes for every other hypothesis in the batch.
         logger.error("Reflection failed for hypothesis %s: %s",
                      hypothesis_index, e)
         return None
@@ -120,6 +128,10 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     logger.debug("\n=== reflection node ===")
     logger.info("Analyzing hypotheses against literature observations")
 
+    # Reflection compares hypotheses against literature review output, so it
+    # depends on the (MCP-gated) literature_review node having run and
+    # succeeded. If that node was skipped or failed, this node is a no-op
+    # and hypotheses proceed to review with no reflection_notes set.
     # Get articles with reasoning from state
     articles_with_reasoning = state.get("articles_with_reasoning")
     if not articles_with_reasoning:
@@ -136,6 +148,8 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
 
     # Emit progress
+    # emit_progress is a no-op unless a progress_callback was wired into
+    # state (the app layer uses it to stream SSE updates to the UI).
     await emit_progress(state,
                         "reflection_start",
                         f"Analyzing {len(hypotheses)} hypotheses"
@@ -146,8 +160,16 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     # Analyze all hypotheses in parallel
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
 
+    # tool_registry/meta_review are threaded through to every parallel task
+    # below as shared, read-only context. In the current graph wiring,
+    # "reflection" is reached only once, from "generate", before the
+    # iteration cycle produces a meta_review, so meta_review is effectively
+    # always empty here; evolved hypotheses re-enter "review" directly and
+    # never pass back through reflection.
     tool_registry = state.get("tool_registry")
     meta_review = state.get("meta_review")
+    # No semaphore caps concurrency here (unlike the ranking and
+    # deep_verification nodes), so one LLM call fires per hypothesis at once.
     analysis_tasks = [
         analyze_single_hypothesis(
             hypothesis=hyp,
@@ -162,6 +184,9 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     ]
 
     # Gather all results
+    # asyncio.gather preserves input order, so zipping hypotheses against
+    # analysis_results by position is safe even though the tasks ran
+    # concurrently.
     analysis_results = await asyncio.gather(*analysis_tasks)
 
     # Apply results to hypotheses
@@ -169,6 +194,10 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
         if result:
             classification = result.get("classification", "neutral")
             reasoning = result.get("reasoning", "")
+            # The literal "Classification: <value>" suffix is a format
+            # contract: nodes/ranking.py parses it back out of
+            # reflection_notes (splitting on "Classification:") to show
+            # reflection context in tournament matchup prompts.
             hypothesis.reflection_notes = (
                 f"{reasoning}\n\nClassification: {classification}")
             # Store knowledge graph evidence in enrichments (yaml-driven,
@@ -177,6 +206,8 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
             if enrichment_items:
                 hypothesis.enrichments["indra_evidence"] = enrichment_items
         else:
+            # Keep the same "Classification: neutral" suffix even on
+            # failure so the ranking.py parser above never breaks.
             hypothesis.reflection_notes = (
                 "Analysis failed\n\nClassification: neutral")
 
@@ -190,6 +221,10 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Completed reflection analysis for %s hypotheses",
                 len(hypotheses))
 
+    # hypotheses is the same list of objects fetched from state, mutated
+    # in place above; returning it back through the "hypotheses" key hits
+    # the deduplicate_hypotheses reducer (state.py) with 100% text overlap,
+    # so it is treated as a same-set replacement rather than an addition.
     return {
         "hypotheses":
             hypotheses,
@@ -214,6 +249,9 @@ async def _fetch_indra_for_hypothesis(
     """
     empty: dict[str, Any] = {"prompt_text": "", "enrichment_items": []}
     try:
+        # Imported locally (not at module scope) so this call site's own
+        # try/except is what handles a broken/missing optional dependency,
+        # rather than failing at reflection.py import time.
         from co_scientist.nodes.reflection_helpers import fetch_indra_evidence  # pylint: disable=import-outside-toplevel
 
         result = await fetch_indra_evidence(

@@ -35,6 +35,7 @@ class ReferenceIndex:
     """key → source dict, e.g. {'C1': {'type': 'paper', 'title': ..., ...}}"""
 
     def is_empty(self) -> bool:
+        """Returns True when no reference sources have been indexed."""
         return not self.sources
 
 
@@ -59,10 +60,14 @@ def build_reference_index(
     """
     sources: dict[str, dict[str, Any]] = {}
     lines: list[str] = []
+    # counter increments across both loops below so papers and enrichment
+    # sources share one continuous [C*] key sequence.
     counter = 1
 
     # Papers first
     for article in articles or []:
+        # Only papers actually read/analyzed (not just found by search) are
+        # trustworthy enough to ground a hypothesis.
         if not getattr(article, "used_in_analysis", False):
             continue
         key = f"C{counter}"
@@ -70,7 +75,11 @@ def build_reference_index(
         url = getattr(article, "url", "") or ""
         authors = getattr(article, "authors", []) or []
         year = getattr(article, "year", None)
+        # Assumes "First [Middle] Last" author-string format; takes the last
+        # whitespace-separated token as the surname.
         first_author = authors[0].strip().split()[-1] if authors else "Unknown"
+        # Fall back to a truncated title when no year is known, since
+        # "et al., None" would be a confusing citation label.
         label = f"{first_author} et al., {year}" if year else title[:50]
         lines.append(f"[{key}] {label} — {title[:80]}")
         sources[key] = {
@@ -83,6 +92,8 @@ def build_reference_index(
         counter += 1
 
     # External enrichment sources (e.g. INDRA statements, CVE entries)
+    # These come from domain-specific tool integrations run earlier in
+    # the pipeline; "display" is a pre-formatted, human-readable summary.
     for item in context_enrichment_sources or []:
         key = f"C{counter}"
         display = item.get("display", "External source")
@@ -109,13 +120,21 @@ def resolve_citation_keys(
     dropped.
     Preserves insertion order (first occurrence of each key).
     """
+    # Nothing to resolve without grounding text to scan or a source table to
+    # resolve keys against.
     if not literature_grounding or not sources:
         return {}
+    # Extract every [C<n>] occurrence in order; duplicate occurrences are
+    # collapsed below while insertion order (first occurrence) is preserved
+    # via the seen set plus dict insertion order.
     keys = re.findall(r"\[C\d+\]", literature_grounding)
     seen: set[str] = set()
     result: dict[str, dict[str, Any]] = {}
     for raw_key in keys:
         key = raw_key[1:-1]  # strip brackets → "C1"
+        # Keys the LLM hallucinated or mistyped (not present in sources) are
+        # dropped silently rather than raising, since citation_map is
+        # best-effort metadata, not a correctness-critical field.
         if key in sources and key not in seen:
             result[key] = sources[key]
             seen.add(key)
@@ -144,8 +163,13 @@ def hypothesis_from_llm_output(
     Returns:
         The constructed Hypothesis.
     """
+    # Captured once so it can be reused both for the Hypothesis field and
+    # for citation-key resolution below without re-reading hyp_data.
     literature_grounding = hyp_data.get("literature_grounding")
     return Hypothesis(
+        # Different prompt schemas key the hypothesis text differently
+        # ("hypothesis" vs "text"); support both without requiring every
+        # caller to normalize the raw LLM dict first.
         text=hyp_data.get("hypothesis") or hyp_data.get("text", ""),
         category=hyp_data.get("category"),
         explanation=hyp_data.get("explanation"),

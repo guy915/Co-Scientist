@@ -10,6 +10,9 @@ import {
 } from '../pages/chat_timeline_cards';
 import {type ToastState} from './use_toast';
 
+// Fire-and-forget diagnostic line for the shell's Logs popover
+// (DiagnosticsControl in layout_diagnostics.tsx listens for this event); a
+// window event keeps this hook decoupled from the shell component.
 function emitDiagnosticEvent({
   stage,
   run,
@@ -48,6 +51,11 @@ export function useChatSession({
   setToast,
   pubmedEnabled,
 }: ChatSessionDeps) {
+  // Session lifecycle in order: composer text -> draftSpec (inferred from the
+  // first submit, revisable by follow-up messages) -> confirmedSpec (frozen
+  // at start) -> startedSession (the created+started run). Each stage's
+  // createdAt is the timeline timestamp used to order its card among the
+  // chat messages.
   const [input, setInput] = useState('');
   const [draftSpec, setDraftSpec] = useState<InferredRunSpec | null>(null);
   const [draftSpecCreatedAt, setDraftSpecCreatedAt] = useState<number | null>(
@@ -62,16 +70,24 @@ export function useChatSession({
   const [startedSession, setStartedSession] = useState<StartedSession | null>(
     null,
   );
+  // True while the create+start round trip is in flight; the view uses it to
+  // disable the Start control against double submission.
   const [isStarting, setIsStarting] = useState(false);
+  // Append-only log of user/assistant chat bubbles (spec cards are rendered
+  // from the spec state above, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Anything at all in the session? Drives the empty-state vs timeline view.
   const hasConversation =
     messages.length > 0 ||
     Boolean(draftSpec) ||
     Boolean(confirmedSpec) ||
     Boolean(startedSession);
 
+  // Appends a chat bubble; timestamps are epoch seconds (matching the API's
+  // created_at convention) and returned so callers can order follow-up
+  // entries relative to this one.
   function appendMessage(
     role: 'assistant' | 'user',
     content: string,
@@ -89,6 +105,8 @@ export function useChatSession({
     return createdAt;
   }
 
+  // Drops all spec/session stages but keeps the message log; useCallback so
+  // resetSession (which depends on it) also stays referentially stable.
   const clearSessionState = useCallback(() => {
     setDraftSpec(null);
     setDraftSpecCreatedAt(null);
@@ -97,6 +115,8 @@ export function useChatSession({
     setStartedSession(null);
   }, []);
 
+  // Installs `spec` as the active draft and rolls back any later stages
+  // (confirmed/started), since a new draft restarts the lifecycle.
   function stageDraftSpec(
     spec: InferredRunSpec,
     createdAt = Date.now() / 1000,
@@ -108,6 +128,8 @@ export function useChatSession({
     setStartedSession(null);
   }
 
+  // Full wipe back to the pristine composer, used by "New chat"; stable
+  // identity so callers can hang effects off it.
   const resetSession = useCallback(() => {
     clearSessionState();
     setInput('');
@@ -116,10 +138,12 @@ export function useChatSession({
     setError(null);
   }, [clearSessionState]);
 
+  // Re-emits the assistant message as a fresh bubble at the end of the log.
   function handleRetryMessage(message: ChatEntry) {
     appendMessage('assistant', message.content);
   }
 
+  // Loads a previous message back into the composer for editing.
   function handleEditMessage(message: ChatEntry) {
     setInput(message.content);
     focusComposer();
@@ -152,11 +176,14 @@ export function useChatSession({
     });
   }
 
+  // Re-runs spec inference from the draft's goal, discarding any revisions.
   function handleRetryDraftSpec() {
     if (!draftSpec) return;
     stageDraftSpec(inferRunSpec(draftSpec.goal));
   }
 
+  // Cancels the draft and clears the whole conversation (not just the spec),
+  // returning the workspace to its empty state.
   function handleCancelDraftSpec() {
     const title = draftSpec ? referenceSetupTitle(draftSpec.goal) : undefined;
     setInput('');
@@ -171,6 +198,8 @@ export function useChatSession({
     });
   }
 
+  // Re-stages an already confirmed/started spec as an editable draft (the
+  // "edit plan" affordance on a spec card).
   function handleEditPlan(spec: InferredRunSpec) {
     stageDraftSpec(spec);
     focusComposer();
@@ -181,6 +210,10 @@ export function useChatSession({
     });
   }
 
+  // Composer submit. With a draft staged, the message is treated as a
+  // revision instruction against it; otherwise it becomes the research goal
+  // a brand-new draft spec is inferred from. Nothing hits the API here --
+  // runs are only created/started in handleStartRun.
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const text = input.trim();
@@ -192,6 +225,8 @@ export function useChatSession({
     if (draftSpec) {
       const sentAt = appendMessage('user', text);
       const next = reviseRunSpec(draftSpec, text);
+      // The +0.001/+0.002 offsets keep the spec card and the assistant reply
+      // ordered strictly after the user message in the timeline sort.
       stageDraftSpec(next, sentAt + 0.001);
       appendMessage(
         'assistant',
@@ -216,8 +251,14 @@ export function useChatSession({
     });
   }
 
+  // Promotes the draft to a real run: createRun (POST /api/runs) then
+  // startRun (POST /api/runs/{id}/start). The draft becomes the confirmed
+  // spec once creation succeeds; if createRun itself fails the draft stays
+  // staged so the user can retry, and either failure surfaces via `error`.
   async function handleStartRun() {
     if (!draftSpec) return;
+    // Snapshot the draft up front so state changes during the awaits below
+    // can't swap the spec out from under this start attempt.
     const specToStart = draftSpec;
     const specCreatedAt = draftSpecCreatedAt ?? Date.now() / 1000;
     setIsStarting(true);
@@ -275,6 +316,8 @@ export function useChatSession({
     }
   }
 
+  // Exposed surface: raw state + setters for the view to render the
+  // timeline, and the handler set that encodes every legal transition.
   return {
     input,
     setInput,

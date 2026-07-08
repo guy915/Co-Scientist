@@ -33,11 +33,19 @@ const PILL_BUTTON_DISABLED =
 export const CHAT_TIMELINE_CLASSES =
   'reference-chat-timeline flex-1 overflow-y-auto px-4 pt-5';
 
+// The overlaid, non-scrolling composer wrapper (see the composer-height sync
+// effect in chat_workspace.tsx for how CHAT_TIMELINE_CLASSES' bottom padding
+// tracks this element's height).
 export const CHAT_COMPOSER_CLASSES = 'reference-chat-composer px-4 pb-8';
 
+// Shared centered column width used by both the timeline and the composer so
+// their content stays aligned.
 export const CHAT_COLUMN_CLASSES =
   'reference-chat-column mx-auto grid w-[min(100%,50.75rem)] gap-[1.15rem]';
 
+// Bubble row containers: assistant messages left-align (CHAT_BUBBLE_ROW_CLASSES),
+// user messages right-align and carry the `group/user` marker that the
+// hover-revealed action row (MESSAGE_ACTIONS_END_CLASSES) keys off of.
 export const CHAT_BUBBLE_ROW_CLASSES =
   'reference-bubble-row relative flex flex-col items-start justify-start ' +
   'gap-[0.35rem]';
@@ -46,6 +54,9 @@ export const CHAT_BUBBLE_USER_ROW_CLASSES =
   'reference-bubble-row user group/user relative flex flex-col items-end ' +
   'justify-end gap-[0.35rem]';
 
+// User bubble chrome (bg, asymmetric corner radii). Its text styling and the
+// expand/collapse affordance are the USER_BUBBLE_TEXT_*/USER_COLLAPSE_BUTTON_CLASSES
+// group below.
 export const USER_BUBBLE_CLASSES =
   'reference-user-bubble flex max-w-[31rem] items-start gap-4 ' +
   'rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] ' +
@@ -81,10 +92,16 @@ export const USER_COLLAPSE_BUTTON_CLASSES =
   'text-cosci-muted hover:bg-cosci-user-bubble-hover hover:text-cosci-fg ' +
   'focus-visible:bg-cosci-user-bubble-hover focus-visible:text-cosci-fg';
 
+// Assistant bubble: no background/border, just constrained width and body
+// typography (contrast with the filled, rounded USER_BUBBLE_CLASSES).
 export const MODEL_BUBBLE_CLASSES =
   'reference-model-bubble max-w-[50.75rem] text-base leading-[1.45] ' +
   'text-cosci-fg';
 
+// Message action row (retry/copy/download icons): the inline row shown below
+// assistant bubbles (MESSAGE_ACTIONS_CLASSES) versus the row that floats over
+// a user bubble's right edge on hover/focus (MESSAGE_ACTIONS_END_CLASSES),
+// plus the shared icon-button and icon sizing used by both.
 export const MESSAGE_ACTIONS_CLASSES =
   'reference-message-actions flex items-center gap-[0.2rem] px-[0.2rem]';
 
@@ -101,11 +118,14 @@ export const MESSAGE_ACTION_BUTTON_CLASSES = `size-8 ${MUTED_ICON_BUTTON}`;
 
 export const MESSAGE_ACTION_ICON_CLASSES = 'text-[1.12rem]';
 
+// RunSpecCard's top-level wrapper and intro-paragraph typography.
 export const SETUP_MESSAGE_CLASSES =
   'reference-setup-message grid gap-[1.15rem] text-cosci-fg';
 
 export const SETUP_PARAGRAPH_CLASSES = 'm-0 text-base leading-6';
 
+// "Research plan" heading row (title + edit button) and its subheading,
+// shown above the plan document card.
 export const PLAN_HEADING_CLASSES =
   'reference-plan-heading mt-7 flex items-center gap-[0.45rem]';
 
@@ -120,6 +140,8 @@ export const PLAN_EDIT_ICON_CLASSES = 'text-[1.55rem] text-current';
 export const PLAN_SUBHEADING_CLASSES =
   'reference-plan-subheading -mt-[0.35rem] m-0 text-cosci-muted';
 
+// The tinted "document" card that contains the plan title, the spec
+// definition list, the focus/tier option groups, and the action buttons.
 export const SETUP_DOCUMENT_CLASSES =
   'reference-setup-document grid gap-[1.15rem] rounded-2xl ' +
   'bg-cosci-setup-doc-bg p-[1.5rem_1.45rem]';
@@ -127,6 +149,8 @@ export const SETUP_DOCUMENT_CLASSES =
 export const SETUP_DOCUMENT_TITLE_CLASSES =
   'm-0 text-[1.45rem] leading-[1.25] font-semibold';
 
+// Definition-list rendering of the run spec (Goal/Requirements/Attributes/
+// Criteria): the grid, each row's term/detail pair, and bulleted-list rows.
 export const SPEC_GRID_CLASSES = 'reference-setup-grid m-0 grid gap-[1.55rem]';
 
 export const SPEC_ROW_CLASSES = 'reference-spec-row block text-base';
@@ -139,6 +163,10 @@ export const SPEC_DETAIL_CLASSES = 'm-0 leading-[1.45] text-cosci-fg';
 export const SPEC_LIST_CLASSES =
   'reference-spec-list m-0 grid list-disc gap-[0.8rem] pl-[1.35rem]';
 
+// Radio-card option groups (Focus/Tier selectors in RunOptionGroup): the
+// fieldset/legend, the responsive card grid, each selectable card (with a
+// selected-marker variant), the visually-hidden native radio input, and the
+// card's label/description text.
 export const OPTION_GROUP_CLASSES =
   'reference-option-group m-0 grid min-w-0 gap-[0.9rem] border-0 p-0';
 
@@ -171,6 +199,7 @@ export const OPTION_LABEL_CLASSES = 'min-w-0 text-base leading-[1.2] font-bold';
 export const OPTION_DESCRIPTION_CLASSES =
   'col-start-2 text-[0.92rem] leading-[1.3] text-cosci-muted';
 
+// Cancel/Start research button row at the bottom of the plan document card.
 export const SETUP_ACTIONS_CLASSES =
   'reference-setup-actions flex justify-end gap-[0.7rem] pt-[0.3rem]';
 
@@ -186,6 +215,7 @@ export const SETUP_PRIMARY_BUTTON_CLASSES =
   'hover:bg-cosci-btn-primary-hover ' +
   `focus-visible:bg-cosci-btn-primary-hover ${PILL_BUTTON_DISABLED}`;
 
+// StartedSessionCard's wrapper and its intro-copy paragraphs.
 export const STARTED_MESSAGE_CLASSES =
   'reference-started-message grid gap-[1.15rem] text-cosci-fg';
 
@@ -193,6 +223,8 @@ export const STARTED_COPY_CLASSES = 'reference-started-copy grid gap-[0.1rem]';
 
 export const STARTED_COPY_PARAGRAPH_CLASSES = 'm-0 text-base leading-[1.45]';
 
+// The clickable colored session card (title/meta + "Open" affordance) linking
+// to the run's detail page.
 export const STARTED_SESSION_CARD_CLASSES =
   'reference-started-session-card grid min-h-[5.3rem] cursor-pointer ' +
   'grid-cols-[minmax(0,1fr)_auto] items-center gap-[1.2rem] rounded-2xl ' +
@@ -209,6 +241,8 @@ export const STARTED_OPEN_CLASSES =
   'border-white/75 px-[1.25rem] py-[0.65rem] text-center font-semibold ' +
   'text-white/90 hover:bg-white/12 focus-visible:bg-white/12';
 
+// "What would you like to do next?" row: its copy label and the pill buttons
+// (view details / start a new topic) that follow it.
 export const STARTED_NEXT_CLASSES =
   'reference-started-next flex flex-wrap items-center gap-[0.55rem]';
 

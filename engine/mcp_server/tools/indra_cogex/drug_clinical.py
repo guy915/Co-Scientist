@@ -59,6 +59,9 @@ async def query_drug_info(
             valid = ", ".join(_DRUG_ENDPOINTS.keys())
             return {"error": f"invalid query_type '{query_type}', use: {valid}"}
 
+        # Generic dispatch: look up the CoGex endpoint, the payload key it
+        # expects the entity under, and the key to store results under,
+        # all driven by the single _DRUG_ENDPOINTS table above.
         endpoint, param_name, result_key = _DRUG_ENDPOINTS[query_type]
         raw = await indra_post(endpoint, {param_name: curie})
         items, total = cap_results(raw, max_results)
@@ -100,11 +103,13 @@ async def query_clinical_trials(
         curie = parse_id(identifier)
 
         if entity_type == "disease":
+            # Trials that study this disease/condition.
             raw = await indra_post(
                 "/api/get_trials_for_disease",
                 {"disease": curie},
             )
         elif entity_type == "drug":
+            # Trials that test this drug as an intervention.
             raw = await indra_post(
                 "/api/get_trials_for_drug",
                 {"drug": curie},

@@ -40,9 +40,15 @@ const COMPOSER_CONNECTORS = ['PubMed'];
 const COMPOSER_MAX_HEIGHT = 120;
 const COMPOSER_MAX_HEIGHT_LARGE = 146;
 
+// Applied when at least one attachment is present, to grow the composer's
+// min-height/top-padding to fit the attachment strip above the textarea.
 const REFERENCE_COMPOSER_ATTACHED_CLASSES =
   'has-attachments !min-h-[13.5rem] !pt-4';
 
+// Attachment strip/card styling family: the flex-wrap strip above the
+// textarea, the file-card and image-card variants inside it (name/badge/kind
+// for files, a cropped preview for images), and the hover-revealed remove
+// button shared by both variants.
 const ATTACHMENT_STRIP_CLASSES =
   'reference-attachment-strip flex min-w-0 flex-wrap gap-[0.8rem] ' +
   'pb-[1.35rem] pointer-events-auto';
@@ -89,6 +95,9 @@ const ATTACHMENT_REMOVE_BUTTON_CLASSES =
 
 const ATTACHMENT_REMOVE_ICON_CLASSES = 'text-[1.35rem]';
 
+// A locally-attached file (not yet uploaded/sent), derived from a browser
+// File by fileToAttachment. previewUrl is a revocable object URL, only set
+// for images.
 interface ComposerAttachment {
   id: string;
   name: string;
@@ -98,6 +107,23 @@ interface ComposerAttachment {
   previewUrl: string | null;
 }
 
+/**
+ * Renders the message composer: the auto-growing textarea, the file/
+ * connector controls beneath it, the submit button, and any staged
+ * attachments. Used both as the roomy home-stage composer (`large`) and the
+ * compact composer overlaid on the in-conversation timeline.
+ *
+ * @param input Controlled textarea value, owned by the parent session state.
+ * @param setInput Updates the controlled textarea value.
+ * @param setupDraftMode Swaps the placeholder copy to "edit session details"
+ *   wording while a draft/confirmed run spec or started session is showing.
+ * @param disabled Disables input and the source-control buttons (e.g. while
+ *   starting a run).
+ * @param large Selects the roomier home-stage sizing/layout.
+ * @param pubmedEnabled Whether the PubMed connector is currently toggled on.
+ * @param onPubmedEnabledChange Callback fired when the PubMed toggle changes.
+ * @param onSubmit Form submit handler (Enter or the send button).
+ */
 export function Composer({
   input,
   setInput,
@@ -120,6 +146,8 @@ export function Composer({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sourceControlsRef = useRef<HTMLDivElement>(null);
+  // Mirrors `attachments` for use inside the unmount-cleanup effect below,
+  // which must read the latest value without re-subscribing on every change.
   const attachmentRef = useRef<ComposerAttachment[]>([]);
   const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
   const [connectorsOpen, setConnectorsOpen] = useState(false);
@@ -137,6 +165,7 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
   }, [input, large]);
 
+  // Enter submits (Shift+Enter still inserts a newline via default behavior).
   function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -144,6 +173,8 @@ export function Composer({
     }
   }
 
+  // Appends newly picked files as attachments and resets the file input so
+  // selecting the same file again still fires a change event.
   function onFilesChanged(e: ChangeEvent<HTMLInputElement>) {
     const nextAttachments = Array.from(e.target.files ?? []).map(file =>
       fileToAttachment(file),
@@ -152,6 +183,8 @@ export function Composer({
     e.target.value = '';
   }
 
+  // Drops one attachment by id, revoking its preview object URL (if any) to
+  // avoid leaking blob memory.
   function removeAttachment(id: string) {
     setAttachments(current => {
       const attachment = current.find(item => item.id === id);
@@ -160,10 +193,14 @@ export function Composer({
     });
   }
 
+  // Keeps attachmentRef current for the unmount-only cleanup effect below.
   useEffect(() => {
     attachmentRef.current = attachments;
   }, [attachments]);
 
+  // Runs once, on unmount: revokes every remaining preview object URL so
+  // navigating away doesn't leak blob URLs for attachments that were never
+  // explicitly removed.
   useEffect(() => {
     return () => {
       attachmentRef.current.forEach(attachment => {
@@ -172,6 +209,8 @@ export function Composer({
     };
   }, []);
 
+  // Closes the connectors menu on any outside mousedown while it's open; only
+  // subscribes to the document listener when the menu is actually open.
   useEffect(() => {
     if (!connectorsOpen) return;
 
@@ -206,6 +245,9 @@ export function Composer({
         .filter(Boolean)
         .join(' ')}
     >
+      {/* Two attachment-card variants: an image card with a cropped preview,
+          or a file card with name + kind badge. Both share the hover-reveal
+          remove button (Escape/click elsewhere doesn't affect this). */}
       {attachments.length > 0 ? (
         <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
           {attachments.map(attachment =>
@@ -285,6 +327,8 @@ export function Composer({
           )}
         </div>
       ) : null}
+      {/* Floating label + lock icon, hidden once the user has typed
+          anything (input.trim() truthy) so it doesn't overlap the text. */}
       <label className={COMPOSER_LABEL_CLASSES}>
         <span
           className={[
@@ -368,6 +412,8 @@ export function Composer({
               name="database"
             />
           </button>
+          {/* Connectors menu: currently a single PubMed toggle row, closed by
+              the outside-mousedown effect above. */}
           {connectorsOpen ? (
             <div
               className={CONNECTORS_MENU_CLASSES}
@@ -423,6 +469,9 @@ export function Composer({
   );
 }
 
+// Converts a browser File into the view model rendered in the attachment
+// strip, generating an id and (for images only) a previewUrl object URL that
+// the caller is responsible for revoking.
 function fileToAttachment(file: File): ComposerAttachment {
   const extension = fileExtension(file.name);
   const isImage = file.type.startsWith('image/');
@@ -436,16 +485,23 @@ function fileToAttachment(file: File): ComposerAttachment {
   };
 }
 
+// Lower-cased extension from a filename, capped to 8 chars (defends against
+// pathological "filenames" with no real extension).
 function fileExtension(name: string) {
   const extension = name.split('.').pop()?.trim();
   return extension ? extension.slice(0, 8).toLowerCase() : '';
 }
 
+// Short badge shown on the attachment card (e.g. "PDF", "TXT"); markdown/text
+// extensions are normalized to "TXT".
 function fileBadge(extension: string) {
   if (['md', 'mkdn', 'markdown', 'txt'].includes(extension)) return 'TXT';
   return extension ? extension.slice(0, 4).toUpperCase() : 'FILE';
 }
 
+// Human-readable file-kind label shown next to the badge; falls back to the
+// MIME subtype (stripped of any "+xml"/"-something" suffix) when the
+// extension doesn't match a known kind.
 function fileKind(file: File, extension: string) {
   if (['md', 'mkdn', 'markdown'].includes(extension)) return 'Markdown';
   if (file.type.startsWith('text/') || extension === 'txt') return 'Text';

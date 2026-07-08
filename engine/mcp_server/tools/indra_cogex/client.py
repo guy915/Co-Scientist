@@ -12,7 +12,11 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+# Public INDRA CoGex REST deployment; override via env var to point at a
+# local or self-hosted instance.
 INDRA_BASE_URL = os.getenv("INDRA_COGEX_URL", "https://discovery.indra.bio")
+# Some CoGex queries (e.g. enrichment, subnetwork search) run slow graph
+# traversals server-side, hence the generous default timeout.
 INDRA_TIMEOUT = float(os.getenv("INDRA_COGEX_TIMEOUT", "120"))
 
 
@@ -33,6 +37,9 @@ def parse_id(identifier: str) -> list[str]:
     Raises:
         ValueError: If the identifier is not in a valid NAMESPACE:id format.
     """
+    # Split on the first ":" only, since some ids (e.g.
+    # "CHEBI:CHEBI:27690") contain additional colons that belong to the
+    # id portion.
     parts = identifier.split(":", 1)
     if len(parts) != 2 or not parts[0] or not parts[1]:
         raise ValueError(f"invalid identifier: '{identifier}'. "
@@ -53,6 +60,8 @@ def maybe_parse_agent(value: str) -> str | list[str]:
         A two-element list [namespace, id] if parseable as CURIE, else the
         original string.
     """
+    # A colon usually signals a CURIE ("HGNC:6407"), but URLs also contain
+    # colons ("http://...") and are not identifiers, so exclude them.
     if ":" in value and not value.startswith("http"):
         try:
             return parse_id(value)
@@ -73,6 +82,9 @@ async def indra_post(endpoint: str, payload: dict[str, Any]) -> Any:
     """
     url = f"{INDRA_BASE_URL}{endpoint}"
     logger.debug("indra request: %s", endpoint)
+    # A fresh client per call keeps each tool invocation independent;
+    # CoGex calls are infrequent enough that connection reuse isn't worth
+    # the added lifecycle complexity here.
     async with httpx.AsyncClient(timeout=INDRA_TIMEOUT) as client:
         resp = await client.post(url, json=payload)
         resp.raise_for_status()
@@ -90,6 +102,8 @@ def cap_results(items: list[Any] | Any, limit: int) -> tuple[list[Any], int]:
         Tuple of (capped list, original total count). If items is not a list,
         returns (items, 0).
     """
+    # Some CoGex endpoints return an error dict instead of a list; pass it
+    # through unchanged rather than truncating or raising.
     if not isinstance(items, list):
         return items, 0
     total = len(items)

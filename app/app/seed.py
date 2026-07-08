@@ -66,6 +66,11 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
                     client_id=DEMO_CLIENT_ID,
                     db_path=db_path,
                 )
+            # force_provider="mock" pins demo seeding to the deterministic
+            # workflow even when a real LLM key is configured, so startup
+            # never spends API budget and demo content is reproducible.
+            # sleep_seconds=0.0 skips the mock's synthetic event pacing so
+            # seeding finishes immediately rather than over several seconds.
             async for _ in engine_adapter.run_workflow(
                     run_id=run.id,
                     research_goal=goal,
@@ -74,7 +79,9 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
                     sleep_seconds=0.0,
                     force_provider="mock",
             ):
-                pass
+                pass  # events are persisted as a side effect; drain and drop.
             logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)
         except Exception:  # pylint: disable=broad-exception-caught
+            # A failed seed must not take down app startup; log and move on
+            # to the next demo goal.
             logger.exception("Failed to seed demo run for goal: %.60s", goal)

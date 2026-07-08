@@ -25,9 +25,14 @@ from co_scientist.config.schema import (
 logger = logging.getLogger(__name__)
 
 # Default config file location (relative to this module)
+# Ships with the package; defines every built-in tool/server/workflow so the
+# engine works out of the box with no user configuration at all.
 DEFAULT_CONFIG_PATH = Path(__file__).parent / "tools.yaml"
 
 # User config locations (in order of precedence)
+# Only the first of these two paths that exists is loaded (see
+# _load_config's user_data loop below); the second is a legacy/XDG-style
+# fallback location, not an additional override layer.
 USER_CONFIG_PATHS = [
     Path.home() / ".coscientist" / "tools.yaml",
     Path.home() / ".config" / "coscientist" / "tools.yaml",
@@ -68,6 +73,8 @@ def substitute_env_vars(value: Any) -> Any:
         return re.sub(pattern, replacer, value)
 
     elif isinstance(value, dict):
+        # Recurse into nested dicts/lists so ${VAR} substitution reaches
+        # every string leaf in the merged YAML tree, not just top-level keys.
         return {k: substitute_env_vars(v) for k, v in value.items()}
 
     elif isinstance(value, list):
@@ -78,6 +85,11 @@ def substitute_env_vars(value: Any) -> Any:
 
 def parse_bool_env(value: str) -> bool:
     """Parse a string value as boolean."""
+    # Shared boolean-flag parser: used here for `enabled` fields that became
+    # plain strings when their YAML value was a substituted ${VAR} (see
+    # _parse_enabled_values below), and imported by cache.py, prompts.py,
+    # and literature_review.py for COSCIENTIST_* env flags. Anything not in
+    # this allowlist, including an empty string, parses as False.
     return value.lower() in ("true", "1", "yes", "on")
 
 
@@ -113,6 +125,10 @@ class ToolRegistry:
 
     def _load_config(self) -> None:
         """Load and merge configuration files."""
+        # Pipeline: merge three YAML tiers (default < user < custom) as raw
+        # dicts, substitute ${VAR} placeholders, coerce string "enabled"
+        # flags left over from env substitution into real bools, then parse
+        # the merged dict into typed dataclasses via ToolsConfig.from_dict.
         # Start with default config
         default_data = self._load_yaml_file(DEFAULT_CONFIG_PATH)
         if default_data is None:
@@ -172,6 +188,10 @@ class ToolRegistry:
     def _parse_enabled_values(self, data: dict[str, Any]) -> None:
         """Parse 'enabled' fields that might be string booleans from env vars.
         """
+        # substitute_env_vars() only replaces ${VAR} text, so a YAML
+        # `enabled: ${SOME_FLAG}` becomes the literal string "true"/"false"
+        # rather than a bool; this pass coerces those strings before the
+        # dataclasses (which expect real bools) are built.
         # Parse server enabled values
         for server_data in data.get("servers", {}).values():
             if isinstance(server_data.get("enabled"), str):
@@ -196,6 +216,9 @@ class ToolRegistry:
         result = dict(default)
 
         # Determine merge strategy (from user or custom config)
+        # The overlay that actually sets settings.merge_strategy wins: custom
+        # is checked first (and used if present) so a custom config's choice
+        # overrides a user config's, even though custom is merged in after.
         strategy = "override"
         if custom and "settings" in custom:
             strategy = custom.get("settings", {}).get("merge_strategy",
@@ -383,6 +406,9 @@ class ToolRegistry:
 
 
 # Global registry instance
+# Process-wide singleton: nodes and prompts.py call get_tool_registry() with
+# no arguments to fetch this instance, so config_path/disabled_tools below
+# only take effect on the very first call (or an explicit force_reload).
 _global_registry: ToolRegistry | None = None
 
 

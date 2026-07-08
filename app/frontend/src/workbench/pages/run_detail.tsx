@@ -35,9 +35,12 @@ import {
 } from './run_detail_document';
 import {LearningView} from './run_detail_learning';
 
+// Canonical tab route segments, in the order the nav bar renders them.
 const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 type TabName = (typeof TABS)[number];
 
+// Material icon shown per tab in the nav bar (keyed by TabName so a missing
+// entry is a compile error, not a silent blank icon).
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
   details: 'assignment',
   learning: 'menu_book',
@@ -45,6 +48,7 @@ const TAB_ICON_NAMES: Record<TabName, IconName> = {
   ideas: 'lightbulb',
 };
 
+// Human-readable label shown per tab in the nav bar.
 const TAB_LABELS: Record<TabName, string> = {
   details: 'Goal Details',
   learning: 'Learning',
@@ -100,6 +104,8 @@ const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0';
 const REPORT_LEAD_STAT_CLASSES =
   'cosci-overview-lead-stat mt-1 mb-4 text-cosci-fg';
 
+// Legacy/alternate route segments that resolve to a canonical TabName, so old
+// links (or a stray typo) still land on a real tab instead of 404-ing.
 const TAB_ALIASES: Record<string, TabName> = {
   specifications: 'details',
   specs: 'details',
@@ -137,6 +143,7 @@ export function RunDetail() {
   const navigate = useNavigate();
   const activeTab = normalizeTab(tab);
 
+  // --- Fetched run data (populated by refresh(), see below) ---
   const [run, setRun] = useState<RunWithSummary | null>(null);
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [evidence, setEvidence] = useState<Evidence[]>([]);
@@ -150,6 +157,8 @@ export function RunDetail() {
   const [ideasViewKey, setIdeasViewKey] = useState(0);
   const [toast, setToast] = useState<string | null>(null);
 
+  // Live SSE event timeline for this run (replayed from seq=0 on mount) and a
+  // flag set once the stream reaches its terminal sentinel.
   const {events, terminal} = useRunStream(id ?? null);
 
   // With no key set, everything is refetched (initial load, terminal drain).
@@ -280,6 +289,7 @@ export function RunDetail() {
 
   return (
     <div className={REPORT_PAGE_CLASSES}>
+      {/* Titlebar: back link plus the run's (possibly domain-overridden) title. */}
       <header className={REPORT_TITLEBAR_CLASSES}>
         <div className={REPORT_TITLE_LEFT_CLASSES}>
           <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
@@ -294,6 +304,7 @@ export function RunDetail() {
         </div>
       </header>
 
+      {/* Tab nav: one button per TABS entry, routed via onTabChange. */}
       <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
         {TABS.map(tabName => (
           <button
@@ -321,6 +332,9 @@ export function RunDetail() {
         </div>
       )}
 
+      {/* Active tab content. Keying <main> by activeTab remounts it on tab
+          switch, which also resets any per-tab local UI state (e.g. IdeasTab's
+          selection, LearningView's search query). */}
       {!loaded && !error ? (
         <RunDetailSkeleton />
       ) : (
@@ -355,12 +369,15 @@ export function RunDetail() {
   );
 }
 
+// Picks the selected vs. unselected tab-button class variant.
 function reportTabButtonClass(selected: boolean): string {
   return `${REPORT_TAB_BUTTON_BASE_CLASSES} ${
     selected ? REPORT_TAB_SELECTED_CLASSES : 'text-cosci-muted'
   }`;
 }
 
+// "Goal Details" tab: the raw research goal plus the requirements,
+// attributes, and criteria captured in the run's setup config.
 function GoalDetailsView({run}: {run: RunWithSummary | null}) {
   const setup = run?.config.setup;
   const goal = runGoal(run) || 'Loading...';
@@ -381,6 +398,10 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
   );
 }
 
+// "Research Overview" tab: the synthesized report (summary, research
+// directions, specific aims), a lead-stat sentence, a top-5 leaderboard, and
+// a tournament-match count. Falls back to live hypotheses/matches when no
+// persisted report exists yet (run still in progress).
 function ResearchOverviewView({
   run,
   report,
@@ -564,6 +585,7 @@ function domainTitleOverride(goal: string): string | null {
   return null;
 }
 
+// Fixed-position status toast, shown when a run ends failed/blocked.
 function RunToast({message}: {message: string}) {
   return (
     <div role="status" className={REPORT_TOAST_CLASSES}>
@@ -572,12 +594,16 @@ function RunToast({message}: {message: string}) {
   );
 }
 
+// Resolves the ":tab" route param to a canonical TabName: passes through a
+// recognized tab, maps a known alias, and otherwise falls back to 'details'
+// (covers both a missing param and an unrecognized value).
 function normalizeTab(tab: string | undefined): TabName {
   if (!tab) return 'details';
   if ((TABS as readonly string[]).includes(tab)) return tab as TabName;
   return TAB_ALIASES[tab] ?? 'details';
 }
 
+// Loading placeholder shown between mount and the first successful refresh().
 function RunDetailSkeleton() {
   return (
     <div className={REPORT_SKELETON_CLASSES} aria-busy="true">

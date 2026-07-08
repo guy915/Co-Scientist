@@ -8,6 +8,9 @@ import {ChatWorkspace} from './pages/chat_workspace';
 import {RunDetail} from './pages/run_detail';
 import {ThemeProvider} from './theme_context';
 
+// Render-nothing bridge: useGlobalShortcuts needs react-router hooks, so it
+// must run inside the router but can't live in WorkbenchApp itself (the
+// BrowserRouter is mounted above this component, in main.tsx).
 function ShortcutsBridge() {
   useGlobalShortcuts();
   return null;
@@ -17,12 +20,17 @@ function ShortcutsBridge() {
  * Root workbench component wiring routing, theming, and the error boundary.
  */
 export function WorkbenchApp() {
+  // Provider nesting: ErrorBoundary outermost so theme/layout crashes are
+  // caught too; Layout wraps the Routes so the shell (rail, header) persists
+  // across navigations and only the routed page content swaps.
   return (
     <ErrorBoundary>
       <ThemeProvider>
         <Layout>
           <ShortcutsBridge />
           <Routes>
+            {/* "/" is the chat workspace: the session home where new runs are
+                drafted and started. */}
             <Route
               path="/"
               element={
@@ -32,6 +40,9 @@ export function WorkbenchApp() {
                 </>
               }
             />
+            {/* Legacy entry points from the retired public surface (the /runs
+                dashboard and /runs/new form); both now land on the chat
+                workspace, which owns run creation. */}
             <Route path="/runs" element={<Navigate to="/" replace />} />
             <Route path="/runs/new" element={<Navigate to="/" replace />} />
             {/* Redirect the bare id to the default tab so every tab shares one
@@ -42,6 +53,8 @@ export function WorkbenchApp() {
               path="/runs/:id"
               element={<Navigate to="details" replace />}
             />
+            {/* Run detail with its active tab in the URL (details, learning,
+                overview, ideas); RunDetail reads :id and :tab via useParams. */}
             <Route
               path="/runs/:id/:tab"
               element={
@@ -51,6 +64,7 @@ export function WorkbenchApp() {
                 </>
               }
             />
+            {/* Catch-all 404 for anything outside the routes above. */}
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </Layout>

@@ -18,6 +18,8 @@ export function EmptyState({
   return (
     <div
       className={className ? `${BASE_CLASS} ${className}` : BASE_CLASS}
+      // Border/text colors are set inline (rather than via a Tailwind class)
+      // so they read directly from the live MD3 theme variables.
       style={{
         borderColor: 'var(--md-sys-color-outline-variant)',
         color: 'var(--md-sys-color-on-surface-variant)',

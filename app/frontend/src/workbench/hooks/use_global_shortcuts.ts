@@ -7,8 +7,11 @@ import {useLocation, useNavigate} from 'react-router-dom';
  *   ←/→  -> cycle tabs on /runs/:id
  * Inputs and textareas are ignored so typing doesn't trigger the bindings.
  */
+// Arrow-key cycling order; must match the tab routes RunDetail renders.
 const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 
+// True when the key event originated in an editable control (input,
+// textarea, contenteditable), in which case shortcuts must not fire.
 function isTextEditingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
   if (!el) return false;
@@ -24,11 +27,18 @@ export function useGlobalShortcuts() {
   const navigate = useNavigate();
   const location = useLocation();
 
+  // Re-runs (removing and re-adding the single document keydown listener) on
+  // every pathname change so the handler closure always sees the current
+  // route; cleanup on unmount removes the last listener.
   useEffect(() => {
+    // Timestamp of the last bare "g" press, held in the effect closure (not
+    // state -- it should never cause a render). Reset whenever the effect
+    // re-runs, which harmlessly drops a pending "g" across a navigation.
     let lastG = 0;
 
     function onKeyDown(e: KeyboardEvent) {
       if (isTextEditingTarget(e.target)) return;
+      // Leave modifier combos (browser/OS shortcuts) alone.
       if (e.metaKey || e.ctrlKey || e.altKey) return;
 
       const now = Date.now();
@@ -37,6 +47,8 @@ export function useGlobalShortcuts() {
         lastG = now;
         return;
       }
+      // The prefix is only honored within 800ms, and any non-"g" key
+      // consumes it so a stale "g" can't pair with a much later "n".
       const wasG = now - lastG < 800;
       lastG = 0;
 
@@ -50,11 +62,13 @@ export function useGlobalShortcuts() {
       const m = location.pathname.match(/^\/runs\/([^/]+)(?:\/(.+))?$/);
       if (m && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         const id = m[1];
-        if (id === 'new') return;
+        if (id === 'new') return; // legacy path, not a real run
+        // Unknown or missing tab segments count as the default 'details'.
         const current = (
           m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : 'details'
         ) as (typeof TABS)[number];
         const idx = TABS.indexOf(current);
+        // Clamp at the ends rather than wrapping around.
         const next =
           e.key === 'ArrowRight'
             ? Math.min(TABS.length - 1, idx + 1)
@@ -62,6 +76,8 @@ export function useGlobalShortcuts() {
         if (next !== idx) {
           e.preventDefault();
           const nextTab = TABS[next];
+          // 'details' navigates to the bare id, which the router redirects
+          // to /runs/:id/details (the canonical default-tab URL).
           void navigate(`/runs/${id}/${nextTab === 'details' ? '' : nextTab}`);
         }
       }

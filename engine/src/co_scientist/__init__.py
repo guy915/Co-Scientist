@@ -49,6 +49,8 @@ from co_scientist.cache import (
 from co_scientist.config import ToolRegistry, get_tool_registry
 # pylint: enable=wrong-import-position
 
+# Keep this in sync with the [project] version in pyproject.toml; the two
+# are not read from a single source of truth.
 __version__ = "0.2.0"
 __all__ = [
     "HypothesisGenerator",

@@ -5,13 +5,14 @@ import {Icon} from './icon';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
+  /** Optional replacement UI; when set it renders instead of the default card. */
   fallback?: ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  errorInfo: React.ErrorInfo | null;
+  errorInfo: React.ErrorInfo | null; // component stack; arrives after the error itself
 }
 
 const FALLBACK_CARD_CLASSES =
@@ -39,6 +40,12 @@ const FALLBACK_OUTLINE_BUTTON_CLASSES =
 /**
  * Catches render-time errors in its subtree and shows a fallback UI.
  *
+ * A class component because error boundaries have no hook equivalent: only
+ * getDerivedStateFromError / componentDidCatch can intercept descendant render
+ * errors. Note the boundary contract: it catches errors thrown during render,
+ * lifecycle methods, and constructors of the tree below it, but NOT errors in
+ * event handlers, async code, or the boundary's own render.
+ *
  * @param props The children to guard and an optional custom fallback.
  */
 export class ErrorBoundary extends Component<
@@ -50,15 +57,21 @@ export class ErrorBoundary extends Component<
     this.state = {hasError: false, error: null, errorInfo: null};
   }
 
+  // Render phase: flip to the fallback UI synchronously so the broken
+  // subtree is never committed. Must be pure (no side effects here).
   static getDerivedStateFromError(error: Error): Partial<ErrorBoundaryState> {
     return {hasError: true, error};
   }
 
+  // Commit phase: side effects are allowed here, so log and capture the
+  // component stack for the collapsible details section.
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     console.error('ErrorBoundary caught an error:', error, errorInfo);
     this.setState({errorInfo});
   }
 
+  // Clears the error state and re-renders children; recovery only sticks if
+  // whatever threw was transient.
   handleReset = () => {
     this.setState({hasError: false, error: null, errorInfo: null});
   };

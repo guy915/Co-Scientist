@@ -65,6 +65,8 @@ async def query_mechanistic_statements(
 
     try:  # pylint: disable=broad-exception-caught
         if mesh_term:
+            # MeSH-anchored query takes precedence over agent-based
+            # lookup when both happen to be supplied.
             return await _query_by_mesh(
                 mesh_term,
                 evidence_limit,
@@ -109,6 +111,9 @@ async def _query_by_mesh(
         Dict with statements, total count, and query metadata.
     """
     curie = parse_id(mesh_term)
+    # include_child_terms also pulls statements annotated with more
+    # specific MeSH descendants of this term (e.g. subtypes of a
+    # disease).
     raw = await indra_post(
         "/api/get_stmts_for_mesh", {
             "mesh_term": curie,
@@ -147,6 +152,9 @@ async def _query_by_agents(
     Returns:
         Dict with statements, total count, and query metadata.
     """
+    # Build the payload incrementally: only include filters the caller
+    # actually specified, since the CoGex endpoint treats a present-but-
+    # empty filter differently from an absent one.
     payload: dict[str, Any] = {
         "agent": maybe_parse_agent(agent),
         "limit": limit,

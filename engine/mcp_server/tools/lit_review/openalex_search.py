@@ -20,7 +20,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
-_MAX_PER_PAGE = 25
+_MAX_PER_PAGE = 25  # OpenAlex /works page-size ceiling used by this tool.
 
 
 def _reconstruct_abstract(inverted_index: Any) -> str:
@@ -38,6 +38,7 @@ def _reconstruct_abstract(inverted_index: Any) -> str:
         for idx in idxs:
             if isinstance(idx, int):
                 positions.append((idx, str(word)))
+    # Sort by original word position to restore reading order.
     positions.sort(key=lambda item: item[0])
     return " ".join(word for _, word in positions)
 
@@ -62,6 +63,8 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
     for work in results[:max(max_papers, 0)]:
         if not isinstance(work, dict):
             continue
+        # OpenAlex ids are full URLs like "https://openalex.org/W123"; keep
+        # only the short "W123" form to use as the dict key.
         raw_id = str(work.get("id") or "")
         work_id = raw_id.rsplit("/", 1)[-1]
         if not work_id:
@@ -70,6 +73,8 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
                    for a in (work.get("authorships") or [])
                    if isinstance(a, dict)]
         location = work.get("primary_location") or {}
+        # Prefer a human-readable landing page, then fall back to the
+        # DOI, then to the raw OpenAlex URL so a url is always present.
         url = (location.get("landing_page_url") if isinstance(location, dict)
                else None) or work.get("doi") or raw_id
         out[work_id] = {
@@ -107,15 +112,21 @@ async def search_openalex(
         A dict of normalized works, or an empty dict on any error so the
         literature-review node degrades gracefully.
     """
+    # Clamp to at least 1 and at most the API's per-page ceiling.
     per_page = min(max(max_papers, 1), _MAX_PER_PAGE)
     params: dict[str, str] = {
         "search": query,
         "per-page": str(per_page),
     }
+    # Reuse the Entrez contact email if set; OpenAlex's "polite pool"
+    # (faster, more reliable responses) is granted to requests that
+    # identify a contact via mailto.
     mailto = os.environ.get("ENTREZ_EMAIL") or os.environ.get("OPENALEX_MAILTO")
     if mailto:
         params["mailto"] = mailto
     if recency_years and recency_years > 0:
+        # OpenAlex filter syntax: restrict to works published on/after
+        # January 1 of (current year - recency_years).
         from_year = datetime.now(timezone.utc).year - recency_years
         params["filter"] = f"from_publication_date:{from_year}-01-01"
 
@@ -125,6 +136,9 @@ async def search_openalex(
             resp.raise_for_status()
             data = resp.json()
     except (httpx.HTTPError, ValueError) as exc:
+        # Network/parsing failures degrade to no results rather than
+        # propagating, so a single failed source doesn't fail the whole
+        # literature-review step.
         logger.warning("OpenAlex search failed for %r: %s", query, exc)
         return {}
     return normalize_works(data, per_page)

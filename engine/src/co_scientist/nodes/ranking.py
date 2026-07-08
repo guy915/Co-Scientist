@@ -7,6 +7,8 @@ import random
 from typing import Any
 
 from co_scientist.constants import (
+    # ELO_K_FACTOR bounds how much a single matchup can move a rating;
+    # ELO_UPSET_MARGIN is the pre-match gap that makes a win an "upset".
     ELO_K_FACTOR,
     ELO_UPSET_MARGIN,
     THINKING_MAX_TOKENS,
@@ -41,10 +43,19 @@ def calculate_elo_update(winner_elo: int,
         Tuple of (new_winner_elo, new_loser_elo)
     """
     # Calculate expected scores
+    # Standard Elo expected-score formula: each side's probability of
+    # winning given the current rating gap, on the logistic curve with a
+    # 400-point scale (a 400-point gap implies a 10x win-odds ratio). The
+    # two expected scores always sum to 1.
     expected_winner = 1 / (1 + 10**((loser_elo - winner_elo) / 400))
     expected_loser = 1 / (1 + 10**((winner_elo - loser_elo) / 400))
 
     # Calculate new ratings
+    # Rating update: actual score (1 for the winner, 0 for the loser) minus
+    # expected score, scaled by k_factor. An upset (low-rated hypothesis
+    # beats a high-rated one) has expected_winner near 0, so the winner
+    # gains close to the full k_factor; an expected win moves ratings only
+    # slightly.
     new_winner_elo = winner_elo + k_factor * (1 - expected_winner)
     new_loser_elo = loser_elo + k_factor * (0 - expected_loser)
 
@@ -68,8 +79,15 @@ def match_tier(winner_elo_before: int, loser_elo_before: int,
         One of "upset" (a lower-rated hypothesis won), "decisive",
         "clear", or "narrow".
     """
+    # "upset" takes priority over the confidence-based tiers below: if the
+    # loser was already rated at least ELO_UPSET_MARGIN points above the
+    # winner, the outcome is surprising regardless of how confident the
+    # judge was.
     if loser_elo_before - winner_elo_before >= ELO_UPSET_MARGIN:
         return "upset"
+    # Otherwise the tier reflects how confident the LLM judge was in its
+    # verdict; unrecognized/missing confidence values fall through to
+    # "narrow" (the least decisive tier) rather than erroring.
     normalized = confidence.strip().lower()
     if normalized == "high":
         return "decisive"
@@ -197,6 +215,9 @@ async def judge_matchup(
         run_focus_guidance=run_focus_guidance,
     )
 
+    # Sanity check: if reflection notes were passed to the prompt builder,
+    # confirm they actually made it into the rendered prompt text. Catches
+    # silent template regressions where a variable stops being interpolated.
     if reflection_notes_a or reflection_notes_b:
         if "Reflection Notes" in prompt:
             logger.debug("prompt includes 'Reflection Notes' section")
@@ -225,6 +246,9 @@ async def judge_matchup(
             },
         )
 
+    # Guard against a malformed/off-schema LLM judgment: if the model
+    # returns anything other than "a" or "b" for the winner field, fall
+    # back to "a" rather than propagating an invalid value downstream.
     winner = response.get("winner", "a").lower()
     if winner not in ["a", "b"]:
         logger.warning("Invalid winner '%s', defaulting to 'a'", winner)
@@ -257,6 +281,10 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Starting ranking tournament with %s hypotheses",
                 len(hypotheses))
 
+    # Diagnostic-only bookkeeping: how many hypotheses reached this node
+    # with reflection notes attached. Does not affect tournament behavior,
+    # only the debug logging below (helps spot upstream nodes that failed
+    # to populate reflection_notes before ranking runs).
     hypotheses_with_reflection = sum(
         1 for h in hypotheses if h.reflection_notes)
     logger.debug("\n=== ranking tournament debug ===")
@@ -271,6 +299,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     else:
         logger.debug("all hypotheses have reflection notes")
 
+    # Edge case: a tournament requires at least two hypotheses to pair up.
+    # With fewer, skip the tournament entirely and pass the list through
+    # unchanged (Elo ratings stay at their prior/initial values).
     if len(hypotheses) < 2:
         logger.warning("Need at least 2 hypotheses for tournament")
         return {"hypotheses": hypotheses}
@@ -289,11 +320,19 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         f"Running tournament with {len(hypotheses)} hypotheses...", 65)
 
     # Calculate number of tier-configured tournament rounds.
+    # tournament_pairs is normally set upstream from the run-tier config
+    # (e.g. 6/12/20/32 pairs for express/default/extended/ultra); the
+    # "or len(hypotheses)" fallback only applies if it is missing/zero
+    # (e.g. ad-hoc/test state).
     tournament_rounds = max(
         1, int(state.get("tournament_pairs") or len(hypotheses)))
     logger.info("Running %s tournament rounds", tournament_rounds)
 
     # Get supervisor guidance and tool registry from state
+    # These are cross-node context set earlier in the workflow (supervisor
+    # planning, a prior iteration's meta-review, and the run's setup/focus
+    # prompts); threaded unchanged into every judged matchup below so the
+    # judge sees the same context for every pairing.
     supervisor_guidance = state.get("supervisor_guidance")
     tool_registry = state.get("tool_registry")
     meta_review = state.get("meta_review")
@@ -311,9 +350,15 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     random.seed(seed)
 
     # Prepare all random pairwise matchups and judge them in parallel
+    # random.sample(hypotheses, 2) draws two distinct hypotheses without
+    # replacement for each round, but rounds themselves are independent, so
+    # the same hypothesis can appear in multiple pairings (or none) and this
+    # is not a round-robin/Swiss-style schedule -- coverage is probabilistic.
     pairings = [
         tuple(random.sample(hypotheses, 2)) for _ in range(tournament_rounds)
     ]
+    # Fire all matchup judgments concurrently; judge_matchup's semaphore
+    # caps how many LLM calls are actually in flight at once.
     results = await asyncio.gather(*[
         judge_matchup(
             a,
@@ -331,10 +376,17 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     ])
 
     # Apply Elo updates based on judged results and collect matchup details
+    # Judgments were computed concurrently above (independent of Elo, since
+    # judge_matchup only sees text/reviews/etc.), but ratings are applied
+    # here sequentially in pairing order, so a hypothesis appearing in
+    # multiple pairings picks up each prior update before the next one is
+    # scored.
     llm_calls = tournament_rounds
     matchup_details = []
 
     for (hyp_a, hyp_b), (winner, response) in zip(pairings, results):
+        # Resolve which Hypothesis object actually won this pairing based on
+        # the "a"/"b" side the judge picked.
         winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b,
                                                                       hyp_a)
         old_winner_elo = winner_hyp.elo_rating
@@ -390,6 +442,10 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
                 new_loser_elo,
         })
 
+        # Hypothesis objects are mutated in place here (elo_rating and
+        # win/loss counters), so these updates are visible on the same
+        # objects held in the `hypotheses` list without needing to rebuild
+        # it -- rank_by_elo below only reorders, it does not recreate them.
         winner_hyp.elo_rating = new_winner_elo
         loser_hyp.elo_rating = new_loser_elo
         winner_hyp.win_count += 1
@@ -417,6 +473,11 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
         tournament_rounds, llm_calls)
 
+    # Merged back into WorkflowState by the graph runner: hypotheses carries
+    # forward with updated Elo/win/loss fields for downstream nodes (e.g.
+    # meta-review, evolve), tournament_matchups feeds the UI's "Performance
+    # against other ideas" view, and metrics/messages accumulate via their
+    # respective reducers rather than overwriting prior state.
     return {
         "hypotheses":
             hypotheses,  # Now sorted by Elo rating

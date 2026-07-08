@@ -15,6 +15,8 @@ from fastmcp import FastMCP
 
 import fastmcp
 
+# No server-side session state kept between requests, so the process can be
+# scaled horizontally / restarted without clients needing session affinity.
 fastmcp.settings.stateless_http = True
 
 # Import config early to load .env
@@ -28,6 +30,8 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S')
 
+# Only this package's logger honors the configured LOG_LEVEL; third-party
+# libraries stay at the INFO default set above.
 logging.getLogger('mcp_server').setLevel(log_level)
 
 from mcp_server.tools.lit_review.search_pubmed import (  # pylint: disable=line-too-long
@@ -55,6 +59,8 @@ entrez_email_present = bool(os.environ.get("ENTREZ_EMAIL"))
 logger.info("MCP server starting")
 logger.debug("API keys present: ENTREZ_EMAIL=%s", entrez_email_present)
 
+# FastMCP app exposing the tools below over the MCP protocol (JSON-RPC over
+# HTTP, given stateless_http=True above).
 mcp = FastMCP("co-scientist-lit-review")
 
 # Registered MCP tools in advertised order: literature review followed by INDRA
@@ -78,10 +84,16 @@ _MCP_TOOLS = (
 for _tool_fn, _tool_name in _MCP_TOOLS:
     mcp.tool(_tool_fn, name=_tool_name)
 
+# Build the MCP app as an ASGI sub-app so it can be mounted onto a FastAPI
+# app that also serves the plain "/" status endpoint below; reuse its
+# lifespan so FastMCP's startup/shutdown hooks still run.
 mcp_http_app = mcp.http_app()
 app = FastAPI(lifespan=mcp_http_app.lifespan)
 
 # Add CORS middleware
+# Wide-open CORS: this is a reference/dev server with no auth of its own,
+# intended to be reached only from trusted internal callers (the engine's
+# MCP client), not exposed as a public API.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -114,8 +126,13 @@ async def root() -> JSONResponse:
     })
 
 
+# Mounted after the "/" route above; FastAPI matches the more specific
+# route first so GET "/" still returns the JSON status payload while all
+# other paths (the MCP JSON-RPC endpoint) fall through to mcp_http_app.
 app.mount("/", mcp_http_app)
 
 if __name__ == "__main__":
+    # Only used for local/manual runs; container deployments invoke uvicorn
+    # directly (see AGENTS.md), where this block does not execute.
     port = int(os.environ.get("COSCIENTIST_MCP_PORT", 8888))
     uvicorn.run(app, host="0.0.0.0", port=port)

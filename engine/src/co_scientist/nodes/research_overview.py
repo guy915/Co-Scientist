@@ -30,8 +30,14 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     """
     hypotheses = state.get("hypotheses", [])
     if not hypotheses:
+        # Nothing survived to this terminal node (e.g. an earlier failure
+        # or all hypotheses were pruned); skip the LLM call rather than
+        # synthesizing an overview from an empty pool.
         return {"research_overview": {}}
 
+    # Re-rank defensively (do not assume the incoming list is already
+    # Elo-sorted) and keep only the strongest RESEARCH_OVERVIEW_TOP_K (10)
+    # hypotheses so the synthesis prompt stays a bounded size.
     ranked = rank_by_elo(hypotheses)
     top = ranked[:RESEARCH_OVERVIEW_TOP_K]
     summary = "\n".join(
@@ -41,6 +47,8 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
                         "Synthesizing research overview...",
                         PROGRESS_RESEARCH_OVERVIEW_START)
 
+    # meta_review and the durable run guidance fields steer the synthesis
+    # toward the same strategic themes used elsewhere in the workflow.
     prompt, schema = get_research_overview_prompt(
         research_goal=state["research_goal"],
         hypotheses_summary=summary,
@@ -49,6 +57,9 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         run_setup_guidance=state.get("run_setup_guidance"),
         run_focus_guidance=state.get("run_focus_guidance"),
     )
+    # Uses the supervisor model (strategic synthesis, not a worker task)
+    # and the larger THINKING_MAX_TOKENS budget, since the roadmap and
+    # Specific Aims sections can each be long structured output.
     response = await call_llm_json(
         prompt=prompt,
         model_name=state["supervisor_model_name"],
@@ -57,6 +68,9 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         json_schema=schema,
     )
 
+    # Default to empty dicts if the LLM omits either section, so
+    # downstream consumers always see a well-formed research_overview
+    # shape rather than a missing key.
     research_overview = {
         "overview": response.get("overview", {}),
         "nih_specific_aims": response.get("nih_specific_aims", {}),
@@ -67,7 +81,11 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
                         PROGRESS_RESEARCH_OVERVIEW_COMPLETE)
 
     logger.info("Research overview complete")
+    # Only the delta (one LLM call) is passed here; merge_metrics (models.py)
+    # adds it to the existing cumulative totals in state.
     metrics = create_metrics_update(llm_calls_delta=1)
+    # research_overview has no reducer annotation in state.py, so this is a
+    # plain overwrite -- appropriate since this node runs once, terminally.
     return {
         "research_overview":
             research_overview,

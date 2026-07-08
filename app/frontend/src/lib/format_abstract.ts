@@ -53,6 +53,7 @@ export interface AbstractSection {
   html: string;
 }
 
+/** Escapes regex metacharacters so `value` can be embedded literally in a pattern. */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -62,6 +63,8 @@ function titleCase(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
 }
 
+// Sorted longest-first so a multi-word label like "MATERIALS AND METHODS"
+// wins the alternation before the shorter "METHODS" form can match a prefix.
 const sortedLabels = [...SECTION_LABELS].sort((a, b) => b.length - a.length);
 const upperForms = sortedLabels.map(escapeRegExp).join('|');
 const titleForms = sortedLabels.map(l => escapeRegExp(titleCase(l))).join('|');
@@ -97,10 +100,14 @@ export function splitAbstractSections(raw: string): AbstractSection[] {
       end: LABEL_RE.lastIndex,
       label: match[1] ?? match[2],
     });
+    // Guards against an infinite loop on a zero-length match (lastIndex would
+    // otherwise never advance).
     if (LABEL_RE.lastIndex === match.index) LABEL_RE.lastIndex++;
   }
 
   const sections: AbstractSection[] = [];
+  // Skips empty sections, e.g. a detected label with no body text before the
+  // next one (or before the end of the string).
   const pushSection = (label: string | null, body: string) => {
     const trimmed = body.trim();
     if (trimmed) sections.push({label, html: renderInlineHtml(trimmed)});

@@ -29,6 +29,8 @@ def _hash_key(key_data: dict[str, Any]) -> str:
     return hashlib.sha256(key_string.encode()).hexdigest()
 
 
+# Shared by LLMCache.clear() and NodeCache.clear() so the glob-and-delete
+# logic is not duplicated across the two cache tiers.
 def _clear_cache_files(cache_dir: Path, enabled: bool, pattern: str,
                        label: str) -> int:
     """Delete every cache file matching pattern; return the count deleted."""
@@ -44,6 +46,8 @@ def _clear_cache_files(cache_dir: Path, enabled: bool, pattern: str,
     return count
 
 
+# Shared by LLMCache.get_stats() and NodeCache.get_stats(); each caller
+# supplies its own directory and glob pattern (".json" vs ".pkl").
 def _cache_dir_stats(cache_dir: Path, enabled: bool,
                      pattern: str) -> dict[str, Any]:
     """Summarize a cache directory's file count and total size in MB."""
@@ -76,6 +80,8 @@ class LLMCache:
         self.cache_dir = Path(cache_dir)
         self.enabled = enabled
 
+        # Directory is only created when caching is enabled, so a disabled
+        # cache leaves no stray directory on disk.
         if self.enabled:
             self.cache_dir.mkdir(exist_ok=True, parents=True)
             logger.debug("LLM cache initialized at %s", self.cache_dir)
@@ -112,6 +118,10 @@ class LLMCache:
             "max_tokens": max_tokens,
         }
 
+        # Folding tools/json_schema/force_json into the key means a call that
+        # differs only in response-format shape gets its own cache entry, so
+        # a JSON-schema call can never be served a cached freeform response
+        # (or vice versa) for the same prompt/model/temperature/max_tokens.
         # Add optional parameters if provided
         if tools is not None:
             key_data["tools"] = json.dumps(tools, sort_keys=True)
@@ -278,9 +288,11 @@ class NullCache:
     """
 
     def get(self, *_args: Any, **_kwargs: Any) -> dict[str, Any] | None:
+        """Always report a cache miss, regardless of the arguments given."""
         return None
 
     def set(self, *_args: Any, **_kwargs: Any) -> None:
+        """No-op: never persists a response."""
         return None
 
 
@@ -293,6 +305,10 @@ def get_cache() -> LLMCache:
     global _global_cache
 
     if _global_cache is None:
+        # First call in the process wins: the env vars are read once and the
+        # resulting LLMCache is memoized below, so HypothesisGenerator must
+        # set COSCIENTIST_CACHE_ENABLED/_DIR (see its __init__) before the
+        # first LLM call in the process; later os.environ edits are ignored.
         # Check environment variable for cache configuration
         cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
                                       str(DEFAULT_CACHE_ENABLED).lower())
@@ -462,6 +478,7 @@ def get_node_cache() -> NodeCache:
     global _global_node_cache
 
     if _global_node_cache is None:
+        # Same one-shot env-var-read-then-memoize pattern as get_cache().
         # Reuse same cache enabled flag as LLM cache
         cache_enabled_str = os.getenv("COSCIENTIST_CACHE_ENABLED",
                                       str(DEFAULT_CACHE_ENABLED).lower())

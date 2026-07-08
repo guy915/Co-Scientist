@@ -57,6 +57,8 @@ def _find_search_tool(
         return None, None
 
     tool_ids = tool_registry.get_tools_for_workflow("validation")
+    # First matching tool wins: workflow config order in the YAML controls
+    # priority, this loop just picks the first "search"-category entry.
     for tool_id in tool_ids:
         tool_config = tool_registry.get_tool(tool_id)
         if tool_config and tool_config.category in ("search",
@@ -82,10 +84,17 @@ async def _search_papers_for_hypothesis(
     Falls back to pubmed_search_with_fulltext when no tool_registry is provided
     (backwards compatibility).
     """
+    # Three-way branch: (1) config-driven search via the resolved tool,
+    # (2) a registry exists but has no search tool configured for
+    # validation -- skip the novelty search rather than error, (3) legacy
+    # no-registry fallback calling pubmed_search_with_fulltext directly.
     _, tool_config = _find_search_tool(tool_registry)
 
     if tool_config:
         # Config-driven search
+        # Canonical params get mapped below through the tool's own parameter
+        # mapping (domain/tool-specific field names); "slug" carries the
+        # shared corpus slug so this search reuses the warm corpus.
         canonical_params = {
             "query": hypothesis_text[:200],
             "max_papers": max_papers,
@@ -103,6 +112,7 @@ async def _search_papers_for_hypothesis(
         articles = parser.parse_to_articles(result)
 
         # Convert List[Article] to the {paper_id: {...}} dict format
+        # analyze_paper_novelty expects (title/authors/year/fulltext).
         papers = {}
         for article in articles:
             paper_id = article.source_id or article.url or article.title
@@ -117,6 +127,8 @@ async def _search_papers_for_hypothesis(
     if tool_registry:
         # Registry exists but has no search tools for validation — skip novelty
         # search
+        # Not an error: returning {} just means there is nothing to compare
+        # this hypothesis against, so validation continues without it.
         logger.warning("no search tools configured for validation workflow,"
                        " skipping novelty search")
         return {}
@@ -129,6 +141,8 @@ async def _search_papers_for_hypothesis(
         slug=shared_slug,
         run_id=run_id,
     )
+    # Generic fallback normalizer (unlike ResponseParser above, which is
+    # driven by the tool's YAML-configured response_format).
     return cast(dict[str, dict[str, Any]], parse_mcp_result(result))
 
 
@@ -172,6 +186,8 @@ async def validate_hypotheses(
     hypotheses_with_analyses = []
 
     for idx, draft in enumerate(draft_hypotheses, 1):
+        # Draft dicts may key the text as either "hypothesis" or "text"
+        # depending on how Phase 1's LLM output named the field; accept both.
         hypothesis_text = draft.get("hypothesis") or draft.get("text", "")
         logger.info("Analyzing hypothesis %s/%s: %s...", idx,
                     len(draft_hypotheses), hypothesis_text[:80])
@@ -204,6 +220,8 @@ async def validate_hypotheses(
 
             # Truncate if too long
             max_chars = 200_000
+            # Keeps the per-paper prompt size bounded regardless of how long
+            # the source paper's fulltext is.
             if len(fulltext) > max_chars:
                 fulltext = (fulltext[:max_chars] +
                             "\n\n[... truncated for length ...]")
@@ -247,6 +265,8 @@ async def validate_hypotheses(
                     paper_id,
                     idx,  # pylint: disable=cell-var-from-loop
                     e)
+                # None is filtered out below rather than aborting the whole
+                # hypothesis's novelty analysis over one bad paper.
                 return None
 
         # Analyze all papers in parallel
@@ -314,6 +334,8 @@ async def validate_hypotheses(
                 len(tools_dict))
 
     # Calculate iteration budget for synthesis
+    # Sized from the TOTAL hypothesis count but applied per synthesis call,
+    # so each batch (and each single-hypothesis retry) gets the full budget.
     max_iterations = get_validate_max_iterations(total_hypotheses)
     logger.info("Validation synthesis budget: %s iterations", max_iterations)
 
@@ -328,6 +350,9 @@ async def validate_hypotheses(
     # -------------------------------------------------------------------------
     # helpers
     # -------------------------------------------------------------------------
+    # already_validated_texts (passed by retry callers below) lets a retried
+    # single-hypothesis call see what has already been validated, so the
+    # synthesis agent is less likely to produce a near-duplicate on retry.
     async def _call_synthesis(
         batch: list[dict[str, Any]],
         batch_label: str,
@@ -415,6 +440,8 @@ async def validate_hypotheses(
     # execute all batches in parallel; capture failures without aborting
     # -------------------------------------------------------------------------
 
+    # return_exceptions=True: one batch's exception must not cancel or
+    # abort the other batches running concurrently in this gather.
     raw_results = await asyncio.gather(
         *[
             _call_synthesis(batch, str(i + 1), None)
@@ -444,6 +471,8 @@ async def validate_hypotheses(
     # -------------------------------------------------------------------------
 
     if failed_batches:
+        # Single-hypothesis calls shrink the blast radius: one bad
+        # hypothesis or truncated output no longer sinks its batch-mates.
         # Seed context with texts from successful batches
         accumulated_texts: list[str] = [
             h.get("hypothesis", "")
@@ -465,6 +494,8 @@ async def validate_hypotheses(
                         if text:
                             accumulated_texts.append(text)
                 except Exception as e:  # pylint: disable=broad-exception-caught
+                    # A hypothesis whose individual retry also fails is
+                    # dropped; the run continues with whatever validated.
                     logger.error(
                         "Individual retry failed for batch %s,"
                         " hypothesis %s: %s", batch_idx + 1, hyp_idx + 1, e)
@@ -478,6 +509,9 @@ async def validate_hypotheses(
     hypotheses = []
     for i, hyp_data in enumerate(all_validated_hypotheses):
 
+        # novelty_validation is this generation path's caller-specific
+        # extra field, threaded through hypothesis_from_llm_output's
+        # **extra (shared constructor also used by debate.py).
         hypothesis = hypothesis_from_llm_output(
             hyp_data,
             ref_sources,

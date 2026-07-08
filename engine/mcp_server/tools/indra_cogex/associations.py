@@ -40,6 +40,8 @@ async def query_gene_disease_network(
     """
     # pylint: enable=line-too-long
     try:  # pylint: disable=broad-exception-caught
+        # Convert "NAMESPACE:id" into the [namespace, id] pair CoGex
+        # expects.
         curie = parse_id(identifier)
         result: dict[str, Any] = {
             "query": {
@@ -49,6 +51,7 @@ async def query_gene_disease_network(
         }
 
         if entity_type == "disease":
+            # Disease -> genes known to be associated with it.
             raw = await indra_post(
                 "/api/get_genes_for_disease",
                 {"disease": curie},
@@ -56,6 +59,8 @@ async def query_gene_disease_network(
             result["genes"], result["total_genes"] = cap_results(
                 raw, max_results)
             if include_variants:
+                # Optionally also fetch genetic variants linked to the
+                # disease (e.g. GWAS-identified SNPs).
                 vraw = await indra_post(
                     "/api/get_variants_for_disease",
                     {"disease": curie},
@@ -66,6 +71,7 @@ async def query_gene_disease_network(
                 )
 
         elif entity_type == "gene":
+            # Gene -> diseases it has been associated with.
             raw = await indra_post(
                 "/api/get_diseases_for_gene",
                 {"gene": curie},
@@ -75,6 +81,8 @@ async def query_gene_disease_network(
                 max_results,
             )
             if include_variants:
+                # Optionally also fetch genetic variants linked to the
+                # gene.
                 vraw = await indra_post(
                     "/api/get_variants_for_gene",
                     {"gene": curie},
@@ -89,6 +97,9 @@ async def query_gene_disease_network(
 
         return result
 
+    # Any failure (bad identifier, network error, API error) is converted
+    # into a structured error payload rather than raised, since this
+    # function is an MCP tool endpoint and must always return a dict.
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("query_gene_disease_network failed: %s", e)
         return {
@@ -121,6 +132,8 @@ async def query_gene_codependents(
     """
     try:  # pylint: disable=broad-exception-caught
         curie = parse_id(gene_id)
+        # Codependency scores come from DepMap CRISPR knockout screens:
+        # genes whose essentiality profiles correlate across cell lines.
         raw = await indra_post(
             "/api/get_codependents_for_gene",
             {"gene": curie},

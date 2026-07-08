@@ -3,6 +3,9 @@ import {Seo} from './seo';
 
 /**
  * Renders the 404 page shown for unmatched routes.
+ *
+ * Mounted on the catch-all `*` route in workbench_app.tsx; marked noindex
+ * since error pages should never enter a search index.
  */
 export function NotFoundPage() {
   return (

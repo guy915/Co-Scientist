@@ -24,6 +24,8 @@ export interface RunFocusOption {
   icon: string;
 }
 
+// Compute-tier choices shown in the run-setup picker; `id` is sent to the
+// backend as the run's `tier`.
 export const TIER_OPTIONS: RunTierOption[] = [
   {
     id: 'express',
@@ -50,6 +52,8 @@ export const TIER_OPTIONS: RunTierOption[] = [
   },
 ];
 
+// Evidence-vs-novelty tradeoff choices shown in the run-setup picker; `id` is
+// sent to the backend as the run's `focus`.
 export const FOCUS_OPTIONS: RunFocusOption[] = [
   {
     id: 'prefer_evidence',
@@ -81,6 +85,9 @@ export const FOCUS_OPTIONS: RunFocusOption[] = [
   },
 ];
 
+// Baseline requirements/attributes/criteria applied to every goal that isn't
+// the curated liver-fibrosis demo domain. domainPhrases() appends any
+// keyword-triggered extras from DOMAIN_RULES on top of these.
 const DEFAULT_REQUIREMENTS = [
   'Prioritize mechanistic novelty, plausibility, and direct testability.',
   'Retrieve broader literature evidence and preserve competing mechanisms.',
@@ -100,6 +107,9 @@ const DEFAULT_CRITERIA = [
   'Translational feasibility',
 ];
 
+// Curated, hand-authored setup for the liver-fibrosis demo domain (see
+// isLiverFibrosisGoal), used verbatim instead of the generic defaults +
+// domain-rule extras below.
 const LIVER_FIBROSIS_REQUIREMENTS = [
   'The hypothesis must propose a specific, mechanistic pathway for reversing established liver fibrosis.',
   'The hypothesis must include a specific, actionable intervention based on the proposed mechanism.',
@@ -138,6 +148,8 @@ const LIVER_FIBROSIS_CRITERIA = [
  */
 export function inferRunSpec(rawGoal: string): InferredRunSpec {
   const goal = normalizeWhitespace(rawGoal);
+  // The demo domain gets its curated setup verbatim, bypassing the generic
+  // defaults + keyword-triggered domain phrases used for everything else.
   if (isLiverFibrosisGoal(goal)) {
     return {
       goal,
@@ -173,7 +185,12 @@ export function reviseRunSpec(
   instruction: string,
 ): InferredRunSpec {
   const note = normalizeWhitespace(instruction);
+  // Recompute the baseline from (possibly unchanged) goal text so
+  // domain-triggered phrases stay correct if the edit changes the goal.
   const baseline = inferRunSpec(current.goal);
+  // Recognize an explicit "change/update/set the goal to '...'" instruction;
+  // any other phrasing is treated as a general steering note (see below)
+  // rather than a goal replacement.
   const goalMatch = note.match(
     /(?:change|update|set)\s+(?:the\s+)?goal\s+(?:to|as)\s+[""]?(.+?)[""]?$/i,
   );
@@ -187,6 +204,9 @@ export function reviseRunSpec(
     tier: current.tier,
     requirements: [
       ...baseline.requirements,
+      // Preserve any requirements the user already added on top of the
+      // baseline (e.g. from an earlier revision), then record this edit as a
+      // free-text steering note rather than trying to parse it further.
       ...current.requirements.filter(
         requirement => !baseline.requirements.includes(requirement),
       ),
@@ -197,10 +217,14 @@ export function reviseRunSpec(
   };
 }
 
+// Collapses internal whitespace runs to a single space and trims the ends.
 function normalizeWhitespace(value: string): string {
   return value.trim().replace(/\s+/g, ' ');
 }
 
+// One keyword-triggered addition: when `pattern` matches the (lowercased)
+// goal text, `phrase` is appended to the named bucket on top of the
+// DEFAULT_* lists.
 interface DomainRule {
   pattern: RegExp;
   bucket: 'requirements' | 'attributes' | 'criteria';
@@ -254,6 +278,9 @@ const DOMAIN_RULES: DomainRule[] = [
   },
 ];
 
+// Returns the phrases from DOMAIN_RULES whose pattern matches the goal and
+// whose bucket is `bucket`, in DOMAIN_RULES order (multiple rules can match
+// and contribute to the same bucket).
 function domainPhrases(goal: string, bucket: DomainRule['bucket']): string[] {
   const lower = goal.toLowerCase();
   return DOMAIN_RULES.filter(

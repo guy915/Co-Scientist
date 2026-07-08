@@ -5,6 +5,9 @@ import {tooltipClassNames} from './tooltip';
 
 type DiagnosticLogLevel = 'info' | 'success' | 'error';
 
+// One rendered row in the Logs panel; assigned a local monotonic id and
+// formatted timestamp when the underlying event is received (see the
+// `cosci-diagnostic-event` listener in DiagnosticsControl below).
 interface DiagnosticLogEntry {
   id: number;
   time: string;
@@ -14,6 +17,10 @@ interface DiagnosticLogEntry {
   payload: Record<string, unknown>;
 }
 
+// Shape of the `cosci-diagnostic-event` CustomEvent's `detail`, as dispatched
+// by callers elsewhere in the app (e.g. useChatSession's emitDiagnosticEvent)
+// to surface a diagnostic line without those callers depending on this
+// component directly.
 interface DiagnosticLogEventDetail {
   run?: string;
   stage: string;
@@ -21,6 +28,9 @@ interface DiagnosticLogEventDetail {
   payload?: Record<string, unknown>;
 }
 
+// Sizing/positioning for the logs popover: capped to the viewport (dvh) with
+// a narrower width override under the 720px breakpoint. The `!` overrides
+// beat the shared .ucs-popover defaults applied by the parent's ShellPopover.
 const LOGS_POPOVER_CLASSES = [
   'ucs-popover--logs',
   'top-[calc(100%+0.45rem)] right-0 !w-[min(32rem,calc(100vw-2rem))]',
@@ -116,6 +126,17 @@ function formatDiagnosticTime(date = new Date()): string {
   return DIAGNOSTIC_TIME_FMT.format(date);
 }
 
+/**
+ * Header "Logs" button plus its diagnostics popover. Accumulates
+ * `cosci-diagnostic-event` CustomEvents dispatched anywhere in the app into
+ * an in-memory (non-persisted) log for local debugging.
+ *
+ * @param props.open Whether the popover is shown; owned by the parent shell
+ *   so it stays mutually exclusive with the Settings popover.
+ * @param props.onToggle Requests the parent flip `open`.
+ * @param props.renderPopover Lets the parent wrap the panel content in its
+ *   own positioned popover container (shared with the Settings menu).
+ */
 export function DiagnosticsControl({
   open,
   onToggle,
@@ -126,7 +147,9 @@ export function DiagnosticsControl({
   renderPopover: (children: ReactNode, className: string) => ReactNode;
 }) {
   const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState(false); // Copy button shows "Copied"
+  // Monotonic id source for entries; a ref (not state) because it is only
+  // read/written imperatively and must not itself trigger re-renders.
   const nextEntryId = useRef(1);
   const errorCount = entries.filter(entry => entry.level === 'error').length;
   const successCount = entries.filter(
@@ -146,10 +169,13 @@ export function DiagnosticsControl({
     setCopied(true);
   }
 
+  // Subscribed for the component's whole lifetime (no deps) rather than only
+  // while the popover is open, so events fired while it is closed still land
+  // in the log and the trigger's count badge stays accurate.
   useEffect(() => {
     function onDiagnosticEvent(event: Event) {
       const custom = event as CustomEvent<DiagnosticLogEventDetail>;
-      if (!custom.detail?.stage) return;
+      if (!custom.detail?.stage) return; // ignore malformed events
       const entry: DiagnosticLogEntry = {
         id: nextEntryId.current,
         time: formatDiagnosticTime(),
@@ -160,7 +186,7 @@ export function DiagnosticsControl({
       };
       nextEntryId.current += 1;
       setEntries(current => [...current, entry]);
-      setCopied(false);
+      setCopied(false); // new entries invalidate a prior "Copied" confirmation
     }
     window.addEventListener('cosci-diagnostic-event', onDiagnosticEvent);
     return () => {
@@ -207,6 +233,9 @@ export function DiagnosticsControl({
   );
 }
 
+// Presentational body of the popover: header actions (Clear/Copy), summary
+// count chips, and the scrolling entry list. All state stays in
+// DiagnosticsControl; this only renders what it is handed.
 function DiagnosticLogsPanel({
   entries,
   copied,
@@ -226,6 +255,8 @@ function DiagnosticLogsPanel({
   onClear: () => void;
   onCopy: () => void;
 }) {
+  // [label, count, chip class]; the Errors chip switches to the danger
+  // styling only when there is at least one error.
   const chips: Array<[string, number, string]> = [
     ['Total', entries.length, DIAGNOSTIC_CHIP_CLASSES],
     [

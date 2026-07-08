@@ -18,14 +18,21 @@ export function useRunHistory(): {
 } {
   const [history, setHistory] = useState<Run[]>([]);
 
+  // Stable (no deps) so consumers can safely list it in their own effect
+  // deps or pass it down (e.g. into useChatSession) without re-triggering.
   const reloadHistory = useCallback(async () => {
     setHistory(await loadRunHistory());
   }, []);
 
+  // Initial fetch on mount; reloadHistory is stable so this runs once. No
+  // cleanup: a late resolution after unmount only calls a dead setter.
   useEffect(() => {
     void reloadHistory();
   }, [reloadHistory]);
 
+  // Derived run-id -> top-Elo map for completed runs only; memoized on
+  // `history` so the object identity is stable between reloads and doesn't
+  // invalidate downstream memo/effect deps every render.
   const homeScores = useMemo(() => {
     const scores: Record<string, number | null> = {};
     for (const run of history) {

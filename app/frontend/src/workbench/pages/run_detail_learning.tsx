@@ -37,6 +37,14 @@ const REFERENCE_LIST_LINK_CLASSES =
 
 const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 
+/**
+ * Renders the "Learning" tab: up to three synthesized summary sections
+ * (derived from the run's evidence, or a fallback placeholder when none has
+ * been gathered yet) followed by a searchable reference list.
+ *
+ * @param props The research goal (used in fallback copy) and the run's
+ *   collected evidence.
+ */
 export function LearningView({
   goal,
   evidence,
@@ -45,8 +53,11 @@ export function LearningView({
   evidence: Evidence[];
 }) {
   const [query, setQuery] = useState('');
+  // Section ids currently showing their "Details" block; toggled independently
+  // per section so expanding one does not affect the others.
   const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>([]);
   const sections = learningSections(goal, evidence);
+  // Case-insensitive substring match across title, source, and authors.
   const filteredReferences = evidence.filter(item => {
     const haystack = `${item.title} ${item.source} ${item.authors.join(' ')}`;
     return haystack.toLowerCase().includes(query.trim().toLowerCase());
@@ -69,6 +80,8 @@ export function LearningView({
             id={section.id}
             className={REPORT_SECTION_CLASSES}
           >
+            {/* renderInlineHtml sanitizes before this is trusted as HTML, so
+                titles/details carrying inline emphasis markup render safely. */}
             <h3
               className={REPORT_H3_CLASSES}
               dangerouslySetInnerHTML={{
@@ -112,6 +125,10 @@ export function LearningView({
   );
 }
 
+// Splits an abstract's text into its labeled sections (e.g. "Background",
+// "Methods") via splitAbstractSections and renders each as its own paragraph,
+// hiding a redundant "Summary" label since that heading is already shown by
+// the caller.
 function AbstractBody({text}: {text: string}) {
   const parts = splitAbstractSections(text);
   return (
@@ -129,6 +146,9 @@ function AbstractBody({text}: {text: string}) {
   );
 }
 
+// Search box plus numbered reference list. `evidence` is expected to already
+// be filtered by the caller's query; this component only renders it and
+// reports query changes back up via onQueryChange (controlled input).
 function ReferencesBlock({
   evidence,
   query,
@@ -196,6 +216,10 @@ function ReferencesBlock({
   );
 }
 
+// Builds up to three display sections (title/summary/detail) from the run's
+// evidence. When no evidence has been gathered yet (early in a run), a single
+// placeholder item is used instead so the tab still shows meaningful copy
+// rather than an empty page.
 function learningSections(goal: string, evidence: Evidence[]) {
   const fallbackGoal =
     goal ||
@@ -222,6 +246,8 @@ function learningSections(goal: string, evidence: Evidence[]) {
     summary:
       item.abstract ||
       `This section summarizes the concepts, protocols, and methodological constraints Co-Scientist learned while studying ${fallbackGoal}.`,
+    // Detail expands on the summary with source attribution when available,
+    // otherwise a generic note tying the item back to the research goal.
     detail:
       item.source && item.year
         ? `Source context: ${item.source}, ${item.year}. Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis.`
@@ -229,6 +255,9 @@ function learningSections(goal: string, evidence: Evidence[]) {
   }));
 }
 
+// Strips a leading "H1: " style hypothesis-id prefix and title-cases the
+// remaining words (lowercasing small connector words), falling back to a
+// numbered placeholder when nothing is left after stripping.
 function learningTitle(title: string, index: number): string {
   const cleaned = title.replace(/^H\d+:\s*/i, '').trim();
   if (!cleaned) return `Learning Section ${index + 1}`;

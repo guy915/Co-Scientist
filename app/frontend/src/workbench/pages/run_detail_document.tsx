@@ -1,5 +1,11 @@
 import {type ReactNode} from 'react';
 
+// Shared Tailwind class-name constants and layout primitives for the
+// document-style report content ("details"/"learning"/"overview" tabs in
+// run_detail.tsx, plus run_detail_learning.tsx). Centralizing the classes
+// here keeps heading sizes, spacing, and list styling consistent across
+// those views.
+
 export const REPORT_DOCUMENT_CLASSES =
   'cosci-report-document mx-auto mt-9 mb-24 w-[min(100%_-_3rem,58rem)] text-base leading-[1.5] max-[720px]:mt-5 max-[720px]:mb-12 max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
 
@@ -21,6 +27,13 @@ export const REPORT_SECTION_LIST_ITEM_CLASSES =
 export const REPORT_SECTION_LIST_META_CLASSES =
   'text-[0.88rem] text-cosci-muted';
 
+/**
+ * Wraps a report-style tab's content in the shared article layout, rendering
+ * an H2 title above the caller-supplied body.
+ *
+ * @param props The document title, body content, and an optional extra
+ *   className appended to the base document classes.
+ */
 export function ReportDocument({
   title,
   children,
@@ -41,6 +54,12 @@ export function ReportDocument({
   );
 }
 
+/**
+ * Renders a labeled bullet list within a report document, or nothing when
+ * there are no values (e.g. a run with no captured requirements yet).
+ *
+ * @param props The list's heading text and the string values to render.
+ */
 export function ReportList({title, values}: {title: string; values: string[]}) {
   if (!values.length) return null;
   return (

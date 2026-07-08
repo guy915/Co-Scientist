@@ -70,6 +70,8 @@ _lock = threading.RLock()
 _initialized: set[str] = set()
 
 
+# Single clock used for every created_at/updated_at column so writers agree
+# on "now" instead of each call site calling time.time() independently.
 def _now() -> float:
     return time.time()
 
@@ -92,8 +94,10 @@ def _resolved_db_path(path: str | None = None) -> str:
 
 
 def _reports_dir() -> Path:
+    # Directory for the on-disk Markdown report copies; overridable via env
+    # for deployments that mount a persistent volume elsewhere.
     p = Path(os.getenv("COSCIENTIST_REPORTS_DIR") or "./reports")
-    p.mkdir(parents=True, exist_ok=True)
+    p.mkdir(parents=True, exist_ok=True)  # No-op if the directory exists.
     return p
 
 
@@ -108,12 +112,20 @@ def connect(
     # off a per-call mkdir.
     if db_path not in _initialized:
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    # timeout=30: wait on WAL lock contention instead of raising immediately.
+    # isolation_level=None: autocommit; explicit transactions are scoped with
+    # BEGIN/COMMIT in `transaction()` below rather than via the DB-API's
+    # implicit ones. check_same_thread=False: connections may be created on
+    # one async task and used from another.
     conn = sqlite3.connect(db_path,
                            timeout=30,
                            isolation_level=None,
                            check_same_thread=False)
-    conn.row_factory = sqlite3.Row
+    conn.row_factory = sqlite3.Row  # Rows behave like dicts: row["col"].
     try:
+        # Double-checked locking: skip the lock entirely once a db_path has
+        # been initialized (the hot path), but still serialize the first
+        # schema-creation race across concurrently-starting threads.
         if db_path not in _initialized:
             with _lock:
                 if db_path not in _initialized:
@@ -136,6 +148,8 @@ def transaction(
         path: Optional override for the SQLite database path.
     """
     with connect(path) as conn:
+        # IMMEDIATE grabs the write lock upfront, failing fast on contention
+        # instead of upgrading (and possibly deadlocking) mid-transaction.
         conn.execute("BEGIN IMMEDIATE")
         try:
             yield conn
@@ -159,9 +173,12 @@ def _use_conn(
 
 
 def _init_schema(conn: sqlite3.Connection) -> None:
+    """Create tables/indexes if absent, enable WAL, then run migrations."""
+    # Every statement is CREATE TABLE/INDEX IF NOT EXISTS, so this is safe to
+    # run against an already-populated database on every process start.
     conn.executescript(_SCHEMA)
-    conn.execute("PRAGMA journal_mode=WAL")
-    conn.execute("PRAGMA foreign_keys=ON")
+    conn.execute("PRAGMA journal_mode=WAL")  # Readers do not block writers.
+    conn.execute("PRAGMA foreign_keys=ON")  # Enforce ON DELETE CASCADE, etc.
     _run_migrations(conn)
 
 
@@ -200,9 +217,13 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM runs WHERE client_id = ''")
         logger.info("migration: purged pre-client-isolation runs")
 
+    # DB-durable copy of the rendered report, independent of the on-disk file.
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
+    # Structured metadata (e.g. Q&A cited sources) alongside message text.
     _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
+    # Short classification label surfaced as a breadcrumb in the viewer.
     _add_column_if_missing(conn, "hypotheses", "category", "TEXT")
+    # Decisiveness class (upset|decisive|clear|narrow) for a tournament match.
     _add_column_if_missing(conn, "matches", "tier", "TEXT")
 
 
@@ -211,6 +232,7 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
 # ---------------------------------------------------------------------------
 
 _SCHEMA = """
+-- Primary lifecycle record for a single hypothesis-generation run.
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     research_goal TEXT NOT NULL,
@@ -227,10 +249,12 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
 
+-- Append-only timeline of everything that happened during a run. This is the
+-- canonical source the SSE endpoint replays on client reconnect or restart.
 CREATE TABLE IF NOT EXISTS run_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
-    seq INTEGER NOT NULL,
+    seq INTEGER NOT NULL,            -- per-run monotonic sequence number
     type TEXT NOT NULL,              -- agent name, 'status', 'log', 'metric', ...
     payload_json TEXT NOT NULL,
     created_at REAL NOT NULL,
@@ -238,6 +262,9 @@ CREATE TABLE IF NOT EXISTS run_events (
 );
 CREATE INDEX IF NOT EXISTS idx_events_run_seq ON run_events(run_id, seq);
 
+-- Append-only hypothesis records: `evolve` inserts a new row with parent_id
+-- set rather than mutating the parent. Mutable fields (Elo, scores, status)
+-- live in hypothesis_state below, keyed by hypothesis id.
 CREATE TABLE IF NOT EXISTS hypotheses (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
@@ -265,15 +292,20 @@ CREATE TABLE IF NOT EXISTS hypothesis_state (
     win_count INTEGER NOT NULL DEFAULT 0,
     loss_count INTEGER NOT NULL DEFAULT 0,
     novelty_score REAL,
+    -- plausibility_score/testability_score/safety_status/status are reserved
+    -- columns: update_hypothesis_state does not currently set them, and the
+    -- underlying scores live on reviews instead (see reviews table below).
     plausibility_score REAL,
     testability_score REAL,
     safety_status TEXT DEFAULT 'pending',
     status TEXT NOT NULL DEFAULT 'active',
-    cluster_id TEXT,
+    cluster_id TEXT,               -- proximity/dedup cluster, set by evolve
     updated_at REAL NOT NULL,
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
 );
 
+-- Literature/evidence items retrieved for a run; cited by hypotheses via the
+-- citations table below.
 CREATE TABLE IF NOT EXISTS evidence (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
@@ -289,6 +321,9 @@ CREATE TABLE IF NOT EXISTS evidence (
 );
 CREATE INDEX IF NOT EXISTS idx_ev_run ON evidence(run_id);
 
+-- Links one hypothesis claim to one supporting evidence row, classified by
+-- the four-state citation model in app/citations.py (verified/partial/
+-- unsupported/unavailable).
 CREATE TABLE IF NOT EXISTS citations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
@@ -303,6 +338,8 @@ CREATE TABLE IF NOT EXISTS citations (
 );
 CREATE INDEX IF NOT EXISTS idx_cit_hyp ON citations(hypothesis_id);
 
+-- Reviewer critiques and scores for a hypothesis; one row per reviewing
+-- agent pass (reflection, review, meta_review), never updated in place.
 CREATE TABLE IF NOT EXISTS reviews (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
@@ -320,6 +357,9 @@ CREATE TABLE IF NOT EXISTS reviews (
 CREATE INDEX IF NOT EXISTS idx_rv_hyp ON reviews(hypothesis_id);
 CREATE INDEX IF NOT EXISTS idx_rv_run ON reviews(run_id);
 
+-- One row per pairwise tournament match. Elo before/after snapshots are
+-- denormalized here so match history stays reconstructable even though
+-- hypothesis_state.elo_rating keeps moving forward.
 CREATE TABLE IF NOT EXISTS matches (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
@@ -337,6 +377,8 @@ CREATE TABLE IF NOT EXISTS matches (
 );
 CREATE INDEX IF NOT EXISTS idx_match_run ON matches(run_id);
 
+-- Safety-gate outcomes at the intake and final-output checkpoints (see
+-- app/safety.py); one row per gate invocation, kept for audit purposes.
 CREATE TABLE IF NOT EXISTS safety_decisions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id TEXT NOT NULL,
@@ -348,6 +390,9 @@ CREATE TABLE IF NOT EXISTS safety_decisions (
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 
+-- Rendered report snapshots for a run. Multiple rows may accumulate (a
+-- report can be regenerated); get_latest_report picks the newest by
+-- created_at, so older rows are kept only as history.
 CREATE TABLE IF NOT EXISTS reports (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
@@ -359,6 +404,9 @@ CREATE TABLE IF NOT EXISTS reports (
 );
 CREATE INDEX IF NOT EXISTS idx_reports_run ON reports(run_id);
 
+-- Chat-style messages for a run: user steering requests and Q&A exchanges.
+-- `kind` distinguishes 'steering' (consumed by the workflow, then marked
+-- applied) from 'qa' (answered inline, never marked applied).
 CREATE TABLE IF NOT EXISTS messages (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     run_id     TEXT NOT NULL,
@@ -399,9 +447,12 @@ class RunRow:
     top_elo: int | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the row to the JSON shape the API returns to clients."""
         return {
             "id": self.id,
             "research_goal": self.research_goal,
+            # run_mode and profile are duplicate keys: run_mode is the newer
+            # name, profile is retained for clients still reading the old key.
             "run_mode": self.profile,
             "profile": self.profile,
             "status": self.status,
@@ -430,10 +481,12 @@ class MessageRow:
     meta: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serialize the row to the JSON shape the API returns to clients."""
         return dataclasses.asdict(self)
 
 
 def _row_to_run(row: sqlite3.Row) -> RunRow:
+    """Build a RunRow from a runs table row, tolerating a missing top_elo."""
     keys = row.keys()
     return RunRow(
         id=row["id"],
@@ -502,6 +555,7 @@ def create_run(
 def get_run(run_id: str,
             db_path: str | None = None,
             conn: sqlite3.Connection | None = None) -> RunRow | None:
+    """Return a single run by id, or None when no such run exists."""
     with _use_conn(conn, db_path) as conn:
         row = conn.execute("SELECT * FROM runs WHERE id = ?",
                            (run_id,)).fetchone()
@@ -530,9 +584,13 @@ def run_exists(run_id: str, db_path: str | None = None) -> bool:
 def list_runs(client_id: str = "",
               limit: int = 100,
               db_path: str | None = None) -> list[RunRow]:
+    """Return a client's runs, newest first, each with its top Elo."""
     with connect(db_path) as conn:
         # One grouped aggregate joined in, rather than a correlated subquery
         # re-run per run row.
+        # The subquery computes each run's best hypothesis Elo (MAX over the
+        # joined mutable state); the LEFT JOIN keeps runs with no hypotheses
+        # (top_elo comes back NULL for those).
         rows = conn.execute(
             "SELECT r.*, t.top_elo FROM runs r "
             "LEFT JOIN ("
@@ -839,6 +897,9 @@ def update_hypothesis_state(
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
+    # Build the SET clause dynamically from trusted literal fragments; user
+    # data only ever flows through the bound `params`. Deltas use relative
+    # SQL updates (col=col+?) so concurrent writers do not clobber counts.
     sets: list[str] = []
     params: list[Any] = []
     if elo_rating is not None:
@@ -884,7 +945,10 @@ def list_hypotheses(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
+    """Return a run's hypotheses joined with mutable state, best Elo first."""
     with _use_conn(conn, db_path) as conn:
+        # Consumers (API, Q&A prompt builder) rely on this Elo-descending
+        # order; created_at breaks ties deterministically.
         rows = conn.execute(
             _HYP_SELECT +
             "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
@@ -898,6 +962,7 @@ def get_hypothesis(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> dict[str, Any] | None:
+    """Return one hypothesis joined with its mutable state, or None."""
     with _use_conn(conn, db_path) as conn:
         row = conn.execute(
             _HYP_SELECT + "WHERE h.id=?",
@@ -1008,6 +1073,7 @@ def add_citation(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
+    """Insert a classified claim-to-evidence citation link."""
     with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO citations (run_id, hypothesis_id, evidence_id, claim, state, created_at) "  # pylint: disable=line-too-long
@@ -1021,6 +1087,7 @@ def list_citations(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
+    """Return a run's citation rows ordered by creation time."""
     return _list_by_run("citations", run_id, db_path, conn)
 
 
@@ -1082,6 +1149,7 @@ def list_reviews(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
+    """Return a run's review rows ordered by creation time."""
     return _list_by_run("reviews", run_id, db_path, conn)
 
 
@@ -1146,6 +1214,7 @@ def list_matches(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[dict[str, Any]]:
+    """Return a run's tournament match rows ordered by creation time."""
     return _list_by_run("matches", run_id, db_path, conn)
 
 
@@ -1162,6 +1231,7 @@ def add_safety_decision(
     matches: list[str],
     db_path: str | None = None,
 ) -> None:
+    """Record a safety-gate decision ('intake' or 'final') for a run."""
     with connect(db_path) as conn:
         conn.execute(
             "INSERT INTO safety_decisions (run_id, stage, decision, reason, matches_json, created_at) "  # pylint: disable=line-too-long
@@ -1172,8 +1242,10 @@ def add_safety_decision(
 
 def list_safety_decisions(run_id: str,
                           db_path: str | None = None) -> list[dict[str, Any]]:
+    """Return a run's safety decisions with the matches list decoded."""
     out = []
     for d in _list_by_run("safety_decisions", run_id, db_path):
+        # Expose decoded 'matches' instead of the raw matches_json column.
         d["matches"] = json.loads(d.pop("matches_json") or "[]")
         out.append(d)
     return out
@@ -1226,6 +1298,7 @@ def save_report(
 
 def get_latest_report(run_id: str,
                       db_path: str | None = None) -> dict[str, Any] | None:
+    """Return the most recent report row for a run, or None."""
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM reports WHERE run_id=? ORDER BY created_at DESC LIMIT 1",  # pylint: disable=line-too-long
@@ -1344,6 +1417,8 @@ def _row_to_message(row: sqlite3.Row) -> MessageRow:
     )
 
 
+# Explicit column list shared by the message queries below, so they stay in
+# lockstep with what _row_to_message reads.
 _MESSAGE_COLUMNS = ("id, run_id, sender, content, kind, created_at, applied, "
                     "meta_json")
 
@@ -1353,6 +1428,7 @@ def list_messages(
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> list[MessageRow]:
+    """Return all of a run's messages in insertion (chronological) order."""
     with _use_conn(conn, db_path) as conn:
         rows = conn.execute(
             f"SELECT {_MESSAGE_COLUMNS} FROM messages "
@@ -1364,6 +1440,11 @@ def list_messages(
 
 def get_pending_steering(run_id: str,
                          db_path: str | None = None) -> list[MessageRow]:
+    """Return unapplied steering messages, oldest first.
+
+    The workflow polls this between iterations to pick up user guidance,
+    then acknowledges via ``mark_steering_applied``.
+    """
     with connect(db_path) as conn:
         rows = conn.execute(
             f"SELECT {_MESSAGE_COLUMNS} FROM messages "
@@ -1374,8 +1455,11 @@ def get_pending_steering(run_id: str,
 
 
 def mark_steering_applied(ids: list[int], db_path: str | None = None) -> None:
+    """Mark steering messages as consumed so they are not applied twice."""
     if not ids:
         return
+    # Message ids are integers from our own DB, so building the IN list via
+    # placeholders (one '?' per id) stays fully parameterized.
     placeholders = ",".join("?" * len(ids))
     with connect(db_path) as conn:
         conn.execute(

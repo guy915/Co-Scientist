@@ -14,6 +14,10 @@ from co_scientist.models import Article
 logger = logging.getLogger(__name__)
 
 
+# Instantiated per tool call (see nodes/generation/literature_tools/
+# validate.py) with that tool's ToolConfig, so a single MCP response-shape
+# difference between e.g. PubMed and arXiv is absorbed entirely by YAML
+# field_mapping expressions rather than per-source parsing code.
 class ResponseParser:
     """Parse MCP tool responses using YAML-defined field mappings.
 
@@ -49,6 +53,9 @@ class ResponseParser:
         # Handle string responses (JSON)
         if isinstance(response, str):
             response = response.strip()
+            # Some tools (e.g. availability checks) return the literal
+            # string "true"/"false" instead of JSON; short-circuit before
+            # attempting a JSON parse for that response type.
             if self.response_format.type == "boolean_string":
                 return response.lower() == "true"
             try:
@@ -86,6 +93,10 @@ class ResponseParser:
 
         if self.response_format.is_dict:
             # Results is a dict {key: item}
+            # Some sources (e.g. PubMed, keyed by PMID) return a mapping
+            # rather than a list, and the key itself is needed for
+            # "@key"/"@url_from_key" expressions below, so it is threaded
+            # through as dict_key per item.
             if not isinstance(results, dict):
                 logger.warning("expected dict but got %s", type(results))
                 return []
@@ -135,6 +146,8 @@ class ResponseParser:
                 return None
 
             # Handle array index notation
+            # "field[N]" first descends into "field", then indexes into the
+            # resulting list; a bare "[N]" (empty field) indexes directly.
             match = re.match(r"(\w+)\[(\d+)\]", part)
             if match:
                 field, index = match.groups()
@@ -147,6 +160,8 @@ class ResponseParser:
             elif isinstance(current, dict):
                 current = current.get(part)
             else:
+                # Non-dict, non-indexed segment with no further way to
+                # descend (e.g. path continues past a scalar or a list).
                 return None
 
         return current
@@ -173,6 +188,9 @@ class ResponseParser:
         kwargs: dict[str, Any] = {}
 
         # Map each field
+        # Each field is evaluated independently so a single malformed
+        # expression (bad transform, missing nested key) degrades to a
+        # None value for that field instead of dropping the article.
         for article_field, expr in mapping.items():
             try:
                 value = self._evaluate_expression(expr, item, dict_key)
@@ -199,6 +217,8 @@ class ResponseParser:
             abstract=kwargs.get("abstract"),
             content=kwargs.get("content"),
             source_id=kwargs.get("source_id"),
+            # Fall back to the tool's configured source_type when the YAML
+            # field_mapping does not set a "source" expression explicitly.
             source=kwargs.get("source", self.tool_config.source_type),
             pdf_links=kwargs.get("pdf_links", []),
             used_in_analysis=True,
@@ -232,6 +252,9 @@ class ResponseParser:
             Evaluated value
         """
         # Handle static values (quoted strings)
+        # Lets a YAML field_mapping pin a constant field value (e.g.
+        # "'pubmed'") without there being a matching key in the raw
+        # response item.
         if expr.startswith("'") and expr.endswith("'"):
             return expr[1:-1]
 
@@ -246,6 +269,9 @@ class ResponseParser:
             return None
 
         # Check for transform chain
+        # Pipe-separated expressions apply the transforms left to right,
+        # e.g. "date_revised|split:/|index:0|int" first splits on "/", then
+        # takes the first element, then casts it.
         if "|" in expr:
             parts = expr.split("|")
             field_expr = parts[0]
@@ -272,6 +298,8 @@ class ResponseParser:
             return dict_key
 
         # Handle nested paths
+        # e.g. "metadata.title", delegating to the same dotted-path
+        # navigator used for results_path.
         if "." in field_expr:
             return self._navigate_path(item, field_expr)
 

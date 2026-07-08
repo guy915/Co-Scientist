@@ -27,6 +27,8 @@ def check_pubmed_available() -> str:
 
     entrez_email = os.environ.get("ENTREZ_EMAIL")
     if not entrez_email:
+        # NCBI requires (or strongly recommends) an identifying email for
+        # Entrez API use; treat it as a hard prerequisite here.
         logger.warning(
             "PubMed unavailable: ENTREZ_EMAIL not set (recommended by NCBI)")
         return "false"
@@ -34,6 +36,8 @@ def check_pubmed_available() -> str:
     try:
         logger.debug("Testing PubMed availability with test query...")
 
+        # Cheap canary query: "cancer" is guaranteed to have results if
+        # PubMed access is working at all.
         test_results = _entrez_read(
             Entrez.esearch(db="pubmed", term="cancer", retmax=1))
 
@@ -105,6 +109,8 @@ def _entrez_read(handle: Any) -> dict[str, Any]:
         HTTPError: On HTTP-level errors from the Entrez API.
         URLError: On network-level errors.
     """
+    # NCBI's rate limit is 3 requests/second without an API key; sleeping
+    # before each read keeps this client comfortably under that.
     sleep(0.25)
 
     try:
@@ -174,6 +180,7 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
                 max_papers)
 
     try:  # pylint: disable=broad-exception-caught
+        # Step 1: esearch resolves the query to a list of PubMed ids.
         results = _entrez_read(
             Entrez.esearch(db="pubmed", term=query, retmax=max_papers))
         id_list = results.get("IdList", [])
@@ -186,6 +193,9 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
 
         articles = []
         for paper_id in id_list:
+            # Step 2: efetch pulls full metadata per id. Each id is
+            # fetched (and any failure handled) independently so one
+            # malformed record doesn't abort the whole batch.
             try:  # pylint: disable=broad-exception-caught
                 paper_results = _entrez_read(
                     Entrez.efetch(db="pubmed", id=paper_id))
@@ -196,6 +206,9 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
 
                 title = article_data.get("ArticleTitle", "Unknown")
 
+                # PubMed abstracts are sometimes split into multiple
+                # labeled sections (e.g. Background/Methods/Results);
+                # join them into one string.
                 try:
                     abstract_parts = article_data.get("Abstract", {}).get(
                         "AbstractText", [])
@@ -218,6 +231,9 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
 
                 doi = None
                 try:
+                    # ArticleIdList mixes several id types (pubmed, doi,
+                    # pii, ...); each entry carries its type as an XML
+                    # attribute, so filter for "doi" specifically.
                     article_ids = pubmed_article.get("PubmedData", {}).get(
                         "ArticleIdList", [])
                     for article_id in article_ids:
@@ -242,6 +258,9 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
                 except (KeyError, TypeError, ValueError):
                     pass
 
+                # Prefer the DOI resolver link when available since it
+                # points at the publisher's copy; fall back to the
+                # PubMed record page otherwise.
                 url = f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
                 if doi:
                     url = f"https://doi.org/{doi}"

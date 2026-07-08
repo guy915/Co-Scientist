@@ -64,6 +64,10 @@ _UPSET, _DECISIVE, _CLEAR, _NARROW = MATCH_TIERS
 
 
 def _seeded_rng(*parts: str) -> random.Random:
+    """Build a `random.Random` seeded deterministically from `parts`."""
+    # Hash the joined parts (typically run_id, goal, run_mode) down to a
+    # 32-bit int; sha256 gives a stable, well-distributed seed independent
+    # of Python's hash randomization (PYTHONHASHSEED).
     seed = int(hashlib.sha256("|".join(parts).encode()).hexdigest(), 16) % (2**
                                                                             32)
     return random.Random(seed)
@@ -133,6 +137,9 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
 
 
 def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
+    """Generate a deterministic, plausible-sounding mock evidence record."""
+    # Prefer longer words from the goal as a stand-in "topic" keyword; a
+    # fixed fallback keeps output well-formed for very short/terse goals.
     keywords = [t for t in goal.lower().split() if len(t) > 4
                ][:3] or ["mechanism"]
     keyword = rng.choice(keywords)
@@ -152,7 +159,8 @@ def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
 
 
 def _cluster_id(idx: int) -> str:
-    return f"cluster-{idx % 3}"
+    """Assign a hypothesis index to one of 3 fixed mock proximity clusters."""
+    return f"cluster-{idx % 3}"  # 3 is an arbitrary fixed cluster count
 
 
 # Number of top-ranked hypotheses subjected to deep verification. Hardcoded
@@ -483,6 +491,9 @@ async def run_mock_workflow(
         a, b = rng.sample(hyp_ids, 2)
         pairs.append((a, b))
 
+    # +2, not +1: runs max_iterations rounds that each include evolve/meta
+    # (guarded below by `itr <= cfg["max_iterations"]`), plus one trailing
+    # ranking-only pass over the evolved population before final reporting.
     for itr in range(1, cfg["max_iterations"] + 2):
         pending = store.get_pending_steering(run_id, db_path=db_path)
         if pending:
@@ -504,9 +515,9 @@ async def run_mock_workflow(
                 # which the mock does not have.
                 if lb - wb >= UPSET_MARGIN:
                     tier = _UPSET
-                elif abs(wb - lb) >= 60:
+                elif abs(wb - lb) >= 60:  # arbitrary fixed cutoff, mock-only
                     tier = _DECISIVE
-                elif abs(wb - lb) >= 20:
+                elif abs(wb - lb) >= 20:  # arbitrary fixed cutoff, mock-only
                     tier = _CLEAR
                 else:
                     tier = _NARROW
@@ -664,6 +675,8 @@ async def run_mock_workflow(
     # ---- 11. Citation audit ----
     cit_summary = empty_citation_summary()
     with store.transaction(db_path) as conn:
+        # Cite at least 3 hypotheses, or half of them if that is more, so
+        # small runs still get a non-trivial citation audit.
         for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
             # Link first 2 evidence items to each hypothesis as supporting
             # citations

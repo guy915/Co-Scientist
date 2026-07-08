@@ -10,7 +10,7 @@ export async function copyText(text: string) {
       await navigator.clipboard.writeText(text);
       return;
     }
-    throw new Error('Clipboard API unavailable');
+    throw new Error('Clipboard API unavailable'); // funnel into the fallback below
   } catch {
     try {
       const textarea = document.createElement('textarea');
@@ -20,7 +20,7 @@ export async function copyText(text: string) {
       textarea.style.opacity = '0';
       document.body.append(textarea);
       textarea.select();
-      document.execCommand('copy');
+      document.execCommand('copy'); // deprecated, but still the most broadly compatible sync fallback
       textarea.remove();
     } catch {
       // Clipboard unavailable; ignore.

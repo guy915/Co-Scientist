@@ -66,6 +66,17 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
   {icon: 'chess', label: 'Playing tournament'},
 ];
 
+/**
+ * Renders the desktop-only "Recents" aside on the session-home stage: a
+ * capped list of recent runs (each a RecentRunCard), an empty state when
+ * there are none, and a show more/less toggle once there are more than the
+ * initial cap.
+ *
+ * @param runs All recent runs available to list.
+ * @param scoresByRunId Top Elo score per run id, passed through to each card.
+ * @param showAll Whether the list is expanded past the 4-item cap.
+ * @param onToggleShowAll Toggles the expanded state.
+ */
 export function HomeRecentsPanel({
   runs,
   scoresByRunId,
@@ -77,9 +88,12 @@ export function HomeRecentsPanel({
   showAll: boolean;
   onToggleShowAll: () => void;
 }) {
+  // Cap the list to 4 items until the user expands it.
   const visibleRuns = showAll ? runs : runs.slice(0, 4);
   const hasVisibleRuns = visibleRuns.length > 0;
   const hasExtraRuns = runs.length > 4;
+  // Empty state swaps in a distinct panel/list class pair (reference styling)
+  // rather than conditionally omitting classes.
   const panelClassName = hasVisibleRuns
     ? RECENTS_PANEL_CLASSES
     : EMPTY_RECENTS_PANEL_CLASSES;
@@ -135,7 +149,18 @@ export function HomeRecentsPanel({
   );
 }
 
+/**
+ * Renders one recents-list entry: a link card to the run's detail page,
+ * showing either the live RunStepFlow progress (while active) or the
+ * completed run's top-scoring idea titles and Elo score.
+ *
+ * @param run The run to summarize.
+ * @param topScore The run's top Elo score, or null if unknown/not completed.
+ */
 function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
+  // Placeholder idea titles derived from the goal text (see
+  // homeRunIdeaTitles) - the run summary doesn't carry real hypothesis
+  // titles, so this substitutes plausible-looking ones keyed off the topic.
   const topIdeas = homeRunIdeaTitles(run.research_goal);
   const isActiveRun = isActiveStatus(run.status);
 
@@ -258,6 +283,8 @@ function RunStepFlow({activeIndex}: {activeIndex: number}) {
   );
 }
 
+// Formats a run's creation date for the meta chip, e.g. "July 8, 2026".
+// Timestamps on Run are Unix seconds, hence the *1000 to build a Date.
 const HOME_RUN_DATE_FMT = new Intl.DateTimeFormat(undefined, {
   month: 'long',
   day: 'numeric',
@@ -268,6 +295,9 @@ function formatHomeRunDate(timestamp: number): string {
   return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
 }
 
+// Total wall-clock duration for a finished (or presumed-finished) run. Falls
+// back to a flat 60s phrase for completed runs missing a proper end
+// timestamp, "In progress" for active runs, and the raw status otherwise.
 function formatHomeRunDuration(run: Run): string {
   const endTime = run.completed_at ?? run.updated_at;
   if (endTime && endTime > run.created_at) {
@@ -282,6 +312,8 @@ function formatHomeRunDuration(run: Run): string {
   return formatHomeRunStatus(run);
 }
 
+// Elapsed time since an active run was created, floored at zero to guard
+// against clock skew between client and server timestamps.
 function formatHomeRunElapsed(run: Run): string {
   const elapsedSeconds = Math.max(
     0,
@@ -291,6 +323,8 @@ function formatHomeRunElapsed(run: Run): string {
   return formatDurationPhrase(elapsedSeconds);
 }
 
+// Second meta chip on the recent-run card: total time once completed, live
+// elapsed time while active, or the raw status label otherwise.
 function formatHomeRunTimeChip(run: Run): string {
   if (run.status === 'completed') {
     return `Total time: ${formatHomeRunDuration(run)}`;
@@ -305,6 +339,9 @@ function formatHomeRunStatus(run: Run): string {
   return run.status.charAt(0).toUpperCase() + run.status.slice(1);
 }
 
+// Looks up a completed run's top score, distinguishing "no entry yet" (score
+// still loading) from "known to be null" via hasOwnProperty rather than a
+// plain index lookup, since both cases would otherwise read as undefined.
 function homeRunScore(
   run: Run,
   scoresByRunId: Record<string, number | null>,
@@ -337,6 +374,11 @@ function homeRunStepIndex(run: Run): number {
   return 4;
 }
 
+// Maps a run's goal text to a fixed, plausible-looking set of three "winning
+// idea" titles by keyword-matching known demo topics; any unmatched goal
+// falls back to its own concise title plus two generic hypothesis labels.
+// This is decorative placeholder content - the run summary has no real
+// per-hypothesis titles to show here.
 function homeRunIdeaTitles(goal: string): string[] {
   const normalized = goal.toLowerCase();
   if (normalized.includes('ferroptosis') || normalized.includes('pancreatic')) {

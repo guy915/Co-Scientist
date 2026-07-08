@@ -10,7 +10,7 @@ const STORAGE_KEY = 'cosci-api-key';
  * @returns The stored key, or an empty string when unset.
  */
 export function getStoredApiKey(): string {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === 'undefined') return ''; // guards SSR/non-browser environments
   return window.localStorage.getItem(STORAGE_KEY) ?? '';
 }
 

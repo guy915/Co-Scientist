@@ -96,6 +96,8 @@ class MCPToolClient:
 
     async def initialize(self) -> None:
         """Initialize the client and fetch available tools from all servers."""
+        # Idempotent: get_mcp_client() calls this on every lookup, so a
+        # second call on an already-connected client is a cheap no-op.
         if self._client is not None:
             logger.debug("MCP client already initialized")
             return
@@ -109,6 +111,10 @@ class MCPToolClient:
 
         self._client = MultiServerMCPClient(
             cast(dict[str, Connection], self._server_configs))
+        # This round-trips to every configured server. A server that is down
+        # or unreachable surfaces as a raised exception here, which
+        # check_mcp_available / check_literature_source_available below catch
+        # and turn into an availability=False result rather than propagating.
         tools = await self._client.get_tools()
 
         # Create dict for easy lookup and track which server provides each tool
@@ -133,6 +139,9 @@ class MCPToolClient:
         logger.info("MCP client initialized with %s tools: %s",
                     len(self._tools_dict), list(self._tools_dict.keys()))
 
+    # Direct-call convenience path used when the caller already knows the
+    # tool name/args (e.g. availability checks, literature_review.py) --
+    # contrast with execute_tool_call, which unpacks an LLM tool-call object.
     async def call_tool(self, tool_name: str, **kwargs: Any) -> str:
         """Call an MCP tool directly with arguments.
 
@@ -183,6 +192,11 @@ class MCPToolClient:
         Returns:
             Dictionary formatted as a tool response message
         """
+        # The returned dict's shape (role/name/tool_call_id/content) matches
+        # what call_llm_with_tools (llm.py) appends to its message history
+        # after invoking the tool_executor callback passed in by the caller
+        # (see tools/provider.py's ToolProvider.execute_tool_call, which
+        # wraps this method for tool-call-counting).
         if self._tools_dict is None:
             raise RuntimeError(
                 "mcp client not initialized. call initialize() first.")
@@ -206,6 +220,9 @@ class MCPToolClient:
             "content": result,  # MCP tools return strings (often JSON)
         }
 
+    # Callers (see tools/provider.py's MCPToolProvider.get_tools) pass a
+    # workflow's whitelist here so a node's LLM only ever sees the subset of
+    # tools that workflow's YAML config authorizes for that phase.
     def get_tools(
         self,
         whitelist: list[str] | None = None
@@ -232,6 +249,9 @@ class MCPToolClient:
         filtered_tools_dict = {
             k: v for k, v in self._tools_dict.items() if k in whitelist
         }
+        # Iterates whitelist order (not self._tools_dict order) so the
+        # OpenAI-format tool list is presented to the LLM in the order the
+        # workflow config declared it, e.g. preferred tools first.
         filtered_openai_tools = [
             convert_to_openai_tool(filtered_tools_dict[k])
             for k in whitelist
@@ -268,6 +288,8 @@ class MCPToolClient:
         return list(self._tools_dict.keys())
 
 
+# Process-wide singleton, shared across nodes so they reuse one MCP session
+# instead of each opening a fresh connection to every configured server.
 # Global client instance
 _global_client: MCPToolClient | None = None
 
@@ -375,6 +397,10 @@ async def check_literature_source_available(
             return False
 
     except Exception as e:  # pylint: disable=broad-exception-caught
+        # Deliberately broad: any MCP hiccup (connection refused, timeout,
+        # malformed tool schema) degrades to "unavailable" here rather than
+        # raising, so callers (e.g. HypothesisGenerator._prepare_generation)
+        # can fall back to LLM-only mode instead of aborting the run.
         logger.warning("error checking literature source availability: %s: %s",
                        type(e).__name__, e)
         logger.debug("full traceback: %s", e, exc_info=True)
@@ -382,6 +408,9 @@ async def check_literature_source_available(
 
 
 # Backwards compatibility alias
+# Still the entry point generator.py calls (and tests monkeypatch) for the
+# PubMed-specific availability probe, despite the name predating the
+# generic multi-source check_literature_source_available it wraps.
 async def check_pubmed_available_via_mcp(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
@@ -429,6 +458,10 @@ async def check_mcp_available(
             return False
 
     except Exception as e:  # pylint: disable=broad-exception-caught
+        # Same broad-catch-to-False fallback as
+        # check_literature_source_available: an unreachable server here must
+        # not raise, since this result gates whether the literature_review
+        # node is added to the graph at all (see generator.py).
         if tool_registry:
             logger.warning("MCP servers unavailable: %s", e)
         else:
@@ -453,6 +486,9 @@ async def get_mcp_client(
     """
     global _global_client
 
+    # force_new bypasses the cache (e.g. tests, or reconfiguring server_url
+    # / tool_registry mid-process); otherwise the first caller's arguments
+    # win and later callers just get that same client re-initialized below.
     if _global_client is None or force_new:
         _global_client = MCPToolClient(server_url=server_url,
                                        tool_registry=tool_registry)

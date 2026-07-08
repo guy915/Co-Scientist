@@ -16,9 +16,15 @@ from co_scientist.schemas import get_schema_for_prompt
 
 logger = logging.getLogger(__name__)
 
+# Resolved relative to this module's own location so it works whether the
+# package is installed editable (pip install -e) or from a built wheel; the
+# prompts/ directory is also declared as package-data for the latter case.
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
 
 # Helper functions for saving prompts to disk
+# These are a debugging aid only (writing the fully-rendered prompt text
+# under .coscientist_prompts/) and are not part of the load_prompt() render
+# path itself.
 
 
 def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
@@ -107,6 +113,9 @@ def load_prompt(prompt_name: str,
     prompt_template = _read_prompt_template(prompt_name)
 
     # Substitute variables if provided
+    # Placeholders use {{name}} syntax (see substitute_variables below);
+    # prompts with no variables (e.g. static instruction blocks) simply
+    # skip this step.
     if variables:
         prompt_template = substitute_variables(prompt_template, variables)
 
@@ -147,6 +156,10 @@ def load_prompt_with_schema(
         >>> prompt, schema = load_prompt_with_schema("generation", {"research_goal": "Cure cancer"})  # pylint: disable=line-too-long
     """
     prompt = load_prompt(prompt_name, variables)
+    # get_schema_for_prompt does a name-keyed lookup (see schemas.py) and
+    # returns None for prompt names with no registered schema; callers pass
+    # that None straight through to the LLM call to request a schema-less
+    # (free-form or conversational) response.
     schema = get_schema_for_prompt(prompt_name)
     return prompt, schema
 
@@ -168,6 +181,9 @@ def substitute_variables(template: str, variables: dict[str, Any]) -> str:
 
     def replacer(match: "re.Match[str]") -> str:
         var_name = match.group(1).strip()
+        # Unresolved variables render as a visible {{MISSING:name}} marker
+        # rather than silently collapsing to an empty string, so a typo'd
+        # or forgotten variable is obvious in the saved/logged prompt text.
         value = variables.get(var_name, f"{{{{MISSING:{var_name}}}}}")
         return str(value)
 
@@ -176,6 +192,11 @@ def substitute_variables(template: str, variables: dict[str, Any]) -> str:
 
 
 # Domain variable injection from YAML config
+# Lets a deployment's tools config (e.g. config/*.yaml, see the
+# domain-customization docs) inject domain-specific wording into prompts
+# without changing the .md templates themselves; every domain_* variable
+# below is a template placeholder used by one or more of the getters
+# further down this file.
 
 
 def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
@@ -185,6 +206,9 @@ def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
     domain_review_guidance, domain_evolution_guidance.
     All default to empty string if no config is available.
     """
+    # Safe fallback: any missing registry, config plumbing failure, or
+    # absent domain config yields all-empty strings so callers can splice
+    # these into a template unconditionally without None-checking.
     empty = {
         "domain_context": "",
         "domain_generation_guidance": "",
@@ -270,8 +294,12 @@ def _build_prompt(
 
 
 # Convenience functions for common prompts
+# One getter per prompt template; each names the template file stem it
+# renders (prompts/<name>.md) and is called by exactly one node module.
 
 
+# Renders prompts/review.md for the single-hypothesis review path in
+# nodes/review.py (used when the batch is too large for comparative review).
 def get_review_prompt(
     research_goal: str,
     hypothesis_text: str,
@@ -297,6 +325,9 @@ def get_review_prompt(
     )
 
 
+# Renders prompts/deep_verification.md for nodes/deep_verification.py, run
+# once per top-Elo hypothesis. Deliberately takes no guidance/context
+# blocks: probing should challenge the hypothesis on its own terms.
 def get_deep_verification_prompt(
     research_goal: str,
     hypothesis_text: str,
@@ -313,6 +344,9 @@ def get_deep_verification_prompt(
     )
 
 
+# Renders prompts/review_batch.md for the comparative batch review path in
+# nodes/review.py; hypotheses_list is a pre-formatted text block, not a
+# Python list.
 def get_review_batch_prompt(
     research_goal: str,
     hypotheses_list: str,
@@ -338,6 +372,11 @@ def get_review_batch_prompt(
     )
 
 
+# Renders prompts/ranking.md for each pairwise tournament match in
+# nodes/ranking.py. Beyond the two hypothesis texts, the prompt aggregates
+# every per-hypothesis signal available at match time: review scores,
+# reflection notes, and (from the second tournament onward) deep-
+# verification probes.
 def get_ranking_prompt(
     research_goal: str,
     hypothesis_a: str,
@@ -393,6 +432,9 @@ def get_ranking_prompt(
     )
 
 
+# Renders prompts/meta_review.md for nodes/meta_review.py; all_reviews is
+# the JSON dump of every review collected so far, synthesized once per
+# iteration into cross-hypothesis feedback.
 def get_meta_review_prompt(
     research_goal: str,
     all_reviews: str,
@@ -418,6 +460,8 @@ def get_meta_review_prompt(
     )
 
 
+# Renders prompts/research_overview.md for nodes/research_overview.py, the
+# terminal synthesis over the top-Elo hypotheses.
 def get_research_overview_prompt(
     research_goal: str,
     hypotheses_summary: str,
@@ -440,6 +484,9 @@ def get_research_overview_prompt(
     )
 
 
+# Renders prompts/proximity.md for nodes/proximity.py. The hypothesis texts
+# are passed as a JSON array; include_domain=False because similarity
+# clustering is domain-neutral by design.
 def get_proximity_prompt(
     hypotheses: list[Any],
     supervisor_guidance: dict[str, Any] | None = None
@@ -462,6 +509,11 @@ def get_proximity_prompt(
     )
 
 
+# Renders prompts/supervisor.md for nodes/supervisor.py, the planning call
+# at the head of the graph. Every user-supplied run input (preferences,
+# constraints, seed hypotheses/literature, count knobs) is normalized to a
+# "None provided"/"not specified" string so the template never renders a
+# raw Python None.
 def get_supervisor_prompt(
     research_goal: str,
     preferences: str | None = None,
@@ -519,6 +571,9 @@ def get_supervisor_prompt(
 
 
 # Helper functions to format supervisor guidance for different contexts
+# Each helper extracts only the slice of the supervisor's output relevant
+# to its node and renders it as a markdown section; all of them return ""
+# when the needed keys are absent, so guidance is strictly additive.
 def _format_supervisor_guidance_for_review(
         supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for review prompts."""
@@ -615,6 +670,10 @@ def _format_supervisor_guidance_for_proximity(
         " be flagged as duplicates.")
 
 
+# Reads the state dict shaped by nodes/meta_review.py (which renames the
+# schema's strengths/weaknesses fields to common_strengths/
+# common_weaknesses when storing state), not the raw META_REVIEW_SCHEMA
+# output.
 def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
     """Format meta-review insights for review prompts (when re-reviewing evolved
     hypotheses).
@@ -790,6 +849,9 @@ def _format_supervisor_guidance_for_meta_review(
     return "".join(sections) if sections else ""
 
 
+# Renders prompts/reflection_observations.md for nodes/reflection.py, run
+# per hypothesis against the literature-review synthesis; indra_evidence
+# carries optional knowledge-graph enrichment text ("" when unavailable).
 def get_reflection_prompt(
     articles_with_reasoning: str,
     hypothesis_text: str,
@@ -810,6 +872,9 @@ def get_reflection_prompt(
     )
 
 
+# PubMed-specific variant kept for backwards compatibility; production code
+# goes through the source-aware getter below, which dispatches to the same
+# template when source_type is "pubmed".
 def get_literature_review_query_generation_pubmed_prompt(
     research_goal: str,
     preferences: str | None = None,
@@ -835,6 +900,9 @@ def get_literature_review_query_generation_pubmed_prompt(
     )
 
 
+# Query-generation entry point used by nodes/literature_review.py, paired
+# there with LITERATURE_QUERY_SCHEMA. Returns a bare string (no schema in
+# the tuple) because the schema is imported directly by the caller.
 def get_literature_review_query_generation_prompt(
     research_goal: str,
     source_type: str = "academic",
@@ -897,6 +965,9 @@ def _format_year(year: int | None) -> str:
     return str(year) if year else "Unknown"
 
 
+# Renders prompts/literature_review_paper_analysis.md, called by
+# nodes/literature_review.py once per fetched paper (paired there with
+# LITERATURE_PAPER_ANALYSIS_SCHEMA).
 def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
                                                 authors: list[str],
                                                 year: int | None,
@@ -914,6 +985,10 @@ def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
     )
 
 
+# Renders prompts/literature_review_synthesis.md for
+# nodes/literature_review.py: flattens the per-paper analyses into one
+# markdown block and optionally appends knowledge-graph background as a
+# "Mechanistic Background" section (empty string when unavailable).
 def get_literature_review_synthesis_prompt(
     research_goal: str,
     paper_analyses: list[dict[str, Any]],
@@ -964,6 +1039,9 @@ def get_literature_review_synthesis_prompt(
     )
 
 
+# Renders prompts/hypothesis_novelty_analysis.md, called by
+# nodes/generation/literature_tools/validate.py once per (draft hypothesis,
+# paper) pair (paired there with HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA).
 def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
                                            authors: list[str], year: int | None,
                                            fulltext: str) -> str:
@@ -1037,6 +1115,9 @@ def _format_hypotheses_with_novelty_analyses(
     return "\n\n".join(hypotheses_text)
 
 
+# Tool-less validation-synthesis variant. No production caller: the
+# pipeline uses get_validation_synthesis_prompt_with_tools below; this one
+# is retained for tests and tool-free experimentation.
 def get_hypothesis_validation_synthesis_prompt(
     research_goal: str,
     hypotheses_with_analyses: list[dict[str, Any]],
@@ -1095,6 +1176,10 @@ If your draft overlaps significantly with any entry below, treat it as saturated
 """
 
 
+# Renders prompts/hypothesis_validation_synthesis_with_tools.md for the
+# Phase 2 validation agent in nodes/generation/literature_tools/validate.py.
+# tool_instructions is built from the "validation" workflow's tool list so
+# the agent knows which MCP search tools it may call while pivoting.
 def get_validation_synthesis_prompt_with_tools(
     research_goal: str,
     hypotheses_with_analyses: list[dict[str, Any]],
@@ -1159,6 +1244,11 @@ def get_validation_synthesis_prompt_with_tools(
     )
 
 
+# Called by nodes/generation/debate.py once per debate turn. Template
+# choice depends on literature availability
+# (generation_debate_and_literature vs generation_after_debate), and the
+# final turn switches from free-form discussion to schema-constrained JSON
+# output (GENERATION_SCHEMA).
 def get_debate_generation_prompt(
     research_goal: str,
     hypotheses_count: int,
@@ -1273,6 +1363,9 @@ def get_debate_generation_prompt(
         prompt, schema = load_prompt_with_schema(prompt_name, variables)
 
         # Append JSON output instructions for final turn
+        # Concatenated verbatim after the rendered template (never run
+        # through substitute_variables), so the literal braces in the JSON
+        # example below need no {{}} escaping.
         final_instructions = """
 
 ## FINAL TURN - OUTPUT FORMAT
@@ -1333,6 +1426,9 @@ IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative Uni
 
 
 # Formatting helpers for generate node
+# Used by the generation prompt getters in this module (draft and debate);
+# each turns an optional user input into prompt-ready text, substituting a
+# sensible default when the input is absent.
 
 
 def format_preferences(preferences: str | None) -> str:
@@ -1364,6 +1460,9 @@ def format_supervisor_guidance_for_generation(
     if not supervisor_guidance:
         return ""
 
+    # Unlike the other guidance formatters, this reads a free-text
+    # "research_plan" key rather than SUPERVISOR_SCHEMA fields, so it only
+    # renders when a caller supplies that plan-style guidance shape.
     research_plan = supervisor_guidance.get("research_plan", "")
     if research_plan and research_plan.strip():
         return f"""
@@ -1468,6 +1567,8 @@ def build_tool_instructions(
             f"- `{tool_config.mcp_tool_name}`: {tool_config.description}")
 
         # Add prompt snippet if available
+        # prompt_snippet is per-tool usage guidance authored in the YAML
+        # config, indented here so it nests under the tool's list entry.
         if tool_config.prompt_snippet:
             # Indent the snippet
             snippet_lines = tool_config.prompt_snippet.strip().split("\n")
@@ -1482,6 +1583,9 @@ def build_tool_instructions(
     return "\n".join(sections).strip()
 
 
+# Renders prompts/generation_draft_with_tools.md for the Phase 1 draft
+# agent in nodes/generation/literature_tools/draft.py (schema:
+# GENERATION_DRAFT_SCHEMA via the prompt-name lookup).
 def get_draft_prompt_with_tools(
     research_goal: str,
     hypotheses_count: int,

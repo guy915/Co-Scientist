@@ -23,8 +23,11 @@ export function useToast(durationMs = 3000): {
   toast: ToastState | null;
   setToast: (value: string | ToastState | null) => void;
 } {
+  // Single-slot "queue": showing a new toast replaces the current one.
   const [toast, setToastState] = useState<ToastState | null>(null);
 
+  // Stable setter that normalizes the string shorthand into ToastState, so
+  // callers can pass it into deps arrays or child props freely.
   const setToast = useCallback((value: string | ToastState | null) => {
     setToastState(
       value === null
@@ -35,6 +38,10 @@ export function useToast(durationMs = 3000): {
     );
   }, []);
 
+  // Auto-dismiss timer. `toast` in the deps restarts the countdown whenever
+  // a new toast (a new object identity) is shown, and the cleanup cancels
+  // the previous timer so a replaced toast gets the full duration -- it also
+  // clears the pending timeout on unmount.
   useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToastState(null), durationMs);

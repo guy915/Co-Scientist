@@ -47,6 +47,8 @@ def make_emitter(
     """
 
     async def emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
+        # append_event assigns and returns the monotonic per-run sequence
+        # number used by the SSE stream's replay-then-live protocol.
         seq = store.append_event(run_id, type_, payload, db_path=db_path)
         if sleep_seconds:
             await asyncio.sleep(sleep_seconds)
@@ -124,6 +126,10 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
         callers never emit bare section headers.
     """
     lines: list[str] = []
+    # The isinstance guards throughout this function are defensive: this
+    # payload can originate from LLM-produced structured output (engine
+    # path), which is schema-validated but still worth guarding defensively
+    # against a malformed or missing sub-shape rather than raising here.
     if not isinstance(overview, dict):
         return lines
 
@@ -249,6 +255,8 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     if recs:
         lines.append("\n### Strategic recommendations\n")
         for rec in recs:
+            # Structured (dict) recommendations render with a rationale;
+            # a bare string falls back to a plain bullet.
             if isinstance(rec, dict):
                 area = rec.get("focus_area", "")
                 recommendation = rec.get("recommendation", "")
@@ -302,6 +310,9 @@ def render_report_markdown(
 
     lines += ["## Top hypotheses", ""]
     for i, hyp in enumerate(top_hypotheses, 1):
+        # "title"/"statement" are store row field names; "text" is the raw
+        # engine hypothesis field name -- fall back across both so this
+        # renders whichever shape the caller happens to pass in.
         title = hyp.get("title") or hyp.get("text") or "Untitled"
         lines.append(f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_")
         statement = hyp.get("statement") or hyp.get("text") or ""
@@ -388,6 +399,8 @@ async def finalize_report(
     markdown = render_report_markdown(
         research_goal=research_goal,
         provider=provider,
+        # Report body is capped to the top 5 by Elo; the full set remains
+        # available via the leaderboard and the hypotheses API endpoint.
         top_hypotheses=hyps[:5],
         meta_review=meta_review,
         citation_summary=citation_summary,

@@ -14,6 +14,9 @@ import type {
   RunTier,
   RunWithSummary,
 } from './run_types';
+// Re-export the run-domain types so callers can `import type {...} from
+// '@/api/runs'` alongside the API functions below, without a second import
+// from './run_types'.
 export type {
   Evidence,
   Hypothesis,
@@ -38,6 +41,7 @@ export type {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 
+/** Header identifying the calling browser client to the backend. */
 function clientHeaders(): Record<string, string> {
   return {'X-Client-ID': getClientId()};
 }
@@ -67,9 +71,16 @@ export function runGoal(run: Run | null | undefined): string {
   return run?.config.setup?.goal ?? run?.research_goal ?? '';
 }
 
+/**
+ * Parses a fetch `Response` as JSON, or throws a descriptive `Error` when the
+ * response was not ok.
+ */
 async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
+    // An empty-bodied 500 typically means the API process itself is
+    // unreachable (e.g. cold start, or a proxy with no upstream) rather than
+    // a handled application error, so it gets a clearer, user-facing message.
     if (res.status === 500 && !text.trim()) throw new Error('API unavailable');
     if (errorPrefix) throw new Error(`${errorPrefix} ${res.status}`);
     throw new Error(`${res.status} ${text || res.statusText}`);
@@ -77,6 +88,7 @@ async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** Fetches `path` relative to the API base URL and parses the JSON body. */
 async function fetchJson<T>(
   path: string,
   init?: RequestInit,
@@ -105,6 +117,11 @@ async function fetchField<K extends string, T>(
   return data[field];
 }
 
+/**
+ * Builds a JSON POST `RequestInit`. `includeClientId` is opt-in because only
+ * endpoints that scope data by owning client (e.g. creating/listing runs)
+ * need the `X-Client-ID` header.
+ */
 function jsonRequest(body: unknown, includeClientId = false): RequestInit {
   return {
     method: 'POST',
@@ -274,7 +291,7 @@ export function getReviews(id: string): Promise<Review[]> {
  */
 export async function getReport(id: string): Promise<Report | null> {
   const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
-  if (res.status === 404) return null;
+  if (res.status === 404) return null; // no report yet, not an error
   return parseJson<Report>(res);
 }
 

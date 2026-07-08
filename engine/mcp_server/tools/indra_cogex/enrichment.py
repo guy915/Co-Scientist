@@ -52,6 +52,9 @@ async def run_enrichment_analysis(
 
     try:  # pylint: disable=broad-exception-caught
         if analysis_type == "discrete":
+            # Over-representation (hypergeometric-style) test: are the
+            # given genes enriched for specific pathways/GO terms/etc.
+            # more than expected by chance?
             raw = await _run_discrete(
                 gene_list,
                 alpha,
@@ -60,6 +63,9 @@ async def run_enrichment_analysis(
                 minimum_belief,
             )
         elif analysis_type == "signed":
+            # Requires both up- and down-regulated gene sets so INDRA can
+            # reason about which upstream regulators would explain the
+            # observed direction of change.
             if not negative_genes:
                 return {
                     "error": "signed analysis requires 'negative_genes'",
@@ -74,6 +80,8 @@ async def run_enrichment_analysis(
                 minimum_belief,
             )
         elif analysis_type == "kinase":
+            # gene_list here is actually phosphosite identifiers; see the
+            # docstring for the "GENE-SITE" format.
             raw = await _run_kinase(
                 gene_list,
                 alpha,
@@ -114,6 +122,10 @@ async def _run_discrete(
     Returns:
         Raw API response.
     """
+    # minimum_evidence_count / minimum_belief filter which INDRA
+    # statements are trusted enough to feed into the enrichment sets
+    # (belief is INDRA's calibrated confidence score for a statement,
+    # in the range 0-1).
     return await indra_post(
         "/api/discrete_analysis", {
             "gene_list": gene_list,
@@ -145,6 +157,9 @@ async def _run_signed(
     Returns:
         Raw API response.
     """
+    # positive_genes/negative_genes let INDRA's causal reasoning engine
+    # search for upstream regulators consistent with both directions of
+    # change simultaneously.
     return await indra_post(
         "/api/signed_analysis", {
             "positive_genes": positive_genes,
@@ -175,6 +190,9 @@ async def _run_kinase(
     Returns:
         Raw API response.
     """
+    # Tests whether known substrates of each kinase are overrepresented
+    # among the given phosphosites, pointing to which kinases are likely
+    # active/inactive in the underlying experiment.
     return await indra_post(
         "/api/kinase_analysis", {
             "phosphosite_list": phosphosite_list,

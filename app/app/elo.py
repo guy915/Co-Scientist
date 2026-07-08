@@ -10,6 +10,8 @@ from typing import Any
 
 from app.config import settings
 
+# All three constants are sourced from Settings (not hardcoded here) so the
+# mock and the real engine can be tuned from the same env-driven config.
 INITIAL_ELO: int = settings.elo_initial
 DEFAULT_K_FACTOR: int = settings.elo_k_factor
 # Pre-match Elo gap at which a lower-rated winner counts as an upset. Mirrors
@@ -25,6 +27,8 @@ MATCH_TIERS: tuple[str, ...] = ("upset", "decisive", "clear", "narrow")
 
 def expected_score(player_elo: float, opponent_elo: float) -> float:
     """Standard Elo expected score for `player` against `opponent`."""
+    # Logistic curve; 400 is the standard Elo scaling constant (a 400-point
+    # rating gap implies a 10:1 expected-score ratio between the players).
     result: float = 1.0 / (1.0 + 10.0**((opponent_elo - player_elo) / 400.0))
     return result
 
@@ -37,6 +41,8 @@ def update_pair(
     """Return integer-rounded post-match Elo for (winner, loser)."""
     e_win = expected_score(winner_elo, loser_elo)
     e_lose = expected_score(loser_elo, winner_elo)
+    # Actual score is 1 for the winner and 0 for the loser; k_factor scales
+    # how far the rating moves toward that actual outcome from expectation.
     new_winner = winner_elo + k_factor * (1.0 - e_win)
     new_loser = loser_elo + k_factor * (0.0 - e_lose)
     return int(round(new_winner)), int(round(new_loser))
@@ -57,6 +63,8 @@ def live_leaderboard(hyps: list[dict[str, Any]],
     Returns:
         A list of ``{rank, id, title, elo, wins, losses}`` dicts, Elo-sorted.
     """
+    # Descending Elo sort; falsy ratings (0/None) fall back to INITIAL_ELO
+    # rather than sorting an unranked hypothesis to the very top.
     ordered = sorted(
         hyps,
         key=lambda h: -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO))

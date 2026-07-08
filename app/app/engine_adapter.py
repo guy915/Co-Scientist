@@ -56,6 +56,10 @@ if os.path.isdir(_engine_src) and _engine_src not in sys.path:
 logger = logging.getLogger(__name__)
 
 
+# True if any provider key that LiteLLM/the engine reads from the
+# environment is present. Any single key is sufficient to attempt the
+# real-engine path; which model actually gets used is a separate concern
+# controlled by settings.model_name / settings.supervisor_model_name.
 def _has_provider_key() -> bool:
     return any(
         bool(os.getenv(k)) for k in (
@@ -67,6 +71,9 @@ def _has_provider_key() -> bool:
         ))
 
 
+# Checks importability via find_spec rather than a real import, so this can
+# be probed cheaply and repeatedly without triggering the engine's own
+# import-time side effects (e.g. LangGraph module setup).
 def _engine_importable() -> bool:
     try:
         import importlib.util  # pylint: disable=import-outside-toplevel
@@ -78,15 +85,16 @@ def _engine_importable() -> bool:
 def select_provider() -> str:
     """Return 'mock' or 'engine'. Persisted on the run row."""
     if os.getenv("COSCIENTIST_FORCE_MOCK") == "1":
-        return "mock"
+        return "mock"  # explicit override, e.g. for tests or local dev
     if not _has_provider_key():
-        return "mock"
+        return "mock"  # no LLM credentials configured
     if not _engine_importable():
-        return "mock"
+        return "mock"  # co_scientist package not installed/importable
     return "engine"
 
 
 def system_status() -> dict[str, Any]:
+    """Return provider/engine diagnostic info for the /status route."""
     has_key = _has_provider_key()
     engine = _engine_importable()
     provider = select_provider()
@@ -446,6 +454,8 @@ async def run_workflow(
     Intake safety screening runs here, at the shared boundary both providers
     pass through, so every run (engine or mock) is gated before any work.
     """
+    # force_provider lets a caller (e.g. seed.py's demo seeding) pin the
+    # provider explicitly, bypassing select_provider()'s env/import probes.
     provider = force_provider or select_provider()
     run_mode = CANONICAL_RUN_MODE
     cfg = resolved_run_config(config)
@@ -465,6 +475,9 @@ async def run_workflow(
         return
 
     if provider == "mock":
+        # Drain any steering queued before the run started (e.g. via the
+        # composer) so it is not left "pending" and re-applied later inside
+        # run_mock_workflow's own per-iteration steering check.
         pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
         if pre_run_steering:
             store.mark_steering_applied([m.id for m in pre_run_steering],
@@ -478,6 +491,8 @@ async def run_workflow(
                 cancelled=cancelled,
                 sleep_seconds=sleep_seconds,
         ):
+            # In addition to forwarding the raw event on the SSE stream,
+            # surface select event types as a user-facing chat message.
             milestone = _format_milestone(event.get("type", ""),
                                           event.get("payload", {}))
             if milestone:
@@ -511,6 +526,9 @@ async def run_workflow(
     store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
     yield await emit("status", {"status": "running"})
 
+    # Translate the durable run "setup" (captured from the composer UI) into
+    # the engine's opts vocabulary. Note "requirements" (UI/store term) maps
+    # to "constraints" (engine term) -- the only renamed key in this block.
     initial_opts: dict[str, Any] = {}
     setup = cfg.get("setup")
     if isinstance(setup, dict):
@@ -525,6 +543,10 @@ async def run_workflow(
         initial_opts["criteria"] = clean_string_list(
             [str(value) for value in setup.get("criteria") or []])
 
+    # Fold setup guidance and any queued user steering messages into a single
+    # free-text "preferences" opt the engine's supervisor/generate prompts
+    # read. Steering consumed here is marked applied so a later iteration
+    # does not replay the same message.
     pending_steering = store.get_pending_steering(run_id, db_path=db_path)
     preference_parts: list[str] = []
     setup_text = str(initial_opts.get("run_setup_guidance") or "")
@@ -550,6 +572,8 @@ async def run_workflow(
 
     # cfg went through resolved_run_config above, so every numeric key is
     # present -- index directly rather than re-inventing defaults here.
+    # A fresh generator is constructed per run rather than reused, so each
+    # run's model/tier settings apply independently of any other run.
     generator = HypothesisGenerator(
         model_name=settings.model_name,
         supervisor_model_name=settings.supervisor_model_name,

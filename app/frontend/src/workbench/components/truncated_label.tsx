@@ -31,12 +31,17 @@ export function TruncatedLabel({
   className?: string;
   lines?: number;
 }) {
+  // Holds the span whose textContent is rewritten imperatively by fit();
+  // React never re-renders text into this node (see the bare <span> below).
   const ref = useRef<HTMLSpanElement>(null);
 
   useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
 
+    // True when the node's content no longer fits its box on the axis being
+    // tested for the current `lines` setting (a 1px slack absorbs subpixel
+    // rounding so borderline fits don't falsely register as overflow).
     const overflows = (node: HTMLSpanElement) =>
       lines > 1
         ? node.scrollHeight > node.clientHeight + 1
@@ -96,5 +101,6 @@ export function TruncatedLabel({
     };
   }, [text, lines]);
 
+  // No children: fit() owns this node's textContent directly.
   return <span ref={ref} className={className} />;
 }

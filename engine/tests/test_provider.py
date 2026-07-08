@@ -99,15 +99,16 @@ def test_get_tools_whitelist_filters_to_named_tool() -> None:
     assert schema_names == {"pubmed_search"}
 
 
-def test_get_tools_no_whitelist_yields_no_tools() -> None:
-    """Omitting the whitelist (None) skips the MCP client entirely."""
-    fake = FakeMCPClient(tools={"pubmed_search": object()})
+def test_get_tools_no_whitelist_yields_all_tools() -> None:
+    """Omitting the whitelist (None) exposes every tool the client offers."""
+    fake = FakeMCPClient(tools={"pubmed_search": object(), "other": object()})
     provider = _make_provider(fake)
     tools_dict, openai_tools = provider.get_tools()
 
-    assert tools_dict == {}
-    assert openai_tools == []
-    assert fake.get_tools_calls == []
+    assert set(tools_dict.keys()) == {"pubmed_search", "other"}
+    schema_names = {t["function"]["name"] for t in openai_tools}
+    assert schema_names == {"pubmed_search", "other"}
+    assert fake.get_tools_calls == [None]
 
 
 def test_get_tools_empty_whitelist_adds_no_tools() -> None:

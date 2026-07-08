@@ -1,4 +1,4 @@
-const HOUR_SECONDS = 3600;
+const HOUR_SECONDS = 3600; // threshold above which durations render in hours
 const MINUTE_SECONDS = 60;
 
 /**

@@ -47,6 +47,8 @@ async def pubmed_search_with_fulltext(
         os.getenv("COSCIENTIST_LIT_REVIEW_DIR", "./cache/literature_review"))
     lit_review_dir.mkdir(parents=True, exist_ok=True)
 
+    # PubmedSource owns the on-disk cache under lit_review_dir/pubmed; see
+    # its shared-pool layout described in the module docstring above.
     pubmed_source = PubmedSource(lit_review_dir / "pubmed")
 
     # Fetch papers with fulltexts (pass run_id for per-run tracking)
@@ -60,6 +62,8 @@ async def pubmed_search_with_fulltext(
     logger.info("Pubmed search complete - found %s papers", len(results))
 
     # Extract fulltext from HTML and add to metadata
+    # Fulltext HTML lives under the per-run symlinked directory when a
+    # run_id is given, otherwise fall back to the shared slug directory.
     base_dir = lit_review_dir / "pubmed" / slug
     run_dir = base_dir / "runs" / run_id if run_id else base_dir
 
@@ -87,14 +91,20 @@ async def pubmed_search_with_fulltext(
             logger.error("Failed to extract text from %s: %s", pmc_id, e)
             return False
 
+    # Only papers that actually have a PMC fulltext id get an extraction
+    # coroutine; papers without open-access fulltext are left as-is.
     extractions = [
         extract_fulltext(pmc_id, metadata)
         for metadata in results.values()
         if (pmc_id := metadata.get('pmc_full_text_id'))
     ]
+    # Extractions run concurrently; each returns True/False so summing
+    # gives the count of papers successfully enriched with fulltext.
     papers_with_fulltext = sum(await asyncio.gather(*extractions))
 
     logger.info("Extracted fulltext for %s/%s papers", papers_with_fulltext,
                 len(results))
 
+    # `results` metadata dicts were mutated in place by extract_fulltext,
+    # so the fulltext (where available) is already attached here.
     return results

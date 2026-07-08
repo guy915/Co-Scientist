@@ -9,6 +9,7 @@ import type {ReactNode, SVGProps} from 'react';
 // free of font FOUT. Glyphs use the Material Symbols 0 -960 960 960 grid and
 // are filled paths (never stroked).
 
+/** The closed set of icon glyphs bundled with the app. */
 export type IconName =
   | 'add'
   | 'arrow_back'
@@ -48,6 +49,8 @@ export type IconName =
   | 'summarize'
   | 'warning';
 
+// Standard SVG props minus `children`/`name` (glyph content is fixed and
+// `name` selects it), so callers can still pass className, aria-*, etc.
 type IconProps = Omit<SVGProps<SVGSVGElement>, 'children' | 'name'> & {
   name: IconName;
 };
@@ -240,6 +243,16 @@ const ICON_PATHS: Record<IconName, ReactNode> = {
   ),
 };
 
+/**
+ * Renders a Material Symbols glyph as an inline SVG.
+ *
+ * Sized 1em square and filled with `currentColor`, so it inherits the
+ * surrounding text's font-size and color by default. Decorative by default
+ * (`aria-hidden` true); pass `aria-hidden={false}` plus a label when the icon
+ * is meaningful on its own. Any other SVG prop spreads onto the root element.
+ *
+ * @param props The glyph `name` plus standard SVG element props.
+ */
 export function Icon({name, className, ...props}: IconProps) {
   return (
     <svg

@@ -206,11 +206,16 @@ def get_kg_tools_for_workflow(tool_registry: Optional["ToolRegistry"],
     if tool_registry is None:
         return []
     try:
+        # tool_ids are internal registry keys; get_mcp_tool_names resolves
+        # them to the actual MCP server tool names used by has_tool()/
+        # call_tool() below.
         tool_ids = tool_registry.get_tools_for_workflow(workflow_name)
         if not tool_ids:
             return []
         return tool_registry.get_mcp_tool_names(tool_ids)
     except Exception:  # pylint: disable=broad-exception-caught
+        # Any registry lookup error degrades to "no KG tools" rather than
+        # failing reflection.
         return []
 
 
@@ -233,10 +238,15 @@ async def fetch_indra_evidence(
     """
     empty = {"prompt_text": "", "enrichment_items": []}
 
+    # Enforces the yaml opt-in gate: an empty tool list here means either no
+    # tool_registry, no "reflection" workflow entry, or an explicitly empty
+    # tool list for it.
     mcp_names = get_kg_tools_for_workflow(tool_registry, workflow_name)
     if not mcp_names:
         return empty
 
+    # No gene/protein-like tokens found in the hypothesis text means there
+    # is nothing meaningful to query INDRA for.
     entities = extract_entity_names(hypothesis_text)
     if not entities:
         return empty
@@ -244,6 +254,9 @@ async def fetch_indra_evidence(
     try:
         from co_scientist.mcp_client import get_mcp_client  # pylint: disable=import-outside-toplevel
 
+        # get_mcp_client returns a shared/global client (lazily created and
+        # cached), so this reuses the same connection across hypotheses and
+        # nodes rather than opening one per call.
         client = await get_mcp_client(tool_registry=tool_registry)
 
         tool_name = _pick_available_tool(client, mcp_names)
@@ -255,6 +268,9 @@ async def fetch_indra_evidence(
         if not all_stmts:
             return empty
 
+        # Statements from every queried entity are pooled together, then
+        # capped globally here rather than per-entity, so a prolific first
+        # entity can crowd out a second entity's statements.
         capped = all_stmts[:max_statements]
         return {
             "prompt_text": _format_evidence(capped, entities),
@@ -262,6 +278,9 @@ async def fetch_indra_evidence(
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
+        # Covers MCP client/connection failures, tool-call errors, etc.
+        # This is best-effort enrichment, so any failure here falls back to
+        # empty rather than propagating into reflection_node.
         logger.debug("reflection evidence fetch skipped: %s", e)
         return empty
 
@@ -276,6 +295,8 @@ def _pick_available_tool(client: Any, mcp_names: list[str]) -> str:
     return ""
 
 
+# Cap on evidence items fetched per INDRA statement (not statements
+# themselves); keeps individual tool responses bounded before formatting.
 _EVIDENCE_LIMIT = 25
 
 
@@ -287,6 +308,8 @@ async def _query_single_entity(
 ) -> list[dict[str, Any]]:
     """Query a knowledge graph tool for one entity; returns its statements."""
     try:
+        # "agent" is the INDRA/CoGex query parameter name for the entity
+        # being queried, not a generic kwarg.
         raw = await client.call_tool(
             tool_name,
             agent=entity,
@@ -296,6 +319,8 @@ async def _query_single_entity(
         result = _parse_tool_result(raw)
         return cast("list[dict[str, Any]]", result.get("statements", []))
     except Exception as e:  # pylint: disable=broad-exception-caught
+        # One entity's query failure does not block the others gathered in
+        # _query_entities below.
         logger.debug("entity query failed for '%s' via %s: %s", entity,
                      tool_name, e)
         return []
@@ -308,6 +333,9 @@ async def _query_entities(
     max_per_entity: int,
 ) -> list[dict[str, Any]]:
     """Query a knowledge graph tool for all entities in parallel."""
+    # Only the first 2 extracted entities are queried, even though
+    # extract_entity_names can return up to 3, to bound the number of
+    # concurrent KG calls per hypothesis.
     tasks = [
         _query_single_entity(client, tool_name, entity, max_per_entity)
         for entity in entities[:2]
@@ -340,6 +368,9 @@ def _format_evidence(statements: list[dict[str, Any]],
         if line:
             lines.append(line)
 
+    # If no statement produced a renderable line, lines holds only the
+    # header; return "" (not the bare header) so callers treat this the
+    # same as "no evidence" rather than injecting an empty-looking section.
     return "\n".join(lines) if len(lines) > 1 else ""
 
 
@@ -366,6 +397,9 @@ def _parse_statement(stmt: dict[str, Any]) -> _StatementCore:
     Owns the subject/object versus complex-members shape decision so the two
     formatters differ only in how they lay the values out.
     """
+    # INDRA statements come in two shapes: simple pairwise relations
+    # (subj/obj) or "Complex"/family statements that list members instead;
+    # both formatters branch on which fields are populated below.
     members = stmt.get("members", [])
     return _StatementCore(
         subj=_agent_name(stmt, "subj"),
@@ -393,6 +427,8 @@ def _format_single_statement(stmt: dict[str, Any]) -> str:
         return (f"- Complex({', '.join(core.member_names)}) [{core.rel_type}] "
                 f"(belief: {core.belief:.2f}, {ev_str} papers)")
 
+    # Neither shape matched (malformed statement); _format_evidence's
+    # `if line:` check drops this line rather than the caller crashing.
     return ""
 
 
@@ -411,6 +447,8 @@ def _build_enrichment_items(
         if item:
             items.append(item)
 
+    # Queried-entity context is attached to the first item only, not
+    # duplicated onto every item, since the UI renders one row per item.
     if items:
         items[0]["queried_entities"] = ", ".join(queried_entities)
     return items
@@ -419,6 +457,8 @@ def _build_enrichment_items(
 def _statement_to_enrichment_item(
         stmt: dict[str, Any]) -> dict[str, str] | None:
     """Convert one INDRA statement into a flat dict for UI display."""
+    # Mirrors _format_single_statement's subj/obj vs. members branching,
+    # but returns a dict of individual fields instead of one text line.
     core = _parse_statement(stmt)
 
     if core.subj and core.obj:

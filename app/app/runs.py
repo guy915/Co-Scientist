@@ -58,10 +58,17 @@ class _RunHandle:
     """Per-run handle tracking cancellation and new-event signalling."""
 
     def __init__(self) -> None:
+        # Set by /cancel; the workflow checks it between steps and stops.
         self.cancelled = asyncio.Event()
+        # Pulsed by the runner after each workflow event so in-process SSE
+        # streams can wake immediately instead of waiting out a poll tick.
         self.new_event = asyncio.Event()
 
 
+# In-memory registry of workflows running in THIS process. Presence of a
+# run_id doubles as the "already active" guard in start_run; entries are
+# removed in the runner's finally block. After a restart the map is empty,
+# which is why reconcile_interrupted_runs exists on the store side.
 _active: dict[str, _RunHandle] = {}
 _active_lock = asyncio.Lock()
 
@@ -71,12 +78,19 @@ _active_lock = asyncio.Lock()
 
 
 class CreateRunRequest(BaseModel):
+    """Body for POST /api/runs; everything but the goal is optional."""
+
     research_goal: str = Field(..., min_length=1)
+    # Free-form planning guidance lists; defaults are filled by setup_config
+    # when omitted (direct API calls, seeded demos).
     requirements: list[str] | None = None
     attributes: list[str] | None = None
     criteria: list[str] | None = None
+    # Regex-validated enums; invalid values are rejected with a 422 here,
+    # while None falls through to normalize_run_* defaults.
     focus: str | None = Field(None, pattern=RUN_FOCUS_PATTERN)
     tier: str | None = Field(None, pattern=RUN_TIER_PATTERN)
+    # Numeric knobs override the tier defaults (see resolved_run_config).
     initial_hypotheses_count: int | None = None
     max_iterations: int | None = None
     evolution_max_count: int | None = None
@@ -85,14 +99,20 @@ class CreateRunRequest(BaseModel):
 
 
 class StartRunRequest(BaseModel):
+    """Body for POST /api/runs/{id}/start; optional provider override."""
+
     force_provider: str | None = Field(None, pattern="^(mock|engine)$")
 
 
 class SendMessageRequest(BaseModel):
+    """Body for POST /api/runs/{id}/messages (steering)."""
+
     content: str = Field(..., min_length=1)
 
 
 class AskRequest(BaseModel):
+    """Body for POST /api/runs/{id}/messages/ask (Q&A)."""
+
     question: str = Field(..., min_length=1)
 
 
@@ -102,6 +122,7 @@ class AskRequest(BaseModel):
 
 
 def _run_or_404(run_id: str, conn: sqlite3.Connection | None = None) -> RunRow:
+    """Return the run row or raise a 404 for unknown run ids."""
     run = store.get_run(run_id, conn=conn)
     if not run:
         raise HTTPException(status_code=404, detail="run not found")
@@ -123,7 +144,12 @@ def _require_run(run_id: str) -> None:
 # ---------------------------------------------------------------------------
 
 
+# Client isolation is header-based: the frontend sends a per-browser
+# X-Client-ID and list endpoints only return runs created with the same id.
+# A missing header yields '' (shared by all header-less callers). This is
+# scoping for a friendlier multi-user demo, not authentication.
 def _client_id(request: Request) -> str:
+    """Return the caller's client id from the X-Client-ID header."""
     return request.headers.get("X-Client-ID", "")
 
 
@@ -138,10 +164,13 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
     Returns:
         The created run serialized as a dict.
     """
+    # Provider (engine vs mock) is decided at creation from availability;
+    # /start can still override it per run via force_provider.
     provider = engine_adapter.select_provider()
     run_mode = CANONICAL_RUN_MODE
     focus = normalize_run_focus(req.focus)
     tier = normalize_run_tier(req.tier)
+    # `setup` is the durable planning block persisted inside config_json.
     setup = setup_config(
         research_goal=req.research_goal,
         requirements=req.requirements,
@@ -155,6 +184,8 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         "focus": focus,
         "setup": setup,
     }
+    # Only explicitly-sent numeric knobs become overrides; absent fields
+    # keep the tier defaults applied by resolved_run_config.
     if req.initial_hypotheses_count is not None:
         overrides["initial_hypotheses_count"] = req.initial_hypotheses_count
     if req.max_iterations is not None:
@@ -166,6 +197,7 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
     if req.enable_literature_review is not None:
         overrides["enable_literature_review"] = req.enable_literature_review
     config = resolved_run_config(overrides)
+    # The run is persisted in DRAFT; nothing executes until /start is called.
     run = store.create_run(
         research_goal=req.research_goal,
         profile=run_mode,
@@ -173,6 +205,7 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
         config=config,
         client_id=_client_id(request),
     )
+    # First entry in the run's event log, so replays show creation metadata.
     store.append_event(
         run.id,
         "lifecycle",
@@ -192,18 +225,22 @@ async def list_runs(
         request: Request,
         limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
+    """List the requesting client's runs, most recent first."""
     runs = store.list_runs(client_id=_client_id(request), limit=limit)
     return {"runs": [r.to_dict() for r in runs]}
 
 
+# Registered before /{run_id} so the literal path wins route matching.
 @router.get("/demo")
 async def list_demo_runs() -> dict[str, Any]:
+    """List the seeded demo runs, which are visible to every client."""
     runs = store.list_runs(client_id=store.DEMO_CLIENT_ID)
     return {"runs": [r.to_dict() for r in runs]}
 
 
 @router.get("/{run_id}")
 async def get_run(run_id: str) -> dict[str, Any]:
+    """Return a run's details plus per-table summary counts."""
     # One connection shared across the run lookup and its summary counts.
     with store.connect() as conn:
         run = _run_or_404(run_id, conn=conn)
@@ -229,22 +266,31 @@ async def start_run(run_id: str, req: StartRunRequest,
             completed, or already active.
     """
     run = _run_or_404(run_id)
+    # Status guards: only draft/failed/blocked/cancelled runs may (re)start.
+    # In-progress and completed runs 409 rather than double-running.
     if run.status in (RunStatus.RUNNING, RunStatus.SYNTHESIZING):
         raise HTTPException(status_code=409, detail="run already in progress")
     if run.status == RunStatus.COMPLETED:
         raise HTTPException(status_code=409, detail="run already completed")
 
+    # Reserve the run atomically under the lock so two concurrent /start
+    # requests cannot both pass the DB status check and launch twice.
     async with _active_lock:
         if run_id in _active:
             raise HTTPException(status_code=409, detail="run already active")
         handle = _RunHandle()
         _active[run_id] = handle
 
+    # Transition draft -> queued before returning; the runner moves the run
+    # to running/synthesizing/terminal states as the workflow progresses.
     store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(run_id, "lifecycle", {"event": "queued"})
 
     async def runner() -> None:
+        """Drive the workflow to completion as a background task."""
         try:
+            # The adapter persists each event itself; this loop only pulses
+            # new_event so any in-process SSE stream wakes immediately.
             async for _ in engine_adapter.run_workflow(
                     run_id=run_id,
                     research_goal=run.research_goal,
@@ -254,6 +300,8 @@ async def start_run(run_id: str, req: StartRunRequest,
             ):
                 handle.new_event.set()
         except Exception as e:  # pylint: disable=broad-exception-caught
+            # Catch-all so an unexpected workflow crash still lands the run
+            # in a terminal FAILED state with a status event for the UI.
             logger.exception("workflow failed: %s", e)
             store.update_run_status(run_id, RunStatus.FAILED, error=str(e))
             store.append_event(run_id, "status", {
@@ -262,18 +310,28 @@ async def start_run(run_id: str, req: StartRunRequest,
             })
             handle.new_event.set()
         finally:
+            # Always release the active-run slot so the run can be restarted.
             async with _active_lock:
                 _active.pop(run_id, None)
 
+    # Returns immediately; FastAPI runs `runner` after the response is sent.
     background.add_task(runner)
     return {"id": run_id, "status": "queued"}
 
 
 @router.post("/{run_id}/cancel")
 async def cancel_run(run_id: str) -> dict[str, Any]:
+    """Request cancellation of an actively running workflow.
+
+    Cancellation is cooperative: this only sets the handle's event. The
+    workflow notices at its next checkpoint and transitions the run to
+    CANCELLED itself, so the response says 'cancelling', not 'cancelled'.
+    """
     _require_run(run_id)
     async with _active_lock:
         handle = _active.get(run_id)
+    # A run without an in-process handle is not running here (finished, or
+    # the server restarted since it started), so there is nothing to cancel.
     if not handle:
         raise HTTPException(status_code=404, detail="run is not active")
     handle.cancelled.set()
@@ -305,15 +363,20 @@ async def stream_events(
     run = _run_or_404(run_id)
 
     async def event_gen() -> AsyncGenerator[str, None]:
+        """Yield SSE frames: full replay from `after`, then a live tail."""
         last_seq = after
 
         # Replay historical events first.
+        # Clients reconnect with ?after= set to their last seen seq, so
+        # replay is idempotent and gap-free.
         history = store.list_events(run_id, after_seq=last_seq)
         for ev in history:
             last_seq = ev["seq"]
             yield qa.sse_frame(ev)
 
         # If terminal already, send a final marker and return.
+        # `_terminal` is a synthetic frame (never persisted) telling
+        # clients to close.
         terminal = run.status in TERMINAL_STATUSES
         if terminal:
             yield qa.sse_frame({
@@ -325,6 +388,8 @@ async def stream_events(
             })
             return
 
+        # Handle is present only when this process runs the workflow; other
+        # processes (or post-restart streams) fall back to pure polling.
         async with _active_lock:
             handle = _active.get(run_id)
 
@@ -337,12 +402,15 @@ async def stream_events(
 
             signaled = True
             if handle is not None:
+                # Wake early on the producer's pulse; clear before querying
+                # so a set that races the query is caught next iteration.
                 try:
                     await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
                     handle.new_event.clear()
                 except asyncio.TimeoutError:
                     signaled = False
             else:
+                # No in-process producer: plain fixed-interval polling.
                 await asyncio.sleep(0.5)
 
             # With an in-process producer, every appended event sets `new_event`.
@@ -385,6 +453,8 @@ async def stream_events(
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
+            # Tells nginx-style proxies not to buffer the stream; without
+            # this, events can be held back and delivered in bursts.
             "X-Accel-Buffering": "no",
         },
     )
@@ -397,42 +467,49 @@ async def stream_events(
 
 @router.get("/{run_id}/hypotheses")
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
+    """Return the run's hypotheses with Elo state and lineage fields."""
     _require_run(run_id)
     return {"hypotheses": store.list_hypotheses(run_id)}
 
 
 @router.get("/{run_id}/evidence")
 async def get_evidence(run_id: str) -> dict[str, Any]:
+    """Return the literature evidence retrieved for the run."""
     _require_run(run_id)
     return {"evidence": store.list_evidence(run_id)}
 
 
 @router.get("/{run_id}/matches")
 async def get_matches(run_id: str) -> dict[str, Any]:
+    """Return the run's tournament matches with Elo snapshots."""
     _require_run(run_id)
     return {"matches": store.list_matches(run_id)}
 
 
 @router.get("/{run_id}/reviews")
 async def get_reviews(run_id: str) -> dict[str, Any]:
+    """Return reviewer and meta-review notes for the run."""
     _require_run(run_id)
     return {"reviews": store.list_reviews(run_id)}
 
 
 @router.get("/{run_id}/safety")
 async def get_safety(run_id: str) -> dict[str, Any]:
+    """Return the run's intake/final safety-gate decisions."""
     _require_run(run_id)
     return {"safety": store.list_safety_decisions(run_id)}
 
 
 @router.get("/{run_id}/citations")
 async def get_citations(run_id: str) -> dict[str, Any]:
+    """Return the run's citation rows with classification states."""
     _require_run(run_id)
     return {"citations": store.list_citations(run_id)}
 
 
 @router.get("/{run_id}/report")
 async def get_report(run_id: str) -> dict[str, Any]:
+    """Return the latest structured report, or 404 before synthesis."""
     _require_run(run_id)
     report = store.get_latest_report(run_id)
     if not report:
@@ -442,10 +519,12 @@ async def get_report(run_id: str) -> dict[str, Any]:
 
 @router.get("/{run_id}/report.md", response_class=PlainTextResponse)
 async def get_report_markdown(run_id: str) -> PlainTextResponse:
+    """Return the rendered Markdown report as a file download."""
     _require_run(run_id)
     md = store.read_report_markdown(run_id)
     if md is None:
         raise HTTPException(status_code=404, detail="no report yet")
+    # Content-Disposition makes browsers save it as <run_id>.md.
     return PlainTextResponse(
         md,
         headers={
@@ -463,6 +542,8 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
     """Queue a user steering message for the next iteration."""
     _require_run(run_id)
+    # Stored with applied=0; the workflow drains pending steering messages
+    # between iterations (store.get_pending_steering) and marks them applied.
     msg = store.append_message(run_id, "user", req.content, "steering")
     return {**msg.to_dict(), "status": "queued"}
 
@@ -480,6 +561,7 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     """Answer a question about the run using a fast LLM, streaming the response."""  # pylint: disable=line-too-long
     run = _run_or_404(run_id)
 
+    # Persist the question first so history survives even if streaming fails.
     question_msg = store.append_message(run_id, "user", req.question, "qa")
 
     # All six reads target the same run; share one connection.
@@ -487,10 +569,13 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
         hypotheses = store.list_hypotheses(run_id, conn=conn)
         reviews = store.list_reviews(run_id, conn=conn)
         matches = store.list_matches(run_id, conn=conn)
+        # [:-1] drops the question just appended above from the history.
         history = store.list_messages(run_id, conn=conn)[:-1]
         evidence = store.list_evidence(run_id, conn=conn)
         citations = store.list_citations(run_id, conn=conn)
 
+    # Prompt assembly and streaming are delegated to qa.py; the endpoint
+    # only gathers state and wires the SSE response.
     manifest = qa.build_evidence_manifest(evidence, citations)
     system_prompt = qa.build_system_prompt(run.research_goal, hypotheses,
                                            reviews, matches, history, manifest)
