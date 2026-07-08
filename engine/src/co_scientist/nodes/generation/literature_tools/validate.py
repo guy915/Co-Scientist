@@ -22,12 +22,8 @@ from co_scientist.constants import (
     scaled_max_tokens,
 )
 from co_scientist.exceptions import ResponseParseError
-from co_scientist.llm import (
-    attempt_json_repair,
-    call_llm_json,
-    call_llm_with_tools,
-    extract_response_json,
-)
+from co_scientist.llm import call_llm_json, call_llm_with_tools
+from co_scientist.llm_json import attempt_json_repair, extract_response_json
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.prompts import (
     get_hypothesis_novelty_analysis_prompt,

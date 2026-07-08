@@ -17,11 +17,8 @@ from co_scientist.constants import (
     scaled_max_tokens,
 )
 from co_scientist.exceptions import ResponseParseError
-from co_scientist.llm import (
-    attempt_json_repair,
-    call_llm_with_tools,
-    extract_response_json,
-)
+from co_scientist.llm import call_llm_with_tools
+from co_scientist.llm_json import attempt_json_repair, extract_response_json
 from co_scientist.prompts import get_draft_prompt_with_tools
 from co_scientist.state import WorkflowState
 from co_scientist.tools.provider import MCPToolProvider

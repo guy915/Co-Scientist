@@ -26,10 +26,10 @@ from jsonschema.exceptions import ValidationError
 
 from co_scientist import llm
 from co_scientist.cache import LLMCache
-from co_scientist.llm import _backfill_required_fields
 from co_scientist.llm import _supports_json_schema_response_format
 from co_scientist.llm import call_llm
 from co_scientist.llm import call_llm_json
+from co_scientist.llm_json import _backfill_required_fields
 
 # --- helpers ---------------------------------------------------------------
 
