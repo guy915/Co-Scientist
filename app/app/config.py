@@ -31,6 +31,16 @@ class Settings(BaseSettings):
     coscientist_cache_enabled: bool = True
     coscientist_cache_dir: str = "./cache"
 
+    # Elo tournament tuning. Defaults mirror the engine's constants.py so the
+    # mock and real tournament behave identically (test_elo_engine_parity).
+    elo_initial: int = 1200
+    elo_k_factor: int = 24
+    elo_upset_margin: int = 100
+
+    # Safety filter aggressiveness: "standard" or "strict". safety.py coerces
+    # this into its SafetyMode enum, defaulting to standard on any other value.
+    safety_mode: str = "standard"
+
     # Tools Configuration (optional)
     # Path to a YAML tools config file, or an HTTP(S) URL.
     # Relative paths resolve from the server working directory.

@@ -10,13 +10,13 @@ Goals:
 from __future__ import annotations
 
 import enum
-import os
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
 from typing import Any
 
 from app import store
+from app.config import settings
 from app.store import RunStatus
 
 
@@ -28,10 +28,9 @@ class SafetyMode(str, enum.Enum):
 
 
 def _resolve_safety_mode() -> SafetyMode:
-    """Parse the SAFETY_MODE env var, defaulting to STANDARD when invalid."""
-    raw = os.getenv("SAFETY_MODE", SafetyMode.STANDARD.value).lower()
+    """Coerce the configured safety mode, defaulting to STANDARD if invalid."""
     try:
-        return SafetyMode(raw)
+        return SafetyMode(settings.safety_mode.lower())
     except ValueError:
         return SafetyMode.STANDARD
 
