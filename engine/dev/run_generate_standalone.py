@@ -15,7 +15,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.markdown import Markdown
 
-from state_helpers import make_generate_state
+from state_helpers import (make_generate_state, DEFAULT_RESEARCH_GOAL,
+                           DEFAULT_MODEL_NAME)
 from co_scientist.nodes.generate import generate_node
 
 console = Console()
@@ -24,10 +25,6 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_bool("with_literature", False,
                   "Include mocked literature review data.")
-
-RESEARCH_GOAL = (
-    "How can we detect Alzheimer's disease earlier using retinal imaging?")
-MODEL_NAME = "gemini/gemini-2.5-flash"
 
 
 async def test_generate(with_literature: bool = False):
@@ -43,8 +40,8 @@ async def test_generate(with_literature: bool = False):
     console.print(
         "[yellow]Preparing state (running supervisor first)...[/yellow]")
     state = make_generate_state(
-        research_goal=RESEARCH_GOAL,
-        model_name=MODEL_NAME,
+        research_goal=DEFAULT_RESEARCH_GOAL,
+        model_name=DEFAULT_MODEL_NAME,
         with_literature=with_literature,
     )
 

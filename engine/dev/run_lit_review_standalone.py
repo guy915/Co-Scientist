@@ -40,8 +40,8 @@ except ImportError:
                   " using system environment variables only[/dim]")
 
 # pylint: disable=wrong-import-position
-from state_helpers import make_base_state
-from logging_utils import initialize_run_logging, cleanup_run_logging
+from state_helpers import (make_base_state, DEFAULT_RESEARCH_GOAL,
+                           DEFAULT_MODEL_NAME)
 from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
@@ -50,10 +50,6 @@ from co_scientist.constants import LITERATURE_REVIEW_FAILED
 # pylint: enable=wrong-import-position
 async def test_literature_review() -> None:
     """Run literature review node with minimal state."""
-
-    # Initialize run logging to avoid warnings
-    run_id = f"lit_review_test_{int(asyncio.get_event_loop().time())}"
-    initialize_run_logging(run_id)
 
     console.print("\n[bold cyan]Testing literature review node[/bold cyan]\n")
 
@@ -109,9 +105,8 @@ async def test_literature_review() -> None:
 
     # Create minimal state
     state = make_base_state(
-        research_goal=
-        "How can we detect Alzheimer's disease earlier using retinal imaging?",
-        model_name="gemini/gemini-2.5-flash",
+        research_goal=DEFAULT_RESEARCH_GOAL,
+        model_name=DEFAULT_MODEL_NAME,
     )
     state["mcp_available"] = mcp_ok
     state["pubmed_available"] = pubmed_ok
@@ -176,9 +171,6 @@ async def test_literature_review() -> None:
     console.print(f"  Articles found: {len(articles)}")
     console.print(f"  Summary length: {len(summary)} chars")
     console.print(f"  Articles with reasoning available: {bool(summary)}")
-
-    # Cleanup run logging
-    cleanup_run_logging()
 
 
 def main(argv: Sequence[str]) -> None:

@@ -169,7 +169,7 @@ def resolved_run_config(
                 value = int(raw_value)
             except (ValueError, TypeError):
                 continue
-            if key in base and key != "k_factor":
+            if key in base:
                 base[key] = max(base[key], value)
             else:
                 base[key] = value

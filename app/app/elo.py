@@ -27,9 +27,9 @@ DEFAULT_K_FACTOR: int = _env_int("ELO_K_FACTOR", 24)
 UPSET_MARGIN: int = _env_int("ELO_UPSET_MARGIN", 100)
 
 # Canonical per-match decisiveness labels, mirroring the engine's
-# ``ranking.match_tier`` outputs. The app owns this vocabulary so the mock
-# workflow and any tier consumer share one definition (test_elo_engine_parity
-# guards it against engine drift).
+# ``ranking.match_tier`` outputs. The app owns this vocabulary; the mock
+# workflow unpacks it for its tier labels and test_elo_engine_parity guards it
+# against engine drift.
 MATCH_TIERS: tuple[str, ...] = ("upset", "decisive", "clear", "narrow")
 
 

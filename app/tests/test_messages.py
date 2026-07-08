@@ -2,14 +2,13 @@
 # pylint: disable=unused-argument
 from __future__ import annotations
 
-import time
-
 from typing import cast
 
 from fastapi.testclient import TestClient
 
 from app import store
 from tests._client import make_client as _client
+from tests._client import wait_for_status
 
 
 def test_append_and_list_messages(isolated_db: str) -> None:
@@ -198,12 +197,7 @@ def test_steering_messages_applied_after_run(isolated_db: str) -> None:
     assert msgs_before[0]["applied"] is False
 
     client.post(f"/api/runs/{run_id}/start", json={})
-    deadline = time.time() + 20.0
-    while time.time() < deadline:
-        r = client.get(f"/api/runs/{run_id}")
-        if r.json()["status"] == "completed":
-            break
-        time.sleep(0.1)
+    wait_for_status(client, run_id, "completed", timeout=20.0, interval=0.1)
 
     msgs_after = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
     steering = [m for m in msgs_after if m["kind"] == "steering"]
@@ -217,12 +211,7 @@ def test_milestone_messages_generated_after_run(isolated_db: str) -> None:
     run_id = _make_run(client, goal="test milestone generation")
 
     client.post(f"/api/runs/{run_id}/start", json={})
-    deadline = time.time() + 20.0
-    while time.time() < deadline:
-        r = client.get(f"/api/runs/{run_id}")
-        if r.json()["status"] == "completed":
-            break
-        time.sleep(0.1)
+    wait_for_status(client, run_id, "completed", timeout=20.0, interval=0.1)
 
     msgs = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
     milestones = [m for m in msgs if m["kind"] == "milestone"]

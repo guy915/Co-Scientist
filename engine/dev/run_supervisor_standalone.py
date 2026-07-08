@@ -13,7 +13,8 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.json import JSON
 
-from state_helpers import make_base_state
+from state_helpers import (make_base_state, DEFAULT_RESEARCH_GOAL,
+                           DEFAULT_MODEL_NAME)
 from co_scientist.nodes.supervisor import supervisor_node
 
 console = Console()
@@ -26,9 +27,8 @@ async def test_supervisor() -> None:
 
     # Create minimal state
     state = make_base_state(
-        research_goal=
-        "How can we detect Alzheimer's disease earlier using retinal imaging?",
-        model_name="gemini/gemini-2.5-flash",
+        research_goal=DEFAULT_RESEARCH_GOAL,
+        model_name=DEFAULT_MODEL_NAME,
     )
 
     console.print(f"[yellow]Research goal:[/yellow] {state['research_goal']}\n")

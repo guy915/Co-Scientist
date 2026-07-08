@@ -2,8 +2,9 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import * as runsApi from '@/api/runs';
-import type {Hypothesis, MatchRow, RunWithSummary} from '@/api/runs';
+import type {MatchRow, RunWithSummary} from '@/api/runs';
 import {RunDetail} from './run_detail';
+import {makeHypothesis} from '@/test-fixtures';
 
 // Controllable stream mock: tests mutate `streamState` then rerender to drive
 // the event-driven refetch effect. `setStream` replaces the events array so its
@@ -71,13 +72,6 @@ const makeRun = (
     },
     ...timing,
   }) as unknown as RunWithSummary;
-
-const makeHypothesis = (id: string, title: string, elo: number): Hypothesis =>
-  ({
-    id,
-    title,
-    elo_rating: elo,
-  }) as unknown as Hypothesis;
 
 const makeMatch = (id: number): MatchRow => ({id}) as unknown as MatchRow;
 
@@ -220,8 +214,8 @@ describe('RunDetail', () => {
       }),
     );
     vi.mocked(runsApi.getHypotheses).mockResolvedValue([
-      makeHypothesis('h1', 'Top idea alpha', 1735),
-      makeHypothesis('h2', 'Runner-up beta', 1707),
+      makeHypothesis({id: 'h1', title: 'Top idea alpha', elo_rating: 1735}),
+      makeHypothesis({id: 'h2', title: 'Runner-up beta', elo_rating: 1707}),
     ]);
     vi.mocked(runsApi.getMatches).mockResolvedValue([
       makeMatch(1),
@@ -246,7 +240,7 @@ describe('RunDetail', () => {
   it('omits stat clauses whose data is unavailable', async () => {
     // No timing on the run, no matches: the duration and matches clauses drop.
     vi.mocked(runsApi.getHypotheses).mockResolvedValue([
-      makeHypothesis('h1', 'Sole idea', 1500),
+      makeHypothesis({id: 'h1', title: 'Sole idea', elo_rating: 1500}),
     ]);
 
     renderAt('/runs/run-1/overview');

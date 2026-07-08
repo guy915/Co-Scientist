@@ -7,6 +7,7 @@ and JSON parsing.
 
 import asyncio
 import copy
+import functools
 import json
 import logging
 import re
@@ -376,8 +377,12 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 
+@functools.lru_cache(maxsize=None)
 def _supports_json_schema_response_format(model_name: str) -> bool:
     """Checks whether a model accepts the json_schema response format.
+
+    The result is a process-static property of the model, so it is cached to
+    avoid re-running litellm's registry lookup on every LLM call and retry.
 
     Args:
         model_name: Model name in litellm format.

@@ -17,6 +17,7 @@ stable labels for tests and screenshots.
 from __future__ import annotations
 
 import enum
+import functools
 from dataclasses import dataclass
 
 
@@ -58,12 +59,19 @@ class CitationRecord:
     available: bool = True
 
 
+@functools.lru_cache(maxsize=256)
+def _content_tokens(text: str) -> frozenset[str]:
+    """Cache the token set for a string; claims repeat across a hypothesis's
+    citations, so this collapses their re-tokenization to a single pass."""
+    return frozenset(t for t in text.lower().split() if len(t) > 3)
+
+
 def _token_overlap(claim: str, abstract: str) -> float:
     """Lower-bound semantic match: jaccard over lower-cased word tokens."""
     if not claim or not abstract:
         return 0.0
-    a = {t for t in claim.lower().split() if len(t) > 3}
-    b = {t for t in abstract.lower().split() if len(t) > 3}
+    a = _content_tokens(claim)
+    b = _content_tokens(abstract)
     if not a or not b:
         return 0.0
     return len(a & b) / len(a | b)

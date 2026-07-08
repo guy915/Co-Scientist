@@ -3,22 +3,8 @@ from __future__ import annotations
 
 import time
 
-from fastapi.testclient import TestClient
-
 from tests._client import make_client as _client
-
-
-def _wait_status(client: TestClient,
-                 rid: str,
-                 status: str,
-                 timeout: float = 15.0) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        r = client.get(f"/api/runs/{rid}")
-        if r.status_code == 200 and r.json()["status"] == status:
-            return True
-        time.sleep(0.05)
-    return False
+from tests._client import wait_for_status as _wait_status
 
 
 def test_create_run_rejects_empty_goal() -> None:

@@ -21,7 +21,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.markdown import Markdown
 
-from state_helpers import make_supervisor_state
+from state_helpers import (make_supervisor_state, DEFAULT_RESEARCH_GOAL,
+                           DEFAULT_MODEL_NAME)
 from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.nodes.generate import generate_node
 
@@ -29,12 +30,8 @@ console = Console()
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_string("model", "gemini/gemini-2.5-flash", "LLM model to use.")
+flags.DEFINE_string("model", DEFAULT_MODEL_NAME, "LLM model to use.")
 flags.DEFINE_integer("count", 3, "Number of hypotheses to generate.")
-
-# Default research goal used when no positional argument is provided.
-DEFAULT_RESEARCH_GOAL = (
-    "How can we detect Alzheimer's disease earlier using retinal imaging?")
 
 
 async def test_lit_tools_isolation(research_goal: str,

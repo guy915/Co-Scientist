@@ -258,12 +258,14 @@ function RunStepFlow({activeIndex}: {activeIndex: number}) {
   );
 }
 
+const HOME_RUN_DATE_FMT = new Intl.DateTimeFormat(undefined, {
+  month: 'long',
+  day: 'numeric',
+  year: 'numeric',
+});
+
 function formatHomeRunDate(timestamp: number): string {
-  return new Intl.DateTimeFormat(undefined, {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(new Date(timestamp * 1000));
+  return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
 }
 
 function formatHomeRunDuration(run: Run): string {

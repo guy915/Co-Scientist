@@ -41,7 +41,7 @@ from typing import Any
 from app import store
 from app.citations import (CitationRecord, classify_citation,
                            empty_citation_summary)
-from app.elo import INITIAL_ELO, UPSET_MARGIN, update_pair
+from app.elo import INITIAL_ELO, MATCH_TIERS, UPSET_MARGIN, update_pair
 from app.report_render import (
     article_stub,
     finalize_report,
@@ -53,6 +53,10 @@ from app.run_modes import CANONICAL_RUN_MODE, setup_guidance
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
+
+# Named handles onto the app-owned decisiveness vocabulary (elo.MATCH_TIERS),
+# so the mock's tier labels stay pinned to the single shared definition.
+_UPSET, _DECISIVE, _CLEAR, _NARROW = MATCH_TIERS
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -493,18 +497,19 @@ async def run_mock_workflow(
                 winner, loser, rationale = _judge(a, b)
                 wb = elo_state[winner]
                 lb = elo_state[loser]
-                # Deterministic decisiveness tier from the pre-match Elo gap.
-                # Only the label vocabulary matches the engine's
-                # ranking.match_tier -- the engine derives the non-upset tiers
-                # from judge confidence, which the mock does not have.
+                # Deterministic decisiveness tier from the pre-match Elo gap,
+                # labelled from the app-owned MATCH_TIERS vocabulary. Only the
+                # labels are shared with the engine's ranking.match_tier -- the
+                # engine derives the non-upset tiers from judge confidence,
+                # which the mock does not have.
                 if lb - wb >= UPSET_MARGIN:
-                    tier = "upset"
+                    tier = _UPSET
                 elif abs(wb - lb) >= 60:
-                    tier = "decisive"
+                    tier = _DECISIVE
                 elif abs(wb - lb) >= 20:
-                    tier = "clear"
+                    tier = _CLEAR
                 else:
-                    tier = "narrow"
+                    tier = _NARROW
                 wa, la = update_pair(wb, lb, k_factor=cfg["k_factor"])
                 elo_state[winner] = wa
                 elo_state[loser] = la

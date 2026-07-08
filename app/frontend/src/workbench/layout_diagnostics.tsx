@@ -106,12 +106,14 @@ const DIAGNOSTIC_EMPTY_CLASSES =
   'bg-cosci-logs-panel-bg px-[0.7rem] py-[0.55rem] text-center ' +
   'text-cosci-logs-panel-fg';
 
+const DIAGNOSTIC_TIME_FMT = new Intl.DateTimeFormat(undefined, {
+  hour: 'numeric',
+  minute: '2-digit',
+  second: '2-digit',
+});
+
 function formatDiagnosticTime(date = new Date()): string {
-  return new Intl.DateTimeFormat(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(date);
+  return DIAGNOSTIC_TIME_FMT.format(date);
 }
 
 export function DiagnosticsControl({

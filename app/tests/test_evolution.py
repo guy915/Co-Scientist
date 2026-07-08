@@ -2,23 +2,17 @@
 # pylint: disable=unused-argument
 from __future__ import annotations
 
-import time
-
 from fastapi.testclient import TestClient
 
 from tests._client import make_client as _client
+from tests._client import wait_for_status
 
 
 def _wait_completed(client: TestClient,
                     run_id: str,
                     timeout: float = 20.0) -> None:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        r = client.get(f"/api/runs/{run_id}")
-        if r.json()["status"] == "completed":
-            return
-        time.sleep(0.05)
-    raise AssertionError("run did not complete in time")
+    assert wait_for_status(client, run_id, "completed",
+                           timeout=timeout), "run did not complete in time"
 
 
 def test_evolution_creates_new_rows_with_parent_lineage(

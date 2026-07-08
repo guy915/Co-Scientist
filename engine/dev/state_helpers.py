@@ -12,13 +12,14 @@ from co_scientist.models import ExecutionMetrics
 
 console = Console()
 
-_DEFAULT_RESEARCH_GOAL = (
+DEFAULT_RESEARCH_GOAL = (
     "How can we detect Alzheimer's disease earlier using retinal imaging?")
+DEFAULT_MODEL_NAME = "gemini/gemini-2.5-flash"
 
 
 def make_base_state(
-    research_goal: str = _DEFAULT_RESEARCH_GOAL,
-    model_name: str = "gemini/gemini-2.5-flash",
+    research_goal: str = DEFAULT_RESEARCH_GOAL,
+    model_name: str = DEFAULT_MODEL_NAME,
     initial_hypotheses_count: int = 3,
     max_iterations: int = 0,
 ) -> WorkflowState:
@@ -50,8 +51,8 @@ def make_base_state(
 
 
 def make_supervisor_state(
-    research_goal: str = _DEFAULT_RESEARCH_GOAL,
-    model_name: str = "gemini/gemini-2.5-flash",
+    research_goal: str = DEFAULT_RESEARCH_GOAL,
+    model_name: str = DEFAULT_MODEL_NAME,
 ) -> WorkflowState:
     """Base state with supervisor guidance populated.
 
@@ -76,8 +77,8 @@ def make_supervisor_state(
 
 
 def make_literature_state(
-    research_goal: str = _DEFAULT_RESEARCH_GOAL,
-    model_name: str = "gemini/gemini-2.5-flash",
+    research_goal: str = DEFAULT_RESEARCH_GOAL,
+    model_name: str = DEFAULT_MODEL_NAME,
     run_real_lit_review: bool = False,
 ) -> WorkflowState:
     """Base state with literature review results populated.
@@ -131,8 +132,8 @@ microvasculature changes appear years before cognitive symptoms
 
 
 def make_generate_state(
-    research_goal: str = _DEFAULT_RESEARCH_GOAL,
-    model_name: str = "gemini/gemini-2.5-flash",
+    research_goal: str = DEFAULT_RESEARCH_GOAL,
+    model_name: str = DEFAULT_MODEL_NAME,
     with_literature: bool = False,
 ) -> WorkflowState:
     """State ready for generate node with supervisor + optional literature.

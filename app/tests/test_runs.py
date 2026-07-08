@@ -3,23 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-import time
-
-from collections.abc import Callable
 
 from tests._client import make_client as _client
-
-
-def _wait_for(predicate: Callable[[], bool],
-              *,
-              timeout: float = 10.0,
-              interval: float = 0.05) -> bool:
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if predicate():
-            return True
-        time.sleep(interval)
-    return False
+from tests._client import wait_for as _wait_for
 
 
 def test_create_run_returns_draft_status() -> None:

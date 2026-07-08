@@ -2,33 +2,7 @@ import {describe, it, expect} from 'vitest';
 import {render, screen} from '@testing-library/react';
 import {IdeasTab} from './ideas_tab';
 import type {Hypothesis, Review} from '@/api/runs';
-
-function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
-  return {
-    id: 'h1',
-    run_id: 'r1',
-    parent_id: null,
-    generation: 0,
-    category: null,
-    title: 'Untitled hypothesis',
-    statement: 'A statement.',
-    mechanism: null,
-    expected_effect: null,
-    experimental_context: null,
-    created_by_agent: 'generate',
-    created_at: 0,
-    elo_rating: 1200,
-    win_count: 0,
-    loss_count: 0,
-    novelty_score: null,
-    plausibility_score: null,
-    testability_score: null,
-    safety_status: null,
-    status: null,
-    cluster_id: null,
-    ...over,
-  };
-}
+import {makeHypothesis} from '@/test-fixtures';
 
 describe('IdeasTab', () => {
   it('shows the empty state when there are no hypotheses', () => {

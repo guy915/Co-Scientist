@@ -17,6 +17,7 @@ patching ``co_scientist.llm.get_cache``.
 """
 
 import json
+from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
 
@@ -31,6 +32,19 @@ from co_scientist.llm import call_llm
 from co_scientist.llm import call_llm_json
 
 # --- helpers ---------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def _clear_capability_cache() -> Iterator[None]:
+    """Reset the memoized capability probe around each test.
+
+    ``_supports_json_schema_response_format`` is ``lru_cache``-memoized, so its
+    per-model result would otherwise leak across tests that patch the registry
+    to different answers for the same model name.
+    """
+    _supports_json_schema_response_format.cache_clear()
+    yield
+    _supports_json_schema_response_format.cache_clear()
 
 
 def _completion(content: str) -> SimpleNamespace:
