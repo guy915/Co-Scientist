@@ -1,0 +1,145 @@
+"""Phase 1: literature review query generation.
+
+Generates the search queries used by Phase 2, preferring an MCP query-
+generation tool when one is configured and falling back to a source-aware LLM
+prompt (and finally to the raw research goal).
+"""
+
+import logging
+from typing import cast
+
+from co_scientist.constants import (
+    DEFAULT_MAX_TOKENS,
+    HIGH_TEMPERATURE,
+)
+from co_scientist.llm import call_llm_json
+from co_scientist.mcp_client import MCPToolClient
+from co_scientist.prompts import get_literature_review_query_generation_prompt
+from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
+from co_scientist.state import WorkflowState
+
+from co_scientist.nodes.literature_review.helpers import (
+    SearchConfig,
+    determine_query_source_type,
+    parse_mcp_query_result,
+)
+
+logger = logging.getLogger(__name__)
+
+
+async def _generate_queries_via_mcp(
+    mcp_client: MCPToolClient,
+    research_goal: str,
+    tool_name: str,
+    query_format: str,
+) -> list[str]:
+    """Generate queries using MCP tool."""
+    # Imported locally to avoid a module-level import cycle: node.py owns
+    # _describe_exc and imports this module at load time.
+    from co_scientist.nodes.literature_review.node import _describe_exc  # pylint: disable=import-outside-toplevel
+    try:
+        result = await mcp_client.call_tool(
+            tool_name,
+            research_goal=research_goal,
+            query_format=query_format,
+        )
+        queries = parse_mcp_query_result(result)
+        logger.info("MCP query generation returned %s queries", len(queries))
+        return queries
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # An empty list here (rather than raising) is the signal that lets
+        # _phase1_generate_queries fall through to the LLM-based generator.
+        logger.warning("MCP query generation failed: %s, falling back to LLM",
+                       _describe_exc(e))
+        return []
+
+
+async def _generate_queries_via_llm(
+    state: WorkflowState,
+    config: SearchConfig,
+) -> list[str]:
+    """Generate queries using LLM with source-aware prompt."""
+    # source_type steers the prompt wording (e.g. "academic" boolean search
+    # phrasing vs "knowledge_graph" entity-oriented phrasing) so the LLM
+    # produces queries that suit whatever source(s) are actually configured.
+    source_type = determine_query_source_type(
+        config.workflow,
+        config.tool_registry,
+        config.search_tool_config,
+        config.is_multi_source,
+    )
+    logger.debug("Using %s query generation prompt", source_type)
+
+    prompt = get_literature_review_query_generation_prompt(
+        research_goal=state["research_goal"],
+        source_type=source_type,
+        preferences=state.get("preferences", ""),
+        attributes=state.get("attributes", []),
+        user_literature=state.get("literature", []),
+        user_hypotheses=state.get("starting_hypotheses", []),
+    )
+
+    try:
+        result = await call_llm_json(
+            prompt=prompt,
+            model_name=state["model_name"],
+            max_tokens=DEFAULT_MAX_TOKENS,
+            temperature=HIGH_TEMPERATURE,
+            json_schema=LITERATURE_QUERY_SCHEMA,
+        )
+        return cast(list[str], result.get("queries", []))
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning("LLM query generation failed: %s", e)
+        return []
+
+
+async def _phase1_generate_queries(
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> list[str]:
+    """Phase 1: Generate search queries."""
+    logger.info("Phase 1: generating search queries")
+
+    queries = []
+
+    # Try MCP-based generation first if configured
+    if (config.tool_registry and config.workflow and
+            config.workflow.query_generation_tool):
+        tool_cfg = config.tool_registry.get_tool(
+            config.workflow.query_generation_tool)
+        if tool_cfg:
+            query_format = config.workflow.query_format or "boolean"
+            logger.info("Using MCP query generation: %s (format: %s)",
+                        tool_cfg.mcp_tool_name, query_format)
+            queries = await _generate_queries_via_mcp(
+                mcp_client,
+                state["research_goal"],
+                tool_cfg.mcp_tool_name,
+                query_format,
+            )
+
+    # Fallback to LLM-based generation
+    # Also the primary path when no query_generation_tool is configured at
+    # all.
+    if not queries:
+        queries = await _generate_queries_via_llm(state, config)
+
+    # Final fallback to research goal
+    # Guarantees Phase 2 always has at least one query to search with, even
+    # if both generators failed.
+    if not queries:
+        logger.warning("No queries generated, using research goal")
+        queries = [state["research_goal"]]
+
+    # Limit to 3 queries max
+    # Bounds the number of parallel search calls (and downstream
+    # papers-per-query fan-out) regardless of how many queries either
+    # generator returned.
+    queries = queries[:3]
+
+    logger.info("Generated %s search queries", len(queries))
+    for i, q in enumerate(queries, 1):
+        logger.debug("Query %s: %s", i, q)
+
+    return queries

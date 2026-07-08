@@ -1,23 +1,24 @@
 """Tests for literature_review_node orchestration and in-file helpers.
 
-The leaf helpers in ``literature_review_helpers`` are covered separately by
+The leaf helpers in ``literature_review.helpers`` are covered separately by
 ``test_literature_review_helpers``; here we exercise the node's orchestration
-and the pure functions defined in ``literature_review.py`` itself.
+and the pure functions defined in the ``literature_review`` package's ``node``
+and ``enrichment`` modules.
 
-External seams stubbed (all bound on the ``literature_review`` module
-namespace):
+External seams stubbed (each bound on the submodule that consumes it):
 
-* ``get_node_cache`` -> a no-op cache (always miss / no-op set), so the global
-  on-disk node cache never interferes and tests stay deterministic.
-* ``check_literature_source_available`` -> bool, the MCP-gate the node consults
-  before doing any work; ``False`` drives the unavailable fallback, ``True`` the
-  happy path (without it the node would dial ``localhost:8888``).
-* ``get_mcp_client`` -> a fake whose ``call_tool`` returns canned search papers,
-  standing in for the real MCP search/tool path.
-* ``call_llm_json`` -> shared by query-generation (returns ``queries``) and
-  per-paper analysis (the dict is stored opaquely and fed to synthesis).
-* ``call_llm`` -> phase-4 synthesis text (prompt saving lives inside the real
-  LLM wrappers now, so stubbing them also keeps prompt files off disk).
+* ``node.get_node_cache`` -> a no-op cache (always miss / no-op set), so the
+  global on-disk node cache never interferes and tests stay deterministic.
+* ``node.check_literature_source_available`` -> bool, the MCP-gate the node
+  consults before doing any work; ``False`` drives the unavailable fallback,
+  ``True`` the happy path (without it the node would dial ``localhost:8888``).
+* ``node.get_mcp_client`` -> a fake whose ``call_tool`` returns canned search
+  papers, standing in for the real MCP search/tool path.
+* ``call_llm_json`` -> shared by query-generation (``queries``, returns
+  ``queries``) and per-paper analysis (``analysis``, the dict is stored opaquely
+  and fed to synthesis), so it is stubbed on both submodules.
+* ``synthesis.call_llm`` -> phase-4 synthesis text (prompt saving lives inside
+  the real LLM wrappers now, so stubbing them also keeps prompt files off disk).
 
 With ``tool_registry=None`` the multi-source/PDF-discovery/content-fetch/
 context-enrichment phases (2.4/2.5/2.6) all early-return, so the node runs in
@@ -29,7 +30,11 @@ from typing import Any
 import pytest
 
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.nodes import literature_review as lr
+from co_scientist.nodes.literature_review import analysis as lr_analysis
+from co_scientist.nodes.literature_review import enrichment as lr_enrichment
+from co_scientist.nodes.literature_review import node as lr
+from co_scientist.nodes.literature_review import queries as lr_queries
+from co_scientist.nodes.literature_review import synthesis as lr_synthesis
 from co_scientist.nodes.literature_review import literature_review_node
 from tests._state import make_state
 
@@ -122,12 +127,13 @@ def _stub_node(
         # (stores the whole dict opaquely for synthesis).
         return {"queries": queries if queries is not None else ["query one"]}
 
-    monkeypatch.setattr(lr, "call_llm_json", fake_llm_json)
+    monkeypatch.setattr(lr_queries, "call_llm_json", fake_llm_json)
+    monkeypatch.setattr(lr_analysis, "call_llm_json", fake_llm_json)
 
     async def fake_llm(**_: Any) -> str:
         return synthesis
 
-    monkeypatch.setattr(lr, "call_llm", fake_llm)
+    monkeypatch.setattr(lr_synthesis, "call_llm", fake_llm)
 
     return fake_client
 
@@ -454,13 +460,13 @@ def test_get_search_config_honors_run_paper_count(
 
 def test_format_kg_section_empty_returns_empty_string() -> None:
     """No enrichment sources produces no knowledge-graph section."""
-    assert lr._format_kg_section_with_keys([], 0) == ""  # pylint: disable=protected-access
+    assert lr_enrichment._format_kg_section_with_keys([], 0) == ""  # pylint: disable=protected-access
 
 
 def test_format_kg_section_keys_start_after_paper_count() -> None:
     """KG keys continue the [C*] numbering after the analyzed papers."""
     sources = [{"display": "Gene X -> Gene Y"}, {"display": "Gene Y -> Gene Z"}]
-    section = lr._format_kg_section_with_keys(sources, 2)  # pylint: disable=protected-access
+    section = lr_enrichment._format_kg_section_with_keys(sources, 2)  # pylint: disable=protected-access
     assert "## Knowledge Graph Evidence" in section
     # paper_count == 2, so the first KG key is C3, the second C4.
     assert "[C3] Gene X -> Gene Y" in section
@@ -469,13 +475,13 @@ def test_format_kg_section_keys_start_after_paper_count() -> None:
 
 def test_format_kg_section_missing_display_uses_default() -> None:
     """An item lacking a ``display`` key falls back to a default label."""
-    section = lr._format_kg_section_with_keys([{}], 0)  # pylint: disable=protected-access
+    section = lr_enrichment._format_kg_section_with_keys([{}], 0)  # pylint: disable=protected-access
     assert "[C1] External source" in section
 
 
 def test_parse_enrichment_indra_empty_statements() -> None:
     """An INDRA response with empty ``statements`` yields no text or items."""
-    text, items = lr._parse_enrichment_result({"statements": []})  # pylint: disable=protected-access
+    text, items = lr_enrichment._parse_enrichment_result({"statements": []})  # pylint: disable=protected-access
     assert text == ""
     assert items == []
 
@@ -494,7 +500,7 @@ def test_parse_enrichment_indra_statements_formatted() -> None:
             "belief": 0.97,
         }]
     }
-    text, items = lr._parse_enrichment_result(raw)  # pylint: disable=protected-access
+    text, items = lr_enrichment._parse_enrichment_result(raw)  # pylint: disable=protected-access
     assert "KRAS" in text and "MAPK1" in text
     assert "Activation" in text
     assert len(items) == 1
@@ -504,14 +510,14 @@ def test_parse_enrichment_indra_statements_formatted() -> None:
 def test_parse_enrichment_results_list_caps_items() -> None:
     """A generic ``results`` list is capped to the per-entity limit."""
     raw = {"results": [{"n": i} for i in range(10)]}
-    text, items = lr._parse_enrichment_result(raw)  # pylint: disable=protected-access
-    cap = lr._CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY  # pylint: disable=protected-access
+    text, items = lr_enrichment._parse_enrichment_result(raw)  # pylint: disable=protected-access
+    cap = lr_enrichment._CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY  # pylint: disable=protected-access
     assert len(items) == cap
     assert text  # non-empty formatted text
 
 
 def test_parse_enrichment_plain_string_non_json() -> None:
     """A non-JSON string becomes a single display item of truncated text."""
-    text, items = lr._parse_enrichment_result("free-form text")  # pylint: disable=protected-access
+    text, items = lr_enrichment._parse_enrichment_result("free-form text")  # pylint: disable=protected-access
     assert text == "free-form text"
     assert items == [{"display": "free-form text", "data": {}}]

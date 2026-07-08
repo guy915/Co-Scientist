@@ -1,6 +1,6 @@
 """Tests for the pure, network-free literature review helpers.
 
-The functions under test in ``co_scientist.nodes.literature_review_helpers``
+The functions under test in ``co_scientist.nodes.literature_review.helpers``
 do no I/O: they map response/metadata dicts into ``Article`` objects, parse
 years and content payloads, count fulltext availability, and normalize the
 raw search-tool responses. These tests lock in that deterministic behavior
@@ -13,7 +13,7 @@ from typing import Any
 from co_scientist.config.schema import ResponseFormat
 from co_scientist.config.schema import ToolConfig
 from co_scientist.models import Article
-from co_scientist.nodes import literature_review_helpers as helpers
+from co_scientist.nodes.literature_review import helpers
 
 
 def _tool_config(
@@ -41,8 +41,7 @@ def test_extract_source_name_none_returns_unknown() -> None:
 
 def test_extract_source_name_from_quoted_field_mapping() -> None:
     """A quoted ``source`` literal in the field mapping is unquoted."""
-    tc = _tool_config(
-        ResponseFormat(field_mapping={"source": "'pubmed'"}))
+    tc = _tool_config(ResponseFormat(field_mapping={"source": "'pubmed'"}))
     assert helpers.extract_source_name(tc) == "pubmed"
 
 
@@ -112,11 +111,16 @@ def test_normalize_results_path_extracts_nested() -> None:
 
 def test_normalize_list_response_keys_by_source_id() -> None:
     """A list response is keyed by the configured ``source_id`` field."""
-    tc = _tool_config(
-        ResponseFormat(field_mapping={"source_id": "pmid"}))
+    tc = _tool_config(ResponseFormat(field_mapping={"source_id": "pmid"}))
     data = [
-        {"pmid": "111", "title": "A"},
-        {"pmid": "222", "title": "B"},
+        {
+            "pmid": "111",
+            "title": "A"
+        },
+        {
+            "pmid": "222",
+            "title": "B"
+        },
     ]
     result = helpers.normalize_search_response(data, tc)
     assert set(result) == {"111", "222"}
@@ -125,8 +129,7 @@ def test_normalize_list_response_keys_by_source_id() -> None:
 
 def test_normalize_list_at_prefixed_source_id_uses_arxiv_id() -> None:
     """An ``@``-prefixed source_id mapping falls back to the arxiv_id field."""
-    tc = _tool_config(
-        ResponseFormat(field_mapping={"source_id": "@id"}))
+    tc = _tool_config(ResponseFormat(field_mapping={"source_id": "@id"}))
     data = [{"arxiv_id": "2401.0001", "title": "A"}]
     result = helpers.normalize_search_response(data, tc)
     assert list(result) == ["2401.0001"]
@@ -158,8 +161,10 @@ def test_build_article_maps_all_fields() -> None:
         "fulltext": "Full body text.",
         "url": "https://example.com/article",
     }
-    article = helpers.build_article_from_metadata(
-        "PMID42", metadata, source_name="pubmed", used_in_analysis=True)
+    article = helpers.build_article_from_metadata("PMID42",
+                                                  metadata,
+                                                  source_name="pubmed",
+                                                  used_in_analysis=True)
     assert isinstance(article, Article)
     assert article.title == "Cancer signaling"
     assert article.url == "https://example.com/article"
@@ -176,8 +181,9 @@ def test_build_article_maps_all_fields() -> None:
 def test_build_article_defaults_for_missing_fields() -> None:
     """Missing metadata yields safe defaults (title 'unknown', empty authors).
     """
-    article = helpers.build_article_from_metadata(
-        "x1", {}, source_name="arxiv", used_in_analysis=False)
+    article = helpers.build_article_from_metadata("x1", {},
+                                                  source_name="arxiv",
+                                                  used_in_analysis=False)
     assert article.title == "unknown"
     assert article.authors == []
     assert article.year is None
@@ -189,8 +195,8 @@ def test_build_article_defaults_for_missing_fields() -> None:
 
 def test_build_article_venue_falls_back_to_venue_key() -> None:
     """When ``publication`` is absent the ``venue`` key is used."""
-    article = helpers.build_article_from_metadata(
-        "x1", {"venue": "JMLR"}, source_name="arxiv")
+    article = helpers.build_article_from_metadata("x1", {"venue": "JMLR"},
+                                                  source_name="arxiv")
     assert article.venue == "JMLR"
 
 
@@ -272,12 +278,24 @@ def test_parse_year_falls_back_to_date_revised_when_year_empty() -> None:
 def test_count_papers_with_fulltext_mixed() -> None:
     """A mix of fulltext indicators is counted as (with, without)."""
     metadata: dict[str, dict[str, Any]] = {
-        "a": {"fulltext": "body"},
-        "b": {"pmc_full_text_id": "PMC1"},
-        "c": {"has_fulltext": True},
-        "d": {"pdf_url": "http://x/p.pdf"},
-        "e": {"title": "no content"},
-        "f": {"abstract": "only abstract"},
+        "a": {
+            "fulltext": "body"
+        },
+        "b": {
+            "pmc_full_text_id": "PMC1"
+        },
+        "c": {
+            "has_fulltext": True
+        },
+        "d": {
+            "pdf_url": "http://x/p.pdf"
+        },
+        "e": {
+            "title": "no content"
+        },
+        "f": {
+            "abstract": "only abstract"
+        },
     }
     with_ft, without_ft = helpers.count_papers_with_fulltext(metadata)
     assert with_ft == 4
@@ -287,7 +305,9 @@ def test_count_papers_with_fulltext_mixed() -> None:
 def test_count_papers_with_fulltext_ignores_non_dicts() -> None:
     """Non-dict metadata entries are skipped but still counted as 'without'."""
     metadata: dict[str, Any] = {
-        "a": {"fulltext": "body"},
+        "a": {
+            "fulltext": "body"
+        },
         "b": "not a dict",
     }
     with_ft, without_ft = helpers.count_papers_with_fulltext(metadata)
@@ -469,8 +489,16 @@ def test_calculate_papers_per_query_clamps_to_two_minimum() -> None:
 def test_merge_search_results_combines_and_maps_sources() -> None:
     """Results from multiple sources merge with a paper -> source map."""
     source_results = [
-        ("pubmed", {"p1": {"title": "Alpha"}}),
-        ("arxiv", {"a1": {"title": "Beta"}}),
+        ("pubmed", {
+            "p1": {
+                "title": "Alpha"
+            }
+        }),
+        ("arxiv", {
+            "a1": {
+                "title": "Beta"
+            }
+        }),
     ]
     merged, source_map = helpers.merge_search_results(source_results)
     assert set(merged) == {"p1", "a1"}
@@ -480,8 +508,16 @@ def test_merge_search_results_combines_and_maps_sources() -> None:
 def test_merge_search_results_deduplicates_by_title() -> None:
     """A title seen earlier (case/space-insensitive) is dropped."""
     source_results = [
-        ("pubmed", {"p1": {"title": "Shared Title"}}),
-        ("arxiv", {"a1": {"title": "  shared title  "}}),
+        ("pubmed", {
+            "p1": {
+                "title": "Shared Title"
+            }
+        }),
+        ("arxiv", {
+            "a1": {
+                "title": "  shared title  "
+            }
+        }),
     ]
     merged, source_map = helpers.merge_search_results(source_results)
     assert set(merged) == {"p1"}
@@ -491,11 +527,18 @@ def test_merge_search_results_deduplicates_by_title() -> None:
 def test_merge_search_results_no_dedup_keeps_duplicates() -> None:
     """With ``deduplicate=False`` duplicate titles are all retained."""
     source_results = [
-        ("pubmed", {"p1": {"title": "Same"}}),
-        ("arxiv", {"a1": {"title": "Same"}}),
+        ("pubmed", {
+            "p1": {
+                "title": "Same"
+            }
+        }),
+        ("arxiv", {
+            "a1": {
+                "title": "Same"
+            }
+        }),
     ]
-    merged, _ = helpers.merge_search_results(source_results,
-                                             deduplicate=False)
+    merged, _ = helpers.merge_search_results(source_results, deduplicate=False)
     assert set(merged) == {"p1", "a1"}
 
 
@@ -541,8 +584,9 @@ def test_parse_pdf_discovery_list_input_string() -> None:
 
 def test_parse_pdf_discovery_list_input_dict() -> None:
     """A list input whose first element is a dict resolves via ``url``."""
-    assert helpers.parse_pdf_discovery_result([{"url": "http://x/e.pdf"}
-                                              ]) == "http://x/e.pdf"
+    assert helpers.parse_pdf_discovery_result([{
+        "url": "http://x/e.pdf"
+    }]) == "http://x/e.pdf"
 
 
 def test_parse_pdf_discovery_empty_returns_none() -> None:
