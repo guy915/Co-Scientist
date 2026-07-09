@@ -357,6 +357,70 @@ def render_report_markdown(
     return "\n".join(lines)
 
 
+def _build_report_content(
+    *,
+    run_id: str,
+    research_goal: str,
+    run_mode: str,
+    provider: str,
+    citation_summary: dict[str, int] | None,
+    meta_review: dict[str, Any] | None,
+    research_overview: dict[str, Any] | None,
+    execution_time: float | None,
+    summary: str | None,
+    db_path: str | None,
+) -> tuple[dict[str, Any], str]:
+    """Gather store data and build the report payload and markdown.
+
+    Leaderboard, top hypotheses, and every row count are read from the store
+    -- the drain has already persisted everything the payload counts, so the
+    counts have one definition across providers.
+
+    Args:
+        run_id: Identifier of the run being finalized.
+        research_goal: The natural-language research goal.
+        run_mode: Canonical run mode.
+        provider: ``"engine"`` or ``"mock"``.
+        citation_summary: Citation state -> count, or None.
+        meta_review: Meta-review synthesis dict, or None.
+        research_overview: Research-overview payload, or None.
+        execution_time: Wall-clock seconds, when the provider tracks it.
+        summary: Optional lead paragraph for the markdown ``## Summary``.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        A tuple of (report payload, rendered markdown).
+    """
+    hyps = store.list_hypotheses(run_id, db_path=db_path)
+    counts = store.summary_counts(run_id, db_path=db_path)
+    leaderboard = live_leaderboard(hyps)
+    payload = build_report_payload(
+        research_goal=research_goal,
+        run_mode=run_mode,
+        provider=provider,
+        leaderboard=leaderboard,
+        hypothesis_count=len(hyps),
+        evidence_count=counts["evidence"],
+        match_count=counts["matches"],
+        citation_summary=citation_summary,
+        meta_review=meta_review,
+        research_overview=research_overview,
+        execution_time=execution_time,
+    )
+    markdown = render_report_markdown(
+        research_goal=research_goal,
+        provider=provider,
+        # Report body is capped to the top 5 by Elo; the full set remains
+        # available via the leaderboard and the hypotheses API endpoint.
+        top_hypotheses=hyps[:5],
+        meta_review=meta_review,
+        citation_summary=citation_summary,
+        research_overview=research_overview,
+        summary=summary,
+    )
+    return payload, markdown
+
+
 async def finalize_report(
     *,
     run_id: str,
@@ -400,32 +464,17 @@ async def finalize_report(
     Yields:
         Event dicts to forward on the workflow's event stream.
     """
-    hyps = store.list_hypotheses(run_id, db_path=db_path)
-    counts = store.summary_counts(run_id, db_path=db_path)
-    leaderboard = live_leaderboard(hyps)
-    payload = build_report_payload(
+    payload, markdown = _build_report_content(
+        run_id=run_id,
         research_goal=research_goal,
         run_mode=run_mode,
         provider=provider,
-        leaderboard=leaderboard,
-        hypothesis_count=len(hyps),
-        evidence_count=counts["evidence"],
-        match_count=counts["matches"],
         citation_summary=citation_summary,
         meta_review=meta_review,
         research_overview=research_overview,
         execution_time=execution_time,
-    )
-    markdown = render_report_markdown(
-        research_goal=research_goal,
-        provider=provider,
-        # Report body is capped to the top 5 by Elo; the full set remains
-        # available via the leaderboard and the hypotheses API endpoint.
-        top_hypotheses=hyps[:5],
-        meta_review=meta_review,
-        citation_summary=citation_summary,
-        research_overview=research_overview,
         summary=summary,
+        db_path=db_path,
     )
 
     final = screen_final(markdown)

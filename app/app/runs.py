@@ -395,6 +395,76 @@ def _terminal_frame(status: str, seq: int) -> str:
     })
 
 
+async def _stream_live_tail(
+    run_id: str,
+    request: Request,
+    handle: _RunHandle | None,
+    last_seq: int,
+) -> AsyncGenerator[str, None]:
+    """Poll and yield live SSE frames after replay, until terminal or gone.
+
+    Polls the store; the in-process handle's `new_event` cuts latency when
+    this process is the producer. Caps with a wall-clock so a stale
+    connection doesn't hang forever.
+
+    Args:
+        run_id: Identifier of the run being streamed.
+        request: Incoming HTTP request, used to detect client disconnects.
+        handle: In-process run handle, or None when this process is not the
+            producer (falls back to plain fixed-interval polling).
+        last_seq: Highest sequence number already yielded by replay.
+
+    Yields:
+        SSE-formatted frame strings, ending with a synthetic `_terminal`
+        frame once the run reaches a terminal status.
+    """
+    for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
+        if await request.is_disconnected():
+            return
+
+        signaled = True
+        if handle is not None:
+            # Wake early on the producer's pulse; clear before querying
+            # so a set that races the query is caught next iteration.
+            try:
+                await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
+                handle.new_event.clear()
+            except asyncio.TimeoutError:
+                signaled = False
+        else:
+            # No in-process producer: plain fixed-interval polling.
+            await asyncio.sleep(0.5)
+
+        # With an in-process producer, every appended event sets
+        # `new_event`.
+        # A timed-out wait therefore means nothing was written, so skip the
+        # query -- except on the every-10th-tick terminal-status safety net.
+        if handle is not None and not signaled and tick % 10 != 9:
+            continue
+
+        new_events = store.list_events(run_id, after_seq=last_seq)
+        terminal_status: str | None = None
+        for ev in new_events:
+            last_seq = ev["seq"]
+            yield qa.sse_frame(ev)
+            if ev["type"] == "status":
+                status = (ev.get("payload") or {}).get("status")
+                if status in TERMINAL_STATUSES:
+                    terminal_status = status
+
+        # Exit on terminal. A terminal transition normally rides on a new
+        # event (all workflow paths append a `status` event), so ticks
+        # without one skip the run-row query; the every-10th tick check
+        # covers terminal writes that append no event.
+        if terminal_status is None and tick % 10 == 9:
+            current = store.get_run(run_id)
+            if current and current.status in TERMINAL_STATUSES:
+                terminal_status = current.status
+        if terminal_status is not None:
+            yield _terminal_frame(terminal_status, last_seq)
+            return
+
+
 @router.get("/{run_id}/events")
 async def stream_events(
         run_id: str,
@@ -436,54 +506,8 @@ async def stream_events(
         async with _active_lock:
             handle = _active.get(run_id)
 
-        # Live tail. Poll the store; the in-process handle's `new_event` cuts
-        # latency when we are the producing process. Cap with a wall-clock
-        # so a stale connection doesn't hang forever.
-        for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
-            if await request.is_disconnected():
-                return
-
-            signaled = True
-            if handle is not None:
-                # Wake early on the producer's pulse; clear before querying
-                # so a set that races the query is caught next iteration.
-                try:
-                    await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
-                    handle.new_event.clear()
-                except asyncio.TimeoutError:
-                    signaled = False
-            else:
-                # No in-process producer: plain fixed-interval polling.
-                await asyncio.sleep(0.5)
-
-            # With an in-process producer, every appended event sets
-            # `new_event`.
-            # A timed-out wait therefore means nothing was written, so skip the
-            # query -- except on the every-10th-tick terminal-status safety net.
-            if handle is not None and not signaled and tick % 10 != 9:
-                continue
-
-            new_events = store.list_events(run_id, after_seq=last_seq)
-            terminal_status: str | None = None
-            for ev in new_events:
-                last_seq = ev["seq"]
-                yield qa.sse_frame(ev)
-                if ev["type"] == "status":
-                    status = (ev.get("payload") or {}).get("status")
-                    if status in TERMINAL_STATUSES:
-                        terminal_status = status
-
-            # Exit on terminal. A terminal transition normally rides on a new
-            # event (all workflow paths append a `status` event), so ticks
-            # without one skip the run-row query; the every-10th tick check
-            # covers terminal writes that append no event.
-            if terminal_status is None and tick % 10 == 9:
-                current = store.get_run(run_id)
-                if current and current.status in TERMINAL_STATUSES:
-                    terminal_status = current.status
-            if terminal_status is not None:
-                yield _terminal_frame(terminal_status, last_seq)
-                return
+        async for frame in _stream_live_tail(run_id, request, handle, last_seq):
+            yield frame
 
     return StreamingResponse(
         event_gen(),
