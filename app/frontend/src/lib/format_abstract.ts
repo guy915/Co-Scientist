@@ -46,6 +46,7 @@ const SECTION_LABELS = [
   'AIM',
 ];
 
+/** One labeled (or unlabeled) segment of a structured abstract. */
 export interface AbstractSection {
   /** Display label (title-cased) or null for unlabeled text. */
   label: string | null;
@@ -96,8 +97,8 @@ const LABEL_RE = new RegExp(
  */
 function findLabelMarks(
   text: string,
-): Array<{start: number; end: number; label: string}> {
-  const marks: Array<{start: number; end: number; label: string}> = [];
+): {start: number; end: number; label: string}[] {
+  const marks: {start: number; end: number; label: string}[] = [];
   LABEL_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = LABEL_RE.exec(text)) !== null) {

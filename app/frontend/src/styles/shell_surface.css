@@ -243,7 +243,7 @@
   background: transparent;
   color: var(--cosci-home-heading);
   cursor: pointer;
-  font-family: "Google Sans", system-ui, sans-serif;
+  font-family: 'Google Sans', system-ui, sans-serif;
   font-size: 1.25rem;
   font-weight: 500;
   letter-spacing: -0.6px;
@@ -374,7 +374,7 @@
   padding: 0.18rem;
 }
 
-:root[data-theme="dark"] .ucs-theme-segment {
+:root[data-theme='dark'] .ucs-theme-segment {
   border-color: var(--cosci-border);
   background: #1b1b1b;
 }
@@ -397,7 +397,7 @@
   padding-inline: 0.44rem;
 }
 
-:root[data-theme="dark"] .ucs-theme-button {
+:root[data-theme='dark'] .ucs-theme-button {
   color: var(--cosci-muted);
 }
 
@@ -414,7 +414,7 @@
   color: #0b57d0;
 }
 
-:root[data-theme="dark"] .ucs-theme-button.selected {
+:root[data-theme='dark'] .ucs-theme-button.selected {
   background: #0842a0;
   color: #d3e3fd;
 }
@@ -470,7 +470,7 @@
 
 .ucs-settings-dialog-title {
   margin: 0;
-  font-family: "Google Sans", system-ui, sans-serif;
+  font-family: 'Google Sans', system-ui, sans-serif;
   font-size: 1.375rem;
   font-weight: 500;
   letter-spacing: -0.01em;
@@ -541,9 +541,9 @@
   color: #0b57d0;
 }
 
-:root[data-theme="dark"] .ucs-settings-nav-item--active,
-:root[data-theme="dark"] .ucs-settings-nav-item--active:hover,
-:root[data-theme="dark"] .ucs-settings-nav-item--active:focus-visible {
+:root[data-theme='dark'] .ucs-settings-nav-item--active,
+:root[data-theme='dark'] .ucs-settings-nav-item--active:hover,
+:root[data-theme='dark'] .ucs-settings-nav-item--active:focus-visible {
   background: #0842a0;
   color: #d3e3fd;
 }
@@ -568,13 +568,13 @@
   padding: 1.25rem 1.4rem 1.4rem;
 }
 
-:root[data-theme="dark"] .ucs-settings-card {
+:root[data-theme='dark'] .ucs-settings-card {
   background: #1e1f20;
 }
 
 .ucs-settings-card-title {
   margin: 0 0 1rem;
-  font-family: "Google Sans", system-ui, sans-serif;
+  font-family: 'Google Sans', system-ui, sans-serif;
   font-size: 1.05rem;
   font-weight: 500;
 }
@@ -709,7 +709,7 @@
   transform: translateX(-50%);
 }
 
-:root[data-theme="dark"] .ucs-settings-toast {
+:root[data-theme='dark'] .ucs-settings-toast {
   background: #e3e3e3;
   color: #1f1f1f;
 }
@@ -778,15 +778,15 @@
   color: var(--cosci-shell-hover-text);
 }
 
-:root[data-theme="dark"] .ucs-chat-link {
+:root[data-theme='dark'] .ucs-chat-link {
   color: var(--cosci-muted);
 }
 
-:root[data-theme="dark"] .ucs-chat-link:hover,
-:root[data-theme="dark"] .ucs-chat-link:focus-visible,
-:root[data-theme="dark"] .ucs-chat-link--active,
-:root[data-theme="dark"] .ucs-chat-link--active:hover,
-:root[data-theme="dark"] .ucs-chat-link--active:focus-visible {
+:root[data-theme='dark'] .ucs-chat-link:hover,
+:root[data-theme='dark'] .ucs-chat-link:focus-visible,
+:root[data-theme='dark'] .ucs-chat-link--active,
+:root[data-theme='dark'] .ucs-chat-link--active:hover,
+:root[data-theme='dark'] .ucs-chat-link--active:focus-visible {
   background: var(--cosci-shell-hover-bg);
   color: var(--cosci-shell-hover-text);
 }
@@ -820,12 +820,12 @@
   color: var(--cosci-shell-hover-text);
 }
 
-:root[data-theme="dark"] .ucs-chat-more {
+:root[data-theme='dark'] .ucs-chat-more {
   color: var(--cosci-muted);
 }
 
-:root[data-theme="dark"] .ucs-chat-more:hover,
-:root[data-theme="dark"] .ucs-chat-more:focus-visible {
+:root[data-theme='dark'] .ucs-chat-more:hover,
+:root[data-theme='dark'] .ucs-chat-more:focus-visible {
   background: var(--cosci-shell-hover-bg);
   color: var(--cosci-shell-hover-text);
 }

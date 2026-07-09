@@ -36,11 +36,7 @@
   inset-inline: 0;
   bottom: 0;
   padding-top: 2.75rem;
-  background: linear-gradient(
-    to top,
-    var(--cosci-surface-bg) 62%,
-    transparent
-  );
+  background: linear-gradient(to top, var(--cosci-surface-bg) 62%, transparent);
   pointer-events: none;
 }
 
@@ -99,7 +95,7 @@
   width: min(100%, 34.375rem);
   margin: 0 auto 0.5rem;
   color: var(--cosci-home-heading);
-  font-family: "Google Sans", system-ui, sans-serif;
+  font-family: 'Google Sans', system-ui, sans-serif;
   font-size: clamp(2.25rem, 3.4vw, 2.8125rem);
   font-weight: 400;
   line-height: 1.156;
@@ -124,7 +120,7 @@
 }
 
 .reference-step-timeline::before {
-  content: "";
+  content: '';
   position: absolute;
   top: 1rem;
   right: 1rem;
@@ -304,7 +300,11 @@
      instead of hard-cutting (mirrors the composer's fade over the timeline).
      A mask is scroll-aware and background-agnostic, so it works in both
      themes without matching a surface token. */
-  mask-image: linear-gradient(to bottom, #000 calc(100% - 2.25rem), transparent);
+  mask-image: linear-gradient(
+    to bottom,
+    #000 calc(100% - 2.25rem),
+    transparent
+  );
   -webkit-mask-image: linear-gradient(
     to bottom,
     #000 calc(100% - 2.25rem),
@@ -540,7 +540,7 @@
   color: #1e8e3e;
 }
 
-:root[data-theme="dark"] .reference-run-step-done {
+:root[data-theme='dark'] .reference-run-step-done {
   color: var(--cosci-green);
 }
 
@@ -549,8 +549,7 @@
   height: 1.05rem;
   flex-shrink: 0;
   border-radius: 9999px;
-  border: 2px solid
-    color-mix(in srgb, var(--color-th-primary) 28%, transparent);
+  border: 2px solid color-mix(in srgb, var(--color-th-primary) 28%, transparent);
   border-top-color: var(--color-th-primary);
   animation: reference-run-step-spin 0.8s linear infinite;
 }
@@ -596,7 +595,7 @@
   text-decoration: underline;
 }
 
-:root[data-theme="dark"] .reference-load-more {
+:root[data-theme='dark'] .reference-load-more {
   color: var(--cosci-blue);
 }
 
@@ -605,7 +604,10 @@
     --home-recents-width: clamp(19rem, 18vw, 20.5rem);
 
     align-items: start;
-    grid-template-columns: minmax(0, 1fr) minmax(19rem, var(--home-recents-width));
+    grid-template-columns: minmax(0, 1fr) minmax(
+        19rem,
+        var(--home-recents-width)
+      );
     justify-content: stretch;
     gap: clamp(2.25rem, 3.1vw, 3.35rem);
     padding-block: 0;
@@ -756,7 +758,6 @@
     grid-template-columns: 1.4rem minmax(0, 1fr);
     gap: 0.2rem;
   }
-
 }
 
 @media (min-width: 701px) {

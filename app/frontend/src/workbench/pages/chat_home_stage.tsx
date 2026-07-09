@@ -36,7 +36,7 @@ import {TruncatedLabel} from '../components/truncated_label';
 // (Do not add a hand-shortened variant — a pre-truncated string fed to a
 // width-aware truncator can never fill the actual card space.) Each carries a
 // leading glyph shown in the mobile list layout.
-const SUGGESTIONS: ReadonlyArray<{text: string; icon: IconName}> = [
+const SUGGESTIONS: readonly {text: string; icon: IconName}[] = [
   {
     text: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
     icon: 'search',
@@ -53,11 +53,11 @@ const SUGGESTIONS: ReadonlyArray<{text: string; icon: IconName}> = [
 
 // Copy for the desktop-only 1-2-3 onboarding timeline rendered below the
 // title (hidden on mobile to save vertical space; see the `!isMobile` guard).
-const SESSION_STEPS: ReadonlyArray<{
+const SESSION_STEPS: readonly {
   n: number;
   title: string;
   body: string;
-}> = [
+}[] = [
   {
     n: 1,
     title: 'Frame the research goal',

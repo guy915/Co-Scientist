@@ -5,9 +5,11 @@ import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
 import {useToast} from '../hooks/use_toast';
 import {useTheme} from '../theme_context';
 
-// The dialog's section rail options; also the type of the currently-open
-// section, controlled by the parent (see the `section`/`onSectionChange`
-// props below).
+/**
+ * The dialog's section rail options; also the type of the currently-open
+ * section, controlled by the parent (see the `section`/`onSectionChange`
+ * props below).
+ */
 export type SettingsSection = 'appearance' | 'model' | 'help';
 
 type ThemeMode = 'system' | 'light' | 'dark';
@@ -15,18 +17,18 @@ type ThemeMode = 'system' | 'light' | 'dark';
 // Options rendered in the Appearance section's theme segmented control.
 // Selecting one calls useTheme()'s setMode, which persists the choice (see
 // theme_context.tsx) and updates the resolved MD3 theme immediately.
-const THEME_MODES: Array<{mode: ThemeMode; icon: IconName; label: string}> = [
+const THEME_MODES: {mode: ThemeMode; icon: IconName; label: string}[] = [
   {mode: 'system', icon: 'computer', label: 'System'},
   {mode: 'light', icon: 'light_mode', label: 'Light'},
   {mode: 'dark', icon: 'dark_mode', label: 'Dark'},
 ];
 
 // Section-rail entries, in display order.
-const SECTIONS: Array<{
+const SECTIONS: {
   section: SettingsSection;
   icon: IconName;
   label: string;
-}> = [
+}[] = [
   {section: 'appearance', icon: 'palette', label: 'Appearance'},
   {section: 'model', icon: 'neurology', label: 'Model'},
   {section: 'help', icon: 'help', label: 'Help'},
@@ -34,7 +36,7 @@ const SECTIONS: Array<{
 
 // Static question/answer copy rendered as collapsible <details> in the Help
 // section.
-const FAQ: Array<{question: string; answer: string}> = [
+const FAQ: {question: string; answer: string}[] = [
   {
     question: 'What is Co-Scientist?',
     answer:

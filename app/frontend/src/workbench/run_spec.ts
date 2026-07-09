@@ -11,12 +11,14 @@ export interface InferredRunSpec {
   tier: RunTier;
 }
 
+/** One compute-tier choice in the run-setup picker. */
 export interface RunTierOption {
   id: RunTier;
   label: string;
   description: string;
 }
 
+/** One evidence-vs-novelty focus choice in the run-setup picker. */
 export interface RunFocusOption {
   id: RunFocus;
   label: string;
@@ -24,8 +26,10 @@ export interface RunFocusOption {
   icon: string;
 }
 
-// Compute-tier choices shown in the run-setup picker; `id` is sent to the
-// backend as the run's `tier`.
+/**
+ * Compute-tier choices shown in the run-setup picker; `id` is sent to the
+ * backend as the run's `tier`.
+ */
 export const TIER_OPTIONS: RunTierOption[] = [
   {
     id: 'express',
@@ -52,8 +56,10 @@ export const TIER_OPTIONS: RunTierOption[] = [
   },
 ];
 
-// Evidence-vs-novelty tradeoff choices shown in the run-setup picker; `id` is
-// sent to the backend as the run's `focus`.
+/**
+ * Evidence-vs-novelty tradeoff choices shown in the run-setup picker; `id` is
+ * sent to the backend as the run's `focus`.
+ */
 export const FOCUS_OPTIONS: RunFocusOption[] = [
   {
     id: 'prefer_evidence',

@@ -907,7 +907,7 @@ function formatStartedSessionResponse(session: StartedSession): string {
 // Looks up an option's display label by id (e.g. FOCUS_OPTIONS/TIER_OPTIONS),
 // falling back to the raw value if the id isn't recognized.
 function runOptionLabel(
-  options: ReadonlyArray<{id: string; label: string}>,
+  options: readonly {id: string; label: string}[],
   value: string,
 ): string {
   return options.find(option => option.id === value)?.label || value;
@@ -951,7 +951,7 @@ function RunOptionGroup({
   label: string;
   name: string;
   value: string;
-  options: ReadonlyArray<{id: string; label: string; description: string}>;
+  options: readonly {id: string; label: string; description: string}[];
   disabled?: boolean;
   onChange: (value: string) => void;
 }) {

@@ -107,7 +107,7 @@
   --cosci-idea-detail-text: var(--cosci-text);
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --cosci-bg: #131314;
   --cosci-rail: #1e1f20;
   --cosci-panel: #1e1f20;
@@ -133,7 +133,11 @@
 
   /* Dark: same brand greens as the logo/submit accent (mint green dot on a
      near-black number, line blends mint with the dark outline). */
-  --cosci-step-line: color-mix(in srgb, var(--cosci-green) 52%, var(--cosci-border));
+  --cosci-step-line: color-mix(
+    in srgb,
+    var(--cosci-green) 52%,
+    var(--cosci-border)
+  );
   --cosci-step-dot-bg: var(--cosci-green);
   --cosci-step-dot-text: #131314;
   --cosci-logo-color: var(--cosci-green);
@@ -206,11 +210,10 @@ body {
 
 .reference-started-session-card {
   background:
-    linear-gradient(100deg, rgb(16 92 92 / 95%), rgb(42 117 95 / 94%)),
-    #145d5d;
+    linear-gradient(100deg, rgb(16 92 92 / 95%), rgb(42 117 95 / 94%)), #145d5d;
 }
 
-:root[data-theme="dark"] .reference-started-session-card {
+:root[data-theme='dark'] .reference-started-session-card {
   background:
     linear-gradient(100deg, rgb(26 110 98 / 98%), rgb(38 138 108 / 96%)),
     #1a6b5e;

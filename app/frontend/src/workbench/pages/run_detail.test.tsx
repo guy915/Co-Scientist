@@ -10,7 +10,7 @@ import {makeHypothesis} from '@/test-fixtures';
 // the event-driven refetch effect. `setStream` replaces the events array so its
 // identity changes and the effect re-runs.
 const streamMock = vi.hoisted(() => ({
-  state: {events: [] as Array<{seq: number; type: string; payload: object}>},
+  state: {events: [] as {seq: number; type: string; payload: object}[]},
 }));
 vi.mock('@/hooks/use_run_stream', () => ({
   useRunStream: () => ({events: streamMock.state.events, terminal: false}),
@@ -34,9 +34,7 @@ vi.mock('@/hooks/use_debounced_callback', () => {
   };
 });
 
-function setStream(
-  events: Array<{seq: number; type: string; payload: object}>,
-) {
+function setStream(events: {seq: number; type: string; payload: object}[]) {
   streamMock.state = {events};
 }
 

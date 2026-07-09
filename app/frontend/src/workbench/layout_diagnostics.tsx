@@ -383,7 +383,7 @@ function DiagnosticLogsHeader({
 function buildDiagnosticChips(
   entryCount: number,
   counts: DiagnosticCounts,
-): Array<[string, number, string]> {
+): [string, number, string][] {
   return [
     ['Total', entryCount, DIAGNOSTIC_CHIP_CLASSES],
     [

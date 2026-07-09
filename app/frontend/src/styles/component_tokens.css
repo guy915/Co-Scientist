@@ -117,7 +117,7 @@
   --cosci-reference-open-hover-border: var(--cosci-muted);
 }
 
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   --cosci-danger-bg: #3c1715;
   --cosci-danger-border: #5b2b2b;
   --cosci-danger-fg: #ffb4aa;

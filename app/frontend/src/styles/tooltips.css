@@ -83,7 +83,7 @@
   max-width: min(16.5rem, calc(100vw - 2rem));
 }
 
-[data-theme="dark"] [data-tooltip].ucs-tooltip-anchor::after {
+[data-theme='dark'] [data-tooltip].ucs-tooltip-anchor::after {
   border-color: #c4c7c5;
   background: #e3e3e3;
   box-shadow:

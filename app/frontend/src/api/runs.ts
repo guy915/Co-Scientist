@@ -67,9 +67,7 @@ export function isActiveStatus(status: RunStatus | undefined): boolean {
  * Returns the first value in `values` that is neither null nor undefined, or
  * undefined when every value is nullish.
  */
-function firstDefined<T>(
-  ...values: Array<T | null | undefined>
-): T | undefined {
+function firstDefined<T>(...values: (T | null | undefined)[]): T | undefined {
   return values.find(
     (value): value is T => value !== null && value !== undefined,
   );

@@ -8,7 +8,12 @@ import './index.css'; // Tailwind layers + --color-th-* theme bridge variables
 import './styles/index.css'; // app-specific global styles
 import {WorkbenchApp} from './workbench/workbench_app';
 
-createRoot(document.getElementById('root')!).render(
+const rootElement = document.getElementById('root');
+if (!rootElement) {
+  throw new Error('Missing #root element in index.html.');
+}
+
+createRoot(rootElement).render(
   <StrictMode>
     <BrowserRouter>
       <WorkbenchApp />

@@ -2,7 +2,11 @@ import {describe, expect, it} from 'vitest';
 
 import {mergeByIdNewestFirst} from './merge';
 
-type Item = {id: string; updated_at: number; tag?: string};
+interface Item {
+  id: string;
+  updated_at: number;
+  tag?: string;
+}
 
 const id = (i: Item) => i.id;
 const updatedAt = (i: Item) => i.updated_at;

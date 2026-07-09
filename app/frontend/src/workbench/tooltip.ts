@@ -1,13 +1,13 @@
 // Which side of the anchor the tooltip bubble appears on.
 type TooltipPlacement = 'top' | 'right' | 'bottom' | 'left';
 
-type TooltipClassOptions = {
+interface TooltipClassOptions {
   className?: string; // the anchor's own classes, prepended verbatim
   placement: TooltipPlacement;
   wrap?: boolean; // allow multi-line tooltips (defaults to nowrap)
   alignEnd?: boolean; // align the bubble to the anchor's end edge
   alignStart?: boolean; // align the bubble to the anchor's start edge
-};
+}
 
 /**
  * Builds the class list that turns an element into a CSS-only tooltip anchor.

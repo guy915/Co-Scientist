@@ -737,9 +737,11 @@ function ChatHistorySidebar({
 
 // [label, icon, section] for each row of the Settings popover menu, in
 // display order.
-const SETTINGS_MENU_ITEMS: ReadonlyArray<
-  [label: string, icon: IconName, section: SettingsSection]
-> = [
+const SETTINGS_MENU_ITEMS: readonly [
+  label: string,
+  icon: IconName,
+  section: SettingsSection,
+][] = [
   ['Appearance', 'palette', 'appearance'],
   ['Model', 'neurology', 'model'],
   ['Help', 'help', 'help'],

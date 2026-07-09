@@ -2,8 +2,8 @@
    (this project imports theme + utilities only, not Tailwind's preflight). */
 @layer theme, base, components, utilities;
 
-@import "tailwindcss/theme" layer(theme);
-@import "tailwindcss/utilities" layer(utilities) source(none);
+@import 'tailwindcss/theme' layer(theme);
+@import 'tailwindcss/utilities' layer(utilities) source(none);
 
 @source "./components";
 @source "./public";
@@ -12,30 +12,30 @@
 @source not "./**/*.test.tsx";
 
 @font-face {
-  font-family: "Google Sans";
+  font-family: 'Google Sans';
   font-display: swap;
   font-style: normal;
   font-weight: 400;
-  src: url("../node_modules/@fontsource/google-sans/files/google-sans-latin-400-normal.woff2")
-    format("woff2");
+  src: url('../node_modules/@fontsource/google-sans/files/google-sans-latin-400-normal.woff2')
+    format('woff2');
 }
 
 @font-face {
-  font-family: "Google Sans";
+  font-family: 'Google Sans';
   font-display: swap;
   font-style: normal;
   font-weight: 500;
-  src: url("../node_modules/@fontsource/google-sans/files/google-sans-latin-500-normal.woff2")
-    format("woff2");
+  src: url('../node_modules/@fontsource/google-sans/files/google-sans-latin-500-normal.woff2')
+    format('woff2');
 }
 
 @font-face {
-  font-family: "Google Sans";
+  font-family: 'Google Sans';
   font-display: swap;
   font-style: normal;
   font-weight: 700;
-  src: url("../node_modules/@fontsource/google-sans/files/google-sans-latin-700-normal.woff2")
-    format("woff2");
+  src: url('../node_modules/@fontsource/google-sans/files/google-sans-latin-700-normal.woff2')
+    format('woff2');
 }
 
 /* Google Sans Text — the UI/body face the live Gemini Enterprise product uses
@@ -43,27 +43,27 @@
    (greeting, document headings, wordmark, button labels). Vendored woff2s
    (latin, 400/500/700), same pattern as the @fontsource Google Sans above. */
 @font-face {
-  font-family: "Google Sans Text";
+  font-family: 'Google Sans Text';
   font-display: swap;
   font-style: normal;
   font-weight: 400;
-  src: url("./assets/fonts/google-sans-text-latin-400.woff2") format("woff2");
+  src: url('./assets/fonts/google-sans-text-latin-400.woff2') format('woff2');
 }
 
 @font-face {
-  font-family: "Google Sans Text";
+  font-family: 'Google Sans Text';
   font-display: swap;
   font-style: normal;
   font-weight: 500;
-  src: url("./assets/fonts/google-sans-text-latin-500.woff2") format("woff2");
+  src: url('./assets/fonts/google-sans-text-latin-500.woff2') format('woff2');
 }
 
 @font-face {
-  font-family: "Google Sans Text";
+  font-family: 'Google Sans Text';
   font-display: swap;
   font-style: normal;
   font-weight: 700;
-  src: url("./assets/fonts/google-sans-text-latin-700.woff2") format("woff2");
+  src: url('./assets/fonts/google-sans-text-latin-700.woff2') format('woff2');
 }
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
@@ -79,8 +79,14 @@
   --color-th-popover-fg: var(--md-sys-color-on-surface, hsl(0 0% 3.9%));
   --color-th-primary: var(--md-sys-color-primary, hsl(0 0% 9%));
   --color-th-primary-fg: var(--md-sys-color-on-primary, hsl(0 0% 98%));
-  --color-th-secondary: var(--md-sys-color-secondary-container, hsl(0 0% 96.1%));
-  --color-th-secondary-fg: var(--md-sys-color-on-secondary-container, hsl(0 0% 9%));
+  --color-th-secondary: var(
+    --md-sys-color-secondary-container,
+    hsl(0 0% 96.1%)
+  );
+  --color-th-secondary-fg: var(
+    --md-sys-color-on-secondary-container,
+    hsl(0 0% 9%)
+  );
   --color-th-muted: var(--md-sys-color-surface-variant, hsl(0 0% 96.1%));
   --color-th-muted-fg: var(--md-sys-color-on-surface-variant, hsl(0 0% 45.1%));
   --color-th-accent: var(--md-sys-color-tertiary-container, hsl(0 0% 96.1%));
@@ -93,14 +99,26 @@
   /* No MD3 equivalent — keep hardcoded */
   --color-th-success: hsl(142 71% 45%);
   --color-th-success-fg: hsl(0 0% 100%);
-  --color-th-success-container: var(--md-sys-color-secondary-container, hsl(138 38% 93%));
-  --color-th-on-success-container: var(--md-sys-color-on-secondary-container, hsl(138 45% 20%));
+  --color-th-success-container: var(
+    --md-sys-color-secondary-container,
+    hsl(138 38% 93%)
+  );
+  --color-th-on-success-container: var(
+    --md-sys-color-on-secondary-container,
+    hsl(138 45% 20%)
+  );
   --color-th-warning: hsl(38 92% 50%);
   --color-th-warning-fg: hsl(0 0% 100%);
   --color-th-warning-container: hsl(38 92% 92%);
   --color-th-on-warning-container: hsl(38 92% 16%);
-  --color-th-destructive-container: var(--md-sys-color-error-container, hsl(0 84.2% 95.3%));
-  --color-th-destructive-on-container: var(--md-sys-color-on-error-container, hsl(0 84.2% 20%));
+  --color-th-destructive-container: var(
+    --md-sys-color-error-container,
+    hsl(0 84.2% 95.3%)
+  );
+  --color-th-destructive-on-container: var(
+    --md-sys-color-on-error-container,
+    hsl(0 84.2% 20%)
+  );
   --color-th-info: hsl(199 89% 48%);
   --color-th-info-fg: hsl(0 0% 100%);
   --color-th-link: hsl(221 83% 53%);
@@ -206,7 +224,9 @@
   --color-cosci-idea-row-hover-bg: var(--cosci-idea-row-hover-bg);
   --color-cosci-idea-row-selected-border: var(--cosci-idea-row-selected-border);
   --color-cosci-idea-row-selected-bg: var(--cosci-idea-row-selected-bg);
-  --color-cosci-idea-row-selected-hover-bg: var(--cosci-idea-row-selected-hover-bg);
+  --color-cosci-idea-row-selected-hover-bg: var(
+    --cosci-idea-row-selected-hover-bg
+  );
   --color-cosci-idea-chip-bg: var(--cosci-idea-chip-bg);
   --color-cosci-idea-chip-text: var(--cosci-idea-chip-text);
   --color-cosci-idea-title-text: var(--cosci-idea-title-text);
@@ -218,15 +238,15 @@
   /* Typefaces: font-gsans = display face (greeting, doc headings, wordmark);
      font-gsans-text = UI/body face (the :root default — utility exists for
      opting descendants back in under a display-font parent). */
-  --font-gsans: "Google Sans", system-ui, sans-serif;
+  --font-gsans: 'Google Sans', system-ui, sans-serif;
   --font-gsans-text:
-    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
+    'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
 
   --radius: 0.5rem;
 }
 
 /* MD3 dark tokens are set by applyMd3Theme(true) at runtime */
-:root[data-theme="dark"] {
+:root[data-theme='dark'] {
   /* MD3 elevation — shadows read less on dark surfaces, so opacities lift. */
   --md-elevation-1:
     0 1px 2px 0 rgb(0 0 0 / 45%), 0 1px 3px 1px rgb(0 0 0 / 30%);
@@ -247,7 +267,7 @@
   color-scheme: dark;
 }
 
-:root[data-theme="light"] {
+:root[data-theme='light'] {
   color-scheme: light;
 }
 
@@ -255,11 +275,11 @@
   /* Matches the live product: Google Sans Text for running UI text (plain),
      Google Sans proper for display — greeting, document headings,
      wordmark. */
-  --md-ref-typeface-brand: "Google Sans", system-ui, sans-serif;
+  --md-ref-typeface-brand: 'Google Sans', system-ui, sans-serif;
   --md-ref-typeface-plain:
-    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
+    'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
   font-family:
-    "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
+    'Google Sans Text', 'Google Sans', 'Roboto', system-ui, sans-serif;
 
   /* MD3 elevation levels (light). Reserved for overlays that float above the
      page — menus, popovers, dialogs, toasts. Cards, inputs, and tables stay
@@ -294,7 +314,7 @@
 }
 
 .md-state::after {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0;
   z-index: -1;
@@ -331,7 +351,7 @@
 }
 
 .reference-report-tabs button::before {
-  content: "";
+  content: '';
   position: absolute;
   inset: 0.3rem 0.6rem;
   border-radius: 0.75rem;
@@ -427,12 +447,12 @@ body {
   background-clip: padding-box;
 }
 
-:root[data-theme="dark"] *::-webkit-scrollbar-thumb {
+:root[data-theme='dark'] *::-webkit-scrollbar-thumb {
   background: #444746;
   background-clip: padding-box;
 }
 
-:root[data-theme="dark"] *::-webkit-scrollbar-thumb:hover {
+:root[data-theme='dark'] *::-webkit-scrollbar-thumb:hover {
   background: #8e918f;
   background-clip: padding-box;
 }
@@ -443,8 +463,8 @@ body {
 button,
 a,
 summary,
-[role="button"],
-[role="tab"],
+[role='button'],
+[role='tab'],
 input,
 select,
 textarea {
@@ -468,8 +488,8 @@ textarea {
   button,
   a,
   summary,
-  [role="button"],
-  [role="tab"],
+  [role='button'],
+  [role='tab'],
   input,
   select,
   textarea {

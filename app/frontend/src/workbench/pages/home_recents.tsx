@@ -458,10 +458,10 @@ function homeRunStepIndex(run: Run): number {
 
 // Keyword -> placeholder "winning ideas" title set for a recents card (see
 // homeRunIdeaTitles). Checked in order; the first matching rule wins.
-const HOME_RUN_IDEA_TITLE_RULES: Array<{
+const HOME_RUN_IDEA_TITLE_RULES: {
   test: (normalized: string, goal: string) => boolean;
   titles: string[];
-}> = [
+}[] = [
   {
     test: normalized =>
       normalized.includes('ferroptosis') || normalized.includes('pancreatic'),

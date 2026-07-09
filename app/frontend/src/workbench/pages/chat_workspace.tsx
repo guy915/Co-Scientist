@@ -55,9 +55,9 @@ interface TimelineItem {
 // Cross-route signal carried on react-router navigation state (see the nav
 // rail's "New chat" / focus-composer actions) so this page can react to an
 // action that originated outside it.
-type ChatWorkspaceLocationState = {
+interface ChatWorkspaceLocationState {
   cosciAction?: 'new-chat' | 'focus-composer';
-};
+}
 
 /**
  * Renders the chat-first Co-Scientist workspace.
