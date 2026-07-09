@@ -164,6 +164,96 @@ def _entrez_read(handle: Any) -> dict[str, Any]:
         raise
 
 
+def _fetch_pubmed_article(paper_id: str) -> Article:
+    """Fetches and parses metadata for a single PubMed article.
+
+    Args:
+        paper_id: PubMed id to fetch.
+
+    Returns:
+        Article populated from the Entrez efetch response.
+
+    Raises:
+        Exception: Propagated from the Entrez efetch call or from an
+            unexpected response structure; the caller treats any failure
+            as a per-paper skip.
+    """
+    paper_results = _entrez_read(Entrez.efetch(db="pubmed", id=paper_id))
+
+    pubmed_article = paper_results["PubmedArticle"][0]
+    medline = pubmed_article["MedlineCitation"]
+    article_data = medline["Article"]
+
+    title = article_data.get("ArticleTitle", "Unknown")
+
+    # PubMed abstracts are sometimes split into multiple
+    # labeled sections (e.g. Background/Methods/Results);
+    # join them into one string.
+    try:
+        abstract_parts = article_data.get("Abstract",
+                                          {}).get("AbstractText", [])
+        abstract = (" ".join(
+            str(part) for part in abstract_parts) if abstract_parts else None)
+    except (KeyError, TypeError):
+        abstract = None
+
+    authors = []
+    try:
+        author_list = article_data.get("AuthorList", [])
+        for author in author_list:
+            if isinstance(author, dict):
+                first_name = author.get("ForeName", "")
+                last_name = author.get("LastName", "")
+                if first_name and last_name:
+                    authors.append(f"{first_name} {last_name}")
+    except (KeyError, TypeError):
+        pass
+
+    doi = None
+    try:
+        # ArticleIdList mixes several id types (pubmed, doi,
+        # pii, ...); each entry carries its type as an XML
+        # attribute, so filter for "doi" specifically.
+        article_ids = pubmed_article.get("PubmedData",
+                                         {}).get("ArticleIdList", [])
+        for article_id in article_ids:
+            if (hasattr(article_id, "attributes") and
+                    article_id.attributes.get("IdType") == "doi"):
+                doi = str(article_id)
+                break
+    except (KeyError, TypeError, AttributeError):
+        pass
+
+    venue = None
+    year = None
+    try:
+        journal_info = article_data.get("Journal", {})
+        venue = journal_info.get("Title")
+
+        pub_date = journal_info.get("JournalIssue", {}).get("PubDate", {})
+        year_str = pub_date.get("Year")
+        if year_str:
+            year = int(year_str)
+    except (KeyError, TypeError, ValueError):
+        pass
+
+    # Prefer the DOI resolver link when available since it
+    # points at the publisher's copy; fall back to the
+    # PubMed record page otherwise.
+    url = f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
+    if doi:
+        url = f"https://doi.org/{doi}"
+
+    return Article(title=title,
+                   url=url,
+                   authors=authors,
+                   year=year,
+                   venue=venue,
+                   abstract=abstract,
+                   source_id=paper_id,
+                   source="pubmed")
+
+
 def search_pubmed(query: str, max_papers: int = 10) -> str:
     """Searches PubMed for papers and returns Article objects with metadata.
 
@@ -197,86 +287,10 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
             # fetched (and any failure handled) independently so one
             # malformed record doesn't abort the whole batch.
             try:  # pylint: disable=broad-exception-caught
-                paper_results = _entrez_read(
-                    Entrez.efetch(db="pubmed", id=paper_id))
-
-                pubmed_article = paper_results["PubmedArticle"][0]
-                medline = pubmed_article["MedlineCitation"]
-                article_data = medline["Article"]
-
-                title = article_data.get("ArticleTitle", "Unknown")
-
-                # PubMed abstracts are sometimes split into multiple
-                # labeled sections (e.g. Background/Methods/Results);
-                # join them into one string.
-                try:
-                    abstract_parts = article_data.get("Abstract", {}).get(
-                        "AbstractText", [])
-                    abstract = (" ".join(str(part) for part in abstract_parts)
-                                if abstract_parts else None)
-                except (KeyError, TypeError):
-                    abstract = None
-
-                authors = []
-                try:
-                    author_list = article_data.get("AuthorList", [])
-                    for author in author_list:
-                        if isinstance(author, dict):
-                            first_name = author.get("ForeName", "")
-                            last_name = author.get("LastName", "")
-                            if first_name and last_name:
-                                authors.append(f"{first_name} {last_name}")
-                except (KeyError, TypeError):
-                    pass
-
-                doi = None
-                try:
-                    # ArticleIdList mixes several id types (pubmed, doi,
-                    # pii, ...); each entry carries its type as an XML
-                    # attribute, so filter for "doi" specifically.
-                    article_ids = pubmed_article.get("PubmedData", {}).get(
-                        "ArticleIdList", [])
-                    for article_id in article_ids:
-                        if (hasattr(article_id, "attributes") and
-                                article_id.attributes.get("IdType") == "doi"):
-                            doi = str(article_id)
-                            break
-                except (KeyError, TypeError, AttributeError):
-                    pass
-
-                venue = None
-                year = None
-                try:
-                    journal_info = article_data.get("Journal", {})
-                    venue = journal_info.get("Title")
-
-                    pub_date = journal_info.get("JournalIssue",
-                                                {}).get("PubDate", {})
-                    year_str = pub_date.get("Year")
-                    if year_str:
-                        year = int(year_str)
-                except (KeyError, TypeError, ValueError):
-                    pass
-
-                # Prefer the DOI resolver link when available since it
-                # points at the publisher's copy; fall back to the
-                # PubMed record page otherwise.
-                url = f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
-                if doi:
-                    url = f"https://doi.org/{doi}"
-
-                article = Article(title=title,
-                                  url=url,
-                                  authors=authors,
-                                  year=year,
-                                  venue=venue,
-                                  abstract=abstract,
-                                  source_id=paper_id,
-                                  source="pubmed")
-
+                article = _fetch_pubmed_article(paper_id)
                 articles.append(article)
                 logger.debug("fetched metadata for paper %s: %s...", paper_id,
-                             title[:50])
+                             article.title[:50])
 
             except Exception as e:  # pylint: disable=broad-exception-caught
                 logger.warning("Failed to fetch metadata for paper %s: %s",

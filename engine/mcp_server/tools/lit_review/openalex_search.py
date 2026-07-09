@@ -93,6 +93,41 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
     return out
 
 
+def _build_search_params(query: str, max_papers: int,
+                         recency_years: int) -> tuple[dict[str, str], int]:
+    """Builds OpenAlex /works query params for a search request.
+
+    Pure function (no I/O) so it can be unit-tested directly.
+
+    Args:
+        query: Free-text search query.
+        max_papers: Maximum number of works to return (capped at 25).
+        recency_years: If > 0, restrict to works published within this many
+            years.
+
+    Returns:
+        A tuple of (query params dict, effective per-page count).
+    """
+    # Clamp to at least 1 and at most the API's per-page ceiling.
+    per_page = min(max(max_papers, 1), _MAX_PER_PAGE)
+    params: dict[str, str] = {
+        "search": query,
+        "per-page": str(per_page),
+    }
+    # Reuse the Entrez contact email if set; OpenAlex's "polite pool"
+    # (faster, more reliable responses) is granted to requests that
+    # identify a contact via mailto.
+    mailto = os.environ.get("ENTREZ_EMAIL") or os.environ.get("OPENALEX_MAILTO")
+    if mailto:
+        params["mailto"] = mailto
+    if recency_years and recency_years > 0:
+        # OpenAlex filter syntax: restrict to works published on/after
+        # January 1 of (current year - recency_years).
+        from_year = datetime.now(timezone.utc).year - recency_years
+        params["filter"] = f"from_publication_date:{from_year}-01-01"
+    return params, per_page
+
+
 async def search_openalex(
         query: str,
         max_papers: int = 10,
@@ -112,23 +147,7 @@ async def search_openalex(
         A dict of normalized works, or an empty dict on any error so the
         literature-review node degrades gracefully.
     """
-    # Clamp to at least 1 and at most the API's per-page ceiling.
-    per_page = min(max(max_papers, 1), _MAX_PER_PAGE)
-    params: dict[str, str] = {
-        "search": query,
-        "per-page": str(per_page),
-    }
-    # Reuse the Entrez contact email if set; OpenAlex's "polite pool"
-    # (faster, more reliable responses) is granted to requests that
-    # identify a contact via mailto.
-    mailto = os.environ.get("ENTREZ_EMAIL") or os.environ.get("OPENALEX_MAILTO")
-    if mailto:
-        params["mailto"] = mailto
-    if recency_years and recency_years > 0:
-        # OpenAlex filter syntax: restrict to works published on/after
-        # January 1 of (current year - recency_years).
-        from_year = datetime.now(timezone.utc).year - recency_years
-        params["filter"] = f"from_publication_date:{from_year}-01-01"
+    params, per_page = _build_search_params(query, max_papers, recency_years)
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
