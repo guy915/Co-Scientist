@@ -596,6 +596,33 @@ async def evolve_single_hypothesis(
     return _apply_evolution_result(hypothesis, response, other_hypotheses_texts)
 
 
+def _collect_evolution_results(
+    results: list[tuple[Hypothesis, dict[str, Any] | None]]
+) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+    """Unpacks gathered evolution results into hypotheses and details.
+
+    Args:
+        results: Per-hypothesis (hypothesis, evolution_detail or None)
+            pairs, in the same order as the dispatched evolution tasks.
+
+    Returns:
+        Tuple of (evolved hypotheses, evolution details); evolution_details
+        only includes entries for hypotheses that actually changed.
+    """
+    evolved_hypotheses = []
+    evolution_details = []
+
+    for hyp, detail in results:
+        evolved_hypotheses.append(hyp)
+        # detail is None when evolve_single_hypothesis rejected the
+        # refinement (unchanged text or near-duplicate); only genuine
+        # changes are recorded in evolution_details.
+        if detail is not None:  # Only add if hypothesis actually evolved
+            evolution_details.append(detail)
+
+    return evolved_hypotheses, evolution_details
+
+
 async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     """Evolve top-k hypotheses with context-aware refinement.
 
@@ -678,16 +705,7 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     results = await asyncio.gather(*evolution_tasks)
 
     # Unpack results: (hypothesis, evolution_detail or None)
-    evolved_hypotheses = []
-    evolution_details = []
-
-    for hyp, detail in results:
-        evolved_hypotheses.append(hyp)
-        # detail is None when evolve_single_hypothesis rejected the
-        # refinement (unchanged text or near-duplicate); only genuine
-        # changes are recorded in evolution_details.
-        if detail is not None:  # Only add if hypothesis actually evolved
-            evolution_details.append(detail)
+    evolved_hypotheses, evolution_details = _collect_evolution_results(results)
 
     # Keep ONLY the evolved hypotheses (discard lower-ranked ones)
     # This makes evolution_max_count the final pool size
