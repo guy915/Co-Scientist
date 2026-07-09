@@ -884,6 +884,85 @@ async def _finalize_mock_run(
 # ---------------------------------------------------------------------------
 
 
+async def _run_seed_stages(
+    run_id: str,
+    research_goal: str,
+    db_path: str | None,
+    rng: random.Random,
+    cfg: dict[str, Any],
+    run_mode: str,
+    *,
+    cancelled: asyncio.Event | None,
+    emit: EmitFn,
+    evidence_payload: list[dict[str, Any]],
+    hyp_ids: list[str],
+    hyp_payloads: list[dict[str, Any]],
+) -> AsyncIterator[dict[str, Any]]:
+    """Run stages 1-6 (mark running through proximity), emitting per stage.
+
+    Marks the run running, emits the supervisor plan, then seeds and emits
+    literature review, generation, reflection, and proximity results.
+    Mutates `evidence_payload`, `hyp_ids`, and `hyp_payloads` in place so the
+    caller can use them once this generator is exhausted. Cancellation is
+    checked once, right after the supervisor plan is emitted; on
+    cancellation, yields a final "cancelled" status event and returns early.
+    The caller checks `cancelled.is_set()` once this generator is exhausted
+    to distinguish that from a natural finish.
+    """
+
+    def _check_cancel() -> bool:
+        return bool(cancelled and cancelled.is_set())
+
+    # ---- 1. Mark running (intake screening runs at the shared boundary) ----
+    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
+    yield await emit("status", {"status": "running"})
+
+    # ---- 2. Supervisor plan ----
+    plan = _build_supervisor_plan(cfg, run_mode)
+    yield await emit("supervisor.plan", plan)
+    if _check_cancel():
+        store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
+        yield await emit("status", {"status": "cancelled"})
+        return
+
+    # ---- 3. Literature review ----
+    evidence_count = cfg["evidence_count"]
+    evidence_payload.extend(
+        _persist_literature_review(run_id, db_path, rng, research_goal,
+                                   evidence_count))
+    yield await emit(
+        "literature_review",
+        {
+            "count": len(evidence_payload),
+            "evidence": [article_stub(e) for e in evidence_payload],
+        },
+    )
+
+    # ---- 4. Generation ----
+    initial_count = cfg["initial_hypotheses_count"]
+    generated_ids, generated_payloads = _persist_generation(
+        run_id, db_path, rng, research_goal, initial_count)
+    hyp_ids.extend(generated_ids)
+    hyp_payloads.extend(generated_payloads)
+    yield await emit(
+        "generate", {
+            "count": len(hyp_payloads),
+            "hypotheses": [hypothesis_stub(h) for h in hyp_payloads],
+        })
+
+    # ---- 5. Reflection ----
+    _persist_reflection(run_id, db_path, rng, hyp_ids, hyp_payloads,
+                        evidence_count)
+    yield await emit("reflection", {"reviewed": len(hyp_ids)})
+
+    # ---- 6. Proximity / clustering ----
+    clusters = _persist_proximity(db_path, hyp_ids)
+    yield await emit("proximity",
+                     {"clusters": {
+                         k: len(v) for k, v in clusters.items()
+                     }})
+
+
 async def run_mock_workflow(
     run_id: str,
     research_goal: str,
@@ -909,51 +988,28 @@ async def run_mock_workflow(
 
     emit = make_emitter(run_id, db_path=db_path, sleep_seconds=sleep_seconds)
 
-    # ---- 1. Mark running (intake screening runs at the shared boundary) ----
-    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
-    yield await emit("status", {"status": "running"})
-
-    # ---- 2. Supervisor plan ----
-    plan = _build_supervisor_plan(cfg, run_mode)
-    yield await emit("supervisor.plan", plan)
+    # ---- 1-6. Mark running through proximity/clustering ----
+    evidence_payload: list[dict[str, Any]] = []
+    hyp_ids: list[str] = []
+    hyp_payloads: list[dict[str, Any]] = []
+    async for event in _run_seed_stages(
+            run_id,
+            research_goal,
+            db_path,
+            rng,
+            cfg,
+            run_mode,
+            cancelled=cancelled,
+            emit=emit,
+            evidence_payload=evidence_payload,
+            hyp_ids=hyp_ids,
+            hyp_payloads=hyp_payloads,
+    ):
+        yield event
     if _check_cancel():
-        store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
-        yield await emit("status", {"status": "cancelled"})
+        # _run_seed_stages already emitted the "cancelled" status event; skip
+        # ranking/evolution/finalization on a cancelled run.
         return
-
-    # ---- 3. Literature review ----
-    evidence_count = cfg["evidence_count"]
-    evidence_payload = _persist_literature_review(run_id, db_path, rng,
-                                                  research_goal, evidence_count)
-    yield await emit(
-        "literature_review",
-        {
-            "count": len(evidence_payload),
-            "evidence": [article_stub(e) for e in evidence_payload],
-        },
-    )
-
-    # ---- 4. Generation ----
-    initial_count = cfg["initial_hypotheses_count"]
-    hyp_ids, hyp_payloads = _persist_generation(run_id, db_path, rng,
-                                                research_goal, initial_count)
-    yield await emit(
-        "generate", {
-            "count": len(hyp_payloads),
-            "hypotheses": [hypothesis_stub(h) for h in hyp_payloads],
-        })
-
-    # ---- 5. Reflection ----
-    _persist_reflection(run_id, db_path, rng, hyp_ids, hyp_payloads,
-                        evidence_count)
-    yield await emit("reflection", {"reviewed": len(hyp_ids)})
-
-    # ---- 6. Proximity / clustering ----
-    clusters = _persist_proximity(db_path, hyp_ids)
-    yield await emit("proximity",
-                     {"clusters": {
-                         k: len(v) for k, v in clusters.items()
-                     }})
 
     # ---- 7. First ranking round ----
     elo_state: dict[str, int] = {hid: INITIAL_ELO for hid in hyp_ids}

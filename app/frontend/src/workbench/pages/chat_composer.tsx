@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from 'react';
-import {Icon} from '@/components/icon';
+import {Icon, type IconName} from '@/components/icon';
 import {tooltipClassNames} from '../tooltip';
 import {
   COMPOSER_ACTIONS_CLASSES,
@@ -144,6 +144,64 @@ export function Composer({
   onPubmedEnabledChange?: (value: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>) => void;
 }) {
+  const {
+    fileInputRef,
+    textareaRef,
+    sourceControlsRef,
+    attachments,
+    connectorsOpen,
+    setConnectorsOpen,
+    onFilesChanged,
+    removeAttachment,
+  } = useComposerState(input, large);
+
+  const referenceLabel = setupDraftMode
+    ? 'Type to edit session details'
+    : 'Start a new research goal to begin';
+  const submitLabel = 'Send';
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      className={[
+        COMPOSER_BASE_CLASSES,
+        input.trim() ? 'has-input' : '',
+        large ? HOME_COMPOSER_CLASSES : '',
+        attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
+      <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
+      <ComposerTextareaField
+        input={input}
+        setInput={setInput}
+        disabled={disabled}
+        large={large}
+        referenceLabel={referenceLabel}
+        textareaRef={textareaRef}
+      />
+      <ComposerFooter
+        disabled={disabled}
+        connectorsOpen={connectorsOpen}
+        onToggleConnectors={() => setConnectorsOpen(open => !open)}
+        sourceControlsRef={sourceControlsRef}
+        fileInputRef={fileInputRef}
+        onFilesChanged={onFilesChanged}
+        pubmedEnabled={pubmedEnabled}
+        onPubmedEnabledChange={onPubmedEnabledChange}
+        submitDisabled={!input.trim() || disabled}
+        submitLabel={submitLabel}
+      />
+    </form>
+  );
+}
+
+// Owns the composer's non-controlled state: the staged attachments, the
+// connectors-menu open flag, and the refs/effects wiring the auto-grow
+// textarea, blob-URL cleanup, and outside-click dismissal. `input`/`large`
+// are read (not owned) here, only to drive the auto-grow effect.
+function useComposerState(input: string, large: boolean) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const sourceControlsRef = useRef<HTMLDivElement>(null);
@@ -221,85 +279,123 @@ export function Composer({
     return () => document.removeEventListener('mousedown', closeConnectors);
   }, [connectorsOpen]);
 
-  const referenceLabel = setupDraftMode
-    ? 'Type to edit session details'
-    : 'Start a new research goal to begin';
-  const submitLabel = 'Send';
+  return {
+    fileInputRef,
+    textareaRef,
+    sourceControlsRef,
+    attachments,
+    connectorsOpen,
+    setConnectorsOpen,
+    onFilesChanged,
+    removeAttachment,
+  };
+}
 
+// The floating-label textarea region: the lock icon + placeholder label
+// (hidden once the user has typed anything) above the auto-growing textarea.
+function ComposerTextareaField({
+  input,
+  setInput,
+  disabled,
+  large,
+  referenceLabel,
+  textareaRef,
+}: {
+  input: string;
+  setInput: (value: string) => void;
+  disabled: boolean;
+  large: boolean;
+  referenceLabel: string;
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+}) {
   return (
-    <form
-      onSubmit={onSubmit}
-      className={[
-        COMPOSER_BASE_CLASSES,
-        input.trim() ? 'has-input' : '',
-        large ? HOME_COMPOSER_CLASSES : '',
-        attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-    >
-      <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
-      {/* Floating label + lock icon, hidden once the user has typed
-          anything (input.trim() truthy) so it doesn't overlap the text. */}
-      <label className={COMPOSER_LABEL_CLASSES}>
-        <span
-          className={[
-            COMPOSER_LABEL_TEXT_CLASSES,
-            input.trim() ? COMPOSER_LABEL_TEXT_HIDDEN_CLASSES : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-        >
-          <Icon
-            aria-hidden="true"
-            className={COMPOSER_LABEL_ICON_CLASSES}
-            name="encrypted"
-          />
-          {referenceLabel}
-        </span>
-        <textarea
-          ref={textareaRef}
-          // One row; the empty height comes from the textarea's min-height and
-          // growth is driven by the auto-grow effect. A larger rows value would
-          // force the empty box several lines tall.
-          rows={1}
-          value={input}
-          disabled={disabled}
-          className={[
-            COMPOSER_TEXTAREA_CLASSES,
-            large ? HOME_COMPOSER_TEXTAREA_CLASSES : '',
-          ]
-            .filter(Boolean)
-            .join(' ')}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={handleComposerKeyDown}
+    <label className={COMPOSER_LABEL_CLASSES}>
+      <span
+        className={[
+          COMPOSER_LABEL_TEXT_CLASSES,
+          input.trim() ? COMPOSER_LABEL_TEXT_HIDDEN_CLASSES : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+      >
+        <Icon
+          aria-hidden="true"
+          className={COMPOSER_LABEL_ICON_CLASSES}
+          name="encrypted"
         />
-      </label>
-      <div className={COMPOSER_ACTIONS_CLASSES}>
-        <SourceControls
-          disabled={disabled}
-          connectorsOpen={connectorsOpen}
-          onToggleConnectors={() => setConnectorsOpen(open => !open)}
-          sourceControlsRef={sourceControlsRef}
-          fileInputRef={fileInputRef}
-          onFilesChanged={onFilesChanged}
-          pubmedEnabled={pubmedEnabled}
-          onPubmedEnabledChange={onPubmedEnabledChange}
-        />
-        <button
-          type="submit"
-          className={tooltipClassNames({
-            className: COMPOSER_SUBMIT_BUTTON_CLASSES,
-            placement: 'top',
-          })}
-          aria-label={submitLabel}
-          data-tooltip="Submit"
-          disabled={!input.trim() || disabled}
-        >
-          <Icon aria-hidden="true" name="send" />
-        </button>
-      </div>
-    </form>
+        {referenceLabel}
+      </span>
+      <textarea
+        ref={textareaRef}
+        // One row; the empty height comes from the textarea's min-height and
+        // growth is driven by the auto-grow effect. A larger rows value would
+        // force the empty box several lines tall.
+        rows={1}
+        value={input}
+        disabled={disabled}
+        className={[
+          COMPOSER_TEXTAREA_CLASSES,
+          large ? HOME_COMPOSER_TEXTAREA_CLASSES : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={handleComposerKeyDown}
+      />
+    </label>
+  );
+}
+
+// The footer controls row: the file/connector source controls plus the
+// submit button.
+function ComposerFooter({
+  disabled,
+  connectorsOpen,
+  onToggleConnectors,
+  sourceControlsRef,
+  fileInputRef,
+  onFilesChanged,
+  pubmedEnabled,
+  onPubmedEnabledChange,
+  submitDisabled,
+  submitLabel,
+}: {
+  disabled: boolean;
+  connectorsOpen: boolean;
+  onToggleConnectors: () => void;
+  sourceControlsRef: RefObject<HTMLDivElement | null>;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
+  pubmedEnabled: boolean;
+  onPubmedEnabledChange?: (value: boolean) => void;
+  submitDisabled: boolean;
+  submitLabel: string;
+}) {
+  return (
+    <div className={COMPOSER_ACTIONS_CLASSES}>
+      <SourceControls
+        disabled={disabled}
+        connectorsOpen={connectorsOpen}
+        onToggleConnectors={onToggleConnectors}
+        sourceControlsRef={sourceControlsRef}
+        fileInputRef={fileInputRef}
+        onFilesChanged={onFilesChanged}
+        pubmedEnabled={pubmedEnabled}
+        onPubmedEnabledChange={onPubmedEnabledChange}
+      />
+      <button
+        type="submit"
+        className={tooltipClassNames({
+          className: COMPOSER_SUBMIT_BUTTON_CLASSES,
+          placement: 'top',
+        })}
+        aria-label={submitLabel}
+        data-tooltip="Submit"
+        disabled={submitDisabled}
+      >
+        <Icon aria-hidden="true" name="send" />
+      </button>
+    </div>
   );
 }
 
@@ -369,80 +465,112 @@ function SourceControls({
         onChange={onFilesChanged}
         tabIndex={-1}
       />
-      <button
-        type="button"
-        className={tooltipClassNames({
-          className: COMPOSER_SOURCE_BUTTON_CLASSES,
-          placement: 'top',
-        })}
-        aria-label="Files"
-        data-tooltip="Files"
+      <SourceToolbarButton
+        label="Files"
+        icon="add"
         disabled={disabled}
         onClick={() => fileInputRef.current?.click()}
-      >
-        <Icon
-          aria-hidden="true"
-          className={COMPOSER_SOURCE_ICON_CLASSES}
-          name="add"
-        />
-      </button>
-      <button
-        type="button"
-        className={tooltipClassNames({
-          className: COMPOSER_SOURCE_BUTTON_CLASSES,
-          placement: 'top',
-        })}
-        aria-label="Connectors"
-        aria-expanded={connectorsOpen}
-        data-tooltip="Connectors"
+      />
+      <SourceToolbarButton
+        label="Connectors"
+        icon="database"
         disabled={disabled}
+        expanded={connectorsOpen}
         onClick={onToggleConnectors}
-      >
-        <Icon
-          aria-hidden="true"
-          className={COMPOSER_SOURCE_ICON_CLASSES}
-          name="database"
-        />
-      </button>
-      {/* Connectors menu: currently a single PubMed toggle row, closed by
-          the outside-mousedown effect in the parent composer. */}
+      />
       {connectorsOpen ? (
-        <div
-          className={CONNECTORS_MENU_CLASSES}
-          role="menu"
-          aria-label="Connectors"
-        >
-          <div className={CONNECTORS_MENU_HEADER_CLASSES}>
-            <span>Connectors</span>
-          </div>
-          {COMPOSER_CONNECTORS.map(name => (
-            <button
-              type="button"
-              role="menuitemcheckbox"
-              aria-checked={pubmedEnabled}
-              className={CONNECTORS_MENU_ROW_CLASSES}
-              key={name}
-              onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
-            >
-              <Icon
-                className={CONNECTOR_ICON_CLASSES}
-                aria-hidden="true"
-                name="article"
-              />
-              <span>{name}</span>
-              <span
-                className={[
-                  CONNECTOR_TOGGLE_BASE_CLASSES,
-                  pubmedEnabled
-                    ? CONNECTOR_TOGGLE_ON_CLASSES
-                    : CONNECTOR_TOGGLE_OFF_CLASSES,
-                ].join(' ')}
-                aria-hidden="true"
-              />
-            </button>
-          ))}
-        </div>
+        <ConnectorsMenu
+          pubmedEnabled={pubmedEnabled}
+          onPubmedEnabledChange={onPubmedEnabledChange}
+        />
       ) : null}
+    </div>
+  );
+}
+
+// One toolbar trigger button in the source-controls row (Files, Connectors):
+// an icon button with a shared tooltip/label. `expanded` is only set by the
+// Connectors button; leaving it undefined for Files omits aria-expanded
+// entirely, matching a plain non-expandable button.
+function SourceToolbarButton({
+  label,
+  icon,
+  disabled,
+  expanded,
+  onClick,
+}: {
+  label: string;
+  icon: IconName;
+  disabled: boolean;
+  expanded?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({
+        className: COMPOSER_SOURCE_BUTTON_CLASSES,
+        placement: 'top',
+      })}
+      aria-label={label}
+      aria-expanded={expanded}
+      data-tooltip={label}
+      disabled={disabled}
+      onClick={onClick}
+    >
+      <Icon
+        aria-hidden="true"
+        className={COMPOSER_SOURCE_ICON_CLASSES}
+        name={icon}
+      />
+    </button>
+  );
+}
+
+// Connectors menu: currently a single PubMed toggle row, closed by the
+// outside-mousedown effect in the parent composer.
+function ConnectorsMenu({
+  pubmedEnabled,
+  onPubmedEnabledChange,
+}: {
+  pubmedEnabled: boolean;
+  onPubmedEnabledChange?: (value: boolean) => void;
+}) {
+  return (
+    <div
+      className={CONNECTORS_MENU_CLASSES}
+      role="menu"
+      aria-label="Connectors"
+    >
+      <div className={CONNECTORS_MENU_HEADER_CLASSES}>
+        <span>Connectors</span>
+      </div>
+      {COMPOSER_CONNECTORS.map(name => (
+        <button
+          type="button"
+          role="menuitemcheckbox"
+          aria-checked={pubmedEnabled}
+          className={CONNECTORS_MENU_ROW_CLASSES}
+          key={name}
+          onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
+        >
+          <Icon
+            className={CONNECTOR_ICON_CLASSES}
+            aria-hidden="true"
+            name="article"
+          />
+          <span>{name}</span>
+          <span
+            className={[
+              CONNECTOR_TOGGLE_BASE_CLASSES,
+              pubmedEnabled
+                ? CONNECTOR_TOGGLE_ON_CLASSES
+                : CONNECTOR_TOGGLE_OFF_CLASSES,
+            ].join(' ')}
+            aria-hidden="true"
+          />
+        </button>
+      ))}
     </div>
   );
 }

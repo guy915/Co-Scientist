@@ -222,6 +222,55 @@ def _build_completion_args(
     return completion_args
 
 
+async def _prepare_llm_call(
+    prompt: str,
+    model_name: str,
+    temperature: float,
+    max_tokens: int,
+    use_cache: bool,
+    run_id: str | None,
+    prompt_name: str | None,
+    prompt_metadata: dict[str, Any] | None,
+    **cache_key_kwargs: Any,
+) -> tuple[float, "LLMCache | NullCache", dict[str, Any] | None]:
+    """Runs the shared pre-call sequence for the public LLM entry points.
+
+    Saves the prompt debug artifact (when named), clamps the temperature
+    before the cache key is built so requested temperatures that execute
+    identically share one cache entry, and performs the cache lookup. A
+    cache miss is logged here; the hit log line differs per caller and is
+    left to the call site.
+
+    Args:
+        prompt: The prompt about to be sent to the LLM.
+        model_name: Model name in litellm format.
+        temperature: Requested sampling temperature (clamped here).
+        max_tokens: Maximum tokens in response.
+        use_cache: When False, a NullCache is used so the call is fresh.
+        run_id: Optional run identifier for the saved prompt's directory.
+        prompt_name: Optional debug-artifact name for saving the prompt.
+        prompt_metadata: Optional metadata appended to the saved prompt file.
+        **cache_key_kwargs: Extra cache-key fields specific to the caller
+            (e.g. ``json_schema=``, ``force_json=``, ``tools=``).
+
+    Returns:
+        A (clamped_temperature, cache, cached_response) tuple where
+        cached_response is None on a cache miss.
+    """
+    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
+
+    temperature = _clamp_temperature(model_name, temperature)
+
+    # NullCache when caching is bypassed for this call.
+    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
+    cached_response = cache.get(prompt, model_name, temperature, max_tokens,
+                                **cache_key_kwargs)
+    if cached_response is None:
+        logger.debug("cache miss for prompt: %s%s", prompt[:200],
+                     '...' if len(prompt) > 200 else '')
+    return temperature, cache, cached_response
+
+
 async def call_llm(
     prompt: str,
     model_name: str,
@@ -258,24 +307,20 @@ async def call_llm(
     Raises:
         Exception: If the LLM call fails
     """
-    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
-
-    temperature = _clamp_temperature(model_name, temperature)
-
-    # Check cache first (NullCache when caching is bypassed for this call).
-    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
-    cached_response = cache.get(prompt,
-                                model_name,
-                                temperature,
-                                max_tokens,
-                                json_schema=json_schema,
-                                force_json=force_json)
+    temperature, cache, cached_response = await _prepare_llm_call(
+        prompt,
+        model_name,
+        temperature,
+        max_tokens,
+        use_cache,
+        run_id,
+        prompt_name,
+        prompt_metadata,
+        json_schema=json_schema,
+        force_json=force_json)
     if cached_response is not None:
         logger.debug("using cached llm response")
         return cast(str, cached_response["text"])
-
-    logger.debug("cache miss for prompt: %s%s", prompt[:200],
-                 '...' if len(prompt) > 200 else '')
 
     try:
         completion_args = _build_completion_args(prompt, model_name, max_tokens,
@@ -483,6 +528,46 @@ class _JsonAttemptOutcome:
     next_prompt: str | None
 
 
+async def _call_llm_for_json(
+    prompt: str,
+    model_name: str,
+    max_tokens: int,
+    temperature: float,
+    json_schema: dict[str, Any] | None,
+) -> str:
+    """Makes the raw LLM call for one call_llm_json attempt.
+
+    Caching is disabled on the inner call: call_llm_json keeps its own
+    cache of the validated dict and returns from it before ever reaching
+    this point, so a raw-text entry would only duplicate every cached
+    payload on disk (and could replay an invalid response into the retry
+    loop).
+
+    Returns:
+        The response text with any markdown code fences stripped.
+
+    Raises:
+        ValueError: If the LLM returns None or an empty response.
+    """
+    response_text = await call_llm(
+        prompt,
+        model_name,
+        max_tokens,
+        temperature,
+        force_json=not json_schema,
+        json_schema=json_schema,
+        use_cache=False,
+    )
+
+    if not response_text:
+        logger.error("LLM returned None or empty response")
+        raise ValueError("LLM returned None or empty response. "
+                         "Check API keys, rate limits, and model availability.")
+
+    # Extract JSON from markdown code blocks if present.
+    return extract_response_json(response_text)
+
+
 async def _attempt_call_llm_json(
     prompt: str,
     original_prompt: str,
@@ -517,29 +602,8 @@ async def _attempt_call_llm_json(
     Returns:
         The outcome of this attempt.
     """
-    # Call LLM. Caching is disabled on the inner call: call_llm_json
-    # keeps its own cache of the validated dict and returns from it
-    # before ever reaching this point, so a raw-text entry would only
-    # duplicate every cached payload on disk (and could replay an
-    # invalid response into the retry loop).
-    response_text = await call_llm(
-        prompt,
-        model_name,
-        max_tokens,
-        temperature,
-        force_json=not json_schema,
-        json_schema=json_schema,
-        use_cache=False,
-    )
-
-    # Check for None or empty response
-    if not response_text:
-        logger.error("LLM returned None or empty response")
-        raise ValueError("LLM returned None or empty response. "
-                         "Check API keys, rate limits, and model availability.")
-
-    # Try to extract JSON from markdown code blocks if present
-    response_text = extract_response_json(response_text)
+    response_text = await _call_llm_for_json(prompt, model_name, max_tokens,
+                                             temperature, json_schema)
 
     # Steps 1-2: parse response text as JSON, repairing if needed
     # (minor repairs always tried, major repairs only on the final
@@ -597,6 +661,39 @@ async def _attempt_call_llm_json(
                                next_prompt=None)
 
 
+def _handle_json_retries_exhausted(
+    json_schema: dict[str, Any] | None,
+    last_error: Exception | None,
+    last_response_text: str | None,
+    max_attempts: int,
+) -> dict[str, Any]:
+    """Resolves a call_llm_json run whose retries are all exhausted.
+
+    Non-critical nodes (those with a registered fallback for their schema)
+    degrade to fallback data; critical nodes get failure diagnostics logged
+    and the most appropriate error raised.
+
+    Returns:
+        The fallback response, when one is registered for the schema.
+
+    Raises:
+        Exception: The parse/validation error via _raise_json_parse_error
+            when no fallback exists.
+    """
+    # Check for fallback for non-critical nodes
+    fallback = get_fallback_response(json_schema)
+    if fallback is not None:
+        logger.warning("Returning fallback data for non-critical node "
+                       "after all retries exhausted")
+        return fallback
+
+    # No fallback available - raise appropriate error
+    if last_response_text:
+        _log_json_parse_failure_diagnostics(last_response_text)
+
+    _raise_json_parse_error(last_error, last_response_text, max_attempts)
+
+
 async def call_llm_json(
     prompt: str,
     model_name: str,
@@ -639,26 +736,20 @@ async def call_llm_json(
             (for critical nodes)
         Exception: If the LLM call fails or returns empty response
     """
-    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
-
-    # Clamp before the cache key is built so requested temperatures that
-    # execute identically share one cache entry (matches call_llm and
-    # call_llm_with_tools, which clamp before their own cache lookups).
-    temperature = _clamp_temperature(model_name, temperature)
-
-    # Check cache first (NullCache when caching is bypassed for this call).
-    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
-    cached_response = cache.get(prompt,
-                                model_name,
-                                temperature,
-                                max_tokens,
-                                json_schema=json_schema)
+    temperature, cache, cached_response = await _prepare_llm_call(
+        prompt,
+        model_name,
+        temperature,
+        max_tokens,
+        use_cache,
+        run_id,
+        prompt_name,
+        prompt_metadata,
+        json_schema=json_schema)
     if cached_response is not None:
         logger.debug("using cached llm json response")
         return cached_response
 
-    logger.debug("cache miss for prompt: %s%s", prompt[:200],
-                 '...' if len(prompt) > 200 else '')
     last_error: Exception | None = None
     last_response_text: str | None = None
     original_prompt = prompt  # save original for retries with feedback
@@ -693,19 +784,8 @@ async def call_llm_json(
             prompt = outcome.next_prompt
             logger.debug("added validation feedback to retry prompt")
 
-    # All retries exhausted
-    # Check for fallback for non-critical nodes
-    fallback = get_fallback_response(json_schema)
-    if fallback is not None:
-        logger.warning("Returning fallback data for non-critical node "
-                       "after all retries exhausted")
-        return fallback
-
-    # No fallback available - raise appropriate error
-    if last_response_text:
-        _log_json_parse_failure_diagnostics(last_response_text)
-
-    _raise_json_parse_error(last_error, last_response_text, max_attempts)
+    return _handle_json_retries_exhausted(json_schema, last_error,
+                                          last_response_text, max_attempts)
 
 
 def _message_to_history_dict(message: Any) -> dict[str, Any]:
@@ -836,6 +916,34 @@ async def _run_tool_call_iteration(
     return True, final_content
 
 
+def _cache_tool_call_result(
+    cache: "LLMCache | NullCache",
+    prompt: str,
+    model_name: str,
+    temperature: float,
+    max_tokens: int,
+    final_content: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+) -> None:
+    """Caches a successful tool-call loop result.
+
+    Only called once the final content is validated, so a failed loop is
+    retried fresh next time rather than replayed from a broken cache entry.
+    """
+    cache.set(
+        prompt,
+        model_name,
+        temperature,
+        max_tokens,
+        {
+            "final_response": final_content,
+            "message_history": messages
+        },
+        tools=tools,
+    )
+
+
 async def call_llm_with_tools(
     prompt: str,
     model_name: str,
@@ -878,24 +986,20 @@ async def call_llm_with_tools(
     Raises:
         Exception: If the LLM call fails or max iterations reached
     """
-    await _save_prompt_if_named(prompt, run_id, prompt_name, prompt_metadata)
-
-    temperature = _clamp_temperature(model_name, temperature)
-
-    # Check cache first (NullCache when caching is bypassed for this call).
-    cache: LLMCache | NullCache = get_cache() if use_cache else NullCache()
-    cached_response = cache.get(prompt,
-                                model_name,
-                                temperature,
-                                max_tokens,
-                                tools=tools)
+    temperature, cache, cached_response = await _prepare_llm_call(
+        prompt,
+        model_name,
+        temperature,
+        max_tokens,
+        use_cache,
+        run_id,
+        prompt_name,
+        prompt_metadata,
+        tools=tools)
     if cached_response is not None:
         logger.debug("using cached llm tool call response")
         return cached_response["final_response"], cached_response[
             "message_history"]
-
-    logger.debug("cache miss for prompt: %s%s", prompt[:200],
-                 '...' if len(prompt) > 200 else '')
 
     # Running conversation history: grows with each assistant/tool turn and
     # is resent in full to acompletion on every iteration below.
@@ -919,20 +1023,8 @@ async def call_llm_with_tools(
             # non-None final_content (see _finalize_tool_call_response).
             assert final_content is not None
             logger.debug("llm finished after %s iterations", iteration + 1)
-
-            # Cache the successful result (only reached if content is valid)
-            cache.set(
-                prompt,
-                model_name,
-                temperature,
-                max_tokens,
-                {
-                    "final_response": final_content,
-                    "message_history": messages
-                },
-                tools=tools,
-            )
-
+            _cache_tool_call_result(cache, prompt, model_name, temperature,
+                                    max_tokens, final_content, messages, tools)
             return final_content, messages
 
     # Max iterations reached

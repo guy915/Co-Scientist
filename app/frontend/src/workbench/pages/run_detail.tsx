@@ -143,7 +143,75 @@ export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const navigate = useNavigate();
   const activeTab = normalizeTab(tab);
+  // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
+  // mobile master-detail selection back to the list.
+  const [ideasViewKey, setIdeasViewKey] = useState(0);
 
+  const {
+    run,
+    hypotheses,
+    evidence,
+    matches,
+    reviews,
+    report,
+    error,
+    loaded,
+    toast,
+    title,
+  } = useRunDetailData(id);
+
+  const onTabChange = useCallback(
+    (nextTab: TabName) => {
+      if (!id) return;
+      // Tapping "All Ideas" while already on it resets the mobile master-detail
+      // back to the list: the detail view has no back button, so re-tapping the
+      // tab (which remounts the ideas view via ideasViewKey) is the way back.
+      if (nextTab === 'ideas' && activeTab === 'ideas') {
+        setIdeasViewKey(key => key + 1);
+      }
+      // Always include the tab (details included) so every tab is the same
+      // required-param route — switching tabs never remounts RunDetail.
+      void navigate(`/runs/${id}/${nextTab}`);
+    },
+    [id, navigate, activeTab],
+  );
+
+  if (!id) return null;
+
+  return (
+    <div className={REPORT_PAGE_CLASSES}>
+      <ReportTitlebar title={title} />
+
+      <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
+
+      <ReportErrorAlert message={error} />
+
+      {!loaded && !error ? (
+        <RunDetailSkeleton />
+      ) : (
+        <RunDetailTabContent
+          activeTab={activeTab}
+          run={run}
+          evidence={evidence}
+          report={report}
+          hypotheses={hypotheses}
+          matches={matches}
+          reviews={reviews}
+          ideasViewKey={ideasViewKey}
+        />
+      )}
+
+      {toast && <RunToast message={toast} />}
+    </div>
+  );
+}
+
+// Fetches and keeps in sync the run row plus its hypotheses/evidence/
+// matches/reviews/report collections. `scheduleRefresh` is a debounced
+// partial refetch keyed by collection (used by the SSE event stream below),
+// and `refreshNow` is an immediate cancel-and-refetch (used on stream
+// termination).
+function useRunFetch(id: string | undefined) {
   // --- Fetched run data (populated by refresh(), see below) ---
   const [run, setRun] = useState<RunWithSummary | null>(null);
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
@@ -153,14 +221,6 @@ export function RunDetail() {
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
-  // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
-  // mobile master-detail selection back to the list.
-  const [ideasViewKey, setIdeasViewKey] = useState(0);
-  const [toast, setToast] = useState<string | null>(null);
-
-  // Live SSE event timeline for this run (replayed from seq=0 on mount) and a
-  // flag set once the stream reaches its terminal sentinel.
-  const {events, terminal} = useRunStream(id ?? null);
 
   // With no key set, everything is refetched (initial load, terminal drain).
   // With one, only the run row plus the named collections are, so a mid-run
@@ -208,6 +268,19 @@ export function RunDetail() {
     void refresh(keys);
   }, 600);
 
+  const scheduleRefresh = useCallback(
+    (keys: Iterable<RunDataKey>) => {
+      for (const key of keys) pendingRefreshKeys.current.add(key);
+      debouncedRefresh();
+    },
+    [debouncedRefresh],
+  );
+
+  const refreshNow = useCallback(() => {
+    debouncedRefresh.cancel();
+    void refresh();
+  }, [refresh, debouncedRefresh]);
+
   // Initial load (and reload when the run id changes) stays immediate.
   useEffect(() => {
     debouncedRefresh.cancel();
@@ -215,7 +288,31 @@ export function RunDetail() {
     void refresh();
   }, [refresh, debouncedRefresh]);
 
-  // Re-pull on new events so tabs stay in sync, debounced to absorb bursts.
+  return {
+    run,
+    hypotheses,
+    evidence,
+    matches,
+    reviews,
+    report,
+    error,
+    loaded,
+    scheduleRefresh,
+    refreshNow,
+  };
+}
+
+// Wires the live SSE event stream for a run (replayed from seq=0 on mount):
+// calls `onDataEvents` with the set of collections a coalesced batch of
+// events can change, and `onTerminal` once the stream reaches its terminal
+// sentinel. Returns `terminal` so callers can derive their own state from it.
+function useRunEventStream(
+  id: string | undefined,
+  onDataEvents: (keys: Iterable<RunDataKey>) => void,
+  onTerminal: () => void,
+) {
+  const {events, terminal} = useRunStream(id ?? null);
+
   // The stream delivers events in coalesced batches, so scan the whole newly
   // appended slice for data events rather than only the batch tail: a batch
   // that ends in a 'status' event still warrants a refetch if it carried a
@@ -230,22 +327,28 @@ export function RunDetail() {
     processedEventCount.current = events.length;
     const data = fresh.filter(event => event.type !== 'status');
     if (data.length === 0) return;
+    const keys = new Set<RunDataKey>();
     for (const event of data) {
-      for (const key of EVENT_DATA_KEYS[event.type] ?? []) {
-        pendingRefreshKeys.current.add(key);
-      }
+      for (const key of EVENT_DATA_KEYS[event.type] ?? []) keys.add(key);
     }
-    debouncedRefresh();
-  }, [events, debouncedRefresh]);
+    onDataEvents(keys);
+  }, [events, onDataEvents]);
 
   // On stream end, refetch immediately so a pending debounce cannot leave the
   // completed state stale.
   useEffect(() => {
     if (!terminal) return;
-    debouncedRefresh.cancel();
-    void refresh();
-  }, [terminal, refresh, debouncedRefresh]);
+    onTerminal();
+  }, [terminal, onTerminal]);
 
+  return {terminal};
+}
+
+// Derives the toast (shown when a run ends failed/blocked) and the display
+// title (curated domain override, else the goal) from the fetched run row,
+// and dispatches the title to the shell header.
+function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
+  const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     if (!terminal || !run) return;
     if (run.status === 'failed' || run.status === 'blocked') {
@@ -253,9 +356,9 @@ export function RunDetail() {
     }
   }, [terminal, run]);
 
-  // Full display title (curated domain override, else the goal). Shared by the
-  // shell-header dispatch and the titlebar; each host truncates to its own
-  // available width via TruncatedLabel rather than being pre-shortened.
+  // Full display title. Shared by the shell-header dispatch and the
+  // titlebar; each host truncates to its own available width via
+  // TruncatedLabel rather than being pre-shortened.
   const title = useMemo(() => {
     if (!run) return 'Goal report';
     return domainTitleOverride(run.research_goal) ?? runGoal(run);
@@ -270,70 +373,96 @@ export function RunDetail() {
     };
   }, [title]);
 
-  const onTabChange = useCallback(
-    (nextTab: TabName) => {
-      if (!id) return;
-      // Tapping "All Ideas" while already on it resets the mobile master-detail
-      // back to the list: the detail view has no back button, so re-tapping the
-      // tab (which remounts the ideas view via ideasViewKey) is the way back.
-      if (nextTab === 'ideas' && activeTab === 'ideas') {
-        setIdeasViewKey(key => key + 1);
-      }
-      // Always include the tab (details included) so every tab is the same
-      // required-param route — switching tabs never remounts RunDetail.
-      void navigate(`/runs/${id}/${nextTab}`);
-    },
-    [id, navigate, activeTab],
+  return {toast, title};
+}
+
+// Fetches and keeps in sync all data backing the goal-report surface: the run
+// row plus its hypotheses/evidence/matches/reviews/report collections, wired
+// to the live SSE event stream so mid-run updates refetch just the
+// collections a given event type can change. Also derives the display title
+// and dispatches it to the shell header, and raises a toast if the run ends
+// failed/blocked.
+function useRunDetailData(id: string | undefined) {
+  const data = useRunFetch(id);
+  const {terminal} = useRunEventStream(
+    id,
+    data.scheduleRefresh,
+    data.refreshNow,
   );
+  const {toast, title} = useRunDerivedState(data.run, terminal);
 
-  if (!id) return null;
+  return {
+    run: data.run,
+    hypotheses: data.hypotheses,
+    evidence: data.evidence,
+    matches: data.matches,
+    reviews: data.reviews,
+    report: data.report,
+    error: data.error,
+    loaded: data.loaded,
+    toast,
+    title,
+  };
+}
 
+// Inline error banner shown above the tab content; renders nothing when
+// there is no error.
+function ReportErrorAlert({message}: {message: string | null}) {
+  if (!message) return null;
   return (
-    <div className={REPORT_PAGE_CLASSES}>
-      <ReportTitlebar title={title} />
-
-      <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
-
-      {error && (
-        <div role="alert" className={REPORT_ALERT_CLASSES}>
-          {error}
-        </div>
-      )}
-
-      {/* Active tab content. Keying <main> by activeTab remounts it on tab
-          switch, which also resets any per-tab local UI state (e.g. IdeasTab's
-          selection, LearningView's search query). */}
-      {!loaded && !error ? (
-        <RunDetailSkeleton />
-      ) : (
-        <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
-          {activeTab === 'details' && <GoalDetailsView run={run} />}
-          {activeTab === 'learning' && (
-            <LearningView goal={runGoal(run)} evidence={evidence} />
-          )}
-          {activeTab === 'overview' && (
-            <ResearchOverviewView
-              run={run}
-              report={report}
-              hypotheses={hypotheses}
-              matches={matches}
-            />
-          )}
-          {activeTab === 'ideas' && (
-            <section className={ALL_IDEAS_CLASSES}>
-              <IdeasTab
-                key={ideasViewKey}
-                hypotheses={hypotheses}
-                reviews={reviews}
-                matches={matches}
-              />
-            </section>
-          )}
-        </main>
-      )}
-
-      {toast && <RunToast message={toast} />}
+    <div role="alert" className={REPORT_ALERT_CLASSES}>
+      {message}
     </div>
+  );
+}
+
+// Active tab content for a loaded run. Keying <main> by activeTab remounts it
+// on tab switch, which also resets any per-tab local UI state (e.g.
+// IdeasTab's selection, LearningView's search query).
+function RunDetailTabContent({
+  activeTab,
+  run,
+  evidence,
+  report,
+  hypotheses,
+  matches,
+  reviews,
+  ideasViewKey,
+}: {
+  activeTab: TabName;
+  run: RunWithSummary | null;
+  evidence: Evidence[];
+  report: Report | null;
+  hypotheses: Hypothesis[];
+  matches: MatchRow[];
+  reviews: Review[];
+  ideasViewKey: number;
+}) {
+  return (
+    <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
+      {activeTab === 'details' && <GoalDetailsView run={run} />}
+      {activeTab === 'learning' && (
+        <LearningView goal={runGoal(run)} evidence={evidence} />
+      )}
+      {activeTab === 'overview' && (
+        <ResearchOverviewView
+          run={run}
+          report={report}
+          hypotheses={hypotheses}
+          matches={matches}
+        />
+      )}
+      {activeTab === 'ideas' && (
+        <section className={ALL_IDEAS_CLASSES}>
+          <IdeasTab
+            key={ideasViewKey}
+            hypotheses={hypotheses}
+            reviews={reviews}
+            matches={matches}
+          />
+        </section>
+      )}
+    </main>
   );
 }
 

@@ -125,60 +125,23 @@ export function HomeStage({
   // active layout.
   const isMobile = useIsMobile();
 
+  // Filling the composer from a suggestion also dismisses that suggestion's
+  // preview bubble, since the row is about to lose focus/hover anyway.
+  function selectSuggestion(text: string) {
+    setInput(text);
+    setHoveredSuggestion(null);
+  }
+
   return (
     <section className={HOME_STAGE_CLASSES}>
       <div className={HOME_MAIN_CLASSES}>
-        {/* Phone-only flask mark above the title (Gemini-style greeting); the
-            desktop header lockup already carries the mark. */}
-        {isMobile && (
-          <GoogleLabsIcon aria-hidden="true" className={HOME_LOGO_CLASSES} />
-        )}
-        <h1 className={HOME_TITLE_CLASSES}>
-          What breakthrough should we make today?
-        </h1>
-
-        {/* The 1-2-3 onboarding timeline is desktop-only; mobile drops it
-            entirely to free vertical space. */}
-        {!isMobile && (
-          <ol className={HOME_STEP_TIMELINE_CLASSES}>
-            {SESSION_STEPS.map((step, index) => (
-              <li
-                key={step.n}
-                className={[
-                  HOME_STEP_ITEM_CLASSES,
-                  index === 1 ? HOME_STEP_ITEM_CENTER_CLASSES : '',
-                  index === 2 ? HOME_STEP_ITEM_END_CLASSES : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <span className={HOME_STEP_NUMBER_CLASSES}>{step.n}</span>
-                <div>
-                  <h2 className={HOME_STEP_HEADING_CLASSES}>{step.title}</h2>
-                  <p className={HOME_STEP_BODY_CLASSES}>{step.body}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-        )}
-
-        <div className={HOME_SUGGESTION_ROW_CLASSES}>
-          {SUGGESTIONS.map((suggestion, index) => (
-            <SuggestionCard
-              key={suggestion.text}
-              suggestion={suggestion}
-              index={index}
-              isMobile={isMobile}
-              isPreviewed={hoveredSuggestion === suggestion.text}
-              onPreview={setHoveredSuggestion}
-              onSelect={text => {
-                setInput(text);
-                setHoveredSuggestion(null);
-              }}
-            />
-          ))}
-        </div>
-
+        <HomeGreeting isMobile={isMobile} />
+        <HomeSuggestionRow
+          isMobile={isMobile}
+          hoveredSuggestion={hoveredSuggestion}
+          onPreview={setHoveredSuggestion}
+          onSelect={selectSuggestion}
+        />
         <Composer
           input={input}
           setInput={setInput}
@@ -189,18 +152,110 @@ export function HomeStage({
           onSubmit={onSubmit}
         />
       </div>
-
-      {/* Recents is desktop-only; on phones recent runs live in the nav
-          drawer's Chats list. */}
-      {!isMobile && (
-        <HomeRecentsPanel
-          runs={runs}
-          scoresByRunId={scoresByRunId}
-          showAll={showAllRecents}
-          onToggleShowAll={onToggleShowAll}
-        />
-      )}
+      <HomeRecentsRegion
+        isMobile={isMobile}
+        runs={runs}
+        scoresByRunId={scoresByRunId}
+        showAllRecents={showAllRecents}
+        onToggleShowAll={onToggleShowAll}
+      />
     </section>
+  );
+}
+
+// Renders the heading block above the suggestion row: the phone-only flask
+// mark (the desktop header lockup already carries the mark), the greeting
+// title, and the desktop-only 1-2-3 onboarding timeline (mobile drops it
+// entirely to free vertical space).
+function HomeGreeting({isMobile}: {isMobile: boolean}) {
+  return (
+    <>
+      {isMobile && (
+        <GoogleLabsIcon aria-hidden="true" className={HOME_LOGO_CLASSES} />
+      )}
+      <h1 className={HOME_TITLE_CLASSES}>
+        What breakthrough should we make today?
+      </h1>
+      {!isMobile && (
+        <ol className={HOME_STEP_TIMELINE_CLASSES}>
+          {SESSION_STEPS.map((step, index) => (
+            <li
+              key={step.n}
+              className={[
+                HOME_STEP_ITEM_CLASSES,
+                index === 1 ? HOME_STEP_ITEM_CENTER_CLASSES : '',
+                index === 2 ? HOME_STEP_ITEM_END_CLASSES : '',
+              ]
+                .filter(Boolean)
+                .join(' ')}
+            >
+              <span className={HOME_STEP_NUMBER_CLASSES}>{step.n}</span>
+              <div>
+                <h2 className={HOME_STEP_HEADING_CLASSES}>{step.title}</h2>
+                <p className={HOME_STEP_BODY_CLASSES}>{step.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </>
+  );
+}
+
+// Renders the suggestion prompt row: one SuggestionCard per entry in
+// SUGGESTIONS, wired to the shared hover/preview state and the handler that
+// fills the composer when a card is selected.
+function HomeSuggestionRow({
+  isMobile,
+  hoveredSuggestion,
+  onPreview,
+  onSelect,
+}: {
+  isMobile: boolean;
+  hoveredSuggestion: string | null;
+  onPreview: (text: string | null) => void;
+  onSelect: (text: string) => void;
+}) {
+  return (
+    <div className={HOME_SUGGESTION_ROW_CLASSES}>
+      {SUGGESTIONS.map((suggestion, index) => (
+        <SuggestionCard
+          key={suggestion.text}
+          suggestion={suggestion}
+          index={index}
+          isMobile={isMobile}
+          isPreviewed={hoveredSuggestion === suggestion.text}
+          onPreview={onPreview}
+          onSelect={onSelect}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Renders the desktop-only recents panel; on phones recent runs live in the
+// nav drawer's Chats list instead, so this renders nothing on mobile.
+function HomeRecentsRegion({
+  isMobile,
+  runs,
+  scoresByRunId,
+  showAllRecents,
+  onToggleShowAll,
+}: {
+  isMobile: boolean;
+  runs: Run[];
+  scoresByRunId: Record<string, number | null>;
+  showAllRecents: boolean;
+  onToggleShowAll: () => void;
+}) {
+  if (isMobile) return null;
+  return (
+    <HomeRecentsPanel
+      runs={runs}
+      scoresByRunId={scoresByRunId}
+      showAll={showAllRecents}
+      onToggleShowAll={onToggleShowAll}
+    />
   );
 }
 

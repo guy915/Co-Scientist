@@ -2,6 +2,7 @@ import {
   Fragment,
   type Dispatch,
   type ReactNode,
+  type RefObject,
   type SetStateAction,
   useCallback,
   useEffect,
@@ -16,7 +17,7 @@ import {
 } from 'react-router-dom';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
-import {useToast} from '../hooks/use_toast';
+import {useToast, type ToastState} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
 import {useChatSession} from '../hooks/use_chat_session';
 import {type InferredRunSpec} from '../run_spec';
@@ -65,7 +66,8 @@ type ChatWorkspaceLocationState = {
  * toggle, scroll/composer refs), delegates the actual session state machine
  * (messages, draft/confirmed run spec, started session) to useChatSession,
  * merges everything into a single sorted timeline, and renders either the
- * session-home stage (HomeStage) or the in-conversation timeline + composer.
+ * session-home stage (HomeStage) or the in-conversation timeline + composer
+ * (ConversationView).
  */
 export function ChatWorkspace() {
   const navigate = useNavigate();
@@ -73,219 +75,241 @@ export function ChatWorkspace() {
   const [showAllRecents, setShowAllRecents] = useState(false);
   // PubMed connector toggle, shared between the home and in-chat composer.
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
-  // Wraps the overlaid composer; its measured height feeds the timeline's
-  // bottom padding via a CSS custom property (see the ResizeObserver effect).
+  // Wraps the overlaid composer; its measured height drives the timeline's
+  // bottom padding (see the ResizeObserver effect below).
   const composerRef = useRef<HTMLDivElement>(null);
 
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
 
-  // Focuses the composer textarea on the next frame (after it has mounted /
-  // become visible), used both locally and injected into useChatSession.
-  const focusComposer = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      const composer = document.querySelector<HTMLTextAreaElement>(
-        '.reference-composer textarea',
-      );
-      composer?.focus();
-    });
-  }, []);
+  // Focuses the composer textarea on the next frame; used both locally and
+  // injected into useChatSession.
+  const focusComposer = useCallback(focusComposerTextarea, []);
 
-  // The session state machine (composer input, message log, draft/confirmed
-  // run spec, started session, and their handlers) lives entirely in this
-  // hook; this component only reads it to build the timeline and render it.
+  // The session state machine lives entirely in this hook; fields used once
+  // below are read straight off `session`, and the three read more than once
+  // (draftSpec/startedSession/hasConversation) are destructured for brevity.
   const session = useChatSession({
     reloadHistory,
     focusComposer,
     setToast,
     pubmedEnabled,
   });
-  const {
-    input,
-    setInput,
-    draftSpec,
-    setDraftSpec,
-    draftSpecCreatedAt,
-    confirmedSpec,
-    confirmedSpecCreatedAt,
-    startedSession,
-    setStartedSession,
-    isStarting,
-    messages,
-    error,
-    hasConversation,
-    resetSession,
-    stageDraftSpec,
-    handleRetryMessage,
-    handleEditMessage,
-    handleCopyRequest,
-    handleRetryDraftSpec,
-    handleCancelDraftSpec,
-    handleEditPlan,
-    handleSubmit,
-    handleStartRun,
-  } = session;
+  const {draftSpec, startedSession, hasConversation} = session;
 
-  // Clears the session back to the empty home stage and refreshes the
-  // recents list, so a fresh "New chat" also picks up any run that just
-  // finished elsewhere.
+  // Clears the session back to the empty home stage and refreshes recents,
+  // so "New chat" also picks up any run that just finished elsewhere.
   const resetWorkspace = useCallback(() => {
-    resetSession();
+    session.resetSession();
     setToast(null);
     void reloadHistory();
-  }, [reloadHistory, resetSession, setToast]);
+  }, [reloadHistory, session.resetSession, setToast]);
 
-  // Wires the nav rail's global "new chat" / "focus composer" actions,
-  // whether they arrive as window custom events or react-router navigation
-  // state, into the handlers above.
+  // Wires the nav rail's global "new chat" / "focus composer" actions into
+  // the handlers above.
   useChatWorkspaceGlobalEvents({resetWorkspace, focusComposer});
 
-  // Publishes the current draft goal (or started session title) as the app
-  // shell's header title via a custom event, since the header lives outside
-  // this component's subtree. Clears it back to empty on cleanup/unmount.
-  useEffect(() => {
-    const title = draftSpec
-      ? conciseTitle(draftSpec.goal)
-      : startedSession
-        ? startedSession.title
-        : '';
-    window.dispatchEvent(
-      new CustomEvent('cosci-header-title', {detail: title}),
-    );
-    return () => {
-      window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: ''}));
-    };
-  }, [draftSpec, startedSession]);
+  // Publishes the current draft/started title as the app shell's header via
+  // a custom event, since the header lives outside this subtree.
+  useEffect(
+    () => syncHeaderTitle(draftSpec, startedSession),
+    [draftSpec, startedSession],
+  );
 
-  // Merge every timeline-worthy piece of session state (messages, draft spec,
-  // confirmed spec, started session) into one sorted list of TimelineItems.
+  // Merges messages/draft/confirmed/started state into one sorted timeline;
+  // `session` supplies every field but navigate/resetWorkspace/focusComposer.
   const timelineItems = buildTimelineItems({
-    messages,
-    handleEditMessage,
-    handleCopyRequest,
-    handleRetryMessage,
-    draftSpec,
-    draftSpecCreatedAt,
-    setDraftSpec,
-    isStarting,
-    handleCancelDraftSpec,
-    handleEditPlan,
-    handleRetryDraftSpec,
-    handleStartRun,
-    confirmedSpec,
-    confirmedSpecCreatedAt,
-    stageDraftSpec,
-    startedSession,
-    setStartedSession,
+    ...session,
     navigate,
     resetWorkspace,
     focusComposer,
   });
 
-  // Auto-scrolls the timeline as it changes shape/order; see the hook for
-  // the anchor-mode (top vs bottom) logic.
+  // Auto-scrolls the timeline as it changes shape/order (see the hook).
   const scrollRef = useChatTimelineScroll(timelineItems, startedSession);
 
-  // The composer overlays the timeline, so reserve exactly its height as the
-  // timeline's bottom padding — otherwise the last item is trapped under the
-  // composer (padding too small) or floats above it (too large). Tracks the
-  // composer as it auto-grows.
-  useEffect(() => {
-    const composer = composerRef.current;
-    const scroller = scrollRef.current;
-    if (!hasConversation || !composer || !scroller) return;
-    const sync = () => {
-      scroller.style.setProperty(
-        '--chat-composer-h',
-        `${composer.offsetHeight}px`,
-      );
-    };
-    sync();
-    const observer = new ResizeObserver(sync);
-    observer.observe(composer);
-    return () => observer.disconnect();
-  }, [hasConversation, scrollRef]);
+  // The composer overlays the timeline, so its measured height becomes the
+  // timeline's bottom padding; tracks the composer as it auto-grows.
+  useEffect(
+    () => syncComposerHeight(composerRef, scrollRef, hasConversation),
+    [hasConversation, scrollRef],
+  );
 
   return (
     <div className={HOME_WORKSPACE_CLASSES}>
       <main className={HOME_WORKSPACE_MAIN_CLASSES}>
-        {/* Before any conversation exists, show the session-home stage
-            (greeting, suggestions, recents); once one starts, switch to the
-            scrolling timeline + overlaid composer below. */}
+        {/* No conversation yet: session-home stage. Otherwise: timeline. */}
         {!hasConversation ? (
           <HomeStage
-            input={input}
-            setInput={setInput}
+            input={session.input}
+            setInput={session.setInput}
             pubmedEnabled={pubmedEnabled}
             onPubmedEnabledChange={setPubmedEnabled}
-            onSubmit={handleSubmit}
+            onSubmit={session.handleSubmit}
             runs={history}
             scoresByRunId={homeScores}
             showAllRecents={showAllRecents}
             onToggleShowAll={() => setShowAllRecents(current => !current)}
           />
         ) : (
-          <>
-            <section ref={scrollRef} className={CHAT_TIMELINE_CLASSES}>
-              <div className={CHAT_COLUMN_CLASSES}>
-                {timelineItems.map(item => (
-                  <Fragment key={item.id}>{item.node}</Fragment>
-                ))}
-
-                {/* Session-level error (e.g. a failed submit/start), shown
-                    below the last timeline item. */}
-                {error && (
-                  <div
-                    role="alert"
-                    className="rounded-md border p-3 text-sm"
-                    style={{
-                      borderColor: 'var(--md-sys-color-error)',
-                      color: 'var(--md-sys-color-error)',
-                    }}
-                  >
-                    {error}
-                  </div>
-                )}
-              </div>
-            </section>
-            {/* Overlaid, non-scrolling composer; setupDraftMode swaps its
-                placeholder copy while a draft/confirmed spec or started
-                session is in view, and disabled locks input while starting. */}
-            <div ref={composerRef} className={CHAT_COMPOSER_CLASSES}>
-              <div className={CHAT_COLUMN_CLASSES}>
-                <Composer
-                  input={input}
-                  setInput={setInput}
-                  setupDraftMode={Boolean(draftSpec || startedSession)}
-                  disabled={isStarting}
-                  pubmedEnabled={pubmedEnabled}
-                  onPubmedEnabledChange={setPubmedEnabled}
-                  onSubmit={handleSubmit}
-                />
-              </div>
-            </div>
-          </>
+          <ConversationView
+            scrollRef={scrollRef}
+            timelineItems={timelineItems}
+            composerRef={composerRef}
+            session={session}
+            setupDraftMode={Boolean(draftSpec || startedSession)}
+            pubmedEnabled={pubmedEnabled}
+            onPubmedEnabledChange={setPubmedEnabled}
+          />
         )}
-        {/* Toast is portaled to <body> so no ancestor stacking context can
-            trap it; see HOME_TOAST_CLASSES for the fixed-position styling. */}
-        {toast &&
-          createPortal(
-            <div className={HOME_TOAST_CLASSES} role="status">
-              <span>{toast.message}</span>
-              {toast.action && (
-                <button
-                  type="button"
-                  className={HOME_TOAST_ACTION_CLASSES}
-                  onClick={toast.action.onClick}
-                >
-                  {toast.action.label}
-                </button>
-              )}
-            </div>,
-            document.body,
-          )}
+        <ToastPortal toast={toast} />
       </main>
     </div>
+  );
+}
+
+// Effect body for `focusComposer` above: focuses the composer textarea on
+// the next animation frame.
+function focusComposerTextarea() {
+  window.requestAnimationFrame(() => {
+    const composer = document.querySelector<HTMLTextAreaElement>(
+      '.reference-composer textarea',
+    );
+    composer?.focus();
+  });
+}
+
+// Effect body for the header-title sync above: dispatches the current draft/
+// started title to the app shell header; the returned cleanup clears it back
+// to empty on unmount or before the next run.
+function syncHeaderTitle(
+  draftSpec: InferredRunSpec | null,
+  startedSession: StartedSession | null,
+) {
+  const title = draftSpec
+    ? conciseTitle(draftSpec.goal)
+    : startedSession
+      ? startedSession.title
+      : '';
+  window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: title}));
+  return () => {
+    window.dispatchEvent(new CustomEvent('cosci-header-title', {detail: ''}));
+  };
+}
+
+// Effect body for the composer-resize sync above: while there's an active
+// conversation, mirrors the composer's measured height into the timeline's
+// `--chat-composer-h` custom property so its bottom padding tracks the
+// composer as it auto-grows.
+function syncComposerHeight(
+  composerRef: RefObject<HTMLDivElement | null>,
+  scrollRef: RefObject<HTMLDivElement | null>,
+  hasConversation: boolean,
+) {
+  const composer = composerRef.current;
+  const scroller = scrollRef.current;
+  if (!hasConversation || !composer || !scroller) return;
+  const sync = () => {
+    scroller.style.setProperty(
+      '--chat-composer-h',
+      `${composer.offsetHeight}px`,
+    );
+  };
+  sync();
+  const observer = new ResizeObserver(sync);
+  observer.observe(composer);
+  return () => observer.disconnect();
+}
+
+// The in-conversation view: the scrolling timeline (rendered items plus any
+// session-level error) and the composer overlaid at the bottom. Split out of
+// ChatWorkspace as a pure render component; every ref/handler it needs is
+// owned by ChatWorkspace and passed in as a prop. Not exported, so it takes
+// the whole `session` object rather than re-declaring each field it reads.
+function ConversationView({
+  scrollRef,
+  timelineItems,
+  composerRef,
+  session,
+  setupDraftMode,
+  pubmedEnabled,
+  onPubmedEnabledChange,
+}: {
+  scrollRef: RefObject<HTMLDivElement | null>;
+  timelineItems: TimelineItem[];
+  composerRef: RefObject<HTMLDivElement | null>;
+  session: Pick<
+    ReturnType<typeof useChatSession>,
+    'input' | 'setInput' | 'error' | 'isStarting' | 'handleSubmit'
+  >;
+  setupDraftMode: boolean;
+  pubmedEnabled: boolean;
+  onPubmedEnabledChange: (value: boolean) => void;
+}) {
+  const {input, setInput, error, isStarting, handleSubmit} = session;
+  return (
+    <>
+      <section ref={scrollRef} className={CHAT_TIMELINE_CLASSES}>
+        <div className={CHAT_COLUMN_CLASSES}>
+          {timelineItems.map(item => (
+            <Fragment key={item.id}>{item.node}</Fragment>
+          ))}
+
+          {/* Session-level error (e.g. a failed submit/start), shown below
+              the last timeline item. */}
+          {error && (
+            <div
+              role="alert"
+              className="rounded-md border p-3 text-sm"
+              style={{
+                borderColor: 'var(--md-sys-color-error)',
+                color: 'var(--md-sys-color-error)',
+              }}
+            >
+              {error}
+            </div>
+          )}
+        </div>
+      </section>
+      {/* Overlaid, non-scrolling composer; setupDraftMode swaps its
+          placeholder copy while a draft/confirmed spec or started session is
+          in view, and disabled locks input while starting. */}
+      <div ref={composerRef} className={CHAT_COMPOSER_CLASSES}>
+        <div className={CHAT_COLUMN_CLASSES}>
+          <Composer
+            input={input}
+            setInput={setInput}
+            setupDraftMode={setupDraftMode}
+            disabled={isStarting}
+            pubmedEnabled={pubmedEnabled}
+            onPubmedEnabledChange={onPubmedEnabledChange}
+            onSubmit={handleSubmit}
+          />
+        </div>
+      </div>
+    </>
+  );
+}
+
+// Toast is portaled to <body> so no ancestor stacking context can trap it;
+// see HOME_TOAST_CLASSES for the fixed-position styling. Renders nothing
+// when there is no toast to show.
+function ToastPortal({toast}: {toast: ToastState | null}) {
+  if (!toast) return null;
+  return createPortal(
+    <div className={HOME_TOAST_CLASSES} role="status">
+      <span>{toast.message}</span>
+      {toast.action && (
+        <button
+          type="button"
+          className={HOME_TOAST_ACTION_CLASSES}
+          onClick={toast.action.onClick}
+        >
+          {toast.action.label}
+        </button>
+      )}
+    </div>,
+    document.body,
   );
 }
 
@@ -328,9 +352,9 @@ function useChatWorkspaceGlobalEvents({
   ]);
 }
 
-// Dependencies buildTimelineItems needs to render each kind of timeline
-// entry; see ChatWorkspace's destructured `session` for where these come
-// from.
+// Dependencies buildTimelineItems (and the per-category helpers below) need
+// to render each kind of timeline entry; see ChatWorkspace's `session` plus
+// its own navigate/resetWorkspace/focusComposer for where these come from.
 interface BuildTimelineItemsArgs {
   messages: ChatEntry[];
   handleEditMessage: (message: ChatEntry) => void;
@@ -354,55 +378,58 @@ interface BuildTimelineItemsArgs {
   focusComposer: () => void;
 }
 
-// Merges every timeline-worthy piece of session state (messages, draft spec,
-// confirmed spec, started session) into one list of TimelineItems, each
-// carrying the rendered card/bubble node plus enough metadata to sort them,
-// and returns them in chronological order.
-function buildTimelineItems({
+// Each chat message becomes a ChatBubble; `order` preserves message array
+// order as a tiebreaker when timestamps collide.
+function messageTimelineItems({
   messages,
   handleEditMessage,
   handleCopyRequest,
   handleRetryMessage,
+}: Pick<
+  BuildTimelineItemsArgs,
+  'messages' | 'handleEditMessage' | 'handleCopyRequest' | 'handleRetryMessage'
+>): TimelineItem[] {
+  return messages.map((message, index) => ({
+    id: `local-message-${message.id}`,
+    at: message.created_at,
+    order: index,
+    node: (
+      <ChatBubble
+        message={message}
+        onEdit={() => handleEditMessage(message)}
+        onCopyRequest={() => void handleCopyRequest(message)}
+        onRetry={() => handleRetryMessage(message)}
+      />
+    ),
+  }));
+}
+
+// Editable draft run spec awaiting confirmation: focus/tier edits write
+// straight back into draftSpec, and cancel/edit/retry/start delegate to the
+// session hook's handlers.
+function draftTimelineItems({
   draftSpec,
   draftSpecCreatedAt,
-  setDraftSpec,
   isStarting,
+  setDraftSpec,
   handleCancelDraftSpec,
   handleEditPlan,
   handleRetryDraftSpec,
   handleStartRun,
-  confirmedSpec,
-  confirmedSpecCreatedAt,
-  stageDraftSpec,
-  startedSession,
-  setStartedSession,
-  navigate,
-  resetWorkspace,
-  focusComposer,
-}: BuildTimelineItemsArgs): TimelineItem[] {
-  const timelineItems: TimelineItem[] = [];
-  // Each chat message becomes a ChatBubble; `order` preserves message array
-  // order as a tiebreaker when timestamps collide.
-  for (const [index, message] of messages.entries()) {
-    timelineItems.push({
-      id: `local-message-${message.id}`,
-      at: message.created_at,
-      order: index,
-      node: (
-        <ChatBubble
-          message={message}
-          onEdit={() => handleEditMessage(message)}
-          onCopyRequest={() => void handleCopyRequest(message)}
-          onRetry={() => handleRetryMessage(message)}
-        />
-      ),
-    });
-  }
-  // Editable draft run spec awaiting confirmation: focus/tier edits write
-  // straight back into draftSpec, and cancel/edit/retry/start delegate to the
-  // session hook's handlers.
-  if (draftSpec && draftSpecCreatedAt !== null) {
-    timelineItems.push({
+}: Pick<
+  BuildTimelineItemsArgs,
+  | 'draftSpec'
+  | 'draftSpecCreatedAt'
+  | 'isStarting'
+  | 'setDraftSpec'
+  | 'handleCancelDraftSpec'
+  | 'handleEditPlan'
+  | 'handleRetryDraftSpec'
+  | 'handleStartRun'
+>): TimelineItem[] {
+  if (!draftSpec || draftSpecCreatedAt === null) return [];
+  return [
+    {
       id: 'draft-spec',
       at: draftSpecCreatedAt,
       order: 50,
@@ -422,13 +449,28 @@ function buildTimelineItems({
           onStart={() => void handleStartRun()}
         />
       ),
-    });
-  }
-  // Read-only confirmed spec once the plan has been locked in (e.g. after an
-  // edit round-trip): all mutation handlers are no-ops and `locked` disables
-  // the option cards; retrying re-stages it as an editable draft again.
-  if (confirmedSpec && confirmedSpecCreatedAt !== null) {
-    timelineItems.push({
+    },
+  ];
+}
+
+// Read-only confirmed spec once the plan has been locked in (e.g. after an
+// edit round-trip): all mutation handlers are no-ops and `locked` disables
+// the option cards; retrying re-stages it as an editable draft again.
+function confirmedSpecTimelineItems({
+  confirmedSpec,
+  confirmedSpecCreatedAt,
+  handleEditPlan,
+  stageDraftSpec,
+}: Pick<
+  BuildTimelineItemsArgs,
+  | 'confirmedSpec'
+  | 'confirmedSpecCreatedAt'
+  | 'handleEditPlan'
+  | 'stageDraftSpec'
+>): TimelineItem[] {
+  if (!confirmedSpec || confirmedSpecCreatedAt === null) return [];
+  return [
+    {
       id: 'confirmed-spec',
       at: confirmedSpecCreatedAt,
       order: 50,
@@ -447,13 +489,30 @@ function buildTimelineItems({
           onStart={() => undefined}
         />
       ),
-    });
-  }
-  // Terminal timeline entry once the backend run has actually started;
-  // opening it navigates to the run detail page, "retry" just bumps its
-  // timestamp so it re-sorts to the current time.
-  if (startedSession) {
-    timelineItems.push({
+    },
+  ];
+}
+
+// Terminal timeline entry once the backend run has actually started; opening
+// it navigates to the run detail page, "retry" just bumps its timestamp so
+// it re-sorts to the current time.
+function startedTimelineItems({
+  startedSession,
+  setStartedSession,
+  navigate,
+  resetWorkspace,
+  focusComposer,
+}: Pick<
+  BuildTimelineItemsArgs,
+  | 'startedSession'
+  | 'setStartedSession'
+  | 'navigate'
+  | 'resetWorkspace'
+  | 'focusComposer'
+>): TimelineItem[] {
+  if (!startedSession) return [];
+  return [
+    {
       id: `started-session-${startedSession.id}`,
       at: startedSession.at,
       order: 60,
@@ -472,8 +531,21 @@ function buildTimelineItems({
           }}
         />
       ),
-    });
-  }
+    },
+  ];
+}
+
+// Merges every timeline-worthy piece of session state (messages, draft spec,
+// confirmed spec, started session) into one list of TimelineItems, each
+// carrying the rendered card/bubble node plus enough metadata to sort them,
+// and returns them in chronological order.
+function buildTimelineItems(args: BuildTimelineItemsArgs): TimelineItem[] {
+  const timelineItems: TimelineItem[] = [
+    ...messageTimelineItems(args),
+    ...draftTimelineItems(args),
+    ...confirmedSpecTimelineItems(args),
+    ...startedTimelineItems(args),
+  ];
   // Chronological order, with `order` breaking ties between items created in
   // the same tick (e.g. a message and a spec card stamped at the same time).
   timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);

@@ -586,6 +586,131 @@ class HypothesisGenerator:
             dev_test_lit_tools_isolation=dev_test_lit_tools_isolation,
         )
 
+    def _initial_config_fields(self) -> dict[str, Any]:
+        """Builds the generator-config fragment of the initial state.
+
+        Returns:
+            State fields sourced from the generator's own configuration
+            (model names, iteration/count knobs, and the tool registry).
+        """
+        return {
+            "model_name":
+                self.model_name,
+            "supervisor_model_name":
+                self.supervisor_model_name,
+            "max_iterations":
+                self.max_iterations,
+            "initial_hypotheses_count":
+                self.initial_hypotheses_count,
+            "evolution_max_count":
+                self.evolution_max_count,
+            "tournament_pairs":
+                self.tournament_pairs,
+            "literature_review_papers_count":
+                self.literature_review_papers_count,
+            # Tool registry for config-driven tool selection
+            "tool_registry":
+                self._tool_registry,
+        }
+
+    def _initial_runtime_fields(self) -> dict[str, Any]:
+        """Builds the empty runtime-state fragment of the initial state.
+
+        Returns:
+            State fields that track workflow progress and results, all
+            starting at their empty/zero values.
+        """
+        return {
+            "hypotheses": [],
+            "current_iteration": 0,
+            "supervisor_guidance": {},
+            "meta_review": {},
+            "research_overview": None,
+            "removed_duplicates": [],
+            "tournament_matchups": [],
+            "evolution_details": [],
+            "metrics": ExecutionMetrics(),
+            "messages": [],
+        }
+
+    def _initial_run_identity_fields(
+        self,
+        *,
+        research_goal: str,
+        start_time: float,
+        run_id: str,
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]),
+        mcp_available: bool,
+        pubmed_available: bool,
+        enable_tool_calling_generation: bool,
+        dev_test_lit_tools_isolation: bool,
+    ) -> dict[str, Any]:
+        """Builds the run-identity/system-availability state fragment.
+
+        Args:
+            research_goal: The research question or goal.
+            start_time: Wall-clock start time (``time.time()``) for the run.
+            run_id: Unique identifier for this run.
+            progress_callback: Async callback for progress updates.
+            mcp_available: Whether the MCP server is available.
+            pubmed_available: Whether PubMed is available via MCP.
+            enable_tool_calling_generation: Whether tool-calling generation
+                is enabled for this run.
+            dev_test_lit_tools_isolation: Whether dev lit-tools isolation
+                mode is enabled for this run.
+
+        Returns:
+            State fields identifying this run and the system capabilities
+            available to it.
+        """
+        return {
+            "research_goal": research_goal,
+            "start_time": start_time,
+            "run_id": run_id,
+            "progress_callback": progress_callback,
+            # System availability flags
+            "mcp_available": mcp_available,
+            "pubmed_available": pubmed_available,
+            "enable_tool_calling_generation": enable_tool_calling_generation,
+            "dev_test_lit_tools_isolation": dev_test_lit_tools_isolation,
+        }
+
+    def _initial_user_and_literature_fields(
+        self,
+        *,
+        opts: dict[str, Any],
+        user_inputs: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Builds the user-input and literature-review-output fragment.
+
+        Args:
+            opts: Caller-supplied generation options.
+            user_inputs: The ``user_inputs`` sub-dict of opts.
+
+        Returns:
+            State fields for optional user preferences/inputs, plus the
+            (initially empty) literature review outputs populated later by
+            downstream nodes.
+        """
+        return {
+            # Optional user preferences and inputs
+            "preferences": opts.get("preferences"),
+            "attributes": opts.get("attributes"),
+            "constraints": opts.get("constraints"),
+            "criteria": opts.get("criteria"),
+            "run_focus_guidance": opts.get("run_focus_guidance"),
+            "run_setup_guidance": opts.get("run_setup_guidance"),
+            "starting_hypotheses": user_inputs.get("starting_hypotheses"),
+            "literature": user_inputs.get("literature"),
+            # Literature review outputs (populated by downstream nodes)
+            "articles_with_reasoning": None,
+            "literature_review_queries": None,
+            "articles": None,
+            "debate_transcripts": None,
+            "context_enrichment_sources": None,
+        }
+
     def _build_initial_state(
         self,
         *,
@@ -621,85 +746,23 @@ class HypothesisGenerator:
             The initial workflow state (including "start_time" and "run_id"
             keys).
         """
-        initial_state: WorkflowState = {
-            "research_goal":
-                research_goal,
-            "model_name":
-                self.model_name,
-            "supervisor_model_name":
-                self.supervisor_model_name,
-            "max_iterations":
-                self.max_iterations,
-            "initial_hypotheses_count":
-                self.initial_hypotheses_count,
-            "evolution_max_count":
-                self.evolution_max_count,
-            "tournament_pairs":
-                self.tournament_pairs,
-            "literature_review_papers_count":
-                self.literature_review_papers_count,
-            "hypotheses": [],
-            "current_iteration":
-                0,
-            "supervisor_guidance": {},
-            "meta_review": {},
-            "research_overview":
-                None,
-            "removed_duplicates": [],
-            "tournament_matchups": [],
-            "evolution_details": [],
-            "metrics":
-                ExecutionMetrics(),
-            "start_time":
-                start_time,
-            "run_id":
-                run_id,
-            "progress_callback":
-                progress_callback,
-            "messages": [],
-            # System availability flags
-            "mcp_available":
-                mcp_available,
-            "pubmed_available":
-                pubmed_available,
-            "enable_tool_calling_generation":
-                enable_tool_calling_generation,
-            "dev_test_lit_tools_isolation":
-                dev_test_lit_tools_isolation,
-            # Tool registry for config-driven tool selection
-            "tool_registry":
-                self._tool_registry,
-            # Optional user preferences and inputs
-            "preferences":
-                opts.get("preferences"),
-            "attributes":
-                opts.get("attributes"),
-            "constraints":
-                opts.get("constraints"),
-            "criteria":
-                opts.get("criteria"),
-            "run_focus_guidance":
-                opts.get("run_focus_guidance"),
-            "run_setup_guidance":
-                opts.get("run_setup_guidance"),
-            "starting_hypotheses":
-                user_inputs.get("starting_hypotheses"),
-            "literature":
-                user_inputs.get("literature"),
-            # Literature review outputs (populated by downstream nodes)
-            "articles_with_reasoning":
-                None,
-            "literature_review_queries":
-                None,
-            "articles":
-                None,
-            "debate_transcripts":
-                None,
-            "context_enrichment_sources":
-                None,
-        }
-
-        return initial_state
+        return cast(
+            WorkflowState, {
+                **self._initial_config_fields(),
+                **self._initial_runtime_fields(),
+                **self._initial_run_identity_fields(
+                    research_goal=research_goal,
+                    start_time=start_time,
+                    run_id=run_id,
+                    progress_callback=progress_callback,
+                    mcp_available=mcp_available,
+                    pubmed_available=pubmed_available,
+                    enable_tool_calling_generation=(enable_tool_calling_generation),
+                    dev_test_lit_tools_isolation=(dev_test_lit_tools_isolation),
+                ),
+                **self._initial_user_and_literature_fields(opts=opts,
+                                                           user_inputs=user_inputs),
+            })
 
     # Two @overload stubs give type checkers a precise return type per
     # stream value; the un-decorated implementation below (with a union

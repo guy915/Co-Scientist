@@ -119,34 +119,32 @@ const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
-  // Title shown in the header bar; pages opt in by dispatching the
-  // `cosci-header-title` CustomEvent (see the listener effect below). Empty
-  // string means "no override" for the current route.
-  const [overrideTitle, setOverrideTitle] = useState('');
-  // Sidebar chat history; kept as local state (rather than derived from a
-  // hook) so it can be refreshed imperatively from multiple triggers below.
-  const [history, setHistory] = useState<Run[]>([]);
-  // Collapsed icon rail by default, matching the reference product; the
-  // hamburger expands it. On mobile this same flag toggles an off-canvas
-  // drawer instead (see shell_surface.css's <=700px breakpoint).
-  const [navOpen, setNavOpen] = useState(false);
-  // Which header popover (Settings menu or the Logs panel) is currently
-  // shown, if any; the two are mutually exclusive via togglePanel.
-  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
-  // Non-null renders the full-screen SettingsDialog overlay for that section.
-  const [settingsSection, setSettingsSection] =
-    useState<SettingsSection | null>(null);
-  // Sidebar chat list is capped to the 10 most recent entries until expanded.
-  const [showAllChats, setShowAllChats] = useState(false);
-  // Anchors for the outside-pointerdown handler below: a click landing
-  // outside both refs closes whichever popover is open.
-  const settingsControlRef = useRef<HTMLDivElement>(null);
-  const logsControlRef = useRef<HTMLDivElement>(null);
   const isRunRoute = location.pathname.startsWith('/runs/');
   // The run id embedded in /runs/:id[/:tab], used to persistently highlight the
   // active conversation in the sidebar chat list.
   const activeRunId = isRunRoute ? location.pathname.split('/')[2] : undefined;
-  const headerTitle = overrideTitle || '';
+  // Clear the shell title only when the title-owning context changes: the run
+  // id for run routes, else the pathname. Switching tabs within one run keeps
+  // the same id, so the run's dispatched title survives (RunDetail stays
+  // mounted across tabs and does not re-dispatch on a tab change).
+  const titleContextKey = isRunRoute ? `run:${activeRunId}` : location.pathname;
+  const headerTitle = useHeaderTitle(titleContextKey);
+  const {history, showAllChats, toggleShowAllChats} = useChatHistory(
+    location.pathname,
+  );
+  const {
+    navOpen,
+    setNavOpen,
+    activePanel,
+    settingsSection,
+    setSettingsSection,
+    settingsControlRef,
+    logsControlRef,
+    toggleNav,
+    togglePanel,
+    openSettings,
+  } = useLayoutChrome(location.pathname);
+
   const workspaceClasses = isRunRoute
     ? REPORT_WORKSPACE_CLASSES
     : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
@@ -178,6 +176,126 @@ export function Layout({children}: {children: ReactNode}) {
     void navigate('/', {state: {cosciAction: 'new-chat'}});
   }
 
+  return (
+    <div className={shellClass}>
+      <NavRail
+        navOpen={navOpen}
+        toggleNav={toggleNav}
+        startNewChat={startNewChat}
+        history={history}
+        activeRunId={activeRunId}
+        showAllChats={showAllChats}
+        onToggleShowAllChats={toggleShowAllChats}
+        activePanel={activePanel}
+        onTogglePanel={togglePanel}
+        onOpenSettings={openSettings}
+        settingsControlRef={settingsControlRef}
+      />
+      <DrawerScrim navOpen={navOpen} onDismiss={() => setNavOpen(false)} />
+      <section className={workspaceClasses}>
+        <ShellHeader
+          navOpen={navOpen}
+          toggleNav={toggleNav}
+          startNewChat={startNewChat}
+          headerTitle={headerTitle}
+          activePanel={activePanel}
+          onTogglePanel={togglePanel}
+          logsControlRef={logsControlRef}
+        />
+        <main className={pageClasses}>{children}</main>
+      </section>
+      {settingsSection && (
+        <SettingsDialog
+          section={settingsSection}
+          onSectionChange={setSettingsSection}
+          onClose={() => setSettingsSection(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Sidebar chat history: the recent-run list state, kept as local state
+// (rather than derived from a hook) so it can be refreshed imperatively from
+// multiple triggers, plus the "show more" expansion flag. `pathname` drives
+// the reload-on-navigation effect below.
+function useChatHistory(pathname: string) {
+  const [history, setHistory] = useState<Run[]>([]);
+  // Sidebar chat list is capped to the 10 most recent entries until expanded.
+  const [showAllChats, setShowAllChats] = useState(false);
+
+  // Stable identity via useCallback (no deps) so it can safely be both an
+  // effect dependency and an event listener reference below.
+  const loadHistory = useCallback(async () => {
+    setHistory(await loadRunHistory());
+  }, []);
+
+  // Reload the sidebar history on mount, whenever a run is created/started
+  // (cosci-runs-changed), and on every navigation so status changes (e.g. a
+  // run finishing) are reflected without a full page reload.
+  useEffect(() => {
+    void loadHistory();
+    window.addEventListener('cosci-runs-changed', loadHistory);
+    return () => {
+      window.removeEventListener('cosci-runs-changed', loadHistory);
+    };
+  }, [loadHistory, pathname]);
+
+  return {
+    history,
+    showAllChats,
+    toggleShowAllChats: () => setShowAllChats(current => !current),
+  };
+}
+
+// The header title override dispatched by page components (e.g. RunDetail)
+// via the `cosci-header-title` CustomEvent, since the header lives in this
+// shell above the routed page content. `contextKey` identifies the
+// title-owning route (see Layout's titleContextKey) and clears any stale
+// title when it changes.
+function useHeaderTitle(contextKey: string): string {
+  // Empty string means "no override" for the current route.
+  const [overrideTitle, setOverrideTitle] = useState('');
+
+  useEffect(() => {
+    setOverrideTitle('');
+  }, [contextKey]);
+
+  // Registered once for the shell's lifetime (no deps) and torn down on
+  // unmount.
+  useEffect(() => {
+    function onHeaderTitle(event: Event) {
+      const custom = event as CustomEvent<string>;
+      setOverrideTitle(custom.detail || '');
+    }
+    window.addEventListener('cosci-header-title', onHeaderTitle);
+    return () => {
+      window.removeEventListener('cosci-header-title', onHeaderTitle);
+    };
+  }, []);
+
+  return overrideTitle;
+}
+
+// Bundles the rail's open/collapsed state, the mutually-exclusive
+// Settings/Logs popover, and the full-screen Settings dialog, plus the
+// effects that keep them in sync with navigation and outside clicks.
+function useLayoutChrome(pathname: string) {
+  // Collapsed icon rail by default, matching the reference product; the
+  // hamburger expands it. On mobile this same flag toggles an off-canvas
+  // drawer instead (see shell_surface.css's <=700px breakpoint).
+  const [navOpen, setNavOpen] = useState(false);
+  // Which header popover (Settings menu or the Logs panel) is currently
+  // shown, if any; the two are mutually exclusive via togglePanel.
+  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  // Non-null renders the full-screen SettingsDialog overlay for that section.
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection | null>(null);
+  // Anchors for the outside-pointerdown handler below: a click landing
+  // outside both refs closes whichever popover is open.
+  const settingsControlRef = useRef<HTMLDivElement>(null);
+  const logsControlRef = useRef<HTMLDivElement>(null);
+
   // Flips the rail between expanded/collapsed (desktop) or open/closed
   // (mobile drawer), and closes any open popover since its anchor may move.
   function toggleNav() {
@@ -206,7 +324,7 @@ export function Layout({children}: {children: ReactNode}) {
   useEffect(() => {
     setActivePanel(null);
     if (isMobileViewport()) setNavOpen(false);
-  }, [location.pathname]);
+  }, [pathname]);
 
   // Escape closes the mobile drawer (a standard dismiss affordance for an
   // overlay); the desktop rail is unaffected.
@@ -220,15 +338,6 @@ export function Layout({children}: {children: ReactNode}) {
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [navOpen]);
-
-  // Clear the shell title only when the title-owning context changes: the run
-  // id for run routes, else the pathname. Switching tabs within one run keeps
-  // the same id, so the run's dispatched title survives (RunDetail stays
-  // mounted across tabs and does not re-dispatch on a tab change).
-  const titleContextKey = isRunRoute ? `run:${activeRunId}` : location.pathname;
-  useEffect(() => {
-    setOverrideTitle('');
-  }, [titleContextKey]);
 
   // Only attaches the listener while a popover is actually open (skipped
   // via the early return otherwise), and detaches it on close/unmount so
@@ -250,84 +359,32 @@ export function Layout({children}: {children: ReactNode}) {
     };
   }, [activePanel]);
 
-  // Page components (e.g. RunDetail) set the header title by dispatching a
-  // `cosci-header-title` CustomEvent<string> rather than via props, since the
-  // header lives in this shell above the routed page content. Registered
-  // once for the shell's lifetime (no deps) and torn down on unmount.
-  useEffect(() => {
-    function onHeaderTitle(event: Event) {
-      const custom = event as CustomEvent<string>;
-      setOverrideTitle(custom.detail || '');
-    }
-    window.addEventListener('cosci-header-title', onHeaderTitle);
-    return () => {
-      window.removeEventListener('cosci-header-title', onHeaderTitle);
-    };
-  }, []);
+  return {
+    navOpen,
+    setNavOpen,
+    activePanel,
+    settingsSection,
+    setSettingsSection,
+    settingsControlRef,
+    logsControlRef,
+    toggleNav,
+    togglePanel,
+    openSettings,
+  };
+}
 
-  // Stable identity via useCallback (no deps) so it can safely be both an
-  // effect dependency and an event listener reference below.
-  const loadHistory = useCallback(async () => {
-    setHistory(await loadRunHistory());
-  }, []);
-
-  // Reload the sidebar history on mount, whenever a run is created/started
-  // (cosci-runs-changed), and on every navigation so status changes (e.g. a
-  // run finishing) are reflected without a full page reload.
-  useEffect(() => {
-    void loadHistory();
-    window.addEventListener('cosci-runs-changed', loadHistory);
-    return () => {
-      window.removeEventListener('cosci-runs-changed', loadHistory);
-    };
-  }, [loadHistory, location.pathname]);
-
-  return (
-    <div className={shellClass}>
-      <NavRail
-        navOpen={navOpen}
-        toggleNav={toggleNav}
-        startNewChat={startNewChat}
-        history={history}
-        activeRunId={activeRunId}
-        showAllChats={showAllChats}
-        onToggleShowAllChats={() => setShowAllChats(current => !current)}
-        activePanel={activePanel}
-        onTogglePanel={togglePanel}
-        onOpenSettings={openSettings}
-        settingsControlRef={settingsControlRef}
-      />
-      {/* Backdrop behind the off-canvas drawer on mobile; only rendered while
-          the drawer is open, and a tap on it dismisses it. On desktop the
-          rail never overlaps content, so this has no visible effect there. */}
-      {navOpen && (
-        <div
-          className="ucs-scrim"
-          aria-hidden="true"
-          onClick={() => setNavOpen(false)}
-        />
-      )}
-      <section className={workspaceClasses}>
-        <ShellHeader
-          navOpen={navOpen}
-          toggleNav={toggleNav}
-          startNewChat={startNewChat}
-          headerTitle={headerTitle}
-          activePanel={activePanel}
-          onTogglePanel={togglePanel}
-          logsControlRef={logsControlRef}
-        />
-        <main className={pageClasses}>{children}</main>
-      </section>
-      {settingsSection && (
-        <SettingsDialog
-          section={settingsSection}
-          onSectionChange={setSettingsSection}
-          onClose={() => setSettingsSection(null)}
-        />
-      )}
-    </div>
-  );
+// Backdrop behind the off-canvas drawer on mobile; only rendered while the
+// drawer is open, and a tap on it dismisses it. On desktop the rail never
+// overlaps content, so this has no visible effect there.
+function DrawerScrim({
+  navOpen,
+  onDismiss,
+}: {
+  navOpen: boolean;
+  onDismiss: () => void;
+}) {
+  if (!navOpen) return null;
+  return <div className="ucs-scrim" aria-hidden="true" onClick={onDismiss} />;
 }
 
 // The header action bar: hamburger (mobile drawer / desktop rail toggle),

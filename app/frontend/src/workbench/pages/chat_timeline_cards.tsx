@@ -237,6 +237,54 @@ function prefersReducedMotion() {
   );
 }
 
+// Pure: whether a bubble's full height overflows its collapsed (four-line)
+// height enough to need the collapse/expand affordance at all. The +2 slop
+// absorbs sub-pixel rounding in the measured heights.
+function exceedsCollapsedHeight(heights: {
+  collapsed: number;
+  full: number;
+}): boolean {
+  return heights.full > heights.collapsed + 2;
+}
+
+// Pure: the collapsible text span's className for the current collapse/
+// expand state. Collapsible bubbles pick the clamp/ellipsis classes while
+// clamped and not expanded, otherwise the open (pre-wrap, no clamp) classes;
+// non-collapsible bubbles get the plain (assistant) text classes.
+function collapsibleTextClassName(
+  collapsible: boolean,
+  clamped: boolean,
+  expanded: boolean,
+): string {
+  if (!collapsible) return USER_BUBBLE_TEXT_CLASSES;
+  const stateClasses =
+    clamped && !expanded
+      ? USER_BUBBLE_TEXT_CLAMP_CLASSES
+      : USER_BUBBLE_TEXT_OPEN_CLASSES;
+  return `${USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES} ${stateClasses}`;
+}
+
+// Pure: the collapsible text span's inline max-height style, which drives
+// the animated transition. Collapsed height while closed, the measured full
+// height while opening, and no cap at all once `settled` so a later window
+// resize can't leave the bubble clipped. Undefined for non-collapsible
+// bubbles, which carry no inline max-height at all.
+function collapsibleTextStyle(
+  collapsible: boolean,
+  expanded: boolean,
+  settled: boolean,
+  heights: {collapsed: number; full: number},
+): CSSProperties | undefined {
+  if (!collapsible) return undefined;
+  return {
+    maxHeight: expanded
+      ? settled
+        ? undefined
+        : `${heights.full}px`
+      : `${heights.collapsed}px`,
+  };
+}
+
 /**
  * Owns a user bubble's collapse/expand-past-four-lines behavior: measures
  * the collapsed and full heights, tracks expanded/clamped/settled state, and
@@ -249,45 +297,41 @@ function prefersReducedMotion() {
  */
 function useCollapsibleBubbleText(isUser: boolean, content: string) {
   const textRef = useRef<HTMLSpanElement>(null);
-  // Whether this bubble's content is long enough to need the collapse/expand
-  // affordance at all (only ever true for user bubbles).
+  // Whether this bubble needs the collapse/expand affordance (user only).
   const [canCollapse, setCanCollapse] = useState(false);
-  // Whether the user has expanded a collapsible bubble to its full height.
+  // Whether a collapsible bubble is expanded to its full height.
   const [expanded, setExpanded] = useState(false);
-  // `clamped` gates the ellipsis; `settled` drops the max-height cap once a
-  // request is fully open so it never clips after a resize.
+  // `clamped` gates the ellipsis; `settled` drops the max-height cap once
+  // fully open so a later resize can't clip it.
   const [clamped, setClamped] = useState(false);
   const [settled, setSettled] = useState(false);
-  // Cached collapsed/full pixel heights from the last measurement, used to
-  // drive the animated max-height transition (see bubbleTextStyle below).
+  // Last-measured collapsed/full pixel heights, feeding collapsibleTextStyle.
   const [heights, setHeights] = useState({collapsed: 0, full: 0});
 
-  // Re-measures whenever the message content changes (or role flips), and
-  // resets to the collapsed state so switching messages doesn't inherit a
-  // stale expanded/settled state from a previous bubble reusing this node.
+  // Re-measures on content/role change and resets to collapsed, so a reused
+  // node doesn't inherit a stale expanded/settled state.
   useLayoutEffect(() => {
     if (!isUser || !textRef.current) {
       setCanCollapse(false);
       return;
     }
-    const {collapsed, full} = measureBubbleHeights(textRef.current);
-    const exceeds = full > collapsed + 2;
-    setHeights({collapsed, full});
+    const measured = measureBubbleHeights(textRef.current);
+    const exceeds = exceedsCollapsedHeight(measured);
+    setHeights(measured);
     setCanCollapse(exceeds);
     setExpanded(false);
     setSettled(false);
     setClamped(exceeds);
   }, [isUser, content]);
 
-  // Flips the collapsed/expanded state, re-measuring first in case content
-  // metrics (e.g. a font load) shifted since the last measurement.
+  // Flips collapsed/expanded, re-measuring first in case metrics (e.g. a
+  // font load) shifted since the last measurement.
   function toggleExpanded() {
     const element = textRef.current;
     if (element) setHeights(measureBubbleHeights(element));
     if (expanded) {
-      // Collapse: display is already block, so drop any max-height cap to a
-      // concrete height, then animate down on the next frame. The clamp (and
-      // its ellipsis) returns on transition end.
+      // Collapse: drop the max-height cap to a concrete height, then animate
+      // down next frame; the clamp returns on transition end.
       setSettled(false);
       if (prefersReducedMotion()) {
         setExpanded(false);
@@ -296,8 +340,7 @@ function useCollapsibleBubbleText(isUser: boolean, content: string) {
         requestAnimationFrame(() => setExpanded(false));
       }
     } else {
-      // Expand: switch off the -webkit-box clamp first (display: block) so the
-      // following max-height change actually animates rather than snapping.
+      // Expand: drop the clamp first so the max-height change animates.
       setClamped(false);
       if (prefersReducedMotion()) {
         setExpanded(true);
@@ -308,10 +351,8 @@ function useCollapsibleBubbleText(isUser: boolean, content: string) {
     }
   }
 
-  // Fires when the animated max-height transition finishes: locks in the
-  // clamp (collapse) or drops the cap entirely via `settled` (expand) so the
-  // final state matches toggleExpanded's intent rather than a mid-animation
-  // one.
+  // Locks in the clamp (collapse) or drops the cap via `settled` (expand)
+  // once the animated max-height transition finishes.
   function handleBubbleTransitionEnd(event: TransitionEvent<HTMLSpanElement>) {
     if (event.propertyName !== 'max-height') return;
     if (expanded) {
@@ -322,34 +363,22 @@ function useCollapsibleBubbleText(isUser: boolean, content: string) {
   }
 
   const collapsible = isUser && canCollapse;
-  // Collapsible bubbles pick the clamp/ellipsis classes while clamped and not
-  // expanded, otherwise the open (pre-wrap, no clamp) classes.
-  const bubbleTextClassName = collapsible
-    ? `${USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES} ${
-        clamped && !expanded
-          ? USER_BUBBLE_TEXT_CLAMP_CLASSES
-          : USER_BUBBLE_TEXT_OPEN_CLASSES
-      }`
-    : USER_BUBBLE_TEXT_CLASSES;
-  // Inline max-height drives the animation: collapsed height while closed,
-  // the measured full height while opening, and no cap at all once `settled`
-  // so a later window resize can't leave the bubble clipped.
-  const bubbleTextStyle: CSSProperties | undefined = collapsible
-    ? {
-        maxHeight: expanded
-          ? settled
-            ? undefined
-            : `${heights.full}px`
-          : `${heights.collapsed}px`,
-      }
-    : undefined;
 
   return {
     textRef,
     collapsible,
     expanded,
-    bubbleTextClassName,
-    bubbleTextStyle,
+    bubbleTextClassName: collapsibleTextClassName(
+      collapsible,
+      clamped,
+      expanded,
+    ),
+    bubbleTextStyle: collapsibleTextStyle(
+      collapsible,
+      expanded,
+      settled,
+      heights,
+    ),
     toggleExpanded,
     handleBubbleTransitionEnd,
   };
