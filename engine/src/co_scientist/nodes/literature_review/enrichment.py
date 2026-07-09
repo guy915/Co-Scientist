@@ -26,6 +26,9 @@ logger = logging.getLogger(__name__)
 _CONTEXT_ENRICHMENT_MAX_CHARS = 1500
 # Max results requested per entity per tool call
 _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY = 4
+# Sentinel returned by _try_json_decode when raw isn't valid JSON, so a
+# successfully-decoded ``None``/``null`` payload isn't mistaken for failure.
+_NOT_JSON = object()
 
 
 async def _call_enrichment_tool_for_entity(
@@ -82,6 +85,51 @@ def _format_indra_statements(
     return "\n".join(lines), items
 
 
+def _try_json_decode(raw: str) -> Any:
+    """Decode `raw` as JSON, or return the _NOT_JSON sentinel on failure."""
+    try:
+        return json.loads(raw)
+    except (ValueError, TypeError):
+        return _NOT_JSON
+
+
+def _wrap_as_text_result(value: Any) -> tuple[str, list[dict[str, Any]]]:
+    """Truncate `value` to display text and wrap it as a single display item.
+
+    Used for enrichment payloads that don't match any known shape (a plain
+    string that isn't JSON, or a scalar value): falls back to a single
+    stringified display item, or an empty result for falsy values.
+    """
+    text = str(value)[:300] if value else ""
+    return text, [{"display": text, "data": {}}] if text else []
+
+
+def _format_dict_result(
+        data: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    """Format a dict-shaped enrichment result.
+
+    Handles the INDRA "statements" shape and the generic "results" list
+    shape, falling back to stringifying the whole dict (truncated) as a
+    single display item.
+    """
+    # INDRA-shaped response: has a "statements" key (even when empty). Never
+    # fall through to the raw-dict repr for this format.
+    if "statements" in data:
+        stmts = data.get("statements", [])
+        if not stmts:
+            return "", []  # entity had no results - skip cleanly
+        return _format_indra_statements(stmts)
+
+    # Generic "results" list shape (non-INDRA tools that wrap their payload
+    # in a results key).
+    results = data.get("results", [])
+    if results:
+        return _format_generic_items(results)
+
+    text = str(data)[:300]
+    return text, [{"display": text, "data": data}] if text else []
+
+
 def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
     """Extract formatted text AND structured items from an enrichment result.
 
@@ -90,40 +138,20 @@ def _parse_enrichment_result(raw: Any) -> tuple[str, list[dict[str, Any]]]:
     """
     data = raw
     if isinstance(raw, str):
-        try:
-            data = json.loads(raw)
-        except (ValueError, TypeError):
+        data = _try_json_decode(raw)
+        if data is _NOT_JSON:
             # Not JSON: treat the raw string itself as the display text.
-            text = raw[:300] if raw else ""
-            return text, [{"display": text, "data": {}}] if text else []
+            return _wrap_as_text_result(raw)
 
     if isinstance(data, dict):
-        # INDRA-shaped response: has a "statements" key (even when empty).
-        # Never fall through to the raw-dict repr for this format.
-        if "statements" in data:
-            stmts = data.get("statements", [])
-            if not stmts:
-                return "", []  # entity had no results - skip cleanly
-            return _format_indra_statements(stmts)
-
-        # Generic "results" list shape (non-INDRA tools that wrap their
-        # payload in a results key).
-        results = data.get("results", [])
-        if results:
-            return _format_generic_items(results)
-
-        # Fallback: no "statements" or "results" key, so just stringify the
-        # whole dict (truncated) as a single display item.
-        text = str(data)[:300]
-        return text, [{"display": text, "data": data}] if text else []
+        return _format_dict_result(data)
 
     if isinstance(data, list):
         # Generic bare-list response shape.
         return _format_generic_items(data)
 
     # Scalar (or falsy) result: stringify directly.
-    text = str(data)[:300] if data else ""
-    return text, [{"display": text, "data": {}}] if text else []
+    return _wrap_as_text_result(data)
 
 
 async def _call_enrichment_tool_for_entities(
@@ -224,6 +252,67 @@ def _aggregate_enrichment_results(
     return sections, all_structured
 
 
+def _resolve_enrichment_context(
+    state: WorkflowState,
+    config: SearchConfig,
+) -> "tuple[WorkflowConfig, ToolRegistry, list[str]] | None":
+    """Resolve the workflow, tool registry, and entities needed to enrich.
+
+    Returns None if context_enrichment_tools isn't configured for this
+    workflow (keeping lit review unchanged for domains that don't use it),
+    or if no entities could be extracted from the research goal - either
+    case means Phase 2.6 has nothing to do.
+    """
+    workflow = config.workflow
+    if not workflow or not workflow.context_enrichment_tools:
+        return None
+
+    tool_registry = config.tool_registry
+    if not tool_registry:
+        return None
+
+    # Entities (e.g. gene/protein names) are pulled from the research goal
+    # text itself, not from any paper content, since enrichment runs
+    # independently of/in parallel with paper search and content fetching.
+    entities = extract_entity_names(state["research_goal"], max_entities=3)
+    if not entities:
+        logger.debug(
+            "context enrichment: no entities extracted from research goal")
+        return None
+
+    return workflow, tool_registry, entities
+
+
+async def _run_enrichment_tools(
+    entities: list[str],
+    tool_configs: list["ToolConfig"],
+    mcp_client: MCPToolClient,
+) -> tuple[list[str], list[dict[str, Any]]]:
+    """Query every tool_config for every entity in parallel, and aggregate.
+
+    return_exceptions=True so one tool's failure doesn't drop results from
+    the others.
+    """
+    tool_tasks = [
+        _call_enrichment_tool_for_entities(tc, entities, mcp_client)
+        for tc in tool_configs
+    ]
+    tool_results = await asyncio.gather(*tool_tasks, return_exceptions=True)
+    return _aggregate_enrichment_results(tool_configs, tool_results)
+
+
+def _cap_enrichment_text(combined: str) -> str:
+    """Truncate combined enrichment text to the synthesis prompt budget.
+
+    Enrichment content can be large across several tools/entities; capping
+    it keeps it from crowding out the paper-analysis content in the prompt
+    budget.
+    """
+    if len(combined) > _CONTEXT_ENRICHMENT_MAX_CHARS:
+        return combined[:_CONTEXT_ENRICHMENT_MAX_CHARS] + "\n[...truncated]"
+    return combined
+
+
 async def _phase2_6_fetch_context_enrichment(
     state: WorkflowState,
     config: SearchConfig,
@@ -243,24 +332,10 @@ async def _phase2_6_fetch_context_enrichment(
     """
     empty: tuple[str, list[dict[str, Any]]] = ("", [])
 
-    # No context_enrichment_tools configured means this phase is entirely
-    # skipped, keeping behavior unchanged for domains that don't use it.
-    workflow = config.workflow
-    if not workflow or not workflow.context_enrichment_tools:
+    resolved = _resolve_enrichment_context(state, config)
+    if resolved is None:
         return empty
-
-    tool_registry = config.tool_registry
-    if not tool_registry:
-        return empty
-
-    # Entities (e.g. gene/protein names) are pulled from the research goal
-    # text itself, not from any paper content, since enrichment runs
-    # independently of/in parallel with paper search and content fetching.
-    entities = extract_entity_names(state["research_goal"], max_entities=3)
-    if not entities:
-        logger.debug(
-            "context enrichment: no entities extracted from research goal")
-        return empty
+    workflow, tool_registry, entities = resolved
 
     logger.info(
         "Phase 2.6: fetching context enrichment for entities %s via %s tool(s)",
@@ -271,27 +346,12 @@ async def _phase2_6_fetch_context_enrichment(
     if not tool_configs:
         return empty
 
-    # Every configured tool queried for every extracted entity, all in
-    # parallel; return_exceptions=True so one tool's failure doesn't drop
-    # results from the others.
-    tool_tasks = [
-        _call_enrichment_tool_for_entities(tc, entities, mcp_client)
-        for tc in tool_configs
-    ]
-    tool_results = await asyncio.gather(*tool_tasks, return_exceptions=True)
-
-    sections, all_structured = _aggregate_enrichment_results(
-        tool_configs, tool_results)
-
+    sections, all_structured = await _run_enrichment_tools(
+        entities, tool_configs, mcp_client)
     if not sections and not all_structured:
         return empty
 
-    # Cap the combined text injected into the synthesis prompt so
-    # enrichment content (which can be large across several tools/entities)
-    # cannot crowd out the paper-analysis content in the prompt budget.
-    combined = "\n\n".join(sections)
-    if len(combined) > _CONTEXT_ENRICHMENT_MAX_CHARS:
-        combined = combined[:_CONTEXT_ENRICHMENT_MAX_CHARS] + "\n[...truncated]"
+    combined = _cap_enrichment_text("\n\n".join(sections))
 
     logger.info(
         "Phase 2.6 complete: %s tool(s), %s structured items (%s chars)",

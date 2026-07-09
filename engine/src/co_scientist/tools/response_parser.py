@@ -182,32 +182,55 @@ class ResponseParser:
         if path == "." or not path:
             return data
 
-        parts = path.split(".")
         current = data
-
-        for part in parts:
+        for part in path.split("."):
             if current is None:
                 return None
+            current = self._navigate_path_part(current, part)
 
-            # Handle array index notation
-            # "field[N]" first descends into "field", then indexes into the
-            # resulting list; a bare "[N]" (empty field) indexes directly.
-            match = re.match(r"(\w+)\[(\d+)\]", part)
-            if match:
-                field, index = match.groups()
-                if field:
-                    current = current.get(field) if isinstance(current,
-                                                               dict) else None
-                if current is not None and isinstance(current, list):
-                    idx = int(index)
-                    current = current[idx] if idx < len(current) else None
-            elif isinstance(current, dict):
-                current = current.get(part)
-            else:
-                # Non-dict, non-indexed segment with no further way to
-                # descend (e.g. path continues past a scalar or a list).
-                return None
+        return current
 
+    def _navigate_path_part(self, current: Any, part: str) -> Any:
+        """Descend one dot-separated path segment from current.
+
+        Args:
+            current: Non-None value to descend from.
+            part: A single path segment, e.g. "field" or "field[N]".
+
+        Returns:
+            The value at part, or None if it cannot be resolved.
+        """
+        # Handle array index notation
+        # "field[N]" first descends into "field", then indexes into the
+        # resulting list; a bare "[N]" (empty field) indexes directly.
+        match = re.match(r"(\w+)\[(\d+)\]", part)
+        if match:
+            return self._navigate_indexed_part(current, match)
+        if isinstance(current, dict):
+            return current.get(part)
+        # Non-dict, non-indexed segment with no further way to descend
+        # (e.g. path continues past a scalar or a list).
+        return None
+
+    def _navigate_indexed_part(self, current: Any,
+                               match: "re.Match[str]") -> Any:
+        """Resolve a "field[N]" (or "[N]") path segment against current.
+
+        Args:
+            current: Non-None value to descend from.
+            match: Match of the "(\\w+)\\[(\\d+)\\]" pattern against the
+                path segment.
+
+        Returns:
+            The indexed value, or the field-only descent result if it is
+            not a list (index is then ignored), or None.
+        """
+        field, index = match.groups()
+        if field:
+            current = current.get(field) if isinstance(current, dict) else None
+        if current is not None and isinstance(current, list):
+            idx = int(index)
+            current = current[idx] if idx < len(current) else None
         return current
 
     def _map_item_to_article(self,
@@ -375,58 +398,98 @@ class ResponseParser:
             Transformed value
         """
         # Default transform - applies only when value is None; non-None
-        # values pass through unchanged
+        # values pass through unchanged. Checked before the None guard
+        # below since it is the one transform meant to handle None input.
         if transform.startswith("default:"):
-            if value is not None:
-                return value
-            default_value = transform[8:]
-            # Try to parse as int
-            try:
-                return int(default_value)
-            except ValueError:
-                return default_value
+            return self._transform_default(transform, value)
 
         if value is None:
             return None
 
-        # Split transform
+        return self._apply_value_transform(transform, value)
+
+    def _apply_value_transform(self, transform: str, value: Any) -> Any:
+        """Dispatch a non-default transform against a non-None value.
+
+        Args:
+            transform: Transform specification (e.g., "split:/", "int").
+            value: Non-None value to transform.
+
+        Returns:
+            Transformed value, or the original value if the transform is
+            unknown.
+        """
         if transform.startswith("split:"):
-            delimiter = transform[6:]
-            if isinstance(value, str):
-                return value.split(delimiter)
-            return value
-
-        # Index transform
+            return self._transform_split(transform, value)
         if transform.startswith("index:"):
-            index = int(transform[6:])
-            if isinstance(value, (list, tuple)) and len(value) > index:
-                return value[index]
-            return None
+            return self._transform_index(transform, value)
 
-        # Int transform
-        if transform == "int":
-            try:
-                return int(value)
-            except (ValueError, TypeError):
-                return None
-
-        # Float transform
-        if transform == "float":
-            try:
-                return float(value)
-            except (ValueError, TypeError):
-                return None
-
-        # wrap_list transform - wrap single value in a list
-        if transform == "wrap_list":
-            if value is None:
-                return []
-            if isinstance(value, list):
-                return value
-            return [value]
+        handlers = {
+            "int": self._transform_int,
+            "float": self._transform_float,
+            "wrap_list": self._transform_wrap_list,
+        }
+        handler = handlers.get(transform)
+        if handler:
+            return handler(value)
 
         logger.warning("unknown transform: %s", transform)
         return value
+
+    def _transform_default(self, transform: str, value: Any) -> Any:
+        """Apply the "default:VALUE" transform.
+
+        Args:
+            transform: Transform specification, e.g. "default:0".
+            value: Value to transform.
+
+        Returns:
+            value unchanged if not None; otherwise VALUE, parsed as an int
+            when possible and left as a string otherwise.
+        """
+        if value is not None:
+            return value
+        default_value = transform[8:]
+        try:
+            return int(default_value)
+        except ValueError:
+            return default_value
+
+    def _transform_split(self, transform: str, value: Any) -> Any:
+        """Apply the "split:DELIM" transform."""
+        delimiter = transform[6:]
+        if isinstance(value, str):
+            return value.split(delimiter)
+        return value
+
+    def _transform_index(self, transform: str, value: Any) -> Any:
+        """Apply the "index:N" transform."""
+        index = int(transform[6:])
+        if isinstance(value, (list, tuple)) and len(value) > index:
+            return value[index]
+        return None
+
+    def _transform_int(self, value: Any) -> Any:
+        """Apply the "int" transform."""
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return None
+
+    def _transform_float(self, value: Any) -> Any:
+        """Apply the "float" transform."""
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
+
+    def _transform_wrap_list(self, value: Any) -> Any:
+        """Apply the "wrap_list" transform - wrap a single value in a list."""
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return value
+        return [value]
 
 
 def parse_mcp_result(result: Any) -> Any:

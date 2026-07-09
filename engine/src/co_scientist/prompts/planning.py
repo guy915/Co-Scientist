@@ -73,11 +73,69 @@ def _format_bullet_list(items: list[str] | None) -> str:
     return "\n".join(f"- {item}" for item in items)
 
 
+def _format_attributes_csv(attributes: list[str] | None) -> str:
+    """Format attributes as a comma-joined string, or a placeholder."""
+    return ", ".join(attributes) if attributes else "None provided"
+
+
+def _format_lit_review_description(mcp_available: bool,
+                                   pubmed_available: bool) -> str:
+    """Describe literature-review availability for the supervisor prompt."""
+    if pubmed_available or mcp_available:
+        return ("literature review will search pubmed for relevant papers"
+                " and analyze them")
+    return "literature review is not available (no pubmed access)"
+
+
+def _build_supervisor_prompt_variables(
+    research_goal: str,
+    preferences: str | None,
+    attributes: list[str] | None,
+    constraints: list[str] | None,
+    criteria: list[str] | None,
+    user_hypotheses: list[str] | None,
+    user_literature: list[str] | None,
+    initial_hypotheses_count: int | None,
+    max_iterations: int | None,
+    evolution_max_count: int | None,
+    mcp_available: bool,
+    pubmed_available: bool,
+) -> dict[str, Any]:
+    """Build the template variables for the supervisor planning prompt.
+
+    Every user-supplied run input (preferences, constraints, seed
+    hypotheses/literature, count knobs) is normalized to a "None
+    provided"/"not specified" string so the template never renders a raw
+    Python None.
+    """
+    return {
+        "research_goal":
+            research_goal,
+        "preferences":
+            preferences or "None provided",
+        "attributes":
+            _format_attributes_csv(attributes),
+        "constraints":
+            _format_bullet_list(constraints),
+        "criteria":
+            _format_bullet_list(criteria),
+        "user_hypotheses":
+            _format_bullet_list(user_hypotheses),
+        "user_literature":
+            _format_bullet_list(user_literature),
+        "initial_hypotheses_count":
+            initial_hypotheses_count or "not specified",
+        "max_iterations":
+            max_iterations or "not specified",
+        "evolution_max_count":
+            evolution_max_count or "not specified",
+        "literature_review_description":
+            _format_lit_review_description(mcp_available, pubmed_available),
+    }
+
+
 # Renders prompts/supervisor.md for nodes/supervisor.py, the planning call
-# at the head of the graph. Every user-supplied run input (preferences,
-# constraints, seed hypotheses/literature, count knobs) is normalized to a
-# "None provided"/"not specified" string so the template never renders a
-# raw Python None.
+# at the head of the graph.
 def get_supervisor_prompt(
     research_goal: str,
     preferences: str | None = None,
@@ -96,30 +154,20 @@ def get_supervisor_prompt(
     run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the supervisor research planning prompt and schema."""
-
-    # Build pipeline description based on available tools
-    lit_review_description = ""
-    if pubmed_available or mcp_available:
-        lit_review_description = (
-            "literature review will search pubmed for relevant papers"
-            " and analyze them")
-    else:
-        lit_review_description = (
-            "literature review is not available (no pubmed access)")
-
-    variables = {
-        "research_goal": research_goal,
-        "preferences": preferences or "None provided",
-        "attributes": ", ".join(attributes) if attributes else "None provided",
-        "constraints": _format_bullet_list(constraints),
-        "criteria": _format_bullet_list(criteria),
-        "user_hypotheses": _format_bullet_list(user_hypotheses),
-        "user_literature": _format_bullet_list(user_literature),
-        "initial_hypotheses_count": initial_hypotheses_count or "not specified",
-        "max_iterations": max_iterations or "not specified",
-        "evolution_max_count": evolution_max_count or "not specified",
-        "literature_review_description": lit_review_description,
-    }
+    variables = _build_supervisor_prompt_variables(
+        research_goal=research_goal,
+        preferences=preferences,
+        attributes=attributes,
+        constraints=constraints,
+        criteria=criteria,
+        user_hypotheses=user_hypotheses,
+        user_literature=user_literature,
+        initial_hypotheses_count=initial_hypotheses_count,
+        max_iterations=max_iterations,
+        evolution_max_count=evolution_max_count,
+        mcp_available=mcp_available,
+        pubmed_available=pubmed_available,
+    )
 
     return _build_prompt(
         "supervisor",
@@ -130,39 +178,55 @@ def get_supervisor_prompt(
     )
 
 
+def _format_meta_review_key_areas_section(key_areas: list[Any]) -> list[str]:
+    """Format the key-research-areas slice of meta-review supervisor
+    guidance.
+    """
+    if not key_areas:
+        return []
+
+    sections = ["**Key Research Areas:**\n"]
+    for area in key_areas:
+        sections.append(f"- {area}\n")
+    sections.append("\n")
+    return sections
+
+
+def _format_meta_review_evolution_phase_section(
+        evolution_phase: dict[str, Any]) -> list[str]:
+    """Format the evolution-phase slice of meta-review supervisor guidance."""
+    if not evolution_phase:
+        return []
+
+    sections = ["**Evolution Phase Guidance:**\n"]
+    if evolution_phase.get("refinement_priorities"):
+        priorities = evolution_phase["refinement_priorities"]
+        if isinstance(priorities, list):
+            priorities = ", ".join(priorities)
+        sections.append(f"- Refinement Priorities: {priorities}\n")
+    if evolution_phase.get("iteration_strategy"):
+        iter_strat = evolution_phase['iteration_strategy']
+        sections.append(f"- Iteration Strategy: {iter_strat}\n")
+    sections.append("\n")
+    return sections
+
+
 def _format_supervisor_guidance_for_meta_review(
         supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for meta-review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
-    sections = []
-    sections.append("## Supervisor Guidance\n")
-
-    # Add key research areas
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
-    key_areas = goal_analysis.get("key_areas", [])
-    if key_areas:
-        sections.append("**Key Research Areas:**\n")
-        for area in key_areas:
-            sections.append(f"- {area}\n")
-        sections.append("\n")
-
-    # Add evolution phase guidance
     workflow_plan = supervisor_guidance.get("workflow_plan", {})
-    evolution_phase = workflow_plan.get("evolution_phase", {})
-    if evolution_phase:
-        sections.append("**Evolution Phase Guidance:**\n")
-        if evolution_phase.get("refinement_priorities"):
-            priorities = evolution_phase["refinement_priorities"]
-            if isinstance(priorities, list):
-                priorities = ", ".join(priorities)
-            sections.append(f"- Refinement Priorities: {priorities}\n")
-        if evolution_phase.get("iteration_strategy"):
-            iter_strat = evolution_phase['iteration_strategy']
-            sections.append(f"- Iteration Strategy: {iter_strat}\n")
-        sections.append("\n")
 
+    sections = ["## Supervisor Guidance\n"]
+    sections.extend(
+        _format_meta_review_key_areas_section(goal_analysis.get(
+            "key_areas", [])))
+    sections.extend(
+        _format_meta_review_evolution_phase_section(
+            workflow_plan.get("evolution_phase", {})))
     sections.append(
         "Use this guidance to ensure your meta-review synthesis aligns"
         " with the research plan and evolution strategy.\n")

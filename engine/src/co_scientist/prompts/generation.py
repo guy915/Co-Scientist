@@ -218,6 +218,56 @@ def get_validation_synthesis_prompt_with_tools(
     )
 
 
+def _format_debate_key_areas_section(key_areas: list[Any], *,
+                                     needs_header: bool) -> list[str]:
+    """Format the key-research-areas slice of debate supervisor guidance.
+
+    Args:
+        key_areas: Key research areas from the supervisor's goal analysis.
+        needs_header: Whether to emit the "Key research areas" header, i.e.
+            no earlier section already introduced the guidance block.
+
+    Returns:
+        Section lines, or an empty list when key_areas is empty.
+    """
+    if not key_areas:
+        return []
+
+    sections = []
+    if needs_header:
+        sections.append("Key research areas to consider:\n")
+    for area in key_areas:
+        sections.append(f"- {area}\n")
+    return sections
+
+
+def _format_debate_generation_phase_section(generation_phase: dict[str, Any], *,
+                                            needs_header: bool) -> list[str]:
+    """Format the generation-phase slice of debate supervisor guidance.
+
+    Args:
+        generation_phase: The `workflow_plan.generation_phase` dict from
+            supervisor guidance.
+        needs_header: Whether to emit the "Generation guidance" header, i.e.
+            no earlier section already introduced the guidance block.
+
+    Returns:
+        Section lines, or an empty list when generation_phase is empty.
+    """
+    if not generation_phase:
+        return []
+
+    sections = []
+    if needs_header:
+        sections.append("Generation guidance:\n")
+    if generation_phase.get("focus_areas"):
+        focus_areas = generation_phase["focus_areas"]
+        if isinstance(focus_areas, list):
+            focus_areas = ", ".join(focus_areas)
+        sections.append(f"Focus on: {focus_areas}\n")
+    return sections
+
+
 def _format_supervisor_guidance_for_debate(
         supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for the debate generation prompt.
@@ -232,31 +282,18 @@ def _format_supervisor_guidance_for_debate(
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
-    guidance_sections = []
-    has_content = False
-
     goal_analysis = supervisor_guidance.get("research_goal_analysis", {})
-    key_areas = goal_analysis.get("key_areas", [])
-    if key_areas:
-        if not has_content:
-            guidance_sections.append("Key research areas to consider:\n")
-            has_content = True
-        for area in key_areas:
-            guidance_sections.append(f"- {area}\n")
-
     workflow_plan = supervisor_guidance.get("workflow_plan", {})
     generation_phase = workflow_plan.get("generation_phase", {})
-    if generation_phase:
-        if not has_content:
-            guidance_sections.append("Generation guidance:\n")
-            has_content = True
-        if generation_phase.get("focus_areas"):
-            focus_areas = generation_phase["focus_areas"]
-            if isinstance(focus_areas, list):
-                focus_areas = ", ".join(focus_areas)
-            guidance_sections.append(f"Focus on: {focus_areas}\n")
 
-    return "".join(guidance_sections) if has_content else ""
+    sections = _format_debate_key_areas_section(goal_analysis.get(
+        "key_areas", []),
+                                                needs_header=True)
+    sections.extend(
+        _format_debate_generation_phase_section(generation_phase,
+                                                needs_header=not sections))
+
+    return "".join(sections) if sections else ""
 
 
 _DEBATE_FINAL_TURN_INSTRUCTIONS = """
@@ -312,6 +349,38 @@ IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative Uni
 """
 
 
+def _format_debate_attributes(attributes: str | list[str] | None) -> str:
+    """Format debate-prompt attributes as a comma-joined string.
+
+    Shared by _build_debate_prompt_variables to keep the ternary out of the
+    variables dict literal.
+    """
+    if isinstance(attributes, list):
+        return ", ".join(attributes) or "testable and falsifiable"
+    return attributes or "testable and falsifiable"
+
+
+def _build_debate_literature_variables(
+    articles_with_reasoning: str | None,
+    articles: list[Any] | None,
+    reference_list: str,
+) -> dict[str, Any]:
+    """Build the literature-context template variables for debate prompts.
+
+    articles_with_reasoning is included only when provided, so the template
+    can distinguish "no literature review ran" from "ran but empty".
+    """
+    variables: dict[str, Any] = {
+        "articles_metadata":
+            format_articles_metadata(articles or []),
+        "citation_reference_section":
+            _build_citation_reference_section(reference_list or ""),
+    }
+    if articles_with_reasoning:
+        variables["articles_with_reasoning"] = articles_with_reasoning
+    return variables
+
+
 def _build_debate_prompt_variables(
     research_goal: str,
     hypotheses_count: int,
@@ -359,19 +428,14 @@ def _build_debate_prompt_variables(
             preferences
             or "Novel, testable, scientifically sound, specific, and diverse"
             " hypotheses",
-        "attributes": (", ".join(attributes)
-                       if attributes and isinstance(attributes, list) else
-                       (attributes or "testable and falsifiable")),
+        "attributes":
+            _format_debate_attributes(attributes),
     }
 
-    # Add literature review if provided
-    if articles_with_reasoning:
-        variables["articles_with_reasoning"] = articles_with_reasoning
-
-    # Add article metadata for citations
-    variables["articles_metadata"] = format_articles_metadata(articles or [])
-    variables["citation_reference_section"] = _build_citation_reference_section(
-        reference_list or "")
+    # Add literature review, article metadata, and citation context.
+    variables.update(
+        _build_debate_literature_variables(articles_with_reasoning, articles,
+                                           reference_list))
 
     # Format supervisor guidance if available
     variables["supervisor_guidance"] = _format_supervisor_guidance_for_debate(
@@ -671,6 +735,61 @@ def build_tool_instructions(
     return "\n".join(sections).strip()
 
 
+def _resolve_draft_tool_instructions(tool_registry: Any | None) -> str:
+    """Resolve tool instructions for the draft-generation workflow."""
+    tool_ids = []
+    if tool_registry:
+        tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
+    return build_tool_instructions(tool_ids, tool_registry)
+
+
+def _build_draft_prompt_variables(
+    research_goal: str,
+    hypotheses_count: int,
+    supervisor_guidance: dict[str, Any] | None,
+    articles: list[Any] | None,
+    articles_with_reasoning: str | None,
+    preferences: str | None,
+    attributes: list[str] | None,
+    user_hypotheses: list[str] | None,
+    instructions: str | None,
+    reference_list: str,
+    max_iterations: int,
+    tool_instructions: str,
+) -> dict[str, Any]:
+    """Build the template variables for the Phase 1 draft-with-tools prompt."""
+    return {
+        "goal":
+            research_goal,
+        "hypotheses_count":
+            hypotheses_count,
+        "preferences":
+            format_preferences(preferences),
+        "attributes":
+            format_attributes(attributes),
+        "user_hypotheses":
+            format_user_hypotheses(user_hypotheses),
+        "supervisor_guidance":
+            format_supervisor_guidance_for_generation(supervisor_guidance),
+        "articles_with_reasoning":
+            articles_with_reasoning
+            or "no literature review summary available - examine papers"
+            " below directly.",
+        "articles_metadata":
+            format_articles_metadata(articles or []),
+        "citation_reference_section":
+            _build_citation_reference_section(reference_list or ""),
+        "max_iterations":
+            max_iterations,
+        "instructions":
+            instructions
+            or "Focus on creative ideation - draft diverse hypotheses"
+            " based on literature gaps.",
+        "tool_instructions":
+            tool_instructions,
+    }
+
+
 # Renders prompts/generation_draft_with_tools.md for the Phase 1 draft
 # agent in nodes/generation/literature_tools/draft.py (schema:
 # GENERATION_DRAFT_SCHEMA via the prompt-name lookup).
@@ -714,44 +833,22 @@ def get_draft_prompt_with_tools(
         run_setup_guidance: Optional durable run setup guidance text
         run_focus_guidance: Optional durable run focus guidance text
     """
-    # Get tool IDs for draft generation workflow
-    tool_ids = []
-    if tool_registry:
-        tool_ids = tool_registry.get_tools_for_workflow("draft_generation")
+    tool_instructions = _resolve_draft_tool_instructions(tool_registry)
 
-    # Build dynamic tool instructions
-    tool_instructions = build_tool_instructions(tool_ids, tool_registry)
-
-    variables = {
-        "goal":
-            research_goal,
-        "hypotheses_count":
-            hypotheses_count,
-        "preferences":
-            format_preferences(preferences),
-        "attributes":
-            format_attributes(attributes),
-        "user_hypotheses":
-            format_user_hypotheses(user_hypotheses),
-        "supervisor_guidance":
-            format_supervisor_guidance_for_generation(supervisor_guidance),
-        "articles_with_reasoning":
-            articles_with_reasoning
-            or "no literature review summary available - examine papers"
-            " below directly.",
-        "articles_metadata":
-            format_articles_metadata(articles or []),
-        "citation_reference_section":
-            _build_citation_reference_section(reference_list or ""),
-        "max_iterations":
-            max_iterations,
-        "instructions":
-            instructions
-            or "Focus on creative ideation - draft diverse hypotheses"
-            " based on literature gaps.",
-        "tool_instructions":
-            tool_instructions,
-    }
+    variables = _build_draft_prompt_variables(
+        research_goal=research_goal,
+        hypotheses_count=hypotheses_count,
+        supervisor_guidance=supervisor_guidance,
+        articles=articles,
+        articles_with_reasoning=articles_with_reasoning,
+        preferences=preferences,
+        attributes=attributes,
+        user_hypotheses=user_hypotheses,
+        instructions=instructions,
+        reference_list=reference_list,
+        max_iterations=max_iterations,
+        tool_instructions=tool_instructions,
+    )
 
     return _build_prompt(
         "generation_draft_with_tools",

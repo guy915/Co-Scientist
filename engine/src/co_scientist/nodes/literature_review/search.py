@@ -29,6 +29,49 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _build_query_tool_params(
+    query: str,
+    slug: str,
+    run_id: str,
+    max_papers: int,
+    tool_config: Optional["ToolConfig"],
+) -> dict[str, Any]:
+    """Build tool-call params for a search query in the tool's own shape.
+
+    canonical_params uses the shared cross-source parameter names;
+    tool_config.map_parameters() translates them into a specific tool's own
+    argument names/shapes per its YAML config. Falls back to the canonical
+    names unmapped when no tool_config is available (the legacy/no-registry
+    single-source path).
+    """
+    canonical_params = {
+        "query": query,
+        "slug": slug,
+        "max_papers": max_papers,
+        "recency_years": LITERATURE_REVIEW_RECENCY_YEARS,
+        "run_id": run_id,
+    }
+    if not tool_config:
+        return canonical_params
+    tool_params = tool_config.map_parameters(canonical_params)
+    return {k: v for k, v in tool_params.items() if v is not None}
+
+
+def _tag_source_name(
+    normalized: dict[str, dict[str, Any]],
+    src_name: str,
+) -> dict[str, dict[str, Any]]:
+    """Tag every result with the source that produced it, in place.
+
+    Lets downstream phases (PDF discovery, content fetching) look up the
+    right per-source tool config for each paper via paper_source_map.
+    """
+    for _, meta in normalized.items():
+        if isinstance(meta, dict):
+            meta["_source_name"] = src_name
+    return normalized
+
+
 async def _search_source_for_query(
     query: str,
     slug: str,
@@ -50,31 +93,13 @@ async def _search_source_for_query(
     # _describe_exc and imports this module at load time.
     from co_scientist.nodes.literature_review.node import _describe_exc  # pylint: disable=import-outside-toplevel
     try:
-        # canonical_params uses the shared cross-source parameter names;
-        # map_parameters() translates them into this specific tool's own
-        # argument names/shapes per its YAML config.
-        canonical_params = {
-            "query": query,
-            "slug": slug,
-            "max_papers": papers_per_query,
-            "recency_years": LITERATURE_REVIEW_RECENCY_YEARS,
-            "run_id": run_id,
-        }
-        tool_params = tool_config.map_parameters(canonical_params)
-        tool_params = {k: v for k, v in tool_params.items() if v is not None}
-
+        tool_params = _build_query_tool_params(query, slug, run_id,
+                                               papers_per_query, tool_config)
         result = await mcp_client.call_tool(tool_config.mcp_tool_name,
                                             **tool_params)
         result_data = parse_mcp_result(result)
         normalized = normalize_search_response(result_data, tool_config)
-
-        # Tag every paper with which source produced it so downstream
-        # phases (PDF discovery, content fetching) can look up the right
-        # per-source tool config via paper_source_map.
-        for _, meta in normalized.items():
-            if isinstance(meta, dict):
-                meta["_source_name"] = src_name
-        return normalized
+        return _tag_source_name(normalized, src_name)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         # A failed query for this source is swallowed here (not raised) so
@@ -144,25 +169,8 @@ async def _search_single_query(
                  query[:80])
 
     try:
-        canonical_params = {
-            "query": query,
-            "slug": slug,
-            "max_papers": papers_count,
-            "recency_years": LITERATURE_REVIEW_RECENCY_YEARS,
-            "run_id": run_id,
-        }
-
-        # Without a search_tool_config (legacy/no-registry fallback), the
-        # canonical params are passed straight through as tool args instead
-        # of being mapped to a tool-specific parameter shape.
-        if search_tool_config:
-            tool_params = search_tool_config.map_parameters(canonical_params)
-            tool_params = {
-                k: v for k, v in tool_params.items() if v is not None
-            }
-        else:
-            tool_params = canonical_params
-
+        tool_params = _build_query_tool_params(query, slug, run_id,
+                                               papers_count, search_tool_config)
         result = await mcp_client.call_tool(search_tool_name, **tool_params)
         result_data = parse_mcp_result(result)
         normalized = normalize_search_response(result_data, search_tool_config)

@@ -18,7 +18,8 @@ from co_scientist.models import Article
 from co_scientist.models import phase_message
 
 if TYPE_CHECKING:
-    from co_scientist.config import ToolConfig, WorkflowConfig, ToolRegistry
+    from co_scientist.config import (ToolConfig, WorkflowConfig, ToolRegistry,
+                                     SearchSourceConfig)
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,38 @@ def _rekey_list_response_by_id(
     return normalized
 
 
+def _extract_results_path(result_data: Any, results_path: Optional[str]) -> Any:
+    """Extract the results collection from a configured nested path.
+
+    Only applies when result_data is still a dict; a results_path of "."
+    (or unset) means the response is already the results collection.
+    """
+    if results_path and results_path != "." and isinstance(result_data, dict):
+        return result_data.get(results_path, result_data)
+    return result_data
+
+
+def _normalize_with_response_format(
+    result_data: Any,
+    tool_config: "ToolConfig",
+) -> dict[str, dict[str, Any]]:
+    """Normalize a response once a response_format is known to be present."""
+    response_format = tool_config.response_format
+    result_data = _extract_results_path(result_data,
+                                        response_format.results_path)
+
+    # Dict-keyed responses (e.g. PubMed) are already {paper_id: metadata}.
+    if response_format.is_dict and isinstance(result_data, dict):
+        return result_data
+
+    # List responses (e.g. arXiv) need to be re-keyed by an id field so
+    # downstream phases can address papers by a stable paper_id.
+    if isinstance(result_data, list):
+        return _rekey_list_response_by_id(result_data, tool_config)
+
+    return result_data if isinstance(result_data, dict) else {}
+
+
 def normalize_search_response(
     result_data: Any,
     tool_config: Optional["ToolConfig"],
@@ -110,24 +143,7 @@ def normalize_search_response(
     if not tool_config or not tool_config.response_format:
         return result_data if isinstance(result_data, dict) else {}
 
-    results_path = tool_config.response_format.results_path
-    is_dict = tool_config.response_format.is_dict
-
-    # Extract results from nested path
-    if results_path and results_path != ".":
-        if isinstance(result_data, dict):
-            result_data = result_data.get(results_path, result_data)
-
-    # Dict-keyed responses (e.g. PubMed) are already {paper_id: metadata}.
-    if is_dict and isinstance(result_data, dict):
-        return result_data
-
-    # List responses (e.g. arXiv) need to be re-keyed by an id field so
-    # downstream phases can address papers by a stable paper_id.
-    if isinstance(result_data, list):
-        return _rekey_list_response_by_id(result_data, tool_config)
-
-    return result_data if isinstance(result_data, dict) else {}
+    return _normalize_with_response_format(result_data, tool_config)
 
 
 # =============================================================================
@@ -354,6 +370,42 @@ def parse_mcp_query_result(result: Any) -> list[str]:
     return []
 
 
+def _collect_enabled_source_types(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> list[str]:
+    """Collect the source_type of every enabled, resolvable search source."""
+    source_types = []
+    for source in workflow.get_enabled_search_sources():
+        tool_cfg = tool_registry.get_tool(source.tool)
+        if tool_cfg:
+            source_types.append(tool_cfg.source_type)
+    return source_types
+
+
+def _determine_multi_source_query_type(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> str:
+    """Determine the query source type across multiple enabled sources."""
+    source_types = _collect_enabled_source_types(workflow, tool_registry)
+
+    # A single shared query set is generated for all sources in
+    # multi-source mode, so a mix of knowledge_graph and other source
+    # types can't be served by one specialized prompt - fall back to
+    # generic academic queries rather than picking one source to favor.
+    if "knowledge_graph" in source_types and len(source_types) > 1:
+        logger.warning("Multi-source mode with knowledge_graph detected. "
+                       "Using generic queries. For best results, use"
+                       " per-source query generation.")
+        return "academic"
+    # Only knowledge_graph sources are configured, so it's safe to use
+    # the specialized knowledge_graph query-generation prompt.
+    if "knowledge_graph" in source_types:
+        return "knowledge_graph"
+    return "academic"
+
+
 def determine_query_source_type(
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
@@ -362,26 +414,7 @@ def determine_query_source_type(
 ) -> str:
     """Determine the source type for query generation prompt selection."""
     if is_multi_source and workflow and tool_registry:
-        source_types = []
-        for source in workflow.get_enabled_search_sources():
-            tool_cfg = tool_registry.get_tool(source.tool)
-            if tool_cfg:
-                source_types.append(tool_cfg.source_type)
-
-        # A single shared query set is generated for all sources in
-        # multi-source mode, so a mix of knowledge_graph and other source
-        # types can't be served by one specialized prompt - fall back to
-        # generic academic queries rather than picking one source to favor.
-        if "knowledge_graph" in source_types and len(source_types) > 1:
-            logger.warning("Multi-source mode with knowledge_graph detected. "
-                           "Using generic queries. For best results, use"
-                           " per-source query generation.")
-            return "academic"
-        # Only knowledge_graph sources are configured, so it's safe to use
-        # the specialized knowledge_graph query-generation prompt.
-        elif "knowledge_graph" in source_types:
-            return "knowledge_graph"
-        return "academic"
+        return _determine_multi_source_query_type(workflow, tool_registry)
 
     if search_tool_config:
         return search_tool_config.source_type or "academic"
@@ -421,6 +454,29 @@ def calculate_papers_per_query(
     return papers_per_query, remainder
 
 
+def _is_duplicate_title(
+    metadata: Any,
+    deduplicate: bool,
+    seen_titles: set[str],
+) -> bool:
+    """Check and record a paper's title against titles seen so far.
+
+    Case-insensitively dedupes by title across ALL sources' results, since
+    the same paper can be indexed under different ids by different sources
+    (e.g. PubMed id vs. DOI) and title is the only reliably shared field.
+    """
+    if not deduplicate or not isinstance(metadata, dict):
+        return False
+    title = (metadata.get("title") or "").lower().strip()
+    if not title:
+        return False
+    if title in seen_titles:
+        logger.debug("Skipping duplicate: %s...", title[:60])
+        return True
+    seen_titles.add(title)
+    return False
+
+
 def merge_search_results(
     source_results: list[tuple[str, dict[str, dict[str, Any]]]],
     deduplicate: bool = True,
@@ -436,22 +492,12 @@ def merge_search_results(
     """
     all_paper_metadata: dict[str, dict[str, Any]] = {}
     paper_source_map: dict[str, str] = {}
-    # Case-insensitively dedupes by title across ALL sources' results, since
-    # the same paper can be indexed under different ids by different
-    # sources (e.g. PubMed id vs. DOI) and title is the only reliably
-    # shared field.
     seen_titles: set[str] = set()
 
     for source_tool_id, results in source_results:
         for paper_id, metadata in results.items():
-            if deduplicate and isinstance(metadata, dict):
-                title = (metadata.get("title") or "").lower().strip()
-                if title and title in seen_titles:
-                    logger.debug("Skipping duplicate: %s...", title[:60])
-                    continue
-                if title:
-                    seen_titles.add(title)
-
+            if _is_duplicate_title(metadata, deduplicate, seen_titles):
+                continue
             all_paper_metadata[paper_id] = metadata
             # Always record which source-tool each surviving paper came
             # from; later phases (PDF discovery, content fetch) use this
@@ -466,6 +512,60 @@ def merge_search_results(
 # =============================================================================
 
 
+def _resolve_pdf_discovery_tool(
+    source: "SearchSourceConfig",
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> Optional[tuple[str, str]]:
+    """Resolve a single source's PDF discovery (mcp_tool_name, url_field).
+
+    A source-level override wins; otherwise falls back to the workflow-level
+    default discovery tool/field.
+    """
+    discovery_tool = source.pdf_discovery_tool or workflow.pdf_discovery_tool
+    if not discovery_tool:
+        return None
+    tool_cfg = tool_registry.get_tool(discovery_tool)
+    if not tool_cfg:
+        return None
+    discovery_url_field = (source.pdf_discovery_url_field or
+                           workflow.pdf_discovery_url_field)
+    return tool_cfg.mcp_tool_name, discovery_url_field
+
+
+def _build_multi_source_pdf_config(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> dict[str, tuple[str, str]]:
+    """Build per-source PDF discovery config for multi-source mode.
+
+    Per-source keys let get_papers_needing_pdf_discovery route each paper
+    to the tool/field for the source it came from (via paper_source_map),
+    since sources can have different landing-page layouts.
+    """
+    config: dict[str, tuple[str, str]] = {}
+    for source in workflow.get_enabled_search_sources():
+        resolved = _resolve_pdf_discovery_tool(source, workflow, tool_registry)
+        if resolved:
+            config[source.tool] = resolved
+    return config
+
+
+def _build_default_pdf_config(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> dict[str, tuple[str, str]]:
+    """Build the single-source default PDF discovery config."""
+    if not workflow.pdf_discovery_tool:
+        return {}
+    tool_cfg = tool_registry.get_tool(workflow.pdf_discovery_tool)
+    if not tool_cfg:
+        return {}
+    return {
+        "_default": (tool_cfg.mcp_tool_name, workflow.pdf_discovery_url_field)
+    }
+
+
 def build_pdf_discovery_config(
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
@@ -476,34 +576,12 @@ def build_pdf_discovery_config(
     Returns:
         Dict mapping source_tool_id -> (mcp_tool_name, url_field)
     """
-    config: dict[str, tuple[str, str]] = {}
-
-    if is_multi_source and workflow and tool_registry:
-        # Per-source keys let get_papers_needing_pdf_discovery route each
-        # paper to the tool/field for the source it came from (via
-        # paper_source_map), since sources can have different landing-page
-        # layouts.
-        for source in workflow.get_enabled_search_sources():
-            # A source-level override wins; otherwise fall back to the
-            # workflow-level default discovery tool/field.
-            discovery_tool = source.pdf_discovery_tool or (
-                workflow.pdf_discovery_tool if workflow else None)
-            discovery_url_field = source.pdf_discovery_url_field or (
-                workflow.pdf_discovery_url_field if workflow else "url")
-            if discovery_tool:
-                tool_cfg = tool_registry.get_tool(discovery_tool)
-                if tool_cfg:
-                    config[source.tool] = (tool_cfg.mcp_tool_name,
-                                           discovery_url_field)
-
-    elif tool_registry and workflow and workflow.pdf_discovery_tool:
-        # Single-source mode: one default entry under the "_default" key.
-        tool_cfg = tool_registry.get_tool(workflow.pdf_discovery_tool)
-        if tool_cfg:
-            config["_default"] = (tool_cfg.mcp_tool_name,
-                                  workflow.pdf_discovery_url_field)
-
-    return config
+    if not workflow or not tool_registry:
+        return {}
+    if is_multi_source:
+        return _build_multi_source_pdf_config(workflow, tool_registry)
+    # Single-source mode: one default entry under the "_default" key.
+    return _build_default_pdf_config(workflow, tool_registry)
 
 
 def get_papers_needing_pdf_discovery(
@@ -541,30 +619,43 @@ def get_papers_needing_pdf_discovery(
     return papers
 
 
+def _first_link_url(link: Any) -> str | None:
+    """Extract a URL from a link entry that may be a bare string or dict."""
+    return link if isinstance(link, str) else link.get("url")
+
+
+def _pdf_url_from_parsed(result_data: Any) -> str | None:
+    """Extract a PDF URL from an already-JSON-parsed discovery result."""
+    if isinstance(result_data, list) and result_data:
+        return cast(Optional[str], result_data[0])
+    if isinstance(result_data, dict):
+        links = result_data.get("pdf_links") or result_data.get("links") or []
+        if links:
+            return _first_link_url(links[0])
+    return None
+
+
+def _parse_pdf_url_from_string(result: str) -> str | None:
+    """Parse a JSON-encoded or bare-URL string discovery result."""
+    try:
+        result_data = json.loads(result)
+    except json.JSONDecodeError:
+        # Not JSON at all; treat a bare URL string as the result.
+        return result if result.startswith("http") else None
+    return _pdf_url_from_parsed(result_data)
+
+
 def parse_pdf_discovery_result(result: Any) -> str | None:
-    """Parse PDF discovery result to extract PDF URL."""
-    # Defensive parsing: different MCP tools serialize their PDF-discovery
-    # results differently (raw JSON string, parsed dict/list, or a bare
-    # URL string), so every shape is handled explicitly.
+    """Parse PDF discovery result to extract PDF URL.
+
+    Defensive parsing: different MCP tools serialize their PDF-discovery
+    results differently (raw JSON string, parsed dict/list, or a bare URL
+    string), so every shape is handled explicitly.
+    """
     if isinstance(result, str):
-        try:
-            result_data = json.loads(result)
-            if isinstance(result_data, list) and result_data:
-                return cast(Optional[str], result_data[0])
-            if isinstance(result_data, dict):
-                links = result_data.get("pdf_links") or result_data.get(
-                    "links") or []
-                if links:
-                    first_link = links[0]
-                    return first_link if isinstance(
-                        first_link, str) else first_link.get("url")
-        except json.JSONDecodeError:
-            # Not JSON at all; treat a bare URL string as the result.
-            if result.startswith("http"):
-                return result
-    elif isinstance(result, list) and result:
-        first = result[0]
-        return first if isinstance(first, str) else first.get("url")
+        return _parse_pdf_url_from_string(result)
+    if isinstance(result, list) and result:
+        return _first_link_url(result[0])
     return None
 
 
@@ -586,6 +677,70 @@ class ContentToolConfig:
     content_params: dict[str, Any]
 
 
+def _resolve_content_tool(
+    source: "SearchSourceConfig",
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> Optional[ContentToolConfig]:
+    """Resolve a single source's content retrieval config.
+
+    Same per-source-override-falls-back-to-workflow-default pattern as
+    _resolve_pdf_discovery_tool.
+    """
+    src_content_tool = source.content_tool or workflow.content_tool
+    if not src_content_tool:
+        return None
+    tool_cfg = tool_registry.get_tool(src_content_tool)
+    if not tool_cfg:
+        return None
+    src_url_field = source.content_url_field or workflow.content_url_field
+    # Merge workflow params with source-specific params (source takes
+    # priority)
+    src_params = {**workflow.content_params, **source.content_params}
+    return ContentToolConfig(
+        mcp_tool_name=tool_cfg.mcp_tool_name,
+        url_field=src_url_field,
+        content_params=src_params,
+    )
+
+
+def _build_multi_source_content_config(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> dict[str, ContentToolConfig]:
+    """Build per-source content retrieval config for multi-source mode.
+
+    Keyed by source.tool so get_papers_needing_content can look it up via
+    paper_source_map.
+    """
+    config: dict[str, ContentToolConfig] = {}
+    for source in workflow.get_enabled_search_sources():
+        resolved = _resolve_content_tool(source, workflow, tool_registry)
+        if resolved:
+            config[source.tool] = resolved
+    return config
+
+
+def _build_default_content_config(
+    workflow: "WorkflowConfig",
+    tool_registry: "ToolRegistry",
+) -> dict[str, ContentToolConfig]:
+    """Build the single-source default content retrieval config."""
+    if not workflow.content_tool:
+        return {}
+    tool_cfg = tool_registry.get_tool(workflow.content_tool)
+    if not tool_cfg:
+        return {}
+    return {
+        "_default":
+            ContentToolConfig(
+                mcp_tool_name=tool_cfg.mcp_tool_name,
+                url_field=workflow.content_url_field,
+                content_params=workflow.content_params,
+            )
+    }
+
+
 def build_content_config(
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
@@ -596,43 +751,12 @@ def build_content_config(
     Returns:
         Dict mapping source_tool_id -> ContentToolConfig
     """
-    config: dict[str, ContentToolConfig] = {}
-
-    if is_multi_source and workflow and tool_registry:
-        workflow_content_tool = workflow.content_tool
-        workflow_url_field = workflow.content_url_field
-        workflow_content_params = workflow.content_params
-
-        # Same per-source-override-falls-back-to-workflow-default pattern as
-        # build_pdf_discovery_config, keyed by source.tool this time so
-        # get_papers_needing_content can look it up via paper_source_map.
-        for source in workflow.get_enabled_search_sources():
-            src_content_tool = source.content_tool or workflow_content_tool
-            src_url_field = source.content_url_field or workflow_url_field
-            # Merge workflow params with source-specific params (source takes
-            # priority)
-            src_params = {**workflow_content_params, **source.content_params}
-
-            if src_content_tool:
-                tool_cfg = tool_registry.get_tool(src_content_tool)
-                if tool_cfg:
-                    config[source.tool] = ContentToolConfig(
-                        mcp_tool_name=tool_cfg.mcp_tool_name,
-                        url_field=src_url_field,
-                        content_params=src_params,
-                    )
-
-    elif tool_registry and workflow and workflow.content_tool:
-        # Single-source mode: one default entry under the "_default" key.
-        content_tool_cfg = tool_registry.get_tool(workflow.content_tool)
-        if content_tool_cfg:
-            config["_default"] = ContentToolConfig(
-                mcp_tool_name=content_tool_cfg.mcp_tool_name,
-                url_field=workflow.content_url_field,
-                content_params=workflow.content_params,
-            )
-
-    return config
+    if not workflow or not tool_registry:
+        return {}
+    if is_multi_source:
+        return _build_multi_source_content_config(workflow, tool_registry)
+    # Single-source mode: one default entry under the "_default" key.
+    return _build_default_content_config(workflow, tool_registry)
 
 
 def get_papers_needing_content(

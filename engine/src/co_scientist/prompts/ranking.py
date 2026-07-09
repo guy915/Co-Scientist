@@ -177,39 +177,43 @@ def _format_deep_verification_context(probes: list[dict[str, Any]] | None,
     return "".join(sections)
 
 
+def _format_single_review_scores(label: str,
+                                 review: dict[str, Any] | None) -> list[str]:
+    """Format one hypothesis's review scores as a guidance section.
+
+    Args:
+        label: The hypothesis label ("A" or "B") for the section header.
+        review: The review dict for this hypothesis, or None.
+
+    Returns:
+        Section lines, or an empty list when review is absent.
+    """
+    if not review:
+        return []
+
+    sections = [f"**Hypothesis {label} Review Scores:**\n"]
+    if isinstance(review, dict):
+        for criterion, score in review.get("scores", {}).items():
+            sections.append(f"- {criterion}: {score}\n")
+        if "overall_score" in review:
+            sections.append(f"- Overall Score: {review['overall_score']}\n")
+    sections.append("\n")
+    return sections
+
+
 def _format_review_context(review_a: dict[str, Any] | None,
                            review_b: dict[str, Any] | None) -> str:
     """Format review scores for ranking prompts."""
     if not review_a and not review_b:
         return ""
 
-    sections = []
-    sections.append("## Review Scores Context\n")
-    sections.append("The following review scores are available to inform your"
-                    " comparison:\n\n")
-
-    if review_a:
-        sections.append("**Hypothesis A Review Scores:**\n")
-        if isinstance(review_a, dict):
-            if "scores" in review_a:
-                for criterion, score in review_a["scores"].items():
-                    sections.append(f"- {criterion}: {score}\n")
-            if "overall_score" in review_a:
-                sections.append(
-                    f"- Overall Score: {review_a['overall_score']}\n")
-        sections.append("\n")
-
-    if review_b:
-        sections.append("**Hypothesis B Review Scores:**\n")
-        if isinstance(review_b, dict):
-            if "scores" in review_b:
-                for criterion, score in review_b["scores"].items():
-                    sections.append(f"- {criterion}: {score}\n")
-            if "overall_score" in review_b:
-                sections.append(
-                    f"- Overall Score: {review_b['overall_score']}\n")
-        sections.append("\n")
-
+    sections = [
+        "## Review Scores Context\n",
+        "The following review scores are available to inform your"
+        " comparison:\n\n",
+    ]
+    sections.extend(_format_single_review_scores("A", review_a))
+    sections.extend(_format_single_review_scores("B", review_b))
     sections.append("Consider these scores, but make your judgment based on"
                     " comprehensive comparison, not just scores.\n")
 

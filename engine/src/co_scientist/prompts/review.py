@@ -113,6 +113,45 @@ def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
     return sections
 
 
+def _format_config_preferences_guidance(
+        preferences: list[Any] | None) -> list[str]:
+    """Format the config_synthesis preferences slice of supervisor guidance."""
+    if not preferences:
+        return []
+    sections = ["**Preferences (a good idea should satisfy):**\n"]
+    sections.extend(f"- {p}\n" for p in preferences)
+    return sections
+
+
+def _format_config_review_instructions_guidance(
+        review_instructions: list[Any] | None) -> list[str]:
+    """Format the config_synthesis review-instructions slice of supervisor
+    guidance.
+    """
+    if not review_instructions:
+        return []
+    sections = [
+        "\n**Review instructions (validate, do not restate the"
+        " preferences):**\n"
+    ]
+    sections.extend(f"- {r}\n" for r in review_instructions)
+    return sections
+
+
+def _format_config_attributes_guidance(
+        attributes: list[Any] | None) -> list[str]:
+    """Format the config_synthesis stratification-attributes slice of
+    supervisor guidance.
+    """
+    if not attributes:
+        return []
+    sections = ["\n**Stratification attributes (score each 1-5):**\n"]
+    for attr in attributes:
+        if isinstance(attr, dict) and attr.get("name"):
+            sections.append(f"- {attr['name']}: {attr.get('rubric', '')}\n")
+    return sections
+
+
 def _format_config_synthesis_guidance(config: Any, *,
                                       needs_header: bool) -> list[str]:
     """Format the config_synthesis slice of supervisor guidance.
@@ -135,25 +174,17 @@ def _format_config_synthesis_guidance(config: Any, *,
     if not isinstance(config, dict):
         return []
 
+    preferences = config.get("preferences")
+    review_instructions = config.get("review_instructions")
+    attributes = config.get("attributes")
+
     sections = []
-    preferences = config.get("preferences") or []
-    review_instructions = config.get("review_instructions") or []
-    attributes = config.get("attributes") or []
-    if needs_header and (preferences or review_instructions or attributes):
+    if needs_header and any((preferences, review_instructions, attributes)):
         sections.append("## Supervisor Guidance for Review\n")
-    if preferences:
-        sections.append("**Preferences (a good idea should satisfy):**\n")
-        sections.extend(f"- {p}\n" for p in preferences)
-    if review_instructions:
-        sections.append("\n**Review instructions (validate, do not restate the"
-                        " preferences):**\n")
-        sections.extend(f"- {r}\n" for r in review_instructions)
-    if attributes:
-        sections.append("\n**Stratification attributes (score each 1-5):**"
-                        "\n")
-        for attr in attributes:
-            if isinstance(attr, dict) and attr.get("name"):
-                sections.append(f"- {attr['name']}: {attr.get('rubric', '')}\n")
+    sections.extend(_format_config_preferences_guidance(preferences))
+    sections.extend(
+        _format_config_review_instructions_guidance(review_instructions))
+    sections.extend(_format_config_attributes_guidance(attributes))
     return sections
 
 

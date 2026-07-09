@@ -93,6 +93,37 @@ async def _generate_queries_via_llm(
         return []
 
 
+async def _try_mcp_query_generation(
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> list[str]:
+    """Generate queries via the configured MCP query-generation tool, if any.
+
+    Returns an empty list when no query_generation_tool is configured (or
+    its tool config can't be resolved), which signals the caller to fall
+    through to LLM-based generation.
+    """
+    if not (config.tool_registry and config.workflow and
+            config.workflow.query_generation_tool):
+        return []
+
+    tool_cfg = config.tool_registry.get_tool(
+        config.workflow.query_generation_tool)
+    if not tool_cfg:
+        return []
+
+    query_format = config.workflow.query_format or "boolean"
+    logger.info("Using MCP query generation: %s (format: %s)",
+                tool_cfg.mcp_tool_name, query_format)
+    return await _generate_queries_via_mcp(
+        mcp_client,
+        state["research_goal"],
+        tool_cfg.mcp_tool_name,
+        query_format,
+    )
+
+
 async def _phase1_generate_queries(
     state: WorkflowState,
     config: SearchConfig,
@@ -101,23 +132,7 @@ async def _phase1_generate_queries(
     """Phase 1: Generate search queries."""
     logger.info("Phase 1: generating search queries")
 
-    queries = []
-
-    # Try MCP-based generation first if configured
-    if (config.tool_registry and config.workflow and
-            config.workflow.query_generation_tool):
-        tool_cfg = config.tool_registry.get_tool(
-            config.workflow.query_generation_tool)
-        if tool_cfg:
-            query_format = config.workflow.query_format or "boolean"
-            logger.info("Using MCP query generation: %s (format: %s)",
-                        tool_cfg.mcp_tool_name, query_format)
-            queries = await _generate_queries_via_mcp(
-                mcp_client,
-                state["research_goal"],
-                tool_cfg.mcp_tool_name,
-                query_format,
-            )
+    queries = await _try_mcp_query_generation(state, config, mcp_client)
 
     # Fallback to LLM-based generation
     # Also the primary path when no query_generation_tool is configured at

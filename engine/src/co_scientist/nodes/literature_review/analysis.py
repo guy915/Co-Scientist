@@ -72,6 +72,15 @@ async def _analyze_single_paper(
         return None
 
 
+def _log_sample_analysis(analyses: list[dict[str, Any]]) -> None:
+    """Debug-log the analysis keys of the first paper, if any were analyzed."""
+    if not analyses:
+        return
+    first = analyses[0]
+    logger.debug("Sample analysis structure - keys: %s",
+                 list(first.get("analysis", {}).keys()))
+
+
 async def _phase3_analyze_papers(
     all_paper_metadata: dict[str, dict[str, Any]],
     state: WorkflowState,
@@ -106,10 +115,6 @@ async def _phase3_analyze_papers(
     logger.info("Completed %s/%s paper analyses", len(analyses),
                 len(papers_with_content))
 
-    # Debug logging
-    if analyses:
-        first = analyses[0]
-        logger.debug("Sample analysis structure - keys: %s",
-                     list(first.get("analysis", {}).keys()))
+    _log_sample_analysis(analyses)
 
     return analyses

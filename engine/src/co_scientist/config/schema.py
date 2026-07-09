@@ -4,6 +4,7 @@ Uses dataclasses to match existing codebase patterns.
 """
 # pylint: disable=inconsistent-quotes
 
+import datetime
 import re
 from dataclasses import dataclass, field, fields
 from typing import Any
@@ -211,6 +212,22 @@ class ParameterConfig:
         return cls(**_declared_field_kwargs(cls, data))
 
 
+# Used only by ToolConfig.map_parameters below, for tools whose parameter
+# schema expects an absolute starting year rather than a lookback window.
+def _recency_years_to_starting_year(value: int) -> int | None:
+    """Convert a recency_years lookback window to an absolute starting year.
+
+    Args:
+        value: Number of years to look back (e.g., 7).
+
+    Returns:
+        The starting year (e.g., 2019 for a 7-year lookback in 2026), or
+        None when value is not a positive lookback window.
+    """
+    current_year = datetime.datetime.now().year
+    return current_year - value if value > 0 else None
+
+
 @dataclass
 class ToolConfig:
     """Configuration for an MCP tool.
@@ -304,28 +321,39 @@ class ToolConfig:
 
         mapped = {}
         for canonical_name, value in canonical_params.items():
-            # Check if mapping exists
-            if canonical_name in self.parameter_mapping:
-                tool_param_name = self.parameter_mapping[canonical_name]
-                if tool_param_name is None:
-                    # Explicitly ignore this parameter (null in YAML)
-                    continue
-                # Handle special conversions
-                if (canonical_name == "recency_years" and
-                        tool_param_name == "starting_year"):
-                    # Convert recency_years (e.g., 7) to starting_year (e.g.,
-                    # 2019)
-                    import datetime  # pylint: disable=import-outside-toplevel
-                    current_year = datetime.datetime.now().year
-                    mapped[tool_param_name] = (current_year -
-                                               value if value > 0 else None)
-                else:
-                    mapped[tool_param_name] = value
-            else:
-                # No mapping, use canonical name
-                mapped[canonical_name] = value
+            tool_param_name, mapped_value = self._map_single_parameter(
+                canonical_name, value)
+            if tool_param_name is not None:
+                mapped[tool_param_name] = mapped_value
 
         return mapped
+
+    def _map_single_parameter(self, canonical_name: str,
+                              value: Any) -> tuple[str | None, Any]:
+        """Map one canonical parameter to its tool-specific name and value.
+
+        Args:
+            canonical_name: Canonical parameter name (e.g., recency_years).
+            value: Value supplied under the canonical name.
+
+        Returns:
+            (tool_param_name, mapped_value), or (None, None) when the
+            parameter is explicitly ignored (mapped to null in YAML).
+        """
+        if canonical_name not in self.parameter_mapping:
+            # No mapping, use canonical name
+            return canonical_name, value
+
+        tool_param_name = self.parameter_mapping[canonical_name]
+        if tool_param_name is None:
+            # Explicitly ignore this parameter (null in YAML)
+            return None, None
+
+        if (canonical_name == "recency_years" and
+                tool_param_name == "starting_year"):
+            return tool_param_name, _recency_years_to_starting_year(value)
+
+        return tool_param_name, value
 
 
 @dataclass

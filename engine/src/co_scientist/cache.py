@@ -356,6 +356,55 @@ def get_cache_stats() -> dict[str, Any]:
     return get_cache().get_stats()
 
 
+def _read_node_cache_entry(cache_file: Path, node_name: str,
+                           cache_key: str) -> dict[str, Any] | None:
+    """Read a single cached node output, self-healing on corruption.
+
+    Args:
+        cache_file: Path to the ``.pkl`` cache entry to read.
+        node_name: Name of the node the entry belongs to, for log messages.
+        cache_key: The entry's cache key, used only for log messages.
+
+    Returns:
+        The cached node output dict on a clean read, otherwise None.
+    """
+    try:
+        with open(cache_file, "rb") as f:
+            cached_data: dict[str, Any] = pickle.load(f)
+        logger.debug("node cache HIT for %s (key %s...)", node_name,
+                     cache_key[:8])
+        return cached_data
+    except (pickle.PickleError, OSError) as e:
+        logger.debug("node cache read failed for %s...: %s", cache_key[:8], e)
+        try:
+            cache_file.unlink()
+        except OSError:
+            pass  # File might have been removed by another process
+        return None
+
+
+def _write_node_cache_file_atomically(cache_file: Path, node_name: str,
+                                      cache_key: str,
+                                      output: dict[str, Any]) -> None:
+    """Write output to cache_file via a temp-file-then-rename swap.
+
+    Args:
+        cache_file: Destination path for the cache entry.
+        node_name: Name of the node the entry belongs to, for log messages.
+        cache_key: The entry's cache key, used only for log messages.
+        output: The node output dictionary to pickle.
+    """
+    try:
+        temp_file = cache_file.with_suffix(".tmp")
+        with open(temp_file, "wb") as f:
+            pickle.dump(output, f)
+        temp_file.replace(cache_file)
+        logger.debug("cached node output for %s (key %s...)", node_name,
+                     cache_key[:8])
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.warning("Failed to cache node output for %s: %s", node_name, e)
+
+
 class NodeCache:
     """Cache for entire node outputs (e.g., literature review).
 
@@ -417,20 +466,7 @@ class NodeCache:
         cache_file = self.cache_dir / f"{cache_key}.pkl"
 
         if cache_file.exists():
-            try:
-                with open(cache_file, "rb") as f:
-                    cached_data: dict[str, Any] = pickle.load(f)
-                logger.debug("node cache HIT for %s (key %s...)", node_name,
-                             cache_key[:8])
-                return cached_data
-            except (pickle.PickleError, OSError) as e:
-                logger.debug("node cache read failed for %s...: %s",
-                             cache_key[:8], e)
-                try:
-                    cache_file.unlink()
-                except OSError:
-                    pass
-                return None
+            return _read_node_cache_entry(cache_file, node_name, cache_key)
 
         logger.debug("node cache MISS for %s (key %s...)", node_name,
                      cache_key[:8])
@@ -460,17 +496,8 @@ class NodeCache:
 
         cache_key = self._generate_cache_key(node_name, **key_params)
         cache_file = self.cache_dir / f"{cache_key}.pkl"
-
-        try:
-            temp_file = cache_file.with_suffix(".tmp")
-            with open(temp_file, "wb") as f:
-                pickle.dump(output, f)
-            temp_file.replace(cache_file)
-            logger.debug("cached node output for %s (key %s...)", node_name,
-                         cache_key[:8])
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning("Failed to cache node output for %s: %s", node_name,
-                           e)
+        _write_node_cache_file_atomically(cache_file, node_name, cache_key,
+                                          output)
 
     def clear(self) -> int:
         """Clear all cached node outputs.

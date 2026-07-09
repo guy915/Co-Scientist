@@ -279,6 +279,38 @@ def _configure_cache_env(enable_cache: bool | None,
         os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
 
 
+def _resolve_run_identity(run_id: str | None) -> tuple[float, str]:
+    """Mints a start time/run id for a new generation call and logs it.
+
+    Args:
+        run_id: Caller-supplied run id, or None to mint a fresh uuid4.
+
+    Returns:
+        Tuple of (start_time, run_id).
+    """
+    start_time = time.time()
+    if run_id is None:
+        run_id = str(uuid.uuid4())
+    logger.info("Starting hypothesis generation with run_id=%s", run_id)
+    return start_time, run_id
+
+
+def _resolve_dev_isolation_flag(opts: dict[str, Any]) -> bool:
+    """Reads the dev lit-tools-isolation flag from opts, logging if enabled.
+
+    Args:
+        opts: Caller-supplied generation options.
+
+    Returns:
+        Whether dev lit-tools isolation mode is enabled.
+    """
+    enabled = bool(opts.get("dev_test_lit_tools_isolation", False))
+    if enabled:
+        logger.info("Dev isolation mode enabled: forcing lit review cache"
+                    " + all hypotheses to lit tools")
+    return enabled
+
+
 def _build_tool_registry(
     tools_config: str | None,
     disable_tools: list[str] | None,
@@ -472,6 +504,17 @@ class HypothesisGenerator:
 
         return workflow.compile()
 
+    def _ensure_graph_built(self, enable_literature_review_node: bool) -> None:
+        """Builds and caches self._graph on first call; a no-op afterward.
+
+        Args:
+            enable_literature_review_node: Whether the literature review node
+                should be included if the graph is being built now.
+        """
+        if self._graph is None:
+            self._graph = self._build_graph(
+                enable_literature_review_node=enable_literature_review_node)
+
     async def _resolve_literature_review_settings(
         self,
         opts: dict[str, Any],
@@ -538,13 +581,7 @@ class HypothesisGenerator:
             The prepared initial workflow state (including "start_time" and
             "run_id" keys).
         """
-        start_time = time.time()
-
-        # Generate unique run_id if not provided
-        if run_id is None:
-            run_id = str(uuid.uuid4())
-
-        logger.info("Starting hypothesis generation with run_id=%s", run_id)
+        start_time, run_id = _resolve_run_identity(run_id)
 
         # Extract optional fields from opts
         opts = opts or {}
@@ -557,21 +594,13 @@ class HypothesisGenerator:
         enable_tool_calling_generation = _resolve_tool_calling_generation(
             opts, mcp_available, enable_literature_review_node)
 
-        # This block only reads the flag and logs; it is threaded through to
-        # initial_state below and the consuming nodes branch on it directly.
-        # Dev isolation mode: force cache on lit review, allocate all to lit
-        # tools
-        dev_test_lit_tools_isolation = opts.get("dev_test_lit_tools_isolation",
-                                                False)
-        if dev_test_lit_tools_isolation:
-            logger.info("Dev isolation mode enabled: forcing lit review cache"
-                        " + all hypotheses to lit tools")
+        # This flag is threaded through to initial_state below and the
+        # consuming nodes branch on it directly.
+        dev_test_lit_tools_isolation = _resolve_dev_isolation_flag(opts)
 
         # Build graph if not already built, or rebuild if literature review
         # setting changed
-        if self._graph is None:
-            self._graph = self._build_graph(
-                enable_literature_review_node=enable_literature_review_node)
+        self._ensure_graph_built(enable_literature_review_node)
 
         return self._build_initial_state(
             research_goal=research_goal,
@@ -746,22 +775,24 @@ class HypothesisGenerator:
             The initial workflow state (including "start_time" and "run_id"
             keys).
         """
+        identity_fields = self._initial_run_identity_fields(
+            research_goal=research_goal,
+            start_time=start_time,
+            run_id=run_id,
+            progress_callback=progress_callback,
+            mcp_available=mcp_available,
+            pubmed_available=pubmed_available,
+            enable_tool_calling_generation=enable_tool_calling_generation,
+            dev_test_lit_tools_isolation=dev_test_lit_tools_isolation,
+        )
+        user_and_literature_fields = self._initial_user_and_literature_fields(
+            opts=opts, user_inputs=user_inputs)
         return cast(
             WorkflowState, {
                 **self._initial_config_fields(),
                 **self._initial_runtime_fields(),
-                **self._initial_run_identity_fields(
-                    research_goal=research_goal,
-                    start_time=start_time,
-                    run_id=run_id,
-                    progress_callback=progress_callback,
-                    mcp_available=mcp_available,
-                    pubmed_available=pubmed_available,
-                    enable_tool_calling_generation=(enable_tool_calling_generation),
-                    dev_test_lit_tools_isolation=(dev_test_lit_tools_isolation),
-                ),
-                **self._initial_user_and_literature_fields(opts=opts,
-                                                           user_inputs=user_inputs),
+                **identity_fields,
+                **user_and_literature_fields,
             })
 
     # Two @overload stubs give type checkers a precise return type per

@@ -54,6 +54,23 @@ async def _discover_pdf_link(
         return (paper_id, None)
 
 
+def _apply_pdf_discovery_results(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    results: list[tuple[str, str | None]],
+) -> int:
+    """Write discovered PDF URLs back into paper metadata, in place.
+
+    Returns:
+        The number of papers updated with a newly discovered pdf_url.
+    """
+    discovered_count = 0
+    for paper_id, pdf_url in results:
+        if pdf_url and paper_id in all_paper_metadata:
+            all_paper_metadata[paper_id]["pdf_url"] = pdf_url
+            discovered_count += 1
+    return discovered_count
+
+
 async def _phase2_4_discover_pdf_links(
     all_paper_metadata: dict[str, dict[str, Any]],
     paper_source_map: dict[str, str],
@@ -95,14 +112,9 @@ async def _phase2_4_discover_pdf_links(
     ]
     results = await asyncio.gather(*tasks)
 
-    # Update metadata
     # all_paper_metadata is mutated directly (this function returns None)
     # so Phase 2.5 and later phases see the newly discovered pdf_url values.
-    discovered_count = 0
-    for paper_id, pdf_url in results:
-        if pdf_url and paper_id in all_paper_metadata:
-            all_paper_metadata[paper_id]["pdf_url"] = pdf_url
-            discovered_count += 1
+    discovered_count = _apply_pdf_discovery_results(all_paper_metadata, results)
 
     logger.info("PDF discovery complete: %s/%s papers", discovered_count,
                 len(papers_needing_discovery))
@@ -152,6 +164,23 @@ async def _fetch_paper_content(
         # its abstract (see get_papers_with_content in the helpers module).
         logger.warning("Failed to fetch content for %s: %s", paper_id, e)
         return (paper_id, None)
+
+
+def _apply_fetched_content(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    results: list[tuple[str, str | None]],
+) -> int:
+    """Write fetched fulltext back into paper metadata, in place.
+
+    Returns:
+        The number of papers updated with newly fetched fulltext.
+    """
+    fetched_count = 0
+    for paper_id, content in results:
+        if content and paper_id in all_paper_metadata:
+            all_paper_metadata[paper_id]["fulltext"] = content
+            fetched_count += 1
+    return fetched_count
 
 
 async def _phase2_5_fetch_content(
@@ -205,14 +234,9 @@ async def _phase2_5_fetch_content(
     ]
     results = await asyncio.gather(*tasks)
 
-    # Update metadata
     # Mutates all_paper_metadata in place (this function returns None) so
     # Phase 3 analysis picks up the newly fetched fulltext.
-    fetched_count = 0
-    for paper_id, content in results:
-        if content and paper_id in all_paper_metadata:
-            all_paper_metadata[paper_id]["fulltext"] = content
-            fetched_count += 1
+    fetched_count = _apply_fetched_content(all_paper_metadata, results)
 
     logger.info("Content retrieval complete: %s/%s papers", fetched_count,
                 len(papers_needing_content))

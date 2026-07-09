@@ -339,30 +339,24 @@ def _resolve_availability_check_tool(
         any tool. check_tool_name defaults to "check_pubmed_available" for
         backwards compatibility when no registry is supplied.
     """
-    check_tool_name: str | None = None
-    skip_availability_check = False
+    if tool_registry is None:
+        # Default for backwards compat when no registry is supplied.
+        return "check_pubmed_available", False
 
-    if tool_registry:
-        workflow = tool_registry.get_workflow("literature_review")
-        if workflow:
-            if workflow.availability_check:
-                # Explicit check tool configured
-                tool_config = tool_registry.get_tool(
-                    workflow.availability_check)
-                if tool_config:
-                    check_tool_name = tool_config.mcp_tool_name
-            else:
-                # availability_check is null/None - skip the check
-                skip_availability_check = True
-                logger.debug("availability check disabled in config"
-                             " (availability_check: null)")
+    workflow = tool_registry.get_workflow("literature_review")
+    if not workflow:
+        return None, False
 
-    # Default for backwards compat when no registry
-    if (check_tool_name is None and not skip_availability_check and
-            tool_registry is None):
-        check_tool_name = "check_pubmed_available"
+    if not workflow.availability_check:
+        # availability_check is null/None - skip the check
+        logger.debug("availability check disabled in config"
+                     " (availability_check: null)")
+        return None, True
 
-    return check_tool_name, skip_availability_check
+    # Explicit check tool configured.
+    tool_config = tool_registry.get_tool(workflow.availability_check)
+    check_tool_name = tool_config.mcp_tool_name if tool_config else None
+    return check_tool_name, False
 
 
 def _interpret_availability_result(result: Any, check_tool_name: str) -> bool:

@@ -46,49 +46,118 @@ def extract_response_json(raw: str) -> str:
     return text.strip()
 
 
+def _repair_string_after_colon_or_comma(s: str, stripped: str) -> str | None:
+    """Closes a string left open right after a colon or comma.
+
+    E.g. ``':"text``.
+
+    Args:
+        s: The full truncated JSON string being repaired.
+        stripped: ``s.rstrip()``.
+
+    Returns:
+        ``s`` with a closing quote appended when ``stripped`` matches this
+        truncation shape, or ``None`` when it doesn't (so the next pattern
+        in the chain gets a chance).
+    """
+    if re.search(r'[:,]\s*"[^"]*$', stripped):
+        logger.debug("repaired: unterminated string after colon/comma")
+        return s + '"'
+    return None
+
+
+def _repair_unterminated_field_name(s: str, stripped: str) -> str | None:
+    """Closes a string left open mid partial field name/value.
+
+    E.g. ``'"field_na``.
+
+    Args:
+        s: The full truncated JSON string being repaired.
+        stripped: ``s.rstrip()``.
+
+    Returns:
+        ``s``, with a closing quote appended when the partial name/value
+        sits inside an open string, when ``stripped`` matches this
+        truncation shape; ``None`` when it doesn't. Matching this shape
+        always "commits" -- even when no quote needs adding -- mirroring
+        the original elif chain, where this branch never falls through to
+        the array-truncation pattern below.
+    """
+    if not re.search(r'"\w+$', stripped):
+        return None
+    # Count quotes before this position to determine context.
+    before_partial = stripped[:-20] if len(stripped) > 20 else ""
+    if before_partial.count('"') % 2 == 1:  # Odd number = inside a string.
+        logger.debug("repaired: unterminated field name/string")
+        return s + '"'
+    return s
+
+
+def _repair_unterminated_array_string(s: str, stripped: str) -> str | None:
+    """Closes a string left open mid truncated array entry.
+
+    E.g. ``'"item1", "item2``.
+
+    Args:
+        s: The full truncated JSON string being repaired.
+        stripped: ``s.rstrip()``.
+
+    Returns:
+        ``s``, with a closing quote appended when we're inside an unclosed
+        array and mid-string, when ``stripped`` matches this truncation
+        shape; ``None`` when it doesn't.
+    """
+    if not (stripped.endswith(",") or
+            (stripped[-1].isalnum() and "[" in stripped)):
+        return None
+    last_open_bracket = stripped.rfind("[")
+    last_close_bracket = stripped.rfind("]")
+    if last_open_bracket <= last_close_bracket:
+        return s
+    after_bracket = stripped[last_open_bracket:]
+    if after_bracket.count('"') % 2 == 1:
+        logger.debug("repaired: unterminated string in array")
+        return s + '"'
+    return s
+
+
+_UNTERMINATED_STRING_REPAIRS: tuple[Callable[[str, str], str | None], ...] = (
+    _repair_string_after_colon_or_comma,
+    _repair_unterminated_field_name,
+    _repair_unterminated_array_string,
+)
+
+
+def _repair_unterminated_string(s: str, stripped: str) -> str:
+    """Applies the first matching unterminated-string repair pattern.
+
+    Args:
+        s: The full truncated JSON string being repaired.
+        stripped: ``s.rstrip()``, used to detect the truncation shape.
+
+    Returns:
+        ``s``, possibly with a closing quote appended.
+    """
+    for repair in _UNTERMINATED_STRING_REPAIRS:
+        result = repair(s, stripped)
+        if result is not None:
+            return result
+    return s
+
+
 def _close_truncated_json(s: str) -> str:
     """Try to close truncated JSON by adding missing braces/brackets."""
     # Count open vs closed braces and brackets
     open_braces = s.count("{") - s.count("}")
     open_brackets = s.count("[") - s.count("]")
 
-    # Enhanced unterminated string detection
-    # Check if the string ends mid-value (unterminated string)
     stripped = s.rstrip()
 
     # Nothing to close for empty/whitespace input.
     if not stripped:
         return s
 
-    # Pattern 1: Ends with opening quote after colon/comma (e.g., ':"text)
-    if re.search(r'[:,]\s*"[^"]*$', stripped):
-        s = s + '"'
-        logger.debug("repaired: unterminated string after colon/comma")
-
-    # Pattern 2: Ends with partial field name (e.g., '"field_na)
-    elif re.search(r'"\w+$', stripped):
-        # Find if we're in a string literal or field name
-        # Count quotes before this position to determine context
-        before_partial = stripped[:-20] if len(stripped) > 20 else ""
-        quote_count = before_partial.count('"')
-        if quote_count % 2 == 1:  # Odd number = we're inside a string
-            s = s + '"'
-            logger.debug("repaired: unterminated field name/string")
-
-    # Pattern 3: Ends mid-array without closing (e.g., '"item1", "item2)
-    elif stripped.endswith(",") or (stripped[-1].isalnum() and "[" in stripped):
-        # Likely truncated mid-array or mid-value
-        # Try to close intelligently based on context
-        last_open_bracket = stripped.rfind("[")
-        last_close_bracket = stripped.rfind("]")
-        if last_open_bracket > last_close_bracket:
-            # We're inside an unclosed array
-            # Check if we need to close a string first
-            after_bracket = stripped[last_open_bracket:]
-            quote_count = after_bracket.count('"')
-            if quote_count % 2 == 1:
-                s = s + '"'
-                logger.debug("repaired: unterminated string in array")
+    s = _repair_unterminated_string(s, stripped)
 
     # Remove trailing comma if present
     s = re.sub(r",\s*$", "", s)
@@ -118,7 +187,7 @@ def _fix_invalid_escapes(s: str) -> str:
 
 # Minor repairs (safe, don't indicate truncation). Built once at import time
 # since none of the lambdas capture anything beyond their own argument.
-_MINOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], Any]] = [
+_MINOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], dict[str, Any] | None]] = [
     # Remove trailing commas before closing braces/brackets
     lambda s: json.loads(re.sub(r",(\s*[}\]])", r"\1", s)),
     # Escape invalid backslash sequences (LaTeX/math notation from LLMs)
@@ -130,7 +199,7 @@ _MINOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], Any]] = [
 
 # Major repairs (indicate truncation/incomplete, only tried on the final
 # retry attempt).
-_MAJOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], Any]] = [
+_MAJOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], dict[str, Any] | None]] = [
     # Close unterminated strings and truncated JSON (most common Gemini
     # issue)
     lambda s: json.loads(_close_truncated_json(s)),
@@ -149,6 +218,51 @@ _MAJOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], Any]] = [
     lambda s: (json.loads(m.group(0))
                if (m := re.search(r"\{.*\}", s, re.DOTALL)) else None),
 ]
+
+
+def _try_minor_repairs(json_str: str) -> dict[str, Any] | None:
+    """Tries each safe (non-truncation-indicating) repair strategy in order.
+
+    Args:
+        json_str: Potentially malformed JSON string.
+
+    Returns:
+        The first successfully repaired dict, or ``None`` if all strategies
+        failed.
+    """
+    for i, repair_fn in enumerate(_MINOR_JSON_REPAIR_STRATEGIES):
+        try:
+            result = repair_fn(json_str)
+            if result:
+                logger.debug("JSON repaired using minor repair strategy %s", i)
+                return result
+        except (json.JSONDecodeError, AttributeError, TypeError) as e:
+            logger.debug("minor repair strategy %s failed: %s", i, e)
+    return None
+
+
+def _try_major_repairs(json_str: str) -> dict[str, Any] | None:
+    """Tries each truncation-oriented repair strategy in order.
+
+    Args:
+        json_str: Potentially malformed (likely truncated) JSON string.
+
+    Returns:
+        The first successfully repaired dict, or ``None`` if all strategies
+        failed.
+    """
+    for i, repair_fn in enumerate(_MAJOR_JSON_REPAIR_STRATEGIES):
+        try:
+            result = repair_fn(json_str)
+            if result:
+                logger.warning(
+                    "JSON repaired using major repair strategy %s "
+                    "(indicates truncation/incomplete response)", i)
+                return result
+        except (json.JSONDecodeError, AttributeError, TypeError) as e:
+            if i < 2:  # Only log for first few strategies
+                logger.debug("major repair strategy %s failed: %s", i, e)
+    return None
 
 
 def attempt_json_repair(
@@ -180,31 +294,14 @@ def attempt_json_repair(
         # JSON is malformed, proceed with repair strategies
         pass
 
-    # Try minor repairs first
-    for i, repair_fn in enumerate(_MINOR_JSON_REPAIR_STRATEGIES):
-        try:
-            result = repair_fn(json_str)
-            if result:
-                logger.debug("JSON repaired using minor repair strategy %s", i)
-                return result, False
-        except (json.JSONDecodeError, AttributeError, TypeError) as e:
-            logger.debug("minor repair strategy %s failed: %s", i, e)
-            continue
+    minor_result = _try_minor_repairs(json_str)
+    if minor_result is not None:
+        return minor_result, False
 
-    # If major repairs are allowed, try them
     if allow_major_repairs:
-        for i, repair_fn in enumerate(_MAJOR_JSON_REPAIR_STRATEGIES):
-            try:
-                result = repair_fn(json_str)
-                if result:
-                    logger.warning(
-                        "JSON repaired using major repair strategy %s "
-                        "(indicates truncation/incomplete response)", i)
-                    return result, True
-            except (json.JSONDecodeError, AttributeError, TypeError) as e:
-                if i < 2:  # Only log for first few strategies
-                    logger.debug("major repair strategy %s failed: %s", i, e)
-                continue
+        major_result = _try_major_repairs(json_str)
+        if major_result is not None:
+            return major_result, True
 
     return None, False
 

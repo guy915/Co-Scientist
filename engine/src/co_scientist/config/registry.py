@@ -233,9 +233,19 @@ class ToolRegistry:
 
         # Parse tool enabled values
         for category_tools in data.get("tools", {}).values():
-            for tool_data in category_tools.values():
-                if isinstance(tool_data.get("enabled"), str):
-                    tool_data["enabled"] = parse_bool_env(tool_data["enabled"])
+            self._parse_tool_category_enabled_values(category_tools)
+
+    def _parse_tool_category_enabled_values(
+            self, category_tools: dict[str, Any]) -> None:
+        """Coerce string 'enabled' values to bool for one tools.yaml category.
+
+        Args:
+            category_tools: Mapping of tool id to tool data for a single
+                category (e.g. all entries under "search_tools").
+        """
+        for tool_data in category_tools.values():
+            if isinstance(tool_data.get("enabled"), str):
+                tool_data["enabled"] = parse_bool_env(tool_data["enabled"])
 
     def _merge_configs(
         self,
@@ -284,21 +294,35 @@ class ToolRegistry:
             return dict(overlay)
 
         result = dict(base)
-
         for key, value in overlay.items():
             if key not in result:
                 result[key] = value
-            elif isinstance(value, dict) and isinstance(result[key], dict):
-                # Recursively merge dicts
-                result[key] = self._merge_dict(result[key], value, strategy)
-            elif strategy == "override":
-                result[key] = value
-            elif strategy == "extend":
-                if isinstance(value, list) and isinstance(result[key], list):
-                    result[key] = result[key] + value
-                # For non-lists, extend doesn't replace existing values
+            else:
+                result[key] = self._merge_value(result[key], value, strategy)
 
         return result
+
+    def _merge_value(self, existing: Any, value: Any, strategy: str) -> Any:
+        """Resolve the merged value for a key present in both dicts.
+
+        Args:
+            existing: Current base value for the key.
+            value: Overlay value for the key.
+            strategy: Merge strategy ("override" or "extend"; "replace" is
+                handled by the caller before this is reached).
+
+        Returns:
+            The value the key should take after merging.
+        """
+        if isinstance(value, dict) and isinstance(existing, dict):
+            return self._merge_dict(existing, value, strategy)
+        if strategy == "override":
+            return value
+        if (strategy == "extend" and isinstance(value, list) and
+                isinstance(existing, list)):
+            return existing + value
+        # For non-lists, extend doesn't replace existing values.
+        return existing
 
     def _apply_disabled_tools(self) -> None:
         """Apply disabled_tools list to config."""

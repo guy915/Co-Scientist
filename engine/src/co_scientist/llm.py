@@ -424,6 +424,28 @@ def _backfill_and_validate(
     validate_json_schema(result, json_schema)
 
 
+def _log_first_json_error_position(text: str) -> None:
+    """Logs the position of the first JSON parse error near the tail of text.
+
+    Scans growing prefixes of ``text`` and reports the first parse error
+    found once the prefix reaches within 200 chars of the end, since that is
+    typically where LLM truncation breaks the JSON.
+
+    Args:
+        text: The raw response text to scan.
+    """
+    for i in range(0, len(text), 100):
+        chunk = text[:i + 100]
+        try:
+            json.loads(chunk)
+        except json.JSONDecodeError as e:
+            if i > len(text) - 200:  # Near the end
+                logger.error("JSON error near position %s: %s", e.pos, e.msg)
+                logger.error("Context around error: ...%s...",
+                             text[max(0, e.pos - 100):e.pos + 100])
+                break
+
+
 def _log_json_parse_failure_diagnostics(last_response_text: str) -> None:
     """Logs diagnostic detail about an unparseable LLM JSON response.
 
@@ -449,20 +471,7 @@ def _log_json_parse_failure_diagnostics(last_response_text: str) -> None:
         open_braces = last_response_text.count("{")
         close_braces = last_response_text.count("}")
         logger.error("Brace count: { = %s, } = %s", open_braces, close_braces)
-
-        # Try to find first JSON error position
-        for i in range(0, len(last_response_text), 100):
-            chunk = last_response_text[:i + 100]
-            try:
-                json.loads(chunk)
-            except json.JSONDecodeError as e:
-                if i > len(last_response_text) - 200:  # Near the end
-                    logger.error("JSON error near position %s: %s", e.pos,
-                                 e.msg)
-                    logger.error(
-                        "Context around error: ...%s...",
-                        last_response_text[max(0, e.pos - 100):e.pos + 100])
-                    break
+        _log_first_json_error_position(last_response_text)
     except Exception as debug_err:  # pylint: disable=broad-exception-caught
         logger.error("Error during debugging: %s", debug_err)
 
@@ -568,6 +577,79 @@ async def _call_llm_for_json(
     return extract_response_json(response_text)
 
 
+def _json_validation_failure_outcome(
+    error: ValidationError,
+    response_text: str,
+    original_prompt: str,
+    is_final_attempt: bool,
+    attempt: int,
+    repaired: bool,
+) -> _JsonAttemptOutcome:
+    """Builds the attempt outcome for a schema validation failure.
+
+    Args:
+        error: The validation error raised for this attempt's result.
+        response_text: The raw (fence-stripped) response text for this
+            attempt.
+        original_prompt: The original prompt, without validation feedback,
+            used to build the next retry prompt.
+        is_final_attempt: Whether this is the last retry attempt.
+        attempt: The 1-indexed attempt number, used for logging.
+        repaired: Whether the result needed JSON repair before validation.
+
+    Returns:
+        An outcome carrying the error and, unless this is the final attempt,
+        a retry prompt with validation feedback appended.
+    """
+    logger.warning("Schema validation failed%s on attempt"
+                   " %s: %s", " after repair" if repaired else "", attempt,
+                   error.message)
+
+    next_prompt = None
+    if not is_final_attempt:
+        next_prompt = original_prompt + _validation_feedback(error)
+
+    return _JsonAttemptOutcome(value=None,
+                               error=error,
+                               response_text=response_text,
+                               next_prompt=next_prompt)
+
+
+def _non_validating_repair_outcome(
+    was_major_repair: bool,
+    is_final_attempt: bool,
+    response_text: str,
+    parse_error: Exception | None,
+) -> _JsonAttemptOutcome:
+    """Builds the attempt outcome when no result was parsed at all.
+
+    Args:
+        was_major_repair: Whether the failed parse attempt still needed a
+            major (truncation-oriented) repair.
+        is_final_attempt: Whether this is the last retry attempt.
+        response_text: The raw (fence-stripped) response text for this
+            attempt.
+        parse_error: The parse error from the final repair attempt, if any.
+
+    Returns:
+        An outcome with no error (to retry immediately) when a major repair
+        still has attempts left, otherwise one carrying the parse error.
+    """
+    if was_major_repair and not is_final_attempt:
+        logger.info("Major repair needed (truncation detected),"
+                    " retrying immediately")
+        return _JsonAttemptOutcome(value=None,
+                                   error=None,
+                                   response_text=response_text,
+                                   next_prompt=None)
+
+    last_error = parse_error or ValueError("All repair strategies failed")
+    return _JsonAttemptOutcome(value=None,
+                               error=last_error,
+                               response_text=response_text,
+                               next_prompt=None)
+
+
 async def _attempt_call_llm_json(
     prompt: str,
     original_prompt: str,
@@ -629,36 +711,13 @@ async def _attempt_call_llm_json(
                                        response_text=response_text,
                                        next_prompt=None)
         except ValidationError as e:
-            logger.warning("Schema validation failed%s on attempt"
-                           " %s: %s", " after repair" if repaired else "",
-                           attempt, e.message)
+            return _json_validation_failure_outcome(e, response_text,
+                                                    original_prompt,
+                                                    is_final_attempt, attempt,
+                                                    repaired)
 
-            # Add validation feedback to prompt for next retry
-            next_prompt = None
-            if not is_final_attempt:
-                next_prompt = original_prompt + _validation_feedback(e)
-
-            return _JsonAttemptOutcome(value=None,
-                                       error=e,
-                                       response_text=response_text,
-                                       next_prompt=next_prompt)
-
-    # If major repair was needed but we're not on final attempt,
-    # retry immediately
-    if was_major_repair and not is_final_attempt:
-        logger.info("Major repair needed (truncation detected),"
-                    " retrying immediately")
-        return _JsonAttemptOutcome(value=None,
-                                   error=None,
-                                   response_text=response_text,
-                                   next_prompt=None)
-
-    # All repairs exhausted for this attempt
-    last_error = parse_error or ValueError("All repair strategies failed")
-    return _JsonAttemptOutcome(value=None,
-                               error=last_error,
-                               response_text=response_text,
-                               next_prompt=None)
+    return _non_validating_repair_outcome(was_major_repair, is_final_attempt,
+                                          response_text, parse_error)
 
 
 def _handle_json_retries_exhausted(
@@ -692,6 +751,81 @@ def _handle_json_retries_exhausted(
         _log_json_parse_failure_diagnostics(last_response_text)
 
     _raise_json_parse_error(last_error, last_response_text, max_attempts)
+
+
+def _apply_json_attempt_outcome(
+    outcome: _JsonAttemptOutcome,
+    prompt: str,
+    last_response_text: str | None,
+) -> tuple[str, str | None]:
+    """Applies a non-terminal call_llm_json attempt outcome to loop state.
+
+    Args:
+        outcome: The outcome of the attempt that just ran (``value`` is
+            ``None``, i.e. the retry loop is continuing).
+        prompt: The prompt used for that attempt.
+        last_response_text: The most recent raw response text seen so far.
+
+    Returns:
+        The prompt and last_response_text to use for the next iteration.
+    """
+    if outcome.response_text is not None:
+        last_response_text = outcome.response_text
+    if outcome.next_prompt is not None:
+        prompt = outcome.next_prompt
+        logger.debug("added validation feedback to retry prompt")
+    return prompt, last_response_text
+
+
+async def _run_json_attempt(
+    prompt: str,
+    original_prompt: str,
+    model_name: str,
+    max_tokens: int,
+    temperature: float,
+    json_schema: dict[str, Any] | None,
+    is_final_attempt: bool,
+    attempt: int,
+    cache: LLMCache | NullCache,
+) -> _JsonAttemptOutcome:
+    """Runs one call_llm_json attempt, converting a call failure to an outcome.
+
+    A genuine call failure (network, provider error, etc.) is surfaced to the
+    retry loop as an outcome carrying the error, except on the final attempt,
+    where it is re-raised so the caller's exception propagates unchanged.
+
+    Args:
+        prompt: The prompt to send this attempt (may carry validation
+            feedback from a previous attempt).
+        original_prompt: The original prompt, without validation feedback,
+            used to build the next retry prompt.
+        model_name: Model name in litellm format.
+        max_tokens: Maximum tokens in response.
+        temperature: Sampling temperature.
+        json_schema: Optional JSON schema to constrain the response format.
+        is_final_attempt: Whether this is the last retry attempt.
+        attempt: The 1-indexed attempt number, used for logging.
+        cache: The cache to store a successful validated result in.
+
+    Returns:
+        The outcome of this attempt.
+
+    Raises:
+        Exception: The call failure, when this is the final attempt.
+    """
+    try:
+        return await _attempt_call_llm_json(prompt, original_prompt, model_name,
+                                            max_tokens, temperature,
+                                            json_schema, is_final_attempt,
+                                            attempt, cache)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error("LLM call failed on attempt %s: %s", attempt, e)
+        if is_final_attempt:
+            raise
+        return _JsonAttemptOutcome(value=None,
+                                   error=e,
+                                   response_text=None,
+                                   next_prompt=None)
 
 
 async def call_llm_json(
@@ -761,28 +895,16 @@ async def call_llm_json(
             logger.debug("retrying llm call (attempt %s/%s)", attempt,
                          max_attempts)
 
-        try:
-            outcome = await _attempt_call_llm_json(prompt, original_prompt,
-                                                   model_name, max_tokens,
-                                                   temperature, json_schema,
-                                                   is_final_attempt, attempt,
-                                                   cache)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            last_error = e
-            logger.error("LLM call failed on attempt %s: %s", attempt, e)
-            if is_final_attempt:
-                raise
-            continue
+        outcome = await _run_json_attempt(prompt, original_prompt, model_name,
+                                          max_tokens, temperature, json_schema,
+                                          is_final_attempt, attempt, cache)
 
         if outcome.value is not None:
             return outcome.value
 
         last_error = outcome.error
-        if outcome.response_text is not None:
-            last_response_text = outcome.response_text
-        if outcome.next_prompt is not None:
-            prompt = outcome.next_prompt
-            logger.debug("added validation feedback to retry prompt")
+        prompt, last_response_text = _apply_json_attempt_outcome(
+            outcome, prompt, last_response_text)
 
     return _handle_json_retries_exhausted(json_schema, last_error,
                                           last_response_text, max_attempts)
