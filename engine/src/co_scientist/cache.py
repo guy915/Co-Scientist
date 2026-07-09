@@ -8,10 +8,9 @@ import hashlib
 import json
 import logging
 import os
+import pickle
 from pathlib import Path
 from typing import Any
-
-import pickle
 
 from co_scientist.config.registry import parse_bool_env
 from co_scientist.constants import (

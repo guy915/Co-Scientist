@@ -8,7 +8,7 @@ but uses LangGraph under the hood.
 import logging
 import time
 import uuid
-from typing import Any, Literal, overload
+from typing import Any, Literal, cast, overload
 from collections.abc import AsyncIterator, Awaitable, Callable
 
 from langgraph.graph import END, StateGraph
@@ -217,6 +217,97 @@ def _build_stream_state_dict(
     return state_dict
 
 
+def _build_generation_result(
+    final_state: WorkflowState,
+    execution_time: float,
+) -> dict[str, Any]:
+    """Formats a completed workflow's final state into the result dict.
+
+    Args:
+        final_state: The workflow state returned by the graph's ``ainvoke``.
+        execution_time: Wall-clock seconds spent in ``ainvoke``.
+
+    Returns:
+        The dictionary returned to callers of ``generate_hypotheses`` when
+        ``stream=False``.
+    """
+    metrics = final_state["metrics"]
+    return {
+        "hypotheses": [h.to_dict() for h in final_state["hypotheses"]],
+        "meta_review": final_state.get("meta_review", {}),
+        "research_overview": final_state.get("research_overview", {}),
+        "research_plan": final_state.get("supervisor_guidance", {}),
+        "tournament_matchups": final_state.get("tournament_matchups", []),
+        "evolution_details": final_state.get("evolution_details", []),
+        "debate_transcripts": final_state.get("debate_transcripts"),
+        "execution_time": execution_time,
+        "metrics": {
+            "total_time": execution_time,
+            "hypothesis_count": metrics.hypothesis_count,
+            "reviews_count": metrics.reviews_count,
+            "tournaments_count": metrics.tournaments_count,
+            "evolutions_count": metrics.evolutions_count,
+            "phase_times": metrics.phase_times,
+            "llm_calls": metrics.llm_calls,
+        },
+    }
+
+
+def _configure_cache_env(enable_cache: bool | None,
+                         cache_dir: str | None) -> None:
+    """Applies constructor-supplied cache overrides to the environment.
+
+    ``cache.get_cache()`` reads these env vars once and memoizes the result
+    process-wide, so this only takes effect if the generator is constructed
+    before any LLM call happens elsewhere in the process.
+
+    Args:
+        enable_cache: Enable/disable LLM response caching (None = leave the
+            existing env var, if any, untouched).
+        cache_dir: Directory for cache files (None = leave the existing env
+            var, if any, untouched).
+    """
+    if enable_cache is None and cache_dir is None:
+        return
+
+    import os  # pylint: disable=import-outside-toplevel
+
+    if enable_cache is not None:
+        val = "true" if enable_cache else "false"
+        os.environ["COSCIENTIST_CACHE_ENABLED"] = val
+    if cache_dir is not None:
+        os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
+
+
+def _build_tool_registry(
+    tools_config: str | None,
+    disable_tools: list[str] | None,
+) -> Any | None:
+    """Builds the tool registry from constructor options, if requested.
+
+    Args:
+        tools_config: Path to custom tools YAML config file (None = use
+            defaults).
+        disable_tools: List of tool IDs to disable (None = use all enabled
+            tools).
+
+    Returns:
+        A ``ToolRegistry`` instance, or None if neither option was supplied.
+    """
+    if tools_config is None and disable_tools is None:
+        return None
+
+    from co_scientist.config import ToolRegistry  # pylint: disable=import-outside-toplevel
+
+    registry = ToolRegistry(
+        config_path=tools_config,
+        disabled_tools=disable_tools,
+    )
+    logger.info("Initialized tool registry: %s enabled tools",
+                len(registry.get_enabled_tools()))
+    return registry
+
+
 class HypothesisGenerator:
     """Async wrapper for hypothesis generation using LangGraph.
 
@@ -274,30 +365,11 @@ class HypothesisGenerator:
         self.tournament_pairs = tournament_pairs
         self.literature_review_papers_count = literature_review_papers_count
 
-        # Note: cache.get_cache() reads these env vars once and memoizes the
-        # result process-wide, so this only takes effect if the generator is
-        # constructed before any LLM call happens elsewhere in the process.
         # Configure cache if specified
-        if enable_cache is not None or cache_dir is not None:
-            import os  # pylint: disable=import-outside-toplevel
-
-            if enable_cache is not None:
-                val = "true" if enable_cache else "false"
-                os.environ["COSCIENTIST_CACHE_ENABLED"] = val
-            if cache_dir is not None:
-                os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
+        _configure_cache_env(enable_cache, cache_dir)
 
         # Initialize tool registry if tools_config or disable_tools specified
-        self._tool_registry = None
-        if tools_config is not None or disable_tools is not None:
-            from co_scientist.config import ToolRegistry  # pylint: disable=import-outside-toplevel
-
-            self._tool_registry = ToolRegistry(
-                config_path=tools_config,
-                disabled_tools=disable_tools,
-            )
-            logger.info("Initialized tool registry: %s enabled tools",
-                        len(self._tool_registry.get_enabled_tools()))
+        self._tool_registry = _build_tool_registry(tools_config, disable_tools)
 
         # Build the graph (lazy - only once)
         self._graph: CompiledWorkflow | None = None
@@ -501,7 +573,54 @@ class HypothesisGenerator:
             self._graph = self._build_graph(
                 enable_literature_review_node=enable_literature_review_node)
 
-        # Initialize state
+        return self._build_initial_state(
+            research_goal=research_goal,
+            start_time=start_time,
+            run_id=run_id,
+            progress_callback=progress_callback,
+            opts=opts,
+            user_inputs=user_inputs,
+            mcp_available=mcp_available,
+            pubmed_available=pubmed_available,
+            enable_tool_calling_generation=enable_tool_calling_generation,
+            dev_test_lit_tools_isolation=dev_test_lit_tools_isolation,
+        )
+
+    def _build_initial_state(
+        self,
+        *,
+        research_goal: str,
+        start_time: float,
+        run_id: str,
+        progress_callback: None |
+        (Callable[[str, dict[str, Any]], Awaitable[None]]),
+        opts: dict[str, Any],
+        user_inputs: dict[str, Any],
+        mcp_available: bool,
+        pubmed_available: bool,
+        enable_tool_calling_generation: bool,
+        dev_test_lit_tools_isolation: bool,
+    ) -> WorkflowState:
+        """Assembles the initial workflow state dict for a generation run.
+
+        Args:
+            research_goal: The research question or goal.
+            start_time: Wall-clock start time (``time.time()``) for the run.
+            run_id: Unique identifier for this run.
+            progress_callback: Async callback for progress updates.
+            opts: Caller-supplied generation options.
+            user_inputs: The ``user_inputs`` sub-dict of opts.
+            mcp_available: Whether the MCP server is available.
+            pubmed_available: Whether PubMed is available via MCP.
+            enable_tool_calling_generation: Whether tool-calling generation
+                is enabled for this run.
+            dev_test_lit_tools_isolation: Whether dev lit-tools isolation
+                mode is enabled for this run.
+
+        Returns:
+            The initial workflow state (including "start_time" and "run_id"
+            keys).
+        """
         initial_state: WorkflowState = {
             "research_goal":
                 research_goal,
@@ -716,39 +835,8 @@ class HypothesisGenerator:
             # Format result to match expected interface
             execution_time = time.time() - start_time
 
-            return {
-                "hypotheses": [h.to_dict() for h in final_state["hypotheses"]],
-                "meta_review":
-                    final_state.get("meta_review", {}),
-                "research_overview":
-                    final_state.get("research_overview", {}),
-                "research_plan":
-                    final_state.get("supervisor_guidance", {}),
-                "tournament_matchups":
-                    final_state.get("tournament_matchups", []),
-                "evolution_details":
-                    final_state.get("evolution_details", []),
-                "debate_transcripts":
-                    final_state.get("debate_transcripts"),
-                "execution_time":
-                    execution_time,
-                "metrics": {
-                    "total_time":
-                        execution_time,
-                    "hypothesis_count":
-                        final_state["metrics"].hypothesis_count,
-                    "reviews_count":
-                        final_state["metrics"].reviews_count,
-                    "tournaments_count":
-                        final_state["metrics"].tournaments_count,
-                    "evolutions_count":
-                        final_state["metrics"].evolutions_count,
-                    "phase_times":
-                        final_state["metrics"].phase_times,
-                    "llm_calls":
-                        final_state["metrics"].llm_calls,
-                },
-            }
+            return _build_generation_result(cast(WorkflowState, final_state),
+                                            execution_time)
 
         except Exception as e:
             logger.error("Hypothesis generation failed: %s", e, exc_info=True)

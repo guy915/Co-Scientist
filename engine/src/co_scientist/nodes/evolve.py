@@ -312,51 +312,37 @@ def _find_most_similar(
     return max_similarity, most_similar_text
 
 
-async def evolve_single_hypothesis(
+def _build_evolution_prompt(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
     meta_review: dict[str, Any],
-    model_name: str,
     removed_duplicates: list[str],
-    supervisor_guidance: dict[str, Any] | None = None,
-    articles_with_reasoning: str | None = None,
-    run_id: str | None = None,
-    hypothesis_index: int | None = None,
-    tool_registry: Any | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
-) -> tuple[Hypothesis, dict[str, Any] | None]:
-    """Evolve a single hypothesis with strategically sampled context.
-
-    This is the CRITICAL anti-duplicate strategy: we pass a subset of other
-    hypotheses (top 5 by Elo + random samples) so the LLM knows what to
-    avoid while keeping token budget manageable for large hypothesis pools.
+    supervisor_guidance: dict[str, Any] | None,
+    articles_with_reasoning: str | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Assembles the full evolution prompt (and schema) for one hypothesis.
 
     Args:
-        hypothesis: Hypothesis to evolve
+        hypothesis: Hypothesis to evolve.
         other_hypotheses_texts: Strategically sampled subset of other
-            hypotheses (max 15)
-        meta_review: Meta-review insights for strategic guidance
-        model_name: LLM model to use
-        removed_duplicates: Previously removed duplicate texts to avoid
-        supervisor_guidance: Optional supervisor guidance for evolution phase
-        articles_with_reasoning: Optional literature review synthesis
-            for context
-        run_id: Optional run ID for saving prompts
-        hypothesis_index: Optional index for naming saved prompts
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        run_setup_guidance: Optional durable setup guidance
-        run_focus_guidance: Optional selected focus guidance
+            hypotheses (max 15).
+        meta_review: Meta-review insights for strategic guidance.
+        removed_duplicates: Previously removed duplicate texts to avoid.
+        supervisor_guidance: Optional supervisor guidance for evolution
+            phase.
+        articles_with_reasoning: Optional literature review synthesis for
+            context.
+        tool_registry: Optional ToolRegistry for dynamic tool instructions.
+        run_setup_guidance: Optional durable setup guidance.
+        run_focus_guidance: Optional selected focus guidance.
 
     Returns:
-        Updated hypothesis with evolved text
+        Tuple of (full prompt text with diversity instruction appended,
+        JSON schema for the expected LLM response).
     """
-    # The following call only logs meta-review signals (common
-    # strengths/weaknesses, strategic recommendations, emerging themes)
-    # for debugging; the same fields are formatted into the prompt itself
-    # further below via _build_meta_review_insights.
-    _log_meta_review_debug(meta_review)
-
     review_feedback = _build_review_feedback(hypothesis)
     meta_review_insights = _build_meta_review_insights(meta_review)
     supervisor_guidance_text = _build_supervisor_guidance_text(
@@ -392,6 +378,32 @@ async def evolve_single_hypothesis(
         other_hypotheses_texts, removed_duplicates)
     full_prompt = prompt + diversity_instruction
 
+    return full_prompt, schema
+
+
+async def _call_evolution_llm(
+    full_prompt: str,
+    schema: dict[str, Any] | None,
+    other_hypotheses_texts: list[str],
+    model_name: str,
+    run_id: str | None,
+    hypothesis_index: int | None,
+) -> dict[str, Any]:
+    """Calls the LLM to evolve a hypothesis from a prepared prompt.
+
+    Args:
+        full_prompt: The evolution prompt, including the diversity
+            instruction.
+        schema: JSON schema for the expected LLM response.
+        other_hypotheses_texts: Strategically sampled subset of other
+            hypotheses (max 15), used only to size the token budget.
+        model_name: LLM model to use.
+        run_id: Optional run ID for saving prompts.
+        hypothesis_index: Optional index for naming saved prompts.
+
+    Returns:
+        Parsed JSON response from the LLM.
+    """
     # Fixed token budget since we strategically sample max 15 context
     # hypotheses: 8000 base + 15 * 800 = 20,000 tokens at the cap, so the
     # budget is bounded for any pool size.
@@ -409,7 +421,7 @@ async def evolve_single_hypothesis(
                    if hypothesis_index is not None else "evolve")
 
     # Call LLM to evolve hypothesis
-    response = await call_llm_json(
+    return await call_llm_json(
         prompt=full_prompt,
         model_name=model_name,
         max_tokens=evolve_max_tokens,
@@ -425,6 +437,28 @@ async def evolve_single_hypothesis(
         },
     )
 
+
+def _apply_evolution_result(
+    hypothesis: Hypothesis,
+    response: dict[str, Any],
+    other_hypotheses_texts: list[str],
+) -> tuple[Hypothesis, dict[str, Any] | None]:
+    """Applies an LLM evolution response to a hypothesis, if acceptable.
+
+    Rejects the refinement (keeping the hypothesis unchanged) if the LLM
+    echoed the input back verbatim, or if the refined text converged too
+    closely onto one of the peer hypotheses shown as diversity context.
+
+    Args:
+        hypothesis: Hypothesis being evolved; mutated in place on success.
+        response: Parsed JSON response from the evolution LLM call.
+        other_hypotheses_texts: Strategically sampled subset of other
+            hypotheses (max 15), used for the similarity check.
+
+    Returns:
+        Updated hypothesis with evolved text, and evolution detail (or
+        None if the refinement was rejected).
+    """
     # Extract fields from response (match evolution.md prompt format)
     # Prefer the canonical "hypothesis" key; fall back to the legacy
     # "refined_hypothesis_text" name, and finally to the pre-evolution text
@@ -491,6 +525,75 @@ async def evolve_single_hypothesis(
     }
 
     return hypothesis, evolution_detail
+
+
+async def evolve_single_hypothesis(
+    hypothesis: Hypothesis,
+    other_hypotheses_texts: list[str],
+    meta_review: dict[str, Any],
+    model_name: str,
+    removed_duplicates: list[str],
+    supervisor_guidance: dict[str, Any] | None = None,
+    articles_with_reasoning: str | None = None,
+    run_id: str | None = None,
+    hypothesis_index: int | None = None,
+    tool_registry: Any | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
+) -> tuple[Hypothesis, dict[str, Any] | None]:
+    """Evolve a single hypothesis with strategically sampled context.
+
+    This is the CRITICAL anti-duplicate strategy: we pass a subset of other
+    hypotheses (top 5 by Elo + random samples) so the LLM knows what to
+    avoid while keeping token budget manageable for large hypothesis pools.
+
+    Args:
+        hypothesis: Hypothesis to evolve
+        other_hypotheses_texts: Strategically sampled subset of other
+            hypotheses (max 15)
+        meta_review: Meta-review insights for strategic guidance
+        model_name: LLM model to use
+        removed_duplicates: Previously removed duplicate texts to avoid
+        supervisor_guidance: Optional supervisor guidance for evolution phase
+        articles_with_reasoning: Optional literature review synthesis
+            for context
+        run_id: Optional run ID for saving prompts
+        hypothesis_index: Optional index for naming saved prompts
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
+        run_setup_guidance: Optional durable setup guidance
+        run_focus_guidance: Optional selected focus guidance
+
+    Returns:
+        Updated hypothesis with evolved text
+    """
+    # The following call only logs meta-review signals (common
+    # strengths/weaknesses, strategic recommendations, emerging themes)
+    # for debugging; the same fields are formatted into the prompt itself
+    # further below via _build_meta_review_insights.
+    _log_meta_review_debug(meta_review)
+
+    full_prompt, schema = _build_evolution_prompt(
+        hypothesis=hypothesis,
+        other_hypotheses_texts=other_hypotheses_texts,
+        meta_review=meta_review,
+        removed_duplicates=removed_duplicates,
+        supervisor_guidance=supervisor_guidance,
+        articles_with_reasoning=articles_with_reasoning,
+        tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
+    )
+
+    response = await _call_evolution_llm(
+        full_prompt=full_prompt,
+        schema=schema,
+        other_hypotheses_texts=other_hypotheses_texts,
+        model_name=model_name,
+        run_id=run_id,
+        hypothesis_index=hypothesis_index,
+    )
+
+    return _apply_evolution_result(hypothesis, response, other_hypotheses_texts)
 
 
 async def evolve_node(state: WorkflowState) -> dict[str, Any]:

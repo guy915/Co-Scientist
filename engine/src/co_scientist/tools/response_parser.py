@@ -109,38 +109,63 @@ class ResponseParser:
         Returns:
             List of successfully-mapped Article objects.
         """
+        if is_dict:
+            return self._map_dict_results(results)
+        return self._map_list_results(results)
+
+    def _map_dict_results(self, results: Any) -> list[Article]:
+        """Map a dict-shaped results value ({key: item}) to Article objects.
+
+        Some sources (e.g. PubMed, keyed by PMID) return a mapping rather
+        than a list, and the key itself is needed for "@key"/
+        "@url_from_key" expressions in field mappings, so it is threaded
+        through as dict_key per item.
+
+        Args:
+            results: The value found at results_path, expected to be a dict.
+
+        Returns:
+            List of successfully-mapped Article objects.
+        """
         articles = []
 
-        if is_dict:
-            # Results is a dict {key: item}
-            # Some sources (e.g. PubMed, keyed by PMID) return a mapping
-            # rather than a list, and the key itself is needed for
-            # "@key"/"@url_from_key" expressions below, so it is threaded
-            # through as dict_key per item.
-            if not isinstance(results, dict):
-                logger.warning("expected dict but got %s", type(results))
-                return []
+        if not isinstance(results, dict):
+            logger.warning("expected dict but got %s", type(results))
+            return []
 
-            for key, item in results.items():
-                try:
-                    article = self._map_item_to_article(item, dict_key=key)
-                    if article:
-                        articles.append(article)
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    logger.error("failed to map item %s: %s", key, e)
-        else:
-            # Results is a list
-            if not isinstance(results, list):
-                # Try to treat as single item
-                results = [results]
+        for key, item in results.items():
+            try:
+                article = self._map_item_to_article(item, dict_key=key)
+                if article:
+                    articles.append(article)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("failed to map item %s: %s", key, e)
 
-            for i, item in enumerate(results):
-                try:
-                    article = self._map_item_to_article(item)
-                    if article:
-                        articles.append(article)
-                except Exception as e:  # pylint: disable=broad-exception-caught
-                    logger.error("failed to map item %s: %s", i, e)
+        return articles
+
+    def _map_list_results(self, results: Any) -> list[Article]:
+        """Map a list-shaped results value to Article objects.
+
+        Args:
+            results: The value found at results_path: a list, or a single
+                item that is coerced to a one-item list.
+
+        Returns:
+            List of successfully-mapped Article objects.
+        """
+        articles = []
+
+        if not isinstance(results, list):
+            # Try to treat as single item
+            results = [results]
+
+        for i, item in enumerate(results):
+            try:
+                article = self._map_item_to_article(item)
+                if article:
+                    articles.append(article)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                logger.error("failed to map item %s: %s", i, e)
 
         return articles
 

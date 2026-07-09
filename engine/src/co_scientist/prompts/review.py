@@ -86,51 +86,90 @@ def get_review_batch_prompt(
 # Each helper extracts only the slice of the supervisor's output relevant
 # to its node and renders it as a markdown section; all of them return ""
 # when the needed keys are absent, so guidance is strictly additive.
+def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
+    """Format the workflow_plan.review_phase slice of supervisor guidance.
+
+    Args:
+        review_phase: The `workflow_plan.review_phase` dict from supervisor
+            guidance (may be empty).
+
+    Returns:
+        Section lines, headed by the shared "Supervisor Guidance for
+        Review" title whenever review_phase is non-empty (even if neither
+        of its known fields is present); an empty list otherwise.
+    """
+    if not review_phase:
+        return []
+
+    sections = ["## Supervisor Guidance for Review\n"]
+    if review_phase.get("critical_criteria"):
+        criteria = review_phase["critical_criteria"]
+        if isinstance(criteria, list):
+            criteria = ", ".join(criteria)
+        sections.append(f"**Critical Criteria to Emphasize:** {criteria}\n")
+    if review_phase.get("review_depth"):
+        sections.append(
+            f"**Review Depth Required:** {review_phase['review_depth']}\n")
+    return sections
+
+
+def _format_config_synthesis_guidance(config: Any, *,
+                                      needs_header: bool) -> list[str]:
+    """Format the config_synthesis slice of supervisor guidance.
+
+    Synthesized config: preferences constrain what a good idea is (shared
+    with generation); review_instructions are reviewer-only comparative
+    guidance.
+
+    Args:
+        config: The `config_synthesis` value from supervisor guidance.
+        needs_header: Whether the shared "Supervisor Guidance for Review"
+            title still needs to be emitted, i.e. no earlier section already
+            added it.
+
+    Returns:
+        Section lines, headed by the shared title only when needs_header is
+        true and this slice has content; an empty list when config is not a
+        dict or carries none of the three known fields.
+    """
+    if not isinstance(config, dict):
+        return []
+
+    sections = []
+    preferences = config.get("preferences") or []
+    review_instructions = config.get("review_instructions") or []
+    attributes = config.get("attributes") or []
+    if needs_header and (preferences or review_instructions or attributes):
+        sections.append("## Supervisor Guidance for Review\n")
+    if preferences:
+        sections.append("**Preferences (a good idea should satisfy):**\n")
+        sections.extend(f"- {p}\n" for p in preferences)
+    if review_instructions:
+        sections.append("\n**Review instructions (validate, do not restate the"
+                        " preferences):**\n")
+        sections.extend(f"- {r}\n" for r in review_instructions)
+    if attributes:
+        sections.append("\n**Stratification attributes (score each 1-5):**"
+                        "\n")
+        for attr in attributes:
+            if isinstance(attr, dict) and attr.get("name"):
+                sections.append(f"- {attr['name']}: {attr.get('rubric', '')}\n")
+    return sections
+
+
 def _format_supervisor_guidance_for_review(
         supervisor_guidance: dict[str, Any] | None) -> str:
     """Format supervisor guidance for review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
-    sections = []
     workflow_plan = supervisor_guidance.get("workflow_plan", {})
-    review_phase = workflow_plan.get("review_phase", {})
+    sections = _format_review_phase_guidance(
+        workflow_plan.get("review_phase", {}))
 
-    if review_phase:
-        sections.append("## Supervisor Guidance for Review\n")
-        if review_phase.get("critical_criteria"):
-            criteria = review_phase["critical_criteria"]
-            if isinstance(criteria, list):
-                criteria = ", ".join(criteria)
-            sections.append(f"**Critical Criteria to Emphasize:** {criteria}\n")
-        if review_phase.get("review_depth"):
-            sections.append(
-                f"**Review Depth Required:** {review_phase['review_depth']}\n")
-
-    # Synthesized config: preferences constrain what a good idea is (shared with
-    # generation); review_instructions are reviewer-only comparative guidance.
     config = supervisor_guidance.get("config_synthesis", {})
-    if isinstance(config, dict):
-        preferences = config.get("preferences") or []
-        review_instructions = config.get("review_instructions") or []
-        attributes = config.get("attributes") or []
-        if not sections and (preferences or review_instructions or attributes):
-            sections.append("## Supervisor Guidance for Review\n")
-        if preferences:
-            sections.append("**Preferences (a good idea should satisfy):**\n")
-            sections.extend(f"- {p}\n" for p in preferences)
-        if review_instructions:
-            sections.append(
-                "\n**Review instructions (validate, do not restate the"
-                " preferences):**\n")
-            sections.extend(f"- {r}\n" for r in review_instructions)
-        if attributes:
-            sections.append("\n**Stratification attributes (score each 1-5):**"
-                            "\n")
-            for attr in attributes:
-                if isinstance(attr, dict) and attr.get("name"):
-                    sections.append(
-                        f"- {attr['name']}: {attr.get('rubric', '')}\n")
+    sections.extend(
+        _format_config_synthesis_guidance(config, needs_header=not sections))
 
     return "".join(sections) if sections else ""
 

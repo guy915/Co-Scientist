@@ -548,6 +548,37 @@ class PromptsConfig:
         return cls(**_declared_field_kwargs(cls, data))
 
 
+# Each parses one top-level tools.yaml section into its nested dataclasses;
+# split out of ToolsConfig.from_dict() below so that function reads as a
+# sequence of named phases rather than a run of inline loops.
+def _parse_servers(data: dict[str, Any]) -> dict[str, ServerConfig]:
+    """Parse the top-level ``servers`` section into ServerConfig objects."""
+    servers = {}
+    for server_id, server_data in data.get("servers", {}).items():
+        servers[server_id] = ServerConfig.from_dict(server_data)
+    return servers
+
+
+def _parse_tools_by_category(
+        data: dict[str, Any]) -> dict[str, dict[str, ToolConfig]]:
+    """Parse the top-level ``tools`` section, keyed by category then id."""
+    tools: dict[str, dict[str, ToolConfig]] = {}
+    tools_data = data.get("tools", {})
+    for category, category_tools in tools_data.items():
+        tools[category] = {}
+        for tool_id, tool_data in category_tools.items():
+            tools[category][tool_id] = ToolConfig.from_dict(tool_data, tool_id)
+    return tools
+
+
+def _parse_workflows(data: dict[str, Any]) -> dict[str, WorkflowConfig]:
+    """Parse the top-level ``workflows`` section into WorkflowConfig objects."""
+    workflows = {}
+    for workflow_id, workflow_data in data.get("workflows", {}).items():
+        workflows[workflow_id] = WorkflowConfig.from_dict(workflow_data)
+    return workflows
+
+
 @dataclass
 class ToolsConfig:
     """Root configuration object containing all tool definitions.
@@ -569,29 +600,10 @@ class ToolsConfig:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> "ToolsConfig":
         """Create ToolsConfig from dictionary (parsed YAML)."""
-        # Parse servers
-        servers = {}
-        for server_id, server_data in data.get("servers", {}).items():
-            servers[server_id] = ServerConfig.from_dict(server_data)
-
-        # Parse tools by category
-        tools: dict[str, dict[str, ToolConfig]] = {}
-        tools_data = data.get("tools", {})
-        for category, category_tools in tools_data.items():
-            tools[category] = {}
-            for tool_id, tool_data in category_tools.items():
-                tools[category][tool_id] = ToolConfig.from_dict(
-                    tool_data, tool_id)
-
-        # Parse workflows
-        workflows = {}
-        for workflow_id, workflow_data in data.get("workflows", {}).items():
-            workflows[workflow_id] = WorkflowConfig.from_dict(workflow_data)
-
-        # Parse prompts
+        servers = _parse_servers(data)
+        tools = _parse_tools_by_category(data)
+        workflows = _parse_workflows(data)
         prompts = PromptsConfig.from_dict(data.get("prompts", {}))
-
-        # Parse enrichments
         enrichments = [
             EnrichmentConfig.from_dict(e) for e in data.get("enrichments", [])
         ]

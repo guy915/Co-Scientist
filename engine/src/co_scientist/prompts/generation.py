@@ -546,6 +546,40 @@ def _format_tool_entry(tool_config: Any) -> list[str]:
     return lines
 
 
+def _resolve_tool_registry(
+    tool_ids: list[str],
+    tool_registry: Any | None,
+) -> tuple[Any | None, list[str]]:
+    """Fall back to the global tool registry when none is supplied.
+
+    Also defaults tool_ids to the draft-generation workflow's tool list when
+    the caller passed none, since that default only makes sense once a
+    registry is available to resolve it against.
+
+    Args:
+        tool_ids: Caller-supplied tool IDs, possibly empty.
+        tool_registry: Caller-supplied registry, or None to fall back to the
+            global one.
+
+    Returns:
+        The resolved (tool_registry, tool_ids) pair. tool_registry may still
+        be None if the global registry is unavailable.
+    """
+    if tool_registry is None:
+        try:
+            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
+
+            tool_registry = get_tool_registry()
+            # If no tool_ids provided, get them from draft workflow
+            if not tool_ids:
+                tool_ids = tool_registry.get_tools_for_workflow(
+                    "draft_generation")
+        except Exception:  # pylint: disable=broad-exception-caught
+            pass
+
+    return tool_registry, tool_ids
+
+
 def build_tool_instructions(
     tool_ids: list[str],
     tool_registry: Any | None = None,
@@ -559,18 +593,7 @@ def build_tool_instructions(
     Returns:
         Formatted markdown section describing available tools
     """
-    # If no registry provided, try to get the global one
-    if tool_registry is None:
-        try:
-            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
-
-            tool_registry = get_tool_registry()
-            # If no tool_ids provided, get them from draft workflow
-            if not tool_ids:
-                tool_ids = tool_registry.get_tools_for_workflow(
-                    "draft_generation")
-        except Exception:  # pylint: disable=broad-exception-caught
-            pass
+    tool_registry, tool_ids = _resolve_tool_registry(tool_ids, tool_registry)
 
     if not tool_registry or not tool_ids:
         # Minimal fallback when no config available

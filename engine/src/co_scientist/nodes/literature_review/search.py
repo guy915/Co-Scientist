@@ -29,6 +29,64 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+async def _search_source_for_query(
+    query: str,
+    slug: str,
+    run_id: str,
+    tool_config: "ToolConfig",
+    src_name: str,
+    papers_per_query: int,
+    mcp_client: MCPToolClient,
+    errors: Optional[list[str]],
+) -> dict[str, dict[str, Any]]:
+    """Search one source for a single query; returns normalized results.
+
+    Scoped to the per-source query loop in `_search_single_source`: a
+    failed query is swallowed here (not raised) so other queries/sources
+    still complete; the caller aggregates errors to distinguish "zero
+    results" from "search broke".
+    """
+    # Imported locally to avoid a module-level import cycle: node.py owns
+    # _describe_exc and imports this module at load time.
+    from co_scientist.nodes.literature_review.node import _describe_exc  # pylint: disable=import-outside-toplevel
+    try:
+        # canonical_params uses the shared cross-source parameter names;
+        # map_parameters() translates them into this specific tool's own
+        # argument names/shapes per its YAML config.
+        canonical_params = {
+            "query": query,
+            "slug": slug,
+            "max_papers": papers_per_query,
+            "recency_years": LITERATURE_REVIEW_RECENCY_YEARS,
+            "run_id": run_id,
+        }
+        tool_params = tool_config.map_parameters(canonical_params)
+        tool_params = {k: v for k, v in tool_params.items() if v is not None}
+
+        result = await mcp_client.call_tool(tool_config.mcp_tool_name,
+                                            **tool_params)
+        result_data = parse_mcp_result(result)
+        normalized = normalize_search_response(result_data, tool_config)
+
+        # Tag every paper with which source produced it so downstream
+        # phases (PDF discovery, content fetching) can look up the right
+        # per-source tool config via paper_source_map.
+        for _, meta in normalized.items():
+            if isinstance(meta, dict):
+                meta["_source_name"] = src_name
+        return normalized
+
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        # A failed query for this source is swallowed here (not raised) so
+        # other queries/sources still complete; the caller aggregates
+        # errors to distinguish "zero results" from "search broke".
+        detail = _describe_exc(e)
+        logger.error("Query failed for %s: %s", src_name, detail)
+        if errors is not None:
+            errors.append(f"{src_name}: {detail}")
+        return {}
+
+
 async def _search_single_source(
     source_config: "SearchSourceConfig",
     queries: list[str],
@@ -39,9 +97,6 @@ async def _search_single_source(
     errors: Optional[list[str]] = None,
 ) -> tuple[str, dict[str, dict[str, Any]]]:
     """Search a single source with all queries."""
-    # Imported locally to avoid a module-level import cycle: node.py owns
-    # _describe_exc and imports this module at load time.
-    from co_scientist.nodes.literature_review.node import _describe_exc  # pylint: disable=import-outside-toplevel
     tool_config = tool_registry.get_tool(source_config.tool)
     if not tool_config:
         logger.warning("Tool config not found for source: %s",
@@ -60,42 +115,11 @@ async def _search_single_source(
     # caller instead parallelizes across sources.
     source_results = {}
     for query in queries:
-        try:
-            # canonical_params uses the shared cross-source parameter names;
-            # map_parameters() translates them into this specific tool's own
-            # argument names/shapes per its YAML config.
-            canonical_params = {
-                "query": query,
-                "slug": slug,
-                "max_papers": papers_per_query,
-                "recency_years": LITERATURE_REVIEW_RECENCY_YEARS,
-                "run_id": run_id,
-            }
-            tool_params = tool_config.map_parameters(canonical_params)
-            tool_params = {
-                k: v for k, v in tool_params.items() if v is not None
-            }
-
-            result = await mcp_client.call_tool(mcp_tool_name, **tool_params)
-            result_data = parse_mcp_result(result)
-            normalized = normalize_search_response(result_data, tool_config)
-
-            # Tag every paper with which source produced it so downstream
-            # phases (PDF discovery, content fetching) can look up the
-            # right per-source tool config via paper_source_map.
-            for _, meta in normalized.items():
-                if isinstance(meta, dict):
-                    meta["_source_name"] = src_name
-            source_results.update(normalized)
-
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            # A failed query for this source is swallowed here (not raised)
-            # so other queries/sources still complete; the caller aggregates
-            # errors to distinguish "zero results" from "search broke".
-            detail = _describe_exc(e)
-            logger.error("Query failed for %s: %s", src_name, detail)
-            if errors is not None:
-                errors.append(f"{src_name}: {detail}")
+        normalized = await _search_source_for_query(query, slug, run_id,
+                                                    tool_config, src_name,
+                                                    papers_per_query,
+                                                    mcp_client, errors)
+        source_results.update(normalized)
 
     logger.info("Source %s: collected %s papers", src_name, len(source_results))
     return (source_config.tool, source_results)

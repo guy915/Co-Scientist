@@ -385,6 +385,65 @@ def _interpret_availability_result(result: Any, check_tool_name: str) -> bool:
     return False
 
 
+async def _probe_literature_source_availability(
+    mcp_client: "MCPToolClient",
+    check_tool_name: str | None,
+    skip_availability_check: bool,
+) -> bool:
+    """Determine availability from an already-initialized MCP client.
+
+    Args:
+        mcp_client: An initialized MCPToolClient to query for tools and, if
+            needed, to call the availability check tool on.
+        check_tool_name: Name of the availability-check tool to call, or
+            None if no such tool is configured.
+        skip_availability_check: When True, the source is treated as
+            available once the MCP server itself responds, without calling
+            a tool.
+
+    Returns:
+        True if the literature source is available via MCP server, False
+        otherwise.
+    """
+    # Get available tools; an empty tool list means the MCP server is not
+    # usable, so the literature source is unavailable.
+    all_tools_dict, _ = mcp_client.get_tools()
+    if not all_tools_dict:
+        logger.warning("MCP server responded but provided no tools,"
+                       " literature source unavailable")
+        return False
+
+    # If no availability check configured, assume available since MCP is up
+    if skip_availability_check:
+        logger.info("MCP server available, skipping source-specific"
+                    " availability check")
+        return True
+
+    # If no check tool configured but we have a registry, assume available
+    if check_tool_name is None:
+        logger.info("no availability check tool configured,"
+                    " assuming source available")
+        return True
+
+    logger.debug("checking literature source availability (tool: %s)",
+                 check_tool_name)
+    logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
+
+    if check_tool_name not in all_tools_dict:
+        logger.warning(
+            "availability check tool '%s' not found. available tools: %s",
+            check_tool_name, list(all_tools_dict.keys()))
+        return False
+
+    logger.debug("%s tool found, executing", check_tool_name)
+
+    # Call tool directly
+    result = await mcp_client.call_tool(check_tool_name)
+
+    # Result should be a boolean or "true"/"false" string
+    return _interpret_availability_result(result, check_tool_name)
+
+
 async def check_literature_source_available(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
@@ -421,43 +480,8 @@ async def check_literature_source_available(
                                    tool_registry=tool_registry)
         await mcp_client.initialize()
 
-        # Get available tools; an empty tool list means the MCP server is not
-        # usable, so the literature source is unavailable.
-        all_tools_dict, _ = mcp_client.get_tools()
-        if not all_tools_dict:
-            logger.warning("MCP server responded but provided no tools,"
-                           " literature source unavailable")
-            return False
-
-        # If no availability check configured, assume available since MCP is up
-        if skip_availability_check:
-            logger.info("MCP server available, skipping source-specific"
-                        " availability check")
-            return True
-
-        # If no check tool configured but we have a registry, assume available
-        if check_tool_name is None:
-            logger.info("no availability check tool configured,"
-                        " assuming source available")
-            return True
-
-        logger.debug("checking literature source availability (tool: %s)",
-                     check_tool_name)
-        logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
-
-        if check_tool_name not in all_tools_dict:
-            logger.warning(
-                "availability check tool '%s' not found. available tools: %s",
-                check_tool_name, list(all_tools_dict.keys()))
-            return False
-
-        logger.debug("%s tool found, executing", check_tool_name)
-
-        # Call tool directly
-        result = await mcp_client.call_tool(check_tool_name)
-
-        # Result should be a boolean or "true"/"false" string
-        return _interpret_availability_result(result, check_tool_name)
+        return await _probe_literature_source_availability(
+            mcp_client, check_tool_name, skip_availability_check)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Deliberately broad: any MCP hiccup (connection refused, timeout,

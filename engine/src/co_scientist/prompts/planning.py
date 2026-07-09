@@ -95,7 +95,7 @@ def get_supervisor_prompt(
     run_setup_guidance: str | None = None,
     run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
-    """get the supervisor research planning prompt and schema."""
+    """Get the supervisor research planning prompt and schema."""
 
     # Build pipeline description based on available tools
     lit_review_description = ""

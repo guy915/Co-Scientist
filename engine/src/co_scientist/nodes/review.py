@@ -385,6 +385,64 @@ def _validate_reviews(reviews: list[HypothesisReview]) -> None:
         raise GenerationError(error_msg)
 
 
+async def _execute_review_strategy(
+    use_comparative: bool,
+    hypotheses: list[Hypothesis],
+    research_goal: str,
+    model_name: str,
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    run_id: str | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> tuple[list[HypothesisReview], int]:
+    """Runs the chosen review strategy and reports how many LLM calls it used.
+
+    Args:
+        use_comparative: True to run comparative batch review, False to run
+            parallel individual review.
+        hypotheses: List of hypotheses to review.
+        research_goal: Research goal for context.
+        model_name: LLM model to use.
+        supervisor_guidance: Optional planning guidance from the supervisor.
+        meta_review: Optional meta-review feedback for context.
+        run_id: Optional run ID for saving prompts.
+        tool_registry: Optional ToolRegistry for dynamic tool instructions.
+        run_setup_guidance: Optional run-setup guidance for the prompt.
+        run_focus_guidance: Optional run-focus guidance for the prompt.
+
+    Returns:
+        Tuple of (reviews, llm_calls_used).
+    """
+    if use_comparative:
+        reviews = await review_comparative_batch(
+            hypotheses=hypotheses,
+            research_goal=research_goal,
+            model_name=model_name,
+            supervisor_guidance=supervisor_guidance,
+            meta_review=meta_review,
+            run_id=run_id,
+            tool_registry=tool_registry,
+            run_setup_guidance=run_setup_guidance,
+            run_focus_guidance=run_focus_guidance,
+        )
+        return reviews, 1  # Single batch call
+
+    reviews = await review_parallel_individual(
+        hypotheses=hypotheses,
+        research_goal=research_goal,
+        model_name=model_name,
+        supervisor_guidance=supervisor_guidance,
+        meta_review=meta_review,
+        run_id=run_id,
+        tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
+    )
+    return reviews, len(hypotheses)  # One call per hypothesis
+
+
 async def review_node(state: WorkflowState) -> dict[str, Any]:
     """Reviews all hypotheses using adaptive strategy.
 
@@ -422,32 +480,18 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     # Execute chosen strategy
     tool_registry = state.get("tool_registry")
 
-    if use_comparative:
-        reviews = await review_comparative_batch(
-            hypotheses=hypotheses,
-            research_goal=state["research_goal"],
-            model_name=state["model_name"],
-            supervisor_guidance=supervisor_guidance,
-            meta_review=meta_review,
-            run_id=state.get("run_id"),
-            tool_registry=tool_registry,
-            run_setup_guidance=run_setup_guidance,
-            run_focus_guidance=run_focus_guidance,
-        )
-        llm_calls = 1  # Single batch call
-    else:
-        reviews = await review_parallel_individual(
-            hypotheses=hypotheses,
-            research_goal=state["research_goal"],
-            model_name=state["model_name"],
-            supervisor_guidance=supervisor_guidance,
-            meta_review=meta_review,
-            run_id=state.get("run_id"),
-            tool_registry=tool_registry,
-            run_setup_guidance=run_setup_guidance,
-            run_focus_guidance=run_focus_guidance,
-        )
-        llm_calls = num_hypotheses  # One call per hypothesis
+    reviews, llm_calls = await _execute_review_strategy(
+        use_comparative,
+        hypotheses,
+        state["research_goal"],
+        state["model_name"],
+        supervisor_guidance,
+        meta_review,
+        state.get("run_id"),
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
+    )
 
     # Validate reviews before continuing
     _validate_reviews(reviews)
