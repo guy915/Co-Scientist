@@ -8,6 +8,62 @@ from co_scientist.prompts._common import _format_run_guidance
 from co_scientist.prompts.loading import _build_prompt
 
 
+def _build_ranking_prompt_variables(
+    research_goal: str,
+    hypothesis_a: str,
+    hypothesis_b: str,
+    review_a: dict[str, Any] | None,
+    review_b: dict[str, Any] | None,
+    reflection_notes_a: str | None,
+    reflection_notes_b: str | None,
+    deep_verification_a: dict[str, Any] | None,
+    deep_verification_b: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Build the template variables for the ranking comparison prompt.
+
+    Args:
+        research_goal: The research goal
+        hypothesis_a: Text of the first hypothesis
+        hypothesis_b: Text of the second hypothesis
+        review_a: Optional review dict for hypothesis A
+        review_b: Optional review dict for hypothesis B
+        reflection_notes_a: Optional reflection notes for hypothesis A
+        reflection_notes_b: Optional reflection notes for hypothesis B
+        deep_verification_a: Optional deep-verification dict for hypothesis A
+        deep_verification_b: Optional deep-verification dict for hypothesis B
+
+    Returns:
+        Dict of template variables for the ranking prompt.
+    """
+    variables = {
+        "research_goal":
+            research_goal,
+        "hypothesis_a":
+            hypothesis_a,
+        "hypothesis_b":
+            hypothesis_b,
+        "review_context":
+            _format_review_context(review_a, review_b),
+        "hypothesis_a_reflection_notes": (reflection_notes_a or
+                                          "No reflection notes available."),
+        "hypothesis_b_reflection_notes": (reflection_notes_b or
+                                          "No reflection notes available."),
+    }
+
+    # Add deep-verification probes if available (blank before the first
+    # deep_verification pass has run on the leaders).
+    dv_a = deep_verification_a or {}
+    dv_b = deep_verification_b or {}
+    variables["hypothesis_a_deep_verification"] = (
+        _format_deep_verification_context(dv_a.get("probes"),
+                                          dv_a.get("verdict"), "A"))
+    variables["hypothesis_b_deep_verification"] = (
+        _format_deep_verification_context(dv_b.get("probes"),
+                                          dv_b.get("verdict"), "B"))
+
+    return variables
+
+
 # Renders prompts/ranking.md for each pairwise tournament match in
 # nodes/ranking.py. Beyond the two hypothesis texts, the prompt aggregates
 # every per-hypothesis signal available at match time: review scores,
@@ -30,31 +86,17 @@ def get_ranking_prompt(
     run_focus_guidance: str | None = None,
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the ranking (and tournament) comparison prompt and schema."""
-    variables = {
-        "research_goal": research_goal,
-        "hypothesis_a": hypothesis_a,
-        "hypothesis_b": hypothesis_b,
-    }
-
-    # Add review context if available
-    variables["review_context"] = _format_review_context(review_a, review_b)
-
-    # Add reflection notes if available
-    variables["hypothesis_a_reflection_notes"] = (
-        reflection_notes_a or "No reflection notes available.")
-    variables["hypothesis_b_reflection_notes"] = (
-        reflection_notes_b or "No reflection notes available.")
-
-    # Add deep-verification probes if available (blank before the first
-    # deep_verification pass has run on the leaders).
-    dv_a = deep_verification_a or {}
-    dv_b = deep_verification_b or {}
-    variables["hypothesis_a_deep_verification"] = (
-        _format_deep_verification_context(dv_a.get("probes"),
-                                          dv_a.get("verdict"), "A"))
-    variables["hypothesis_b_deep_verification"] = (
-        _format_deep_verification_context(dv_b.get("probes"),
-                                          dv_b.get("verdict"), "B"))
+    variables = _build_ranking_prompt_variables(
+        research_goal=research_goal,
+        hypothesis_a=hypothesis_a,
+        hypothesis_b=hypothesis_b,
+        review_a=review_a,
+        review_b=review_b,
+        reflection_notes_a=reflection_notes_a,
+        reflection_notes_b=reflection_notes_b,
+        deep_verification_a=deep_verification_a,
+        deep_verification_b=deep_verification_b,
+    )
 
     return _build_prompt(
         "ranking",

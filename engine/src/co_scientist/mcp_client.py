@@ -450,6 +450,51 @@ def _interpret_availability_result(result: Any, check_tool_name: str) -> bool:
     return False
 
 
+def _short_circuit_availability(
+    all_tools_dict: dict[str, Any],
+    check_tool_name: str | None,
+    skip_availability_check: bool,
+) -> bool | None:
+    """Resolves availability without calling any tool, when possible.
+
+    Checks, in order: whether the MCP server returned any tools at all,
+    whether the workflow config opts out of a source-specific check, and
+    whether no check tool is configured. Returns None when none of these
+    apply, meaning the caller must actually invoke check_tool_name.
+
+    Args:
+        all_tools_dict: Tools available on the already-initialized client.
+        check_tool_name: Name of the availability-check tool to call, or
+            None if no such tool is configured.
+        skip_availability_check: When True, the source is treated as
+            available once the MCP server itself responds, without calling
+            a tool.
+
+    Returns:
+        True/False if availability is already decided, else None.
+    """
+    # An empty tool list means the MCP server is not usable, so the
+    # literature source is unavailable.
+    if not all_tools_dict:
+        logger.warning("MCP server responded but provided no tools,"
+                       " literature source unavailable")
+        return False
+
+    # If no availability check configured, assume available since MCP is up
+    if skip_availability_check:
+        logger.info("MCP server available, skipping source-specific"
+                    " availability check")
+        return True
+
+    # If no check tool configured but we have a registry, assume available
+    if check_tool_name is None:
+        logger.info("no availability check tool configured,"
+                    " assuming source available")
+        return True
+
+    return None
+
+
 async def _probe_literature_source_availability(
     mcp_client: "MCPToolClient",
     check_tool_name: str | None,
@@ -470,25 +515,12 @@ async def _probe_literature_source_availability(
         True if the literature source is available via MCP server, False
         otherwise.
     """
-    # Get available tools; an empty tool list means the MCP server is not
-    # usable, so the literature source is unavailable.
     all_tools_dict, _ = mcp_client.get_tools()
-    if not all_tools_dict:
-        logger.warning("MCP server responded but provided no tools,"
-                       " literature source unavailable")
-        return False
 
-    # If no availability check configured, assume available since MCP is up
-    if skip_availability_check:
-        logger.info("MCP server available, skipping source-specific"
-                    " availability check")
-        return True
-
-    # If no check tool configured but we have a registry, assume available
-    if check_tool_name is None:
-        logger.info("no availability check tool configured,"
-                    " assuming source available")
-        return True
+    shortcut = _short_circuit_availability(all_tools_dict, check_tool_name,
+                                           skip_availability_check)
+    if shortcut is not None:
+        return shortcut
 
     logger.debug("checking literature source availability (tool: %s)",
                  check_tool_name)

@@ -33,6 +33,49 @@ from co_scientist.schemas.synthesis import (
     RESEARCH_OVERVIEW_SCHEMA,
 )
 
+# Keys are the prompt template's filename stem (matching prompts/*.md,
+# without the extension), not the schema's own "name" field. Templates
+# with no entry here (e.g. the three query-generation variants, which are
+# conversational/plain-text) legitimately have no entry so
+# get_schema_for_prompt returns None and load_prompt_with_schema in
+# prompts.py yields a schema-less call.
+_PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
+    "generation_draft_with_tools":
+        GENERATION_DRAFT_SCHEMA,
+    "generation_debate_and_literature":
+        GENERATION_SCHEMA,
+    "generation_after_debate":
+        GENERATION_SCHEMA,
+    "review":
+        REVIEW_SCHEMA,
+    "review_batch":
+        REVIEW_BATCH_SCHEMA,
+    "evolution":
+        EVOLUTION_SCHEMA,
+    "meta_review":
+        META_REVIEW_SCHEMA,
+    "ranking":
+        RANKING_SCHEMA,
+    "proximity":
+        PROXIMITY_SCHEMA,
+    "reflection_observations":
+        REFLECTION_SCHEMA,
+    "deep_verification":
+        DEEP_VERIFICATION_SCHEMA,
+    "research_overview":
+        RESEARCH_OVERVIEW_SCHEMA,
+    "supervisor":
+        SUPERVISOR_SCHEMA,
+    "literature_review_paper_analysis":
+        LITERATURE_PAPER_ANALYSIS_SCHEMA,
+    "hypothesis_novelty_analysis":
+        HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
+    "hypothesis_validation_synthesis":
+        HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+    "hypothesis_validation_synthesis_with_tools":
+        HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+}
+
 
 def get_schema_for_prompt(prompt_name: str) -> dict[str, Any] | None:
     """Get the JSON schema for a given prompt name.
@@ -43,46 +86,4 @@ def get_schema_for_prompt(prompt_name: str) -> dict[str, Any] | None:
     Returns:
         JSON schema dict or None if no schema is defined for this prompt
     """
-    # Keys are the prompt template's filename stem (matching prompts/*.md,
-    # without the extension), not the schema's own "name" field. Templates
-    # with no entry here (e.g. the three query-generation variants, which
-    # are conversational/plain-text) legitimately return None so
-    # load_prompt_with_schema in prompts.py yields a schema-less call.
-    schema_map = {
-        "generation_draft_with_tools":
-            GENERATION_DRAFT_SCHEMA,
-        "generation_debate_and_literature":
-            GENERATION_SCHEMA,
-        "generation_after_debate":
-            GENERATION_SCHEMA,
-        "review":
-            REVIEW_SCHEMA,
-        "review_batch":
-            REVIEW_BATCH_SCHEMA,
-        "evolution":
-            EVOLUTION_SCHEMA,
-        "meta_review":
-            META_REVIEW_SCHEMA,
-        "ranking":
-            RANKING_SCHEMA,
-        "proximity":
-            PROXIMITY_SCHEMA,
-        "reflection_observations":
-            REFLECTION_SCHEMA,
-        "deep_verification":
-            DEEP_VERIFICATION_SCHEMA,
-        "research_overview":
-            RESEARCH_OVERVIEW_SCHEMA,
-        "supervisor":
-            SUPERVISOR_SCHEMA,
-        "literature_review_paper_analysis":
-            LITERATURE_PAPER_ANALYSIS_SCHEMA,
-        "hypothesis_novelty_analysis":
-            HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
-        "hypothesis_validation_synthesis":
-            HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
-        "hypothesis_validation_synthesis_with_tools":
-            HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
-    }
-
-    return schema_map.get(prompt_name)
+    return _PROMPT_SCHEMA_MAP.get(prompt_name)

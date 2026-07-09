@@ -191,6 +191,47 @@ async def _search_single_query(
         return (index, {})
 
 
+async def _search_all_sources(
+    enabled_sources: list["SearchSourceConfig"],
+    queries: list[str],
+    slug: str,
+    run_id: str,
+    tool_registry: "ToolRegistry",
+    mcp_client: MCPToolClient,
+    errors: Optional[list[str]],
+) -> list[tuple[str, dict[str, dict[str, Any]]]]:
+    """Searches all enabled sources in parallel.
+
+    Each _search_single_source call runs its own queries sequentially, so
+    overall latency is bounded by the slowest source rather than the sum of
+    all sources' query times.
+
+    Args:
+        enabled_sources: Search sources enabled by the workflow config.
+        queries: Queries to run against every source.
+        slug: Corpus slug shared across this run's searches.
+        run_id: Current workflow run id.
+        tool_registry: Registry used to resolve each source's tool config.
+        mcp_client: Client used to call each source's search tool.
+        errors: Shared list that failed queries append error strings to.
+
+    Returns:
+        Per-source (tool_name, results) pairs, in enabled_sources order.
+    """
+    tasks = [
+        _search_single_source(
+            source,
+            queries,
+            slug,
+            run_id,
+            tool_registry,
+            mcp_client,
+            errors,
+        ) for source in enabled_sources
+    ]
+    return await asyncio.gather(*tasks)
+
+
 async def _phase2_collect_papers_multi_source(
     queries: list[str],
     slug: str,
@@ -208,22 +249,10 @@ async def _phase2_collect_papers_multi_source(
     logger.info("Phase 2: collecting papers from %s sources",
                 len(enabled_sources))
 
-    # Search all sources in parallel
-    # Each _search_single_source call runs its own queries sequentially, so
-    # overall latency is bounded by the slowest source rather than the sum
-    # of all sources' query times.
-    tasks = [
-        _search_single_source(
-            source,
-            queries,
-            slug,
-            state["run_id"],
-            config.tool_registry,
-            mcp_client,
-            errors,
-        ) for source in enabled_sources
-    ]
-    source_results = await asyncio.gather(*tasks)
+    source_results = await _search_all_sources(enabled_sources, queries, slug,
+                                               state["run_id"],
+                                               config.tool_registry, mcp_client,
+                                               errors)
 
     # Merge results
     # Optionally dedupes by title (config-driven via
@@ -239,6 +268,50 @@ async def _phase2_collect_papers_multi_source(
         len(all_paper_metadata), len(enabled_sources))
 
     return all_paper_metadata, paper_source_map
+
+
+async def _search_all_queries(
+    queries: list[str],
+    papers_per_query: int,
+    remainder: int,
+    slug: str,
+    run_id: str,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    errors: Optional[list[str]],
+) -> list[tuple[int, dict[str, dict[str, Any]]]]:
+    """Searches all queries against the single configured source in parallel.
+
+    Unlike multi-source mode, there is only one tool/source involved here so
+    no per-source serialization is needed.
+
+    Args:
+        queries: Queries to run.
+        papers_per_query: Base per-query papers budget.
+        remainder: Extra papers handed to the first `remainder` queries.
+        slug: Corpus slug shared across this run's searches.
+        run_id: Current workflow run id.
+        config: Search config providing the single-source tool name/config.
+        mcp_client: Client used to call the search tool.
+        errors: Shared list that failed queries append error strings to.
+
+    Returns:
+        Per-query (index, results) pairs, in query order.
+    """
+    tasks = [
+        _search_single_query(
+            query,
+            i + 1,
+            papers_per_query + (1 if i < remainder else 0),
+            slug,
+            run_id,
+            config.search_tool_name,
+            config.search_tool_config,
+            mcp_client,
+            errors,
+        ) for i, query in enumerate(queries)
+    ]
+    return await asyncio.gather(*tasks)
 
 
 async def _phase2_collect_papers_single_source(
@@ -264,23 +337,9 @@ async def _phase2_collect_papers_single_source(
     logger.info("Distributing %s papers: %s per query (+ %s extra)",
                 config.papers_to_read_count, papers_per_query, remainder)
 
-    # Search all queries in parallel
-    # Unlike multi-source mode, there is only one tool/source involved here
-    # so no per-source serialization is needed.
-    tasks = [
-        _search_single_query(
-            query,
-            i + 1,
-            papers_per_query + (1 if i < remainder else 0),
-            slug,
-            state["run_id"],
-            config.search_tool_name,
-            config.search_tool_config,
-            mcp_client,
-            errors,
-        ) for i, query in enumerate(queries)
-    ]
-    search_results = await asyncio.gather(*tasks)
+    search_results = await _search_all_queries(queries, papers_per_query,
+                                               remainder, slug, state["run_id"],
+                                               config, mcp_client, errors)
 
     # Merge results (no source tracking needed for single-source)
     # Every paper came from the same tool/source, so there is no

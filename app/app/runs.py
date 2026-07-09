@@ -189,21 +189,9 @@ def _run_overrides_from_request(req: CreateRunRequest, *, focus: str, tier: str,
     return overrides
 
 
-@router.post("")
-async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
-    """Create a new run for the requesting client and return it.
-
-    Args:
-        req: Request body with the research goal, run mode, and run config.
-        request: Incoming HTTP request, used to read the client identifier.
-
-    Returns:
-        The created run serialized as a dict.
-    """
-    # Provider (engine vs mock) is decided at creation from availability;
-    # /start can still override it per run via force_provider.
-    provider = engine_adapter.select_provider()
-    run_mode = CANONICAL_RUN_MODE
+def _build_create_run_config(
+        req: CreateRunRequest) -> tuple[dict[str, Any], str, str]:
+    """Resolve a create-run request into its (config, focus, tier) triple."""
     focus = normalize_run_focus(req.focus)
     tier = normalize_run_tier(req.tier)
     # `setup` is the durable planning block persisted inside config_json.
@@ -219,7 +207,25 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
                                             focus=focus,
                                             tier=tier,
                                             setup=setup)
-    config = resolved_run_config(overrides)
+    return resolved_run_config(overrides), focus, tier
+
+
+@router.post("")
+async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
+    """Create a new run for the requesting client and return it.
+
+    Args:
+        req: Request body with the research goal, run mode, and run config.
+        request: Incoming HTTP request, used to read the client identifier.
+
+    Returns:
+        The created run serialized as a dict.
+    """
+    # Provider (engine vs mock) is decided at creation from availability;
+    # /start can still override it per run via force_provider.
+    provider = engine_adapter.select_provider()
+    run_mode = CANONICAL_RUN_MODE
+    config, focus, tier = _build_create_run_config(req)
     # The run is persisted in DRAFT; nothing executes until /start is called.
     run = store.create_run(
         research_goal=req.research_goal,
@@ -271,6 +277,22 @@ async def get_run(run_id: str) -> dict[str, Any]:
     return {**run.to_dict(), "summary": summary}
 
 
+def _mark_workflow_failed(run_id: str, handle: _RunHandle,
+                          error: Exception) -> None:
+    """Log an unhandled workflow crash and land the run in FAILED status.
+
+    Catch-all so an unexpected workflow crash still lands the run in a
+    terminal FAILED state with a status event for the UI.
+    """
+    logger.exception("workflow failed: %s", error)
+    store.update_run_status(run_id, RunStatus.FAILED, error=str(error))
+    store.append_event(run_id, "status", {
+        "status": "failed",
+        "error": str(error)
+    })
+    handle.new_event.set()
+
+
 async def _run_workflow_task(
     run_id: str,
     research_goal: str,
@@ -299,19 +321,37 @@ async def _run_workflow_task(
         ):
             handle.new_event.set()
     except Exception as e:  # pylint: disable=broad-exception-caught
-        # Catch-all so an unexpected workflow crash still lands the run
-        # in a terminal FAILED state with a status event for the UI.
-        logger.exception("workflow failed: %s", e)
-        store.update_run_status(run_id, RunStatus.FAILED, error=str(e))
-        store.append_event(run_id, "status", {
-            "status": "failed",
-            "error": str(e)
-        })
-        handle.new_event.set()
+        _mark_workflow_failed(run_id, handle, e)
     finally:
         # Always release the active-run slot so the run can be restarted.
         async with _active_lock:
             _active.pop(run_id, None)
+
+
+def _check_startable(run: RunRow) -> None:
+    """Raise 409 if `run` cannot be (re)started in its current status.
+
+    Only draft/failed/blocked/cancelled runs may (re)start; in-progress and
+    completed runs 409 rather than double-running.
+    """
+    if run.status in (RunStatus.RUNNING, RunStatus.SYNTHESIZING):
+        raise HTTPException(status_code=409, detail="run already in progress")
+    if run.status == RunStatus.COMPLETED:
+        raise HTTPException(status_code=409, detail="run already completed")
+
+
+async def _reserve_active_slot(run_id: str) -> _RunHandle:
+    """Atomically reserve the run's active-run slot, or 409 if already active.
+
+    Guards two concurrent /start requests from both passing the DB status
+    check and launching twice.
+    """
+    async with _active_lock:
+        if run_id in _active:
+            raise HTTPException(status_code=409, detail="run already active")
+        handle = _RunHandle()
+        _active[run_id] = handle
+    return handle
 
 
 @router.post("/{run_id}/start")
@@ -332,20 +372,8 @@ async def start_run(run_id: str, req: StartRunRequest,
             completed, or already active.
     """
     run = _run_or_404(run_id)
-    # Status guards: only draft/failed/blocked/cancelled runs may (re)start.
-    # In-progress and completed runs 409 rather than double-running.
-    if run.status in (RunStatus.RUNNING, RunStatus.SYNTHESIZING):
-        raise HTTPException(status_code=409, detail="run already in progress")
-    if run.status == RunStatus.COMPLETED:
-        raise HTTPException(status_code=409, detail="run already completed")
-
-    # Reserve the run atomically under the lock so two concurrent /start
-    # requests cannot both pass the DB status check and launch twice.
-    async with _active_lock:
-        if run_id in _active:
-            raise HTTPException(status_code=409, detail="run already active")
-        handle = _RunHandle()
-        _active[run_id] = handle
+    _check_startable(run)
+    handle = await _reserve_active_slot(run_id)
 
     # Transition draft -> queued before returning; the runner moves the run
     # to running/synthesizing/terminal states as the workflow progresses.
@@ -538,6 +566,39 @@ async def _stream_live_tail(
             return
 
 
+async def _event_stream(
+    run_id: str,
+    request: Request,
+    after: int,
+    run: RunRow,
+) -> AsyncGenerator[str, None]:
+    """Yield SSE frames: full replay from `after`, then a live tail.
+
+    Clients reconnect with ?after= set to their last seen seq, so replay is
+    idempotent and gap-free.
+    """
+    last_seq = after
+
+    # Replay historical events first.
+    history = store.list_events(run_id, after_seq=last_seq)
+    for ev in history:
+        last_seq = ev["seq"]
+        yield qa.sse_frame(ev)
+
+    # If terminal already, send a final marker and return.
+    if run.status in TERMINAL_STATUSES:
+        yield _terminal_frame(run.status, last_seq)
+        return
+
+    # Handle is present only when this process runs the workflow; other
+    # processes (or post-restart streams) fall back to pure polling.
+    async with _active_lock:
+        handle = _active.get(run_id)
+
+    async for frame in _stream_live_tail(run_id, request, handle, last_seq):
+        yield frame
+
+
 @router.get("/{run_id}/events")
 async def stream_events(
         run_id: str,
@@ -555,35 +616,8 @@ async def stream_events(
         A StreamingResponse that replays history then tails live events.
     """
     run = _run_or_404(run_id)
-
-    async def event_gen() -> AsyncGenerator[str, None]:
-        """Yield SSE frames: full replay from `after`, then a live tail."""
-        last_seq = after
-
-        # Replay historical events first.
-        # Clients reconnect with ?after= set to their last seen seq, so
-        # replay is idempotent and gap-free.
-        history = store.list_events(run_id, after_seq=last_seq)
-        for ev in history:
-            last_seq = ev["seq"]
-            yield qa.sse_frame(ev)
-
-        # If terminal already, send a final marker and return.
-        terminal = run.status in TERMINAL_STATUSES
-        if terminal:
-            yield _terminal_frame(run.status, last_seq)
-            return
-
-        # Handle is present only when this process runs the workflow; other
-        # processes (or post-restart streams) fall back to pure polling.
-        async with _active_lock:
-            handle = _active.get(run_id)
-
-        async for frame in _stream_live_tail(run_id, request, handle, last_seq):
-            yield frame
-
     return StreamingResponse(
-        event_gen(),
+        _event_stream(run_id, request, after, run),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

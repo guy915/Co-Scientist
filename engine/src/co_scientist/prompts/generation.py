@@ -32,6 +32,70 @@ def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
     )
 
 
+def _format_novelty_paper_analysis(j: int, analysis_data: dict[str,
+                                                               Any]) -> str:
+    """Format one paper's novelty analysis within a draft hypothesis section.
+
+    Args:
+        j: 1-based index of the paper within its hypothesis's analyses.
+        analysis_data: A ``{paper_metadata, analysis}`` entry.
+
+    Returns:
+        The formatted paper-analysis block, prefixed with a leading newline.
+    """
+    paper_meta = analysis_data.get("paper_metadata", {})
+    analysis = analysis_data.get("analysis", {})
+    p_title = paper_meta.get('title', 'Unknown')
+    p_year = paper_meta.get('year', 'N/A')
+
+    return (f"\n**paper {j}:** {p_title} ({p_year})\n"
+            f"- methods used:"
+            f" {analysis.get('methods_used', 'N/A')}\n"
+            f"- populations studied:"
+            f" {analysis.get('populations_studied', 'N/A')}\n"
+            f"- mechanisms investigated:"
+            f" {analysis.get('mechanisms_investigated', 'N/A')}\n"
+            f"- key findings:"
+            f" {analysis.get('key_findings', 'N/A')}\n"
+            f"- stated limitations:"
+            f" {analysis.get('stated_limitations', 'N/A')}\n"
+            f"- future work suggested:"
+            f" {analysis.get('future_work_suggested', 'N/A')}\n"
+            f"- **novelty assessment:"
+            f" {analysis.get('novelty_assessment', 'N/A')}**\n"
+            f"- overlap explanation:"
+            f" {analysis.get('overlap_explanation', 'N/A')}\n")
+
+
+def _format_novelty_hypothesis_section(i: int, hyp_data: dict[str, Any]) -> str:
+    """Format one draft hypothesis section with its per-paper novelty
+    analyses.
+
+    Args:
+        i: 1-based index of the hypothesis.
+        hyp_data: An entry with a ``draft`` dict and a ``novelty_analyses``
+            list of ``{paper_metadata, analysis}``.
+
+    Returns:
+        The formatted section for this hypothesis.
+    """
+    draft = hyp_data.get("draft", {})
+    analyses = hyp_data.get("novelty_analyses", [])
+
+    hyp_section = f"""### draft hypothesis {i}
+**text:** {draft.get('text', 'Unknown')}
+**gap reasoning:** {draft.get('gap_reasoning', 'N/A')}
+**literature sources:** {draft.get('literature_sources', 'N/A')}
+
+**novelty analyses ({len(analyses)} papers examined):**
+"""
+
+    for j, analysis_data in enumerate(analyses, 1):
+        hyp_section += _format_novelty_paper_analysis(j, analysis_data)
+
+    return hyp_section
+
+
 def _format_hypotheses_with_novelty_analyses(
         hypotheses_with_analyses: list[dict[str, Any]]) -> str:
     """Render draft hypotheses and their per-paper novelty analyses.
@@ -46,46 +110,10 @@ def _format_hypotheses_with_novelty_analyses(
     Returns:
         The formatted block, sections joined by blank lines.
     """
-    hypotheses_text = []
-    for i, hyp_data in enumerate(hypotheses_with_analyses, 1):
-        draft = hyp_data.get("draft", {})
-        analyses = hyp_data.get("novelty_analyses", [])
-
-        hyp_section = f"""### draft hypothesis {i}
-**text:** {draft.get('text', 'Unknown')}
-**gap reasoning:** {draft.get('gap_reasoning', 'N/A')}
-**literature sources:** {draft.get('literature_sources', 'N/A')}
-
-**novelty analyses ({len(analyses)} papers examined):**
-"""
-
-        for j, analysis_data in enumerate(analyses, 1):
-            paper_meta = analysis_data.get("paper_metadata", {})
-            analysis = analysis_data.get("analysis", {})
-            p_title = paper_meta.get('title', 'Unknown')
-            p_year = paper_meta.get('year', 'N/A')
-
-            paper_analysis = (
-                f"\n**paper {j}:** {p_title} ({p_year})\n"
-                f"- methods used:"
-                f" {analysis.get('methods_used', 'N/A')}\n"
-                f"- populations studied:"
-                f" {analysis.get('populations_studied', 'N/A')}\n"
-                f"- mechanisms investigated:"
-                f" {analysis.get('mechanisms_investigated', 'N/A')}\n"
-                f"- key findings:"
-                f" {analysis.get('key_findings', 'N/A')}\n"
-                f"- stated limitations:"
-                f" {analysis.get('stated_limitations', 'N/A')}\n"
-                f"- future work suggested:"
-                f" {analysis.get('future_work_suggested', 'N/A')}\n"
-                f"- **novelty assessment:"
-                f" {analysis.get('novelty_assessment', 'N/A')}**\n"
-                f"- overlap explanation:"
-                f" {analysis.get('overlap_explanation', 'N/A')}\n")
-            hyp_section += paper_analysis
-
-        hypotheses_text.append(hyp_section)
+    hypotheses_text = [
+        _format_novelty_hypothesis_section(i, hyp_data)
+        for i, hyp_data in enumerate(hypotheses_with_analyses, 1)
+    ]
     return "\n\n".join(hypotheses_text)
 
 
@@ -150,6 +178,50 @@ If your draft overlaps significantly with any entry below, treat it as saturated
 """
 
 
+def _resolve_validation_tool_instructions(tool_registry: Any | None) -> str:
+    """Resolve tool instructions for the validation-synthesis workflow."""
+    tool_ids = []
+    if tool_registry:
+        tool_ids = tool_registry.get_tools_for_workflow("validation")
+    return build_tool_instructions(tool_ids, tool_registry)
+
+
+def _build_validation_synthesis_prompt_variables(
+    research_goal: str,
+    hypotheses_with_analyses: list[dict[str, Any]],
+    articles: list[Any] | None,
+    articles_with_reasoning: str | None,
+    reference_list: str,
+    max_iterations: int,
+    tool_instructions: str,
+    already_validated_texts: list[str] | None,
+) -> dict[str, Any]:
+    """Build the template variables for the Phase 2 validation-with-tools
+    prompt.
+    """
+    return {
+        "research_goal":
+            research_goal,
+        "hypotheses_with_analyses":
+            _format_hypotheses_with_novelty_analyses(hypotheses_with_analyses),
+        "hypotheses_count":
+            len(hypotheses_with_analyses),
+        "articles_metadata":
+            format_articles_metadata(articles or []),
+        "articles_with_reasoning":
+            articles_with_reasoning
+            or "no literature review summary available.",
+        "citation_reference_section":
+            _build_citation_reference_section(reference_list or ""),
+        "max_iterations":
+            max_iterations,
+        "tool_instructions":
+            tool_instructions,
+        "already_validated_context":
+            _build_already_validated_context(already_validated_texts),
+    }
+
+
 # Renders prompts/hypothesis_validation_synthesis_with_tools.md for the
 # Phase 2 validation agent in nodes/generation/literature_tools/validate.py.
 # tool_instructions is built from the "validation" workflow's tool list so
@@ -181,35 +253,18 @@ def get_validation_synthesis_prompt_with_tools(
             (retry path only). Injected as a diversity constraint so the
             model avoids duplicate territory.
     """
-    # Get tool IDs for validation workflow
-    tool_ids = []
-    if tool_registry:
-        tool_ids = tool_registry.get_tools_for_workflow("validation")
+    tool_instructions = _resolve_validation_tool_instructions(tool_registry)
 
-    # Build dynamic tool instructions
-    tool_instructions = build_tool_instructions(tool_ids, tool_registry)
-
-    variables = {
-        "research_goal":
-            research_goal,
-        "hypotheses_with_analyses":
-            _format_hypotheses_with_novelty_analyses(hypotheses_with_analyses),
-        "hypotheses_count":
-            len(hypotheses_with_analyses),
-        "articles_metadata":
-            format_articles_metadata(articles or []),
-        "articles_with_reasoning":
-            articles_with_reasoning
-            or "no literature review summary available.",
-        "citation_reference_section":
-            _build_citation_reference_section(reference_list or ""),
-        "max_iterations":
-            max_iterations,
-        "tool_instructions":
-            tool_instructions,
-        "already_validated_context":
-            _build_already_validated_context(already_validated_texts),
-    }
+    variables = _build_validation_synthesis_prompt_variables(
+        research_goal=research_goal,
+        hypotheses_with_analyses=hypotheses_with_analyses,
+        articles=articles,
+        articles_with_reasoning=articles_with_reasoning,
+        reference_list=reference_list,
+        max_iterations=max_iterations,
+        tool_instructions=tool_instructions,
+        already_validated_texts=already_validated_texts,
+    )
 
     return _build_prompt(
         "hypothesis_validation_synthesis_with_tools",
@@ -452,6 +507,36 @@ def _build_debate_prompt_variables(
     return variables
 
 
+def _render_debate_prompt(
+    prompt_name: str,
+    variables: dict[str, Any],
+    is_final_turn: bool,
+) -> tuple[str, dict[str, Any] | None]:
+    """Render the debate prompt for one turn, given its resolved variables.
+
+    Non-final turns are conversational and schema-less. The final turn is
+    schema-constrained, with the JSON output instructions concatenated
+    verbatim after the rendered template.
+
+    Args:
+        prompt_name: Prompt file stem to render.
+        variables: Resolved template variables for this turn.
+        is_final_turn: Whether this is the final turn of the debate.
+
+    Returns:
+        Tuple of (formatted prompt string, JSON schema dict or None).
+    """
+    if not is_final_turn:
+        return load_prompt(prompt_name, variables), None
+
+    prompt, schema = load_prompt_with_schema(prompt_name, variables)
+    # Concatenated verbatim after the rendered template (never run through
+    # substitute_variables), so the literal braces in the JSON example below
+    # need no {{}} escaping.
+    prompt = prompt + _DEBATE_FINAL_TURN_INSTRUCTIONS
+    return prompt, schema
+
+
 # Called by nodes/generation/debate.py once per debate turn. Template
 # choice depends on literature availability
 # (generation_debate_and_literature vs generation_after_debate), and the
@@ -520,20 +605,7 @@ def get_debate_generation_prompt(
     prompt_name = ("generation_debate_and_literature"
                    if articles_with_reasoning else "generation_after_debate")
 
-    # If final turn, append instruction to output JSON and use schema
-    if is_final_turn:
-        prompt, schema = load_prompt_with_schema(prompt_name, variables)
-
-        # Append JSON output instructions for final turn
-        # Concatenated verbatim after the rendered template (never run
-        # through substitute_variables), so the literal braces in the JSON
-        # example below need no {{}} escaping.
-        prompt = prompt + _DEBATE_FINAL_TURN_INSTRUCTIONS
-        return prompt, schema
-    else:
-        # Non-final turns: no schema, just conversational
-        prompt = load_prompt(prompt_name, variables)
-        return prompt, None
+    return _render_debate_prompt(prompt_name, variables, is_final_turn)
 
 
 # Formatting helpers for generate node

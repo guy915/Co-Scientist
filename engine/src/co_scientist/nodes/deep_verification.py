@@ -139,26 +139,7 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
                     DEEP_VERIFICATION_TOP_K)
         return {}
 
-    await emit_progress(state, "deep_verification_start",
-                        f"Deep-verifying top {len(to_verify)} hypotheses...",
-                        PROGRESS_DEEP_VERIFICATION_START)
-
-    # Verify only the not-yet-verified subset concurrently; the semaphore
-    # (created fresh per call, local to this node) caps in-flight LLM calls.
-    semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
-    tool_registry = state.get("tool_registry")
-    results = await asyncio.gather(*[
-        _verify_one(h, state["research_goal"], state["model_name"], semaphore,
-                    tool_registry) for h in to_verify
-    ])
-
-    # Apply results in place on the same Hypothesis objects referenced from
-    # `hypotheses`/`state["hypotheses"]`.
-    verified_count = _apply_verification_results(to_verify, results)
-
-    await emit_progress(state, "deep_verification_complete",
-                        f"Deep-verified {verified_count} hypotheses",
-                        PROGRESS_DEEP_VERIFICATION_COMPLETE)
+    verified_count = await _run_verification_batch(state, to_verify)
 
     logger.info("Deep verification complete: %s hypotheses", verified_count)
     metrics = create_metrics_update(llm_calls_delta=verified_count)
@@ -171,3 +152,41 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
             phase_message("deep_verification",
                           f"Deep-verified {verified_count} top hypotheses"),
     }
+
+
+async def _run_verification_batch(
+    state: WorkflowState,
+    to_verify: list[Hypothesis],
+) -> int:
+    """Runs deep verification for a batch of hypotheses and applies results.
+
+    Verifies the given hypotheses concurrently, bounded by a semaphore
+    (created fresh per call, local to this node) that caps in-flight LLM
+    calls, and applies the results in place on the same Hypothesis objects
+    passed in. Emits progress before and after.
+
+    Args:
+        state: Current workflow state.
+        to_verify: Hypotheses to verify.
+
+    Returns:
+        Count of hypotheses whose probes/verdict were updated.
+    """
+    await emit_progress(state, "deep_verification_start",
+                        f"Deep-verifying top {len(to_verify)} hypotheses...",
+                        PROGRESS_DEEP_VERIFICATION_START)
+
+    semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
+    tool_registry = state.get("tool_registry")
+    results = await asyncio.gather(*[
+        _verify_one(h, state["research_goal"], state["model_name"], semaphore,
+                    tool_registry) for h in to_verify
+    ])
+
+    verified_count = _apply_verification_results(to_verify, results)
+
+    await emit_progress(state, "deep_verification_complete",
+                        f"Deep-verified {verified_count} hypotheses",
+                        PROGRESS_DEEP_VERIFICATION_COMPLETE)
+
+    return verified_count

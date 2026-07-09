@@ -704,6 +704,32 @@ def _persist_final_state(
     }
 
 
+def _drain_pre_run_steering(run_id: str, db_path: str | None) -> None:
+    """Mark any steering queued before the run started as applied.
+
+    Drains steering queued before the run started (e.g. via the composer) so
+    it is not left "pending" and re-applied later inside run_mock_workflow's
+    own per-iteration steering check.
+    """
+    pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
+    if pre_run_steering:
+        store.mark_steering_applied([m.id for m in pre_run_steering],
+                                    db_path=db_path)
+
+
+def _emit_mock_milestone(run_id: str, event: dict[str, Any],
+                         db_path: str | None) -> None:
+    """Surface a mock event's milestone, if any, as a user-facing message."""
+    milestone = _format_milestone(event.get("type", ""),
+                                  event.get("payload", {}))
+    if milestone:
+        store.append_message(run_id,
+                             "system",
+                             milestone,
+                             "milestone",
+                             db_path=db_path)
+
+
 async def _stream_mock_provider(
     run_id: str,
     research_goal: str,
@@ -718,13 +744,7 @@ async def _stream_mock_provider(
     Forwards every mock event on the SSE stream, additionally surfacing
     select event types as a user-facing chat message.
     """
-    # Drain any steering queued before the run started (e.g. via the
-    # composer) so it is not left "pending" and re-applied later inside
-    # run_mock_workflow's own per-iteration steering check.
-    pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
-    if pre_run_steering:
-        store.mark_steering_applied([m.id for m in pre_run_steering],
-                                    db_path=db_path)
+    _drain_pre_run_steering(run_id, db_path)
 
     async for event in run_mock_workflow(
             run_id=run_id,
@@ -734,16 +754,7 @@ async def _stream_mock_provider(
             cancelled=cancelled,
             sleep_seconds=sleep_seconds,
     ):
-        # In addition to forwarding the raw event on the SSE stream, surface
-        # select event types as a user-facing chat message.
-        milestone = _format_milestone(event.get("type", ""),
-                                      event.get("payload", {}))
-        if milestone:
-            store.append_message(run_id,
-                                 "system",
-                                 milestone,
-                                 "milestone",
-                                 db_path=db_path)
+        _emit_mock_milestone(run_id, event, db_path)
         yield event
 
 
@@ -888,6 +899,38 @@ def _merge_engine_state(final_state: dict[str, Any], state: dict[str,
             final_state[key] = state[key]
 
 
+async def _emit_cancelled_event(run_id: str, db_path: str | None,
+                                emit: EmitFn) -> dict[str, Any]:
+    """Persist a CANCELLED status and return the terminal event to yield."""
+    store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
+    return await emit("status", {"status": "cancelled"})
+
+
+async def _emit_engine_node_event(
+    run_id: str,
+    node_name: str,
+    state: dict[str, Any],
+    db_path: str | None,
+    emit: EmitFn,
+) -> dict[str, Any]:
+    """Normalize an engine node to the canonical event vocabulary and emit it.
+
+    Normalizes the node to the canonical mock event vocabulary so every
+    downstream consumer reads one shape (no engine.* types), surfaces a
+    milestone side-message for key events, and returns the emitted event.
+    """
+    node_type = _canonical_event_type(node_name)
+    payload = _canonical_engine_payload(node_name, node_type, state)
+    milestone = _format_milestone(node_type, payload)
+    if milestone:
+        store.append_message(run_id,
+                             "system",
+                             milestone,
+                             "milestone",
+                             db_path=db_path)
+    return await emit(node_type, payload)
+
+
 async def _stream_engine_nodes(
     generator: Any,
     research_goal: str,
@@ -914,27 +957,58 @@ async def _stream_engine_nodes(
             opts=initial_opts,
     ):
         if cancelled and cancelled.is_set():
-            store.update_run_status(run_id,
-                                    RunStatus.CANCELLED,
-                                    db_path=db_path)
-            yield await emit("status", {"status": "cancelled"})
+            yield await _emit_cancelled_event(run_id, db_path, emit)
             return
 
         # Update final_state from each yielded cumulative snapshot.
         _merge_engine_state(final_state, state)
+        yield await _emit_engine_node_event(run_id, node_name, state, db_path,
+                                            emit)
 
-        # Normalize the engine node to the canonical mock event vocabulary so
-        # every downstream consumer reads one shape (no engine.* types).
-        node_type = _canonical_event_type(node_name)
-        payload = _canonical_engine_payload(node_name, node_type, state)
-        milestone = _format_milestone(node_type, payload)
-        if milestone:
-            store.append_message(run_id,
-                                 "system",
-                                 milestone,
-                                 "milestone",
-                                 db_path=db_path)
-        yield await emit(node_type, payload)
+
+def _new_engine_final_state() -> dict[str, Any]:
+    """Return an empty accumulator for a streamed engine run's final state."""
+    return {
+        "hypotheses": [],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "research_overview": {},
+    }
+
+
+async def _persist_and_report(
+    run_id: str,
+    research_goal: str,
+    run_mode: str,
+    final_state: dict[str, Any],
+    *,
+    start: float,
+    db_path: str | None,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Drain `final_state` into the store, then build and emit the report.
+
+    Builds, screens, persists, and emits the report through the shared
+    finalize path (final safety gate included), so the engine is gated and
+    reported on exactly the same terms as the mock.
+    """
+    report_inputs = _persist_final_state(
+        run_id=run_id,
+        final_state=final_state,
+        db_path=db_path,
+    )
+    async for event in finalize_report(
+            run_id=run_id,
+            research_goal=research_goal,
+            run_mode=run_mode,
+            provider="engine",
+            emit=emit,
+            execution_time=time.time() - start,
+            db_path=db_path,
+            **report_inputs,
+    ):
+        yield event
 
 
 async def _run_engine_and_report(
@@ -955,14 +1029,7 @@ async def _run_engine_and_report(
     already emitted the terminal "cancelled" status event, so this returns
     early and skips draining/reporting.
     """
-    # Accumulate the full final state across all streamed nodes.
-    final_state: dict[str, Any] = {
-        "hypotheses": [],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "research_overview": {},
-    }
+    final_state = _new_engine_final_state()
     async for event in _stream_engine_nodes(
             generator,
             research_goal,
@@ -977,27 +1044,40 @@ async def _run_engine_and_report(
     if cancelled and cancelled.is_set():
         return
 
-    # ---- Drain final state into the store ----
-    report_inputs = _persist_final_state(
-        run_id=run_id,
-        final_state=final_state,
-        db_path=db_path,
-    )
-
-    # Build, screen, persist, and emit the report through the shared
-    # finalize path (final safety gate included), so the engine is gated
-    # and reported on exactly the same terms as the mock.
-    async for event in finalize_report(
-        run_id=run_id,
-        research_goal=research_goal,
-        run_mode=run_mode,
-        provider="engine",
-        emit=emit,
-        execution_time=time.time() - start,
-        db_path=db_path,
-        **report_inputs,
+    async for event in _persist_and_report(
+            run_id,
+            research_goal,
+            run_mode,
+            final_state,
+            start=start,
+            db_path=db_path,
+            emit=emit,
     ):
         yield event
+
+
+async def _emit_engine_running(run_id: str, db_path: str | None,
+                               emit: EmitFn) -> dict[str, Any]:
+    """Persist RUNNING status and return the status event to yield.
+
+    Persists the running state, not just emits it. The mock path sets this;
+    the engine path previously only emitted the event, leaving the run row
+    stuck at "queued" for the entire run (misleading status pill in the UI).
+    """
+    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
+    return await emit("status", {"status": "running"})
+
+
+async def _emit_engine_failure(run_id: str, error: Exception,
+                               db_path: str | None,
+                               emit: EmitFn) -> dict[str, Any]:
+    """Log an engine-run crash, mark the run FAILED, and return the event."""
+    logger.exception("engine run failed: %s", error)
+    store.update_run_status(run_id,
+                            RunStatus.FAILED,
+                            error=str(error),
+                            db_path=db_path)
+    return await emit("status", {"status": "failed", "error": str(error)})
 
 
 async def _run_engine_provider(
@@ -1017,11 +1097,7 @@ async def _run_engine_provider(
     to `_run_engine_and_report`. On any exception, marks the run failed and
     yields a terminal "failed" status event.
     """
-    # Persist the running state, not just emit it. The mock path sets this; the
-    # engine path previously only emitted the event, leaving the run row stuck
-    # at "queued" for the entire run (misleading status pill in the UI).
-    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
-    yield await emit("status", {"status": "running"})
+    yield await _emit_engine_running(run_id, db_path, emit)
 
     initial_opts = _build_engine_opts(cfg, run_id, db_path)
     generator = _build_generator(generator_cls, cfg)
@@ -1041,12 +1117,46 @@ async def _run_engine_provider(
         ):
             yield event
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.exception("engine run failed: %s", e)
-        store.update_run_status(run_id,
-                                RunStatus.FAILED,
-                                error=str(e),
-                                db_path=db_path)
-        yield await emit("status", {"status": "failed", "error": str(e)})
+        yield await _emit_engine_failure(run_id, e, db_path, emit)
+
+
+def _real_engine_stream(
+    research_goal: str,
+    run_id: str,
+    run_mode: str,
+    cfg: dict[str, Any],
+    *,
+    cancelled: asyncio.Event | None,
+    db_path: str | None,
+    sleep_seconds: float,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Return the real-engine event stream, bridging it into our event log.
+
+    Falls back to the mock workflow if the real engine cannot be imported
+    even though the caller resolved to "engine" (e.g. a partial install).
+    """
+    generator_cls = _import_hypothesis_generator()
+    if generator_cls is None:
+        return run_mock_workflow(
+            run_id=run_id,
+            research_goal=research_goal,
+            config=cfg,
+            db_path=db_path,
+            cancelled=cancelled,
+            sleep_seconds=sleep_seconds,
+        )
+
+    return _run_engine_provider(
+        generator_cls,
+        research_goal,
+        run_id,
+        run_mode,
+        cfg,
+        cancelled=cancelled,
+        db_path=db_path,
+        emit=emit,
+    )
 
 
 async def _select_provider_stream(
@@ -1076,26 +1186,14 @@ async def _select_provider_stream(
             sleep_seconds=sleep_seconds,
         )
 
-    # Real engine path — bridge engine streaming events into our event log.
-    generator_cls = _import_hypothesis_generator()
-    if generator_cls is None:
-        return run_mock_workflow(
-            run_id=run_id,
-            research_goal=research_goal,
-            config=cfg,
-            db_path=db_path,
-            cancelled=cancelled,
-            sleep_seconds=sleep_seconds,
-        )
-
-    return _run_engine_provider(
-        generator_cls,
+    return _real_engine_stream(
         research_goal,
         run_id,
         run_mode,
         cfg,
         cancelled=cancelled,
         db_path=db_path,
+        sleep_seconds=sleep_seconds,
         emit=emit,
     )
 

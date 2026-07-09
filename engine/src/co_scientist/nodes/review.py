@@ -191,6 +191,61 @@ async def review_parallel_individual(
     return await asyncio.gather(*review_tasks)
 
 
+def _prepare_batch_review_call(
+    hypotheses: list[Hypothesis],
+    research_goal: str,
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> tuple[str, dict[str, Any] | None, int, int]:
+    """Builds the batch-review prompt and derives its token/retry budget.
+
+    Args:
+        hypotheses: Hypotheses to include in the batch prompt.
+        research_goal: Research goal for context.
+        supervisor_guidance: Optional planning guidance from the supervisor.
+        meta_review: Optional meta-review feedback for context.
+        tool_registry: Optional ToolRegistry for dynamic tool instructions.
+        run_setup_guidance: Optional run-setup guidance for the prompt.
+        run_focus_guidance: Optional run-focus guidance for the prompt.
+
+    Returns:
+        Tuple of (prompt, schema, max_tokens, max_attempts).
+    """
+    hypotheses_list = "\n\n".join([
+        f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)
+    ])
+    prompt, schema = get_review_batch_prompt(
+        research_goal=research_goal,
+        hypotheses_list=hypotheses_list,
+        supervisor_guidance=supervisor_guidance,
+        meta_review=meta_review,
+        tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
+    )
+
+    # Scale max_tokens based on hypothesis count in batch (base budget covers
+    # the first REVIEW_BATCH_FREE_HYPOTHESES hypotheses).
+    hypothesis_count = len(hypotheses)
+    max_tokens = scaled_max_tokens(
+        THINKING_MAX_TOKENS,
+        hypothesis_count,
+        per_item=REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
+        cap=REVIEW_BATCH_MAX_TOKENS_CAP,
+        free_count=REVIEW_BATCH_FREE_HYPOTHESES,
+    )
+    # More retries for large batches.
+    max_attempts = 7 if hypothesis_count > 10 else 5
+
+    logger.debug("batch review: %s hypotheses, max_tokens=%s", hypothesis_count,
+                 max_tokens)
+
+    return prompt, schema, max_tokens, max_attempts
+
+
 async def review_comparative_batch(
     hypotheses: list[Hypothesis],
     research_goal: str,
@@ -221,49 +276,28 @@ async def review_comparative_batch(
     Returns:
         List of reviews (one per hypothesis)
     """
-    # Format hypotheses for batch review
-    hypotheses_list = "\n\n".join([
-        f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)
-    ])
-
-    # Call batch review
-    prompt, schema = get_review_batch_prompt(
-        research_goal=research_goal,
-        hypotheses_list=hypotheses_list,
-        supervisor_guidance=supervisor_guidance,
-        meta_review=meta_review,
-        tool_registry=tool_registry,
-        run_setup_guidance=run_setup_guidance,
-        run_focus_guidance=run_focus_guidance,
+    prompt, schema, max_tokens, max_attempts = _prepare_batch_review_call(
+        hypotheses,
+        research_goal,
+        supervisor_guidance,
+        meta_review,
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
     )
-
-    # Scale max_tokens based on hypothesis count in batch (base budget covers
-    # the first REVIEW_BATCH_FREE_HYPOTHESES hypotheses).
-    hypothesis_count = len(hypotheses)
-    batch_max_tokens = scaled_max_tokens(
-        THINKING_MAX_TOKENS,
-        hypothesis_count,
-        per_item=REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
-        cap=REVIEW_BATCH_MAX_TOKENS_CAP,
-        free_count=REVIEW_BATCH_FREE_HYPOTHESES,
-    )
-
-    logger.debug("batch review: %s hypotheses, max_tokens=%s", hypothesis_count,
-                 batch_max_tokens)
 
     response = await call_llm_json(
         prompt=prompt,
         model_name=model_name,
-        max_tokens=batch_max_tokens,
+        max_tokens=max_tokens,
         temperature=HIGH_TEMPERATURE,
         json_schema=schema,
-        max_attempts=7
-        if hypothesis_count > 10 else 5,  # increase retries for large batches
+        max_attempts=max_attempts,
         run_id=run_id,
         prompt_name="review_batch",
         prompt_metadata={
-            "hypotheses_count": hypothesis_count,
-            "scaled_max_tokens": batch_max_tokens,
+            "hypotheses_count": len(hypotheses),
+            "scaled_max_tokens": max_tokens,
             "prompt_length_chars": len(prompt),
         },
     )
@@ -271,30 +305,20 @@ async def review_comparative_batch(
     return _parse_batch_review_response(response, hypotheses, run_id)
 
 
-def _parse_batch_review_response(
+def _log_batch_review_response_shape(
     response: dict[str, Any],
+    reviews_data: list[Any],
     hypotheses: list[Hypothesis],
     run_id: str | None,
-) -> list[HypothesisReview]:
-    """Parses a batch-review LLM response into per-hypothesis reviews.
-
-    Logs the response shape for debugging and, if the LLM under-produced
-    reviews (e.g. by hitting output token limits), pads the missing entries
-    with an "unavailable" placeholder rather than raising here -- review_node
-    detects that placeholder via its review_summary text and raises instead
-    of silently scoring the hypothesis at 0.
+) -> None:
+    """Logs batch-review response diagnostics and any count mismatch.
 
     Args:
         response: raw LLM JSON response from the batch review call.
+        reviews_data: the "reviews" list pulled from response.
         hypotheses: hypotheses that were reviewed, for count/logging only.
         run_id: optional run ID, referenced in the mismatch log message.
-
-    Returns:
-        List of reviews, one per hypothesis, in the same order.
     """
-    reviews_data = response.get("reviews", [])
-
-    # Debug logging
     logger.info("Batch review response keys: %s", list(response.keys()))
     logger.info("Reviews data type: %s, length: %s", type(reviews_data),
                 len(reviews_data) if isinstance(reviews_data, list) else 'N/A')
@@ -310,16 +334,32 @@ def _parse_batch_review_response(
             " .coscientist_prompts/%s/review_batch.txt", len(hypotheses),
             len(reviews_data), run_id)
 
-    # Convert to HypothesisReview objects
-    # Iterates by index over `hypotheses` (not `reviews_data`) so every
-    # hypothesis gets a review object even if the LLM under-produced
-    # entries after hitting the mismatch case logged above.
+
+def _build_reviews_with_placeholders(
+    hypotheses: list[Hypothesis],
+    reviews_data: list[Any],
+) -> list[HypothesisReview]:
+    """Converts batch-review entries into HypothesisReview objects.
+
+    Iterates by index over `hypotheses` (not `reviews_data`) so every
+    hypothesis gets a review object even if the LLM under-produced entries;
+    missing entries are padded with an "unavailable" placeholder rather than
+    raising here -- review_node detects that placeholder via its
+    review_summary text and raises instead of silently scoring the
+    hypothesis at 0.
+
+    Args:
+        hypotheses: hypotheses that were reviewed.
+        reviews_data: the "reviews" list pulled from the batch response.
+
+    Returns:
+        List of reviews, one per hypothesis, in the same order.
+    """
     reviews = []
     for i in range(len(hypotheses)):
         if i < len(reviews_data):
             reviews.append(_review_from_response(reviews_data[i]))
         else:
-            # Missing review - create empty one
             logger.error("No review data for hypothesis %s", i)
             reviews.append(
                 HypothesisReview(
@@ -332,6 +372,26 @@ def _parse_batch_review_response(
                 ))
 
     return reviews
+
+
+def _parse_batch_review_response(
+    response: dict[str, Any],
+    hypotheses: list[Hypothesis],
+    run_id: str | None,
+) -> list[HypothesisReview]:
+    """Parses a batch-review LLM response into per-hypothesis reviews.
+
+    Args:
+        response: raw LLM JSON response from the batch review call.
+        hypotheses: hypotheses that were reviewed, for count/logging only.
+        run_id: optional run ID, referenced in the mismatch log message.
+
+    Returns:
+        List of reviews, one per hypothesis, in the same order.
+    """
+    reviews_data = response.get("reviews", [])
+    _log_batch_review_response_shape(response, reviews_data, hypotheses, run_id)
+    return _build_reviews_with_placeholders(hypotheses, reviews_data)
 
 
 def _select_review_strategy(num_hypotheses: int) -> tuple[bool, str]:
@@ -443,6 +503,57 @@ async def _execute_review_strategy(
     return reviews, len(hypotheses)  # One call per hypothesis
 
 
+async def _run_review_strategy(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    use_comparative: bool,
+) -> tuple[list[HypothesisReview], int]:
+    """Gathers guidance from state and runs the chosen review strategy.
+
+    Args:
+        state: Current workflow state.
+        hypotheses: Hypotheses to review.
+        use_comparative: True to run comparative batch review, False to run
+            parallel individual review.
+
+    Returns:
+        Tuple of (reviews, llm_calls_used).
+    """
+    supervisor_guidance = state.get("supervisor_guidance")
+    meta_review = state.get("meta_review")
+    run_setup_guidance = state.get("run_setup_guidance")
+    run_focus_guidance = state.get("run_focus_guidance")
+    tool_registry = state.get("tool_registry")
+
+    return await _execute_review_strategy(
+        use_comparative,
+        hypotheses,
+        state["research_goal"],
+        state["model_name"],
+        supervisor_guidance,
+        meta_review,
+        state.get("run_id"),
+        tool_registry,
+        run_setup_guidance,
+        run_focus_guidance,
+    )
+
+
+def _attach_reviews_to_hypotheses(
+    hypotheses: list[Hypothesis],
+    reviews: list[HypothesisReview],
+) -> None:
+    """Attaches each review to its hypothesis and mirrors its overall score.
+
+    Args:
+        hypotheses: Hypotheses to update, in the same order as reviews.
+        reviews: Reviews to attach, in the same order as hypotheses.
+    """
+    for hypothesis, review in zip(hypotheses, reviews):
+        hypothesis.reviews.append(review)
+        hypothesis.score = review.overall_score
+
+
 async def review_node(state: WorkflowState) -> dict[str, Any]:
     """Reviews all hypotheses using adaptive strategy.
 
@@ -463,48 +574,21 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
 
     logger.info("Reviewing %s hypotheses", num_hypotheses)
 
-    # Choose strategy based on count
     use_comparative, strategy_name = _select_review_strategy(num_hypotheses)
 
-    # Emit progress
     await emit_progress(state, "review_start",
                         f"Reviewing {num_hypotheses} hypotheses...",
                         PROGRESS_REVIEW_START)
 
-    # Get supervisor guidance and meta_review from state
-    supervisor_guidance = state.get("supervisor_guidance")
-    meta_review = state.get("meta_review")
-    run_setup_guidance = state.get("run_setup_guidance")
-    run_focus_guidance = state.get("run_focus_guidance")
+    reviews, llm_calls = await _run_review_strategy(state, hypotheses,
+                                                    use_comparative)
 
-    # Execute chosen strategy
-    tool_registry = state.get("tool_registry")
-
-    reviews, llm_calls = await _execute_review_strategy(
-        use_comparative,
-        hypotheses,
-        state["research_goal"],
-        state["model_name"],
-        supervisor_guidance,
-        meta_review,
-        state.get("run_id"),
-        tool_registry,
-        run_setup_guidance,
-        run_focus_guidance,
-    )
-
-    # Validate reviews before continuing
     _validate_reviews(reviews)
-
-    # Attach reviews to hypotheses
-    for hypothesis, review in zip(hypotheses, reviews):
-        hypothesis.reviews.append(review)
-        hypothesis.score = review.overall_score
+    _attach_reviews_to_hypotheses(hypotheses, reviews)
 
     logger.info("Completed %s reviews using %s strategy", len(reviews),
                 strategy_name)
 
-    # Emit progress
     await emit_progress(state,
                         "review_complete",
                         f"Completed {len(reviews)} reviews",

@@ -151,6 +151,31 @@ def update_run_status(
         )
 
 
+def _fail_interrupted_run(
+    conn: sqlite3.Connection,
+    run_id: str,
+    now: float,
+    reason: str,
+) -> None:
+    """Transition one interrupted run to failed and log a status event.
+
+    Args:
+        conn: Open connection to run the update and event append on.
+        run_id: Identifier of the run to fail.
+        now: Timestamp to record as the update and completion time.
+        reason: Human-readable interruption reason to store and log.
+    """
+    conn.execute(
+        "UPDATE runs SET status=?, error=?, updated_at=?, "
+        "completed_at=? WHERE id=?",
+        (RunStatus.FAILED.value, reason, now, now, run_id),
+    )
+    _append_event(conn, run_id, "status", {
+        "status": "failed",
+        "error": reason
+    }, now)
+
+
 def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
     """Fail runs left non-terminal by a previous process (crash/restart).
 
@@ -181,15 +206,7 @@ def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
         ).fetchall()
         for row in rows:
             rid = row["id"]
-            conn.execute(
-                "UPDATE runs SET status=?, error=?, updated_at=?, "
-                "completed_at=? WHERE id=?",
-                (RunStatus.FAILED.value, reason, now, now, rid),
-            )
-            _append_event(conn, rid, "status", {
-                "status": "failed",
-                "error": reason
-            }, now)
+            _fail_interrupted_run(conn, rid, now, reason)
             reconciled.append(rid)
     return reconciled
 

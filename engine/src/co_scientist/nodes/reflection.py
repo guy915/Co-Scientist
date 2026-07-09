@@ -68,39 +68,10 @@ async def analyze_single_hypothesis(
     )
 
     try:
-        # Call llm
-        response = await call_llm_json(
-            prompt=prompt,
-            model_name=model_name,
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=LOW_TEMPERATURE,
-            json_schema=schema,
-            run_id=run_id,
-            prompt_name=f"reflection_{hypothesis_index}",
-            prompt_metadata={
-                "hypothesis_index": hypothesis_index,
-                "total_count": total_count,
-                "prompt_length_chars": len(prompt),
-            },
-        )
-
-        # Default to "neutral"/empty if the LLM response omits a field,
-        # since json_schema validation may still let optional keys through.
-        classification = response.get("classification", "neutral")
-        reasoning = response.get("reasoning", "")
-
-        logger.debug("hypothesis %s classification: %s", hypothesis_index,
-                     classification)
-
-        # indra_enrichment_items rides alongside the classification so the
-        # caller can merge it into hypothesis.enrichments separately from
-        # the reflection_notes text below.
-        return {
-            "classification": classification,
-            "reasoning": reasoning,
-            "indra_enrichment_items": indra_data.get("enrichment_items", []),
-        }
-
+        response = await _call_reflection_llm(prompt, schema, model_name,
+                                              run_id, hypothesis_index,
+                                              total_count)
+        return _format_reflection_result(response, indra_data, hypothesis_index)
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Isolate this hypothesis's failure: return None instead of
         # raising, so the asyncio.gather in reflection_node still
@@ -108,6 +79,77 @@ async def analyze_single_hypothesis(
         logger.error("Reflection failed for hypothesis %s: %s",
                      hypothesis_index, e)
         return None
+
+
+async def _call_reflection_llm(
+    prompt: str,
+    schema: dict[str, Any] | None,
+    model_name: str,
+    run_id: str | None,
+    hypothesis_index: int,
+    total_count: int,
+) -> dict[str, Any]:
+    """Calls the LLM with the reflection prompt for one hypothesis.
+
+    Args:
+        prompt: Rendered reflection prompt.
+        schema: JSON schema the response must conform to.
+        model_name: LLM model to use.
+        run_id: Optional run ID for saving prompts.
+        hypothesis_index: Index for logging (1-based).
+        total_count: Total hypotheses count for logging.
+
+    Returns:
+        The raw LLM JSON response.
+    """
+    return await call_llm_json(
+        prompt=prompt,
+        model_name=model_name,
+        max_tokens=EXTENDED_MAX_TOKENS,
+        temperature=LOW_TEMPERATURE,
+        json_schema=schema,
+        run_id=run_id,
+        prompt_name=f"reflection_{hypothesis_index}",
+        prompt_metadata={
+            "hypothesis_index": hypothesis_index,
+            "total_count": total_count,
+            "prompt_length_chars": len(prompt),
+        },
+    )
+
+
+def _format_reflection_result(
+    response: dict[str, Any],
+    indra_data: dict[str, Any],
+    hypothesis_index: int,
+) -> dict[str, Any]:
+    """Formats an LLM reflection response into the node's result shape.
+
+    indra_enrichment_items rides alongside the classification so the caller
+    can merge it into hypothesis.enrichments separately from the
+    reflection_notes text.
+
+    Args:
+        response: raw LLM JSON response from the reflection call.
+        indra_data: pre-fetched INDRA evidence for this hypothesis.
+        hypothesis_index: Index for logging (1-based).
+
+    Returns:
+        Dict with classification, reasoning, and indra_enrichment_items.
+    """
+    # Default to "neutral"/empty if the LLM response omits a field, since
+    # json_schema validation may still let optional keys through.
+    classification = response.get("classification", "neutral")
+    reasoning = response.get("reasoning", "")
+
+    logger.debug("hypothesis %s classification: %s", hypothesis_index,
+                 classification)
+
+    return {
+        "classification": classification,
+        "reasoning": reasoning,
+        "indra_enrichment_items": indra_data.get("enrichment_items", []),
+    }
 
 
 async def reflection_node(state: WorkflowState) -> dict[str, Any]:
@@ -140,9 +182,31 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
 
     logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
 
-    # Emit progress
-    # emit_progress is a no-op unless a progress_callback was wired into
-    # state (the app layer uses it to stream SSE updates to the UI).
+    await _run_reflection_phase(state, hypotheses, articles_with_reasoning)
+
+    logger.info("Completed reflection analysis for %s hypotheses",
+                len(hypotheses))
+
+    return _build_reflection_result(hypotheses)
+
+
+async def _run_reflection_phase(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    articles_with_reasoning: str,
+) -> None:
+    """Runs reflection analysis for every hypothesis and applies results.
+
+    Emits progress before and after the analysis; emit_progress is a no-op
+    unless a progress_callback was wired into state (the app layer uses it
+    to stream SSE updates to the UI). Mutates hypotheses in place.
+
+    Args:
+        state: current workflow state.
+        hypotheses: hypotheses to analyze; mutated in place.
+        articles_with_reasoning: literature review context shared by all
+            tasks.
+    """
     await emit_progress(state,
                         "reflection_start",
                         f"Analyzing {len(hypotheses)} hypotheses"
@@ -150,25 +214,17 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
                         PROGRESS_REFLECTION_START,
                         hypotheses_count=len(hypotheses))
 
-    # Analyze all hypotheses in parallel
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
     analysis_results = await _run_reflection_analysis(state, hypotheses,
                                                       articles_with_reasoning)
 
-    # Apply results to hypotheses
     _apply_reflection_results(hypotheses, analysis_results)
 
-    # Emit progress
     await emit_progress(state,
                         "reflection_complete",
                         "Reflection analysis complete",
                         PROGRESS_REFLECTION_COMPLETE,
                         hypotheses_count=len(hypotheses))
-
-    logger.info("Completed reflection analysis for %s hypotheses",
-                len(hypotheses))
-
-    return _build_reflection_result(hypotheses)
 
 
 async def _run_reflection_analysis(

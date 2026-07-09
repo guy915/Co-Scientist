@@ -2,6 +2,7 @@
 # pylint: disable=inconsistent-quotes
 
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.constants import (
@@ -216,6 +217,29 @@ def _dedupe_by_cluster(
     return hypotheses_to_keep, removed_duplicates
 
 
+def _prepare_hypotheses_for_analysis(
+        hypotheses: list[Hypothesis]) -> list[dict[str, Any]]:
+    """Builds the per-hypothesis payload sent to the proximity LLM call.
+
+    Sends only the fields the clustering prompt needs, plus a positional
+    `index` used only for prompt authoring; matching responses back to
+    Hypothesis objects is done by text prefix, not this index (see
+    _match_hypothesis_to_cluster).
+
+    Args:
+        hypotheses: All hypotheses being analyzed for proximity.
+
+    Returns:
+        Per-hypothesis dicts for the proximity prompt.
+    """
+    return [{
+        "text": hyp.text,
+        "score": hyp.score,
+        "elo_rating": hyp.elo_rating,
+        "index": i
+    } for i, hyp in enumerate(hypotheses)]
+
+
 async def _fetch_similarity_clusters(
         state: WorkflowState,
         hypotheses: list[Hypothesis]) -> list[dict[str, Any]]:
@@ -232,16 +256,7 @@ async def _fetch_similarity_clusters(
         Similarity clusters as returned by the proximity LLM call (empty
         if the response was malformed or contained none).
     """
-    # Prepare hypotheses for similarity analysis
-    # Send only the fields the clustering prompt needs, plus a positional
-    # `index` used only for prompt authoring; matching responses back to
-    # Hypothesis objects below is done by text prefix, not this index.
-    hypotheses_for_analysis = [{
-        "text": hyp.text,
-        "score": hyp.score,
-        "elo_rating": hyp.elo_rating,
-        "index": i
-    } for i, hyp in enumerate(hypotheses)]
+    hypotheses_for_analysis = _prepare_hypotheses_for_analysis(hypotheses)
 
     # Get supervisor guidance from state
     supervisor_guidance = state.get("supervisor_guidance")
@@ -291,6 +306,111 @@ def _log_dedup_summary(original_count: int, kept_count: int,
             logger.warning("- %s...", dup['text'][:80])
 
 
+@dataclass
+class _ClusteringOutcome:
+    """Bundled output of one proximity clustering + dedup pass.
+
+    Attributes:
+        hypotheses_to_keep: Hypotheses retained after deduplication.
+        removed_duplicates: Audit records for hypotheses dropped this pass.
+        similarity_clusters: Clusters as returned by the proximity LLM call.
+    """
+    hypotheses_to_keep: list[Hypothesis]
+    removed_duplicates: list[dict[str, Any]]
+    similarity_clusters: list[dict[str, Any]]
+
+
+async def _run_proximity_clustering(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+) -> "_ClusteringOutcome | None":
+    """Runs one LLM clustering + dedup pass for proximity_node.
+
+    Emits the "proximity_start" progress event, then calls the proximity LLM
+    and resolves cluster duplicates. Assigns cluster ids onto `hypotheses`
+    in place.
+
+    Args:
+        state: Current workflow state.
+        hypotheses: All hypotheses being analyzed for proximity.
+
+    Returns:
+        The clustering outcome, or None if the LLM returned no similarity
+        clusters -- a malformed or empty response -- so the caller can skip
+        deduplication for this iteration rather than failing the whole run.
+    """
+    await emit_progress(
+        state, "proximity_start",
+        f"Analyzing similarity of {len(hypotheses)} hypotheses...",
+        PROGRESS_PROXIMITY_START)
+
+    similarity_clusters = await _fetch_similarity_clusters(state, hypotheses)
+
+    if not similarity_clusters:
+        logger.warning(
+            "No similarity clusters returned, skipping deduplication")
+        return None
+
+    _assign_cluster_ids(hypotheses, similarity_clusters)
+
+    hypotheses_to_keep, removed_duplicates = _dedupe_by_cluster(hypotheses)
+
+    _log_dedup_summary(len(hypotheses), len(hypotheses_to_keep),
+                       removed_duplicates)
+
+    return _ClusteringOutcome(hypotheses_to_keep, removed_duplicates,
+                              similarity_clusters)
+
+
+def _build_proximity_update(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    outcome: _ClusteringOutcome,
+    next_iteration: int,
+) -> dict[str, Any]:
+    """Builds the proximity_node state update for a completed pass.
+
+    Appends this pass's removed duplicates onto the running list rather
+    than replacing it, so removed_duplicates accumulates the full history
+    across iterations. outcome.hypotheses_to_keep is a strict subset of
+    `hypotheses` (same text, no new hypotheses introduced), so this update
+    is always >50% overlap with existing state and deduplicate_hypotheses
+    (state.py) treats it as a replacement rather than an addition -- unlike
+    evolve.py's return, there is no risk of discarded duplicates
+    resurfacing via the reducer's merge path.
+
+    Args:
+        state: Current workflow state.
+        hypotheses: The hypotheses pool before this pass's deduplication.
+        outcome: Result of _run_proximity_clustering.
+        next_iteration: The advanced current_iteration counter value.
+
+    Returns:
+        Dictionary with updated state fields (deduplicated hypotheses).
+    """
+    metrics = create_metrics_update(llm_calls_delta=1)
+
+    all_removed_duplicates = (state.get("removed_duplicates", []) +
+                              outcome.removed_duplicates)
+
+    return {
+        "hypotheses":
+            outcome.hypotheses_to_keep,
+        "removed_duplicates":
+            all_removed_duplicates,
+        "metrics":
+            metrics,
+        "current_iteration":
+            next_iteration,
+        "messages":
+            phase_message("proximity", f"Deduplication: {len(hypotheses)}"
+                          f" → {len(outcome.hypotheses_to_keep)}"
+                          f" ({len(outcome.removed_duplicates)} removed)",
+                          duplicates_removed=len(outcome.removed_duplicates),
+                          clusters=len(outcome.similarity_clusters)),
+    }
+
+
 async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     """Clusters hypotheses by similarity and removes high-similarity duplicates.
 
@@ -320,68 +440,20 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
         logger.info("Not enough hypotheses for proximity analysis")
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
-    # Emit progress
-    await emit_progress(
-        state, "proximity_start",
-        f"Analyzing similarity of {len(hypotheses)} hypotheses...",
-        PROGRESS_PROXIMITY_START)
-
-    # Call LLM to cluster by similarity
-    similarity_clusters = await _fetch_similarity_clusters(state, hypotheses)
-
     # Malformed or empty LLM output: skip deduplication for this iteration
     # rather than raising, so a bad response degrades gracefully instead
     # of failing the whole run.
-    if not similarity_clusters:
-        logger.warning(
-            "No similarity clusters returned, skipping deduplication")
+    outcome = await _run_proximity_clustering(state, hypotheses)
+    if outcome is None:
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
-
-    # Assign cluster IDs to hypotheses
-    _assign_cluster_ids(hypotheses, similarity_clusters)
-
-    # Identify and remove high-similarity duplicates
-    hypotheses_to_keep, removed_duplicates = _dedupe_by_cluster(hypotheses)
-
-    _log_dedup_summary(len(hypotheses), len(hypotheses_to_keep),
-                       removed_duplicates)
 
     # Emit progress
     await emit_progress(state,
                         "proximity_complete",
-                        f"Removed {len(removed_duplicates)} duplicates",
+                        f"Removed {len(outcome.removed_duplicates)}"
+                        " duplicates",
                         PROGRESS_PROXIMITY_COMPLETE,
-                        duplicates_removed=len(removed_duplicates),
-                        remaining=len(hypotheses_to_keep))
+                        duplicates_removed=len(outcome.removed_duplicates),
+                        remaining=len(outcome.hypotheses_to_keep))
 
-    # Update metrics (deltas only, merge_metrics will add to existing state)
-    metrics = create_metrics_update(llm_calls_delta=1)
-
-    # Update removed duplicates list
-    # Appended onto the running list rather than replacing it, so
-    # removed_duplicates accumulates the full history across iterations.
-    all_removed_duplicates = state.get("removed_duplicates",
-                                       []) + removed_duplicates
-
-    # hypotheses_to_keep is a strict subset of the incoming hypotheses
-    # (same text, no new hypotheses introduced), so this update is always
-    # >50% overlap with existing state and deduplicate_hypotheses
-    # (state.py) treats it as a replacement rather than an addition --
-    # unlike evolve.py's return, there is no risk of discarded duplicates
-    # resurfacing via the reducer's merge path.
-    return {
-        "hypotheses":
-            hypotheses_to_keep,
-        "removed_duplicates":
-            all_removed_duplicates,
-        "metrics":
-            metrics,
-        "current_iteration":
-            next_iteration,
-        "messages":
-            phase_message("proximity", f"Deduplication: {len(hypotheses)}"
-                          f" → {len(hypotheses_to_keep)}"
-                          f" ({len(removed_duplicates)} removed)",
-                          duplicates_removed=len(removed_duplicates),
-                          clusters=len(similarity_clusters)),
-    }
+    return _build_proximity_update(state, hypotheses, outcome, next_iteration)

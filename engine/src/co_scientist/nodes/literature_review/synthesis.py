@@ -21,6 +21,51 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+async def _run_synthesis_llm(
+    paper_analyses: list[dict[str, Any]],
+    state: WorkflowState,
+    background_context: str,
+) -> str:
+    """Builds the synthesis prompt and calls the LLM.
+
+    Args:
+        paper_analyses: Per-paper analyses produced by Phase 3.
+        state: Current workflow state.
+        background_context: The (possibly empty) Phase 2.6 knowledge-graph
+            text; the synthesis prompt weaves it in alongside the per-paper
+            analyses so the LLM can ground statements in both.
+
+    Returns:
+        The synthesis text.
+    """
+    prompt = get_literature_review_synthesis_prompt(
+        research_goal=state["research_goal"],
+        paper_analyses=paper_analyses,
+        background_context=background_context,
+    )
+
+    logger.info("Calling synthesis LLM with %s chars, %s papers", len(prompt),
+                len(paper_analyses))
+
+    synthesis = await call_llm(
+        prompt=prompt,
+        model_name=state["model_name"],
+        max_tokens=EXTENDED_MAX_TOKENS,
+        temperature=HIGH_TEMPERATURE,
+        run_id=state.get("run_id"),
+        prompt_name="literature_review_synthesis",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+            "papers_analyzed": len(paper_analyses),
+        },
+    )
+
+    logger.info("Synthesis complete - length: %s chars", len(synthesis))
+    logger.debug("Synthesis preview: %s...", synthesis[:500])
+
+    return synthesis
+
+
 async def _phase4_synthesize(
     paper_analyses: list[dict[str, Any]],
     state: WorkflowState,
@@ -37,35 +82,8 @@ async def _phase4_synthesize(
     logger.info("Phase 4: synthesizing across papers")
 
     try:
-        # background_context is the (possibly empty) Phase 2.6 knowledge-
-        # graph text; the synthesis prompt weaves it in alongside the
-        # per-paper analyses so the LLM can ground statements in both.
-        prompt = get_literature_review_synthesis_prompt(
-            research_goal=state["research_goal"],
-            paper_analyses=paper_analyses,
-            background_context=background_context,
-        )
-
-        logger.info("Calling synthesis LLM with %s chars, %s papers",
-                    len(prompt), len(paper_analyses))
-
-        synthesis = await call_llm(
-            prompt=prompt,
-            model_name=state["model_name"],
-            max_tokens=EXTENDED_MAX_TOKENS,
-            temperature=HIGH_TEMPERATURE,
-            run_id=state.get("run_id"),
-            prompt_name="literature_review_synthesis",
-            prompt_metadata={
-                "prompt_length_chars": len(prompt),
-                "papers_analyzed": len(paper_analyses),
-            },
-        )
-
-        logger.info("Synthesis complete - length: %s chars", len(synthesis))
-        logger.debug("Synthesis preview: %s...", synthesis[:500])
-
-        return synthesis
+        return await _run_synthesis_llm(paper_analyses, state,
+                                        background_context)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Synthesis failure also degrades to the sentinel rather than

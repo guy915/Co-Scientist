@@ -35,6 +35,7 @@ import asyncio
 import hashlib
 import logging
 import random
+import sqlite3
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -515,6 +516,57 @@ def _mock_match_tier(winner_elo_before: int, loser_elo_before: int) -> str:
     return _NARROW
 
 
+def _judge_and_persist_match(
+    run_id: str,
+    conn: sqlite3.Connection,
+    itr: int,
+    a: str,
+    b: str,
+    elo_state: dict[str, int],
+    title_by_id: dict[str, str],
+    k_factor: int,
+) -> dict[str, Any]:
+    """Judge one pair, update Elo state, and persist the resulting match.
+
+    Mutates `elo_state` in place with the post-match ratings.
+
+    Returns:
+        The match record for the ranking round's emitted payload.
+    """
+    winner, loser, rationale = _judge_pair(run_id, title_by_id, a, b)
+    wb = elo_state[winner]
+    lb = elo_state[loser]
+    tier = _mock_match_tier(wb, lb)
+    wa, la = update_pair(wb, lb, k_factor=k_factor)
+    elo_state[winner] = wa
+    elo_state[loser] = la
+    store.update_hypothesis_state(winner, elo_rating=wa, win_delta=1, conn=conn)
+    store.update_hypothesis_state(loser, elo_rating=la, loss_delta=1, conn=conn)
+    store.add_match(
+        run_id,
+        iteration=itr,
+        winner_id=winner,
+        loser_id=loser,
+        winner_before=wb,
+        winner_after=wa,
+        loser_before=lb,
+        loser_after=la,
+        rationale=rationale,
+        tier=tier,
+        conn=conn,
+    )
+    return {
+        "winner_id": winner,
+        "loser_id": loser,
+        "winner_elo_before": wb,
+        "winner_elo_after": wa,
+        "loser_elo_before": lb,
+        "loser_elo_after": la,
+        "rationale": rationale,
+        "tier": tier,
+    }
+
+
 def _run_ranking_round(
     run_id: str,
     db_path: str | None,
@@ -534,44 +586,9 @@ def _run_ranking_round(
     round_matches: list[dict[str, Any]] = []
     with store.transaction(db_path) as conn:
         for a, b in pairs:
-            winner, loser, rationale = _judge_pair(run_id, title_by_id, a, b)
-            wb = elo_state[winner]
-            lb = elo_state[loser]
-            tier = _mock_match_tier(wb, lb)
-            wa, la = update_pair(wb, lb, k_factor=k_factor)
-            elo_state[winner] = wa
-            elo_state[loser] = la
-            store.update_hypothesis_state(winner,
-                                          elo_rating=wa,
-                                          win_delta=1,
-                                          conn=conn)
-            store.update_hypothesis_state(loser,
-                                          elo_rating=la,
-                                          loss_delta=1,
-                                          conn=conn)
-            store.add_match(
-                run_id,
-                iteration=itr,
-                winner_id=winner,
-                loser_id=loser,
-                winner_before=wb,
-                winner_after=wa,
-                loser_before=lb,
-                loser_after=la,
-                rationale=rationale,
-                tier=tier,
-                conn=conn,
-            )
-            round_matches.append({
-                "winner_id": winner,
-                "loser_id": loser,
-                "winner_elo_before": wb,
-                "winner_elo_after": wa,
-                "loser_elo_before": lb,
-                "loser_elo_after": la,
-                "rationale": rationale,
-                "tier": tier,
-            })
+            round_matches.append(
+                _judge_and_persist_match(run_id, conn, itr, a, b, elo_state,
+                                         title_by_id, k_factor))
     return round_matches
 
 
@@ -587,6 +604,33 @@ def _build_evolved_child(rng: random.Random, research_goal: str,
                             "parent's mechanistic frame with sharpened "
                             "predictions.")
     return child_h
+
+
+def _persist_evolved_child(
+    run_id: str,
+    conn: sqlite3.Connection,
+    rng: random.Random,
+    research_goal: str,
+    parent_id: str,
+    parent: dict[str, Any],
+    child_index: int,
+) -> dict[str, Any]:
+    """Build, persist, and return one evolved child hypothesis payload."""
+    child_h = _build_evolved_child(rng, research_goal, parent, child_index)
+    child_id = store.add_hypothesis(
+        run_id,
+        title=child_h["title"],
+        statement=child_h["statement"],
+        category=parent.get("category") or child_h.get("category"),
+        mechanism=child_h["mechanism"],
+        expected_effect=child_h["expected_effect"],
+        experimental_context=child_h["experimental_context"],
+        parent_id=parent_id,
+        generation=parent["generation"] + 1,
+        created_by_agent="evolution",
+        conn=conn,
+    )
+    return {"id": child_id, "parent_id": parent_id, **child_h}
 
 
 def _run_evolve_round(
@@ -614,24 +658,12 @@ def _run_evolve_round(
             parent = store.get_hypothesis(parent_id, conn=conn)
             if not parent:
                 continue
-            child_h = _build_evolved_child(rng, research_goal, parent,
+            child = _persist_evolved_child(run_id, conn, rng, research_goal,
+                                           parent_id, parent,
                                            len(hyp_ids) + len(children))
-            child_id = store.add_hypothesis(
-                run_id,
-                title=child_h["title"],
-                statement=child_h["statement"],
-                category=parent.get("category") or child_h.get("category"),
-                mechanism=child_h["mechanism"],
-                expected_effect=child_h["expected_effect"],
-                experimental_context=child_h["experimental_context"],
-                parent_id=parent_id,
-                generation=parent["generation"] + 1,
-                created_by_agent="evolution",
-                conn=conn,
-            )
-            hyp_ids.append(child_id)
-            elo_state[child_id] = INITIAL_ELO
-            children.append({"id": child_id, "parent_id": parent_id, **child_h})
+            hyp_ids.append(child["id"])
+            elo_state[child["id"]] = INITIAL_ELO
+            children.append(child)
     return top_k, children
 
 
@@ -962,6 +994,101 @@ async def _finalize_mock_run(
 # ---------------------------------------------------------------------------
 
 
+async def _run_intake_stage(
+    run_id: str,
+    db_path: str | None,
+    cfg: dict[str, Any],
+    run_mode: str,
+    *,
+    cancelled: asyncio.Event | None,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Mark the run running and emit the supervisor plan (stages 1-2).
+
+    On cancellation right after the plan is emitted, also yields the
+    terminal "cancelled" status event; the caller checks `cancelled.is_set()`
+    once this generator is exhausted to distinguish that from a natural
+    finish.
+    """
+    # ---- 1. Mark running (intake screening runs at the shared boundary) ----
+    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
+    yield await emit("status", {"status": "running"})
+
+    # ---- 2. Supervisor plan ----
+    plan = _build_supervisor_plan(cfg, run_mode)
+    yield await emit("supervisor.plan", plan)
+    if _is_cancelled(cancelled):
+        store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
+        yield await emit("status", {"status": "cancelled"})
+
+
+async def _run_literature_and_generation(
+    run_id: str,
+    research_goal: str,
+    db_path: str | None,
+    rng: random.Random,
+    cfg: dict[str, Any],
+    emit: EmitFn,
+    evidence_payload: list[dict[str, Any]],
+    hyp_ids: list[str],
+    hyp_payloads: list[dict[str, Any]],
+) -> AsyncIterator[dict[str, Any]]:
+    """Seed and emit the literature review and initial generation.
+
+    Covers stages 3-4. Mutates `evidence_payload`, `hyp_ids`, and
+    `hyp_payloads` in place so the caller can use them once this generator is
+    exhausted.
+    """
+    # ---- 3. Literature review ----
+    evidence_payload.extend(
+        _persist_literature_review(run_id, db_path, rng, research_goal,
+                                   cfg["evidence_count"]))
+    yield await emit(
+        "literature_review",
+        {
+            "count": len(evidence_payload),
+            "evidence": [article_stub(e) for e in evidence_payload],
+        },
+    )
+
+    # ---- 4. Generation ----
+    generated_ids, generated_payloads = _persist_generation(
+        run_id, db_path, rng, research_goal, cfg["initial_hypotheses_count"])
+    hyp_ids.extend(generated_ids)
+    hyp_payloads.extend(generated_payloads)
+    yield await emit(
+        "generate", {
+            "count": len(hyp_payloads),
+            "hypotheses": [hypothesis_stub(h) for h in hyp_payloads],
+        })
+
+
+async def _run_reflection_and_proximity(
+    run_id: str,
+    db_path: str | None,
+    rng: random.Random,
+    cfg: dict[str, Any],
+    emit: EmitFn,
+    hyp_ids: list[str],
+    hyp_payloads: list[dict[str, Any]],
+) -> AsyncIterator[dict[str, Any]]:
+    """Seed and emit the per-hypothesis reflection and proximity clusters.
+
+    Covers stages 5-6.
+    """
+    # ---- 5. Reflection ----
+    _persist_reflection(run_id, db_path, rng, hyp_ids, hyp_payloads,
+                        cfg["evidence_count"])
+    yield await emit("reflection", {"reviewed": len(hyp_ids)})
+
+    # ---- 6. Proximity / clustering ----
+    clusters = _persist_proximity(db_path, hyp_ids)
+    yield await emit("proximity",
+                     {"clusters": {
+                         k: len(v) for k, v in clusters.items()
+                     }})
+
+
 async def _run_seed_stages(
     run_id: str,
     research_goal: str,
@@ -987,58 +1114,26 @@ async def _run_seed_stages(
     The caller checks `cancelled.is_set()` once this generator is exhausted
     to distinguish that from a natural finish.
     """
-
-    def _check_cancel() -> bool:
-        return bool(cancelled and cancelled.is_set())
-
-    # ---- 1. Mark running (intake screening runs at the shared boundary) ----
-    store.update_run_status(run_id, RunStatus.RUNNING, db_path=db_path)
-    yield await emit("status", {"status": "running"})
-
-    # ---- 2. Supervisor plan ----
-    plan = _build_supervisor_plan(cfg, run_mode)
-    yield await emit("supervisor.plan", plan)
-    if _check_cancel():
-        store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
-        yield await emit("status", {"status": "cancelled"})
+    async for event in _run_intake_stage(run_id,
+                                         db_path,
+                                         cfg,
+                                         run_mode,
+                                         cancelled=cancelled,
+                                         emit=emit):
+        yield event
+    if _is_cancelled(cancelled):
         return
 
-    # ---- 3. Literature review ----
-    evidence_count = cfg["evidence_count"]
-    evidence_payload.extend(
-        _persist_literature_review(run_id, db_path, rng, research_goal,
-                                   evidence_count))
-    yield await emit(
-        "literature_review",
-        {
-            "count": len(evidence_payload),
-            "evidence": [article_stub(e) for e in evidence_payload],
-        },
-    )
+    async for event in _run_literature_and_generation(run_id, research_goal,
+                                                      db_path, rng, cfg, emit,
+                                                      evidence_payload, hyp_ids,
+                                                      hyp_payloads):
+        yield event
 
-    # ---- 4. Generation ----
-    initial_count = cfg["initial_hypotheses_count"]
-    generated_ids, generated_payloads = _persist_generation(
-        run_id, db_path, rng, research_goal, initial_count)
-    hyp_ids.extend(generated_ids)
-    hyp_payloads.extend(generated_payloads)
-    yield await emit(
-        "generate", {
-            "count": len(hyp_payloads),
-            "hypotheses": [hypothesis_stub(h) for h in hyp_payloads],
-        })
-
-    # ---- 5. Reflection ----
-    _persist_reflection(run_id, db_path, rng, hyp_ids, hyp_payloads,
-                        evidence_count)
-    yield await emit("reflection", {"reviewed": len(hyp_ids)})
-
-    # ---- 6. Proximity / clustering ----
-    clusters = _persist_proximity(db_path, hyp_ids)
-    yield await emit("proximity",
-                     {"clusters": {
-                         k: len(v) for k, v in clusters.items()
-                     }})
+    async for event in _run_reflection_and_proximity(run_id, db_path, rng, cfg,
+                                                     emit, hyp_ids,
+                                                     hyp_payloads):
+        yield event
 
 
 def _seed_tournament_round(

@@ -311,6 +311,35 @@ async def _relay_answer_chunks(
         yield sse_frame({"type": "chunk", "content": delta})
 
 
+def _persist_qa_answer(run_id: str, full: list[str],
+                       manifest: list[dict[str, Any]]) -> None:
+    """Persist the accumulated answer text, with its evidence manifest.
+
+    Persisted before the caller signals `done`, so a reload right after
+    completion still shows the exchange.
+    """
+    answer = "".join(full)
+    store.append_message(run_id,
+                         "system",
+                         answer,
+                         "qa",
+                         meta=_citation_meta(manifest))
+
+
+def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
+    """Log a Q&A stream failure, persist a fallback message, and return it.
+
+    Any failure (missing key, provider error, mid-stream drop) ends the
+    stream with a persisted fallback so the chat history stays consistent
+    with what the user saw.
+    """
+    logger.error("Q&A stream error for run %s: %s", run_id, exc)
+    fallback = ("Q&A requires a language model API key "
+                "(set CHAT_MODEL_NAME or MODEL_NAME).")
+    store.append_message(run_id, "system", fallback, "qa")
+    return fallback
+
+
 async def stream_answer(
     run_id: str,
     question: str,
@@ -348,21 +377,8 @@ async def stream_answer(
                                                 full):
             yield frame
 
-        # Persist the answer (with its sources) before signalling `done`,
-        # so a reload right after completion still shows the exchange.
-        answer = "".join(full)
-        store.append_message(run_id,
-                             "system",
-                             answer,
-                             "qa",
-                             meta=_citation_meta(manifest))
+        _persist_qa_answer(run_id, full, manifest)
         yield sse_frame({"type": "done", "question_id": question_id})
     except Exception as exc:  # pylint: disable=broad-exception-caught
-        # Any failure (missing key, provider error, mid-stream drop) ends
-        # the stream with a persisted fallback so the chat history stays
-        # consistent with what the user saw.
-        logger.error("Q&A stream error for run %s: %s", run_id, exc)
-        fallback = ("Q&A requires a language model API key "
-                    "(set CHAT_MODEL_NAME or MODEL_NAME).")
-        store.append_message(run_id, "system", fallback, "qa")
+        fallback = _handle_qa_stream_error(run_id, exc)
         yield sse_frame({"type": "error", "message": fallback})
