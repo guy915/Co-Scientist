@@ -140,6 +140,18 @@ def _format_supervisor_guidance_for_proximity(
         " be flagged as duplicates.")
 
 
+def _format_probe_lines(probe: dict[str, Any]) -> list[str]:
+    """Format one deep-verification probe's question/answer lines."""
+    question = probe.get("question", "")
+    answer = probe.get("answer", "")
+    fundamental = (" (fundamental assumption)"
+                   if probe.get("assumption_is_fundamental") else "")
+    lines = [f"- Q{fundamental}: {question}\n"]
+    if answer:
+        lines.append(f"  A: {answer}\n")
+    return lines
+
+
 def _format_deep_verification_context(probes: list[dict[str, Any]] | None,
                                       verdict: str | None, label: str) -> str:
     """Format deep-verification probes for one hypothesis in ranking prompts.
@@ -166,13 +178,7 @@ def _format_deep_verification_context(probes: list[dict[str, Any]] | None,
         f" (verdict: {verdict_text}):**\n"
     ]
     for probe in probes:
-        question = probe.get("question", "")
-        answer = probe.get("answer", "")
-        fundamental = (" (fundamental assumption)"
-                       if probe.get("assumption_is_fundamental") else "")
-        sections.append(f"- Q{fundamental}: {question}\n")
-        if answer:
-            sections.append(f"  A: {answer}\n")
+        sections.extend(_format_probe_lines(probe))
 
     return "".join(sections)
 

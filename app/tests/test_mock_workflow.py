@@ -143,6 +143,43 @@ def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:
     assert all(t in types for t in expected_order)
 
 
+def _events_of_type(events: list[dict[str, Any]],
+                    event_type: str) -> list[dict[str, Any]]:
+    """Filter a drained event list down to one event type."""
+    return [e for e in events if e["type"] == event_type]
+
+
+def _rows_by_reviewer_agent(rows: list[dict[str, Any]],
+                            agent: str) -> list[dict[str, Any]]:
+    """Filter review rows down to those written by one reviewer agent."""
+    return [r for r in rows if r["reviewer_agent"] == agent]
+
+
+def _assert_probe_shape(probe: dict[str, Any]) -> None:
+    """Assert one deep-verification probing Q&A entry has full content."""
+    assert probe["question"]
+    assert probe["answer"]
+    assert probe["reasoning"]
+    assert isinstance(probe["assumption_is_fundamental"], bool)
+
+
+def _assert_verification_entry(entry: dict[str, Any]) -> None:
+    """Assert one deep-verification entry's verdict and probing Q&A."""
+    assert entry["verdict"] in ("holds", "weakened", "undermined")
+    assert entry["probes"]  # non-empty probing Q&A
+    for probe in entry["probes"]:
+        _assert_probe_shape(probe)
+
+
+def _assert_deep_verification_review_row(row: dict[str, Any]) -> None:
+    """Assert one persisted deep_verification review row's shape."""
+    assert row["summary"].lower().startswith("deep verification verdict:")
+    assert "Probe 1" in row["critique"]
+    # Deep verification does not assign numeric scores.
+    assert row["novelty"] is None
+    assert row["overall"] is None
+
+
 def test_mock_deep_verification_writes_reviews(isolated_db: str) -> None:
     """Deep verification attaches reviewer_agent='deep_verification' rows."""
     run = store.create_run("Deep verify goal", "standard", "mock", {})
@@ -153,30 +190,20 @@ def test_mock_deep_verification_writes_reviews(isolated_db: str) -> None:
                                     sleep_seconds=0))
 
     # The event is emitted.
-    dv_events = [e for e in events if e["type"] == "deep_verification"]
+    dv_events = _events_of_type(events, "deep_verification")
     assert len(dv_events) == 1
     dv_payload = dv_events[0]["payload"]
     assert dv_payload["verified"] >= 1
     assert len(dv_payload["probes"]) == dv_payload["verified"]
     for entry in dv_payload["probes"]:
-        assert entry["verdict"] in ("holds", "weakened", "undermined")
-        assert entry["probes"]  # non-empty probing Q&A
-        for probe in entry["probes"]:
-            assert probe["question"]
-            assert probe["answer"]
-            assert probe["reasoning"]
-            assert isinstance(probe["assumption_is_fundamental"], bool)
+        _assert_verification_entry(entry)
 
     # The reviews table carries deep_verification rows for the top-k.
     reviews = store.list_reviews(run.id, db_path=isolated_db)
-    deep = [r for r in reviews if r["reviewer_agent"] == "deep_verification"]
+    deep = _rows_by_reviewer_agent(reviews, "deep_verification")
     assert len(deep) == dv_payload["verified"]
     for row in deep:
-        assert row["summary"].lower().startswith("deep verification verdict:")
-        assert "Probe 1" in row["critique"]
-        # Deep verification does not assign numeric scores.
-        assert row["novelty"] is None
-        assert row["overall"] is None
+        _assert_deep_verification_review_row(row)
 
 
 def test_mock_research_overview_rides_report(isolated_db: str) -> None:

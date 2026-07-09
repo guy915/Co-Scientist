@@ -22,9 +22,9 @@ type TooltipClassOptions = {
 export function tooltipClassNames({
   className,
   placement,
-  wrap = false,
-  alignEnd = false,
-  alignStart = false,
+  wrap,
+  alignEnd,
+  alignStart,
 }: TooltipClassOptions): string {
   return [
     className,

@@ -34,13 +34,19 @@ function isHomeShortcut(key: string, lastG: number, now: number): boolean {
   return now - lastG < 800 && key === 'n';
 }
 
+// Matches a /runs/:id(/:tab) pathname, capturing the run id and optional tab
+// segment, or null when the pathname doesn't look like a run route.
+function matchRunRoute(pathname: string): RegExpMatchArray | null {
+  return pathname.match(/^\/runs\/([^/]+)(?:\/(.+))?$/);
+}
+
 // Parses a /runs/:id(/:tab) route into the run id and current tab, or null
 // when the pathname isn't a run route or is the legacy '/runs/new' path.
 // Unknown or missing tab segments count as the default 'details'.
 function parseRunTabRoute(
   pathname: string,
 ): {id: string; current: (typeof TABS)[number]} | null {
-  const m = pathname.match(/^\/runs\/([^/]+)(?:\/(.+))?$/);
+  const m = matchRunRoute(pathname);
   if (!m) return null;
   const id = m[1];
   if (id === 'new') return null; // legacy path, not a real run

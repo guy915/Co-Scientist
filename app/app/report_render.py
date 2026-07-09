@@ -78,6 +78,24 @@ def match_stub(m: dict[str, Any]) -> dict[str, str]:
     return {"winner": str(m.get("winner") or "")}
 
 
+def _append_if(lines: list[str], label: str, value: str) -> None:
+    """Append a ``  Label: value`` line to lines when value is non-empty."""
+    if value:
+        lines.append(f"  {label}: {value}")
+
+
+def _render_probe(idx: int, probe: dict[str, Any]) -> list[str]:
+    """Render one deep-verification probe entry."""
+    fundamental = bool(probe.get("assumption_is_fundamental"))
+    flag = "fundamental" if fundamental else "non-fundamental"
+    lines = [f"Probe {idx} ({flag} assumption):"]
+    for label, key in (("Question", "question"), ("Answer", "answer"),
+                       ("Reasoning", "reasoning")):
+        _append_if(lines, label, str(probe.get(key, "")).strip())
+    lines.append("")
+    return lines
+
+
 def format_deep_verification_critique(probes: list[dict[str, Any]],
                                       verdict: str | None) -> tuple[str, str]:
     """Render deep-verification probes into a (summary, critique) pair.
@@ -96,21 +114,22 @@ def format_deep_verification_critique(probes: list[dict[str, Any]],
     summary = f"Deep verification verdict: {verdict_text}"
     lines: list[str] = [summary, ""]
     for idx, probe in enumerate(probes, start=1):
-        question = str(probe.get("question", "")).strip()
-        answer = str(probe.get("answer", "")).strip()
-        reasoning = str(probe.get("reasoning", "")).strip()
-        fundamental = bool(probe.get("assumption_is_fundamental"))
-        flag = "fundamental" if fundamental else "non-fundamental"
-        lines.append(f"Probe {idx} ({flag} assumption):")
-        if question:
-            lines.append(f"  Question: {question}")
-        if answer:
-            lines.append(f"  Answer: {answer}")
-        if reasoning:
-            lines.append(f"  Reasoning: {reasoning}")
-        lines.append("")
+        lines += _render_probe(idx, probe)
     critique = "\n".join(lines).strip()
     return summary, critique
+
+
+def _render_optional_paragraph(text: str | None) -> list[str]:
+    """Render a single trailing-blank-line paragraph, or nothing when empty."""
+    return [f"{text}\n"] if text else []
+
+
+def _render_experiments_list(experiments: list[Any]) -> list[str]:
+    """Render the 'Suggested experiments' bullet list, or nothing when empty."""
+    if not experiments:
+        return []
+    return ["Suggested experiments:\n"
+           ] + [f"- {experiment}" for experiment in experiments] + [""]
 
 
 def _render_research_direction(direction: dict[str, Any]) -> list[str]:
@@ -118,14 +137,22 @@ def _render_research_direction(direction: dict[str, Any]) -> list[str]:
     if not isinstance(direction, dict):
         return []
     lines = [f"### {direction.get('title', '')}\n"]
-    importance = direction.get("importance", "")
-    if importance:
-        lines.append(f"{importance}\n")
-    experiments = direction.get("suggested_experiments") or []
-    if experiments:
-        lines.append("Suggested experiments:\n")
-        lines.extend(f"- {experiment}" for experiment in experiments)
-        lines.append("")
+    lines += _render_optional_paragraph(direction.get("importance", ""))
+    lines += _render_experiments_list(
+        direction.get("suggested_experiments") or [])
+    return lines
+
+
+def _has_overview_content(summary: str | None, directions: list[Any]) -> bool:
+    """Return whether the overview section has any renderable content."""
+    return bool(summary or directions)
+
+
+def _render_directions_list(directions: list[Any]) -> list[str]:
+    """Render each research-direction entry in sequence."""
+    lines: list[str] = []
+    for direction in directions:
+        lines += _render_research_direction(direction)
     return lines
 
 
@@ -135,14 +162,11 @@ def _render_overview_section(ov: dict[str, Any]) -> list[str]:
         return []
     summary = ov.get("summary")
     directions = ov.get("research_directions") or []
-    if not (summary or directions):
+    if not _has_overview_content(summary, directions):
         return []
     lines = ["\n## Research Overview\n"]
-    if summary:
-        lines.append(f"{summary}\n")
-    for direction in directions:
-        lines += _render_research_direction(direction)
-    return lines
+    lines += _render_optional_paragraph(summary)
+    return lines + _render_directions_list(directions)
 
 
 def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
@@ -159,6 +183,25 @@ def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _has_aims_content(introduction: str | None, aims: list[Any],
+                      impact: str | None) -> bool:
+    """Return whether the NIH aims section has any renderable content."""
+    return bool(introduction or aims or impact)
+
+
+def _render_aims_list(aims: list[Any]) -> list[str]:
+    """Render each NIH aim entry in sequence."""
+    lines: list[str] = []
+    for aim in aims:
+        lines += _render_nih_aim(aim)
+    return lines
+
+
+def _render_impact(impact: str | None) -> list[str]:
+    """Render the 'Impact' subsection, or nothing when absent."""
+    return ["### Impact\n", f"{impact}\n"] if impact else []
+
+
 def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     """Render the 'NIH Specific Aims' section, or nothing when data absent."""
     if not isinstance(aims_section, dict):
@@ -166,15 +209,12 @@ def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     introduction = aims_section.get("introduction")
     aims = aims_section.get("aims") or []
     impact = aims_section.get("impact")
-    if not (introduction or aims or impact):
+    if not _has_aims_content(introduction, aims, impact):
         return []
     lines = ["\n## NIH Specific Aims\n"]
-    if introduction:
-        lines.append(f"{introduction}\n")
-    for aim in aims:
-        lines += _render_nih_aim(aim)
-    if impact:
-        lines += ["### Impact\n", f"{impact}\n"]
+    lines += _render_optional_paragraph(introduction)
+    lines += _render_aims_list(aims)
+    lines += _render_impact(impact)
     return lines
 
 
@@ -279,25 +319,61 @@ def _render_bullet_list(heading: str, items: list[Any]) -> list[str]:
     return [f"\n{heading}\n"] + [f"- {item}" for item in items]
 
 
+_META_REVIEW_BULLET_SECTIONS = (
+    ("common_strengths", "### Common strengths"),
+    ("common_weaknesses", "### Common weaknesses"),
+    ("emerging_themes", "### Emerging themes"),
+)
+
+
+def _render_strategic_recommendations(recs: list[Any]) -> list[str]:
+    """Render the 'Strategic recommendations' section, or nothing when empty."""
+    if not recs:
+        return []
+    lines = ["\n### Strategic recommendations\n"]
+    for rec in recs:
+        lines += _render_recommendation(rec)
+    return lines
+
+
 def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     """Render the meta-review insights section, or nothing when absent."""
     if not meta_review:
         return []
     lines = ["\n## Meta-review insights\n"]
-    if meta_review.get("summary"):
-        lines.append(f"{meta_review['summary']}\n")
-    for section_key, heading in (
-        ("common_strengths", "### Common strengths"),
-        ("common_weaknesses", "### Common weaknesses"),
-        ("emerging_themes", "### Emerging themes"),
-    ):
+    lines += _render_optional_paragraph(meta_review.get("summary"))
+    for section_key, heading in _META_REVIEW_BULLET_SECTIONS:
         lines += _render_bullet_list(heading,
                                      meta_review.get(section_key) or [])
-    recs = meta_review.get("strategic_recommendations") or []
-    if recs:
-        lines.append("\n### Strategic recommendations\n")
-        for rec in recs:
-            lines += _render_recommendation(rec)
+    lines += _render_strategic_recommendations(
+        meta_review.get("strategic_recommendations") or [])
+    return lines
+
+
+def _first(*values: str | None) -> str:
+    """Return the first truthy value among values, or "" when all falsy."""
+    for value in values:
+        if value:
+            return value
+    return ""
+
+
+def _render_hypothesis_entry(i: int, hyp: dict[str, Any]) -> list[str]:
+    """Render one numbered 'Top hypotheses' entry."""
+    # "title"/"statement" are store row field names; "text" is the raw
+    # engine hypothesis field name -- fall back across both so this renders
+    # whichever shape the caller happens to pass in.
+    title = _first(hyp.get("title"), hyp.get("text")) or "Untitled"
+    lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
+    statement = _first(hyp.get("statement"), hyp.get("text"))
+    if statement:
+        lines += [statement, ""]
+    for label, value in (
+        ("**Mechanism:**", hyp.get("mechanism")),
+        ("**Expected effect:**", hyp.get("expected_effect")),
+    ):
+        if value:
+            lines += [f"{label} {value}", ""]
     return lines
 
 
@@ -306,20 +382,19 @@ def _render_top_hypotheses_markdown(
     """Render the numbered 'Top hypotheses' section."""
     lines: list[str] = ["## Top hypotheses", ""]
     for i, hyp in enumerate(top_hypotheses, 1):
-        # "title"/"statement" are store row field names; "text" is the raw
-        # engine hypothesis field name -- fall back across both so this
-        # renders whichever shape the caller happens to pass in.
-        title = hyp.get("title") or hyp.get("text") or "Untitled"
-        lines.append(f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_")
-        statement = hyp.get("statement") or hyp.get("text") or ""
-        if statement:
-            lines += [statement, ""]
-        mechanism = hyp.get("mechanism")
-        if mechanism:
-            lines += [f"**Mechanism:** {mechanism}", ""]
-        expected_effect = hyp.get("expected_effect")
-        if expected_effect:
-            lines += [f"**Expected effect:** {expected_effect}", ""]
+        lines += _render_hypothesis_entry(i, hyp)
+    return lines
+
+
+def _render_citation_audit(
+        citation_summary: dict[str, int] | None) -> list[str]:
+    """Render the 'Citation audit' section, or nothing when absent."""
+    if not citation_summary:
+        return []
+    lines = ["## Citation audit"]
+    lines.extend(
+        f"- {state}: {count}" for state, count in citation_summary.items())
+    lines.append("")
     return lines
 
 
@@ -364,13 +439,7 @@ def render_report_markdown(
 
     lines += _render_top_hypotheses_markdown(top_hypotheses)
     lines += _render_meta_review_markdown(meta_review or {})
-
-    if citation_summary:
-        lines.append("## Citation audit")
-        lines.extend(
-            f"- {state}: {count}" for state, count in citation_summary.items())
-        lines.append("")
-
+    lines += _render_citation_audit(citation_summary)
     lines.extend(render_research_overview_markdown(research_overview or {}))
     return "\n".join(lines)
 

@@ -295,6 +295,16 @@ def _log_sample_papers(all_paper_metadata: dict[str, dict[str, Any]]) -> None:
                      meta.get('title', '')[:60], has_ft)
 
 
+def _count_used_papers(articles: list[Article]) -> int:
+    """Count articles already flagged as used in the synthesis analysis.
+
+    used_paper_count must match the number of [C*] keys
+    build_reference_index will assign to papers at generation time, so the
+    KG section's keys start immediately after them.
+    """
+    return sum(1 for a in articles if getattr(a, "used_in_analysis", False))
+
+
 def _append_kg_evidence_section(
     synthesis: str,
     articles: list[Article],
@@ -309,11 +319,7 @@ def _append_kg_evidence_section(
     if not context_enrichment_sources or synthesis == LITERATURE_REVIEW_FAILED:
         return synthesis
 
-    # used_paper_count must match the number of [C*] keys
-    # build_reference_index will assign to papers at generation time, so the
-    # KG section's keys start immediately after them.
-    used_paper_count = sum(
-        1 for a in articles if getattr(a, "used_in_analysis", False))
+    used_paper_count = _count_used_papers(articles)
     kg_section = _format_kg_section_with_keys(context_enrichment_sources,
                                               used_paper_count)
     if not kg_section:

@@ -19,7 +19,7 @@ import {
 } from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
-import {useRunStream} from '@/hooks/use_run_stream';
+import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 import {formatDurationPhrase} from '@/lib/duration';
 import {sortByEloDesc} from '@/lib/hypotheses';
@@ -136,6 +136,16 @@ const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   evolve: ['hypotheses'],
   report: ['report'],
 };
+
+// Collects the RunDataKey set a batch of newly-arrived events touches
+// (multiple event types can map to the same key; see EVENT_DATA_KEYS).
+function dataKeysFromEvents(events: readonly StreamEvent[]): Set<RunDataKey> {
+  const keys = new Set<RunDataKey>();
+  for (const event of events) {
+    for (const key of EVENT_DATA_KEYS[event.type] ?? []) keys.add(key);
+  }
+  return keys;
+}
 
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.
@@ -346,11 +356,7 @@ function useRunEventStream(
     processedEventCount.current = events.length;
     const data = fresh.filter(event => event.type !== 'status');
     if (data.length === 0) return;
-    const keys = new Set<RunDataKey>();
-    for (const event of data) {
-      for (const key of EVENT_DATA_KEYS[event.type] ?? []) keys.add(key);
-    }
-    onDataEvents(keys);
+    onDataEvents(dataKeysFromEvents(data));
   }, [events, onDataEvents]);
 
   // On stream end, refetch immediately so a pending debounce cannot leave the
@@ -363,6 +369,13 @@ function useRunEventStream(
   return {terminal};
 }
 
+// Toast message for a run that just reached a failed/blocked terminal state,
+// or null when the run doesn't warrant one.
+function runEndToast(run: RunWithSummary): string | null {
+  if (run.status !== 'failed' && run.status !== 'blocked') return null;
+  return `Run ${run.status}${run.error ? `: ${run.error}` : ''}`;
+}
+
 // Derives the toast (shown when a run ends failed/blocked) and the display
 // title (curated domain override, else the goal) from the fetched run row,
 // and dispatches the title to the shell header.
@@ -370,9 +383,8 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => {
     if (!terminal || !run) return;
-    if (run.status === 'failed' || run.status === 'blocked') {
-      setToast(`Run ${run.status}${run.error ? `: ${run.error}` : ''}`);
-    }
+    const toastMessage = runEndToast(run);
+    if (toastMessage) setToast(toastMessage);
   }, [terminal, run]);
 
   // Full display title. Shared by the shell-header dispatch and the
@@ -714,6 +726,13 @@ function ResearchDirectionsSection({
   );
 }
 
+// Renders `text` as a paragraph when present, else nothing — used for the
+// optional introduction/impact copy around a specific-aims list.
+function OptionalParagraph({text}: {text: string | undefined}) {
+  if (!text) return null;
+  return <p>{text}</p>;
+}
+
 // "Specific aims" section of the research-overview report; renders nothing
 // until the report has specific aims.
 function SpecificAimsSection({
@@ -726,7 +745,7 @@ function SpecificAimsSection({
   return (
     <section className={REPORT_SECTION_CLASSES}>
       <h3 className={REPORT_H3_CLASSES}>Specific aims</h3>
-      {specificAims.introduction ? <p>{specificAims.introduction}</p> : null}
+      <OptionalParagraph text={specificAims.introduction} />
       {specificAims.aims.map(aim => (
         <div key={aim.aim}>
           <h4 className={REPORT_H4_CLASSES}>{aim.aim}</h4>
@@ -734,7 +753,7 @@ function SpecificAimsSection({
           <p>{aim.approach}</p>
         </div>
       ))}
-      {specificAims.impact ? <p>{specificAims.impact}</p> : null}
+      <OptionalParagraph text={specificAims.impact} />
     </section>
   );
 }
@@ -778,6 +797,11 @@ function TournamentSummarySection({matches}: {matches: MatchRow[]}) {
   );
 }
 
+// "N thing was/were" pluralization for the lead-stat sentence's clauses.
+function pluralPhrase(count: number, singular: string, plural: string): string {
+  return count === 1 ? singular : plural;
+}
+
 /**
  * Builds the reference's lead stat sentence, e.g. "A total of 133 ideas were
  * explored over 3 hours with the highest Elo rating of 1735 points and a total
@@ -806,17 +830,29 @@ function researchOverviewLeadStat({
     ...hypotheses.map(hypothesis => hypothesis.elo_rating),
   );
 
-  const ideaLabel = ideaCount === 1 ? 'idea was' : 'ideas were';
-  let sentence = `A total of ${ideaCount} ${ideaLabel} explored`;
-  if (duration) sentence += ` over ${duration}`;
-  if (highestElo > 0) {
-    sentence += ` with the highest Elo rating of ${highestElo} points`;
-  }
-  if (matchCount > 0) {
-    const matchLabel = matchCount === 1 ? 'match was' : 'matches were';
-    sentence += ` and a total of ${matchCount} ${matchLabel} played`;
-  }
+  const clauses = [
+    duration ? ` over ${duration}` : '',
+    highestElo > 0
+      ? ` with the highest Elo rating of ${highestElo} points`
+      : '',
+    matchCount > 0
+      ? ` and a total of ${matchCount} ${pluralPhrase(matchCount, 'match was', 'matches were')} played`
+      : '',
+  ];
+  const ideaLabel = pluralPhrase(ideaCount, 'idea was', 'ideas were');
+  const sentence =
+    `A total of ${ideaCount} ${ideaLabel} explored` +
+    clauses.filter(Boolean).join('');
   return `${sentence}.`;
+}
+
+// completed_at/created_at as a validated pair (both present), or null when
+// either timestamp is missing.
+function runTimestampPair(
+  run: RunWithSummary | null,
+): {completedAt: number; createdAt: number} | null {
+  if (!run?.completed_at || !run.created_at) return null;
+  return {completedAt: run.completed_at, createdAt: run.created_at};
 }
 
 /**
@@ -825,8 +861,9 @@ function researchOverviewLeadStat({
  * the run has not completed or the timestamps are unusable.
  */
 function runDurationPhrase(run: RunWithSummary | null): string {
-  if (!run?.completed_at || !run.created_at) return '';
-  const seconds = run.completed_at - run.created_at;
+  const pair = runTimestampPair(run);
+  if (!pair) return '';
+  const seconds = pair.completedAt - pair.createdAt;
   if (!Number.isFinite(seconds) || seconds <= 0) return '';
   return formatDurationPhrase(seconds);
 }

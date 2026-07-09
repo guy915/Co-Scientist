@@ -80,6 +80,18 @@ def get_latest_report(run_id: str,
         }
 
 
+def _read_markdown_from_disk(latest: dict[str, Any]) -> str | None:
+    """Read a report row's on-disk markdown file, or None if unavailable.
+
+    Fallback path for rows written before the markdown_text column existed.
+    """
+    md_path = latest.get("markdown_path")
+    if not md_path:
+        return None
+    path = Path(md_path)
+    return path.read_text(encoding="utf-8") if path.exists() else None
+
+
 def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     """Return the markdown text for the latest report of a run.
 
@@ -97,15 +109,9 @@ def read_report_markdown(run_id: str, db_path: str | None = None) -> str | None:
     latest = get_latest_report(run_id, db_path=db_path)
     if not latest:
         return None
-    # Prefer the DB-stored text (resilient to filesystem loss).
+    # Prefer the DB-stored text (resilient to filesystem loss). The
+    # isinstance check stays inline so mypy narrows the row value to str.
     markdown_text = latest.get("markdown_text")
     if isinstance(markdown_text, str) and markdown_text:
         return markdown_text
-    # Fallback: read from disk for rows written before the markdown_text column.
-    md_path = latest.get("markdown_path")
-    if not md_path:
-        return None
-    path = Path(md_path)
-    if not path.exists():
-        return None
-    return path.read_text(encoding="utf-8")
+    return _read_markdown_from_disk(latest)

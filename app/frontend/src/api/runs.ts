@@ -64,11 +64,40 @@ export function isActiveStatus(status: RunStatus | undefined): boolean {
 }
 
 /**
+ * Returns the first value in `values` that is neither null nor undefined, or
+ * undefined when every value is nullish.
+ */
+function firstDefined<T>(
+  ...values: Array<T | null | undefined>
+): T | undefined {
+  return values.find(
+    (value): value is T => value !== null && value !== undefined,
+  );
+}
+
+/**
  * The run's effective goal: the durable setup goal when set, else the
  * top-level research goal. Returns '' when the run is not yet loaded.
  */
 export function runGoal(run: Run | null | undefined): string {
-  return run?.config.setup?.goal ?? run?.research_goal ?? '';
+  return firstDefined(run?.config.setup?.goal, run?.research_goal) ?? '';
+}
+
+/**
+ * Builds the error message for a non-ok response: a clearer message for an
+ * empty-bodied 500 (the API process itself is typically unreachable, e.g.
+ * cold start or a proxy with no upstream, rather than a handled application
+ * error), else the caller's prefix, else the raw status and body.
+ */
+function responseErrorMessage(
+  status: number,
+  statusText: string,
+  text: string,
+  errorPrefix?: string,
+): string {
+  if (status === 500 && !text.trim()) return 'API unavailable';
+  if (errorPrefix) return `${errorPrefix} ${status}`;
+  return `${status} ${text || statusText}`;
 }
 
 /**
@@ -78,12 +107,9 @@ export function runGoal(run: Run | null | undefined): string {
 async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    // An empty-bodied 500 typically means the API process itself is
-    // unreachable (e.g. cold start, or a proxy with no upstream) rather than
-    // a handled application error, so it gets a clearer, user-facing message.
-    if (res.status === 500 && !text.trim()) throw new Error('API unavailable');
-    if (errorPrefix) throw new Error(`${errorPrefix} ${res.status}`);
-    throw new Error(`${res.status} ${text || res.statusText}`);
+    throw new Error(
+      responseErrorMessage(res.status, res.statusText, text, errorPrefix),
+    );
   }
   return (await res.json()) as T;
 }

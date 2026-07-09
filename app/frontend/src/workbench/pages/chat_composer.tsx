@@ -697,16 +697,35 @@ function fileBadge(extension: string) {
   return extension ? extension.slice(0, 4).toUpperCase() : 'FILE';
 }
 
+// Extensions whose label wins outright, regardless of MIME type — checked
+// before the text/ MIME check below (a markdown file can be served as
+// text/markdown, which must still read "Markdown", not "Text").
+const MARKDOWN_EXTENSIONS = ['md', 'mkdn', 'markdown'];
+
+// Extension -> label for kinds resolved only after the text/ MIME check
+// below has had first refusal (e.g. a .csv served as text/plain reads
+// "Text", matching the MIME-first precedence of the original checks).
+const EXTENSION_KIND_LABELS: Record<string, string> = {
+  pdf: 'PDF',
+  csv: 'CSV',
+};
+
 // Human-readable file-kind label shown next to the badge; falls back to the
-// MIME subtype (stripped of any "+xml"/"-something" suffix) when the
-// extension doesn't match a known kind.
+// MIME subtype (stripped of any "+xml"/"-something" suffix) when neither the
+// extension nor the MIME type matches a known kind.
 function fileKind(file: File, extension: string) {
-  if (['md', 'mkdn', 'markdown'].includes(extension)) return 'Markdown';
+  if (MARKDOWN_EXTENSIONS.includes(extension)) return 'Markdown';
   if (file.type.startsWith('text/') || extension === 'txt') return 'Text';
-  if (extension === 'pdf') return 'PDF';
-  if (extension === 'csv') return 'CSV';
+  const byExtension = EXTENSION_KIND_LABELS[extension];
+  if (byExtension) return byExtension;
+  return mimeSubtypeLabel(file.type);
+}
+
+// Uppercased MIME subtype (e.g. "image/svg+xml" -> "SVG"), or "File" when the
+// type string doesn't parse.
+function mimeSubtypeLabel(mimeType: string): string {
   return (
-    file.type
+    mimeType
       .split('/')
       .pop()
       ?.replace(/[-+].*/, '')

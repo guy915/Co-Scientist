@@ -66,6 +66,17 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
   {icon: 'chess', label: 'Playing tournament'},
 ];
 
+// Panel/list class pair: the empty state swaps in a distinct pair (reference
+// styling) rather than conditionally omitting classes.
+function recentsPanelClassNames(hasVisibleRuns: boolean): {
+  panel: string;
+  list: string;
+} {
+  return hasVisibleRuns
+    ? {panel: RECENTS_PANEL_CLASSES, list: RECENTS_LIST_CLASSES}
+    : {panel: EMPTY_RECENTS_PANEL_CLASSES, list: EMPTY_RECENTS_LIST_CLASSES};
+}
+
 /**
  * Renders the desktop-only "Recents" aside on the session-home stage: a
  * capped list of recent runs (each a RecentRunCard), an empty state when
@@ -92,14 +103,8 @@ export function HomeRecentsPanel({
   const visibleRuns = showAll ? runs : runs.slice(0, 4);
   const hasVisibleRuns = visibleRuns.length > 0;
   const hasExtraRuns = runs.length > 4;
-  // Empty state swaps in a distinct panel/list class pair (reference styling)
-  // rather than conditionally omitting classes.
-  const panelClassName = hasVisibleRuns
-    ? RECENTS_PANEL_CLASSES
-    : EMPTY_RECENTS_PANEL_CLASSES;
-  const listClassName = hasVisibleRuns
-    ? RECENTS_LIST_CLASSES
-    : EMPTY_RECENTS_LIST_CLASSES;
+  const {panel: panelClassName, list: listClassName} =
+    recentsPanelClassNames(hasVisibleRuns);
 
   return (
     <aside className={panelClassName} aria-label="Recent runs">
@@ -323,20 +328,22 @@ function formatHomeRunDate(timestamp: number): string {
   return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
 }
 
+// Wall-clock duration phrase when the run has a valid end timestamp after
+// its start, else null.
+function completedDurationLabel(run: Run): string | null {
+  const endTime = run.completed_at ?? run.updated_at;
+  if (!endTime || endTime <= run.created_at) return null;
+  return formatDurationPhrase(endTime - run.created_at);
+}
+
 // Total wall-clock duration for a finished (or presumed-finished) run. Falls
 // back to a flat 60s phrase for completed runs missing a proper end
 // timestamp, "In progress" for active runs, and the raw status otherwise.
 function formatHomeRunDuration(run: Run): string {
-  const endTime = run.completed_at ?? run.updated_at;
-  if (endTime && endTime > run.created_at) {
-    return formatDurationPhrase(endTime - run.created_at);
-  }
-  if (run.status === 'completed') {
-    return formatDurationPhrase(60);
-  }
-  if (isActiveStatus(run.status)) {
-    return 'In progress';
-  }
+  const completed = completedDurationLabel(run);
+  if (completed !== null) return completed;
+  if (run.status === 'completed') return formatDurationPhrase(60);
+  if (isActiveStatus(run.status)) return 'In progress';
   return formatHomeRunStatus(run);
 }
 
@@ -390,17 +397,65 @@ function homeRunScore(
  * @param run The active run.
  * @returns The active step index in the range 1-4.
  */
-function homeRunStepIndex(run: Run): number {
-  if (run.status === 'queued') return 1;
-  if (run.status === 'synthesizing') return 4;
-  const elapsedMinutes = Math.max(
+function homeRunElapsedMinutes(run: Run): number {
+  return Math.max(
     0,
     ((run.updated_at || Date.now() / 1000) - run.created_at) / 60,
   );
+}
+
+function homeRunStepIndex(run: Run): number {
+  if (run.status === 'queued') return 1;
+  if (run.status === 'synthesizing') return 4;
+  const elapsedMinutes = homeRunElapsedMinutes(run);
   if (elapsedMinutes < 1) return 2;
   if (elapsedMinutes < 2) return 3;
   return 4;
 }
+
+// Keyword -> placeholder "winning ideas" title set for a recents card (see
+// homeRunIdeaTitles). Checked in order; the first matching rule wins.
+const HOME_RUN_IDEA_TITLE_RULES: Array<{
+  test: (normalized: string, goal: string) => boolean;
+  titles: string[];
+}> = [
+  {
+    test: normalized =>
+      normalized.includes('ferroptosis') || normalized.includes('pancreatic'),
+    titles: [
+      'Mitochondrial feedback rescue hypothesis',
+      'Lipid peroxide buffering threshold hypothesis',
+      'Iron-trafficking checkpoint hypothesis',
+    ],
+  },
+  {
+    test: (_normalized, goal) => isLiverFibrosisGoal(goal),
+    titles: [
+      'Epigenetic stromal reversal hypothesis',
+      'Fibrotic memory erasure hypothesis',
+      'Macrophage remodeling checkpoint hypothesis',
+    ],
+  },
+  {
+    test: normalized =>
+      normalized.includes('m.tuberculosis') ||
+      normalized.includes('tuberculosis'),
+    titles: [
+      'Metabolic refuge disruption hypothesis',
+      'Biofilm redox-state vulnerability hypothesis',
+      'Quorum-linked susceptibility restoration hypothesis',
+    ],
+  },
+  {
+    test: normalized =>
+      normalized.includes('synaptic') || normalized.includes('pruning'),
+    titles: [
+      'Microglial timing-window pruning hypothesis',
+      'Complement-gated flexibility hypothesis',
+      'Activity-dependent dendritic retention hypothesis',
+    ],
+  },
+];
 
 // Maps a run's goal text to a fixed, plausible-looking set of three "winning
 // idea" titles by keyword-matching known demo topics; any unmatched goal
@@ -409,37 +464,10 @@ function homeRunStepIndex(run: Run): number {
 // per-hypothesis titles to show here.
 function homeRunIdeaTitles(goal: string): string[] {
   const normalized = goal.toLowerCase();
-  if (normalized.includes('ferroptosis') || normalized.includes('pancreatic')) {
-    return [
-      'Mitochondrial feedback rescue hypothesis',
-      'Lipid peroxide buffering threshold hypothesis',
-      'Iron-trafficking checkpoint hypothesis',
-    ];
-  }
-  if (isLiverFibrosisGoal(goal)) {
-    return [
-      'Epigenetic stromal reversal hypothesis',
-      'Fibrotic memory erasure hypothesis',
-      'Macrophage remodeling checkpoint hypothesis',
-    ];
-  }
-  if (
-    normalized.includes('m.tuberculosis') ||
-    normalized.includes('tuberculosis')
-  ) {
-    return [
-      'Metabolic refuge disruption hypothesis',
-      'Biofilm redox-state vulnerability hypothesis',
-      'Quorum-linked susceptibility restoration hypothesis',
-    ];
-  }
-  if (normalized.includes('synaptic') || normalized.includes('pruning')) {
-    return [
-      'Microglial timing-window pruning hypothesis',
-      'Complement-gated flexibility hypothesis',
-      'Activity-dependent dendritic retention hypothesis',
-    ];
-  }
+  const rule = HOME_RUN_IDEA_TITLE_RULES.find(({test}) =>
+    test(normalized, goal),
+  );
+  if (rule) return rule.titles;
   return [
     conciseTitle(goal),
     'Mechanistic differentiation hypothesis',

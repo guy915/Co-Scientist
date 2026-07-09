@@ -72,6 +72,14 @@ def _find_search_tool(
     return None, None
 
 
+def _first(*values: Any) -> Any:
+    """Return the first truthy value, or the last value if none are truthy."""
+    for value in values:
+        if value:
+            return value
+    return values[-1] if values else None
+
+
 def _articles_to_paper_dict(articles: list[Any]) -> dict[str, dict[str, Any]]:
     """Convert parsed Article objects into the paper-dict format expected
     by analyze_paper_novelty.
@@ -85,12 +93,12 @@ def _articles_to_paper_dict(articles: list[Any]) -> dict[str, dict[str, Any]]:
     """
     papers: dict[str, dict[str, Any]] = {}
     for article in articles:
-        paper_id = article.source_id or article.url or article.title
+        paper_id = _first(article.source_id, article.url, article.title)
         papers[paper_id] = {
             "title": article.title,
             "authors": article.authors,
             "year": article.year,
-            "fulltext": article.content or article.abstract or "",
+            "fulltext": _first(article.content, article.abstract, ""),
         }
     return papers
 

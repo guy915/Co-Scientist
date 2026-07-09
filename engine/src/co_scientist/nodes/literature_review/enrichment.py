@@ -9,7 +9,7 @@ unless the workflow lists ``context_enrichment_tools``.
 import asyncio
 import json
 import logging
-from typing import Any, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING
 
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.state import WorkflowState
@@ -64,24 +64,36 @@ def _format_generic_items(
     return text, structured
 
 
+def _format_one_indra_statement(
+        s: dict[str, Any]) -> Optional[tuple[str, dict[str, Any]]]:
+    """Format one INDRA subject/object/relation statement as a causal edge.
+
+    INDRA statements encode subject/object/relation triples with a belief
+    score; format as a readable causal edge for the synthesis prompt.
+    Returns None when the statement lacks either endpoint name.
+    """
+    subj = (s.get("subj") or {}).get("name", "")
+    obj = (s.get("obj") or {}).get("name", "")
+    if not (subj and obj):
+        return None
+    rel = s.get("type", "")
+    belief = s.get("belief", 0)
+    display = f"{subj} \u2192 {obj} [{rel}] (belief: {belief:.2f})"
+    return display, {"display": f"INDRA: {display}", "data": s}
+
+
 def _format_indra_statements(
     stmts: list[dict[str, Any]],) -> tuple[str, list[dict[str, Any]]]:
     """Format INDRA subject/object/relation statements as causal-edge text."""
     lines = []
     items = []
     for s in stmts[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]:
-        # INDRA statements encode subject/object/relation triples with a
-        # belief score; format as a readable causal edge for the synthesis
-        # prompt.
-        subj = (s.get("subj") or {}).get("name", "")
-        obj = (s.get("obj") or {}).get("name", "")
-        rel = s.get("type", "")
-        belief = s.get("belief", 0)
-        if subj and obj:
-            display = (f"{subj} \u2192 {obj} [{rel}]"
-                       f" (belief: {belief:.2f})")
-            lines.append(f"- {display}")
-            items.append({"display": f"INDRA: {display}", "data": s})
+        formatted = _format_one_indra_statement(s)
+        if not formatted:
+            continue
+        display, item = formatted
+        lines.append(f"- {display}")
+        items.append(item)
     return "\n".join(lines), items
 
 

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterator
 from typing import Any
 
 from app import store
@@ -27,15 +27,51 @@ def sse_frame(event: dict[str, Any]) -> str:
     return f"data: {json.dumps(event)}\n\n"
 
 
+def _eligible_citations(
+    citations: list[dict[str, Any]],
+    by_id: dict[str, dict[str, Any]],
+) -> Iterator[tuple[str, str]]:
+    """Yield ``(evidence_id, state)`` for citations pointing at known evidence.
+
+    Citations with no evidence id, or pointing at evidence we do not have,
+    are skipped.
+    """
+    for citation in citations:
+        raw_eid = citation.get("evidence_id")
+        if raw_eid is None:
+            continue
+        eid = str(raw_eid)
+        if eid in by_id:
+            yield eid, str(citation.get("state") or "")
+
+
+def _record_citation(
+    cited_order: list[str],
+    cited_state: dict[str, str],
+    eid: str,
+    state: str,
+) -> None:
+    """Record ``eid``'s manifest position (once) and its strongest state.
+
+    An item's position is fixed by its first citation; a later citation of
+    the same item can only upgrade its recorded state (never move it),
+    keeping manifest numbering stable across the citation list.
+    """
+    if eid not in cited_state:
+        # First citation of this item fixes its manifest position.
+        cited_order.append(eid)
+        cited_state[eid] = state
+    elif STATE_RANK.get(state, -1) > STATE_RANK.get(cited_state[eid], -1):
+        # Cited again with a stronger state: upgrade the state only,
+        # keeping the original position so numbering stays stable.
+        cited_state[eid] = state
+
+
 def _rank_cited_evidence(
     citations: list[dict[str, Any]],
     by_id: dict[str, dict[str, Any]],
 ) -> tuple[list[str], dict[str, str]]:
     """Resolve each cited evidence id's manifest position and best state.
-
-    An item's position is fixed by its first citation; a later citation of
-    the same item can only upgrade its recorded state (never move it),
-    keeping manifest numbering stable across the citation list.
 
     Args:
         citations: Citation rows for the run.
@@ -47,22 +83,8 @@ def _rank_cited_evidence(
     """
     cited_state: dict[str, str] = {}
     cited_order: list[str] = []
-    for citation in citations:
-        raw_eid = citation.get("evidence_id")
-        if raw_eid is None:
-            continue
-        eid = str(raw_eid)
-        if eid not in by_id:
-            continue  # Citation points at evidence we do not have; skip.
-        state = str(citation.get("state") or "")
-        if eid not in cited_state:
-            # First citation of this item fixes its manifest position.
-            cited_order.append(eid)
-            cited_state[eid] = state
-        elif STATE_RANK.get(state, -1) > STATE_RANK.get(cited_state[eid], -1):
-            # Cited again with a stronger state: upgrade the state only,
-            # keeping the original position so numbering stays stable.
-            cited_state[eid] = state
+    for eid, state in _eligible_citations(citations, by_id):
+        _record_citation(cited_order, cited_state, eid, state)
     return cited_order, cited_state
 
 
@@ -253,6 +275,42 @@ async def _stream_llm_deltas(
             yield delta
 
 
+def _resolve_qa_model() -> str:
+    """Return the configured Q&A model, falling back to the app default.
+
+    Q&A uses the dedicated chat model when configured (typically a fast/
+    cheap one), falling back to the app-wide default model.
+    """
+    return settings.chat_model_name or settings.model_name
+
+
+def _citation_meta(manifest: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Build the persisted-message meta dict carrying sources, if any."""
+    return {"sources": manifest} if manifest else None
+
+
+async def _relay_answer_chunks(
+    model: str,
+    system_prompt: str,
+    question: str,
+    full: list[str],
+) -> AsyncGenerator[str, None]:
+    """Yield chunk SSE frames while accumulating deltas into ``full``.
+
+    Args:
+        model: The model name to complete with.
+        system_prompt: The assembled grounding prompt.
+        question: The user's question.
+        full: Mutable accumulator the caller reads once streaming completes.
+
+    Yields:
+        SSE ``data:`` chunk frames.
+    """
+    async for delta in _stream_llm_deltas(model, system_prompt, question):
+        full.append(delta)
+        yield sse_frame({"type": "chunk", "content": delta})
+
+
 async def stream_answer(
     run_id: str,
     question: str,
@@ -276,9 +334,7 @@ async def stream_answer(
     Yields:
         SSE ``data:`` frames.
     """
-    # Q&A uses the dedicated chat model when configured (typically a fast/
-    # cheap one), falling back to the app-wide default model.
-    model = settings.chat_model_name or settings.model_name
+    model = _resolve_qa_model()
     try:
         # Sources frame goes out before any text so the UI can resolve [n]
         # citation markers while the answer is still streaming.
@@ -288,9 +344,9 @@ async def stream_answer(
         # Relay each token delta as its own SSE frame, accumulating the
         # full text so the complete answer can be persisted at the end.
         full: list[str] = []
-        async for delta in _stream_llm_deltas(model, system_prompt, question):
-            full.append(delta)
-            yield sse_frame({"type": "chunk", "content": delta})
+        async for frame in _relay_answer_chunks(model, system_prompt, question,
+                                                full):
+            yield frame
 
         # Persist the answer (with its sources) before signalling `done`,
         # so a reload right after completion still shows the exchange.
@@ -299,7 +355,7 @@ async def stream_answer(
                              "system",
                              answer,
                              "qa",
-                             meta={"sources": manifest} if manifest else None)
+                             meta=_citation_meta(manifest))
         yield sse_frame({"type": "done", "question_id": question_id})
     except Exception as exc:  # pylint: disable=broad-exception-caught
         # Any failure (missing key, provider error, mid-stream drop) ends

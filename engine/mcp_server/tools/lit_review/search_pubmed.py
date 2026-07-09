@@ -162,6 +162,22 @@ def _entrez_read(handle: Any) -> dict[str, Any]:
         raise
 
 
+def _log_entrez_http_error_body(e: HTTPError) -> None:
+    """Logs the raw response body off an HTTPError, if still readable.
+
+    Args:
+        e: The HTTPError whose response body should be logged.
+    """
+    try:  # pylint: disable=broad-exception-caught
+        if hasattr(e, 'read'):
+            error_body = e.read()
+            error_text = (error_body.decode('utf-8', errors='ignore')
+                          if isinstance(error_body, bytes) else error_body)
+            logger.debug("Error response body: %s", error_text[:1000])
+    except Exception as read_err:  # pylint: disable=broad-exception-caught
+        logger.debug("Could not read error response body: %s", read_err)
+
+
 def _log_entrez_read_http_error(e: HTTPError) -> None:
     """Logs full diagnostic detail for an HTTPError from an Entrez read.
 
@@ -176,14 +192,7 @@ def _log_entrez_read_http_error(e: HTTPError) -> None:
         logger.debug("Response headers: %s", dict(e.headers))
 
     # Try to read error response body from the exception
-    try:  # pylint: disable=broad-exception-caught
-        if hasattr(e, 'read'):
-            error_body = e.read()
-            error_text = (error_body.decode('utf-8', errors='ignore')
-                          if isinstance(error_body, bytes) else error_body)
-            logger.debug("Error response body: %s", error_text[:1000])
-    except Exception as read_err:  # pylint: disable=broad-exception-caught
-        logger.debug("Could not read error response body: %s", read_err)
+    _log_entrez_http_error_body(e)
 
 
 def _log_entrez_read_url_error(e: URLError) -> None:
@@ -284,6 +293,23 @@ def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
         return None
 
 
+def _author_full_name(author: Any) -> str | None:
+    """Builds one "Forename Lastname" string from an AuthorList entry.
+
+    Args:
+        author: A single entry from the article's AuthorList.
+
+    Returns:
+        "Forename Lastname" if the entry is a dict with both name parts,
+        else None.
+    """
+    if not isinstance(author, dict):
+        return None
+    first_name = author.get("ForeName", "")
+    last_name = author.get("LastName", "")
+    return f"{first_name} {last_name}" if first_name and last_name else None
+
+
 def _parse_pubmed_authors(article_data: dict[str, Any]) -> list[str]:
     """Builds "Forename Lastname" strings for each author on an article.
 
@@ -298,11 +324,9 @@ def _parse_pubmed_authors(article_data: dict[str, Any]) -> list[str]:
     try:
         author_list = article_data.get("AuthorList", [])
         for author in author_list:
-            if isinstance(author, dict):
-                first_name = author.get("ForeName", "")
-                last_name = author.get("LastName", "")
-                if first_name and last_name:
-                    authors.append(f"{first_name} {last_name}")
+            name = _author_full_name(author)
+            if name:
+                authors.append(name)
     except (KeyError, TypeError):
         pass
     return authors

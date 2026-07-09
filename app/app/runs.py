@@ -174,16 +174,18 @@ def _run_overrides_from_request(req: CreateRunRequest, *, focus: str, tier: str,
         "focus": focus,
         "setup": setup,
     }
-    if req.initial_hypotheses_count is not None:
-        overrides["initial_hypotheses_count"] = req.initial_hypotheses_count
-    if req.max_iterations is not None:
-        overrides["max_iterations"] = req.max_iterations
-    if req.evolution_max_count is not None:
-        overrides["evolution_max_count"] = req.evolution_max_count
-    if req.k_factor is not None:
-        overrides["k_factor"] = req.k_factor
-    if req.enable_literature_review is not None:
-        overrides["enable_literature_review"] = req.enable_literature_review
+    # Only explicitly-sent knobs become overrides; each (key, value) pair
+    # is dropped when the request left the field unset.
+    numeric_overrides: tuple[tuple[str, Any], ...] = (
+        ("initial_hypotheses_count", req.initial_hypotheses_count),
+        ("max_iterations", req.max_iterations),
+        ("evolution_max_count", req.evolution_max_count),
+        ("k_factor", req.k_factor),
+        ("enable_literature_review", req.enable_literature_review),
+    )
+    for key, value in numeric_overrides:
+        if value is not None:
+            overrides[key] = value
     return overrides
 
 
@@ -467,6 +469,35 @@ def _resolve_tick_terminal(terminal_status: str | None, run_id: str,
     return None
 
 
+def _drain_tick_frames(
+    run_id: str,
+    last_seq: int,
+) -> tuple[int, str | None, list[str]]:
+    """Fetch and format one tick's new events for `_stream_live_tail`.
+
+    No `await` separates one event's formatting from the next in the
+    original inline loop, so collecting frames here and yielding them from
+    the caller afterward produces the same frames in the same order.
+
+    Args:
+        run_id: Identifier of the run being streamed.
+        last_seq: Highest sequence number already yielded.
+
+    Returns:
+        A ``(last_seq, terminal_status, frames)`` tuple: the updated highest
+        sequence number, the terminal run status carried by these events (if
+        any), and the SSE frames to yield in order.
+    """
+    new_events = store.list_events(run_id, after_seq=last_seq)
+    frames: list[str] = []
+    terminal_status: str | None = None
+    for ev in new_events:
+        last_seq = ev["seq"]
+        frames.append(qa.sse_frame(ev))
+        terminal_status = _terminal_status_from_event(ev) or terminal_status
+    return last_seq, terminal_status, frames
+
+
 async def _stream_live_tail(
     run_id: str,
     request: Request,
@@ -497,12 +528,9 @@ async def _stream_live_tail(
         if await _should_skip_tick(handle, tick):
             continue
 
-        new_events = store.list_events(run_id, after_seq=last_seq)
-        terminal_status: str | None = None
-        for ev in new_events:
-            last_seq = ev["seq"]
-            yield qa.sse_frame(ev)
-            terminal_status = _terminal_status_from_event(ev) or terminal_status
+        last_seq, terminal_status, frames = _drain_tick_frames(run_id, last_seq)
+        for frame in frames:
+            yield frame
 
         terminal_status = _resolve_tick_terminal(terminal_status, run_id, tick)
         if terminal_status is not None:

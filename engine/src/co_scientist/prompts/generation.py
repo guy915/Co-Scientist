@@ -591,6 +591,29 @@ def _format_pdf_status(article: Any) -> str:
     return "No PDF found (abstract only)"
 
 
+def _used_articles(articles: list[Any]) -> list[Any]:
+    """Filter to articles marked used_in_analysis=True."""
+    return [art for art in articles if art.used_in_analysis]
+
+
+def _format_article_authors(article: Any) -> str:
+    """Format up to 3 authors, with an 'et al.' suffix when there are more."""
+    authors = ", ".join(article.authors[:3])
+    if len(article.authors) > 3:
+        return f"{authors} et al."
+    return authors
+
+
+def _format_article_entry(index: int, article: Any) -> str:
+    """Format one analyzed article's metadata block."""
+    return (f"**{index + 1}. {article.title}**\n"
+            f"   - Authors: {_format_article_authors(article)}\n"
+            f"   - Year: {article.year or 'Unknown'}\n"
+            f"   - Citations: {article.citations}\n"
+            f"   - PDF: {_format_pdf_status(article)}\n"
+            f"   - URL: {article.url}")
+
+
 def format_articles_metadata(articles: list[Any]) -> str:
     """Format analyzed articles with metadata for tool-based generation prompts.
 
@@ -601,19 +624,12 @@ def format_articles_metadata(articles: list[Any]) -> str:
     if not articles:
         return ""
 
-    used_articles = [art for art in articles if art.used_in_analysis]
+    used_articles = _used_articles(articles)
     if not used_articles:
         return ""
 
-    articles_list_text = "\n\n".join([
-        f"**{i+1}. {art.title}**\n"
-        f"   - Authors: {', '.join(art.authors[:3])}"
-        f"{' et al.' if len(art.authors) > 3 else ''}\n"
-        f"   - Year: {art.year or 'Unknown'}\n"
-        f"   - Citations: {art.citations}\n"
-        f"   - PDF: {_format_pdf_status(art)}\n"
-        f"   - URL: {art.url}" for i, art in enumerate(used_articles)
-    ])
+    articles_list_text = "\n\n".join(
+        _format_article_entry(i, art) for i, art in enumerate(used_articles))
 
     n = len(used_articles)
     return ("\n### Papers Analyzed in Literature Review\n\n"
@@ -701,6 +717,14 @@ def _resolve_tool_registry(
     return tool_registry, tool_ids
 
 
+def _tool_entry_sections(tool_id: str, tool_registry: Any) -> list[str]:
+    """Format one tool_id's entry lines, or [] if unknown/disabled."""
+    tool_config = tool_registry.get_tool(tool_id)
+    if not tool_config or not tool_config.enabled:
+        return []
+    return _format_tool_entry(tool_config)
+
+
 def build_tool_instructions(
     tool_ids: list[str],
     tool_registry: Any | None = None,
@@ -722,12 +746,8 @@ def build_tool_instructions(
                 " Literature tools may not be accessible.")
 
     sections = []
-
     for tool_id in tool_ids:
-        tool_config = tool_registry.get_tool(tool_id)
-        if not tool_config or not tool_config.enabled:
-            continue
-        sections.extend(_format_tool_entry(tool_config))
+        sections.extend(_tool_entry_sections(tool_id, tool_registry))
 
     if not sections:
         return "No tools available."

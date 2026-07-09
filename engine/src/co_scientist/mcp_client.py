@@ -68,6 +68,100 @@ def _resolve_server_configs(
     return {"default": {"transport": "streamable_http", "url": server_url}}
 
 
+def _ensure_tools_initialized(
+        tools_dict: dict[str, Any] | None) -> dict[str, Any]:
+    """Guards that a client's tools dict has been populated by initialize().
+
+    Args:
+        tools_dict: A client's ``_tools_dict``, or None if initialize()
+            hasn't run.
+
+    Returns:
+        The non-None tools dict.
+
+    Raises:
+        RuntimeError: If tools_dict is None.
+    """
+    if tools_dict is None:
+        raise RuntimeError(
+            "mcp client not initialized. call initialize() first.")
+    return tools_dict
+
+
+def _is_wrapped_text_result(result: Any) -> bool:
+    """Checks whether result is the ``[{"text": ...}]`` wrapper shape.
+
+    Some langchain versions wrap MCP tool results this way instead of
+    returning the raw string.
+
+    Args:
+        result: Raw ``ainvoke()`` return value.
+
+    Returns:
+        True if result is a non-empty list whose first item is a dict
+        containing a "text" key.
+    """
+    return (isinstance(result, list) and len(result) > 0 and
+            isinstance(result[0], dict) and "text" in result[0])
+
+
+def _unwrap_tool_result(result: Any) -> Any:
+    """Unwraps the ``[{"text": ...}]`` shape some langchain versions return.
+
+    Args:
+        result: Raw ``ainvoke()`` return value.
+
+    Returns:
+        ``result[0]["text"]`` when result matches that shape, else result
+        unchanged.
+    """
+    return result[0]["text"] if _is_wrapped_text_result(result) else result
+
+
+def _truncate_for_log(text: str, limit: int = 200) -> str:
+    """Truncates text for a debug log line, appending an ellipsis if cut.
+
+    Args:
+        text: Text to (possibly) truncate.
+        limit: Maximum length before truncation.
+
+    Returns:
+        text unchanged if within limit, else text[:limit] followed by "...".
+    """
+    return text if len(text) <= limit else text[:limit] + "..."
+
+
+def _filter_tools_by_whitelist(
+    tools_dict: dict[str, Any],
+    whitelist: list[str],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Filters a client's tools down to a workflow's whitelist.
+
+    Args:
+        tools_dict: All available tools, keyed by name.
+        whitelist: Tool names to keep, in the order the LLM should see them.
+
+    Returns:
+        Tuple of (filtered_tools_dict, filtered_openai_tools). The latter
+        follows whitelist order (not tools_dict's order) so the OpenAI-format
+        tool list is presented to the LLM in the order the workflow config
+        declared it, e.g. preferred tools first.
+    """
+    filtered_tools_dict = {
+        k: v for k, v in tools_dict.items() if k in whitelist
+    }
+    filtered_openai_tools = [
+        convert_to_openai_tool(filtered_tools_dict[k])
+        for k in whitelist
+        if k in filtered_tools_dict
+    ]
+
+    logger.debug("filtered to %s tools: %s", len(filtered_tools_dict),
+                 list(filtered_tools_dict.keys()))
+
+    return filtered_tools_dict, filtered_openai_tools
+
+
 class MCPToolClient:
     """Client for accessing MCP tools from one or more MCP servers.
 
@@ -190,26 +284,19 @@ class MCPToolClient:
             RuntimeError: If client not initialized
             ValueError: If tool not found
         """
-        if self._tools_dict is None:
-            raise RuntimeError(
-                "mcp client not initialized. call initialize() first.")
+        tools_dict = _ensure_tools_initialized(self._tools_dict)
 
-        if tool_name not in self._tools_dict:
-            raise ValueError(
-                f"tool '{tool_name}' not found. "
-                f"available tools: {list(self._tools_dict.keys())}")
+        if tool_name not in tools_dict:
+            raise ValueError(f"tool '{tool_name}' not found. "
+                             f"available tools: {list(tools_dict.keys())}")
 
         logger.debug("calling mcp tool: %s with args: %s", tool_name, kwargs)
 
-        result = await self._tools_dict[tool_name].ainvoke(kwargs)
+        result = _unwrap_tool_result(await
+                                     tools_dict[tool_name].ainvoke(kwargs))
 
-        # Wrap to support earlier/recent langchain versions
-        if isinstance(result, list) and len(result) > 0:
-            if isinstance(result[0], dict) and "text" in result[0]:
-                result = result[0]["text"]
-
-        logger.debug("mcp tool result for %s: %s%s", tool_name,
-                     str(result)[:200], "..." if len(str(result)) > 200 else "")
+        logger.debug("mcp tool result for %s: %s", tool_name,
+                     _truncate_for_log(str(result)))
 
         return cast(str, result)
 
@@ -276,23 +363,7 @@ class MCPToolClient:
         if whitelist is None:
             return self._tools_dict, self._openai_tools
 
-        # Filter tools by whitelist
-        filtered_tools_dict = {
-            k: v for k, v in self._tools_dict.items() if k in whitelist
-        }
-        # Iterates whitelist order (not self._tools_dict order) so the
-        # OpenAI-format tool list is presented to the LLM in the order the
-        # workflow config declared it, e.g. preferred tools first.
-        filtered_openai_tools = [
-            convert_to_openai_tool(filtered_tools_dict[k])
-            for k in whitelist
-            if k in filtered_tools_dict
-        ]
-
-        logger.debug("filtered to %s tools: %s", len(filtered_tools_dict),
-                     list(filtered_tools_dict.keys()))
-
-        return filtered_tools_dict, filtered_openai_tools
+        return _filter_tools_by_whitelist(self._tools_dict, whitelist)
 
     def get_server_for_tool(self, tool_name: str) -> str | None:
         """Get the server ID that provides a specific tool.
@@ -500,6 +571,53 @@ async def check_pubmed_available_via_mcp(
     return await check_literature_source_available(server_url, tool_registry)
 
 
+def _log_mcp_test_start(tool_registry: Optional["ToolRegistry"],
+                        server_url: str | None) -> None:
+    """Logs which MCP target check_mcp_available is about to probe.
+
+    Args:
+        tool_registry: ToolRegistry driving multi-server mode, if any.
+        server_url: Single legacy server URL, used when tool_registry isn't.
+    """
+    if tool_registry:
+        logger.debug("testing mcp availability for %s server(s)",
+                     len(tool_registry.get_enabled_servers()))
+    else:
+        logger.debug("testing mcp server availability at %s", server_url)
+
+
+def _has_any_tools(tools_dict: dict[str, Any] | None) -> bool:
+    """Checks whether an initialized client actually reports any tools.
+
+    Args:
+        tools_dict: The probe client's populated tools dict.
+
+    Returns:
+        True (and logs success) if non-empty; False (and logs a warning)
+        otherwise.
+    """
+    if tools_dict and len(tools_dict) > 0:
+        logger.info("MCP server available with %s tools", len(tools_dict))
+        return True
+    logger.warning("MCP server responded but provided no tools")
+    return False
+
+
+def _log_mcp_unavailable(tool_registry: Optional["ToolRegistry"],
+                         server_url: str | None, error: Exception) -> None:
+    """Logs the check_mcp_available exception-fallback-to-False path.
+
+    Args:
+        tool_registry: ToolRegistry driving multi-server mode, if any.
+        server_url: Single legacy server URL, used when tool_registry isn't.
+        error: The exception that triggered the fallback.
+    """
+    if tool_registry:
+        logger.warning("MCP servers unavailable: %s", error)
+    else:
+        logger.warning("MCP server unavailable at %s", server_url)
+
+
 async def check_mcp_available(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
@@ -517,11 +635,7 @@ async def check_mcp_available(
         server_url = _resolve_server_url()
 
     try:
-        if tool_registry:
-            logger.debug("testing mcp availability for %s server(s)",
-                         len(tool_registry.get_enabled_servers()))
-        else:
-            logger.debug("testing mcp server availability at %s", server_url)
+        _log_mcp_test_start(tool_registry, server_url)
 
         test_client = MCPToolClient(server_url=server_url,
                                     tool_registry=tool_registry)
@@ -529,22 +643,14 @@ async def check_mcp_available(
 
         # Check if we got any tools
         tools_dict = test_client._tools_dict  # pylint: disable=protected-access
-        if tools_dict and len(tools_dict) > 0:
-            logger.info("MCP server available with %s tools", len(tools_dict))
-            return True
-        else:
-            logger.warning("MCP server responded but provided no tools")
-            return False
+        return _has_any_tools(tools_dict)
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Same broad-catch-to-False fallback as
         # check_literature_source_available: an unreachable server here must
         # not raise, since this result gates whether the literature_review
         # node is added to the graph at all (see generator.py).
-        if tool_registry:
-            logger.warning("MCP servers unavailable: %s", e)
-        else:
-            logger.warning("MCP server unavailable at %s", server_url)
+        _log_mcp_unavailable(tool_registry, server_url, e)
         return False
 
 

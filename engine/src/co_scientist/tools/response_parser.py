@@ -14,6 +14,50 @@ from co_scientist.models import Article
 logger = logging.getLogger(__name__)
 
 
+def _is_quoted_literal(expr: str) -> bool:
+    """True when expr is a single-quoted static string literal ('...')."""
+    return expr.startswith("'") and expr.endswith("'")
+
+
+def _url_from_key(dict_key: str | None) -> str | None:
+    """Construct the PubMed article URL for a dict-results mapping's key.
+
+    Args:
+        dict_key: The raw PubMed ID key, or None if results were not
+            dict-shaped.
+
+    Returns:
+        The article URL, or None if dict_key is missing or empty.
+    """
+    if dict_key:
+        return f"https://pubmed.ncbi.nlm.nih.gov/{dict_key}/"
+    return None
+
+
+def _get_dict_field(current: Any, field: str) -> Any:
+    """Return current[field] when current is a dict, else None."""
+    return current.get(field) if isinstance(current, dict) else None
+
+
+def _index_into_list(current: Any, index: str) -> Any:
+    """Index into current at position index, if current is a non-None list.
+
+    Args:
+        current: Value to index into.
+        index: String-encoded non-negative index (matched by the caller's
+            "(\\w+)\\[(\\d+)\\]" regex).
+
+    Returns:
+        current unchanged when it is None or not a list (the index is then
+        ignored); otherwise the element at int(index), or None if the
+        index is out of range.
+    """
+    if current is None or not isinstance(current, list):
+        return current
+    idx = int(index)
+    return current[idx] if idx < len(current) else None
+
+
 # Instantiated per tool call (see nodes/generation/literature_tools/
 # validate.py) with that tool's ToolConfig, so a single MCP response-shape
 # difference between e.g. PubMed and arXiv is absorbed entirely by YAML
@@ -227,11 +271,8 @@ class ResponseParser:
         """
         field, index = match.groups()
         if field:
-            current = current.get(field) if isinstance(current, dict) else None
-        if current is not None and isinstance(current, list):
-            idx = int(index)
-            current = current[idx] if idx < len(current) else None
-        return current
+            current = _get_dict_field(current, field)
+        return _index_into_list(current, index)
 
     def _map_item_to_article(self,
                              item: dict[str, Any],
@@ -332,11 +373,10 @@ class ResponseParser:
         Returns:
             Evaluated value
         """
-        # Handle static values (quoted strings)
-        # Lets a YAML field_mapping pin a constant field value (e.g.
-        # "'pubmed'") without there being a matching key in the raw
-        # response item.
-        if expr.startswith("'") and expr.endswith("'"):
+        # Handle static values (quoted strings). Lets a YAML field_mapping
+        # pin a constant field value (e.g. "'pubmed'") without there being a
+        # matching key in the raw response item.
+        if _is_quoted_literal(expr):
             return expr[1:-1]
 
         # Handle special @key expressions
@@ -344,31 +384,39 @@ class ResponseParser:
             return dict_key
 
         if expr == "@url_from_key":
-            # Construct PubMed URL from paper ID
-            if dict_key:
-                return f"https://pubmed.ncbi.nlm.nih.gov/{dict_key}/"
-            return None
+            return _url_from_key(dict_key)
 
-        # Check for transform chain
-        # Pipe-separated expressions apply the transforms left to right,
-        # e.g. "date_revised|split:/|index:0|int" first splits on "/", then
+        # Pipe-separated expressions apply a chain of transforms, e.g.
+        # "date_revised|split:/|index:0|int" first splits on "/", then
         # takes the first element, then casts it.
         if "|" in expr:
-            parts = expr.split("|")
-            field_expr = parts[0]
-            transforms = parts[1:]
-
-            # Get initial value
-            value = self._get_field_value(field_expr, item, dict_key)
-
-            # Apply transforms
-            for transform in transforms:
-                value = self._apply_transform(transform, value)
-
-            return value
+            return self._evaluate_transform_chain(expr, item, dict_key)
 
         # Simple field access
         return self._get_field_value(expr, item, dict_key)
+
+    def _evaluate_transform_chain(self, expr: str, item: dict[str, Any],
+                                  dict_key: str | None) -> Any:
+        """Evaluate a "field|transform1|transform2|..." pipe expression.
+
+        Args:
+            expr: Pipe-separated expression; the first segment names the
+                field, the rest are transforms applied left to right.
+            item: Data item dict.
+            dict_key: Optional dict key for a "@key" field segment.
+
+        Returns:
+            The field value with every transform applied in order.
+        """
+        parts = expr.split("|")
+        field_expr = parts[0]
+        transforms = parts[1:]
+
+        value = self._get_field_value(field_expr, item, dict_key)
+        for transform in transforms:
+            value = self._apply_transform(transform, value)
+
+        return value
 
     def _get_field_value(self,
                          field_expr: str,

@@ -53,6 +53,40 @@ def _parse_authors(article: dict[str, Any]) -> list[str]:
         ]))
 
 
+def _load_shared_pool_candidate(
+        metadata_file: Path, shared_dir: Path,
+        paper_id: str) -> tuple[str, dict[str, Any]] | None:
+    """Loads one shared-pool metadata file and checks it has fulltext.
+
+    Args:
+        metadata_file: The ``*.metadata.json`` file to load.
+        shared_dir: Shared-pool directory holding fulltext files.
+        paper_id: The paper id derived from ``metadata_file``'s name.
+
+    Returns:
+        A (paper_id, metadata) tuple if the paper has PMC fulltext already
+        downloaded to the shared pool. Only papers already downloaded
+        qualify here; this supplement path deliberately avoids issuing new
+        PMC downloads for a shortfall. Returns None if there is no
+        fulltext yet, or if the metadata file is corrupt/partial (logged
+        at debug level rather than aborting the whole scan).
+    """
+    try:
+        with open(metadata_file, encoding='utf-8') as f:
+            metadata = json.load(f)
+        if not metadata.get('pmc_full_text_id'):
+            return None
+        pmc_id = metadata['pmc_full_text_id']
+        fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
+        if not fulltext_file.exists():
+            return None
+        return (paper_id, metadata)
+    # pylint: disable-next=broad-exception-caught
+    except Exception as e:
+        logger.debug("Failed to read shared pool paper %s: %s", paper_id, e)
+        return None
+
+
 def _scan_shared_pool_candidates(
         shared_dir: Path,
         current_paper_ids_set: set[str]) -> list[tuple[str, dict[str, Any]]]:
@@ -71,24 +105,10 @@ def _scan_shared_pool_candidates(
         paper_id = metadata_file.stem.replace(".metadata", "")
         if paper_id in current_paper_ids_set:
             continue
-        try:
-            with open(metadata_file, encoding='utf-8') as f:
-                metadata = json.load(f)
-            # Only consider papers with PMC fulltext
-            if metadata.get('pmc_full_text_id'):
-                # Check if fulltext exists in shared pool. Only papers
-                # already downloaded qualify here; this supplement path
-                # deliberately avoids issuing new PMC downloads for a
-                # shortfall.
-                pmc_id = metadata['pmc_full_text_id']
-                fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
-                if fulltext_file.exists():
-                    supplement_candidates.append((paper_id, metadata))
-        # pylint: disable-next=broad-exception-caught
-        except Exception as e:
-            # Corrupt/partial metadata file: skip this candidate rather
-            # than aborting the whole scan.
-            logger.debug("Failed to read shared pool paper %s: %s", paper_id, e)
+        candidate = _load_shared_pool_candidate(metadata_file, shared_dir,
+                                                paper_id)
+        if candidate:
+            supplement_candidates.append(candidate)
     return supplement_candidates
 
 

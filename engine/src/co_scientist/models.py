@@ -32,6 +32,26 @@ class HypothesisReview:
     overall_score: float
 
 
+def _strip_computed_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """Drop the derived-only total_matches/win_rate keys from a payload.
+
+    Args:
+        data: A dict shaped like the output of ``Hypothesis.to_dict``.
+
+    Returns:
+        A copy of data without the ``total_matches``/``win_rate`` keys.
+    """
+    return {
+        k: v for k, v in data.items() if k not in ("total_matches", "win_rate")
+    }
+
+
+def _rebuild_reviews(
+        reviews_data: list[dict[str, Any]]) -> list[HypothesisReview]:
+    """Rebuild serialized review dicts into HypothesisReview instances."""
+    return [HypothesisReview(**review) for review in reviews_data]
+
+
 @dataclass
 class Hypothesis:
     """A research hypothesis with associated metadata.
@@ -169,19 +189,13 @@ class Hypothesis:
         Returns:
             A ``Hypothesis`` reconstructed from ``data``.
         """
-        payload = {
-            k: v
-            for k, v in data.items()
-            if k not in ("total_matches", "win_rate")
-        }
+        payload = _strip_computed_fields(data)
         generation_method = payload.get("generation_method")
         if generation_method is not None:
             payload["generation_method"] = GenerationMethod(generation_method)
         reviews = payload.get("reviews")
         if reviews:
-            payload["reviews"] = [
-                HypothesisReview(**review) for review in reviews
-            ]
+            payload["reviews"] = _rebuild_reviews(reviews)
         return cls(**payload)
 
 

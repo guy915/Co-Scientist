@@ -113,6 +113,17 @@ function findLabelMarks(
   return marks;
 }
 
+// Returns `sections`, or (when every detected piece trimmed to nothing) a
+// single unlabeled fallback section built from the original `text`.
+function withFallback(
+  sections: AbstractSection[],
+  text: string,
+): AbstractSection[] {
+  if (sections.length) return sections;
+  const trimmed = text.trim();
+  return [{label: null, html: trimmed ? renderInlineHtml(trimmed) : ''}];
+}
+
 /**
  * Splits a possibly-structured abstract into labeled sections with sanitized
  * bodies. An unstructured abstract returns a single section with a null label.
@@ -134,7 +145,7 @@ export function splitAbstractSections(raw: string): AbstractSection[] {
 
   if (marks.length === 0) {
     pushSection(null, text);
-    return sections.length ? sections : [{label: null, html: ''}];
+    return withFallback(sections, text);
   }
 
   // Any text before the first label is unlabeled lead-in.
@@ -145,7 +156,5 @@ export function splitAbstractSections(raw: string): AbstractSection[] {
     pushSection(titleCase(mark.label), text.slice(mark.end, bodyEnd));
   });
 
-  return sections.length
-    ? sections
-    : [{label: null, html: renderInlineHtml(text.trim())}];
+  return withFallback(sections, text);
 }

@@ -13,15 +13,17 @@
 export function conciseTitle(goal: string, maxChars = 52): string {
   const trimmed = (goal ?? '').trim();
   if (!trimmed) return 'Untitled session';
-  // First sentence only, but split on sentence-ending punctuation followed by
-  // whitespace/end — so an abbreviation like "M.tuberculosis" (period mid-word)
-  // is not mistaken for a clause boundary and truncated to "...for M".
-  const sentenceEnd = trimmed.search(/[.?!;](\s|$)/);
-  const firstClause = (
-    sentenceEnd >= 0 ? trimmed.slice(0, sentenceEnd) : trimmed
-  ).trim();
+  const firstClause = firstSentenceClause(trimmed);
   if (firstClause.length <= maxChars) return firstClause;
   return truncateOnWordBoundary(firstClause, maxChars);
+}
+
+// First sentence only, but split on sentence-ending punctuation followed by
+// whitespace/end — so an abbreviation like "M.tuberculosis" (period mid-word)
+// is not mistaken for a clause boundary and truncated to "...for M".
+function firstSentenceClause(text: string): string {
+  const sentenceEnd = text.search(/[.?!;](\s|$)/);
+  return (sentenceEnd >= 0 ? text.slice(0, sentenceEnd) : text).trim();
 }
 
 /**

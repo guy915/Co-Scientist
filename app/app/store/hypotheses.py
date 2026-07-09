@@ -86,6 +86,33 @@ def add_hypothesis(
     return hyp_id
 
 
+def _hypothesis_state_updates(
+    *,
+    elo_rating: int | None,
+    win_delta: int,
+    loss_delta: int,
+    novelty: float | None,
+    cluster_id: str | None,
+) -> list[tuple[str, Any]]:
+    """Return the (SQL fragment, value) pairs for the provided fields.
+
+    Only fields whose arguments are provided are included. Deltas use
+    relative SQL updates (col=col+?) so concurrent writers do not clobber
+    counts, so they are included only when non-zero; the rest are included
+    whenever explicitly set (not None).
+    """
+    candidates: tuple[tuple[bool, str, Any], ...] = (
+        (elo_rating is not None, "elo_rating=?", elo_rating),
+        (bool(win_delta), "win_count=win_count+?", win_delta),
+        (bool(loss_delta), "loss_count=loss_count+?", loss_delta),
+        (novelty is not None, "novelty_score=?", novelty),
+        (cluster_id is not None, "cluster_id=?", cluster_id),
+    )
+    return [
+        (fragment, value) for active, fragment, value in candidates if active
+    ]
+
+
 def update_hypothesis_state(
     hypothesis_id: str,
     *,
@@ -113,28 +140,17 @@ def update_hypothesis_state(
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
     # Build the SET clause dynamically from trusted literal fragments; user
-    # data only ever flows through the bound `params`. Deltas use relative
-    # SQL updates (col=col+?) so concurrent writers do not clobber counts.
-    sets: list[str] = []
-    params: list[Any] = []
-    if elo_rating is not None:
-        sets.append("elo_rating=?")
-        params.append(elo_rating)
-    if win_delta:
-        sets.append("win_count=win_count+?")
-        params.append(win_delta)
-    if loss_delta:
-        sets.append("loss_count=loss_count+?")
-        params.append(loss_delta)
-    if novelty is not None:
-        sets.append("novelty_score=?")
-        params.append(novelty)
-    if cluster_id is not None:
-        sets.append("cluster_id=?")
-        params.append(cluster_id)
-    sets.append("updated_at=?")
-    params.append(_now())
-    params.append(hypothesis_id)
+    # data only ever flows through the bound `params`.
+    updates = _hypothesis_state_updates(
+        elo_rating=elo_rating,
+        win_delta=win_delta,
+        loss_delta=loss_delta,
+        novelty=novelty,
+        cluster_id=cluster_id,
+    )
+    sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
+    params: list[Any] = [value for _, value in updates
+                        ] + [_now(), hypothesis_id]
     set_clause = ", ".join(sets)
     with _use_conn(conn, db_path) as conn:
         conn.execute(

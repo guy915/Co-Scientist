@@ -16,6 +16,16 @@ from co_scientist.models import (Article, ExecutionMetrics, Hypothesis,
 logger = logging.getLogger(__name__)
 
 
+def _hypothesis_ids(hypotheses: list[Hypothesis]) -> set[str]:
+    """Return the set of ids for hypotheses."""
+    return {hyp.id for hyp in hypotheses}
+
+
+def _normalized_texts(hypotheses: list[Hypothesis]) -> set[str]:
+    """Return the set of stripped, lowercased texts for hypotheses."""
+    return {hyp.text.strip().lower() for hyp in hypotheses}
+
+
 def _resolve_hypothesis_pool(existing: list[Hypothesis],
                              new: list[Hypothesis]) -> list[Hypothesis]:
     """Decide whether `new` replaces or extends the existing hypothesis pool.
@@ -42,12 +52,10 @@ def _resolve_hypothesis_pool(existing: list[Hypothesis],
         `new` alone for a replacement, or `existing + new` for an addition
         (neither deduplicated yet).
     """
-    existing_ids = {hyp.id for hyp in existing}
-    new_ids = {hyp.id for hyp in new}
-    existing_texts = {hyp.text.strip().lower() for hyp in existing}
-    new_texts = {hyp.text.strip().lower() for hyp in new}
+    existing_ids = _hypothesis_ids(existing)
+    new_ids = _hypothesis_ids(new)
+    overlap = _normalized_texts(existing) & _normalized_texts(new)
 
-    overlap = existing_texts & new_texts
     if new_ids <= existing_ids or len(overlap) > len(new) * 0.5:
         # Replacement operation - use new list as-is but deduplicate within it
         return new

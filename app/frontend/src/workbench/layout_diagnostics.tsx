@@ -126,6 +126,22 @@ function formatDiagnosticTime(date = new Date()): string {
   return DIAGNOSTIC_TIME_FMT.format(date);
 }
 
+// Builds a log entry from a raw diagnostic-event detail, filling in the
+// per-field defaults (run/level/payload) the dispatched CustomEvent may omit.
+function buildDiagnosticEntry(
+  id: number,
+  detail: DiagnosticLogEventDetail,
+): DiagnosticLogEntry {
+  return {
+    id,
+    time: formatDiagnosticTime(),
+    run: detail.run || 'Current session',
+    stage: detail.stage,
+    level: detail.level || 'info',
+    payload: detail.payload || {},
+  };
+}
+
 // Header "Logs" trigger button: shows the running entry count as a badge
 // and toggles the popover open/closed. Purely presentational — all state
 // lives in DiagnosticsControl.
@@ -211,14 +227,7 @@ export function DiagnosticsControl({
     function onDiagnosticEvent(event: Event) {
       const custom = event as CustomEvent<DiagnosticLogEventDetail>;
       if (!custom.detail?.stage) return; // ignore malformed events
-      const entry: DiagnosticLogEntry = {
-        id: nextEntryId.current,
-        time: formatDiagnosticTime(),
-        run: custom.detail.run || 'Current session',
-        stage: custom.detail.stage,
-        level: custom.detail.level || 'info',
-        payload: custom.detail.payload || {},
-      };
+      const entry = buildDiagnosticEntry(nextEntryId.current, custom.detail);
       nextEntryId.current += 1;
       setEntries(current => [...current, entry]);
       setCopied(false); // new entries invalidate a prior "Copied" confirmation

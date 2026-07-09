@@ -60,6 +60,25 @@ def _paper_citation_label(authors: list[str], year: int | None,
     return f"{first_author} et al., {year}" if year else title[:50]
 
 
+def _article_paper_fields(
+        article: Any) -> tuple[str, str, list[str], int | None]:
+    """Extract title/url/authors/year from an article, defaulting empties.
+
+    Args:
+        article: An Article object (or article-shaped object) from a lit
+            review pass.
+
+    Returns:
+        Tuple of (title, url, authors, year), with title/url/authors
+        defaulted to falsy-safe empty values when absent.
+    """
+    title = getattr(article, "title", "") or ""
+    url = getattr(article, "url", "") or ""
+    authors = getattr(article, "authors", []) or []
+    year = getattr(article, "year", None)
+    return title, url, authors, year
+
+
 def _paper_reference_entries(
     articles: list[Any] | None,
     start_counter: int,
@@ -85,10 +104,7 @@ def _paper_reference_entries(
         if not getattr(article, "used_in_analysis", False):
             continue
         key = f"C{counter}"
-        title = getattr(article, "title", "") or ""
-        url = getattr(article, "url", "") or ""
-        authors = getattr(article, "authors", []) or []
-        year = getattr(article, "year", None)
+        title, url, authors, year = _article_paper_fields(article)
         label = _paper_citation_label(authors, year, title)
         lines.append(f"[{key}] {label} — {title[:80]}")
         sources[key] = {
@@ -171,6 +187,25 @@ def build_reference_index(
                           sources=sources)
 
 
+def _record_citation_key(
+    raw_key: str,
+    sources: dict[str, dict[str, Any]],
+    seen: set[str],
+    result: dict[str, dict[str, Any]],
+) -> None:
+    """Resolve one raw "[Cn]" occurrence into result, if valid and unseen.
+
+    Keys the LLM hallucinated or mistyped (not present in sources) are
+    dropped silently rather than raising, since citation_map is best-effort
+    metadata, not a correctness-critical field.
+    """
+    key = raw_key[1:-1]  # strip brackets → "C1"
+    if key not in sources or key in seen:
+        return
+    result[key] = sources[key]
+    seen.add(key)
+
+
 def resolve_citation_keys(
     literature_grounding: str | None,
     sources: dict[str, dict[str, Any]],
@@ -193,13 +228,7 @@ def resolve_citation_keys(
     seen: set[str] = set()
     result: dict[str, dict[str, Any]] = {}
     for raw_key in keys:
-        key = raw_key[1:-1]  # strip brackets → "C1"
-        # Keys the LLM hallucinated or mistyped (not present in sources) are
-        # dropped silently rather than raising, since citation_map is
-        # best-effort metadata, not a correctness-critical field.
-        if key in sources and key not in seen:
-            result[key] = sources[key]
-            seen.add(key)
+        _record_citation_key(raw_key, sources, seen, result)
     return result
 
 

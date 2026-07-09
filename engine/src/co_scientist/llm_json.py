@@ -93,6 +93,20 @@ def _repair_unterminated_field_name(s: str, stripped: str) -> str | None:
     return s
 
 
+def _looks_like_truncated_array_entry(stripped: str) -> bool:
+    """Checks whether text ends mid an unclosed-array string entry.
+
+    Args:
+        stripped: Right-stripped truncated JSON text.
+
+    Returns:
+        True if the text ends with a trailing comma, or ends with an
+        alphanumeric character while an array bracket is still open.
+    """
+    return stripped.endswith(",") or (stripped[-1].isalnum() and
+                                      "[" in stripped)
+
+
 def _repair_unterminated_array_string(s: str, stripped: str) -> str | None:
     """Closes a string left open mid truncated array entry.
 
@@ -107,8 +121,7 @@ def _repair_unterminated_array_string(s: str, stripped: str) -> str | None:
         array and mid-string, when ``stripped`` matches this truncation
         shape; ``None`` when it doesn't.
     """
-    if not (stripped.endswith(",") or
-            (stripped[-1].isalnum() and "[" in stripped)):
+    if not _looks_like_truncated_array_entry(stripped):
         return None
     last_open_bracket = stripped.rfind("[")
     last_close_bracket = stripped.rfind("]")
@@ -265,6 +278,24 @@ def _try_major_repairs(json_str: str) -> dict[str, Any] | None:
     return None
 
 
+def _try_direct_parse(json_str: str) -> dict[str, Any] | None:
+    """Tries parsing json_str as-is, should it already be valid JSON.
+
+    Args:
+        json_str: Potentially malformed JSON string.
+
+    Returns:
+        The parsed dict, or None if parsing failed or produced a value that
+        isn't a dict (e.g. a bare list or string).
+    """
+    try:
+        result = json.loads(json_str)
+    except json.JSONDecodeError:
+        # JSON is malformed, let the caller proceed with repair strategies.
+        return None
+    return result if isinstance(result, dict) else None
+
+
 def attempt_json_repair(
         json_str: str,
         allow_major_repairs: bool = False
@@ -286,13 +317,9 @@ def attempt_json_repair(
         Returns (None, False) if all repair attempts failed
     """
     # First, try parsing as-is (should work for json_schema responses)
-    try:
-        result = json.loads(json_str)
-        if isinstance(result, dict):
-            return result, False
-    except json.JSONDecodeError:
-        # JSON is malformed, proceed with repair strategies
-        pass
+    direct_result = _try_direct_parse(json_str)
+    if direct_result is not None:
+        return direct_result, False
 
     minor_result = _try_minor_repairs(json_str)
     if minor_result is not None:
@@ -398,6 +425,19 @@ def get_fallback_response(
     return None
 
 
+# Type-neutral placeholder factories for schema types with no special
+# handling. Callables (not bare values) so "object"/"array" each return a
+# fresh dict/list per call instead of one shared mutable instance -- "string"
+# and "integer"/"number" are handled separately below since "string" needs
+# the schema's enum (if any) and int 0 is immutable so aliasing is moot.
+_FIELD_TYPE_DEFAULT_FACTORIES: dict[str, Callable[[], Any]] = {
+    "object": dict,
+    "array": list,
+    "integer": lambda: 0,
+    "number": lambda: 0,
+}
+
+
 def _default_for_field_schema(field_schema: dict[str, Any]) -> Any:
     """Returns a type-neutral placeholder value for a schema field.
 
@@ -412,14 +452,50 @@ def _default_for_field_schema(field_schema: dict[str, Any]) -> Any:
     field_type = field_schema.get("type")
     if field_type == "string":
         return field_schema["enum"][0] if "enum" in field_schema else ""
-    elif field_type == "object":
-        return {}
-    elif field_type == "array":
-        return []
-    elif field_type in ("integer", "number"):
-        return 0
-    else:
+    if not isinstance(field_type, str):
         return ""
+    factory = _FIELD_TYPE_DEFAULT_FACTORIES.get(field_type)
+    return factory() if factory is not None else ""
+
+
+def _is_backfillable(obj: Any, schema: Any) -> bool:
+    """Checks whether both obj and schema are dicts worth backfilling.
+
+    Args:
+        obj: Parsed JSON value to check.
+        schema: JSON schema node to check.
+
+    Returns:
+        True if both are dicts (any other shape is left untouched).
+    """
+    return isinstance(obj, dict) and isinstance(schema, dict)
+
+
+def _fill_missing_required_fields(obj: dict[str, Any], schema: dict[str, Any],
+                                  props: dict[str, Any]) -> None:
+    """Fills required-but-absent fields on obj with type-neutral defaults.
+
+    Args:
+        obj: Dict to backfill in place.
+        schema: JSON schema node describing ``obj``.
+        props: ``schema["properties"]``, pre-extracted by the caller.
+    """
+    for field in schema.get("required", []):
+        if field not in obj and field in props:
+            obj[field] = _default_for_field_schema(props[field])
+
+
+def _recurse_into_properties(obj: dict[str, Any], props: dict[str,
+                                                              Any]) -> None:
+    """Recurses backfilling into every property schema present in obj.
+
+    Args:
+        obj: Dict whose values may themselves need backfilling.
+        props: ``schema["properties"]`` describing ``obj``'s fields.
+    """
+    for key, value in obj.items():
+        if key in props:
+            _backfill_required_fields(value, props[key])
 
 
 def _backfill_required_fields(obj: Any, schema: Any) -> None:
@@ -439,20 +515,16 @@ def _backfill_required_fields(obj: Any, schema: Any) -> None:
         obj: Parsed JSON value to back-fill (non-dicts are ignored).
         schema: JSON schema node describing ``obj``.
     """
-    if not isinstance(obj, dict) or not isinstance(schema, dict):
+    if not _is_backfillable(obj, schema):
         return
     props = schema.get("properties", {})
     # Step 1: fill any required field missing from obj with a type-neutral
     # default so the schema's "required" check passes on validation.
-    for field in schema.get("required", []):
-        if field not in obj and field in props:
-            obj[field] = _default_for_field_schema(props[field])
+    _fill_missing_required_fields(obj, schema, props)
     # Step 2: recurse into every property present in obj -- both fields that
     # were already there and ones just backfilled above -- so nested
     # required fields at any depth get the same treatment.
-    for key, value in obj.items():
-        if key in props:
-            _backfill_required_fields(value, props[key])
+    _recurse_into_properties(obj, props)
 
 
 def _validation_feedback(error: ValidationError) -> str:

@@ -253,6 +253,20 @@ def _build_generation_result(
     }
 
 
+def _cache_enabled_env_value(enable_cache: bool | None) -> str | None:
+    """Renders the cache-enabled flag as the string env var cache.py expects.
+
+    Args:
+        enable_cache: Enable/disable LLM response caching, or None.
+
+    Returns:
+        "true"/"false" for a non-None input, else None (passthrough).
+    """
+    if enable_cache is None:
+        return None
+    return "true" if enable_cache else "false"
+
+
 def _configure_cache_env(enable_cache: bool | None,
                          cache_dir: str | None) -> None:
     """Applies constructor-supplied cache overrides to the environment.
@@ -272,11 +286,13 @@ def _configure_cache_env(enable_cache: bool | None,
 
     import os  # pylint: disable=import-outside-toplevel
 
-    if enable_cache is not None:
-        val = "true" if enable_cache else "false"
-        os.environ["COSCIENTIST_CACHE_ENABLED"] = val
-    if cache_dir is not None:
-        os.environ["COSCIENTIST_CACHE_DIR"] = cache_dir
+    overrides: tuple[tuple[str | None, str], ...] = (
+        (_cache_enabled_env_value(enable_cache), "COSCIENTIST_CACHE_ENABLED"),
+        (cache_dir, "COSCIENTIST_CACHE_DIR"),
+    )
+    for value, env_key in overrides:
+        if value is not None:
+            os.environ[env_key] = value
 
 
 def _resolve_run_identity(run_id: str | None) -> tuple[float, str]:
@@ -515,6 +531,26 @@ class HypothesisGenerator:
             self._graph = self._build_graph(
                 enable_literature_review_node=enable_literature_review_node)
 
+    async def _check_cached_availability(self) -> tuple[bool, bool]:
+        """Lazily checks and caches MCP/PubMed availability for this call.
+
+        Each check runs at most once per instance; later calls reuse
+        ``self._mcp_available`` / ``self._pubmed_available``.
+
+        Returns:
+            Tuple of (mcp_available, pubmed_available).
+        """
+        from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp  # pylint: disable=import-outside-toplevel
+
+        if self._mcp_available is None:
+            self._mcp_available = await check_mcp_available(
+                tool_registry=self._tool_registry)
+        if self._pubmed_available is None:
+            self._pubmed_available = await check_pubmed_available_via_mcp(
+                tool_registry=self._tool_registry)
+
+        return self._mcp_available, self._pubmed_available
+
     async def _resolve_literature_review_settings(
         self,
         opts: dict[str, Any],
@@ -539,20 +575,8 @@ class HypothesisGenerator:
             return False, False, False
 
         # Check system availability (cached per instance)
-        from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp  # pylint: disable=import-outside-toplevel
-
-        # Lazy init: check once per instance on first call
-        # Only check if we're running with literature review
-        if self._mcp_available is None:
-            self._mcp_available = await check_mcp_available(
-                tool_registry=self._tool_registry)
-        if self._pubmed_available is None:
-            self._pubmed_available = await check_pubmed_available_via_mcp(
-                tool_registry=self._tool_registry)
-
-        # Use cached values
-        mcp_available = self._mcp_available
-        pubmed_available = self._pubmed_available
+        mcp_available, pubmed_available = await self._check_cached_availability(
+        )
 
         # Determine if literature review node should be included
         # user can override via opts, otherwise auto-detect based on MCP

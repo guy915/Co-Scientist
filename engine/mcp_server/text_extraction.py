@@ -54,14 +54,33 @@ def _direct_section_paragraphs(section: Tag) -> list[str]:
     return body_paragraphs
 
 
+_NON_CONTAINER_CHILD_NAMES = ('sec', 'title', 'label')
+
+
+def _as_paragraph_container(child: object) -> Tag | None:
+    """Narrows a section child to a Tag if it may hold nested paragraphs.
+
+    Excludes ``sec`` children (subsections, handled separately) and
+    ``title``/``label`` (already consumed as the heading).
+
+    Args:
+        child: One child node of a top-level ``<sec>`` tag.
+
+    Returns:
+        ``child`` itself if it is a tag that may contain nested
+        paragraphs, else None.
+    """
+    if isinstance(child, Tag) and child.name not in _NON_CONTAINER_CHILD_NAMES:
+        return child
+    return None
+
+
 def _nested_container_paragraphs(section: Tag) -> list[str]:
     """Collects paragraph text from non-section child containers.
 
     Catches ``<p>`` tags wrapped one level deeper in a non-``<sec>``
     container (e.g. a boxed text or supplementary block) that a direct,
-    non-recursive scan would miss, while still excluding ``sec`` children
-    (subsections, handled separately) and ``title``/``label`` (already
-    consumed as the heading).
+    non-recursive scan would miss.
 
     Args:
         section: A top-level ``<sec>`` tag whose children are scanned.
@@ -71,10 +90,10 @@ def _nested_container_paragraphs(section: Tag) -> list[str]:
     """
     body_paragraphs = []
     for child in section.children:
-        if not isinstance(child, Tag) or child.name in ('sec', 'title',
-                                                        'label'):
+        container = _as_paragraph_container(child)
+        if container is None:
             continue
-        for p in child.find_all('p'):
+        for p in container.find_all('p'):
             text = p.get_text(strip=True)
             if text:
                 body_paragraphs.append(text)

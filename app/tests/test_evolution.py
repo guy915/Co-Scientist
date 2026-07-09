@@ -37,6 +37,30 @@ def _walk_to_root(hyps: list[dict[str, Any]],
     return cur
 
 
+def _split_by_lineage(
+    hyps: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Split hypotheses into (initial, evolved) by parent_id presence."""
+    initial = [h for h in hyps if h["parent_id"] is None]
+    evolved = [h for h in hyps if h["parent_id"] is not None]
+    return initial, evolved
+
+
+def _assert_child_lineage(hyps: list[dict[str, Any]], child: dict[str, Any],
+                          initial_ids: set[str]) -> None:
+    """Assert one evolved child's lineage, generation, and identity.
+
+    Walks the child's lineage back to an initial (gen 0) hypothesis, checks
+    its generation is exactly one past its parent's, and confirms the engine
+    did not overwrite the parent in place (distinct id from every initial).
+    """
+    root = _walk_to_root(hyps, child)
+    assert root["id"] in initial_ids
+    parent_row = _by_id(hyps, child["parent_id"])
+    assert child["generation"] == parent_row["generation"] + 1
+    assert child["id"] not in initial_ids
+
+
 def test_evolution_creates_new_rows_with_parent_lineage(
         isolated_db: str) -> None:
     client = _client()
@@ -51,8 +75,7 @@ def test_evolution_creates_new_rows_with_parent_lineage(
     _wait_completed(client, rid, timeout=30.0)
 
     hyps = client.get(f"/api/runs/{rid}/hypotheses").json()["hypotheses"]
-    initial = [h for h in hyps if h["parent_id"] is None]
-    evolved = [h for h in hyps if h["parent_id"] is not None]
+    initial, evolved = _split_by_lineage(hyps)
 
     assert len(initial) >= 5
     assert len(evolved) >= 2
@@ -60,22 +83,12 @@ def test_evolution_creates_new_rows_with_parent_lineage(
     # Each evolved child references an initial (or higher-gen) hypothesis.
     initial_ids = {h["id"] for h in initial}
     for child in evolved:
-        # Walk lineage back to an initial (gen 0).
-        root = _walk_to_root(hyps, child)
-        assert root["id"] in initial_ids
-        # Child's generation is parent's + 1.
-        parent_row = _by_id(hyps, child["parent_id"])
-        assert child["generation"] == parent_row["generation"] + 1
+        _assert_child_lineage(hyps, child, initial_ids)
 
-    # Initial titles/statements are unchanged after evolution.
+    # Initial titles/statements are unchanged after evolution. We have no
+    # pre-snapshot, so instead verify every initial hypothesis kept a
+    # distinct id -- i.e. evolved children sit alongside, not replacing.
     titles_after = {h["id"]: (h["title"], h["statement"]) for h in initial}
-    # Re-fetch and confirm equality with itself; we have no pre-snapshot, so
-    # instead verify that every evolved child has a distinct `id` from every
-    # initial — i.e. the engine did not overwrite parents in place.
-    for child in evolved:
-        assert child["id"] not in initial_ids
-
-    # And evolved children sit alongside, not replacing.
     assert len(titles_after) == len(initial)
 
 

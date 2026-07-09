@@ -194,6 +194,11 @@ def _build_tournament_pairings(
     return pairings
 
 
+def _format_judgment_explanation(judgment: dict[str, Any]) -> str:
+    """Combine a judgment_explanation dict's truthy values into one line."""
+    return " | ".join(f"{k}: {v}" for k, v in judgment.items() if v)
+
+
 def _extract_reasoning(response: dict[str, Any]) -> str:
     """Extracts the judge's reasoning text from a matchup response.
 
@@ -207,8 +212,8 @@ def _extract_reasoning(response: dict[str, Any]) -> str:
     reasoning: str = response.get("decision_summary", "")
     if not reasoning and "judgment_explanation" in response:
         # Fallback: combine judgment details if decision_summary is missing
-        judgment = response["judgment_explanation"]
-        reasoning = " | ".join([f"{k}: {v}" for k, v in judgment.items() if v])
+        reasoning = _format_judgment_explanation(
+            response["judgment_explanation"])
     if not reasoning:
         reasoning = "No reasoning provided"
     return reasoning

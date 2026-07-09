@@ -27,6 +27,23 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _hypothesis_texts(hypotheses: list[Hypothesis]) -> list[str]:
+    """Extract the .text field from a list of hypotheses."""
+    return [h.text for h in hypotheses]
+
+
+def _sample_up_to(pool: list[Hypothesis], count: int) -> list[Hypothesis]:
+    """Randomly sample up to count items from pool (all of it if smaller).
+
+    No-op (returns []) on an empty pool, matching the caller's original
+    `... if pool else []` short-circuit so no random state is consumed when
+    there is nothing to sample from.
+    """
+    if not pool:
+        return []
+    return random.sample(pool, min(count, len(pool)))
+
+
 def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
                               exclude_hypothesis: Hypothesis,
                               max_context: int = 15) -> list[str]:
@@ -49,7 +66,7 @@ def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
 
     if len(others) <= max_context:
         # Small pool, include all
-        return [h.text for h in others]
+        return _hypothesis_texts(others)
 
     # Sort by Elo rating (descending)
     others_sorted = rank_by_elo(others)
@@ -59,8 +76,7 @@ def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
     remaining = others_sorted[5:]
 
     # Sample up to 10 more from the rest
-    sample_count = min(10, len(remaining))
-    sampled_others = random.sample(remaining, sample_count) if remaining else []
+    sampled_others = _sample_up_to(remaining, 10)
 
     # Combine: top 5 + sampled 10 = max 15
     context_hypotheses = top_performers + sampled_others
@@ -69,7 +85,7 @@ def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
         "sampled %s context hypotheses (top 5 + %s random) from %s total",
         len(context_hypotheses), len(sampled_others), len(others))
 
-    return [h.text for h in context_hypotheses]
+    return _hypothesis_texts(context_hypotheses)
 
 
 def calculate_text_similarity(text1: str, text2: str) -> float:
@@ -203,6 +219,37 @@ def _build_meta_review_insights(meta_review: dict[str, Any]) -> str:
     )
 
 
+def _format_refinement_priorities(
+        evolution_phase: dict[str, Any]) -> str | None:
+    """Format the refinement-priorities guidance line, if present."""
+    priorities = evolution_phase.get("refinement_priorities")
+    if not priorities:
+        return None
+    if isinstance(priorities, list):
+        priorities = ", ".join(priorities)
+    return f"**Refinement Priorities:** {priorities}\n"
+
+
+def _format_iteration_strategy(evolution_phase: dict[str, Any]) -> str | None:
+    """Format the iteration-strategy guidance line, if present."""
+    strategy = evolution_phase.get("iteration_strategy")
+    if not strategy:
+        return None
+    return f"**Iteration Strategy:** {strategy}\n"
+
+
+def _format_evolution_guidance_lines(
+        evolution_phase: dict[str, Any]) -> list[str]:
+    """Format the non-empty evolution-phase guidance lines."""
+    lines = []
+    for formatter in (_format_refinement_priorities,
+                      _format_iteration_strategy):
+        section = formatter(evolution_phase)
+        if section:
+            lines.append(section)
+    return lines
+
+
 def _build_supervisor_guidance_text(
         supervisor_guidance: dict[str, Any] | None) -> str:
     """Formats the evolution-phase slice of supervisor guidance.
@@ -224,16 +271,8 @@ def _build_supervisor_guidance_text(
     if not evolution_phase:
         return ""
 
-    guidance_sections = []
-    guidance_sections.append("## Supervisor Guidance for Evolution\n")
-    if evolution_phase.get("refinement_priorities"):
-        priorities = evolution_phase["refinement_priorities"]
-        if isinstance(priorities, list):
-            priorities = ", ".join(priorities)
-        guidance_sections.append(f"**Refinement Priorities:** {priorities}\n")
-    if evolution_phase.get("iteration_strategy"):
-        strat = evolution_phase['iteration_strategy']
-        guidance_sections.append(f"**Iteration Strategy:** {strat}\n")
+    guidance_sections = ["## Supervisor Guidance for Evolution\n"]
+    guidance_sections.extend(_format_evolution_guidance_lines(evolution_phase))
     guidance_sections.append("\nUse this guidance to align your refinement"
                              " with the research plan.\n")
     return "".join(guidance_sections)

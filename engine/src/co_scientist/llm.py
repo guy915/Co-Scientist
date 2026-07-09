@@ -476,6 +476,63 @@ def _log_json_parse_failure_diagnostics(last_response_text: str) -> None:
         logger.error("Error during debugging: %s", debug_err)
 
 
+def _raise_validation_error(last_error: ValidationError,
+                            max_attempts: int) -> NoReturn:
+    """Re-raises a schema validation failure with an attempt-count message.
+
+    Args:
+        last_error: The schema validation failure to re-raise.
+        max_attempts: Total number of attempts made.
+
+    Raises:
+        ValidationError: Always.
+    """
+    raise ValidationError(
+        f"Schema validation failed after {max_attempts} attempts: "
+        f"{last_error.message}",
+        instance=last_error.instance,
+        schema=last_error.schema,
+        schema_path=last_error.schema_path,
+        path=last_error.path,
+    )
+
+
+def _json_decode_error_pos(last_error: Exception | None) -> int:
+    """Extracts a JSONDecodeError's character position, defaulting to 0.
+
+    Args:
+        last_error: The parse error to inspect, if any.
+
+    Returns:
+        ``last_error.pos`` when it is a ``json.JSONDecodeError``, else 0.
+    """
+    if isinstance(last_error, json.JSONDecodeError):
+        return last_error.pos
+    return 0
+
+
+def _raise_json_decode_error(
+    last_error: Exception | None,
+    last_response_text: str | None,
+    max_attempts: int,
+) -> NoReturn:
+    """Re-raises a parse failure with an attempt-count message.
+
+    Args:
+        last_error: The parse error to derive a position from, if any.
+        last_response_text: The last raw response text, if any was received.
+        max_attempts: Total number of attempts made.
+
+    Raises:
+        json.JSONDecodeError: Always.
+    """
+    raise json.JSONDecodeError(
+        f"Could not parse LLM response as JSON after {max_attempts} attempts",
+        last_response_text or "",
+        _json_decode_error_pos(last_error),
+    )
+
+
 def _raise_json_parse_error(
     last_error: Exception | None,
     last_response_text: str | None,
@@ -493,28 +550,8 @@ def _raise_json_parse_error(
         json.JSONDecodeError: Otherwise (parse failure, or no error captured).
     """
     if isinstance(last_error, ValidationError):
-        raise ValidationError(
-            f"Schema validation failed after {max_attempts} attempts: "
-            f"{last_error.message}",
-            instance=last_error.instance,
-            schema=last_error.schema,
-            schema_path=last_error.schema_path,
-            path=last_error.path,
-        )
-    elif isinstance(last_error, json.JSONDecodeError):
-        raise json.JSONDecodeError(
-            f"Could not parse LLM response as JSON after "
-            f"{max_attempts} attempts",
-            last_response_text or "",
-            last_error.pos if hasattr(last_error, "pos") else 0,
-        )
-    else:
-        raise json.JSONDecodeError(
-            f"Could not parse LLM response as JSON after "
-            f"{max_attempts} attempts",
-            last_response_text or "",
-            0,
-        )
+        _raise_validation_error(last_error, max_attempts)
+    _raise_json_decode_error(last_error, last_response_text, max_attempts)
 
 
 @dataclass

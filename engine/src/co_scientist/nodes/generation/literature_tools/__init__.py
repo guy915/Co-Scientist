@@ -25,6 +25,16 @@ from co_scientist.nodes.generation.literature_tools.validate import (
 logger = logging.getLogger(__name__)
 
 
+def _count_used_articles(articles: list[Any]) -> int:
+    """Count articles literature review actually read (used_in_analysis)."""
+    return sum(1 for art in articles if art.used_in_analysis)
+
+
+def _count_used_articles_with_pdfs(articles: list[Any]) -> int:
+    """Count analyzed articles that also carry full-text PDF links."""
+    return sum(1 for art in articles if art.used_in_analysis and art.pdf_links)
+
+
 def _log_warm_start_diagnostics(articles: list[Any] | None) -> None:
     """Log how much lit-review context is already warm-started for drafting.
 
@@ -40,15 +50,14 @@ def _log_warm_start_diagnostics(articles: list[Any] | None) -> None:
 
     # used_in_analysis marks articles literature review actually read (vs.
     # merely fetched), the real warm-start signal for drafting.
-    used_count = sum(1 for art in articles if art.used_in_analysis)
+    used_count = _count_used_articles(articles)
     logger.debug(
         "state.articles contains %s total articles,"
         " %s with used_in_analysis=True", len(articles), used_count)
     if used_count > 0:
         # Split further for logging only: PDF-backed articles carry full
         # text into the draft prompt; abstract-only ones carry less.
-        articles_with_pdfs = sum(
-            1 for art in articles if art.used_in_analysis and art.pdf_links)
+        articles_with_pdfs = _count_used_articles_with_pdfs(articles)
         logger.info(
             "Including %s analyzed articles in prompt"
             " (%s with PDFs, %s abstract-only)", used_count, articles_with_pdfs,

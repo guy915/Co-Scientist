@@ -70,6 +70,16 @@ def _substitute_env_vars_in_string(value: str) -> str:
     return re.sub(pattern, replacer, value)
 
 
+def _substitute_env_vars_in_dict(value: dict[str, Any]) -> dict[str, Any]:
+    """Recurse substitute_env_vars into every value of a dict."""
+    return {k: substitute_env_vars(v) for k, v in value.items()}
+
+
+def _substitute_env_vars_in_list(value: list[Any]) -> list[Any]:
+    """Recurse substitute_env_vars into every item of a list."""
+    return [substitute_env_vars(item) for item in value]
+
+
 def substitute_env_vars(value: Any) -> Any:
     """Substitute environment variables in a value.
 
@@ -83,17 +93,14 @@ def substitute_env_vars(value: Any) -> Any:
     Returns:
         Value with environment variables substituted
     """
+    # Recurse into nested dicts/lists so ${VAR} substitution reaches every
+    # string leaf in the merged YAML tree, not just top-level keys.
     if isinstance(value, str):
         return _substitute_env_vars_in_string(value)
-
-    elif isinstance(value, dict):
-        # Recurse into nested dicts/lists so ${VAR} substitution reaches
-        # every string leaf in the merged YAML tree, not just top-level keys.
-        return {k: substitute_env_vars(v) for k, v in value.items()}
-
-    elif isinstance(value, list):
-        return [substitute_env_vars(item) for item in value]
-
+    if isinstance(value, dict):
+        return _substitute_env_vars_in_dict(value)
+    if isinstance(value, list):
+        return _substitute_env_vars_in_list(value)
     return value
 
 
@@ -105,6 +112,43 @@ def parse_bool_env(value: str) -> bool:
     # and literature_review.py for COSCIENTIST_* env flags. Anything not in
     # this allowlist, including an empty string, parses as False.
     return value.lower() in ("true", "1", "yes", "on")
+
+
+def _both_dicts(existing: Any, value: Any) -> bool:
+    """True if both existing and value are dicts (mergeable, not replaced)."""
+    return isinstance(value, dict) and isinstance(existing, dict)
+
+
+def _both_lists_to_extend(existing: Any, value: Any, strategy: str) -> bool:
+    """True if strategy is "extend" and both existing and value are lists."""
+    return (strategy == "extend" and isinstance(value, list) and
+            isinstance(existing, list))
+
+
+def _determine_merge_strategy(user: dict[str, Any] | None,
+                              custom: dict[str, Any] | None) -> str:
+    """Pick the merge_strategy declared by custom or user config settings.
+
+    The overlay that actually sets settings.merge_strategy wins: custom is
+    checked first (and used if present) so a custom config's choice
+    overrides a user config's, even though custom is merged in after.
+
+    Args:
+        user: Parsed user config dict, or None if absent.
+        custom: Parsed custom config dict, or None if absent.
+
+    Returns:
+        The declared merge_strategy, or "override" if neither config
+        declares one.
+    """
+    if custom and "settings" in custom:
+        strategy: str = custom.get("settings", {}).get("merge_strategy",
+                                                       "override")
+        return strategy
+    if user and "settings" in user:
+        strategy = user.get("settings", {}).get("merge_strategy", "override")
+        return strategy
+    return "override"
 
 
 class ToolRegistry:
@@ -258,18 +302,7 @@ class ToolRegistry:
         Priority: custom > user > default
         """
         result = dict(default)
-
-        # Determine merge strategy (from user or custom config)
-        # The overlay that actually sets settings.merge_strategy wins: custom
-        # is checked first (and used if present) so a custom config's choice
-        # overrides a user config's, even though custom is merged in after.
-        strategy = "override"
-        if custom and "settings" in custom:
-            strategy = custom.get("settings", {}).get("merge_strategy",
-                                                      "override")
-        elif user and "settings" in user:
-            strategy = user.get("settings", {}).get("merge_strategy",
-                                                    "override")
+        strategy = _determine_merge_strategy(user, custom)
 
         # Apply user config
         if user:
@@ -314,12 +347,11 @@ class ToolRegistry:
         Returns:
             The value the key should take after merging.
         """
-        if isinstance(value, dict) and isinstance(existing, dict):
+        if _both_dicts(existing, value):
             return self._merge_dict(existing, value, strategy)
         if strategy == "override":
             return value
-        if (strategy == "extend" and isinstance(value, list) and
-                isinstance(existing, list)):
+        if _both_lists_to_extend(existing, value, strategy):
             return existing + value
         # For non-lists, extend doesn't replace existing values.
         return existing
@@ -378,7 +410,19 @@ class ToolRegistry:
             return []
 
         # Get all referenced tools, filtering to only enabled ones
-        tool_ids = workflow.get_all_tools()
+        return self._enabled_tool_ids(workflow.get_all_tools(), workflow_name)
+
+    def _enabled_tool_ids(self, tool_ids: list[str],
+                          workflow_name: str) -> list[str]:
+        """Filter tool_ids down to enabled tools, logging skipped ones.
+
+        Args:
+            tool_ids: Tool IDs referenced by a workflow.
+            workflow_name: Name of the workflow, used for the debug log.
+
+        Returns:
+            The subset of tool_ids that resolve to an enabled tool.
+        """
         enabled_ids = []
         for tool_id in tool_ids:
             tool = self.get_tool(tool_id)

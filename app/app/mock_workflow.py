@@ -794,6 +794,53 @@ async def _run_evolve_and_meta_review_round(
     )
 
 
+def _is_cancelled(cancelled: asyncio.Event | None) -> bool:
+    """True if a cancellation event has been set."""
+    return bool(cancelled and cancelled.is_set())
+
+
+async def _emit_cancelled_if_set(
+    run_id: str,
+    db_path: str | None,
+    cancelled: asyncio.Event | None,
+    emit: EmitFn,
+) -> dict[str, Any] | None:
+    """If cancellation is set, persist and emit the terminal event.
+
+    Returns the emitted "status": "cancelled" event, or None if cancellation
+    has not been requested.
+    """
+    if not _is_cancelled(cancelled):
+        return None
+    store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
+    return await emit("status", {"status": "cancelled"})
+
+
+async def _maybe_evolve_and_meta_review_round(
+    should_run: bool,
+    run_id: str,
+    research_goal: str,
+    db_path: str | None,
+    rng: random.Random,
+    hyp_ids: list[str],
+    elo_state: dict[str, int],
+    evolution_max_count: int,
+    itr: int,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Run the evolve/meta-review round when `should_run`, else yield nothing.
+
+    `should_run` is false only for the trailing ranking-only pass after the
+    last iteration, so evolve/meta never runs beyond `max_iterations`.
+    """
+    if not should_run:
+        return
+    async for event in _run_evolve_and_meta_review_round(
+            run_id, research_goal, db_path, rng, hyp_ids, elo_state,
+            evolution_max_count, itr, emit):
+        yield event
+
+
 async def _run_tournament_iterations(
     run_id: str,
     research_goal: str,
@@ -826,20 +873,18 @@ async def _run_tournament_iterations(
                                            cfg["k_factor"])
         yield await emit("ranking", _ranking_round_payload(itr, round_matches))
 
-        if cancelled and cancelled.is_set():
-            store.update_run_status(run_id,
-                                    RunStatus.CANCELLED,
-                                    db_path=db_path)
-            yield await emit("status", {"status": "cancelled"})
+        cancelled_event = await _emit_cancelled_if_set(run_id, db_path,
+                                                       cancelled, emit)
+        if cancelled_event is not None:
+            yield cancelled_event
             return
 
         # Only run evolve/meta inside iterations, not after the final
         # ranking pass.
-        if itr <= cfg["max_iterations"]:
-            async for event in _run_evolve_and_meta_review_round(
-                    run_id, research_goal, db_path, rng, hyp_ids, elo_state,
-                    cfg["evolution_max_count"], itr, emit):
-                yield event
+        async for event in _maybe_evolve_and_meta_review_round(
+                itr <= cfg["max_iterations"], run_id, research_goal, db_path,
+                rng, hyp_ids, elo_state, cfg["evolution_max_count"], itr, emit):
+            yield event
 
 
 def _fetch_top_hypotheses(db_path: str | None, leaderboard_ids: list[str],
@@ -1015,6 +1060,60 @@ def _seed_tournament_round(
     return elo_state, title_by_id, pairs
 
 
+async def _run_tournament_and_finalize(
+    run_id: str,
+    research_goal: str,
+    run_mode: str,
+    db_path: str | None,
+    rng: random.Random,
+    cfg: dict[str, Any],
+    pairs: list[tuple[str, str]],
+    elo_state: dict[str, int],
+    title_by_id: dict[str, str],
+    hyp_ids: list[str],
+    evidence_payload: list[dict[str, Any]],
+    *,
+    cancelled: asyncio.Event | None,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Run the tournament iterations, then finalize unless cancelled midway.
+
+    Skips finalization entirely if cancellation is set once the tournament
+    iterations finish; `_run_tournament_iterations` already emitted its own
+    terminal "cancelled" status event in that case.
+    """
+    async for event in _run_tournament_iterations(
+            run_id,
+            research_goal,
+            db_path,
+            rng,
+            cfg,
+            pairs,
+            elo_state,
+            title_by_id,
+            hyp_ids,
+            cancelled=cancelled,
+            emit=emit,
+    ):
+        yield event
+    if _is_cancelled(cancelled):
+        return
+
+    # ---- 10-14. Deep verification, citation audit, and final report ----
+    async for event in _finalize_mock_run(
+            run_id,
+            research_goal,
+            run_mode,
+            db_path,
+            rng,
+            hyp_ids,
+            elo_state,
+            evidence_payload,
+            emit,
+    ):
+        yield event
+
+
 async def run_mock_workflow(
     run_id: str,
     research_goal: str,
@@ -1034,10 +1133,6 @@ async def run_mock_workflow(
     run_mode = CANONICAL_RUN_MODE
     cfg = config
     rng = _seeded_rng("mock", run_id, research_goal, run_mode)
-
-    def _check_cancel() -> bool:
-        return bool(cancelled and cancelled.is_set())
-
     emit = make_emitter(run_id, db_path=db_path, sleep_seconds=sleep_seconds)
 
     # ---- 1-6. Mark running through proximity/clustering ----
@@ -1058,7 +1153,7 @@ async def run_mock_workflow(
             hyp_payloads=hyp_payloads,
     ):
         yield event
-    if _check_cancel():
+    if _is_cancelled(cancelled):
         # _run_seed_stages already emitted the "cancelled" status event; skip
         # ranking/evolution/finalization on a cancelled run.
         return
@@ -1067,10 +1162,11 @@ async def run_mock_workflow(
     elo_state, title_by_id, pairs = _seed_tournament_round(
         hyp_ids, hyp_payloads, rng, cfg["tournament_pairs"])
 
-    # ---- 8-9. Ranking/evolve/meta-review iterations ----
-    async for event in _run_tournament_iterations(
+    # ---- 8-14. Ranking/evolve/meta-review iterations, then finalization ----
+    async for event in _run_tournament_and_finalize(
         run_id,
         research_goal,
+        run_mode,
         db_path,
         rng,
         cfg,
@@ -1078,25 +1174,8 @@ async def run_mock_workflow(
         elo_state,
         title_by_id,
         hyp_ids,
+        evidence_payload,
         cancelled=cancelled,
         emit=emit,
-    ):
-        yield event
-    if _check_cancel():
-        # _run_tournament_iterations already emitted the "cancelled" status
-        # event; skip deep verification/citation/report on a cancelled run.
-        return
-
-    # ---- 10-14. Deep verification, citation audit, and final report ----
-    async for event in _finalize_mock_run(
-            run_id,
-            research_goal,
-            run_mode,
-            db_path,
-            rng,
-            hyp_ids,
-            elo_state,
-            evidence_payload,
-            emit,
     ):
         yield event

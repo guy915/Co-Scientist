@@ -55,6 +55,37 @@ def _declared_field_kwargs(
     return {key: value for key, value in data.items() if key in names}
 
 
+def _apply_placeholder_match(resolved_value: Any, match: str, value: str,
+                             context: dict[str,
+                                           Any], *, preserve_type: bool) -> Any:
+    """Fold one matched placeholder's substitution into resolved_value.
+
+    Args:
+        resolved_value: Substitution result accumulated from earlier
+            matches (or the original value, for the first match).
+        match: Placeholder name found in value.
+        value: The original (pre-substitution) string; used to test
+            whether it consists of exactly this one placeholder.
+        context: Runtime values keyed by placeholder name.
+        preserve_type: See _substitute_placeholders.
+
+    Returns:
+        resolved_value unchanged if match is absent from context;
+        otherwise resolved_value with this placeholder substituted.
+    """
+    if match not in context:
+        return resolved_value
+    context_val = context[match]
+    # A value that is *only* "{placeholder}" preserves the context value's
+    # original type (e.g. a list stays a list); a placeholder embedded in a
+    # larger string is necessarily stringified via str.replace.
+    if preserve_type and value == f"{{{match}}}":
+        return context_val
+    return resolved_value.replace(
+        f"{{{match}}}",
+        str(context_val) if not isinstance(context_val, str) else context_val)
+
+
 def _substitute_placeholders(value: str, context: dict[str, Any],
                              placeholder_pattern: "re.Pattern[str]", *,
                              preserve_type: bool) -> Any:
@@ -81,22 +112,44 @@ def _substitute_placeholders(value: str, context: dict[str, Any],
 
     resolved_value: Any = value
     for match in matches:
-        if match not in context:
-            continue
-        context_val = context[match]
-        # A value that is *only* "{placeholder}" preserves the context
-        # value's original type (e.g. a list stays a list); a placeholder
-        # embedded in a larger string is necessarily stringified via
-        # str.replace.
-        if preserve_type and value == f"{{{match}}}":
-            resolved_value = context_val
-        else:
-            resolved_value = resolved_value.replace(
-                f"{{{match}}}",
-                str(context_val)
-                if not isinstance(context_val, str) else context_val)
+        resolved_value = _apply_placeholder_match(resolved_value,
+                                                  match,
+                                                  value,
+                                                  context,
+                                                  preserve_type=preserve_type)
 
     return resolved_value
+
+
+def _resolve_content_param_value(value: Any, context: dict[str, Any],
+                                 placeholder_pattern: "re.Pattern[str]") -> Any:
+    """Resolve one content_params value: a string, a list, or passthrough.
+
+    Args:
+        value: A single content_params value (string, list, or other).
+        context: Runtime context containing values to substitute.
+        placeholder_pattern: Compiled pattern matching a bare placeholder.
+
+    Returns:
+        The value with placeholders substituted; unchanged for non-string,
+        non-list values (numbers, bools, dicts -- dicts are not recursed
+        into).
+    """
+    if isinstance(value, str):
+        return _substitute_placeholders(value,
+                                        context,
+                                        placeholder_pattern,
+                                        preserve_type=True)
+    if not isinstance(value, list):
+        return value
+    # Resolve each item in the list. Note: unlike the string case above,
+    # list items never preserve_type, since a list of placeholders is
+    # inherently a list of strings.
+    return [
+        _substitute_placeholders(
+            item, context, placeholder_pattern, preserve_type=False)
+        if isinstance(item, str) else item for item in value
+    ]
 
 
 def resolve_content_params(params: dict[str, Any],
@@ -122,26 +175,9 @@ def resolve_content_params(params: dict[str, Any],
     resolved: dict[str, Any] = {}
     placeholder_pattern = re.compile(r'\{(\w+)\}')
 
-    # Dispatch by value type: strings may embed placeholders, lists resolve
-    # placeholders item-by-item, and anything else (numbers, bools, dicts)
-    # passes through unchanged; nested dicts are not recursed into.
     for key, value in params.items():
-        if isinstance(value, str):
-            resolved[key] = _substitute_placeholders(value,
-                                                     context,
-                                                     placeholder_pattern,
-                                                     preserve_type=True)
-        elif isinstance(value, list):
-            # Resolve each item in list. Note: unlike the string case above,
-            # list items never preserve_type, since a list of placeholders
-            # is inherently a list of strings.
-            resolved[key] = [
-                _substitute_placeholders(
-                    item, context, placeholder_pattern, preserve_type=False)
-                if isinstance(item, str) else item for item in value
-            ]
-        else:
-            resolved[key] = value
+        resolved[key] = _resolve_content_param_value(value, context,
+                                                     placeholder_pattern)
 
     return resolved
 
@@ -398,6 +434,23 @@ class SearchSourceConfig:
                    **_declared_field_kwargs(cls, data, exclude=("tool",)))
 
 
+def _search_source_tool_ids(sources: list["SearchSourceConfig"]) -> list[str]:
+    """Collect the search and content tool IDs referenced by sources.
+
+    Args:
+        sources: A workflow's configured multi-source search_sources.
+
+    Returns:
+        Each source's tool id, followed by its content_tool id when set.
+    """
+    tool_ids = []
+    for source in sources:
+        tool_ids.append(source.tool)
+        if source.content_tool:
+            tool_ids.append(source.content_tool)
+    return tool_ids
+
+
 @dataclass
 class WorkflowConfig:
     """Configuration for a workflow phase.
@@ -476,22 +529,15 @@ class WorkflowConfig:
 
     def get_all_tools(self) -> list[str]:
         """Get all tool IDs referenced in this workflow."""
-        tools = []
-        if self.primary_search:
-            tools.append(self.primary_search)
-        if self.fallback_search:
-            tools.append(self.fallback_search)
-        if self.availability_check:
-            tools.append(self.availability_check)
-        if self.query_generation_tool:
-            tools.append(self.query_generation_tool)
-        if self.content_tool:
-            tools.append(self.content_tool)
-        # Add tools from search_sources
-        for source in self.search_sources:
-            tools.append(source.tool)
-            if source.content_tool:
-                tools.append(source.content_tool)
+        single_tool_fields = (
+            self.primary_search,
+            self.fallback_search,
+            self.availability_check,
+            self.query_generation_tool,
+            self.content_tool,
+        )
+        tools = [tool_id for tool_id in single_tool_fields if tool_id]
+        tools.extend(_search_source_tool_ids(self.search_sources))
         tools.extend(self.search_tools)
         tools.extend(self.read_tools)
         tools.extend(self.utility_tools)

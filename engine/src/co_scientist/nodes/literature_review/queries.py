@@ -6,7 +6,7 @@ prompt (and finally to the raw research goal).
 """
 
 import logging
-from typing import cast
+from typing import cast, Optional, TYPE_CHECKING
 
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
@@ -23,6 +23,9 @@ from co_scientist.nodes.literature_review.helpers import (
     determine_query_source_type,
     parse_mcp_query_result,
 )
+
+if TYPE_CHECKING:
+    from co_scientist.config import WorkflowConfig
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +96,31 @@ async def _generate_queries_via_llm(
         return []
 
 
+def _resolve_query_format(workflow: "WorkflowConfig") -> str:
+    """Resolve the configured query format, defaulting to "boolean"."""
+    return workflow.query_format or "boolean"
+
+
+def _resolve_query_generation_tool(
+    config: SearchConfig,) -> Optional[tuple[str, str]]:
+    """Resolve the configured MCP query-generation (tool_name, query_format).
+
+    Returns None when no query_generation_tool is configured (or its tool
+    config can't be resolved), which signals the caller to fall through to
+    LLM-based generation.
+    """
+    if not (config.tool_registry and config.workflow and
+            config.workflow.query_generation_tool):
+        return None
+
+    tool_cfg = config.tool_registry.get_tool(
+        config.workflow.query_generation_tool)
+    if not tool_cfg:
+        return None
+
+    return tool_cfg.mcp_tool_name, _resolve_query_format(config.workflow)
+
+
 async def _try_mcp_query_generation(
     state: WorkflowState,
     config: SearchConfig,
@@ -104,22 +132,17 @@ async def _try_mcp_query_generation(
     its tool config can't be resolved), which signals the caller to fall
     through to LLM-based generation.
     """
-    if not (config.tool_registry and config.workflow and
-            config.workflow.query_generation_tool):
+    resolved = _resolve_query_generation_tool(config)
+    if not resolved:
         return []
 
-    tool_cfg = config.tool_registry.get_tool(
-        config.workflow.query_generation_tool)
-    if not tool_cfg:
-        return []
-
-    query_format = config.workflow.query_format or "boolean"
-    logger.info("Using MCP query generation: %s (format: %s)",
-                tool_cfg.mcp_tool_name, query_format)
+    tool_name, query_format = resolved
+    logger.info("Using MCP query generation: %s (format: %s)", tool_name,
+                query_format)
     return await _generate_queries_via_mcp(
         mcp_client,
         state["research_goal"],
-        tool_cfg.mcp_tool_name,
+        tool_name,
         query_format,
     )
 

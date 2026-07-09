@@ -7,6 +7,7 @@ to the same default run mode.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
@@ -222,6 +223,46 @@ def _apply_numeric_override(base: dict[str, Any], key: str,
     base[key] = max(base[key], value) if key in base else value
 
 
+def _apply_setup_override(base: dict[str, Any], unused_key: str,
+                          raw_value: Any) -> None:
+    """Carry the setup block through verbatim, in place."""
+    base["setup"] = raw_value
+
+
+def _apply_tier_override(unused_base: dict[str, Any], unused_key: str,
+                         unused_raw_value: Any) -> None:
+    """No-op: tier is resolved once, before overrides are applied.
+
+    The final tier assignment in `resolved_run_config` always wins, so this
+    skips the numeric path (`int("standard")` would raise anyway).
+    """
+
+
+def _apply_focus_override(base: dict[str, Any], unused_key: str,
+                          raw_value: Any) -> None:
+    """Normalize and merge the focus override into `base`, in place."""
+    base["focus"] = normalize_run_focus(
+        raw_value if isinstance(raw_value, str) else None)
+
+
+def _apply_literature_review_override(base: dict[str, Any], unused_key: str,
+                                      raw_value: Any) -> None:
+    """Coerce and merge the literature-review toggle into `base`, in place."""
+    base["enable_literature_review"] = bool(raw_value)
+
+
+# Per-key override handlers; any key without a dedicated handler is a
+# numeric knob and falls back to `_apply_numeric_override`. Every handler
+# shares `_apply_numeric_override`'s (base, key, raw_value) signature so the
+# dispatcher below can call whichever one it finds uniformly.
+_OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
+    "setup": _apply_setup_override,
+    "tier": _apply_tier_override,
+    "focus": _apply_focus_override,
+    "enable_literature_review": _apply_literature_review_override,
+}
+
+
 def _apply_run_config_override(base: dict[str, Any], key: str,
                                raw_value: Any) -> None:
     """Merge one (key, raw_value) override pair into `base`, in place.
@@ -231,22 +272,8 @@ def _apply_run_config_override(base: dict[str, Any], key: str,
         key: The override key, e.g. 'focus' or a numeric knob name.
         raw_value: The raw override value, as received from the caller.
     """
-    if key == "setup":
-        # The setup block is carried through verbatim.
-        base[key] = raw_value
-        return
-    if key == "tier":
-        # Resolved once, before this call; the final assignment always wins,
-        # so skip the numeric path (int("standard") would raise anyway).
-        return
-    if key == "focus":
-        base[key] = normalize_run_focus(
-            raw_value if isinstance(raw_value, str) else None)
-        return
-    if key == "enable_literature_review":
-        base[key] = bool(raw_value)
-        return
-    _apply_numeric_override(base, key, raw_value)
+    handler = _OVERRIDE_HANDLERS.get(key, _apply_numeric_override)
+    handler(base, key, raw_value)
 
 
 def _resolve_tier_override(overrides: dict[str, Any] | None) -> str:

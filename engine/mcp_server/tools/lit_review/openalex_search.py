@@ -75,6 +75,22 @@ def _work_short_id(work: dict[str, Any]) -> str:
     return raw_id.rsplit("/", 1)[-1]
 
 
+def _author_display_name(authorship: Any) -> str:
+    """Extracts one authorship entry's display name, defaulting to "".
+
+    Args:
+        authorship: A single entry from a work's ``authorships`` list.
+
+    Returns:
+        The author's display name, or "" if the entry is not a dict or
+        has no display name.
+    """
+    if not isinstance(authorship, dict):
+        return ""
+    name = (authorship.get("author") or {}).get("display_name", "")
+    return name if isinstance(name, str) else ""
+
+
 def _work_authors(work: dict[str, Any]) -> list[str]:
     """Extracts non-empty author display names from a work record.
 
@@ -84,10 +100,23 @@ def _work_authors(work: dict[str, Any]) -> list[str]:
     Returns:
         List of author display names, dropping any empty entries.
     """
-    authors = [(a.get("author") or {}).get("display_name", "")
-               for a in (work.get("authorships") or [])
-               if isinstance(a, dict)]
-    return [a for a in authors if a]
+    names = (_author_display_name(a) for a in work.get("authorships") or [])
+    return [name for name in names if name]
+
+
+def _first_truthy(*values: str | None) -> str:
+    """Returns the first truthy value among ``values``, or "" if none.
+
+    Args:
+        values: Candidate values in priority order.
+
+    Returns:
+        The first truthy value, or "" if all are falsy/None.
+    """
+    for value in values:
+        if value:
+            return value
+    return ""
 
 
 def _work_url(work: dict[str, Any]) -> str:
@@ -106,7 +135,7 @@ def _work_url(work: dict[str, Any]) -> str:
     landing_page = (location.get("landing_page_url") if isinstance(
         location, dict) else None)
     raw_id = str(work.get("id") or "")
-    return landing_page or work.get("doi") or raw_id
+    return _first_truthy(landing_page, work.get("doi"), raw_id)
 
 
 def _build_work_metadata(work: dict[str, Any]) -> dict[str, Any]:
@@ -129,6 +158,35 @@ def _build_work_metadata(work: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _works_results(data: dict[str, Any]) -> list[Any]:
+    """Extracts the raw ``results`` list from an OpenAlex /works response.
+
+    Args:
+        data: Parsed JSON from the OpenAlex works endpoint.
+
+    Returns:
+        The response's ``results`` list, or [] if absent/malformed.
+    """
+    results = data.get("results") if isinstance(data, dict) else None
+    return results if isinstance(results, list) else []
+
+
+def _add_normalized_work(out: dict[str, Any], work: Any) -> None:
+    """Normalizes one work record into ``out``, keyed by its short id.
+
+    Args:
+        out: Output dict, mutated in place with the normalized entry.
+        work: A single, not-yet-validated entry from a /works response's
+            ``results`` list.
+    """
+    if not isinstance(work, dict):
+        return
+    work_id = _work_short_id(work)
+    if not work_id:
+        return
+    out[work_id] = _build_work_metadata(work)
+
+
 def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
     """Normalize an OpenAlex /works response into ``{work_id: metadata}``.
 
@@ -143,16 +201,8 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
         authors, year, abstract, url, and source.
     """
     out: dict[str, Any] = {}
-    results = data.get("results") if isinstance(data, dict) else None
-    if not isinstance(results, list):
-        return out
-    for work in results[:max(max_papers, 0)]:
-        if not isinstance(work, dict):
-            continue
-        work_id = _work_short_id(work)
-        if not work_id:
-            continue
-        out[work_id] = _build_work_metadata(work)
+    for work in _works_results(data)[:max(max_papers, 0)]:
+        _add_normalized_work(out, work)
     return out
 
 

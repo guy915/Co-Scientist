@@ -69,6 +69,41 @@ async def _seed_demo_run(
     logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)
 
 
+def _runs_by_goal(runs: list[RunRow]) -> dict[str, RunRow]:
+    """Index demo run rows by their research goal for lookup."""
+    return {r.research_goal: r for r in runs}
+
+
+def _has_readable_report(run: RunRow, db_path: str | None) -> bool:
+    """True if `run` already has a persisted, readable report markdown."""
+    return store.read_report_markdown(run.id, db_path=db_path) is not None
+
+
+async def _seed_or_reseed_demo_run(
+    goal: str,
+    run: RunRow | None,
+    db_path: str | None,
+) -> None:
+    """Seed `goal`, skipping any existing run that already has a report.
+
+    A failed seed must not take down app startup; it is logged and swallowed
+    here so the caller can move on to the next demo goal.
+    """
+    if run is not None:
+        if _has_readable_report(run, db_path):
+            logger.info("demo run %s already has a report, skipping",
+                        run.id[:8])
+            return
+        logger.info(
+            "demo run %s exists but has no readable report; re-seeding",
+            run.id[:8],
+        )
+    try:
+        await _seed_demo_run(goal, run, db_path)
+    except Exception:  # pylint: disable=broad-exception-caught
+        logger.exception("Failed to seed demo run for goal: %.60s", goal)
+
+
 async def seed_demo_runs(db_path: str | None = None) -> None:
     """Seed demo runs if they are not already present.
 
@@ -77,26 +112,8 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     .md files before the markdown_text column was added).
     """
     existing = store.list_runs(client_id=DEMO_CLIENT_ID, db_path=db_path)
-    existing_by_goal = {r.research_goal: r for r in existing}
+    existing_by_goal = _runs_by_goal(existing)
 
     for goal in _DEMO_GOALS:
-        run = existing_by_goal.get(goal)
-        if run is not None:
-            # Check whether the report is readable; skip if it is.
-            md = store.read_report_markdown(run.id, db_path=db_path)
-            if md is not None:
-                logger.info(
-                    "demo run %s already has a report, skipping",
-                    run.id[:8],
-                )
-                continue
-            logger.info(
-                "demo run %s exists but has no readable report; re-seeding",
-                run.id[:8],
-            )
-        try:
-            await _seed_demo_run(goal, run, db_path)
-        except Exception:  # pylint: disable=broad-exception-caught
-            # A failed seed must not take down app startup; log and move on
-            # to the next demo goal.
-            logger.exception("Failed to seed demo run for goal: %.60s", goal)
+        await _seed_or_reseed_demo_run(goal, existing_by_goal.get(goal),
+                                       db_path)
