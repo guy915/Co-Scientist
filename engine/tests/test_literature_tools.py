@@ -30,10 +30,15 @@ from co_scientist.constants import corpus_slug
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.nodes.generation.literature_tools import draft as draft_mod
-from co_scientist.nodes.generation.literature_tools import validate as validate_mod
-from co_scientist.nodes.generation.literature_tools.draft import draft_hypotheses
+from co_scientist.nodes.generation.literature_tools import (
+    validate as validate_mod,
+)
+from co_scientist.nodes.generation.literature_tools.draft import (
+    draft_hypotheses,
+)
 from co_scientist.nodes.generation.literature_tools.validate import (
-    validate_hypotheses,)
+    validate_hypotheses,
+)
 from tests._state import make_state
 
 # -----------------------------------------------------------------------------
@@ -81,8 +86,9 @@ def _disable_registry(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config_mod, "get_tool_registry", _raise)
 
 
-def _stub_draft_llm(monkeypatch: pytest.MonkeyPatch,
-                    final_response: str) -> None:
+def _stub_draft_llm(
+    monkeypatch: pytest.MonkeyPatch, final_response: str
+) -> None:
     """Stub ``draft.call_llm_with_tools`` to return a fixed final response."""
 
     async def fake(**_: Any) -> tuple[str, list[Any]]:
@@ -143,7 +149,8 @@ async def test_draft_strips_json_fence(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_draft_repairs_trailing_comma(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A malformed response with a trailing comma is repaired, not rejected."""
     _disable_registry(monkeypatch)
     # Trailing comma after the array element -- invalid JSON that
@@ -162,7 +169,8 @@ async def test_draft_repairs_trailing_comma(
 
 
 async def test_draft_missing_drafts_key_defaults_empty(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A well-formed object lacking a 'drafts' key defaults to an empty list."""
     _disable_registry(monkeypatch)
     _stub_draft_llm(monkeypatch, json.dumps({"notes": "no drafts here"}))
@@ -178,7 +186,8 @@ async def test_draft_missing_drafts_key_defaults_empty(
 
 
 async def test_draft_unparseable_response_raises(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A response surviving every repair attempt raises ResponseParseError."""
     _disable_registry(monkeypatch)
     # No braces anywhere: attempt_json_repair cannot recover a dict.
@@ -207,8 +216,9 @@ def test_corpus_slug_is_deterministic() -> None:
 # -----------------------------------------------------------------------------
 
 
-def _stub_synthesis_llm(monkeypatch: pytest.MonkeyPatch,
-                        hypotheses: list[dict[str, Any]]) -> None:
+def _stub_synthesis_llm(
+    monkeypatch: pytest.MonkeyPatch, hypotheses: list[dict[str, Any]]
+) -> None:
     """Stub ``validate.call_llm_with_tools`` (the synthesis pass)."""
 
     async def fake(**_: Any) -> tuple[str, list[Any]]:
@@ -218,7 +228,8 @@ def _stub_synthesis_llm(monkeypatch: pytest.MonkeyPatch,
 
 
 async def test_validate_builds_literature_tools_hypotheses(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Synthesis output is assembled into LITERATURE_TOOLS Hypothesis objects.
 
     Papers search returns empty, so the novelty pass is skipped and only the
@@ -243,14 +254,8 @@ async def test_validate_builds_literature_tools_hypotheses(
     ]
     _stub_synthesis_llm(monkeypatch, synthesis)
     drafts = [
-        {
-            "text": "draft one",
-            "gap_reasoning": "gap a"
-        },
-        {
-            "text": "draft two",
-            "gap_reasoning": "gap b"
-        },
+        {"text": "draft one", "gap_reasoning": "gap a"},
+        {"text": "draft two", "gap_reasoning": "gap b"},
     ]
 
     result = await validate_hypotheses(
@@ -262,8 +267,9 @@ async def test_validate_builds_literature_tools_hypotheses(
 
     assert len(result) == 2
     assert all(isinstance(h, Hypothesis) for h in result)
-    assert all(h.generation_method == GenerationMethod.LITERATURE_TOOLS
-               for h in result)
+    assert all(
+        h.generation_method == GenerationMethod.LITERATURE_TOOLS for h in result
+    )
     assert result[0].text == "alpha kinase drives resistance"
     assert result[0].experiment == "run the kinase assay"
     assert result[0].novelty_validation == "no exact prior match found"
@@ -273,7 +279,8 @@ async def test_validate_builds_literature_tools_hypotheses(
 
 
 async def test_validate_runs_novelty_pass_when_papers_found(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A populated paper search drives the parallel per-paper novelty pass.
 
     This exercises ``call_llm_json`` (the novelty seam) for real, which the
@@ -295,17 +302,20 @@ async def test_validate_runs_novelty_pass_when_papers_found(
         return {"novelty_assessment": "novel", "key_findings": "kf"}
 
     monkeypatch.setattr(validate_mod, "call_llm_json", fake_novelty)
-    _stub_synthesis_llm(monkeypatch, [{
-        "hypothesis": "alpha hypothesis validated",
-        "explanation": "fits",
-        "experiment": "assay",
-    }])
+    _stub_synthesis_llm(
+        monkeypatch,
+        [
+            {
+                "hypothesis": "alpha hypothesis validated",
+                "explanation": "fits",
+                "experiment": "assay",
+            }
+        ],
+    )
 
     result = await validate_hypotheses(
         state=make_state(),
-        draft_hypotheses=[{
-            "text": "alpha draft"
-        }],
+        draft_hypotheses=[{"text": "alpha draft"}],
         mcp_client=_FakeMcpClient(papers=papers),
         tool_registry=None,
     )
@@ -318,7 +328,8 @@ async def test_validate_runs_novelty_pass_when_papers_found(
 
 
 async def test_validate_empty_drafts_returns_empty(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """No drafts means no synthesis batches and an empty result list."""
     _disable_registry(monkeypatch)
 
@@ -343,19 +354,23 @@ async def test_validate_empty_drafts_returns_empty(
 
 
 async def test_validate_text_fallback_key(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Synthesis output using 'text' (not 'hypothesis') is still assembled."""
     _disable_registry(monkeypatch)
-    _stub_synthesis_llm(monkeypatch, [{
-        "text": "fallback-keyed hypothesis",
-        "explanation": "uses text key",
-    }])
+    _stub_synthesis_llm(
+        monkeypatch,
+        [
+            {
+                "text": "fallback-keyed hypothesis",
+                "explanation": "uses text key",
+            }
+        ],
+    )
 
     result = await validate_hypotheses(
         state=make_state(),
-        draft_hypotheses=[{
-            "text": "d"
-        }],
+        draft_hypotheses=[{"text": "d"}],
         mcp_client=_FakeMcpClient(papers={}),
         tool_registry=None,
     )
@@ -366,28 +381,29 @@ async def test_validate_text_fallback_key(
 
 
 async def test_validate_resolves_citation_map(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A [C*] key in the grounding resolves against the reference index."""
     _disable_registry(monkeypatch)
-    _stub_synthesis_llm(monkeypatch, [{
-        "hypothesis": "cited hypothesis",
-        "explanation": "fits",
-        "literature_grounding": "as shown in [C1] the effect holds",
-        "experiment": "assay",
-    }])
+    _stub_synthesis_llm(
+        monkeypatch,
+        [
+            {
+                "hypothesis": "cited hypothesis",
+                "explanation": "fits",
+                "literature_grounding": "as shown in [C1] the effect holds",
+                "experiment": "assay",
+            }
+        ],
+    )
     ref_index = _FakeReferenceIndex(
         text="[C1] Smith 2020",
-        sources={"C1": {
-            "type": "paper",
-            "title": "Smith 2020"
-        }},
+        sources={"C1": {"type": "paper", "title": "Smith 2020"}},
     )
 
     result = await validate_hypotheses(
         state=make_state(),
-        draft_hypotheses=[{
-            "text": "d"
-        }],
+        draft_hypotheses=[{"text": "d"}],
         mcp_client=_FakeMcpClient(papers={}),
         tool_registry=None,
         reference_index=ref_index,
@@ -395,8 +411,5 @@ async def test_validate_resolves_citation_map(
 
     assert len(result) == 1
     assert result[0].citation_map == {
-        "C1": {
-            "type": "paper",
-            "title": "Smith 2020"
-        }
+        "C1": {"type": "paper", "title": "Smith 2020"}
     }

@@ -1,12 +1,15 @@
-"""Prompt builders for the supervisor, meta-review, and research-overview
-nodes.
+"""Prompt builders for the planning-oriented nodes.
+
+Covers the supervisor, meta-review, and research-overview nodes.
 """
 # pylint: disable=inconsistent-quotes
 
 from typing import Any
 
-from co_scientist.prompts._common import _format_meta_review_context
-from co_scientist.prompts._common import _format_run_guidance
+from co_scientist.prompts._common import (
+    _format_meta_review_context,
+    _format_run_guidance,
+)
 from co_scientist.prompts.loading import _build_prompt
 
 
@@ -31,9 +34,11 @@ def get_meta_review_prompt(
             "instructions": instructions or "",
         },
         supervisor_guidance=_format_supervisor_guidance_for_meta_review(
-            supervisor_guidance),
-        run_guidance=_format_run_guidance(run_setup_guidance,
-                                          run_focus_guidance),
+            supervisor_guidance
+        ),
+        run_guidance=_format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
         tool_registry=tool_registry,
     )
 
@@ -56,8 +61,9 @@ def get_research_overview_prompt(
             "hypotheses_summary": hypotheses_summary,
         },
         meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(run_setup_guidance,
-                                          run_focus_guidance),
+        run_guidance=_format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
         tool_registry=tool_registry,
     )
 
@@ -78,12 +84,15 @@ def _format_attributes_csv(attributes: list[str] | None) -> str:
     return ", ".join(attributes) if attributes else "None provided"
 
 
-def _format_lit_review_description(mcp_available: bool,
-                                   pubmed_available: bool) -> str:
+def _format_lit_review_description(
+    mcp_available: bool, pubmed_available: bool
+) -> str:
     """Describe literature-review availability for the supervisor prompt."""
     if pubmed_available or mcp_available:
-        return ("literature review will search pubmed for relevant papers"
-                " and analyze them")
+        return (
+            "literature review will search pubmed for relevant papers"
+            " and analyze them"
+        )
     return "literature review is not available (no pubmed access)"
 
 
@@ -109,28 +118,19 @@ def _build_supervisor_prompt_variables(
     Python None.
     """
     return {
-        "research_goal":
-            research_goal,
-        "preferences":
-            preferences or "None provided",
-        "attributes":
-            _format_attributes_csv(attributes),
-        "constraints":
-            _format_bullet_list(constraints),
-        "criteria":
-            _format_bullet_list(criteria),
-        "user_hypotheses":
-            _format_bullet_list(user_hypotheses),
-        "user_literature":
-            _format_bullet_list(user_literature),
-        "initial_hypotheses_count":
-            initial_hypotheses_count or "not specified",
-        "max_iterations":
-            max_iterations or "not specified",
-        "evolution_max_count":
-            evolution_max_count or "not specified",
-        "literature_review_description":
-            _format_lit_review_description(mcp_available, pubmed_available),
+        "research_goal": research_goal,
+        "preferences": preferences or "None provided",
+        "attributes": _format_attributes_csv(attributes),
+        "constraints": _format_bullet_list(constraints),
+        "criteria": _format_bullet_list(criteria),
+        "user_hypotheses": _format_bullet_list(user_hypotheses),
+        "user_literature": _format_bullet_list(user_literature),
+        "initial_hypotheses_count": initial_hypotheses_count or "not specified",
+        "max_iterations": max_iterations or "not specified",
+        "evolution_max_count": evolution_max_count or "not specified",
+        "literature_review_description": _format_lit_review_description(
+            mcp_available, pubmed_available
+        ),
     }
 
 
@@ -172,16 +172,15 @@ def get_supervisor_prompt(
     return _build_prompt(
         "supervisor",
         variables,
-        run_guidance=_format_run_guidance(run_setup_guidance,
-                                          run_focus_guidance),
+        run_guidance=_format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
         tool_registry=tool_registry,
     )
 
 
 def _format_meta_review_key_areas_section(key_areas: list[Any]) -> list[str]:
-    """Format the key-research-areas slice of meta-review supervisor
-    guidance.
-    """
+    """Format the key-research-areas slice of meta-review guidance."""
     if not key_areas:
         return []
 
@@ -193,7 +192,8 @@ def _format_meta_review_key_areas_section(key_areas: list[Any]) -> list[str]:
 
 
 def _format_meta_review_evolution_phase_section(
-        evolution_phase: dict[str, Any]) -> list[str]:
+    evolution_phase: dict[str, Any],
+) -> list[str]:
     """Format the evolution-phase slice of meta-review supervisor guidance."""
     if not evolution_phase:
         return []
@@ -205,14 +205,15 @@ def _format_meta_review_evolution_phase_section(
             priorities = ", ".join(priorities)
         sections.append(f"- Refinement Priorities: {priorities}\n")
     if evolution_phase.get("iteration_strategy"):
-        iter_strat = evolution_phase['iteration_strategy']
+        iter_strat = evolution_phase["iteration_strategy"]
         sections.append(f"- Iteration Strategy: {iter_strat}\n")
     sections.append("\n")
     return sections
 
 
 def _format_supervisor_guidance_for_meta_review(
-        supervisor_guidance: dict[str, Any] | None) -> str:
+    supervisor_guidance: dict[str, Any] | None,
+) -> str:
     """Format supervisor guidance for meta-review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
@@ -222,13 +223,18 @@ def _format_supervisor_guidance_for_meta_review(
 
     sections = ["## Supervisor Guidance\n"]
     sections.extend(
-        _format_meta_review_key_areas_section(goal_analysis.get(
-            "key_areas", [])))
+        _format_meta_review_key_areas_section(
+            goal_analysis.get("key_areas", [])
+        )
+    )
     sections.extend(
         _format_meta_review_evolution_phase_section(
-            workflow_plan.get("evolution_phase", {})))
+            workflow_plan.get("evolution_phase", {})
+        )
+    )
     sections.append(
         "Use this guidance to ensure your meta-review synthesis aligns"
-        " with the research plan and evolution strategy.\n")
+        " with the research plan and evolution strategy.\n"
+    )
 
     return "".join(sections) if sections else ""

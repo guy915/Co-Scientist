@@ -83,7 +83,8 @@ def _list_by_run(
     with _use_conn(conn, db_path) as conn:
         rows = conn.execute(
             f"SELECT * FROM {table} WHERE run_id=? ORDER BY created_at ASC",
-            (run_id,)).fetchall()
+            (run_id,),
+        ).fetchall()
         return [dict(r) for r in rows]
 
 
@@ -291,8 +292,9 @@ def add_safety_decision(
         )
 
 
-def list_safety_decisions(run_id: str,
-                          db_path: str | None = None) -> list[dict[str, Any]]:
+def list_safety_decisions(
+    run_id: str, db_path: str | None = None
+) -> list[dict[str, Any]]:
     """Return a run's safety decisions with the matches list decoded."""
     out = []
     for d in _list_by_run("safety_decisions", run_id, db_path):

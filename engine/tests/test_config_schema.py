@@ -25,7 +25,8 @@ from co_scientist.config.schema import (
 
 
 def _assert_declared_defaults(
-    instance: Any, skip: tuple[str, ...] = ()) -> None:
+    instance: Any, skip: tuple[str, ...] = ()
+) -> None:
     """Assert every non-skipped field carries its declared default."""
     for f in dataclasses.fields(instance):
         if f.name in skip:
@@ -38,7 +39,8 @@ def _assert_declared_defaults(
             continue  # Required field with no declared default.
         assert getattr(instance, f.name) == expected, (
             f"{type(instance).__name__}.{f.name} did not use the dataclass "
-            f"default")
+            f"default"
+        )
 
 
 # --- Minimal dicts: dataclass defaults fill every omitted key --------------
@@ -93,16 +95,15 @@ def test_tool_config_parses_nested_parameters() -> None:
         {
             "server": "s1",
             "parameters": {
-                "query": {
-                    "type": "string",
-                    "required": True
-                },
+                "query": {"type": "string", "required": True},
                 "max_results": 5,
             },
         },
-        tool_id="t1")
-    assert config.parameters["query"] == ParameterConfig(type="string",
-                                                         required=True)
+        tool_id="t1",
+    )
+    assert config.parameters["query"] == ParameterConfig(
+        type="string", required=True
+    )
     assert config.parameters["max_results"] == ParameterConfig(default=5)
 
 
@@ -125,15 +126,14 @@ def test_workflow_config_minimal_dict_uses_dataclass_defaults() -> None:
 
 def test_workflow_config_parses_nested_search_sources() -> None:
     """search_sources entries parse into SearchSourceConfig objects."""
-    config = WorkflowConfig.from_dict({
-        "search_sources": [
-            "plain_tool",
-            {
-                "tool": "rich_tool",
-                "papers_per_query": 7
-            },
-        ]
-    })
+    config = WorkflowConfig.from_dict(
+        {
+            "search_sources": [
+                "plain_tool",
+                {"tool": "rich_tool", "papers_per_query": 7},
+            ]
+        }
+    )
     assert config.search_sources == [
         SearchSourceConfig(tool="plain_tool"),
         SearchSourceConfig(tool="rich_tool", papers_per_query=7),
@@ -168,10 +168,12 @@ def test_tools_config_minimal_dict_uses_dataclass_defaults() -> None:
 
 def test_unknown_keys_are_ignored() -> None:
     """Keys that are not declared fields are silently dropped."""
-    config = WorkflowConfig.from_dict({
-        "primary_search": "pubmed_search",
-        "bogus_key": "ignored",
-    })
+    config = WorkflowConfig.from_dict(
+        {
+            "primary_search": "pubmed_search",
+            "bogus_key": "ignored",
+        }
+    )
     assert config.primary_search == "pubmed_search"
     assert not hasattr(config, "bogus_key")
 

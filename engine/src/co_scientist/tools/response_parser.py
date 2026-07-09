@@ -40,12 +40,12 @@ def _get_dict_field(current: Any, field: str) -> Any:
 
 
 def _index_into_list(current: Any, index: str) -> Any:
-    """Index into current at position index, if current is a non-None list.
+    r"""Index into current at position index, if current is a non-None list.
 
     Args:
         current: Value to index into.
         index: String-encoded non-negative index (matched by the caller's
-            "(\\w+)\\[(\\d+)\\]" regex).
+            "(\w+)\[(\d+)\]" regex).
 
     Returns:
         current unchanged when it is None or not a list (the index is then
@@ -105,8 +105,9 @@ class ResponseParser:
             try:
                 return json.loads(response)
             except json.JSONDecodeError:
-                logger.warning("failed to parse JSON response: %s...",
-                               response[:100])
+                logger.warning(
+                    "failed to parse JSON response: %s...", response[:100]
+                )
                 return response
 
         return response
@@ -256,13 +257,14 @@ class ResponseParser:
         # (e.g. path continues past a scalar or a list).
         return None
 
-    def _navigate_indexed_part(self, current: Any,
-                               match: "re.Match[str]") -> Any:
-        """Resolve a "field[N]" (or "[N]") path segment against current.
+    def _navigate_indexed_part(
+        self, current: Any, match: "re.Match[str]"
+    ) -> Any:
+        r"""Resolve a "field[N]" (or "[N]") path segment against current.
 
         Args:
             current: Non-None value to descend from.
-            match: Match of the "(\\w+)\\[(\\d+)\\]" pattern against the
+            match: Match of the "(\w+)\[(\d+)\]" pattern against the
                 path segment.
 
         Returns:
@@ -274,9 +276,9 @@ class ResponseParser:
             current = _get_dict_field(current, field)
         return _index_into_list(current, index)
 
-    def _map_item_to_article(self,
-                             item: dict[str, Any],
-                             dict_key: str | None = None) -> Article | None:
+    def _map_item_to_article(
+        self, item: dict[str, Any], dict_key: str | None = None
+    ) -> Article | None:
         """Map a single result item to an Article object.
 
         Args:
@@ -315,8 +317,9 @@ class ResponseParser:
             used_in_analysis=True,
         )
 
-    def _map_fields(self, item: dict[str, Any],
-                    dict_key: str | None) -> dict[str, Any]:
+    def _map_fields(
+        self, item: dict[str, Any], dict_key: str | None
+    ) -> dict[str, Any]:
         """Evaluate every field_mapping expression against item.
 
         Each field is evaluated independently so a single malformed
@@ -337,19 +340,20 @@ class ResponseParser:
         for article_field, expr in mapping.items():
             try:
                 kwargs[article_field] = self._evaluate_expression(
-                    expr, item, dict_key)
+                    expr, item, dict_key
+                )
             except Exception as e:  # pylint: disable=broad-exception-caught
-                logger.debug("failed to evaluate %s=%s: %s", article_field,
-                             expr, e)
+                logger.debug(
+                    "failed to evaluate %s=%s: %s", article_field, expr, e
+                )
                 # Use None for failed mappings
                 kwargs[article_field] = None
 
         return kwargs
 
-    def _evaluate_expression(self,
-                             expr: str,
-                             item: dict[str, Any],
-                             dict_key: str | None = None) -> Any:
+    def _evaluate_expression(
+        self, expr: str, item: dict[str, Any], dict_key: str | None = None
+    ) -> Any:
         """Evaluate a field mapping expression.
 
         Supported expressions:
@@ -395,8 +399,9 @@ class ResponseParser:
         # Simple field access
         return self._get_field_value(expr, item, dict_key)
 
-    def _evaluate_transform_chain(self, expr: str, item: dict[str, Any],
-                                  dict_key: str | None) -> Any:
+    def _evaluate_transform_chain(
+        self, expr: str, item: dict[str, Any], dict_key: str | None
+    ) -> Any:
         """Evaluate a "field|transform1|transform2|..." pipe expression.
 
         Args:
@@ -418,10 +423,9 @@ class ResponseParser:
 
         return value
 
-    def _get_field_value(self,
-                         field_expr: str,
-                         item: dict[str, Any],
-                         dict_key: str | None = None) -> Any:
+    def _get_field_value(
+        self, field_expr: str, item: dict[str, Any], dict_key: str | None = None
+    ) -> Any:
         """Get a field value from item, supporting nested paths."""
         if field_expr == "@key":
             return dict_key

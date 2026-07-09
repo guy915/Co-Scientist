@@ -7,13 +7,13 @@ only pure functions - no LLM calls and therefore no mocking are involved.
 
 import pytest
 
-from co_scientist.constants import ELO_K_FACTOR
-from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.constants import ELO_K_FACTOR, INITIAL_ELO_RATING
 from co_scientist.nodes.ranking import calculate_elo_update
 
 
-def _reference_elo_update(winner_elo: int, loser_elo: int,
-                          k_factor: int) -> tuple[int, int]:
+def _reference_elo_update(
+    winner_elo: int, loser_elo: int, k_factor: int
+) -> tuple[int, int]:
     """Independent reimplementation of the standard Elo update formula.
 
     Mirrors the math the production function should be performing, including
@@ -28,8 +28,8 @@ def _reference_elo_update(winner_elo: int, loser_elo: int,
     Returns:
       Tuple of ``(new_winner_elo, new_loser_elo)`` as truncated integers.
     """
-    expected_winner = 1 / (1 + 10**((loser_elo - winner_elo) / 400))
-    expected_loser = 1 / (1 + 10**((winner_elo - loser_elo) / 400))
+    expected_winner = 1 / (1 + 10 ** ((loser_elo - winner_elo) / 400))
+    expected_loser = 1 / (1 + 10 ** ((winner_elo - loser_elo) / 400))
     new_winner = winner_elo + k_factor * (1 - expected_winner)
     new_loser = loser_elo + k_factor * (0 - expected_loser)
     return int(new_winner), int(new_loser)
@@ -50,8 +50,9 @@ def test_elo_k_factor_constant() -> None:
 
 def test_default_k_factor_matches_constant() -> None:
     """The function's default k-factor is exactly ``ELO_K_FACTOR``."""
-    assert (calculate_elo_update(1200, 1200) == calculate_elo_update(
-        1200, 1200, ELO_K_FACTOR))
+    assert calculate_elo_update(1200, 1200) == calculate_elo_update(
+        1200, 1200, ELO_K_FACTOR
+    )
 
 
 # --- Equal ratings ---------------------------------------------------------
@@ -105,8 +106,9 @@ def test_equal_ratings_magnitude_is_symmetric() -> None:
         (1000, 1100, 24, (1015, 1084)),
     ],
 )
-def test_exact_integer_outputs(winner_elo: int, loser_elo: int, k_factor: int,
-                               expected: tuple[int, int]) -> None:
+def test_exact_integer_outputs(
+    winner_elo: int, loser_elo: int, k_factor: int, expected: tuple[int, int]
+) -> None:
     """Hand-computed cases match the production function exactly."""
     assert calculate_elo_update(winner_elo, loser_elo, k_factor) == expected
 
@@ -123,17 +125,18 @@ def test_exact_integer_outputs(winner_elo: int, loser_elo: int, k_factor: int,
         (1456, 987, 40),
     ],
 )
-def test_matches_standard_elo_formula(winner_elo: int, loser_elo: int,
-                                      k_factor: int) -> None:
+def test_matches_standard_elo_formula(
+    winner_elo: int, loser_elo: int, k_factor: int
+) -> None:
     """Output matches an independent implementation of the Elo formula.
 
     Confirms the production function uses ``expected = 1/(1+10**((loser-winner)/
     400))`` and ``new = old + k*(score - expected)`` followed by ``int()``
     truncation.
     """
-    assert (calculate_elo_update(winner_elo, loser_elo,
-                                 k_factor) == _reference_elo_update(
-                                     winner_elo, loser_elo, k_factor))
+    assert calculate_elo_update(
+        winner_elo, loser_elo, k_factor
+    ) == _reference_elo_update(winner_elo, loser_elo, k_factor)
 
 
 # --- Underdog vs favorite swing --------------------------------------------
@@ -194,8 +197,8 @@ def test_results_are_truncated_not_rounded() -> None:
     assert new_loser == 1391
 
     # Cross-check the raw (pre-truncation) values to document the intent.
-    raw_winner = 1500 + 24 * (1 - 1 / (1 + 10**((1400 - 1500) / 400)))
-    raw_loser = 1400 + 24 * (0 - 1 / (1 + 10**((1500 - 1400) / 400)))
+    raw_winner = 1500 + 24 * (1 - 1 / (1 + 10 ** ((1400 - 1500) / 400)))
+    raw_loser = 1400 + 24 * (0 - 1 / (1 + 10 ** ((1500 - 1400) / 400)))
     assert round(raw_winner) == 1509
     assert int(raw_winner) == new_winner
     assert int(raw_loser) == new_loser
@@ -236,8 +239,9 @@ _RATING_PAIRS = [
 
 
 @pytest.mark.parametrize("winner_elo, loser_elo", _RATING_PAIRS)
-def test_winner_never_decreases_loser_never_increases(winner_elo: int,
-                                                      loser_elo: int) -> None:
+def test_winner_never_decreases_loser_never_increases(
+    winner_elo: int, loser_elo: int
+) -> None:
     """Across many pairs the winner's rating is >= old, loser's is <= old."""
     new_winner, new_loser = calculate_elo_update(winner_elo, loser_elo, 24)
     assert new_winner >= winner_elo
@@ -245,8 +249,9 @@ def test_winner_never_decreases_loser_never_increases(winner_elo: int,
 
 
 @pytest.mark.parametrize("winner_elo, loser_elo", _RATING_PAIRS)
-def test_total_points_conserved_within_truncation_error(winner_elo: int,
-                                                        loser_elo: int) -> None:
+def test_total_points_conserved_within_truncation_error(
+    winner_elo: int, loser_elo: int
+) -> None:
     """Total points are conserved up to the truncation error.
 
     The raw (float) Elo update is exactly point-conserving: the winner's gain
@@ -255,8 +260,9 @@ def test_total_points_conserved_within_truncation_error(winner_elo: int,
     than 1). Total can never increase.
     """
     k_factor = 24
-    new_winner, new_loser = calculate_elo_update(winner_elo, loser_elo,
-                                                 k_factor)
+    new_winner, new_loser = calculate_elo_update(
+        winner_elo, loser_elo, k_factor
+    )
 
     old_total = winner_elo + loser_elo
     new_total = new_winner + new_loser

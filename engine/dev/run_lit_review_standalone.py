@@ -27,25 +27,37 @@ console = Console()
 
 try:
     from dotenv import load_dotenv
+
     dev_dir = Path(__file__).parent
     env_file = dev_dir / ".env"
     if env_file.exists():
         load_dotenv(env_file)
         console.print(f"[dim]Loaded environment from {env_file}[/dim]")
     else:
-        console.print(f"[dim]No .env file found at {env_file},"
-                      " using system environment variables[/dim]")
+        console.print(
+            f"[dim]No .env file found at {env_file},"
+            " using system environment variables[/dim]"
+        )
 except ImportError:
-    console.print("[dim]python-dotenv not installed,"
-                  " using system environment variables only[/dim]")
+    console.print(
+        "[dim]python-dotenv not installed,"
+        " using system environment variables only[/dim]"
+    )
 
 # pylint: disable=wrong-import-position
-from state_helpers import (make_base_state, DEFAULT_RESEARCH_GOAL,
-                           DEFAULT_MODEL_NAME)
-from co_scientist.nodes.literature_review import literature_review_node
-from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp
+from state_helpers import (
+    DEFAULT_MODEL_NAME,
+    DEFAULT_RESEARCH_GOAL,
+    make_base_state,
+)
+
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
+from co_scientist.mcp_client import (
+    check_mcp_available,
+    check_pubmed_available_via_mcp,
+)
 from co_scientist.models import Article
+from co_scientist.nodes.literature_review import literature_review_node
 
 
 # pylint: enable=wrong-import-position
@@ -73,9 +85,11 @@ async def _gather_prereqs() -> tuple[list[str], list[str], bool, bool]:
     pubmed_ok = await check_pubmed_available_via_mcp()
     if not pubmed_ok:
         warnings.append(
-            "PubMed not available via MCP - PubMed search will be disabled")
+            "PubMed not available via MCP - PubMed search will be disabled"
+        )
         console.print(
-            "[yellow]PubMed not available via MCP - will be disabled[/yellow]")
+            "[yellow]PubMed not available via MCP - will be disabled[/yellow]"
+        )
     else:
         console.print("[green]PubMed available via MCP[/green]")
 
@@ -97,8 +111,10 @@ def _report_prerequisite_issues(errors: list[str], warnings: list[str]) -> bool:
         for error in errors:
             console.print(f"  [red]{error}[/red]")
         console.print("\n[yellow]Fix these issues and try again[/yellow]")
-        console.print("[dim]Tip: create a .env file in dev/ directory"
-                      " with your API keys[/dim]")
+        console.print(
+            "[dim]Tip: create a .env file in dev/ directory"
+            " with your API keys[/dim]"
+        )
         return False
 
     if warnings:
@@ -151,8 +167,9 @@ def _render_articles_table(articles: list[Article]) -> None:
 
     for article in articles[:10]:  # Show first 10
         article_table.add_row(
-            article.title[:50] +
-            "..." if len(article.title) > 50 else article.title,
+            article.title[:50] + "..."
+            if len(article.title) > 50
+            else article.title,
             str(article.year) if article.year else "n/a",
             str(article.citations) if article.citations else "n/a",
         )
@@ -167,14 +184,18 @@ def _print_summary_panel(summary: str) -> None:
         summary: literature review summary text.
     """
     console.print(
-        Panel(summary[:500] + "..." if len(summary) > 500 else summary,
-              title="[bold green]Literature review summary"
-              " (first 500 chars)[/bold green]",
-              border_style="green"))
+        Panel(
+            summary[:500] + "..." if len(summary) > 500 else summary,
+            title="[bold green]Literature review summary"
+            " (first 500 chars)[/bold green]",
+            border_style="green",
+        )
+    )
 
 
-def _print_review_stats(queries: list[str], articles: list[Article],
-                        summary: str) -> None:
+def _print_review_stats(
+    queries: list[str], articles: list[Article], summary: str
+) -> None:
     """Print aggregate literature review stats.
 
     Args:
@@ -189,8 +210,9 @@ def _print_review_stats(queries: list[str], articles: list[Article],
     console.print(f"  Articles with reasoning available: {bool(summary)}")
 
 
-def _display_literature_results(articles: list[Article], queries: list[str],
-                                summary: str) -> None:
+def _display_literature_results(
+    articles: list[Article], queries: list[str], summary: str
+) -> None:
     """Print the article breakdown, tables, summary, and stats.
 
     Args:
@@ -211,7 +233,6 @@ def _display_literature_results(articles: list[Article], queries: list[str],
 
 async def test_literature_review() -> None:
     """Run literature review node with minimal state."""
-
     console.print("\n[bold cyan]Testing literature review node[/bold cyan]\n")
 
     prerequisites = await _check_prerequisites()
@@ -222,7 +243,8 @@ async def test_literature_review() -> None:
     dev_mode = os.getenv("COSCIENTIST_DEV_MODE", "").lower() == "true"
     if dev_mode:
         console.print(
-            "\n[yellow]Dev mode enabled - using reduced paper counts[/yellow]")
+            "\n[yellow]Dev mode enabled - using reduced paper counts[/yellow]"
+        )
 
     # Create minimal state
     state = make_base_state(
@@ -233,11 +255,14 @@ async def test_literature_review() -> None:
     state["pubmed_available"] = pubmed_ok
 
     console.print(
-        f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n")
+        f"\n[yellow]Research goal:[/yellow] {state['research_goal']}\n"
+    )
 
     # Run node
-    console.print("[yellow]Calling literature review node"
-                  " (this may take a couple of minutes)...[/yellow]\n")
+    console.print(
+        "[yellow]Calling literature review node"
+        " (this may take a couple of minutes)...[/yellow]\n"
+    )
     result = await literature_review_node(state)
 
     # Display results
@@ -248,8 +273,10 @@ async def test_literature_review() -> None:
     # Check if literature review failed
     if summary == LITERATURE_REVIEW_FAILED:
         console.print("\n[bold red]Literature review failed![/bold red]")
-        console.print("[yellow]The system will fall back to standard generation"
-                      " without literature context[/yellow]")
+        console.print(
+            "[yellow]The system will fall back to standard generation"
+            " without literature context[/yellow]"
+        )
         return
 
     _display_literature_results(articles, queries, summary)

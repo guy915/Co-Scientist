@@ -3,7 +3,8 @@
 
 import json
 import logging
-from typing import Any, Awaitable, Callable
+from collections.abc import Awaitable, Callable
+from typing import Any
 
 from co_scientist.exceptions import ConfigError
 from co_scientist.mcp_client import MCPToolClient
@@ -64,7 +65,8 @@ class MCPToolProvider:
         if self.mcp_client is not None:
             try:
                 tools_dict, openai_tools = self.mcp_client.get_tools(
-                    whitelist=mcp_whitelist)
+                    whitelist=mcp_whitelist
+                )
                 self._tool_names.update(tools_dict.keys())
                 logger.debug("added %s MCP tools", len(tools_dict))
             except Exception as e:  # pylint: disable=broad-exception-caught
@@ -96,8 +98,9 @@ class MCPToolProvider:
         if tool_name not in self._tool_names:
             error_msg = f"unknown tool: {tool_name}"
             logger.error(error_msg)
-            return self._create_error_response(tool_name, tool_call_id,
-                                               error_msg)
+            return self._create_error_response(
+                tool_name, tool_call_id, error_msg
+            )
 
         try:
             # Defensive: _tool_names is only populated when a client exists,
@@ -110,10 +113,11 @@ class MCPToolProvider:
             # exception) becomes a tool-role error message rather than a
             # raised exception, so one bad call cannot crash the multi-turn
             # tool-calling loop.
-            error_msg = f"tool execution failed: {str(e)}"
+            error_msg = f"tool execution failed: {e!s}"
             logger.error("%s error: %s", tool_name, error_msg)
-            return self._create_error_response(tool_name, tool_call_id,
-                                               error_msg)
+            return self._create_error_response(
+                tool_name, tool_call_id, error_msg
+            )
 
     # Used by the draft and validate literature-tools agents (each passes its
     # own phase label, e.g. "Draft") to log and cap per-tool call volume
@@ -144,8 +148,9 @@ class MCPToolProvider:
 
     # Shape matches the OpenAI/LiteLLM "tool" role message so downstream
     # code can treat error responses the same as successful tool results.
-    def _create_error_response(self, tool_name: str, tool_call_id: str,
-                               error_msg: str) -> dict[str, Any]:
+    def _create_error_response(
+        self, tool_name: str, tool_call_id: str, error_msg: str
+    ) -> dict[str, Any]:
         """Create error response message for failed tool call.
 
         Args:

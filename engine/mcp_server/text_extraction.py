@@ -6,6 +6,7 @@ removing clutter like references, figure captions, and metadata.
 # pylint: disable=inconsistent-quotes
 
 import logging
+
 from bs4 import BeautifulSoup, Tag
 
 logger = logging.getLogger(__name__)
@@ -23,12 +24,13 @@ def _extract_abstract_text(soup: BeautifulSoup) -> str:
         present.
     """
     abstract_text = ""
-    abstract = soup.find('abstract')
+    abstract = soup.find("abstract")
     if abstract:
-        paragraphs = abstract.find_all('p')
+        paragraphs = abstract.find_all("p")
         if paragraphs:
-            abstract_text = '\n\n'.join(
-                p.get_text(strip=True) for p in paragraphs)
+            abstract_text = "\n\n".join(
+                p.get_text(strip=True) for p in paragraphs
+            )
         else:
             # Sometimes abstract is just text without paragraphs
             # (no <p> wrapper), so fall back to the raw text content.
@@ -47,14 +49,14 @@ def _direct_section_paragraphs(section: Tag) -> list[str]:
         of the section, excluding any nested subsections.
     """
     body_paragraphs = []
-    for p in section.find_all('p', recursive=False):
+    for p in section.find_all("p", recursive=False):
         text = p.get_text(strip=True)
         if text:
             body_paragraphs.append(text)
     return body_paragraphs
 
 
-_NON_CONTAINER_CHILD_NAMES = ('sec', 'title', 'label')
+_NON_CONTAINER_CHILD_NAMES = ("sec", "title", "label")
 
 
 def _as_paragraph_container(child: object) -> Tag | None:
@@ -93,7 +95,7 @@ def _nested_container_paragraphs(section: Tag) -> list[str]:
         container = _as_paragraph_container(child)
         if container is None:
             continue
-        for p in container.find_all('p'):
+        for p in container.find_all("p"):
             text = p.get_text(strip=True)
             if text:
                 body_paragraphs.append(text)
@@ -132,16 +134,16 @@ def _build_section_block(section: Tag) -> str | None:
     # sections attached directly to <body> (or another non-<sec>
     # container) become their own "## heading" block.
     parent = section.parent
-    if parent is None or parent.name == 'sec':
+    if parent is None or parent.name == "sec":
         return None
 
     body_paragraphs = _extract_section_text(section)
     if not body_paragraphs:
         return None
 
-    heading = section.find(['title', 'label'])
+    heading = section.find(["title", "label"])
     heading_text = heading.get_text(strip=True) if heading else "section"
-    content = '\n\n'.join(body_paragraphs)
+    content = "\n\n".join(body_paragraphs)
     return f"## {heading_text}\n\n{content}"
 
 
@@ -156,7 +158,7 @@ def _extract_body_sections(soup: BeautifulSoup) -> list[str]:
         List of markdown blocks, one per top-level section that has
         content, in document order.
     """
-    body = soup.find('body')
+    body = soup.find("body")
     if not body:
         return []
 
@@ -164,7 +166,7 @@ def _extract_body_sections(soup: BeautifulSoup) -> list[str]:
     # find_all with recursive=True returns every <sec> at any depth,
     # including nested subsections; _build_section_block filters this
     # down to top-level sections only.
-    for section in body.find_all('sec', recursive=True):
+    for section in body.find_all("sec", recursive=True):
         block = _build_section_block(section)
         if block:
             sections.append(block)
@@ -186,8 +188,11 @@ def _truncate_markdown(markdown: str, max_chars: int) -> str:
         trailing truncation marker appended.
     """
     if len(markdown) > max_chars:
-        logger.info("Truncating extracted text from %s to %s chars",
-                    len(markdown), max_chars)
+        logger.info(
+            "Truncating extracted text from %s to %s chars",
+            len(markdown),
+            max_chars,
+        )
         return markdown[:max_chars] + "\n\n[... truncated for length ...]"
     return markdown
 
@@ -207,8 +212,8 @@ def _fallback_extract_text(html_content: str, max_chars: int) -> str:
         string if even this fallback parse fails.
     """
     try:  # pylint: disable=broad-exception-caught
-        soup = BeautifulSoup(html_content, 'lxml-xml')
-        text = soup.get_text(separator='\n', strip=True)
+        soup = BeautifulSoup(html_content, "lxml-xml")
+        text = soup.get_text(separator="\n", strip=True)
         if len(text) > max_chars:
             text = text[:max_chars] + "\n\n[... truncated for length ...]"
         return text
@@ -218,8 +223,9 @@ def _fallback_extract_text(html_content: str, max_chars: int) -> str:
         return "[error: could not extract text from HTML]"
 
 
-def extract_text_from_pmc_html(html_content: str,
-                               max_chars: int = 200_000) -> str:
+def extract_text_from_pmc_html(
+    html_content: str, max_chars: int = 200_000
+) -> str:
     """Converts PMC HTML fulltext to clean markdown.
 
     Preserves:
@@ -244,7 +250,7 @@ def extract_text_from_pmc_html(html_content: str,
     try:  # pylint: disable=broad-exception-caught
         # PMC fulltext is JATS XML (a specific article-tag vocabulary), so
         # parse with the lxml-xml parser rather than an HTML parser.
-        soup = BeautifulSoup(html_content, 'lxml-xml')
+        soup = BeautifulSoup(html_content, "lxml-xml")
 
         # Remove sections we don't need. "back" holds trailing matter
         # (references/notes container), "ref-list" is the bibliography,
@@ -252,7 +258,8 @@ def extract_text_from_pmc_html(html_content: str,
         # "table-wrap" are figure/table containers whose captions are not
         # useful as plain text and whose images cannot be rendered here.
         for tag in soup.find_all(
-            ['back', 'ref-list', 'ack', 'fn-group', 'fig', 'table-wrap']):
+            ["back", "ref-list", "ack", "fn-group", "fig", "table-wrap"]
+        ):
             tag.decompose()
 
         abstract_text = _extract_abstract_text(soup)
@@ -265,7 +272,7 @@ def extract_text_from_pmc_html(html_content: str,
 
         parts.extend(sections)
 
-        markdown = '\n\n'.join(parts)
+        markdown = "\n\n".join(parts)
 
         return _truncate_markdown(markdown, max_chars)
 

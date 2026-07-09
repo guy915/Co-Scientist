@@ -44,8 +44,11 @@ async def _run_synthesis_llm(
         background_context=background_context,
     )
 
-    logger.info("Calling synthesis LLM with %s chars, %s papers", len(prompt),
-                len(paper_analyses))
+    logger.info(
+        "Calling synthesis LLM with %s chars, %s papers",
+        len(prompt),
+        len(paper_analyses),
+    )
 
     synthesis = await call_llm(
         prompt=prompt,
@@ -82,8 +85,9 @@ async def _phase4_synthesize(
     logger.info("Phase 4: synthesizing across papers")
 
     try:
-        return await _run_synthesis_llm(paper_analyses, state,
-                                        background_context)
+        return await _run_synthesis_llm(
+            paper_analyses, state, background_context
+        )
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Synthesis failure also degrades to the sentinel rather than

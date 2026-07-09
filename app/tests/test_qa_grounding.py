@@ -4,6 +4,7 @@
 directly. Message ``meta`` persistence is exercised through the store with an
 isolated per-test database.
 """
+
 # pylint: disable=unused-argument
 from __future__ import annotations
 
@@ -77,20 +78,20 @@ def test_manifest_ignores_citations_to_unknown_evidence() -> None:
 
 def test_message_meta_round_trips(isolated_db: str) -> None:
     """A message's structured meta survives a write/read cycle."""
-    store.create_run("rg",
-                     "default",
-                     "engine", {},
-                     client_id="c1",
-                     db_path=isolated_db)
+    store.create_run(
+        "rg", "default", "engine", {}, client_id="c1", db_path=isolated_db
+    )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
     sources = [{"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}]
-    store.append_message(run_id,
-                         "system",
-                         "Answer [1].",
-                         "qa",
-                         db_path=isolated_db,
-                         meta={"sources": sources})
+    store.append_message(
+        run_id,
+        "system",
+        "Answer [1].",
+        "qa",
+        db_path=isolated_db,
+        meta={"sources": sources},
+    )
 
     msgs = store.list_messages(run_id, db_path=isolated_db)
     assert len(msgs) == 1
@@ -100,11 +101,9 @@ def test_message_meta_round_trips(isolated_db: str) -> None:
 
 def test_message_without_meta_is_none(isolated_db: str) -> None:
     """Messages written without meta read back as ``None`` (back-compat)."""
-    store.create_run("rg",
-                     "default",
-                     "engine", {},
-                     client_id="c1",
-                     db_path=isolated_db)
+    store.create_run(
+        "rg", "default", "engine", {}, client_id="c1", db_path=isolated_db
+    )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
     store.append_message(run_id, "user", "hi", "steering", db_path=isolated_db)
     msgs = store.list_messages(run_id, db_path=isolated_db)

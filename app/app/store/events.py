@@ -80,10 +80,12 @@ def list_events(
         ).fetchall()
         out: list[dict[str, Any]] = []
         for r in rows:
-            out.append({
-                "seq": r["seq"],
-                "type": r["type"],
-                "payload": json.loads(r["payload_json"]),
-                "created_at": r["created_at"],
-            })
+            out.append(
+                {
+                    "seq": r["seq"],
+                    "type": r["type"],
+                    "payload": json.loads(r["payload_json"]),
+                    "created_at": r["created_at"],
+                }
+            )
         return out

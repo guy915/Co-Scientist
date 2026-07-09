@@ -5,14 +5,14 @@ papers using tools and drafts initial hypothesis ideas based on identified gaps.
 """
 
 import logging
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 from co_scientist.constants import (
-    corpus_slug,
     DRAFT_MAX_TOKENS_CAP,
     DRAFT_TOKENS_PER_HYPOTHESIS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
+    corpus_slug,
     get_draft_max_iterations,
     scaled_max_tokens,
 )
@@ -29,8 +29,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def _log_lit_review_context(articles_with_reasoning: str | None,
-                            articles: list[Any]) -> None:
+def _log_lit_review_context(
+    articles_with_reasoning: str | None, articles: list[Any]
+) -> None:
     """Log whether warm-started literature-review context is available.
 
     Args:
@@ -42,10 +43,14 @@ def _log_lit_review_context(articles_with_reasoning: str | None,
         logger.info("Including lit review summary as context for drafting")
         logger.info(
             "Warm start: corpus already populated with %s papers"
-            " from literature review", len(articles))
+            " from literature review",
+            len(articles),
+        )
     else:
-        logger.warning("No lit review summary available"
-                       " - agent will examine papers directly")
+        logger.warning(
+            "No lit review summary available"
+            " - agent will examine papers directly"
+        )
 
 
 def _setup_draft_tool_provider(
@@ -69,7 +74,9 @@ def _setup_draft_tool_provider(
     """
     if tool_registry is None:
         try:
-            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import (
+                get_tool_registry,  # pylint: disable=import-outside-toplevel
+            )
 
             tool_registry = get_tool_registry()
             logger.info("Using global tool registry")
@@ -112,21 +119,25 @@ def _parse_draft_response(final_response: str) -> list[dict[str, str]]:
     # Use attempt_json_repair for robust parsing
     # allow_major_repairs=True: tool-calling loop final responses are more
     # prone to truncated/malformed JSON than single-shot calls (llm.py).
-    response_data, was_repaired = attempt_json_repair(response_text,
-                                                      allow_major_repairs=True)
+    response_data, was_repaired = attempt_json_repair(
+        response_text, allow_major_repairs=True
+    )
 
     if response_data is None:
         logger.error(
-            "Failed to parse draft JSON response after all repair attempts")
+            "Failed to parse draft JSON response after all repair attempts"
+        )
         logger.error("Response: %s...", final_response[:500])
         # Hard failure instead of returning an empty draft list: silently
         # skipping to an empty Phase 1 would make Phase 2 a silent no-op too.
         raise ResponseParseError(
-            "Draft phase returned invalid JSON that could not be repaired")
+            "Draft phase returned invalid JSON that could not be repaired"
+        )
 
     if was_repaired:
         logger.warning(
-            "Draft JSON response required major repairs (possible truncation)")
+            "Draft JSON response required major repairs (possible truncation)"
+        )
 
     drafts: list[dict[str, str]] = response_data.get("drafts", [])
     logger.info("Parsed %s draft hypotheses", len(drafts))
@@ -225,8 +236,11 @@ async def _call_draft_agent(
         per_item=DRAFT_TOKENS_PER_HYPOTHESIS,
         cap=DRAFT_MAX_TOKENS_CAP,
     )
-    logger.info("Calling draft agent: %s iterations, %s max tokens",
-                max_iterations, draft_max_tokens)
+    logger.info(
+        "Calling draft agent: %s iterations, %s max tokens",
+        max_iterations,
+        draft_max_tokens,
+    )
 
     try:
         final_response, _ = await call_llm_with_tools(
@@ -283,33 +297,45 @@ async def draft_hypotheses(
     Returns:
         List of draft dicts with text, gap_reasoning, literature_sources
     """
-    logger.info("Phase 1: Drafting %s hypotheses by examining literature",
-                count)
+    logger.info(
+        "Phase 1: Drafting %s hypotheses by examining literature", count
+    )
 
     # Initialize hybrid tool provider with draft-specific whitelist
     provider, openai_tools, tool_registry = _setup_draft_tool_provider(
-        mcp_client, tool_registry)
+        mcp_client, tool_registry
+    )
 
     # Calculate dynamic iteration budget based on hypotheses count
     max_iterations = get_draft_max_iterations(count)
-    logger.info("Draft budget: %s iterations for %s hypotheses", max_iterations,
-                count)
+    logger.info(
+        "Draft budget: %s iterations for %s hypotheses", max_iterations, count
+    )
 
-    prompt = _build_draft_prompt(state, count, max_iterations, tool_registry,
-                                 reference_index)
+    prompt = _build_draft_prompt(
+        state, count, max_iterations, tool_registry, reference_index
+    )
 
     # Track tool calls in draft phase
     draft_tracked_executor, tool_call_counts = provider.tracked_executor(
-        "Draft")
+        "Draft"
+    )
 
-    final_response = await _call_draft_agent(state, prompt, openai_tools,
-                                             draft_tracked_executor, count,
-                                             max_iterations)
+    final_response = await _call_draft_agent(
+        state,
+        prompt,
+        openai_tools,
+        draft_tracked_executor,
+        count,
+        max_iterations,
+    )
 
     total_calls = sum(tool_call_counts.values())
     calls_summary = ", ".join(
-        f"{name}={count}" for name, count in tool_call_counts.items())
-    logger.info("Draft phase complete: %s tool calls (%s)", total_calls,
-                calls_summary)
+        f"{name}={count}" for name, count in tool_call_counts.items()
+    )
+    logger.info(
+        "Draft phase complete: %s tool calls (%s)", total_calls, calls_summary
+    )
 
     return _parse_draft_response(final_response)

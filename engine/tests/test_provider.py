@@ -44,12 +44,13 @@ class FakeMCPClient:
                 for name, obj in self._tools.items()
                 if name in whitelist
             }
-        openai_tools = [{
-            "type": "function",
-            "function": {
-                "name": name
-            },
-        } for name in selected]
+        openai_tools = [
+            {
+                "type": "function",
+                "function": {"name": name},
+            }
+            for name in selected
+        ]
         return selected, openai_tools
 
     async def execute_tool_call(self, tool_call: Any) -> dict[str, Any]:
@@ -92,7 +93,8 @@ def test_get_tools_whitelist_filters_to_named_tool() -> None:
     fake = FakeMCPClient(tools={"pubmed_search": object(), "other": object()})
     provider = _make_provider(fake)
     tools_dict, openai_tools = provider.get_tools(
-        mcp_whitelist=["pubmed_search"])
+        mcp_whitelist=["pubmed_search"]
+    )
 
     assert set(tools_dict.keys()) == {"pubmed_search"}
     schema_names = {t["function"]["name"] for t in openai_tools}
@@ -139,9 +141,9 @@ async def test_execute_delegates_known_tool_to_client() -> None:
     provider = _make_provider(fake)
     provider.get_tools(mcp_whitelist=["pubmed_search"])
 
-    tool_call = _make_tool_call("pubmed_search",
-                                json.dumps({"query": "cancer"}),
-                                call_id="call-mcp")
+    tool_call = _make_tool_call(
+        "pubmed_search", json.dumps({"query": "cancer"}), call_id="call-mcp"
+    )
     result = await provider.execute_tool_call(tool_call)
 
     assert fake.executed == [tool_call]

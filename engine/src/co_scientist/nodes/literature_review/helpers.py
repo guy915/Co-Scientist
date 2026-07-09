@@ -12,15 +12,18 @@ import json
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, cast, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.models import Article
-from co_scientist.models import phase_message
+from co_scientist.models import Article, phase_message
 
 if TYPE_CHECKING:
-    from co_scientist.config import (ToolConfig, WorkflowConfig, ToolRegistry,
-                                     SearchSourceConfig)
+    from co_scientist.config import (
+        SearchSourceConfig,
+        ToolConfig,
+        ToolRegistry,
+        WorkflowConfig,
+    )
 
 logger = logging.getLogger(__name__)
 
@@ -46,15 +49,17 @@ class SearchConfig:
     is_dev_mode: bool
 
 
-def _quoted_field_mapping_source(tool_config: "ToolConfig") -> Optional[str]:
+def _quoted_field_mapping_source(tool_config: "ToolConfig") -> str | None:
     """Return the literal source name from field_mapping, if present.
 
     field_mapping["source"] holds a quoted string literal (e.g. "'pubmed'"),
     not a field name to look up - it's how YAML tool config encodes a
     static display label without a dedicated field.
     """
-    if not (tool_config.response_format and
-            tool_config.response_format.field_mapping):
+    if not (
+        tool_config.response_format
+        and tool_config.response_format.field_mapping
+    ):
         return None
     source_val = tool_config.response_format.field_mapping.get("source", "")
     if not (source_val.startswith("'") and source_val.endswith("'")):
@@ -63,8 +68,7 @@ def _quoted_field_mapping_source(tool_config: "ToolConfig") -> Optional[str]:
 
 
 def extract_source_name(tool_config: Optional["ToolConfig"]) -> str:
-    """Extract source name from tool config's response_format field_mapping.
-    """
+    """Extract source name from tool config's response_format field_mapping."""
     if not tool_config:
         return "unknown"
     literal_source = _quoted_field_mapping_source(tool_config)
@@ -88,14 +92,16 @@ def _resolve_source_id_field(tool_config: "ToolConfig") -> str:
     rather than an actual key to look up on each paper.
     """
     source_id_field = tool_config.response_format.field_mapping.get(
-        "source_id", "source_id")
+        "source_id", "source_id"
+    )
     if source_id_field.startswith("@"):
         return "arxiv_id"
     return source_id_field
 
 
-def _paper_id_for_rekey(paper: Any, source_id_field: str,
-                        fallback_index: int) -> str:
+def _paper_id_for_rekey(
+    paper: Any, source_id_field: str, fallback_index: int
+) -> str:
     """Pick a paper's id for re-keying.
 
     Falls back through the configured field -> arxiv_id -> generic id ->
@@ -103,8 +109,11 @@ def _paper_id_for_rekey(paper: Any, source_id_field: str,
     """
     return cast(
         str,
-        paper.get(source_id_field) or paper.get("arxiv_id") or
-        paper.get("id") or str(fallback_index))
+        paper.get(source_id_field)
+        or paper.get("arxiv_id")
+        or paper.get("id")
+        or str(fallback_index),
+    )
 
 
 def _rekey_list_response_by_id(
@@ -124,7 +133,7 @@ def _rekey_list_response_by_id(
     return normalized
 
 
-def _extract_results_path(result_data: Any, results_path: Optional[str]) -> Any:
+def _extract_results_path(result_data: Any, results_path: str | None) -> Any:
     """Extract the results collection from a configured nested path.
 
     Only applies when result_data is still a dict; a results_path of "."
@@ -141,8 +150,9 @@ def _normalize_with_response_format(
 ) -> dict[str, dict[str, Any]]:
     """Normalize a response once a response_format is known to be present."""
     response_format = tool_config.response_format
-    result_data = _extract_results_path(result_data,
-                                        response_format.results_path)
+    result_data = _extract_results_path(
+        result_data, response_format.results_path
+    )
 
     # Dict-keyed responses (e.g. PubMed) are already {paper_id: metadata}.
     if response_format.is_dict and isinstance(result_data, dict):
@@ -211,7 +221,7 @@ def build_article_from_metadata(
 
 def _year_from_year_field(metadata: dict[str, Any]) -> int | None:
     """Parse the direct numeric/string "year" field, if present."""
-    if not ("year" in metadata and metadata["year"]):
+    if not (metadata.get("year")):
         return None
     try:
         return int(metadata["year"])
@@ -251,8 +261,9 @@ def parse_year_from_metadata(metadata: dict[str, Any]) -> int | None:
     return None
 
 
-def _build_article_url(paper_id: str, metadata: dict[str, Any],
-                       source_name: str) -> str:
+def _build_article_url(
+    paper_id: str, metadata: dict[str, Any], source_name: str
+) -> str:
     """Build URL for article, using metadata URL or constructing default."""
     # Prefer a URL the tool already supplied.
     url = metadata.get("url")
@@ -289,10 +300,10 @@ def build_articles_from_metadata(
             paper_source = default_source_name
 
         articles.append(
-            build_article_from_metadata(paper_id,
-                                        metadata,
-                                        paper_source,
-                                        used_in_analysis=True))
+            build_article_from_metadata(
+                paper_id, metadata, paper_source, used_in_analysis=True
+            )
+        )
     return articles
 
 
@@ -309,12 +320,16 @@ def _has_fulltext(meta: dict[str, Any]) -> bool:
     union check rather than one canonical field.
     """
     return bool(
-        meta.get("pmc_full_text_id") or meta.get("fulltext") or
-        meta.get("has_fulltext") or meta.get("pdf_url"))
+        meta.get("pmc_full_text_id")
+        or meta.get("fulltext")
+        or meta.get("has_fulltext")
+        or meta.get("pdf_url")
+    )
 
 
 def count_papers_with_fulltext(
-        all_paper_metadata: dict[str, dict[str, Any]]) -> tuple[int, int]:
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> tuple[int, int]:
     """Count papers with and without fulltext indicators.
 
     Returns:
@@ -343,8 +358,8 @@ def _has_analyzable_content(metadata: dict[str, Any]) -> bool:
 
 
 def get_papers_with_content(
-    all_paper_metadata: dict[str, dict[str,
-                                       Any]],) -> dict[str, dict[str, Any]]:
+    all_paper_metadata: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
     """Get papers that have content available for analysis.
 
     Papers with fulltext are preferred. Papers with pdf_url and abstract
@@ -352,14 +367,17 @@ def get_papers_with_content(
     """
     papers_with_content = {}
     for pid, metadata in all_paper_metadata.items():
-        if not isinstance(metadata,
-                          dict) or not _has_analyzable_content(metadata):
+        if not isinstance(metadata, dict) or not _has_analyzable_content(
+            metadata
+        ):
             continue
         papers_with_content[pid] = metadata
         if not metadata.get("fulltext"):
             logger.debug(
                 "Paper %s: using abstract for analysis"
-                " (fulltext not downloaded)", pid)
+                " (fulltext not downloaded)",
+                pid,
+            )
     return papers_with_content
 
 
@@ -378,16 +396,14 @@ def make_failure_result(
     # nodes check in articles_with_reasoning to decide whether literature
     # review usably succeeded (as opposed to inspecting queries/articles).
     return {
-        "articles_with_reasoning":
-            LITERATURE_REVIEW_FAILED,
-        "literature_review_queries":
-            queries or [],
-        "articles":
-            articles or [],
-        "messages":
-            phase_message("literature_review",
-                          f"literature review failed - {reason}",
-                          error=True),
+        "articles_with_reasoning": LITERATURE_REVIEW_FAILED,
+        "literature_review_queries": queries or [],
+        "articles": articles or [],
+        "messages": phase_message(
+            "literature_review",
+            f"literature review failed - {reason}",
+            error=True,
+        ),
     }
 
 
@@ -398,17 +414,14 @@ def make_success_result(
 ) -> dict[str, Any]:
     """Create a success result dict."""
     return {
-        "articles_with_reasoning":
-            synthesis,
-        "literature_review_queries":
-            queries,
-        "articles":
-            articles,
-        "messages":
-            phase_message(
-                "literature_review",
-                f"completed literature review with {len(queries)}"
-                f" queries, {len(articles)} articles analyzed"),
+        "articles_with_reasoning": synthesis,
+        "literature_review_queries": queries,
+        "articles": articles,
+        "messages": phase_message(
+            "literature_review",
+            f"completed literature review with {len(queries)}"
+            f" queries, {len(articles)} articles analyzed",
+        ),
     }
 
 
@@ -459,9 +472,11 @@ def _determine_multi_source_query_type(
     # types can't be served by one specialized prompt - fall back to
     # generic academic queries rather than picking one source to favor.
     if "knowledge_graph" in source_types and len(source_types) > 1:
-        logger.warning("Multi-source mode with knowledge_graph detected. "
-                       "Using generic queries. For best results, use"
-                       " per-source query generation.")
+        logger.warning(
+            "Multi-source mode with knowledge_graph detected. "
+            "Using generic queries. For best results, use"
+            " per-source query generation."
+        )
         return "academic"
     # Only knowledge_graph sources are configured, so it's safe to use
     # the specialized knowledge_graph query-generation prompt.
@@ -474,7 +489,7 @@ def _multi_source_type_if_applicable(
     is_multi_source: bool,
     workflow: Optional["WorkflowConfig"],
     tool_registry: Optional["ToolRegistry"],
-) -> Optional[str]:
+) -> str | None:
     """Return the multi-source query type, or None if not applicable."""
     if not is_multi_source or not workflow or not tool_registry:
         return None
@@ -489,7 +504,8 @@ def determine_query_source_type(
 ) -> str:
     """Determine the source type for query generation prompt selection."""
     multi_source_type = _multi_source_type_if_applicable(
-        is_multi_source, workflow, tool_registry)
+        is_multi_source, workflow, tool_registry
+    )
     if multi_source_type is not None:
         return multi_source_type
 
@@ -523,7 +539,10 @@ def calculate_papers_per_query(
         papers_per_query = 2
         logger.warning(
             "Target %s papers with %s queries gives <2 per query,"
-            " using 2 minimum", total_papers, num_queries)
+            " using 2 minimum",
+            total_papers,
+            num_queries,
+        )
 
     # remainder is returned so callers can give the first `remainder`
     # queries one extra paper each, evenly distributing the leftovers
@@ -598,7 +617,7 @@ def _resolve_pdf_discovery_tool(
     source: "SearchSourceConfig",
     workflow: "WorkflowConfig",
     tool_registry: "ToolRegistry",
-) -> Optional[tuple[str, str]]:
+) -> tuple[str, str] | None:
     """Resolve a single source's PDF discovery (mcp_tool_name, url_field).
 
     A source-level override wins; otherwise falls back to the workflow-level
@@ -610,8 +629,9 @@ def _resolve_pdf_discovery_tool(
     tool_cfg = tool_registry.get_tool(discovery_tool)
     if not tool_cfg:
         return None
-    discovery_url_field = (source.pdf_discovery_url_field or
-                           workflow.pdf_discovery_url_field)
+    discovery_url_field = (
+        source.pdf_discovery_url_field or workflow.pdf_discovery_url_field
+    )
     return tool_cfg.mcp_tool_name, discovery_url_field
 
 
@@ -670,7 +690,7 @@ def _lookup_pdf_discovery_config(
     pid: str,
     paper_source_map: dict[str, str],
     pdf_discovery_config: dict[str, tuple[str, str]],
-) -> Optional[tuple[str, str]]:
+) -> tuple[str, str] | None:
     """Look up a paper's PDF-discovery (tool_name, url_field), if any.
 
     Keyed by the paper's originating source (recorded by
@@ -679,7 +699,8 @@ def _lookup_pdf_discovery_config(
     """
     source_tool_id = paper_source_map.get(pid, "_default")
     return pdf_discovery_config.get(source_tool_id) or pdf_discovery_config.get(
-        "_default")
+        "_default"
+    )
 
 
 def _resolve_pdf_discovery_entry(
@@ -687,7 +708,7 @@ def _resolve_pdf_discovery_entry(
     meta: dict[str, Any],
     paper_source_map: dict[str, str],
     pdf_discovery_config: dict[str, tuple[str, str]],
-) -> Optional[tuple[str, dict[str, Any], str, str]]:
+) -> tuple[str, dict[str, Any], str, str] | None:
     """Resolve one paper's PDF-discovery entry, or None if not eligible.
 
     Skips papers that already have a pdf_url, have no resolvable discovery
@@ -696,8 +717,9 @@ def _resolve_pdf_discovery_entry(
     if not isinstance(meta, dict) or meta.get("pdf_url"):
         return None
 
-    config = _lookup_pdf_discovery_config(pid, paper_source_map,
-                                          pdf_discovery_config)
+    config = _lookup_pdf_discovery_config(
+        pid, paper_source_map, pdf_discovery_config
+    )
     if not config:
         return None
 
@@ -720,8 +742,9 @@ def get_papers_needing_pdf_discovery(
     """
     papers = []
     for pid, meta in all_paper_metadata.items():
-        entry = _resolve_pdf_discovery_entry(pid, meta, paper_source_map,
-                                             pdf_discovery_config)
+        entry = _resolve_pdf_discovery_entry(
+            pid, meta, paper_source_map, pdf_discovery_config
+        )
         if entry:
             papers.append(entry)
 
@@ -737,7 +760,7 @@ def _pdf_url_from_list(result_data: list[Any]) -> str | None:
     """Extract a PDF URL from a list-shaped discovery result."""
     if not result_data:
         return None
-    return cast(Optional[str], result_data[0])
+    return cast(str | None, result_data[0])
 
 
 def _pdf_url_from_dict(result_data: dict[str, Any]) -> str | None:
@@ -803,7 +826,7 @@ def _resolve_content_tool(
     source: "SearchSourceConfig",
     workflow: "WorkflowConfig",
     tool_registry: "ToolRegistry",
-) -> Optional[ContentToolConfig]:
+) -> ContentToolConfig | None:
     """Resolve a single source's content retrieval config.
 
     Same per-source-override-falls-back-to-workflow-default pattern as
@@ -854,12 +877,11 @@ def _build_default_content_config(
     if not tool_cfg:
         return {}
     return {
-        "_default":
-            ContentToolConfig(
-                mcp_tool_name=tool_cfg.mcp_tool_name,
-                url_field=workflow.content_url_field,
-                content_params=workflow.content_params,
-            )
+        "_default": ContentToolConfig(
+            mcp_tool_name=tool_cfg.mcp_tool_name,
+            url_field=workflow.content_url_field,
+            content_params=workflow.content_params,
+        )
     }
 
 
@@ -885,7 +907,7 @@ def _lookup_content_config(
     pid: str,
     paper_source_map: dict[str, str],
     content_config: dict[str, ContentToolConfig],
-) -> Optional[ContentToolConfig]:
+) -> ContentToolConfig | None:
     """Look up a paper's content-retrieval config, if any.
 
     Keyed by the paper's originating source (recorded by
@@ -901,7 +923,7 @@ def _resolve_content_entry(
     meta: dict[str, Any],
     paper_source_map: dict[str, str],
     content_config: dict[str, ContentToolConfig],
-) -> Optional[tuple[str, dict[str, Any], ContentToolConfig]]:
+) -> tuple[str, dict[str, Any], ContentToolConfig] | None:
     """Resolve one paper's content-retrieval entry, or None if not eligible.
 
     Skips papers that already have fulltext, have no resolvable content
@@ -933,8 +955,9 @@ def get_papers_needing_content(
     """
     papers = []
     for pid, meta in all_paper_metadata.items():
-        entry = _resolve_content_entry(pid, meta, paper_source_map,
-                                       content_config)
+        entry = _resolve_content_entry(
+            pid, meta, paper_source_map, content_config
+        )
         if entry:
             papers.append(entry)
 
@@ -943,7 +966,7 @@ def get_papers_needing_content(
 
 def _content_or_text_field(data: dict[str, Any]) -> str | None:
     """Return the "content" or "text" field from a dict payload, if set."""
-    return cast(Optional[str], data.get("content") or data.get("text"))
+    return cast(str | None, data.get("content") or data.get("text"))
 
 
 def _parse_content_from_string(result: str) -> str | None:
@@ -983,8 +1006,9 @@ def parse_content_result(result: Any) -> str | None:
 # =============================================================================
 
 
-def get_paper_content_for_analysis(metadata: dict[str, Any],
-                                   max_chars: int = 200_000) -> str:
+def get_paper_content_for_analysis(
+    metadata: dict[str, Any], max_chars: int = 200_000
+) -> str:
     """Get paper content for analysis, with truncation if needed."""
     # Fulltext is preferred; abstract is the fallback when fulltext wasn't
     # fetched (mirrors the policy in get_papers_with_content).

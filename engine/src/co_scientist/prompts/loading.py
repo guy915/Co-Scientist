@@ -41,7 +41,7 @@ def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
     Returns:
         Path object for the prompt file location
 
-    example:
+    Example:
         path = get_prompt_save_path("abc123", "review_batch")
         # Returns Path(".coscientist_prompts/abc123/review_batch.txt")
     """
@@ -55,10 +55,12 @@ def get_prompt_save_path(run_id: str, prompt_name: str) -> Path:
     return prompts_dir / prompt_name
 
 
-def save_prompt_to_disk(run_id: str,
-                        prompt_name: str,
-                        content: str,
-                        metadata: dict[str, Any] | None = None) -> bool:
+def save_prompt_to_disk(
+    run_id: str,
+    prompt_name: str,
+    content: str,
+    metadata: dict[str, Any] | None = None,
+) -> bool:
     """Save a filled-in prompt to disk for debugging.
 
     Args:
@@ -96,8 +98,9 @@ def save_prompt_to_disk(run_id: str,
         return False
 
 
-def load_prompt(prompt_name: str,
-                variables: dict[str, Any] | None = None) -> str:
+def load_prompt(
+    prompt_name: str, variables: dict[str, Any] | None = None
+) -> str:
     """Load a prompt from a markdown file and substitute variables.
 
     Args:
@@ -125,7 +128,7 @@ def load_prompt(prompt_name: str,
     return prompt_template
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _read_prompt_template(prompt_name: str) -> str:
     """Read a bundled prompt template, cached for the process lifetime.
 
@@ -142,8 +145,7 @@ def _read_prompt_template(prompt_name: str) -> str:
 
 
 def load_prompt_with_schema(
-    prompt_name: str,
-    variables: dict[str, Any] | None = None
+    prompt_name: str, variables: dict[str, Any] | None = None
 ) -> tuple[str, dict[str, Any] | None]:
     """Load a prompt and its associated JSON schema.
 
@@ -223,7 +225,10 @@ def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
 
     if tool_registry is None:
         try:
-            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import (
+                get_tool_registry,  # pylint: disable=import-outside-toplevel
+            )
+
             tool_registry = get_tool_registry()
         except Exception:  # pylint: disable=broad-exception-caught
             return empty

@@ -40,8 +40,11 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
-from app.citations import (CitationRecord, classify_citation,
-                           empty_citation_summary)
+from app.citations import (
+    CitationRecord,
+    classify_citation,
+    empty_citation_summary,
+)
 from app.elo import INITIAL_ELO, MATCH_TIERS, UPSET_MARGIN, update_pair
 from app.report_render import (
     EmitFn,
@@ -70,8 +73,9 @@ def _seeded_rng(*parts: str) -> random.Random:
     # Hash the joined parts (typically run_id, goal, run_mode) down to a
     # 32-bit int; sha256 gives a stable, well-distributed seed independent
     # of Python's hash randomization (PYTHONHASHSEED).
-    seed = int(hashlib.sha256("|".join(parts).encode()).hexdigest(), 16) % (2**
-                                                                            32)
+    seed = int(hashlib.sha256("|".join(parts).encode()).hexdigest(), 16) % (
+        2**32
+    )
     return random.Random(seed)
 
 
@@ -120,20 +124,26 @@ def _hypothesis_seed(rng: random.Random, goal: str, idx: int) -> dict[str, str]:
     target = rng.choice(_HYPOTHESIS_TARGETS)
     category = _HYPOTHESIS_CATEGORIES[angle_index]
     title = f"H{idx + 1}: {angle.capitalize()} {target}".strip()
-    statement = (f"In the context of '{goal[:120]}', we hypothesise that "
-                 f"{angle} {target} will produce a measurable effect via a "
-                 "mechanism distinct from current consensus.")
+    statement = (
+        f"In the context of '{goal[:120]}', we hypothesise that "
+        f"{angle} {target} will produce a measurable effect via a "
+        "mechanism distinct from current consensus."
+    )
     mechanism = (
         f"The proposed pathway operates by {angle} {target}, with "
         "feedback at two checkpoints; the predicted intermediate state "
-        "is detectable by standard assays.")
-    expected = ("We expect a dose-dependent effect with a saturating response "
-                "curve, distinguishable from baseline within standard error "
-                "bounds.")
+        "is detectable by standard assays."
+    )
+    expected = (
+        "We expect a dose-dependent effect with a saturating response "
+        "curve, distinguishable from baseline within standard error "
+        "bounds."
+    )
     experiment = (
         "Run a controlled in-vitro perturbation series with three "
         "replicates per condition; validate top hits in an orthogonal "
-        "model system.")
+        "model system."
+    )
     return {
         "title": title,
         "category": category,
@@ -148,8 +158,9 @@ def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
     """Generate a deterministic, plausible-sounding mock evidence record."""
     # Prefer longer words from the goal as a stand-in "topic" keyword; a
     # fixed fallback keeps output well-formed for very short/terse goals.
-    keywords = [t for t in goal.lower().split() if len(t) > 4
-               ][:3] or ["mechanism"]
+    keywords = [t for t in goal.lower().split() if len(t) > 4][:3] or [
+        "mechanism"
+    ]
     keyword = rng.choice(keywords)
     available = rng.random() > 0.15  # ~15% unavailable
     year = rng.randint(2015, 2025)
@@ -158,12 +169,13 @@ def _evidence_seed(rng: random.Random, goal: str, idx: int) -> dict[str, Any]:
         "url": f"https://example.org/mock/{idx + 1}" if available else "",
         "authors": [f"Author{idx + 1}.A.", f"Author{idx + 1}.B."],
         "year": year,
-        "abstract":
-            (f"This mock abstract discusses {keyword} dynamics, "
-             "mechanism, regulatory feedback, and a measurable effect "
-             "under controlled perturbation. It is provided in mock mode "
-             "so the workflow can be exercised without external network "
-             "calls."),
+        "abstract": (
+            f"This mock abstract discusses {keyword} dynamics, "
+            "mechanism, regulatory feedback, and a measurable effect "
+            "under controlled perturbation. It is provided in mock mode "
+            "so the workflow can be exercised without external network "
+            "calls."
+        ),
         "available": available,
     }
 
@@ -181,7 +193,8 @@ DEEP_VERIFICATION_TOP_K = 3
 _MOCK_SUMMARY = (
     "This run was executed in deterministic mock mode. Hypotheses, citations, "
     "and tournament results below are illustrative artefacts produced without "
-    "any LLM provider.")
+    "any LLM provider."
+)
 
 # Probe question/answer/reasoning/is-fundamental templates for
 # `_deep_verification_seed`, hoisted to module scope so the list is built
@@ -216,8 +229,7 @@ _DEEP_VERIFICATION_PROBE_TEMPLATES: list[tuple[str, str, str, bool]] = [
     (
         "Does the hypothesis depend on an assumption contradicted by "
         "prior work?",
-        "One supporting citation is weaker than assumed under closer "
-        "reading.",
+        "One supporting citation is weaker than assumed under closer reading.",
         "A shaky premise lowers confidence without undermining the whole "
         "hypothesis.",
         False,
@@ -242,68 +254,84 @@ def _deep_verification_seed(rng: random.Random, title: str) -> dict[str, Any]:
     """
     probe_count = rng.randint(2, 3)
     chosen = rng.sample(_DEEP_VERIFICATION_PROBE_TEMPLATES, probe_count)
-    probes = [{
-        "question": f"Regarding '{title[:60]}': {question}",
-        "answer": answer,
-        "reasoning": reasoning,
-        "assumption_is_fundamental": fundamental,
-    } for question, answer, reasoning, fundamental in chosen]
+    probes = [
+        {
+            "question": f"Regarding '{title[:60]}': {question}",
+            "answer": answer,
+            "reasoning": reasoning,
+            "assumption_is_fundamental": fundamental,
+        }
+        for question, answer, reasoning, fundamental in chosen
+    ]
     any_fundamental = any(p["assumption_is_fundamental"] for p in probes)
-    verdict = rng.choice(["weakened", "undermined"
-                         ]) if any_fundamental else "holds"
+    verdict = (
+        rng.choice(["weakened", "undermined"]) if any_fundamental else "holds"
+    )
     return {"probes": probes, "verdict": verdict}
 
 
 def _shuffled_research_directions(rng: random.Random) -> list[dict[str, Any]]:
     """Build the (shuffled) research-direction entries for the overview."""
     direction_angles = [
-        ("Establish the causal mechanism",
-         "Confirms the core assumption shared by the top hypotheses."),
-        ("Probe pathway redundancy",
-         "Determines whether compensatory routes blunt the expected effect."),
-        ("Validate in an orthogonal model",
-         "Guards against assay-specific artefacts before scale-up."),
+        (
+            "Establish the causal mechanism",
+            "Confirms the core assumption shared by the top hypotheses.",
+        ),
+        (
+            "Probe pathway redundancy",
+            "Determines whether compensatory routes blunt the expected effect.",
+        ),
+        (
+            "Validate in an orthogonal model",
+            "Guards against assay-specific artefacts before scale-up.",
+        ),
     ]
     rng.shuffle(direction_angles)
     research_directions = []
     for idx, (title, importance) in enumerate(direction_angles[:3]):
-        research_directions.append({
-            "title":
-                title,
-            "importance":
-                importance,
-            "suggested_experiments": [
-                "Run a controlled perturbation series with three replicates "
-                "per condition.",
-                "Quantify the readout against baseline for direction "
-                f"{idx + 1}.",
-            ],
-        })
+        research_directions.append(
+            {
+                "title": title,
+                "importance": importance,
+                "suggested_experiments": [
+                    "Run a controlled perturbation series with three "
+                    "replicates per condition.",
+                    "Quantify the readout against baseline for direction "
+                    f"{idx + 1}.",
+                ],
+            }
+        )
     return research_directions
 
 
 def _nih_specific_aims_from_directions(
-        goal: str, research_directions: list[dict[str, Any]]) -> dict[str, Any]:
+    goal: str, research_directions: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Derive the NIH Specific Aims payload from the research directions."""
-    aims = [{
-        "aim": f"Aim {i + 1}: {direction['title']}.",
-        "rationale": direction["importance"],
-        "approach": direction["suggested_experiments"][0],
-    } for i, direction in enumerate(research_directions)]
+    aims = [
+        {
+            "aim": f"Aim {i + 1}: {direction['title']}.",
+            "rationale": direction["importance"],
+            "approach": direction["suggested_experiments"][0],
+        }
+        for i, direction in enumerate(research_directions)
+    ]
     return {
-        "introduction":
-            (f"The proposed research targets '{goal[:120]}'. We organize the "
-             "top-ranked hypotheses into complementary specific aims."),
-        "aims":
-            aims,
-        "impact":
-            ("Successful completion would convert the leading mechanistic "
-             "hypothesis into an actionable, falsifiable research program."),
+        "introduction": (
+            f"The proposed research targets '{goal[:120]}'. We organize the "
+            "top-ranked hypotheses into complementary specific aims."
+        ),
+        "aims": aims,
+        "impact": (
+            "Successful completion would convert the leading mechanistic "
+            "hypothesis into an actionable, falsifiable research program."
+        ),
     }
 
 
-def _research_overview_seed(rng: random.Random, goal: str,
-                            top_titles: list[str]) -> dict[str, Any]:
+def _research_overview_seed(
+    rng: random.Random, goal: str, top_titles: list[str]
+) -> dict[str, Any]:
     """Build a deterministic research overview + NIH Specific Aims payload.
 
     The shape matches the engine's ``research_overview`` exactly so the shared
@@ -321,10 +349,12 @@ def _research_overview_seed(rng: random.Random, goal: str,
     summary = (
         f"Synthesizing the top hypotheses for '{goal[:120]}', a coherent "
         f"research program emerges around {lead.lower()}. The directions "
-        "below convert the highest-ranked mechanisms into a testable roadmap.")
+        "below convert the highest-ranked mechanisms into a testable roadmap."
+    )
     research_directions = _shuffled_research_directions(rng)
     nih_specific_aims = _nih_specific_aims_from_directions(
-        goal, research_directions)
+        goal, research_directions
+    )
     return {
         "overview": {
             "summary": summary,
@@ -345,8 +375,9 @@ def _research_overview_seed(rng: random.Random, goal: str,
 # ---------------------------------------------------------------------------
 
 
-def _build_supervisor_plan(cfg: dict[str, Any],
-                           run_mode: str) -> dict[str, Any]:
+def _build_supervisor_plan(
+    cfg: dict[str, Any], run_mode: str
+) -> dict[str, Any]:
     """Build the supervisor's research plan + agent DAG payload."""
     return {
         "agents": [
@@ -363,26 +394,27 @@ def _build_supervisor_plan(cfg: dict[str, Any],
             "safety",
             "report",
         ],
-        "run_mode":
-            run_mode,
-        "config":
-            cfg,
-        "setup":
-            cfg.get("setup", {}),
-        "setup_guidance":
-            setup_guidance(cfg.get("setup")),
-        "narrative":
-            ("Plan the canonical hypothesis-generation run for the "
-             "research goal. Allocate compute across literature, "
-             f"generation ({cfg['initial_hypotheses_count']} candidates), "
-             f"{cfg['max_iterations']} iterations of reflect/rank/evolve, "
-             "then synthesize a report."),
+        "run_mode": run_mode,
+        "config": cfg,
+        "setup": cfg.get("setup", {}),
+        "setup_guidance": setup_guidance(cfg.get("setup")),
+        "narrative": (
+            "Plan the canonical hypothesis-generation run for the "
+            "research goal. Allocate compute across literature, "
+            f"generation ({cfg['initial_hypotheses_count']} candidates), "
+            f"{cfg['max_iterations']} iterations of reflect/rank/evolve, "
+            "then synthesize a report."
+        ),
     }
 
 
-def _persist_literature_review(run_id: str, db_path: str | None,
-                               rng: random.Random, research_goal: str,
-                               evidence_count: int) -> list[dict[str, Any]]:
+def _persist_literature_review(
+    run_id: str,
+    db_path: str | None,
+    rng: random.Random,
+    research_goal: str,
+    evidence_count: int,
+) -> list[dict[str, Any]]:
     """Seed and persist deterministic evidence rows for the literature review.
 
     Returns:
@@ -437,25 +469,30 @@ def _persist_generation(
                 conn=conn,
             )
             hyp_ids.append(hid)
-            hyp_payloads.append({
-                "id": hid,
-                **h, "elo_rating": INITIAL_ELO,
-                "generation": 0
-            })
+            hyp_payloads.append(
+                {"id": hid, **h, "elo_rating": INITIAL_ELO, "generation": 0}
+            )
     return hyp_ids, hyp_payloads
 
 
-def _persist_reflection(run_id: str, db_path: str | None, rng: random.Random,
-                        hyp_ids: list[str], hyp_payloads: list[dict[str, Any]],
-                        evidence_count: int) -> None:
+def _persist_reflection(
+    run_id: str,
+    db_path: str | None,
+    rng: random.Random,
+    hyp_ids: list[str],
+    hyp_payloads: list[dict[str, Any]],
+    evidence_count: int,
+) -> None:
     """Seed and persist a reflection review for each initial hypothesis."""
     with store.transaction(db_path) as conn:
-        for hid, h in zip(hyp_ids, hyp_payloads):
-            critique = (f"Reflection: '{h['title']}' offers a plausible "
-                        "mechanism but should be checked against "
-                        f"the {evidence_count} retrieved sources for prior "
-                        "work; novelty is moderate; testability is high if "
-                        "the experimental context is constrained.")
+        for hid, h in zip(hyp_ids, hyp_payloads, strict=True):
+            critique = (
+                f"Reflection: '{h['title']}' offers a plausible "
+                "mechanism but should be checked against "
+                f"the {evidence_count} retrieved sources for prior "
+                "work; novelty is moderate; testability is high if "
+                "the experimental context is constrained."
+            )
             store.add_review(
                 run_id,
                 hid,
@@ -470,8 +507,9 @@ def _persist_reflection(run_id: str, db_path: str | None, rng: random.Random,
             )
 
 
-def _persist_proximity(db_path: str | None,
-                       hyp_ids: list[str]) -> dict[str, list[str]]:
+def _persist_proximity(
+    db_path: str | None, hyp_ids: list[str]
+) -> dict[str, list[str]]:
     """Assign each hypothesis to a fixed mock proximity cluster; persist it."""
     clusters: dict[str, list[str]] = {}
     with store.transaction(db_path) as conn:
@@ -482,8 +520,9 @@ def _persist_proximity(db_path: str | None,
     return clusters
 
 
-def _judge_pair(run_id: str, title_by_id: dict[str, str], a: str,
-                b: str) -> tuple[str, str, str]:
+def _judge_pair(
+    run_id: str, title_by_id: dict[str, str], a: str, b: str
+) -> tuple[str, str, str]:
     """Deterministically judge a tournament pair by hashing seeded titles.
 
     Hashing (rather than drawing from the shared RNG) keeps the judged outcome
@@ -492,9 +531,10 @@ def _judge_pair(run_id: str, title_by_id: dict[str, str], a: str,
     """
     a_title = title_by_id.get(a, a)
     b_title = title_by_id.get(b, b)
-    if hashlib.sha256(
-        (run_id + a_title + b_title).encode()).hexdigest() < hashlib.sha256(
-            (run_id + b_title + a_title).encode()).hexdigest():
+    if (
+        hashlib.sha256((run_id + a_title + b_title).encode()).hexdigest()
+        < hashlib.sha256((run_id + b_title + a_title).encode()).hexdigest()
+    ):
         return a, b, "Mock judge: 'a' has stronger mechanistic specificity."
     return b, a, "Mock judge: 'b' presents a more decisive experimental test."
 
@@ -587,22 +627,30 @@ def _run_ranking_round(
     with store.transaction(db_path) as conn:
         for a, b in pairs:
             round_matches.append(
-                _judge_and_persist_match(run_id, conn, itr, a, b, elo_state,
-                                         title_by_id, k_factor))
+                _judge_and_persist_match(
+                    run_id, conn, itr, a, b, elo_state, title_by_id, k_factor
+                )
+            )
     return round_matches
 
 
-def _build_evolved_child(rng: random.Random, research_goal: str,
-                         parent: dict[str,
-                                      Any], seed_idx: int) -> dict[str, Any]:
+def _build_evolved_child(
+    rng: random.Random,
+    research_goal: str,
+    parent: dict[str, Any],
+    seed_idx: int,
+) -> dict[str, Any]:
     """Generate a deterministic child hypothesis derived from `parent`."""
     child_h = _hypothesis_seed(rng, research_goal, seed_idx)
-    child_h["title"] = (f"{child_h['title']} "
-                        f"(evolved from {parent['title'][:30]}...)")
-    child_h["statement"] = (f"Evolved variant of '{parent['title']}': "
-                            f"{child_h['statement']} Carries forward the "
-                            "parent's mechanistic frame with sharpened "
-                            "predictions.")
+    child_h["title"] = (
+        f"{child_h['title']} (evolved from {parent['title'][:30]}...)"
+    )
+    child_h["statement"] = (
+        f"Evolved variant of '{parent['title']}': "
+        f"{child_h['statement']} Carries forward the "
+        "parent's mechanistic frame with sharpened "
+        "predictions."
+    )
     return child_h
 
 
@@ -650,31 +698,44 @@ def _run_evolve_round(
     Returns:
         A tuple of (top-k `(hypothesis_id, elo)` pairs, the child payloads).
     """
-    top_k = sorted(elo_state.items(),
-                   key=lambda kv: -kv[1])[:evolution_max_count]
+    top_k = sorted(elo_state.items(), key=lambda kv: -kv[1])[
+        :evolution_max_count
+    ]
     children: list[dict[str, Any]] = []
     with store.transaction(db_path) as conn:
         for parent_id, _ in top_k:
             parent = store.get_hypothesis(parent_id, conn=conn)
             if not parent:
                 continue
-            child = _persist_evolved_child(run_id, conn, rng, research_goal,
-                                           parent_id, parent,
-                                           len(hyp_ids) + len(children))
+            child = _persist_evolved_child(
+                run_id,
+                conn,
+                rng,
+                research_goal,
+                parent_id,
+                parent,
+                len(hyp_ids) + len(children),
+            )
             hyp_ids.append(child["id"])
             elo_state[child["id"]] = INITIAL_ELO
             children.append(child)
     return top_k, children
 
 
-def _persist_meta_review_round(run_id: str, db_path: str | None, itr: int,
-                               top_k: list[tuple[str, int]],
-                               hyp_ids: list[str]) -> str:
+def _persist_meta_review_round(
+    run_id: str,
+    db_path: str | None,
+    itr: int,
+    top_k: list[tuple[str, int]],
+    hyp_ids: list[str],
+) -> str:
     """Persist a per-iteration meta-review critique and return its text."""
-    mr_critique = (f"Meta-review (iter {itr}): the leading hypotheses "
-                   "cluster around the same mechanistic frame; recommend "
-                   "diversifying the experimental context in the next round "
-                   "and tightening the citation grounding for the top three.")
+    mr_critique = (
+        f"Meta-review (iter {itr}): the leading hypotheses "
+        "cluster around the same mechanistic frame; recommend "
+        "diversifying the experimental context in the next round "
+        "and tightening the citation grounding for the top three."
+    )
     store.add_review(
         run_id,
         top_k[0][0] if top_k else hyp_ids[0],
@@ -702,7 +763,8 @@ def _persist_deep_verification(
                 continue
             dv = _deep_verification_seed(rng, hyp["title"])
             summary, critique = format_deep_verification_critique(
-                dv["probes"], dv["verdict"])
+                dv["probes"], dv["verdict"]
+            )
             store.add_review(
                 run_id,
                 hid,
@@ -711,11 +773,13 @@ def _persist_deep_verification(
                 critique=critique,
                 conn=conn,
             )
-            dv_entries.append({
-                "hypothesis_id": hid,
-                "verdict": dv["verdict"],
-                "probes": dv["probes"],
-            })
+            dv_entries.append(
+                {
+                    "hypothesis_id": hid,
+                    "verdict": dv["verdict"],
+                    "probes": dv["probes"],
+                }
+            )
     return dv_entries
 
 
@@ -730,26 +794,26 @@ def _persist_citation_audit(
     with store.transaction(db_path) as conn:
         # Cite at least 3 hypotheses, or half of them if that is more, so
         # small runs still get a non-trivial citation audit.
-        for hid in hyp_ids[:max(3, len(hyp_ids) // 2)]:
+        for hid in hyp_ids[: max(3, len(hyp_ids) // 2)]:
             # Link first 2 evidence items to each hypothesis as supporting
             # citations
             for ev in evidence_payload[:2]:
-                claim = (f"Mechanism mentioned in {ev['title'][:30]} "
-                         "supports hypothesis")
+                claim = (
+                    f"Mechanism mentioned in {ev['title'][:30]} "
+                    "supports hypothesis"
+                )
                 state = classify_citation(
                     CitationRecord(
                         url=ev["url"],
                         abstract=ev["abstract"],
                         claim=claim,
                         available=ev["available"],
-                    ))
+                    )
+                )
                 cit_summary[state] += 1
-                store.add_citation(run_id,
-                                   hid,
-                                   ev["id"],
-                                   claim,
-                                   state,
-                                   conn=conn)
+                store.add_citation(
+                    run_id, hid, ev["id"], claim, state, conn=conn
+                )
     return cit_summary
 
 
@@ -758,8 +822,9 @@ def _build_tournament_pairs(
     hyp_ids: list[str],
     pair_count: int,
 ) -> list[tuple[str, str]]:
-    """Sample `pair_count` random hypothesis pairs for the first ranking
-    round.
+    """Sample `pair_count` random hypothesis pairs.
+
+    The pairs seed the first ranking round.
     """
     pairs = []
     for _ in range(pair_count):
@@ -774,19 +839,19 @@ def _apply_pending_steering(run_id: str, db_path: str | None, itr: int) -> None:
     if not pending:
         return
     steering_note = "; ".join(m.content for m in pending)
-    logger.info("run %s iteration %d: applying steering: %s", run_id, itr,
-                steering_note)
+    logger.info(
+        "run %s iteration %d: applying steering: %s", run_id, itr, steering_note
+    )
     store.mark_steering_applied([m.id for m in pending], db_path=db_path)
 
 
 def _ranking_round_payload(
-        itr: int, round_matches: list[dict[str, Any]]) -> dict[str, Any]:
+    itr: int, round_matches: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Build the emitted payload for one ranking round."""
     return {
         "iteration": itr,
-        "matches": [{
-            "winner": str(m["winner_id"])
-        } for m in round_matches],
+        "matches": [{"winner": str(m["winner_id"])} for m in round_matches],
     }
 
 
@@ -806,22 +871,33 @@ async def _run_evolve_and_meta_review_round(
     Mutates `hyp_ids` and `elo_state` in place via `_run_evolve_round`.
     """
     # ---- 8. Evolve top-k ----
-    top_k, children = _run_evolve_round(run_id, db_path, rng, research_goal,
-                                        hyp_ids, elo_state, evolution_max_count)
-    yield await emit("evolve", {
-        "children": [hypothesis_stub(c) for c in children],
-        "iteration": itr,
-    })
+    top_k, children = _run_evolve_round(
+        run_id,
+        db_path,
+        rng,
+        research_goal,
+        hyp_ids,
+        elo_state,
+        evolution_max_count,
+    )
+    yield await emit(
+        "evolve",
+        {
+            "children": [hypothesis_stub(c) for c in children],
+            "iteration": itr,
+        },
+    )
 
     # ---- 9. Meta-review (per iteration) ----
-    mr_critique = _persist_meta_review_round(run_id, db_path, itr, top_k,
-                                             hyp_ids)
+    mr_critique = _persist_meta_review_round(
+        run_id, db_path, itr, top_k, hyp_ids
+    )
     yield await emit(
         "meta_review",
         {
             "iteration": itr,
             "critique": mr_critique,
-            "top_k_ids": [t[0] for t in top_k]
+            "top_k_ids": [t[0] for t in top_k],
         },
     )
 
@@ -868,8 +944,16 @@ async def _maybe_evolve_and_meta_review_round(
     if not should_run:
         return
     async for event in _run_evolve_and_meta_review_round(
-            run_id, research_goal, db_path, rng, hyp_ids, elo_state,
-            evolution_max_count, itr, emit):
+        run_id,
+        research_goal,
+        db_path,
+        rng,
+        hyp_ids,
+        elo_state,
+        evolution_max_count,
+        itr,
+        emit,
+    ):
         yield event
 
 
@@ -900,13 +984,14 @@ async def _run_tournament_iterations(
     """
     for itr in range(1, cfg["max_iterations"] + 2):
         _apply_pending_steering(run_id, db_path, itr)
-        round_matches = _run_ranking_round(run_id, db_path, itr, pairs,
-                                           elo_state, title_by_id,
-                                           cfg["k_factor"])
+        round_matches = _run_ranking_round(
+            run_id, db_path, itr, pairs, elo_state, title_by_id, cfg["k_factor"]
+        )
         yield await emit("ranking", _ranking_round_payload(itr, round_matches))
 
-        cancelled_event = await _emit_cancelled_if_set(run_id, db_path,
-                                                       cancelled, emit)
+        cancelled_event = await _emit_cancelled_if_set(
+            run_id, db_path, cancelled, emit
+        )
         if cancelled_event is not None:
             yield cancelled_event
             return
@@ -914,13 +999,23 @@ async def _run_tournament_iterations(
         # Only run evolve/meta inside iterations, not after the final
         # ranking pass.
         async for event in _maybe_evolve_and_meta_review_round(
-                itr <= cfg["max_iterations"], run_id, research_goal, db_path,
-                rng, hyp_ids, elo_state, cfg["evolution_max_count"], itr, emit):
+            itr <= cfg["max_iterations"],
+            run_id,
+            research_goal,
+            db_path,
+            rng,
+            hyp_ids,
+            elo_state,
+            cfg["evolution_max_count"],
+            itr,
+            emit,
+        ):
             yield event
 
 
-def _fetch_top_hypotheses(db_path: str | None, leaderboard_ids: list[str],
-                          top_n: int) -> list[dict[str, Any]]:
+def _fetch_top_hypotheses(
+    db_path: str | None, leaderboard_ids: list[str], top_n: int
+) -> list[dict[str, Any]]:
     """Fetch the top `top_n` leaderboard hypotheses, dropping missing rows."""
     with store.connect(db_path) as conn:
         raw: list[dict[str, Any] | None] = [
@@ -951,17 +1046,21 @@ async def _finalize_mock_run(
     leaderboard_ids = [
         hid for hid, _ in sorted(elo_state.items(), key=lambda kv: -kv[1])
     ]
-    dv_entries = _persist_deep_verification(run_id, db_path, rng,
-                                            leaderboard_ids,
-                                            DEEP_VERIFICATION_TOP_K)
-    yield await emit("deep_verification", {
-        "verified": len(dv_entries),
-        "probes": dv_entries,
-    })
+    dv_entries = _persist_deep_verification(
+        run_id, db_path, rng, leaderboard_ids, DEEP_VERIFICATION_TOP_K
+    )
+    yield await emit(
+        "deep_verification",
+        {
+            "verified": len(dv_entries),
+            "probes": dv_entries,
+        },
+    )
 
     # ---- 11. Citation audit ----
-    cit_summary = _persist_citation_audit(run_id, db_path, hyp_ids,
-                                          evidence_payload)
+    cit_summary = _persist_citation_audit(
+        run_id, db_path, hyp_ids, evidence_payload
+    )
     yield await emit("citation_audit", cit_summary)
 
     # ---- 12. Final safety + report ----
@@ -969,9 +1068,11 @@ async def _finalize_mock_run(
 
     # ---- 13. Research overview + NIH Specific Aims ----
     research_overview = _research_overview_seed(
-        rng, research_goal, [h["title"] for h in top_hypotheses])
-    yield await emit("research_overview",
-                     {"research_overview": research_overview})
+        rng, research_goal, [h["title"] for h in top_hypotheses]
+    )
+    yield await emit(
+        "research_overview", {"research_overview": research_overview}
+    )
 
     # ---- 14. Final safety + report, via the shared finalize path ----
     async for event in finalize_report(
@@ -1041,8 +1142,10 @@ async def _run_literature_and_generation(
     """
     # ---- 3. Literature review ----
     evidence_payload.extend(
-        _persist_literature_review(run_id, db_path, rng, research_goal,
-                                   cfg["evidence_count"]))
+        _persist_literature_review(
+            run_id, db_path, rng, research_goal, cfg["evidence_count"]
+        )
+    )
     yield await emit(
         "literature_review",
         {
@@ -1053,14 +1156,17 @@ async def _run_literature_and_generation(
 
     # ---- 4. Generation ----
     generated_ids, generated_payloads = _persist_generation(
-        run_id, db_path, rng, research_goal, cfg["initial_hypotheses_count"])
+        run_id, db_path, rng, research_goal, cfg["initial_hypotheses_count"]
+    )
     hyp_ids.extend(generated_ids)
     hyp_payloads.extend(generated_payloads)
     yield await emit(
-        "generate", {
+        "generate",
+        {
             "count": len(hyp_payloads),
             "hypotheses": [hypothesis_stub(h) for h in hyp_payloads],
-        })
+        },
+    )
 
 
 async def _run_reflection_and_proximity(
@@ -1077,16 +1183,16 @@ async def _run_reflection_and_proximity(
     Covers stages 5-6.
     """
     # ---- 5. Reflection ----
-    _persist_reflection(run_id, db_path, rng, hyp_ids, hyp_payloads,
-                        cfg["evidence_count"])
+    _persist_reflection(
+        run_id, db_path, rng, hyp_ids, hyp_payloads, cfg["evidence_count"]
+    )
     yield await emit("reflection", {"reviewed": len(hyp_ids)})
 
     # ---- 6. Proximity / clustering ----
     clusters = _persist_proximity(db_path, hyp_ids)
-    yield await emit("proximity",
-                     {"clusters": {
-                         k: len(v) for k, v in clusters.items()
-                     }})
+    yield await emit(
+        "proximity", {"clusters": {k: len(v) for k, v in clusters.items()}}
+    )
 
 
 async def _run_seed_stages(
@@ -1114,25 +1220,29 @@ async def _run_seed_stages(
     The caller checks `cancelled.is_set()` once this generator is exhausted
     to distinguish that from a natural finish.
     """
-    async for event in _run_intake_stage(run_id,
-                                         db_path,
-                                         cfg,
-                                         run_mode,
-                                         cancelled=cancelled,
-                                         emit=emit):
+    async for event in _run_intake_stage(
+        run_id, db_path, cfg, run_mode, cancelled=cancelled, emit=emit
+    ):
         yield event
     if _is_cancelled(cancelled):
         return
 
-    async for event in _run_literature_and_generation(run_id, research_goal,
-                                                      db_path, rng, cfg, emit,
-                                                      evidence_payload, hyp_ids,
-                                                      hyp_payloads):
+    async for event in _run_literature_and_generation(
+        run_id,
+        research_goal,
+        db_path,
+        rng,
+        cfg,
+        emit,
+        evidence_payload,
+        hyp_ids,
+        hyp_payloads,
+    ):
         yield event
 
-    async for event in _run_reflection_and_proximity(run_id, db_path, rng, cfg,
-                                                     emit, hyp_ids,
-                                                     hyp_payloads):
+    async for event in _run_reflection_and_proximity(
+        run_id, db_path, rng, cfg, emit, hyp_ids, hyp_payloads
+    ):
         yield event
 
 
@@ -1149,7 +1259,7 @@ def _seed_tournament_round(
     -- and thus the leaderboard, deep-verification selection, and research
     overview -- reproducible for a fixed (run_id, goal).
     """
-    elo_state = {hid: INITIAL_ELO for hid in hyp_ids}
+    elo_state = dict.fromkeys(hyp_ids, INITIAL_ELO)
     title_by_id = {p["id"]: p["title"] for p in hyp_payloads}
     pairs = _build_tournament_pairs(rng, hyp_ids, pair_count)
     return elo_state, title_by_id, pairs
@@ -1178,17 +1288,17 @@ async def _run_tournament_and_finalize(
     terminal "cancelled" status event in that case.
     """
     async for event in _run_tournament_iterations(
-            run_id,
-            research_goal,
-            db_path,
-            rng,
-            cfg,
-            pairs,
-            elo_state,
-            title_by_id,
-            hyp_ids,
-            cancelled=cancelled,
-            emit=emit,
+        run_id,
+        research_goal,
+        db_path,
+        rng,
+        cfg,
+        pairs,
+        elo_state,
+        title_by_id,
+        hyp_ids,
+        cancelled=cancelled,
+        emit=emit,
     ):
         yield event
     if _is_cancelled(cancelled):
@@ -1196,15 +1306,15 @@ async def _run_tournament_and_finalize(
 
     # ---- 10-14. Deep verification, citation audit, and final report ----
     async for event in _finalize_mock_run(
-            run_id,
-            research_goal,
-            run_mode,
-            db_path,
-            rng,
-            hyp_ids,
-            elo_state,
-            evidence_payload,
-            emit,
+        run_id,
+        research_goal,
+        run_mode,
+        db_path,
+        rng,
+        hyp_ids,
+        elo_state,
+        evidence_payload,
+        emit,
     ):
         yield event
 
@@ -1235,17 +1345,17 @@ async def run_mock_workflow(
     hyp_ids: list[str] = []
     hyp_payloads: list[dict[str, Any]] = []
     async for event in _run_seed_stages(
-            run_id,
-            research_goal,
-            db_path,
-            rng,
-            cfg,
-            run_mode,
-            cancelled=cancelled,
-            emit=emit,
-            evidence_payload=evidence_payload,
-            hyp_ids=hyp_ids,
-            hyp_payloads=hyp_payloads,
+        run_id,
+        research_goal,
+        db_path,
+        rng,
+        cfg,
+        run_mode,
+        cancelled=cancelled,
+        emit=emit,
+        evidence_payload=evidence_payload,
+        hyp_ids=hyp_ids,
+        hyp_payloads=hyp_payloads,
     ):
         yield event
     if _is_cancelled(cancelled):
@@ -1255,7 +1365,8 @@ async def run_mock_workflow(
 
     # ---- 7. First ranking round ----
     elo_state, title_by_id, pairs = _seed_tournament_round(
-        hyp_ids, hyp_payloads, rng, cfg["tournament_pairs"])
+        hyp_ids, hyp_payloads, rng, cfg["tournament_pairs"]
+    )
 
     # ---- 8-14. Ranking/evolve/meta-review iterations, then finalization ----
     async for event in _run_tournament_and_finalize(

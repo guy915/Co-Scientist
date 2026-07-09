@@ -8,12 +8,16 @@ from typing import Any
 from co_scientist.constants import (
     LONG_MAX_TOKENS,
     LOW_TEMPERATURE,
-    PROGRESS_PROXIMITY_START,
     PROGRESS_PROXIMITY_COMPLETE,
+    PROGRESS_PROXIMITY_START,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import (Hypothesis, create_metrics_update,
-                                 phase_message, rank_by_elo)
+from co_scientist.models import (
+    Hypothesis,
+    create_metrics_update,
+    phase_message,
+    rank_by_elo,
+)
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.state import WorkflowState
@@ -21,9 +25,12 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
-def _match_hypothesis_to_cluster(hypotheses: list[Hypothesis], hyp_text: str,
-                                 cluster_id: str,
-                                 similarity_degree: str) -> None:
+def _match_hypothesis_to_cluster(
+    hypotheses: list[Hypothesis],
+    hyp_text: str,
+    cluster_id: str,
+    similarity_degree: str,
+) -> None:
     """Assigns cluster id/degree to the hypothesis matching hyp_text.
 
     Matches by the first 100 chars of text -- cheap, and robust to minor
@@ -50,8 +57,9 @@ def _match_hypothesis_to_cluster(hypotheses: list[Hypothesis], hyp_text: str,
             break
 
 
-def _assign_cluster_ids(hypotheses: list[Hypothesis],
-                        similarity_clusters: list[dict[str, Any]]) -> None:
+def _assign_cluster_ids(
+    hypotheses: list[Hypothesis], similarity_clusters: list[dict[str, Any]]
+) -> None:
     """Assigns similarity-cluster ids and degrees back onto hypotheses.
 
     The LLM echoes back hypothesis text per cluster rather than an index,
@@ -70,12 +78,13 @@ def _assign_cluster_ids(hypotheses: list[Hypothesis],
         for similar_hyp in similar_hypotheses:
             hyp_text = similar_hyp.get("text", "")
             similarity_degree = similar_hyp.get("similarity_degree", "low")
-            _match_hypothesis_to_cluster(hypotheses, hyp_text, cluster_id,
-                                         similarity_degree)
+            _match_hypothesis_to_cluster(
+                hypotheses, hyp_text, cluster_id, similarity_degree
+            )
 
 
 def _partition_by_similarity_degree(
-    cluster_hypotheses: list[Hypothesis]
+    cluster_hypotheses: list[Hypothesis],
 ) -> tuple[list[Hypothesis], list[Hypothesis]]:
     """Splits cluster hypotheses into "high" and non-"high" similarity groups.
 
@@ -96,8 +105,9 @@ def _partition_by_similarity_degree(
     return high_similarity, others
 
 
-def _build_removed_duplicate_record(duplicate: Hypothesis, cluster_id: str,
-                                    kept_text: str) -> dict[str, Any]:
+def _build_removed_duplicate_record(
+    duplicate: Hypothesis, cluster_id: str, kept_text: str
+) -> dict[str, Any]:
     """Builds one removed-duplicate audit entry for a dropped hypothesis.
 
     Feeds the removed_duplicates audit trail (state.py), which evolve.py
@@ -143,7 +153,8 @@ def _resolve_cluster_duplicates(
         return list(cluster_hypotheses), []
 
     high_similarity, others = _partition_by_similarity_degree(
-        cluster_hypotheses)
+        cluster_hypotheses
+    )
 
     # Keep all non-high-similarity hypotheses
     hypotheses_to_keep: list[Hypothesis] = []
@@ -165,15 +176,20 @@ def _resolve_cluster_duplicates(
     removed_duplicates: list[dict[str, Any]] = []
     for duplicate in high_similarity[1:]:
         removed_duplicates.append(
-            _build_removed_duplicate_record(duplicate, cluster_id, best.text))
-        logger.info("Removed duplicate from cluster %s: %s... (Elo: %s)",
-                    cluster_id, duplicate.text[:100], duplicate.elo_rating)
+            _build_removed_duplicate_record(duplicate, cluster_id, best.text)
+        )
+        logger.info(
+            "Removed duplicate from cluster %s: %s... (Elo: %s)",
+            cluster_id,
+            duplicate.text[:100],
+            duplicate.elo_rating,
+        )
 
     return hypotheses_to_keep, removed_duplicates
 
 
 def _dedupe_by_cluster(
-    hypotheses: list[Hypothesis]
+    hypotheses: list[Hypothesis],
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
     """Removes high-similarity duplicates within each similarity cluster.
 
@@ -209,8 +225,9 @@ def _dedupe_by_cluster(
 
     # For each cluster, handle high-similarity duplicates
     for cluster_id, cluster_hypotheses in clusters_dict.items():
-        kept, removed = _resolve_cluster_duplicates(cluster_id,
-                                                    cluster_hypotheses)
+        kept, removed = _resolve_cluster_duplicates(
+            cluster_id, cluster_hypotheses
+        )
         hypotheses_to_keep.extend(kept)
         removed_duplicates.extend(removed)
 
@@ -218,7 +235,8 @@ def _dedupe_by_cluster(
 
 
 def _prepare_hypotheses_for_analysis(
-        hypotheses: list[Hypothesis]) -> list[dict[str, Any]]:
+    hypotheses: list[Hypothesis],
+) -> list[dict[str, Any]]:
     """Builds the per-hypothesis payload sent to the proximity LLM call.
 
     Sends only the fields the clustering prompt needs, plus a positional
@@ -232,17 +250,20 @@ def _prepare_hypotheses_for_analysis(
     Returns:
         Per-hypothesis dicts for the proximity prompt.
     """
-    return [{
-        "text": hyp.text,
-        "score": hyp.score,
-        "elo_rating": hyp.elo_rating,
-        "index": i
-    } for i, hyp in enumerate(hypotheses)]
+    return [
+        {
+            "text": hyp.text,
+            "score": hyp.score,
+            "elo_rating": hyp.elo_rating,
+            "index": i,
+        }
+        for i, hyp in enumerate(hypotheses)
+    ]
 
 
 async def _fetch_similarity_clusters(
-        state: WorkflowState,
-        hypotheses: list[Hypothesis]) -> list[dict[str, Any]]:
+    state: WorkflowState, hypotheses: list[Hypothesis]
+) -> list[dict[str, Any]]:
     """Calls the proximity LLM to cluster hypotheses by similarity.
 
     A single call analyzes the whole pool at once; LOW_TEMPERATURE keeps
@@ -263,7 +284,8 @@ async def _fetch_similarity_clusters(
 
     # Call LLM to cluster by similarity
     prompt, schema = get_proximity_prompt(
-        hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
+        hypotheses_for_analysis, supervisor_guidance=supervisor_guidance
+    )
 
     response = await call_llm_json(
         prompt=prompt,
@@ -279,14 +301,17 @@ async def _fetch_similarity_clusters(
         },
     )
 
-    similarity_clusters: list[dict[str,
-                                   Any]] = response.get("similarity_clusters",
-                                                        [])
+    similarity_clusters: list[dict[str, Any]] = response.get(
+        "similarity_clusters", []
+    )
     return similarity_clusters
 
 
-def _log_dedup_summary(original_count: int, kept_count: int,
-                       removed_duplicates: list[dict[str, Any]]) -> None:
+def _log_dedup_summary(
+    original_count: int,
+    kept_count: int,
+    removed_duplicates: list[dict[str, Any]],
+) -> None:
     """Logs a summary of proximity deduplication results.
 
     Args:
@@ -296,14 +321,18 @@ def _log_dedup_summary(original_count: int, kept_count: int,
     """
     logger.info(
         "Proximity analysis complete: %s → %s hypotheses"
-        " (%s duplicates removed)", original_count, kept_count,
-        len(removed_duplicates))
+        " (%s duplicates removed)",
+        original_count,
+        kept_count,
+        len(removed_duplicates),
+    )
 
     if removed_duplicates:
-        logger.warning("Removed %s high-similarity duplicates:",
-                       len(removed_duplicates))
+        logger.warning(
+            "Removed %s high-similarity duplicates:", len(removed_duplicates)
+        )
         for dup in removed_duplicates[:3]:  # Log first 3
-            logger.warning("- %s...", dup['text'][:80])
+            logger.warning("- %s...", dup["text"][:80])
 
 
 @dataclass
@@ -315,6 +344,7 @@ class _ClusteringOutcome:
         removed_duplicates: Audit records for hypotheses dropped this pass.
         similarity_clusters: Clusters as returned by the proximity LLM call.
     """
+
     hypotheses_to_keep: list[Hypothesis]
     removed_duplicates: list[dict[str, Any]]
     similarity_clusters: list[dict[str, Any]]
@@ -340,26 +370,31 @@ async def _run_proximity_clustering(
         deduplication for this iteration rather than failing the whole run.
     """
     await emit_progress(
-        state, "proximity_start",
+        state,
+        "proximity_start",
         f"Analyzing similarity of {len(hypotheses)} hypotheses...",
-        PROGRESS_PROXIMITY_START)
+        PROGRESS_PROXIMITY_START,
+    )
 
     similarity_clusters = await _fetch_similarity_clusters(state, hypotheses)
 
     if not similarity_clusters:
         logger.warning(
-            "No similarity clusters returned, skipping deduplication")
+            "No similarity clusters returned, skipping deduplication"
+        )
         return None
 
     _assign_cluster_ids(hypotheses, similarity_clusters)
 
     hypotheses_to_keep, removed_duplicates = _dedupe_by_cluster(hypotheses)
 
-    _log_dedup_summary(len(hypotheses), len(hypotheses_to_keep),
-                       removed_duplicates)
+    _log_dedup_summary(
+        len(hypotheses), len(hypotheses_to_keep), removed_duplicates
+    )
 
-    return _ClusteringOutcome(hypotheses_to_keep, removed_duplicates,
-                              similarity_clusters)
+    return _ClusteringOutcome(
+        hypotheses_to_keep, removed_duplicates, similarity_clusters
+    )
 
 
 def _build_proximity_update(
@@ -390,24 +425,23 @@ def _build_proximity_update(
     """
     metrics = create_metrics_update(llm_calls_delta=1)
 
-    all_removed_duplicates = (state.get("removed_duplicates", []) +
-                              outcome.removed_duplicates)
+    all_removed_duplicates = (
+        state.get("removed_duplicates", []) + outcome.removed_duplicates
+    )
 
     return {
-        "hypotheses":
-            outcome.hypotheses_to_keep,
-        "removed_duplicates":
-            all_removed_duplicates,
-        "metrics":
-            metrics,
-        "current_iteration":
-            next_iteration,
-        "messages":
-            phase_message("proximity", f"Deduplication: {len(hypotheses)}"
-                          f" → {len(outcome.hypotheses_to_keep)}"
-                          f" ({len(outcome.removed_duplicates)} removed)",
-                          duplicates_removed=len(outcome.removed_duplicates),
-                          clusters=len(outcome.similarity_clusters)),
+        "hypotheses": outcome.hypotheses_to_keep,
+        "removed_duplicates": all_removed_duplicates,
+        "metrics": metrics,
+        "current_iteration": next_iteration,
+        "messages": phase_message(
+            "proximity",
+            f"Deduplication: {len(hypotheses)}"
+            f" → {len(outcome.hypotheses_to_keep)}"
+            f" ({len(outcome.removed_duplicates)} removed)",
+            duplicates_removed=len(outcome.removed_duplicates),
+            clusters=len(outcome.similarity_clusters),
+        ),
     }
 
 
@@ -448,12 +482,13 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
         return {"hypotheses": hypotheses, "current_iteration": next_iteration}
 
     # Emit progress
-    await emit_progress(state,
-                        "proximity_complete",
-                        f"Removed {len(outcome.removed_duplicates)}"
-                        " duplicates",
-                        PROGRESS_PROXIMITY_COMPLETE,
-                        duplicates_removed=len(outcome.removed_duplicates),
-                        remaining=len(outcome.hypotheses_to_keep))
+    await emit_progress(
+        state,
+        "proximity_complete",
+        f"Removed {len(outcome.removed_duplicates)} duplicates",
+        PROGRESS_PROXIMITY_COMPLETE,
+        duplicates_removed=len(outcome.removed_duplicates),
+        remaining=len(outcome.hypotheses_to_keep),
+    )
 
     return _build_proximity_update(state, hypotheses, outcome, next_iteration)

@@ -20,8 +20,9 @@ from co_scientist.nodes.evolve import evolve_node
 from tests._state import make_hypothesis, make_state
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
-                                                              Any]) -> None:
+def _stub_llm(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
+) -> None:
     """Patch evolve's call_llm_json to return one fixed response.
 
     Args:
@@ -35,8 +36,9 @@ def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
     monkeypatch.setattr(evolve, "call_llm_json", fake)
 
 
-def _stub_llm_from_prompt(monkeypatch: pytest.MonkeyPatch,
-                          builder: Callable[[str], dict[str, Any]]) -> None:
+def _stub_llm_from_prompt(
+    monkeypatch: pytest.MonkeyPatch, builder: Callable[[str], dict[str, Any]]
+) -> None:
     """Patch call_llm_json to derive each response from the prompt.
 
     The prompt embeds ``original_hypothesis``; ``builder`` maps the prompt text
@@ -54,24 +56,29 @@ def _stub_llm_from_prompt(monkeypatch: pytest.MonkeyPatch,
 
 
 async def test_evolution_produces_evolved_hypotheses(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A canned response yields an evolved hypothesis and an evolution detail.
 
     The evolved hypothesis must take its text/explanation/experiment from the
     stub, and ``evolution_details`` must record the original->evolved
     transformation with the stub's refinement summary as the rationale.
     """
-    original = make_hypothesis(text="quercetin inhibits aldolase activity",
-                               explanation="old explanation",
-                               experiment="old experiment")
+    original = make_hypothesis(
+        text="quercetin inhibits aldolase activity",
+        explanation="old explanation",
+        experiment="old experiment",
+    )
     state = make_state(hypotheses=[original], evolution_max_count=1)
     _stub_llm(
-        monkeypatch, {
+        monkeypatch,
+        {
             "hypothesis": "rapamycin suppresses mtor signaling downstream",
             "explanation": "fresh layman walkthrough",
             "experiment": "knock down the kinase and measure growth",
             "refinement_summary": "pivoted to a kinase mechanism",
-        })
+        },
+    )
 
     result = await evolve_node(state)
 
@@ -87,12 +94,14 @@ async def test_evolution_produces_evolved_hypotheses(
     assert len(details) == 1
     assert details[0]["original"] == "quercetin inhibits aldolase activity"
     assert details[0]["evolved"] == (
-        "rapamycin suppresses mtor signaling downstream")
+        "rapamycin suppresses mtor signaling downstream"
+    )
     assert details[0]["rationale"] == "pivoted to a kinase mechanism"
 
 
 async def test_evolution_clears_deep_verification_when_text_changes(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Evolving a hypothesis clears its now-stale deep-verification probes.
 
     The probes and verdict describe the pre-evolution text; once the text is
@@ -101,22 +110,26 @@ async def test_evolution_clears_deep_verification_when_text_changes(
     """
     original = make_hypothesis(
         text="quercetin inhibits aldolase activity",
-        deep_verification_probes=[{
-            "question": "stale q",
-            "answer": "stale a",
-            "reasoning": "stale r",
-            "assumption_is_fundamental": True,
-        }],
+        deep_verification_probes=[
+            {
+                "question": "stale q",
+                "answer": "stale a",
+                "reasoning": "stale r",
+                "assumption_is_fundamental": True,
+            }
+        ],
         deep_verification_verdict="holds",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
     _stub_llm(
-        monkeypatch, {
+        monkeypatch,
+        {
             "hypothesis": "rapamycin suppresses mtor signaling downstream",
             "explanation": "fresh layman walkthrough",
             "experiment": "knock down the kinase and measure growth",
             "refinement_summary": "pivoted to a kinase mechanism",
-        })
+        },
+    )
 
     result = await evolve_node(state)
 
@@ -127,18 +140,21 @@ async def test_evolution_clears_deep_verification_when_text_changes(
 
 
 async def test_evolution_keeps_deep_verification_when_text_unchanged(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """An unchanged hypothesis keeps its still-valid deep-verification probes.
 
     When the LLM returns no change, evolve_single_hypothesis returns the
     original hypothesis untouched, so its probes remain valid and preserved.
     """
-    probes = [{
-        "question": "q",
-        "answer": "a",
-        "reasoning": "r",
-        "assumption_is_fundamental": False,
-    }]
+    probes = [
+        {
+            "question": "q",
+            "answer": "a",
+            "reasoning": "r",
+            "assumption_is_fundamental": False,
+        }
+    ]
     original = make_hypothesis(
         text="osmotic gradient drives water flux",
         deep_verification_probes=probes,
@@ -155,7 +171,8 @@ async def test_evolution_keeps_deep_verification_when_text_unchanged(
 
 
 async def test_respects_evolution_max_count(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """With more hypotheses than the cap, only the top-k are evolved/kept.
 
     Five disjoint-vocabulary hypotheses with a cap of 2 must yield exactly two
@@ -175,10 +192,12 @@ async def test_respects_evolution_max_count(
     # Derive a distinct, disjoint evolved text per original so neither the
     # unchanged-guard nor the 0.95 near-duplicate guard fires.
     evolved_by_original = {
-        "alpha membrane channel governs sodium":
-            "foxtrot scaffold stabilizes microtubule assembly",
-        "bravo cytokine triggers inflammation cascade":
-            "golf ligand quenches reactive oxygen species",
+        "alpha membrane channel governs sodium": (
+            "foxtrot scaffold stabilizes microtubule assembly"
+        ),
+        "bravo cytokine triggers inflammation cascade": (
+            "golf ligand quenches reactive oxygen species"
+        ),
     }
 
     def builder(prompt: str) -> dict[str, Any]:
@@ -209,7 +228,8 @@ async def test_respects_evolution_max_count(
 
 
 async def test_empty_hypotheses_returns_empty(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """With no hypotheses, node returns empty results without calling LLM."""
 
     async def never(**_: Any) -> dict[str, Any]:
@@ -225,7 +245,8 @@ async def test_empty_hypotheses_returns_empty(
 
 
 async def test_unchanged_response_records_no_evolution_detail(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """An LLM response echoing the original text records no evolution detail.
 
     The hypothesis is still kept (top-k survivor), but because the refined text

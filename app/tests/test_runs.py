@@ -1,8 +1,10 @@
 """Run lifecycle: create, start, persistence, reopen."""
+
 # pylint: disable=unused-argument
 from __future__ import annotations
 
 import asyncio
+from typing import ClassVar
 
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
@@ -25,7 +27,8 @@ def test_create_run_returns_draft_status() -> None:
     assert data["config"]["tier"] == "standard"
     assert data["config"]["focus"] == "balance"
     assert data["config"]["setup"]["goal"] == (
-        "Explore mitochondrial dynamics in neurons")
+        "Explore mitochondrial dynamics in neurons"
+    )
 
 
 def test_list_runs_honors_limit_query(isolated_db: str) -> None:
@@ -35,10 +38,7 @@ def test_list_runs_honors_limit_query(isolated_db: str) -> None:
         res = client.post(
             "/api/runs",
             headers=headers,
-            json={
-                "research_goal": f"Limit test {i}",
-                "run_mode": "default"
-            },
+            json={"research_goal": f"Limit test {i}", "run_mode": "default"},
         )
         assert res.status_code == 200
 
@@ -49,11 +49,15 @@ def test_list_runs_honors_limit_query(isolated_db: str) -> None:
 
 
 def test_legacy_profile_and_tiny_overrides_run_as_default(
-        isolated_db: str) -> None:
-    from app.runs import CreateRunRequest, create_run  # pylint: disable=import-outside-toplevel
+    isolated_db: str,
+) -> None:
+    from app.runs import (  # pylint: disable=import-outside-toplevel
+        CreateRunRequest,
+        create_run,
+    )
 
     class _Request:
-        headers: dict[str, str] = {}
+        headers: ClassVar[dict[str, str]] = {}
 
     req = CreateRunRequest(
         research_goal="Map senescence escape mechanisms",
@@ -72,7 +76,8 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
 
 
 def test_create_run_persists_setup_and_exact_tier_defaults(
-        isolated_db: str) -> None:
+    isolated_db: str,
+) -> None:
     client = _client()
     res = client.post(
         "/api/runs",
@@ -104,14 +109,19 @@ def test_create_run_persists_setup_and_exact_tier_defaults(
 
 
 def test_create_run_without_spec_gets_baseline_planning(
-        isolated_db: str) -> None:
+    isolated_db: str,
+) -> None:
     """A goal-only run (no UI-inferred spec) still gets baseline guidance."""
     from app.run_modes import (  # pylint: disable=import-outside-toplevel
-        DEFAULT_ATTRIBUTES, DEFAULT_CRITERIA, DEFAULT_REQUIREMENTS)
+        DEFAULT_ATTRIBUTES,
+        DEFAULT_CRITERIA,
+        DEFAULT_REQUIREMENTS,
+    )
 
     client = _client()
     res = client.post(
-        "/api/runs", json={"research_goal": "Map tau propagation in the brain"})
+        "/api/runs", json={"research_goal": "Map tau propagation in the brain"}
+    )
 
     assert res.status_code == 200
     setup = res.json()["config"]["setup"]
@@ -125,10 +135,9 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     res = client.post(
         "/api/runs",
         json={
-            "research_goal":
-                "Investigate ferroptosis as a tumor-suppression mechanism",
-            "profile":
-                "standard"
+            "research_goal": "Investigate ferroptosis as a "
+            "tumor-suppression mechanism",
+            "profile": "standard",
         },
     )
     run_id = res.json()["id"]
@@ -136,8 +145,9 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     start = client.post(f"/api/runs/{run_id}/start", json={})
     assert start.status_code == 200
 
-    assert _wait_status(client, run_id, "completed",
-                        timeout=20.0), "run did not reach 'completed'"
+    assert _wait_status(client, run_id, "completed", timeout=20.0), (
+        "run did not reach 'completed'"
+    )
 
     # Sanity: hypotheses, evidence, matches, citations, report all persisted.
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
@@ -167,7 +177,7 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
         "/api/runs",
         json={
             "research_goal": "Senescent cell removal in aged tissues",
-            "profile": "standard"
+            "profile": "standard",
         },
     )
     run_id = res.json()["id"]
@@ -177,12 +187,15 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
 
     # Discard the client and re-import the app, simulating a fresh process.
     import importlib  # pylint: disable=import-outside-toplevel
+
     import app.main  # pylint: disable=import-outside-toplevel
 
     importlib.reload(app.main)
-    from fastapi.testclient import TestClient as TC  # pylint: disable=import-outside-toplevel,reimported
+    from fastapi.testclient import (  # pylint: disable=import-outside-toplevel
+        TestClient,
+    )
 
-    new_client = TC(app.main.app)
+    new_client = TestClient(app.main.app)
 
     r = new_client.get(f"/api/runs/{run_id}")
     assert r.status_code == 200
@@ -202,15 +215,15 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
 
 
 def test_legacy_advanced_run_uses_default_artifact_depth(
-        isolated_db: str) -> None:
+    isolated_db: str,
+) -> None:
     client = _client()
     res = client.post(
         "/api/runs",
         json={
-            "research_goal":
-                "Cytokine-storm modulation via gut-microbiome metabolites",
-            "profile":
-                "advanced",
+            "research_goal": "Cytokine-storm modulation via "
+            "gut-microbiome metabolites",
+            "profile": "advanced",
         },
     )
     run_id = res.json()["id"]

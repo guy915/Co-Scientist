@@ -40,40 +40,25 @@ from co_scientist.schemas.synthesis import (
 # get_schema_for_prompt returns None and load_prompt_with_schema in
 # prompts.py yields a schema-less call.
 _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
-    "generation_draft_with_tools":
-        GENERATION_DRAFT_SCHEMA,
-    "generation_debate_and_literature":
-        GENERATION_SCHEMA,
-    "generation_after_debate":
-        GENERATION_SCHEMA,
-    "review":
-        REVIEW_SCHEMA,
-    "review_batch":
-        REVIEW_BATCH_SCHEMA,
-    "evolution":
-        EVOLUTION_SCHEMA,
-    "meta_review":
-        META_REVIEW_SCHEMA,
-    "ranking":
-        RANKING_SCHEMA,
-    "proximity":
-        PROXIMITY_SCHEMA,
-    "reflection_observations":
-        REFLECTION_SCHEMA,
-    "deep_verification":
-        DEEP_VERIFICATION_SCHEMA,
-    "research_overview":
-        RESEARCH_OVERVIEW_SCHEMA,
-    "supervisor":
-        SUPERVISOR_SCHEMA,
-    "literature_review_paper_analysis":
-        LITERATURE_PAPER_ANALYSIS_SCHEMA,
-    "hypothesis_novelty_analysis":
-        HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
-    "hypothesis_validation_synthesis":
-        HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
-    "hypothesis_validation_synthesis_with_tools":
-        HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+    "generation_draft_with_tools": GENERATION_DRAFT_SCHEMA,
+    "generation_debate_and_literature": GENERATION_SCHEMA,
+    "generation_after_debate": GENERATION_SCHEMA,
+    "review": REVIEW_SCHEMA,
+    "review_batch": REVIEW_BATCH_SCHEMA,
+    "evolution": EVOLUTION_SCHEMA,
+    "meta_review": META_REVIEW_SCHEMA,
+    "ranking": RANKING_SCHEMA,
+    "proximity": PROXIMITY_SCHEMA,
+    "reflection_observations": REFLECTION_SCHEMA,
+    "deep_verification": DEEP_VERIFICATION_SCHEMA,
+    "research_overview": RESEARCH_OVERVIEW_SCHEMA,
+    "supervisor": SUPERVISOR_SCHEMA,
+    "literature_review_paper_analysis": LITERATURE_PAPER_ANALYSIS_SCHEMA,
+    "hypothesis_novelty_analysis": HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA,
+    "hypothesis_validation_synthesis": HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA,
+    "hypothesis_validation_synthesis_with_tools": (
+        HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA
+    ),
 }
 
 

@@ -89,15 +89,19 @@ def _render_probe(idx: int, probe: dict[str, Any]) -> list[str]:
     fundamental = bool(probe.get("assumption_is_fundamental"))
     flag = "fundamental" if fundamental else "non-fundamental"
     lines = [f"Probe {idx} ({flag} assumption):"]
-    for label, key in (("Question", "question"), ("Answer", "answer"),
-                       ("Reasoning", "reasoning")):
+    for label, key in (
+        ("Question", "question"),
+        ("Answer", "answer"),
+        ("Reasoning", "reasoning"),
+    ):
         _append_if(lines, label, str(probe.get(key, "")).strip())
     lines.append("")
     return lines
 
 
-def format_deep_verification_critique(probes: list[dict[str, Any]],
-                                      verdict: str | None) -> tuple[str, str]:
+def format_deep_verification_critique(
+    probes: list[dict[str, Any]], verdict: str | None
+) -> tuple[str, str]:
     """Render deep-verification probes into a (summary, critique) pair.
 
     Args:
@@ -128,8 +132,11 @@ def _render_experiments_list(experiments: list[Any]) -> list[str]:
     """Render the 'Suggested experiments' bullet list, or nothing when empty."""
     if not experiments:
         return []
-    return ["Suggested experiments:\n"
-           ] + [f"- {experiment}" for experiment in experiments] + [""]
+    return (
+        ["Suggested experiments:\n"]
+        + [f"- {experiment}" for experiment in experiments]
+        + [""]
+    )
 
 
 def _render_research_direction(direction: dict[str, Any]) -> list[str]:
@@ -139,7 +146,8 @@ def _render_research_direction(direction: dict[str, Any]) -> list[str]:
     lines = [f"### {direction.get('title', '')}\n"]
     lines += _render_optional_paragraph(direction.get("importance", ""))
     lines += _render_experiments_list(
-        direction.get("suggested_experiments") or [])
+        direction.get("suggested_experiments") or []
+    )
     return lines
 
 
@@ -183,8 +191,9 @@ def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _has_aims_content(introduction: str | None, aims: list[Any],
-                      impact: str | None) -> bool:
+def _has_aims_content(
+    introduction: str | None, aims: list[Any], impact: str | None
+) -> bool:
     """Return whether the NIH aims section has any renderable content."""
     return bool(introduction or aims or impact)
 
@@ -343,10 +352,12 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     lines = ["\n## Meta-review insights\n"]
     lines += _render_optional_paragraph(meta_review.get("summary"))
     for section_key, heading in _META_REVIEW_BULLET_SECTIONS:
-        lines += _render_bullet_list(heading,
-                                     meta_review.get(section_key) or [])
+        lines += _render_bullet_list(
+            heading, meta_review.get(section_key) or []
+        )
     lines += _render_strategic_recommendations(
-        meta_review.get("strategic_recommendations") or [])
+        meta_review.get("strategic_recommendations") or []
+    )
     return lines
 
 
@@ -378,7 +389,8 @@ def _render_hypothesis_entry(i: int, hyp: dict[str, Any]) -> list[str]:
 
 
 def _render_top_hypotheses_markdown(
-        top_hypotheses: list[dict[str, Any]]) -> list[str]:
+    top_hypotheses: list[dict[str, Any]],
+) -> list[str]:
     """Render the numbered 'Top hypotheses' section."""
     lines: list[str] = ["## Top hypotheses", ""]
     for i, hyp in enumerate(top_hypotheses, 1):
@@ -387,13 +399,15 @@ def _render_top_hypotheses_markdown(
 
 
 def _render_citation_audit(
-        citation_summary: dict[str, int] | None) -> list[str]:
+    citation_summary: dict[str, int] | None,
+) -> list[str]:
     """Render the 'Citation audit' section, or nothing when absent."""
     if not citation_summary:
         return []
     lines = ["## Citation audit"]
     lines.extend(
-        f"- {state}: {count}" for state, count in citation_summary.items())
+        f"- {state}: {count}" for state, count in citation_summary.items()
+    )
     lines.append("")
     return lines
 

@@ -20,8 +20,13 @@ load_dotenv()
 
 from app import engine_adapter, store  # pylint: disable=wrong-import-position
 from app.config import settings  # pylint: disable=wrong-import-position
-from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS  # pylint: disable=wrong-import-position
-from app.runs import router as runs_router  # pylint: disable=wrong-import-position
+from app.run_modes import (  # pylint: disable=wrong-import-position
+    DEFAULT_RUN_TIER,
+    RUN_TIER_DEFAULTS,
+)
+from app.runs import (
+    router as runs_router,  # pylint: disable=wrong-import-position
+)
 from app.seed import seed_demo_runs  # pylint: disable=wrong-import-position
 
 # Configure logging
@@ -83,8 +88,11 @@ async def lifespan(
     # interrupted by a crash or restart and would otherwise be stuck forever.
     interrupted = store.reconcile_interrupted_runs()
     if interrupted:
-        logger.info("Reconciled %s interrupted run(s) to failed: %s",
-                    len(interrupted), ", ".join(r[:8] for r in interrupted))
+        logger.info(
+            "Reconciled %s interrupted run(s) to failed: %s",
+            len(interrupted),
+            ", ".join(r[:8] for r in interrupted),
+        )
 
     # No-op after the first successful startup; see seed.py for the
     # per-goal skip/re-seed logic.
@@ -111,9 +119,11 @@ app = FastAPI(
 # browsers ignore credentialed requests against a literal "*" origin, so
 # ALLOWED_ORIGINS should be set explicitly wherever cookies/auth matter.
 _allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
-_allowed_origins = ([
-    o.strip() for o in _allowed_origins_env.split(",") if o.strip()
-] if _allowed_origins_env else ["*"])
+_allowed_origins = (
+    [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+    if _allowed_origins_env
+    else ["*"]
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_allowed_origins,
@@ -136,6 +146,7 @@ class HealthResponse(BaseModel):
 
 class ConfigResponse(BaseModel):
     """Configuration defaults response."""
+
     max_iterations: int
     initial_hypotheses_count: int
     evolution_max_count: int
@@ -144,26 +155,36 @@ class ConfigResponse(BaseModel):
 class SystemStatusResponse(BaseModel):
     """System availability status response."""
 
-    mcp_available: bool = Field(...,
-                                description="whether mcp server is available")
+    mcp_available: bool = Field(
+        ..., description="whether mcp server is available"
+    )
     pubmed_available: bool = Field(
-        ..., description="whether pubmed api is available")
+        ..., description="whether pubmed api is available"
+    )
     literature_review_available: bool = Field(
         ...,
-        description=
-        "whether literature review is available (requires both mcp and pubmed)")
+        description=(
+            "whether literature review is available (requires both mcp "
+            "and pubmed)"
+        ),
+    )
     mcp_server_url: str = Field(..., description="configured mcp server url")
     provider: str = Field(
-        "mock", description="active workflow provider: 'mock' | 'engine'")
+        "mock", description="active workflow provider: 'mock' | 'engine'"
+    )
     mock_mode: bool = Field(
-        False, description="true when running deterministic mock workflow")
-    has_provider_key: bool = Field(False,
-                                   description="any LLM provider key is set")
+        False, description="true when running deterministic mock workflow"
+    )
+    has_provider_key: bool = Field(
+        False, description="any LLM provider key is set"
+    )
     engine_importable: bool = Field(
-        False, description="co_scientist package is importable")
+        False, description="co_scientist package is importable"
+    )
     model_name: str = Field("", description="configured worker model id")
     supervisor_model_name: str = Field(
-        "", description="effective supervisor/meta-review model id")
+        "", description="effective supervisor/meta-review model id"
+    )
 
 
 @app.get("/", tags=["root"])
@@ -209,12 +230,14 @@ async def get_system_status() -> dict[str, Any]:
     pubmed_available = False
     try:
         from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
-            check_mcp_available, check_pubmed_available_via_mcp,
+            check_mcp_available,
+            check_pubmed_available_via_mcp,
         )
 
         # The two probes are independent network round-trips; overlap them.
         mcp_available, pubmed_available = await asyncio.gather(
-            check_mcp_available(), check_pubmed_available_via_mcp())
+            check_mcp_available(), check_pubmed_available_via_mcp()
+        )
     # pylint: disable-next=broad-exception-caught
     except Exception:  # pragma: no cover - engine optional in mock mode
         pass  # both probes default to False (set above)

@@ -6,16 +6,14 @@ import logging
 from typing import Any
 
 from co_scientist.constants import (
-    THINKING_MAX_TOKENS,
     MEDIUM_TEMPERATURE,
-    PROGRESS_META_REVIEW_START,
     PROGRESS_META_REVIEW_COMPLETE,
+    PROGRESS_META_REVIEW_START,
+    THINKING_MAX_TOKENS,
     truncate,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import create_metrics_update
-from co_scientist.models import Hypothesis
-from co_scientist.models import phase_message
+from co_scientist.models import Hypothesis, create_metrics_update, phase_message
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_meta_review_prompt
 from co_scientist.state import WorkflowState
@@ -42,9 +40,12 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Synthesizing meta-review from %s hypotheses", len(hypotheses))
 
     # Emit progress
-    await emit_progress(state, "meta_review_start",
-                        "Synthesizing insights from all reviews...",
-                        PROGRESS_META_REVIEW_START)
+    await emit_progress(
+        state,
+        "meta_review_start",
+        "Synthesizing insights from all reviews...",
+        PROGRESS_META_REVIEW_START,
+    )
 
     # Collect all reviews
     all_reviews = _collect_review_summaries(hypotheses)
@@ -61,20 +62,22 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
     # Call LLM to synthesize meta-review
     prompt_context = _build_meta_review_prompt_context(state, all_reviews)
     prompt, schema = get_meta_review_prompt(**prompt_context)
-    response = await _call_meta_review_llm(state, prompt, schema,
-                                           len(hypotheses), len(all_reviews))
+    response = await _call_meta_review_llm(
+        state, prompt, schema, len(hypotheses), len(all_reviews)
+    )
 
     meta_review = _build_meta_review(response)
     _log_meta_review_summary(meta_review)
 
     # Emit progress
-    await emit_progress(state,
-                        "meta_review_complete",
-                        "Meta-review synthesis complete",
-                        PROGRESS_META_REVIEW_COMPLETE,
-                        strengths_count=len(meta_review["common_strengths"]),
-                        recommendations_count=len(
-                            meta_review["strategic_recommendations"]))
+    await emit_progress(
+        state,
+        "meta_review_complete",
+        "Meta-review synthesis complete",
+        PROGRESS_META_REVIEW_COMPLETE,
+        strengths_count=len(meta_review["common_strengths"]),
+        recommendations_count=len(meta_review["strategic_recommendations"]),
+    )
 
     return _build_meta_review_result(meta_review)
 
@@ -133,14 +136,13 @@ def _build_meta_review_result(meta_review: dict[str, Any]) -> dict[str, Any]:
     metrics = create_metrics_update(llm_calls_delta=1)
 
     return {
-        "meta_review":
-            meta_review,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message("meta_review",
-                          "Synthesized meta-review from all hypotheses",
-                          themes=len(meta_review.get("emerging_themes", []))),
+        "meta_review": meta_review,
+        "metrics": metrics,
+        "messages": phase_message(
+            "meta_review",
+            "Synthesized meta-review from all hypotheses",
+            themes=len(meta_review.get("emerging_themes", [])),
+        ),
     }
 
 
@@ -163,8 +165,8 @@ def _empty_meta_review_result() -> dict[str, Any]:
 
 
 def _build_meta_review_prompt_context(
-        state: WorkflowState, all_reviews: list[dict[str,
-                                                     Any]]) -> dict[str, Any]:
+    state: WorkflowState, all_reviews: list[dict[str, Any]]
+) -> dict[str, Any]:
     """Extracts the state fields needed to build the meta-review prompt.
 
     Args:
@@ -194,13 +196,16 @@ def _log_meta_review_summary(meta_review: dict[str, Any]) -> None:
         meta_review: assembled meta_review dict.
     """
     logger.info("Meta-review complete")
-    logger.info("Common strengths: %s", len(meta_review['common_strengths']))
-    logger.info("Strategic recommendations: %s",
-                len(meta_review['strategic_recommendations']))
+    logger.info("Common strengths: %s", len(meta_review["common_strengths"]))
+    logger.info(
+        "Strategic recommendations: %s",
+        len(meta_review["strategic_recommendations"]),
+    )
 
 
 def _collect_review_summaries(
-        hypotheses: list[Hypothesis]) -> list[dict[str, Any]]:
+    hypotheses: list[Hypothesis],
+) -> list[dict[str, Any]]:
     """Builds a compact per-hypothesis review summary for the LLM.
 
     Only the latest review is used (earlier reviews are superseded), plus
@@ -262,14 +267,11 @@ def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
     ]
 
     return {
-        "summary":
-            response.get("meta_review_summary", ""),
-        "common_strengths":
-            response.get("strengths", []),
-        "common_weaknesses":
-            response.get("weaknesses", []),
-        "emerging_themes":
-            emerging_themes,
-        "strategic_recommendations":
-            response.get("strategic_recommendations", []),
+        "summary": response.get("meta_review_summary", ""),
+        "common_strengths": response.get("strengths", []),
+        "common_weaknesses": response.get("weaknesses", []),
+        "emerging_themes": emerging_themes,
+        "strategic_recommendations": response.get(
+            "strategic_recommendations", []
+        ),
     }

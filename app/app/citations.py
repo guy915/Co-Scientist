@@ -62,8 +62,11 @@ class CitationRecord:
 
 @functools.lru_cache(maxsize=256)
 def _content_tokens(text: str) -> frozenset[str]:
-    """Cache the token set for a string; claims repeat across a hypothesis's
-    citations, so this collapses their re-tokenization to a single pass."""
+    """Cache the token set for a string.
+
+    Claims repeat across a hypothesis's citations, so this collapses their
+    re-tokenization to a single pass.
+    """
     # Words of length <= 3 (articles, prepositions, etc.) are dropped as noise
     # that would inflate overlap without indicating real semantic match.
     return frozenset(t for t in text.lower().split() if len(t) > 3)

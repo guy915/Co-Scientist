@@ -27,12 +27,14 @@ def _stub_debate_llm(monkeypatch: pytest.MonkeyPatch, final_text: str) -> None:
 
     async def fake_call_llm_json(**_: Any) -> dict[str, Any]:
         return {
-            "hypotheses": [{
-                "hypothesis": final_text,
-                "explanation": "because the mechanism fits",
-                "literature_grounding": None,
-                "experiment": "run the assay",
-            }]
+            "hypotheses": [
+                {
+                    "hypothesis": final_text,
+                    "explanation": "because the mechanism fits",
+                    "literature_grounding": None,
+                    "experiment": "run the assay",
+                }
+            ]
         }
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
@@ -47,7 +49,8 @@ async def test_count_zero_returns_empty() -> None:
 
 
 async def test_debate_produces_one_hypothesis_per_debate(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Each debate yields a DEBATE-method hypothesis with a unique debate id."""
     _stub_debate_llm(monkeypatch, "tumor suppressor X gates the pathway")
     hyps, transcripts = await generate_with_debate(make_state(), count=2)
@@ -58,11 +61,13 @@ async def test_debate_produces_one_hypothesis_per_debate(
     assert {h.debate_id for h in hyps} == {0, 1}
     assert len(transcripts) == 2
     assert transcripts[0]["hypothesis_text"] == (
-        "tumor suppressor X gates the pathway")
+        "tumor suppressor X gates the pathway"
+    )
 
 
 async def test_parallel_debates_receive_distinct_focus_prompts(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Parallel debates are seeded with distinct angles to avoid collapse."""
     final_prompts: list[str] = []
 
@@ -74,12 +79,14 @@ async def test_parallel_debates_receive_distinct_focus_prompts(
         final_prompts.append(prompt)
         debate_number = len(final_prompts)
         return {
-            "hypotheses": [{
-                "hypothesis": f"hypothesis from debate {debate_number}",
-                "explanation": "because the mechanism fits",
-                "literature_grounding": None,
-                "experiment": "run the assay",
-            }]
+            "hypotheses": [
+                {
+                    "hypothesis": f"hypothesis from debate {debate_number}",
+                    "explanation": "because the mechanism fits",
+                    "literature_grounding": None,
+                    "experiment": "run the assay",
+                }
+            ]
         }
 
     monkeypatch.setattr(debate, "call_llm", fake_call_llm)
@@ -100,7 +107,8 @@ async def test_parallel_debates_receive_distinct_focus_prompts(
 
 
 async def test_empty_final_response_raises_generation_error(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A final turn that returns no hypotheses surfaces a GenerationError."""
 
     async def fake_call_llm(**_: Any) -> str:
@@ -116,7 +124,8 @@ async def test_empty_final_response_raises_generation_error(
 
 
 async def test_generate_node_attaches_metrics_and_passes_through(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """generate_node merges coordinator output with hypothesis-count metric."""
 
     async def fake_coordinator(_: Any) -> dict[str, Any]:
@@ -125,7 +134,7 @@ async def test_generate_node_attaches_metrics_and_passes_through(
         return {
             "hypotheses": [
                 make_hypothesis(text="h1"),
-                make_hypothesis(text="h2")
+                make_hypothesis(text="h2"),
             ],
             "hypothesis_count": 2,
             "message": "generated 2 hypotheses",

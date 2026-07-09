@@ -29,39 +29,30 @@ Example usage:
     ...     print(f"- {hyp['text']} (score: {hyp['score']})")
 """
 
-import sys
-
-# Ensure Python version compatibility
-if sys.version_info < (3, 10):
-    raise RuntimeError("Co-Scientist requires Python >= 3.10. "
-                       "Please upgrade to Python 3.10 or newer.")
-
-# pylint: disable=wrong-import-position
-from co_scientist.generator import HypothesisGenerator
-from co_scientist.models import Hypothesis, HypothesisReview, ExecutionMetrics
-from co_scientist.state import WorkflowState
 from co_scientist.cache import (
     clear_cache,
-    get_cache_stats,
     clear_node_cache,
+    get_cache_stats,
     get_node_cache_stats,
 )
 from co_scientist.config import ToolRegistry, get_tool_registry
-# pylint: enable=wrong-import-position
+from co_scientist.generator import HypothesisGenerator
+from co_scientist.models import ExecutionMetrics, Hypothesis, HypothesisReview
+from co_scientist.state import WorkflowState
 
 # Keep this in sync with the [project] version in pyproject.toml; the two
 # are not read from a single source of truth.
 __version__ = "0.2.0"
 __all__ = [
-    "HypothesisGenerator",
-    "Hypothesis",
-    "HypothesisReview",
     "ExecutionMetrics",
+    "Hypothesis",
+    "HypothesisGenerator",
+    "HypothesisReview",
+    "ToolRegistry",
     "WorkflowState",
     "clear_cache",
-    "get_cache_stats",
     "clear_node_cache",
+    "get_cache_stats",
     "get_node_cache_stats",
-    "ToolRegistry",
     "get_tool_registry",
 ]

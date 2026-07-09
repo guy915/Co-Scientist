@@ -6,7 +6,7 @@ prompt (and finally to the raw research goal).
 """
 
 import logging
-from typing import cast, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from co_scientist.constants import (
     DEFAULT_MAX_TOKENS,
@@ -14,15 +14,14 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.prompts import get_literature_review_query_generation_prompt
-from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
-from co_scientist.state import WorkflowState
-
 from co_scientist.nodes.literature_review.helpers import (
     SearchConfig,
     determine_query_source_type,
     parse_mcp_query_result,
 )
+from co_scientist.prompts import get_literature_review_query_generation_prompt
+from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
+from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
     from co_scientist.config import WorkflowConfig
@@ -39,7 +38,10 @@ async def _generate_queries_via_mcp(
     """Generate queries using MCP tool."""
     # Imported locally to avoid a module-level import cycle: node.py owns
     # _describe_exc and imports this module at load time.
-    from co_scientist.nodes.literature_review.node import _describe_exc  # pylint: disable=import-outside-toplevel
+    from co_scientist.nodes.literature_review.node import (
+        _describe_exc,  # pylint: disable=import-outside-toplevel
+    )
+
     try:
         result = await mcp_client.call_tool(
             tool_name,
@@ -52,8 +54,10 @@ async def _generate_queries_via_mcp(
     except Exception as e:  # pylint: disable=broad-exception-caught
         # An empty list here (rather than raising) is the signal that lets
         # _phase1_generate_queries fall through to the LLM-based generator.
-        logger.warning("MCP query generation failed: %s, falling back to LLM",
-                       _describe_exc(e))
+        logger.warning(
+            "MCP query generation failed: %s, falling back to LLM",
+            _describe_exc(e),
+        )
         return []
 
 
@@ -102,19 +106,24 @@ def _resolve_query_format(workflow: "WorkflowConfig") -> str:
 
 
 def _resolve_query_generation_tool(
-    config: SearchConfig,) -> Optional[tuple[str, str]]:
+    config: SearchConfig,
+) -> tuple[str, str] | None:
     """Resolve the configured MCP query-generation (tool_name, query_format).
 
     Returns None when no query_generation_tool is configured (or its tool
     config can't be resolved), which signals the caller to fall through to
     LLM-based generation.
     """
-    if not (config.tool_registry and config.workflow and
-            config.workflow.query_generation_tool):
+    if not (
+        config.tool_registry
+        and config.workflow
+        and config.workflow.query_generation_tool
+    ):
         return None
 
     tool_cfg = config.tool_registry.get_tool(
-        config.workflow.query_generation_tool)
+        config.workflow.query_generation_tool
+    )
     if not tool_cfg:
         return None
 
@@ -137,8 +146,9 @@ async def _try_mcp_query_generation(
         return []
 
     tool_name, query_format = resolved
-    logger.info("Using MCP query generation: %s (format: %s)", tool_name,
-                query_format)
+    logger.info(
+        "Using MCP query generation: %s (format: %s)", tool_name, query_format
+    )
     return await _generate_queries_via_mcp(
         mcp_client,
         state["research_goal"],

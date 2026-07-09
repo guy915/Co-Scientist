@@ -22,8 +22,9 @@ from tests._state import make_hypothesis, make_state
 _ARTICLES = "Article 1: observation A supports pathway X."
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
-                                                              Any]) -> None:
+def _stub_llm(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
+) -> None:
     """Patch reflection's call_llm_json to return a fixed analysis response.
 
     Args:
@@ -60,7 +61,8 @@ async def test_missing_articles_skips_node() -> None:
 
 
 async def test_hypotheses_get_reflection_notes(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Each hypothesis gets reflection_notes built from the LLM response.
 
     The note interleaves the ``reasoning`` and ``classification`` keys read by
@@ -69,12 +71,16 @@ async def test_hypotheses_get_reflection_notes(
     """
     hyp_a = make_hypothesis(text="alpha pathway drives growth")
     hyp_b = make_hypothesis(text="beta pathway drives growth")
-    state = make_state(hypotheses=[hyp_a, hyp_b],
-                       articles_with_reasoning=_ARTICLES)
-    _stub_llm(monkeypatch, {
-        "classification": "missing piece",
-        "reasoning": "fills a gap",
-    })
+    state = make_state(
+        hypotheses=[hyp_a, hyp_b], articles_with_reasoning=_ARTICLES
+    )
+    _stub_llm(
+        monkeypatch,
+        {
+            "classification": "missing piece",
+            "reasoning": "fills a gap",
+        },
+    )
 
     result = await reflection_node(state)
 
@@ -93,11 +99,12 @@ async def test_hypotheses_get_reflection_notes(
 
 
 async def test_empty_llm_response_defaults_gracefully(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    """An LLM response missing classification/reasoning uses safe defaults.
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    r"""An LLM response missing classification/reasoning uses safe defaults.
 
     ``analyze_single_hypothesis`` defaults ``classification`` to "neutral" and
-    ``reasoning`` to "", so the note is exactly "\\n\\nClassification: neutral".
+    ``reasoning`` to "", so the note is exactly "\n\nClassification: neutral".
     """
     hyp = make_hypothesis(text="some hypothesis")
     state = make_state(hypotheses=[hyp], articles_with_reasoning=_ARTICLES)
@@ -106,5 +113,6 @@ async def test_empty_llm_response_defaults_gracefully(
     result = await reflection_node(state)
 
     assert result["hypotheses"][0].reflection_notes == (
-        "\n\nClassification: neutral")
+        "\n\nClassification: neutral"
+    )
     assert "indra_evidence" not in result["hypotheses"][0].enrichments

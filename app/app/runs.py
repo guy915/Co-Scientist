@@ -44,7 +44,7 @@ from app.run_modes import (
     resolved_run_config,
     setup_config,
 )
-from app.store import RunRow, RunStatus, TERMINAL_STATUSES
+from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/runs", tags=["runs"])
@@ -153,8 +153,9 @@ def _client_id(request: Request) -> str:
     return request.headers.get("X-Client-ID", "")
 
 
-def _run_overrides_from_request(req: CreateRunRequest, *, focus: str, tier: str,
-                                setup: dict[str, Any]) -> dict[str, Any]:
+def _run_overrides_from_request(
+    req: CreateRunRequest, *, focus: str, tier: str, setup: dict[str, Any]
+) -> dict[str, Any]:
     """Build the ``resolved_run_config`` overrides for a create-run request.
 
     Only explicitly-sent numeric knobs become overrides; absent fields keep
@@ -190,7 +191,8 @@ def _run_overrides_from_request(req: CreateRunRequest, *, focus: str, tier: str,
 
 
 def _build_create_run_config(
-        req: CreateRunRequest) -> tuple[dict[str, Any], str, str]:
+    req: CreateRunRequest,
+) -> tuple[dict[str, Any], str, str]:
     """Resolve a create-run request into its (config, focus, tier) triple."""
     focus = normalize_run_focus(req.focus)
     tier = normalize_run_tier(req.tier)
@@ -203,10 +205,9 @@ def _build_create_run_config(
         focus=focus,
         tier=tier,
     )
-    overrides = _run_overrides_from_request(req,
-                                            focus=focus,
-                                            tier=tier,
-                                            setup=setup)
+    overrides = _run_overrides_from_request(
+        req, focus=focus, tier=tier, setup=setup
+    )
     return resolved_run_config(overrides), focus, tier
 
 
@@ -251,8 +252,8 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
 
 @router.get("")
 async def list_runs(
-        request: Request,
-        limit: int = Query(100, ge=1, le=1000),
+    request: Request,
+    limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
     """List the requesting client's runs, most recent first."""
     runs = store.list_runs(client_id=_client_id(request), limit=limit)
@@ -277,8 +278,9 @@ async def get_run(run_id: str) -> dict[str, Any]:
     return {**run.to_dict(), "summary": summary}
 
 
-def _mark_workflow_failed(run_id: str, handle: _RunHandle,
-                          error: Exception) -> None:
+def _mark_workflow_failed(
+    run_id: str, handle: _RunHandle, error: Exception
+) -> None:
     """Log an unhandled workflow crash and land the run in FAILED status.
 
     Catch-all so an unexpected workflow crash still lands the run in a
@@ -286,10 +288,9 @@ def _mark_workflow_failed(run_id: str, handle: _RunHandle,
     """
     logger.exception("workflow failed: %s", error)
     store.update_run_status(run_id, RunStatus.FAILED, error=str(error))
-    store.append_event(run_id, "status", {
-        "status": "failed",
-        "error": str(error)
-    })
+    store.append_event(
+        run_id, "status", {"status": "failed", "error": str(error)}
+    )
     handle.new_event.set()
 
 
@@ -313,11 +314,11 @@ async def _run_workflow_task(
         # The adapter persists each event itself; this loop only pulses
         # new_event so any in-process SSE stream wakes immediately.
         async for _ in engine_adapter.run_workflow(
-                run_id=run_id,
-                research_goal=research_goal,
-                config=config,
-                cancelled=handle.cancelled,
-                force_provider=force_provider,
+            run_id=run_id,
+            research_goal=research_goal,
+            config=config,
+            cancelled=handle.cancelled,
+            force_provider=force_provider,
         ):
             handle.new_event.set()
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -355,8 +356,9 @@ async def _reserve_active_slot(run_id: str) -> _RunHandle:
 
 
 @router.post("/{run_id}/start")
-async def start_run(run_id: str, req: StartRunRequest,
-                    background: BackgroundTasks) -> dict[str, Any]:
+async def start_run(
+    run_id: str, req: StartRunRequest, background: BackgroundTasks
+) -> dict[str, Any]:
     """Queue a run and launch its workflow as a background task.
 
     Args:
@@ -381,8 +383,14 @@ async def start_run(run_id: str, req: StartRunRequest,
     store.append_event(run_id, "lifecycle", {"event": "queued"})
 
     # Returns immediately; FastAPI runs the task after the response is sent.
-    background.add_task(_run_workflow_task, run_id, run.research_goal,
-                        run.config, req.force_provider, handle)
+    background.add_task(
+        _run_workflow_task,
+        run_id,
+        run.research_goal,
+        run.config,
+        req.force_provider,
+        handle,
+    )
     return {"id": run_id, "status": "queued"}
 
 
@@ -416,13 +424,9 @@ def _terminal_frame(status: str, seq: int) -> str:
 
     This frame is never persisted; it only tells clients to close.
     """
-    return qa.sse_frame({
-        "type": "_terminal",
-        "payload": {
-            "status": status
-        },
-        "seq": seq
-    })
+    return qa.sse_frame(
+        {"type": "_terminal", "payload": {"status": status}, "seq": seq}
+    )
 
 
 async def _should_skip_tick(handle: _RunHandle | None, tick: int) -> bool:
@@ -473,8 +477,9 @@ def _terminal_status_from_run(run_id: str) -> str | None:
     return None
 
 
-def _resolve_tick_terminal(terminal_status: str | None, run_id: str,
-                           tick: int) -> str | None:
+def _resolve_tick_terminal(
+    terminal_status: str | None, run_id: str, tick: int
+) -> str | None:
     """Resolve this tick's terminal status, falling back to the safety net.
 
     A terminal transition normally rides on a new event (all workflow paths
@@ -601,9 +606,9 @@ async def _event_stream(
 
 @router.get("/{run_id}/events")
 async def stream_events(
-        run_id: str,
-        request: Request,
-        after: int = Query(0, ge=0),
+    run_id: str,
+    request: Request,
+    after: int = Query(0, ge=0),
 ) -> StreamingResponse:
     """Stream a run's events as Server-Sent Events.
 
@@ -727,8 +732,10 @@ async def list_messages(run_id: str) -> dict[str, Any]:
 
 @router.post("/{run_id}/messages/ask")
 async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
-    """Answer a question about the run using a fast LLM, streaming the
-    response."""
+    """Answer a question about the run using a fast LLM.
+
+    The response is streamed back to the caller.
+    """
     run = _run_or_404(run_id)
 
     # Persist the question first so history survives even if streaming fails.
@@ -747,10 +754,12 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     # Prompt assembly and streaming are delegated to qa.py; the endpoint
     # only gathers state and wires the SSE response.
     manifest = qa.build_evidence_manifest(evidence, citations)
-    system_prompt = qa.build_system_prompt(run.research_goal, hypotheses,
-                                           reviews, matches, history, manifest)
+    system_prompt = qa.build_system_prompt(
+        run.research_goal, hypotheses, reviews, matches, history, manifest
+    )
     return StreamingResponse(
-        qa.stream_answer(run_id, req.question, question_msg.id, system_prompt,
-                         manifest),
+        qa.stream_answer(
+            run_id, req.question, question_msg.id, system_prompt, manifest
+        ),
         media_type="text/event-stream",
     )

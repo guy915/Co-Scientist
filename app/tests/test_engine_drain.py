@@ -12,6 +12,7 @@ canonical-fidelity additions:
 - Each hypothesis's deep-verification probes are written into the reviews
   table as ``reviewer_agent="deep_verification"`` rows.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -30,40 +31,29 @@ def _final_state_with_features() -> dict[str, Any]:
     return {
         "hypotheses": [
             {
-                "id":
-                    "eng-hyp-a",
-                "text":
-                    "Reparixin inhibits CXCR1 to suppress breast cancer "
-                    "stem cells.",
-                "explanation":
-                    "Blocking CXCR1 reduces the stem-cell pool.",
-                "literature_grounding":
-                    "CXCR1 is enriched in breast CSCs.",
-                "experiment":
-                    "Treat patient-derived xenografts with reparixin.",
-                "elo_rating":
-                    1320,
-                "win_count":
-                    4,
-                "loss_count":
-                    1,
-                "score":
-                    0.8,
+                "id": "eng-hyp-a",
+                "text": "Reparixin inhibits CXCR1 to suppress breast cancer "
+                "stem cells.",
+                "explanation": "Blocking CXCR1 reduces the stem-cell pool.",
+                "literature_grounding": "CXCR1 is enriched in breast CSCs.",
+                "experiment": "Treat patient-derived xenografts with "
+                "reparixin.",
+                "elo_rating": 1320,
+                "win_count": 4,
+                "loss_count": 1,
+                "score": 0.8,
                 "reviews": [],
                 "citation_map": {},
                 "evolution_history": [],
                 "deep_verification_probes": [
                     {
-                        "question":
-                            "Does CXCR1 signaling drive the stem-cell "
-                            "phenotype?",
-                        "answer":
-                            "Partially; redundant chemokine receptors "
-                            "exist.",
-                        "reasoning":
-                            "CXCR2 can compensate when CXCR1 is blocked.",
-                        "assumption_is_fundamental":
-                            True,
+                        "question": "Does CXCR1 signaling drive the stem-cell "
+                        "phenotype?",
+                        "answer": "Partially; redundant chemokine receptors "
+                        "exist.",
+                        "reasoning": "CXCR2 can compensate when CXCR1 "
+                        "is blocked.",
+                        "assumption_is_fundamental": True,
                     },
                     {
                         "question": "Is reparixin selective for CXCR1?",
@@ -72,8 +62,7 @@ def _final_state_with_features() -> dict[str, Any]:
                         "assumption_is_fundamental": False,
                     },
                 ],
-                "deep_verification_verdict":
-                    "weakened",
+                "deep_verification_verdict": "weakened",
             },
             {
                 "id": "eng-hyp-b",
@@ -92,46 +81,49 @@ def _final_state_with_features() -> dict[str, Any]:
             },
         ],
         "articles": [],
-        "tournament_matchups": [{
-            "hypothesis_a":
-                "Reparixin inhibits CXCR1 to suppress breast cancer "
-                "stem cells.",
-            "hypothesis_b": "A control hypothesis with no probes.",
-            "hypothesis_a_id": "eng-hyp-a",
-            "hypothesis_b_id": "eng-hyp-b",
-            "winner_id": "eng-hyp-a",
-            "winner": "a",
-            "reasoning": "A is better grounded.",
-            "confidence": "High",
-            "winner_elo_before": 1300,
-            "winner_elo_after": 1320,
-            "loser_elo_before": 1200,
-            "loser_elo_after": 1180,
-        },],
+        "tournament_matchups": [
+            {
+                "hypothesis_a": "Reparixin inhibits CXCR1 to suppress "
+                "breast cancer stem cells.",
+                "hypothesis_b": "A control hypothesis with no probes.",
+                "hypothesis_a_id": "eng-hyp-a",
+                "hypothesis_b_id": "eng-hyp-b",
+                "winner_id": "eng-hyp-a",
+                "winner": "a",
+                "reasoning": "A is better grounded.",
+                "confidence": "High",
+                "winner_elo_before": 1300,
+                "winner_elo_after": 1320,
+                "loser_elo_before": 1200,
+                "loser_elo_after": 1180,
+            },
+        ],
         "meta_review": {},
         "evolution_details": [],
         "research_overview": {
             "overview": {
-                "summary":
-                    "Targeting CXCR1 is a promising but redundant pathway.",
-                "research_directions": [{
-                    "title":
-                        "Dual CXCR1/CXCR2 blockade",
-                    "importance":
-                        "Overcomes compensatory signaling.",
-                    "suggested_experiments": [
-                        "Combine reparixin with a CXCR2 antagonist.",
-                        "Measure CSC frequency by flow cytometry.",
-                    ],
-                },],
+                "summary": "Targeting CXCR1 is a promising but "
+                "redundant pathway.",
+                "research_directions": [
+                    {
+                        "title": "Dual CXCR1/CXCR2 blockade",
+                        "importance": "Overcomes compensatory signaling.",
+                        "suggested_experiments": [
+                            "Combine reparixin with a CXCR2 antagonist.",
+                            "Measure CSC frequency by flow cytometry.",
+                        ],
+                    },
+                ],
             },
             "nih_specific_aims": {
                 "introduction": "Breast cancer stem cells drive recurrence.",
-                "aims": [{
-                    "aim": "Aim 1: Quantify CXCR1 dependence.",
-                    "rationale": "Establish the mechanistic baseline.",
-                    "approach": "shRNA knockdown in PDX models.",
-                },],
+                "aims": [
+                    {
+                        "aim": "Aim 1: Quantify CXCR1 dependence.",
+                        "rationale": "Establish the mechanistic baseline.",
+                        "approach": "shRNA knockdown in PDX models.",
+                    },
+                ],
                 "impact": "Could yield a combination therapy for TNBC.",
             },
         },
@@ -186,23 +178,20 @@ def _engine_streaming_state() -> dict[str, Any]:
                 "elo_rating": 1250,
                 "win_count": 1,
                 "loss_count": 1,
-                "evolution_history": [{
-                    "round": 1
-                }],
+                "evolution_history": [{"round": 1}],
             },
         ],
-        "articles": [{
-            "title": "A1",
-            "url": "https://example.org/a1"
-        }],
-        "tournament_matchups": [{
-            "hypothesis_a": "H1: a mechanistic claim about the pathway.",
-            "hypothesis_b": "H2: an evolved variant of the leading claim.",
-            "hypothesis_a_id": "eng-h1",
-            "hypothesis_b_id": "eng-h2",
-            "winner_id": "eng-h1",
-            "winner": "a",
-        }],
+        "articles": [{"title": "A1", "url": "https://example.org/a1"}],
+        "tournament_matchups": [
+            {
+                "hypothesis_a": "H1: a mechanistic claim about the pathway.",
+                "hypothesis_b": "H2: an evolved variant of the leading claim.",
+                "hypothesis_a_id": "eng-h1",
+                "hypothesis_b_id": "eng-h2",
+                "winner_id": "eng-h1",
+                "winner": "a",
+            }
+        ],
         "meta_review": {},
         "evolution_details": [],
         "research_overview": {},
@@ -216,7 +205,7 @@ class _FakeGenerator:
     def __init__(self, **_kwargs: Any) -> None:
         pass
 
-    async def generate_hypotheses(  # noqa: D401 - fake
+    async def generate_hypotheses(
         self,
         *,
         research_goal: str,
@@ -238,20 +227,20 @@ def _drain(gen: AsyncIterator[Any]) -> list[Any]:
     return asyncio.run(_run())
 
 
-def _persist_and_finalize(run: Any, final_state: dict[str, Any],
-                          db_path: str) -> None:
+def _persist_and_finalize(
+    run: Any, final_state: dict[str, Any], db_path: str
+) -> None:
     """Drain a synthetic final state, then build + persist its report.
 
     Mirrors the engine branch of ``run_workflow``: the drain writes rows and
     returns the report inputs, and ``finalize_report`` builds/screens/saves the
     report. Uses a plain-dict emitter, so no event log is needed.
     """
-    report_inputs = (
-        engine_adapter._persist_final_state(  # pylint: disable=protected-access
-            run_id=run.id,
-            final_state=final_state,
-            db_path=db_path,
-        ))
+    report_inputs = engine_adapter._persist_final_state(  # pylint: disable=protected-access
+        run_id=run.id,
+        final_state=final_state,
+        db_path=db_path,
+    )
 
     async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
         return {"type": type_, "payload": payload}
@@ -266,11 +255,13 @@ def _persist_and_finalize(run: Any, final_state: dict[str, Any],
             execution_time=1.0,
             db_path=db_path,
             **report_inputs,
-        ))
+        )
+    )
 
 
-def _run_fake_engine(monkeypatch: pytest.MonkeyPatch,
-                     goal: str) -> tuple[Any, list[Any]]:
+def _run_fake_engine(
+    monkeypatch: pytest.MonkeyPatch, goal: str
+) -> tuple[Any, list[Any]]:
     """Patch in the fake generator and drain a full engine-provider run.
 
     Resolves the lazy ``from co_scientist import HypothesisGenerator`` to the
@@ -294,12 +285,14 @@ def _run_fake_engine(monkeypatch: pytest.MonkeyPatch,
             run.config,
             force_provider="engine",
             sleep_seconds=0,
-        ))
+        )
+    )
     return run, events
 
 
 def test_engine_adapter_emits_canonical_event_types(
-        isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """The real-engine branch emits the canonical vocabulary, never engine.*.
 
     CI only exercises the mock path, so this fake-driven test is the sole guard
@@ -339,7 +332,8 @@ def test_engine_adapter_emits_canonical_event_types(
 
 
 def test_engine_adapter_generates_canonical_milestones(
-        isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Milestone messages are produced from the canonical payload shape."""
     run, _ = _run_fake_engine(monkeypatch, "Milestone goal")
 
@@ -388,8 +382,10 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     critique = deep[0]["critique"]
     assert "Does CXCR1 signaling drive the stem-cell phenotype?" in critique
     assert "CXCR2 can compensate when CXCR1 is blocked." in critique
-    assert "weakened" in deep[0]["summary"].lower(
-    ) or "weakened" in critique.lower()
+    assert (
+        "weakened" in deep[0]["summary"].lower()
+        or "weakened" in critique.lower()
+    )
     # Score columns are not produced by deep verification.
     assert deep[0]["novelty"] is None
     assert deep[0]["overall"] is None
@@ -497,40 +493,43 @@ def _final_state_with_citations() -> dict[str, Any]:
     """
     grounding = "CXCR1 signaling drives breast cancer stem cell renewal"
     return {
-        "hypotheses": [{
-            "id": "eng-hyp-a",
-            "text": "Blocking CXCR1 suppresses breast cancer stem cells.",
-            "literature_grounding": grounding,
-            "citation_map": {
-                "C1": {
-                    "type": "paper",
-                    "title": "CXCR1 drives CSC renewal",
-                    "url": "https://example.org/c1",
-                    "authors": ["Smith"],
-                    "year": 2023,
+        "hypotheses": [
+            {
+                "id": "eng-hyp-a",
+                "text": "Blocking CXCR1 suppresses breast cancer stem cells.",
+                "literature_grounding": grounding,
+                "citation_map": {
+                    "C1": {
+                        "type": "paper",
+                        "title": "CXCR1 drives CSC renewal",
+                        "url": "https://example.org/c1",
+                        "authors": ["Smith"],
+                        "year": 2023,
+                    },
+                    "C2": {
+                        "type": "paper",
+                        "title": "Unrelated off-target study",
+                        "url": "https://example.org/c2",
+                        "authors": ["Doe"],
+                        "year": 2021,
+                    },
+                    "C3": {
+                        "type": "knowledge_graph",
+                        "display": "INDRA: CXCR1 -> STAT3",
+                    },
                 },
-                "C2": {
-                    "type": "paper",
-                    "title": "Unrelated off-target study",
-                    "url": "https://example.org/c2",
-                    "authors": ["Doe"],
-                    "year": 2021,
-                },
-                "C3": {
-                    "type": "knowledge_graph",
-                    "display": "INDRA: CXCR1 -> STAT3",
-                },
-            },
-        }],
-        "articles": [{
-            "title": "CXCR1 drives CSC renewal",
-            "url": "https://example.org/c1",
-            "abstract":
-                "CXCR1 signaling drives breast cancer stem cell renewal "
-                "across xenograft models.",
-            "authors": ["Smith"],
-            "year": 2023,
-        }],
+            }
+        ],
+        "articles": [
+            {
+                "title": "CXCR1 drives CSC renewal",
+                "url": "https://example.org/c1",
+                "abstract": "CXCR1 signaling drives breast cancer stem "
+                "cell renewal across xenograft models.",
+                "authors": ["Smith"],
+                "year": 2023,
+            }
+        ],
         "tournament_matchups": [],
         "meta_review": {},
         "research_overview": {},
@@ -538,7 +537,8 @@ def _final_state_with_citations() -> dict[str, Any]:
 
 
 def test_persist_classifies_citations_via_shared_classifier(
-        isolated_db: str) -> None:
+    isolated_db: str,
+) -> None:
     """Engine citations run through classify_citation, not a hardcoded state.
 
     Regression guard: the drain previously stamped every citation "verified",

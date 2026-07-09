@@ -58,12 +58,12 @@ async def _seed_demo_run(
     # sleep_seconds=0.0 skips the mock's synthetic event pacing so
     # seeding finishes immediately rather than over several seconds.
     async for _ in engine_adapter.run_workflow(
-            run_id=run.id,
-            research_goal=goal,
-            config=config,
-            db_path=db_path,
-            sleep_seconds=0.0,
-            force_provider="mock",
+        run_id=run.id,
+        research_goal=goal,
+        config=config,
+        db_path=db_path,
+        sleep_seconds=0.0,
+        force_provider="mock",
     ):
         pass  # events are persisted as a side effect; drain and drop.
     logger.info("Seeded demo run %s (%.60s…)", run.id[:8], goal)
@@ -91,8 +91,9 @@ async def _seed_or_reseed_demo_run(
     """
     if run is not None:
         if _has_readable_report(run, db_path):
-            logger.info("demo run %s already has a report, skipping",
-                        run.id[:8])
+            logger.info(
+                "demo run %s already has a report, skipping", run.id[:8]
+            )
             return
         logger.info(
             "demo run %s exists but has no readable report; re-seeding",
@@ -115,5 +116,6 @@ async def seed_demo_runs(db_path: str | None = None) -> None:
     existing_by_goal = _runs_by_goal(existing)
 
     for goal in _DEMO_GOALS:
-        await _seed_or_reseed_demo_run(goal, existing_by_goal.get(goal),
-                                       db_path)
+        await _seed_or_reseed_demo_run(
+            goal, existing_by_goal.get(goal), db_path
+        )

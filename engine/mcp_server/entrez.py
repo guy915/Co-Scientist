@@ -35,8 +35,11 @@ def initialize_entrez() -> None:
     _entrez_initialized = True
     # Opt-in only: NCBI's cert chain is normally fine, this env var exists
     # for environments with broken/incomplete local CA bundles.
-    ssl_verify = os.environ.get("DISABLE_SSL_VERIFY",
-                                "").lower() in ("true", "1", "yes")
+    ssl_verify = os.environ.get("DISABLE_SSL_VERIFY", "").lower() in (
+        "true",
+        "1",
+        "yes",
+    )
     logger.debug("SSL verification: %s", ssl_verify)
 
     _init_entrez_email()
@@ -58,7 +61,8 @@ def _init_entrez_email() -> None:
         # NCBI asks for a contact email to identify traffic; requests
         # still work without one but may be throttled more readily.
         logger.warning(
-            "ENTREZ_EMAIL not set - PubMed may have stricter rate limits")
+            "ENTREZ_EMAIL not set - PubMed may have stricter rate limits"
+        )
 
 
 def _init_entrez_api_key() -> None:

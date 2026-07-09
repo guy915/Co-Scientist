@@ -19,6 +19,7 @@ import asyncio
 from collections.abc import Sequence
 
 from absl import app
+
 from co_scientist import HypothesisGenerator, clear_cache, get_cache_stats
 
 
@@ -34,7 +35,8 @@ async def run_generation():
     )
 
     research_goal = (
-        "Develop novel approaches for early detection of Alzheimer's disease")
+        "Develop novel approaches for early detection of Alzheimer's disease"
+    )
 
     print(f"Research goal: {research_goal}\n")
 
@@ -64,8 +66,8 @@ async def _run() -> None:
     print("-" * 70)
     time1 = await run_generation()
     stats1 = get_cache_stats()
-    n1 = stats1['cache_files']
-    mb1 = stats1['total_size_mb']
+    n1 = stats1["cache_files"]
+    mb1 = stats1["total_size_mb"]
     print(f"Cache after run 1: {n1} files ({mb1:.2f} MB)")
     print()
 
@@ -74,8 +76,8 @@ async def _run() -> None:
     print("-" * 70)
     time2 = await run_generation()
     stats2 = get_cache_stats()
-    n2 = stats2['cache_files']
-    mb2 = stats2['total_size_mb']
+    n2 = stats2["cache_files"]
+    mb2 = stats2["total_size_mb"]
     print(f"Cache after run 2: {n2} files ({mb2:.2f} MB)")
     print()
 

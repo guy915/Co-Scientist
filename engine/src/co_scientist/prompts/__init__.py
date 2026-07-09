@@ -10,53 +10,58 @@ importing from ``co_scientist.prompts``.
 # Convenience functions for common prompts
 # One getter per prompt template; each names the template file stem it
 # renders (templates/<name>.md) and is called by exactly one node module.
-from co_scientist.prompts.generation import build_tool_instructions
-from co_scientist.prompts.generation import format_articles_metadata
-from co_scientist.prompts.generation import format_attributes
-from co_scientist.prompts.generation import format_preferences
-from co_scientist.prompts.generation import (
-    format_supervisor_guidance_for_generation)
-from co_scientist.prompts.generation import format_user_hypotheses
-from co_scientist.prompts.generation import get_debate_generation_prompt
-from co_scientist.prompts.generation import get_draft_prompt_with_tools
-from co_scientist.prompts.generation import (
-    get_hypothesis_novelty_analysis_prompt)
-from co_scientist.prompts.generation import (
-    get_hypothesis_validation_synthesis_prompt)
-from co_scientist.prompts.generation import (
-    get_validation_synthesis_prompt_with_tools)
-from co_scientist.prompts.literature import (
-    get_literature_review_paper_analysis_prompt)
-from co_scientist.prompts.literature import (
-    get_literature_review_query_generation_prompt)
-from co_scientist.prompts.literature import (
-    get_literature_review_query_generation_pubmed_prompt)
-from co_scientist.prompts.literature import (
-    get_literature_review_synthesis_prompt)
-from co_scientist.prompts.loading import get_prompt_save_path
-from co_scientist.prompts.loading import load_prompt
-from co_scientist.prompts.loading import load_prompt_with_schema
-from co_scientist.prompts.loading import save_prompt_to_disk
-from co_scientist.prompts.loading import substitute_variables
-from co_scientist.prompts.planning import get_meta_review_prompt
-from co_scientist.prompts.planning import get_research_overview_prompt
-from co_scientist.prompts.planning import get_supervisor_prompt
-from co_scientist.prompts.ranking import get_proximity_prompt
-from co_scientist.prompts.ranking import get_ranking_prompt
-from co_scientist.prompts.review import get_deep_verification_prompt
-from co_scientist.prompts.review import get_reflection_prompt
-from co_scientist.prompts.review import get_review_batch_prompt
-from co_scientist.prompts.review import get_review_prompt
-
 # Private helpers re-exported (the ``as`` alias marks an explicit re-export
 # for mypy) for co_scientist.nodes.evolve, which assembles its evolution
 # prompt without a dedicated getter here and imports these from the package.
 # Not part of the public API.
 # pylint: disable=useless-import-alias
-from co_scientist.prompts._common import (_format_run_guidance as
-                                          _format_run_guidance)
-from co_scientist.prompts.loading import (_get_domain_variables as
-                                          _get_domain_variables)
+from co_scientist.prompts._common import (
+    _format_run_guidance as _format_run_guidance,
+)
+from co_scientist.prompts.generation import (
+    build_tool_instructions,
+    format_articles_metadata,
+    format_attributes,
+    format_preferences,
+    format_supervisor_guidance_for_generation,
+    format_user_hypotheses,
+    get_debate_generation_prompt,
+    get_draft_prompt_with_tools,
+    get_hypothesis_novelty_analysis_prompt,
+    get_hypothesis_validation_synthesis_prompt,
+    get_validation_synthesis_prompt_with_tools,
+)
+from co_scientist.prompts.literature import (
+    get_literature_review_paper_analysis_prompt,
+    get_literature_review_query_generation_prompt,
+    get_literature_review_query_generation_pubmed_prompt,
+    get_literature_review_synthesis_prompt,
+)
+from co_scientist.prompts.loading import (
+    _get_domain_variables as _get_domain_variables,
+)
+from co_scientist.prompts.loading import (
+    get_prompt_save_path,
+    load_prompt,
+    load_prompt_with_schema,
+    save_prompt_to_disk,
+    substitute_variables,
+)
+from co_scientist.prompts.planning import (
+    get_meta_review_prompt,
+    get_research_overview_prompt,
+    get_supervisor_prompt,
+)
+from co_scientist.prompts.ranking import (
+    get_proximity_prompt,
+    get_ranking_prompt,
+)
+from co_scientist.prompts.review import (
+    get_deep_verification_prompt,
+    get_reflection_prompt,
+    get_review_batch_prompt,
+    get_review_prompt,
+)
 
 # pylint: enable=useless-import-alias
 

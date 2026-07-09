@@ -20,15 +20,9 @@ RANKING_SCHEMA: dict[str, Any] = {
     "schema": {
         "type": "object",
         "properties": {
-            "research_goal": {
-                "type": "string"
-            },
-            "hypothesis_a": {
-                "type": "string"
-            },
-            "hypothesis_b": {
-                "type": "string"
-            },
+            "research_goal": {"type": "string"},
+            "hypothesis_a": {"type": "string"},
+            "hypothesis_b": {"type": "string"},
             "winner": {
                 "type": "string",
                 "enum": ["a", "b"],
@@ -37,27 +31,13 @@ RANKING_SCHEMA: dict[str, Any] = {
             "judgment_explanation": {
                 "type": "object",
                 "properties": {
-                    "scientific_soundness_comparison": {
-                        "type": "string"
-                    },
-                    "novelty_comparison": {
-                        "type": "string"
-                    },
-                    "relevance_comparison": {
-                        "type": "string"
-                    },
-                    "testability_comparison": {
-                        "type": "string"
-                    },
-                    "clarity_comparison": {
-                        "type": "string"
-                    },
-                    "impact_comparison": {
-                        "type": "string"
-                    },
-                    "feasibility_comparison": {
-                        "type": "string"
-                    },
+                    "scientific_soundness_comparison": {"type": "string"},
+                    "novelty_comparison": {"type": "string"},
+                    "relevance_comparison": {"type": "string"},
+                    "testability_comparison": {"type": "string"},
+                    "clarity_comparison": {"type": "string"},
+                    "impact_comparison": {"type": "string"},
+                    "feasibility_comparison": {"type": "string"},
                 },
                 "required": [
                     "scientific_soundness_comparison",
@@ -70,12 +50,10 @@ RANKING_SCHEMA: dict[str, Any] = {
                 ],
                 "additionalProperties": False,
             },
-            "decision_summary": {
-                "type": "string"
-            },
+            "decision_summary": {"type": "string"},
             "confidence_level": {
                 "type": "string",
-                "enum": ["High", "Medium", "Low"]
+                "enum": ["High", "Medium", "Low"],
             },
         },
         "required": [
@@ -108,23 +86,15 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "cluster_id": {
-                            "type": "string"
-                        },
-                        "cluster_name": {
-                            "type": "string"
-                        },
-                        "central_theme": {
-                            "type": "string"
-                        },
+                        "cluster_id": {"type": "string"},
+                        "cluster_name": {"type": "string"},
+                        "central_theme": {"type": "string"},
                         "similar_hypotheses": {
                             "type": "array",
                             "items": {
                                 "type": "object",
                                 "properties": {
-                                    "text": {
-                                        "type": "string"
-                                    },
+                                    "text": {"type": "string"},
                                     "similarity_degree": {
                                         "type": "string",
                                         "enum": ["high", "medium", "low"],
@@ -134,9 +104,7 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
                                 "additionalProperties": False,
                             },
                         },
-                        "synthesis_potential": {
-                            "type": "string"
-                        },
+                        "synthesis_potential": {"type": "string"},
                     },
                     "required": [
                         "cluster_id",
@@ -148,16 +116,13 @@ PROXIMITY_SCHEMA: dict[str, Any] = {
                     "additionalProperties": False,
                 },
             },
-            "diversity_assessment": {
-                "type": "string"
-            },
-            "redundancy_assessment": {
-                "type": "string"
-            },
+            "diversity_assessment": {"type": "string"},
+            "redundancy_assessment": {"type": "string"},
         },
         "required": [
-            "similarity_clusters", "diversity_assessment",
-            "redundancy_assessment"
+            "similarity_clusters",
+            "diversity_assessment",
+            "redundancy_assessment",
         ],
         "additionalProperties": False,
     },

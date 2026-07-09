@@ -5,15 +5,15 @@ PubMed-only implementation for biomedical research.
 """
 # pylint: disable=inconsistent-quotes,wrong-import-position
 
-import os
 import logging
+import os
+
+import fastmcp
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastmcp import FastMCP
-
-import fastmcp
 
 # No server-side session state kept between requests, so the process can be
 # scaled horizontally / restarted without clients needing session affinity.
@@ -27,27 +27,31 @@ log_level = getattr(logging, config.LOG_LEVEL, logging.INFO)
 # Set root logger to INFO (default for all libraries)
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S')
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 
 # Only this package's logger honors the configured LOG_LEVEL; third-party
 # libraries stay at the INFO default set above.
-logging.getLogger('mcp_server').setLevel(log_level)
+logging.getLogger("mcp_server").setLevel(log_level)
 
-from mcp_server.tools.lit_review.search_pubmed import (check_pubmed_available,
-                                                       search_pubmed)
-from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
-    pubmed_search_with_fulltext)
-from mcp_server.tools.lit_review.openalex_search import (search_openalex)
 from mcp_server.tools.indra_cogex import (
-    query_gene_disease_network,
-    query_gene_codependents,
-    query_drug_info,
-    query_clinical_trials,
-    query_pathways,
     query_causal_subnetwork,
+    query_clinical_trials,
+    query_drug_info,
+    query_gene_codependents,
+    query_gene_disease_network,
     query_mechanistic_statements,
+    query_pathways,
     run_enrichment_analysis,
+)
+from mcp_server.tools.lit_review.openalex_search import search_openalex
+from mcp_server.tools.lit_review.pubmed_search_with_fulltext import (
+    pubmed_search_with_fulltext,
+)
+from mcp_server.tools.lit_review.search_pubmed import (
+    check_pubmed_available,
+    search_pubmed,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,19 +114,22 @@ async def root() -> JSONResponse:
         A JSON response describing the running service, its version, the
         registered MCP tools, and configured integrations.
     """
-    return JSONResponse({
-        "status": "running",
-        "service": "coscientist-lit-review",
-        "version": "0.1.0",
-        "mcp_tools": [name for _, name in _MCP_TOOLS],
-        "api_keys_configured": {
-            "ENTREZ_EMAIL": entrez_email_present,
-        },
-        "integrations": {
-            "indra_cogex":
-                os.getenv("INDRA_COGEX_URL", "https://discovery.indra.bio"),
+    return JSONResponse(
+        {
+            "status": "running",
+            "service": "coscientist-lit-review",
+            "version": "0.1.0",
+            "mcp_tools": [name for _, name in _MCP_TOOLS],
+            "api_keys_configured": {
+                "ENTREZ_EMAIL": entrez_email_present,
+            },
+            "integrations": {
+                "indra_cogex": os.getenv(
+                    "INDRA_COGEX_URL", "https://discovery.indra.bio"
+                ),
+            },
         }
-    })
+    )
 
 
 # Mounted after the "/" route above; FastAPI matches the more specific

@@ -24,8 +24,9 @@ from co_scientist.nodes.review import review_node
 from tests._state import make_hypothesis, make_state
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
-                                                              Any]) -> None:
+def _stub_llm(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
+) -> None:
     """Patch review's call_llm_json to return a fixed response for every call.
 
     The same response is returned regardless of arguments, so in the parallel
@@ -55,15 +56,14 @@ def _batch_entry(scores: dict[str, int]) -> dict[str, Any]:
         "review_summary": "batch summary",
         "scores": scores,
         "safety_ethical_concerns": "none noted",
-        "detailed_feedback": {
-            "novelty": "ok"
-        },
+        "detailed_feedback": {"novelty": "ok"},
         "constructive_feedback": "tighten the experiment",
     }
 
 
 async def test_comparative_batch_attaches_reviews(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A small batch (<= threshold) is reviewed via one comparative call.
 
     Three hypotheses sit below ``COMPARATIVE_BATCH_THRESHOLD`` (5), so the
@@ -80,18 +80,9 @@ async def test_comparative_batch_attaches_reviews(
         monkeypatch,
         {
             "reviews": [
-                _batch_entry({
-                    "soundness": 8,
-                    "novelty": 6
-                }),  # mean 7.0
-                _batch_entry({
-                    "soundness": 4,
-                    "novelty": 6
-                }),  # mean 5.0
-                _batch_entry({
-                    "soundness": 9,
-                    "novelty": 9
-                }),  # mean 9.0
+                _batch_entry({"soundness": 8, "novelty": 6}),  # mean 7.0
+                _batch_entry({"soundness": 4, "novelty": 6}),  # mean 5.0
+                _batch_entry({"soundness": 9, "novelty": 9}),  # mean 9.0
             ]
         },
     )
@@ -107,21 +98,13 @@ async def test_comparative_batch_attaches_reviews(
     # Each hypothesis received exactly one review with parsed fields.
     expected_overalls = [7.0, 5.0, 9.0]
     expected_scores = [
-        {
-            "soundness": 8,
-            "novelty": 6
-        },
-        {
-            "soundness": 4,
-            "novelty": 6
-        },
-        {
-            "soundness": 9,
-            "novelty": 9
-        },
+        {"soundness": 8, "novelty": 6},
+        {"soundness": 4, "novelty": 6},
+        {"soundness": 9, "novelty": 9},
     ]
-    for hyp, expected, scores in zip(returned, expected_overalls,
-                                     expected_scores):
+    for hyp, expected, scores in zip(
+        returned, expected_overalls, expected_scores, strict=True
+    ):
         assert len(hyp.reviews) == 1
         rev = hyp.reviews[0]
         assert rev.overall_score == pytest.approx(expected)
@@ -135,7 +118,8 @@ async def test_comparative_batch_attaches_reviews(
 
 
 async def test_parallel_individual_attaches_reviews(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A large batch (> threshold) is reviewed via parallel individual calls.
 
     Six hypotheses exceed ``COMPARATIVE_BATCH_THRESHOLD`` (5), so the
@@ -148,14 +132,9 @@ async def test_parallel_individual_attaches_reviews(
         monkeypatch,
         {
             "review_summary": "individual summary",
-            "scores": {
-                "soundness": 7,
-                "novelty": 5
-            },  # mean 6.0
+            "scores": {"soundness": 7, "novelty": 5},  # mean 6.0
             "safety_ethical_concerns": "no concerns",
-            "detailed_feedback": {
-                "relevance": "strong"
-            },
+            "detailed_feedback": {"relevance": "strong"},
             "constructive_feedback": "add controls",
         },
     )
@@ -180,7 +159,8 @@ async def test_parallel_individual_attaches_reviews(
 
 
 async def test_individual_missing_scores_defaults_to_overall_score(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The individual path falls back to ``overall_score`` when scores empty.
 
     With an empty ``scores`` dict, ``review_single_hypothesis`` does not compute
@@ -213,7 +193,8 @@ async def test_individual_missing_scores_defaults_to_overall_score(
 
 
 async def test_empty_hypotheses_returns_empty_without_error(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Zero hypotheses route through the comparative branch and attach nothing.
 
     The empty count still satisfies ``<= threshold``, so a single batch call is

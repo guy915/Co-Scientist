@@ -9,15 +9,17 @@ import asyncio
 from collections.abc import Sequence
 from typing import Any
 
-from absl import app
-from absl import flags
+from absl import app, flags
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.markdown import Markdown
+from state_helpers import (
+    DEFAULT_MODEL_NAME,
+    DEFAULT_RESEARCH_GOAL,
+    make_generate_state,
+)
 
-from state_helpers import (make_generate_state, DEFAULT_RESEARCH_GOAL,
-                           DEFAULT_MODEL_NAME)
 from co_scientist.models import Hypothesis
 from co_scientist.nodes.generate import generate_node
 
@@ -25,8 +27,9 @@ console = Console()
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_bool("with_literature", False,
-                  "Include mocked literature review data.")
+flags.DEFINE_bool(
+    "with_literature", False, "Include mocked literature review data."
+)
 
 
 def _prepare_generate_state(with_literature: bool) -> dict:
@@ -39,7 +42,8 @@ def _prepare_generate_state(with_literature: bool) -> dict:
         Workflow state ready for the generate node.
     """
     console.print(
-        "[yellow]Preparing state (running supervisor first)...[/yellow]")
+        "[yellow]Preparing state (running supervisor first)...[/yellow]"
+    )
     state = make_generate_state(
         research_goal=DEFAULT_RESEARCH_GOAL,
         model_name=DEFAULT_MODEL_NAME,
@@ -86,17 +90,20 @@ def _show_first_hypothesis(hypotheses: list[Hypothesis]) -> None:
 
     first = hypotheses[0]
     console.print(
-        Panel(Markdown(f"""
+        Panel(
+            Markdown(f"""
 **hypothesis text:**
 {first.text}
 
 **rationale:**
 {first.rationale}
 
-**generation method:** {first.generation_method or 'standard'}
+**generation method:** {first.generation_method or "standard"}
 """),
-              title="[bold green]first hypothesis details[/bold green]",
-              border_style="green"))
+            title="[bold green]first hypothesis details[/bold green]",
+            border_style="green",
+        )
+    )
 
 
 def _print_debate_info(debate_transcripts: list[dict[str, Any]]) -> None:
@@ -109,9 +116,10 @@ def _print_debate_info(debate_transcripts: list[dict[str, Any]]) -> None:
         return
 
     n_debates = len(debate_transcripts)
-    n_turns = len(debate_transcripts[0].get('debate_turns', []))
-    console.print(f"\n[bold]debate transcripts:[/bold]"
-                  f" {n_debates} debates recorded")
+    n_turns = len(debate_transcripts[0].get("debate_turns", []))
+    console.print(
+        f"\n[bold]debate transcripts:[/bold] {n_debates} debates recorded"
+    )
     console.print(f"  example debate turns: {n_turns} turns")
 
 
@@ -124,11 +132,12 @@ def _is_standard_method(hyp: Hypothesis) -> bool:
     Returns:
         True if the hypothesis has no generation method or is 'standard'.
     """
-    return not hyp.generation_method or hyp.generation_method == 'standard'
+    return not hyp.generation_method or hyp.generation_method == "standard"
 
 
 def _tally_generation_methods(
-        hypotheses: list[Hypothesis]) -> tuple[int, int, int]:
+    hypotheses: list[Hypothesis],
+) -> tuple[int, int, int]:
     """Count hypotheses by generation method.
 
     Args:
@@ -141,9 +150,9 @@ def _tally_generation_methods(
     n_lit = 0
     n_std = 0
     for h in hypotheses:
-        if h.generation_method == 'debate':
+        if h.generation_method == "debate":
             n_debate += 1
-        if h.generation_method == 'literature':
+        if h.generation_method == "literature":
             n_lit += 1
         if _is_standard_method(h):
             n_std += 1
@@ -170,18 +179,19 @@ async def test_generate(with_literature: bool = False):
     Args:
         with_literature: if True, includes mocked literature review data
     """
-
     console.print("\n[bold cyan]Testing generate node[/bold cyan]\n")
 
     state = _prepare_generate_state(with_literature)
 
     console.print(f"\n[yellow]research goal:[/yellow] {state['research_goal']}")
-    n_hyps = state['initial_hypotheses_count']
+    n_hyps = state["initial_hypotheses_count"]
     console.print(f"[yellow]hypotheses to generate:[/yellow] {n_hyps}\n")
 
     # run node
-    console.print("[yellow]calling generate node"
-                  " (this may take 1-2 minutes)...[/yellow]\n")
+    console.print(
+        "[yellow]calling generate node"
+        " (this may take 1-2 minutes)...[/yellow]\n"
+    )
     result = await generate_node(state)
 
     hypotheses = result.get("hypotheses", [])

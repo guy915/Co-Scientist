@@ -14,15 +14,14 @@ from co_scientist.constants import (
     HIGH_TEMPERATURE,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.prompts import get_literature_review_paper_analysis_prompt
-from co_scientist.schemas import LITERATURE_PAPER_ANALYSIS_SCHEMA
-from co_scientist.state import WorkflowState
-
 from co_scientist.nodes.literature_review.helpers import (
     get_paper_content_for_analysis,
     get_papers_with_content,
     parse_year_from_metadata,
 )
+from co_scientist.prompts import get_literature_review_paper_analysis_prompt
+from co_scientist.schemas import LITERATURE_PAPER_ANALYSIS_SCHEMA
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -57,12 +56,15 @@ async def _analyze_single_paper(
             temperature=HIGH_TEMPERATURE,
         )
 
-        logger.debug("Analyzed paper %s: %s", paper_id,
-                     metadata.get("title", "Unknown")[:60])
+        logger.debug(
+            "Analyzed paper %s: %s",
+            paper_id,
+            metadata.get("title", "Unknown")[:60],
+        )
         return {
             "paper_id": paper_id,
             "metadata": metadata,
-            "analysis": analysis
+            "analysis": analysis,
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -77,8 +79,10 @@ def _log_sample_analysis(analyses: list[dict[str, Any]]) -> None:
     if not analyses:
         return
     first = analyses[0]
-    logger.debug("Sample analysis structure - keys: %s",
-                 list(first.get("analysis", {}).keys()))
+    logger.debug(
+        "Sample analysis structure - keys: %s",
+        list(first.get("analysis", {}).keys()),
+    )
 
 
 async def _phase3_analyze_papers(
@@ -96,8 +100,9 @@ async def _phase3_analyze_papers(
         logger.error("No papers have content for analysis")
         return []
 
-    logger.info("Phase 3: analyzing %s papers (parallel)",
-                len(papers_with_content))
+    logger.info(
+        "Phase 3: analyzing %s papers (parallel)", len(papers_with_content)
+    )
 
     # One LLM call per paper, all in parallel.
     tasks = [
@@ -106,14 +111,18 @@ async def _phase3_analyze_papers(
             metadata,
             state["research_goal"],
             state["model_name"],
-        ) for paper_id, metadata in papers_with_content.items()
+        )
+        for paper_id, metadata in papers_with_content.items()
     ]
     results = await asyncio.gather(*tasks)
 
     # Filter out failed analyses
     analyses = [r for r in results if r is not None]
-    logger.info("Completed %s/%s paper analyses", len(analyses),
-                len(papers_with_content))
+    logger.info(
+        "Completed %s/%s paper analyses",
+        len(analyses),
+        len(papers_with_content),
+    )
 
     _log_sample_analysis(analyses)
 

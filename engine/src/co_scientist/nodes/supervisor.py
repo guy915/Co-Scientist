@@ -7,12 +7,11 @@ from typing import Any
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     MEDIUM_TEMPERATURE,
-    PROGRESS_SUPERVISOR_START,
     PROGRESS_SUPERVISOR_COMPLETE,
+    PROGRESS_SUPERVISOR_START,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import create_metrics_update
-from co_scientist.models import phase_message
+from co_scientist.models import create_metrics_update, phase_message
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_supervisor_prompt
 from co_scientist.state import WorkflowState
@@ -35,15 +34,19 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     """
     prompt_context = _extract_supervisor_context(state)
     research_goal = prompt_context["research_goal"]
-    logger.info("Supervisor analyzing research goal: %s...",
-                research_goal[:100])
+    logger.info(
+        "Supervisor analyzing research goal: %s...", research_goal[:100]
+    )
 
     # Emit progress
     # This is the first node in the graph, so this also marks the start of
     # the entire workflow from the UI's perspective.
-    await emit_progress(state, "supervisor_start",
-                        "Analyzing research goal and creating plan...",
-                        PROGRESS_SUPERVISOR_START)
+    await emit_progress(
+        state,
+        "supervisor_start",
+        "Analyzing research goal and creating plan...",
+        PROGRESS_SUPERVISOR_START,
+    )
 
     # Call llm to create research plan with all context
     prompt, schema = get_supervisor_prompt(**prompt_context)
@@ -55,23 +58,27 @@ async def supervisor_node(state: WorkflowState) -> dict[str, Any]:
     # Log key insights from supervisor
     key_areas = _extract_key_areas(supervisor_guidance)
     if key_areas:
-        logger.info("Key research areas identified: %s",
-                    ', '.join(key_areas[:3]))
+        logger.info(
+            "Key research areas identified: %s", ", ".join(key_areas[:3])
+        )
 
     # Emit progress
     # key_areas count is surfaced to the UI as extra context alongside the
     # phase completion.
-    await emit_progress(state,
-                        "supervisor_complete",
-                        "Research plan created",
-                        PROGRESS_SUPERVISOR_COMPLETE,
-                        key_areas=len(key_areas))
+    await emit_progress(
+        state,
+        "supervisor_complete",
+        "Research plan created",
+        PROGRESS_SUPERVISOR_COMPLETE,
+        key_areas=len(key_areas),
+    )
 
     return _build_supervisor_result(supervisor_guidance, key_areas)
 
 
-async def _call_supervisor_llm(state: WorkflowState, prompt: str,
-                               schema: dict[str, Any] | None) -> dict[str, Any]:
+async def _call_supervisor_llm(
+    state: WorkflowState, prompt: str, schema: dict[str, Any] | None
+) -> dict[str, Any]:
     """Calls the LLM to generate the supervisor's research plan.
 
     call_llm_json validates the response against schema, so downstream
@@ -100,8 +107,9 @@ async def _call_supervisor_llm(state: WorkflowState, prompt: str,
     )
 
 
-def _build_supervisor_result(supervisor_guidance: dict[str, Any],
-                             key_areas: list[str]) -> dict[str, Any]:
+def _build_supervisor_result(
+    supervisor_guidance: dict[str, Any], key_areas: list[str]
+) -> dict[str, Any]:
     """Assembles the supervisor_node return dict.
 
     Args:
@@ -118,14 +126,13 @@ def _build_supervisor_result(supervisor_guidance: dict[str, Any],
     metrics = create_metrics_update(llm_calls_delta=1)
 
     return {
-        "supervisor_guidance":
-            supervisor_guidance,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message("supervisor",
-                          "Created research plan and workflow guidance",
-                          key_areas=len(key_areas)),
+        "supervisor_guidance": supervisor_guidance,
+        "metrics": metrics,
+        "messages": phase_message(
+            "supervisor",
+            "Created research plan and workflow guidance",
+            key_areas=len(key_areas),
+        ),
     }
 
 
@@ -203,16 +210,12 @@ def _build_supervisor_guidance(response: dict[str, Any]) -> dict[str, Any]:
         The assembled supervisor_guidance dict.
     """
     return {
-        "research_goal_analysis":
-            response.get("research_goal_analysis", {}),
-        "workflow_plan":
-            response.get("workflow_plan", {}),
-        "config_synthesis":
-            response.get("config_synthesis", {}),
-        "performance_assessment":
-            response.get("performance_assessment", {}),
-        "adjustment_recommendations":
-            response.get("adjustment_recommendations", []),
-        "output_preparation":
-            response.get("output_preparation", {}),
+        "research_goal_analysis": response.get("research_goal_analysis", {}),
+        "workflow_plan": response.get("workflow_plan", {}),
+        "config_synthesis": response.get("config_synthesis", {}),
+        "performance_assessment": response.get("performance_assessment", {}),
+        "adjustment_recommendations": response.get(
+            "adjustment_recommendations", []
+        ),
+        "output_preparation": response.get("output_preparation", {}),
     }

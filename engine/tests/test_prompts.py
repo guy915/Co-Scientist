@@ -20,28 +20,29 @@ exercised in their plain (domain-agnostic) form.
 
 from typing import Any
 
-from co_scientist.prompts import format_articles_metadata
-from co_scientist.prompts import get_debate_generation_prompt
-from co_scientist.prompts import get_deep_verification_prompt
-from co_scientist.prompts import get_draft_prompt_with_tools
-from co_scientist.prompts import get_hypothesis_novelty_analysis_prompt
-from co_scientist.prompts import (get_hypothesis_validation_synthesis_prompt)
-from co_scientist.prompts import (get_literature_review_paper_analysis_prompt)
-from co_scientist.prompts import (get_literature_review_query_generation_prompt)
 from co_scientist.prompts import (
-    get_literature_review_query_generation_pubmed_prompt)
-from co_scientist.prompts import (get_literature_review_synthesis_prompt)
-from co_scientist.prompts import get_meta_review_prompt
-from co_scientist.prompts import get_proximity_prompt
-from co_scientist.prompts import get_ranking_prompt
-from co_scientist.prompts import get_reflection_prompt
-from co_scientist.prompts import get_research_overview_prompt
-from co_scientist.prompts import get_review_batch_prompt
-from co_scientist.prompts import get_review_prompt
-from co_scientist.prompts import get_supervisor_prompt
-from co_scientist.prompts import (get_validation_synthesis_prompt_with_tools)
-from co_scientist.prompts import load_prompt_with_schema
-from co_scientist.prompts import substitute_variables
+    format_articles_metadata,
+    get_debate_generation_prompt,
+    get_deep_verification_prompt,
+    get_draft_prompt_with_tools,
+    get_hypothesis_novelty_analysis_prompt,
+    get_hypothesis_validation_synthesis_prompt,
+    get_literature_review_paper_analysis_prompt,
+    get_literature_review_query_generation_prompt,
+    get_literature_review_query_generation_pubmed_prompt,
+    get_literature_review_synthesis_prompt,
+    get_meta_review_prompt,
+    get_proximity_prompt,
+    get_ranking_prompt,
+    get_reflection_prompt,
+    get_research_overview_prompt,
+    get_review_batch_prompt,
+    get_review_prompt,
+    get_supervisor_prompt,
+    get_validation_synthesis_prompt_with_tools,
+    load_prompt_with_schema,
+    substitute_variables,
+)
 from co_scientist.prompts.loading import _get_domain_variables
 from tests._state import make_article
 
@@ -73,8 +74,9 @@ _GUIDANCE: dict[str, Any] = {
 
 def test_substitute_variables_replaces_placeholder() -> None:
     """``{{name}}`` placeholders are replaced by the mapped value."""
-    assert substitute_variables("Hello {{name}}",
-                                {"name": "World"}) == ("Hello World")
+    assert substitute_variables("Hello {{name}}", {"name": "World"}) == (
+        "Hello World"
+    )
 
 
 def test_substitute_variables_coerces_non_string_values() -> None:
@@ -95,10 +97,13 @@ def test_load_prompt_with_schema_returns_prompt_and_schema() -> None:
     so the remaining placeholders stay unfilled; the test asserts only on what
     it supplied (the goal) and the schema shape, not full interpolation.
     """
-    prompt, schema = load_prompt_with_schema("review", {
-        "research_goal": "cure ALS",
-        "hypothesis_text": "TDP-43 aggregation",
-    })
+    prompt, schema = load_prompt_with_schema(
+        "review",
+        {
+            "research_goal": "cure ALS",
+            "hypothesis_text": "TDP-43 aggregation",
+        },
+    )
     assert isinstance(prompt, str)
     assert prompt
     assert "cure ALS" in prompt
@@ -160,11 +165,12 @@ def test_supervisor_prompt_constraints_branch_changes_output() -> None:
 
 def test_supervisor_prompt_pubmed_availability_branch() -> None:
     """PubMed/MCP availability flips the literature-review description text."""
-    available, _ = get_supervisor_prompt(research_goal="g",
-                                         pubmed_available=True)
-    unavailable, _ = get_supervisor_prompt(research_goal="g",
-                                           pubmed_available=False,
-                                           mcp_available=False)
+    available, _ = get_supervisor_prompt(
+        research_goal="g", pubmed_available=True
+    )
+    unavailable, _ = get_supervisor_prompt(
+        research_goal="g", pubmed_available=False, mcp_available=False
+    )
     assert "search pubmed" in available.lower()
     assert "not available" in unavailable.lower()
 
@@ -204,34 +210,40 @@ def test_review_prompt_interpolates_goal_and_hypothesis() -> None:
 
 def test_review_prompt_supervisor_guidance_branch() -> None:
     """Supervisor guidance adds a review-guidance section to the prompt."""
-    without_guidance, _ = get_review_prompt(research_goal="g",
-                                            hypothesis_text="h")
-    with_guidance, _ = get_review_prompt(research_goal="g",
-                                         hypothesis_text="h",
-                                         supervisor_guidance=_GUIDANCE)
+    without_guidance, _ = get_review_prompt(
+        research_goal="g", hypothesis_text="h"
+    )
+    with_guidance, _ = get_review_prompt(
+        research_goal="g", hypothesis_text="h", supervisor_guidance=_GUIDANCE
+    )
     assert len(with_guidance) > len(without_guidance)
     assert "Supervisor Guidance for Review" in with_guidance
     assert "testability" in with_guidance
 
 
 def test_review_prompt_surfaces_synthesized_config() -> None:
-    """config_synthesis lands preferences + review_instructions + attributes
-    (with their 1-5 rubric) in the review prompt."""
+    """config_synthesis lands its fields in the review prompt.
+
+    Covers preferences, review_instructions, and attributes (with their
+    1-5 rubric).
+    """
     guidance = {
         "config_synthesis": {
             "preferences": ["testable within 2 years"],
             "review_instructions": [
                 "penalize ideas that restate known biology"
             ],
-            "attributes": [{
-                "name": "Feasibility",
-                "rubric": "1 impossible .. 5 routine",
-            }],
+            "attributes": [
+                {
+                    "name": "Feasibility",
+                    "rubric": "1 impossible .. 5 routine",
+                }
+            ],
         }
     }
-    prompt, _ = get_review_prompt(research_goal="g",
-                                  hypothesis_text="h",
-                                  supervisor_guidance=guidance)
+    prompt, _ = get_review_prompt(
+        research_goal="g", hypothesis_text="h", supervisor_guidance=guidance
+    )
     assert "testable within 2 years" in prompt
     assert "penalize ideas that restate known biology" in prompt
     assert "Feasibility" in prompt
@@ -244,9 +256,9 @@ def test_review_prompt_meta_review_branch() -> None:
         "common_strengths": ["clear mechanism"],
         "common_weaknesses": ["weak controls"],
     }
-    prompt, _ = get_review_prompt(research_goal="g",
-                                  hypothesis_text="h",
-                                  meta_review=meta_review)
+    prompt, _ = get_review_prompt(
+        research_goal="g", hypothesis_text="h", meta_review=meta_review
+    )
     assert "Meta-Review Context" in prompt
     assert "clear mechanism" in prompt
     assert "weak controls" in prompt
@@ -289,9 +301,9 @@ def test_meta_review_prompt_interpolates_goal_and_reviews() -> None:
 
 def test_meta_review_prompt_supervisor_guidance_branch() -> None:
     """Guidance adds key areas and evolution guidance to the meta-review."""
-    with_guidance, _ = get_meta_review_prompt(research_goal="g",
-                                              all_reviews="r",
-                                              supervisor_guidance=_GUIDANCE)
+    with_guidance, _ = get_meta_review_prompt(
+        research_goal="g", all_reviews="r", supervisor_guidance=_GUIDANCE
+    )
     assert "mitochondrial dysfunction" in with_guidance
     assert "Evolution Phase Guidance" in with_guidance
 
@@ -301,12 +313,12 @@ def test_meta_review_prompt_supervisor_guidance_branch() -> None:
 
 def test_proximity_prompt_encodes_dict_and_str_hypotheses() -> None:
     """Proximity JSON-encodes hypothesis texts from both dicts and strings."""
-    prompt, schema = get_proximity_prompt(hypotheses=[
-        {
-            "text": "alpha pathway hypothesis"
-        },
-        "beta pathway hypothesis",
-    ])
+    prompt, schema = get_proximity_prompt(
+        hypotheses=[
+            {"text": "alpha pathway hypothesis"},
+            "beta pathway hypothesis",
+        ]
+    )
     assert "alpha pathway hypothesis" in prompt
     assert "beta pathway hypothesis" in prompt
     assert "{{MISSING" not in prompt
@@ -315,8 +327,9 @@ def test_proximity_prompt_encodes_dict_and_str_hypotheses() -> None:
 
 def test_proximity_prompt_guidance_branch() -> None:
     """Supervisor guidance adds a key-research-areas block to proximity."""
-    prompt, _ = get_proximity_prompt(hypotheses=["h"],
-                                     supervisor_guidance=_GUIDANCE)
+    prompt, _ = get_proximity_prompt(
+        hypotheses=["h"], supervisor_guidance=_GUIDANCE
+    )
     assert "oxidative stress" in prompt
 
 
@@ -343,12 +356,7 @@ def test_ranking_prompt_review_scores_branch() -> None:
         research_goal="g",
         hypothesis_a="a",
         hypothesis_b="b",
-        review_a={
-            "overall_score": 8.5,
-            "scores": {
-                "novelty": 9
-            }
-        },
+        review_a={"overall_score": 8.5, "scores": {"novelty": 9}},
         review_b={"overall_score": 6.0},
     )
     assert "Review Scores Context" in prompt
@@ -358,9 +366,9 @@ def test_ranking_prompt_review_scores_branch() -> None:
 
 def test_ranking_prompt_reflection_notes_default_when_absent() -> None:
     """Absent reflection notes fall back to the documented placeholder text."""
-    prompt, _ = get_ranking_prompt(research_goal="g",
-                                   hypothesis_a="a",
-                                   hypothesis_b="b")
+    prompt, _ = get_ranking_prompt(
+        research_goal="g", hypothesis_a="a", hypothesis_b="b"
+    )
     assert "No reflection notes available." in prompt
 
 
@@ -502,7 +510,8 @@ def test_get_deep_verification_prompt_substitutes_and_returns_schema() -> None:
     """The deep-verification prompt embeds the goal and hypothesis text."""
     prompt, schema = get_deep_verification_prompt(
         research_goal="Repurpose a drug for AML",
-        hypothesis_text="Reparixin inhibits CXCR1/2 in AML")
+        hypothesis_text="Reparixin inhibits CXCR1/2 in AML",
+    )
     assert "Reparixin inhibits CXCR1/2 in AML" in prompt
     assert "Repurpose a drug for AML" in prompt
     assert schema is not None
@@ -513,7 +522,8 @@ def test_get_research_overview_prompt_substitutes_and_returns_schema() -> None:
     """The research-overview prompt embeds the goal and hypotheses summary."""
     prompt, schema = get_research_overview_prompt(
         research_goal="Find liver-fibrosis targets",
-        hypotheses_summary="1. HDAC inhibition (Elo 1700)\n2. BRD4 (Elo 1650)")
+        hypotheses_summary="1. HDAC inhibition (Elo 1700)\n2. BRD4 (Elo 1650)",
+    )
     assert "Find liver-fibrosis targets" in prompt
     assert "HDAC inhibition" in prompt
     assert schema is not None
@@ -540,17 +550,19 @@ def test_literature_synthesis_prompt_renders_paper_analyses() -> None:
     """The synthesis builder embeds the goal and each paper's findings."""
     prompt = get_literature_review_synthesis_prompt(
         research_goal="explain insulin resistance",
-        paper_analyses=[{
-            "metadata": {
-                "title": "Hepatic glucose output revisited",
-                "authors": ["P. First"],
-                "year": 2019,
-            },
-            "analysis": {
-                "key_findings": "gluconeogenesis is upregulated",
-                "gaps_identified": "no in-vivo validation",
-            },
-        }],
+        paper_analyses=[
+            {
+                "metadata": {
+                    "title": "Hepatic glucose output revisited",
+                    "authors": ["P. First"],
+                    "year": 2019,
+                },
+                "analysis": {
+                    "key_findings": "gluconeogenesis is upregulated",
+                    "gaps_identified": "no in-vivo validation",
+                },
+            }
+        ],
     )
     assert isinstance(prompt, str)
     assert "explain insulin resistance" in prompt
@@ -583,22 +595,24 @@ def test_validation_synthesis_prompt_renders_drafts_no_schema() -> None:
     """The (no-tools) validation synthesis builder returns a filled str."""
     prompt = get_hypothesis_validation_synthesis_prompt(
         research_goal="reduce tumor metastasis",
-        hypotheses_with_analyses=[{
-            "draft": {
-                "text": "block CXCR4 signaling",
-                "gap_reasoning": "under-studied in metastasis",
-                "literature_sources": "[C1]",
-            },
-            "novelty_analyses": [{
-                "paper_metadata": {
-                    "title": "CXCR4 in cancer",
-                    "year": 2020
+        hypotheses_with_analyses=[
+            {
+                "draft": {
+                    "text": "block CXCR4 signaling",
+                    "gap_reasoning": "under-studied in metastasis",
+                    "literature_sources": "[C1]",
                 },
-                "analysis": {
-                    "novelty_assessment": "complementary"
-                },
-            }],
-        }],
+                "novelty_analyses": [
+                    {
+                        "paper_metadata": {
+                            "title": "CXCR4 in cancer",
+                            "year": 2020,
+                        },
+                        "analysis": {"novelty_assessment": "complementary"},
+                    }
+                ],
+            }
+        ],
     )
     assert isinstance(prompt, str)
     assert "reduce tumor metastasis" in prompt
@@ -609,14 +623,16 @@ def test_validation_synthesis_with_tools_returns_schema() -> None:
     """The tools variant embeds drafts and returns a non-None schema."""
     prompt, schema = get_validation_synthesis_prompt_with_tools(
         research_goal="reduce tumor metastasis",
-        hypotheses_with_analyses=[{
-            "draft": {
-                "text": "block CXCR4 signaling",
-                "gap_reasoning": "under-studied",
-                "literature_sources": "[C1]",
-            },
-            "novelty_analyses": [],
-        }],
+        hypotheses_with_analyses=[
+            {
+                "draft": {
+                    "text": "block CXCR4 signaling",
+                    "gap_reasoning": "under-studied",
+                    "literature_sources": "[C1]",
+                },
+                "novelty_analyses": [],
+            }
+        ],
         max_iterations=5,
     )
     assert isinstance(prompt, str)
@@ -636,7 +652,6 @@ def test_domain_injection_populates_domain_placeholders() -> None:
         reflection_guidance = "REFL-G"
 
     class _StubRegistry:
-
         def get_prompts_config(self) -> _StubPromptsConfig:
             return _StubPromptsConfig()
 

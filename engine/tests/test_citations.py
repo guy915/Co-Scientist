@@ -14,15 +14,19 @@ test suite. The engine's citation module is concerned solely with parsing
 """
 
 from co_scientist.models import Article
-from co_scientist.nodes.generation.citations import build_reference_index
-from co_scientist.nodes.generation.citations import ReferenceIndex
-from co_scientist.nodes.generation.citations import resolve_citation_keys
+from co_scientist.nodes.generation.citations import (
+    ReferenceIndex,
+    build_reference_index,
+    resolve_citation_keys,
+)
 
 
-def _used_article(title: str = "Title",
-                  authors: list[str] | None = None,
-                  year: int | None = 2023,
-                  url: str = "") -> Article:
+def _used_article(
+    title: str = "Title",
+    authors: list[str] | None = None,
+    year: int | None = 2023,
+    url: str = "",
+) -> Article:
     """Build an Article flagged for analysis (the only kind indexed)."""
     return Article(
         title=title,
@@ -212,10 +216,9 @@ def test_build_index_no_year_label_falls_back_to_title() -> None:
 
 def test_build_index_skips_unused_articles() -> None:
     """Articles without ``used_in_analysis`` are excluded and not numbered."""
-    skip = Article(title="Skip",
-                   authors=["A B"],
-                   year=2000,
-                   used_in_analysis=False)
+    skip = Article(
+        title="Skip", authors=["A B"], year=2000, used_in_analysis=False
+    )
     use = _used_article(title="Use", authors=["C D"], year=2001)
     idx = build_reference_index([skip, use], None)
     assert list(idx.sources) == ["C1"]
@@ -228,13 +231,13 @@ def test_build_index_skips_unused_articles() -> None:
 def test_build_index_papers_numbered_before_enrichment() -> None:
     """Papers occupy leading keys; enrichment sources follow in one space."""
     art = _used_article(title="Use", authors=["C D"], year=2001)
-    enrichment = [{
-        "display": "INDRA: KRAS -> RAF1",
-        "tool_id": "indra",
-        "data": {
-            "belief": 0.9
-        },
-    }]
+    enrichment = [
+        {
+            "display": "INDRA: KRAS -> RAF1",
+            "tool_id": "indra",
+            "data": {"belief": 0.9},
+        }
+    ]
     idx = build_reference_index([art], enrichment)
     assert list(idx.sources) == ["C1", "C2"]
     assert idx.sources["C1"]["type"] == "paper"
@@ -242,9 +245,7 @@ def test_build_index_papers_numbered_before_enrichment() -> None:
         "type": "knowledge_graph",
         "display": "INDRA: KRAS -> RAF1",
         "tool_id": "indra",
-        "data": {
-            "belief": 0.9
-        },
+        "data": {"belief": 0.9},
     }
 
 

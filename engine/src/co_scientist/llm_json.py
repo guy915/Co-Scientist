@@ -11,8 +11,8 @@ import copy
 import json
 import logging
 import re
-from typing import Any
 from collections.abc import Callable
+from typing import Any
 
 import jsonschema
 from jsonschema.exceptions import ValidationError
@@ -103,8 +103,9 @@ def _looks_like_truncated_array_entry(stripped: str) -> bool:
         True if the text ends with a trailing comma, or ends with an
         alphanumeric character while an array bracket is still open.
     """
-    return stripped.endswith(",") or (stripped[-1].isalnum() and
-                                      "[" in stripped)
+    return stripped.endswith(",") or (
+        stripped[-1].isalnum() and "[" in stripped
+    )
 
 
 def _repair_unterminated_array_string(s: str, stripped: str) -> str | None:
@@ -180,8 +181,9 @@ def _close_truncated_json(s: str) -> str:
     result = s + ("]" * open_brackets) + ("}" * open_braces)
 
     if open_braces > 0 or open_brackets > 0:
-        logger.debug("repaired: added %s ']' and %s '}'", open_brackets,
-                     open_braces)
+        logger.debug(
+            "repaired: added %s ']' and %s '}'", open_brackets, open_braces
+        )
 
     return result
 
@@ -206,8 +208,9 @@ _MINOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], dict[str, Any] | None]] = [
     # Escape invalid backslash sequences (LaTeX/math notation from LLMs)
     lambda s: json.loads(_fix_invalid_escapes(s)),
     # Both: invalid escapes and trailing commas
-    lambda s: json.loads(_fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s))
-                        ),
+    lambda s: json.loads(
+        _fix_invalid_escapes(re.sub(r",(\s*[}\]])", r"\1", s))
+    ),
 ]
 
 # Major repairs (indicate truncation/incomplete, only tried on the final
@@ -217,19 +220,25 @@ _MAJOR_JSON_REPAIR_STRATEGIES: list[Callable[[str], dict[str, Any] | None]] = [
     # issue)
     lambda s: json.loads(_close_truncated_json(s)),
     # Remove trailing commas AND close truncated JSON
-    lambda s: json.loads(_close_truncated_json(re.sub(r",(\s*[}\]])", r"\1", s))
-                        ),
+    lambda s: json.loads(
+        _close_truncated_json(re.sub(r",(\s*[}\]])", r"\1", s))
+    ),
     # Aggressively remove incomplete trailing content and close JSON
     lambda s: json.loads(_close_truncated_json(re.sub(r',?\s*"[^"]*$', "", s))),
     # Remove incomplete field (key OR value) and close
-    lambda s: json.loads(_close_truncated_json(re.sub(r'[:,]\s*"[^"]*$', "", s))
-                        ),
+    lambda s: json.loads(
+        _close_truncated_json(re.sub(r'[:,]\s*"[^"]*$', "", s))
+    ),
     # Find last complete comma, truncate there, then close
     lambda s: json.loads(
-        _close_truncated_json(s[:s.rfind(",") + 1] if "," in s else s)),
+        _close_truncated_json(s[: s.rfind(",") + 1] if "," in s else s)
+    ),
     # Extract first complete JSON object using regex
-    lambda s: (json.loads(m.group(0))
-               if (m := re.search(r"\{.*\}", s, re.DOTALL)) else None),
+    lambda s: (
+        json.loads(m.group(0))
+        if (m := re.search(r"\{.*\}", s, re.DOTALL))
+        else None
+    ),
 ]
 
 
@@ -270,7 +279,9 @@ def _try_major_repairs(json_str: str) -> dict[str, Any] | None:
             if result:
                 logger.warning(
                     "JSON repaired using major repair strategy %s "
-                    "(indicates truncation/incomplete response)", i)
+                    "(indicates truncation/incomplete response)",
+                    i,
+                )
                 return result
         except (json.JSONDecodeError, AttributeError, TypeError) as e:
             if i < 2:  # Only log for first few strategies
@@ -297,8 +308,7 @@ def _try_direct_parse(json_str: str) -> dict[str, Any] | None:
 
 
 def attempt_json_repair(
-        json_str: str,
-        allow_major_repairs: bool = False
+    json_str: str, allow_major_repairs: bool = False
 ) -> tuple[dict[str, Any] | None, bool]:
     """Attempt to repair common JSON syntax errors from LLM outputs.
 
@@ -333,8 +343,9 @@ def attempt_json_repair(
     return None, False
 
 
-def validate_json_schema(result: dict[str, Any],
-                         json_schema: dict[str, Any] | None) -> None:
+def validate_json_schema(
+    result: dict[str, Any], json_schema: dict[str, Any] | None
+) -> None:
     """Validate parsed JSON against the provided schema.
 
     Args:
@@ -361,8 +372,9 @@ def validate_json_schema(result: dict[str, Any],
         logger.debug("JSON schema validation passed")
     except ValidationError as e:
         logger.warning("JSON schema validation failed: %s", e.message)
-        logger.debug("validation error path: %s",
-                     '.'.join(str(p) for p in e.path))
+        logger.debug(
+            "validation error path: %s", ".".join(str(p) for p in e.path)
+        )
         logger.debug("first 500 chars of result: %s", str(result)[:500])
         raise
 
@@ -383,9 +395,7 @@ _ENHANCEMENT_NODE_FALLBACKS: dict[str, dict[str, Any]] = {
     },
     "hypothesis_evolution": {},
     "hypothesis_review": {},
-    "hypothesis_batch_review": {
-        "reviews": []
-    },
+    "hypothesis_batch_review": {"reviews": []},
     "reflection_observations": {},
     "meta_review": {},
     "deep_verification": {},
@@ -394,7 +404,8 @@ _ENHANCEMENT_NODE_FALLBACKS: dict[str, dict[str, Any]] = {
 
 
 def get_fallback_response(
-        json_schema: dict[str, Any] | None) -> dict[str, Any] | None:
+    json_schema: dict[str, Any] | None,
+) -> dict[str, Any] | None:
     """Get fallback placeholder data for non-critical nodes that failed.
 
     Args:
@@ -416,7 +427,8 @@ def get_fallback_response(
         logger.warning(
             "Node '%s' failed JSON parsing after all retries; returning a "
             "fallback so the run degrades gracefully instead of aborting.",
-            schema_name)
+            schema_name,
+        )
         # Deep-copy so a caller mutating nested lists/dicts cannot corrupt the
         # shared template.
         return copy.deepcopy(fallback)
@@ -471,8 +483,9 @@ def _is_backfillable(obj: Any, schema: Any) -> bool:
     return isinstance(obj, dict) and isinstance(schema, dict)
 
 
-def _fill_missing_required_fields(obj: dict[str, Any], schema: dict[str, Any],
-                                  props: dict[str, Any]) -> None:
+def _fill_missing_required_fields(
+    obj: dict[str, Any], schema: dict[str, Any], props: dict[str, Any]
+) -> None:
     """Fills required-but-absent fields on obj with type-neutral defaults.
 
     Args:
@@ -485,8 +498,9 @@ def _fill_missing_required_fields(obj: dict[str, Any], schema: dict[str, Any],
             obj[field] = _default_for_field_schema(props[field])
 
 
-def _recurse_into_properties(obj: dict[str, Any], props: dict[str,
-                                                              Any]) -> None:
+def _recurse_into_properties(
+    obj: dict[str, Any], props: dict[str, Any]
+) -> None:
     """Recurses backfilling into every property schema present in obj.
 
     Args:
@@ -537,10 +551,12 @@ def _validation_feedback(error: ValidationError) -> str:
         Feedback text to append to the original prompt for the retry.
     """
     error_path = ".".join(str(p) for p in error.path) if error.path else "root"
-    return ("\n\n--- VALIDATION ERROR FROM PREVIOUS"
-            " ATTEMPT ---\n"
-            f"Error: {error.message}\n"
-            f"Location: {error_path}\n"
-            "Please ensure your JSON output strictly"
-            " matches the required schema structure.\n"
-            "---")
+    return (
+        "\n\n--- VALIDATION ERROR FROM PREVIOUS"
+        " ATTEMPT ---\n"
+        f"Error: {error.message}\n"
+        f"Location: {error_path}\n"
+        "Please ensure your JSON output strictly"
+        " matches the required schema structure.\n"
+        "---"
+    )

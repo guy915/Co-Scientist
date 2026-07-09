@@ -16,9 +16,9 @@ from typing import Any
 from app.store.db import _now, _use_conn, connect
 from app.store.events import _append_event
 from app.store.models import (
+    TERMINAL_STATUSES,
     RunRow,
     RunStatus,
-    TERMINAL_STATUSES,
     _row_to_run,
 )
 
@@ -54,11 +54,25 @@ def create_run(
             "INSERT INTO runs (id, research_goal, profile, status, "
             "provider, config_json, client_id, created_at, updated_at) "
             "VALUES (?,?,?,?,?,?,?,?,?)",
-            (run_id, research_goal, profile, RunStatus.DRAFT.value, provider,
-             json.dumps(config), client_id, now, now),
+            (
+                run_id,
+                research_goal,
+                profile,
+                RunStatus.DRAFT.value,
+                provider,
+                json.dumps(config),
+                client_id,
+                now,
+                now,
+            ),
         )
-    logger.info("created run %s run_mode=%s provider=%s client_id=%s", run_id,
-                profile, provider, client_id)
+    logger.info(
+        "created run %s run_mode=%s provider=%s client_id=%s",
+        run_id,
+        profile,
+        provider,
+        client_id,
+    )
     return RunRow(
         id=run_id,
         research_goal=research_goal,
@@ -74,13 +88,16 @@ def create_run(
     )
 
 
-def get_run(run_id: str,
-            db_path: str | None = None,
-            conn: sqlite3.Connection | None = None) -> RunRow | None:
+def get_run(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> RunRow | None:
     """Return a single run by id, or None when no such run exists."""
     with _use_conn(conn, db_path) as conn:
-        row = conn.execute("SELECT * FROM runs WHERE id = ?",
-                           (run_id,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM runs WHERE id = ?", (run_id,)
+        ).fetchone()
         return _row_to_run(row) if row else None
 
 
@@ -98,14 +115,15 @@ def run_exists(run_id: str, db_path: str | None = None) -> bool:
         True if a run row with this id exists.
     """
     with connect(db_path) as conn:
-        row = conn.execute("SELECT 1 FROM runs WHERE id = ?",
-                           (run_id,)).fetchone()
+        row = conn.execute(
+            "SELECT 1 FROM runs WHERE id = ?", (run_id,)
+        ).fetchone()
         return row is not None
 
 
-def list_runs(client_id: str = "",
-              limit: int = 100,
-              db_path: str | None = None) -> list[RunRow]:
+def list_runs(
+    client_id: str = "", limit: int = 100, db_path: str | None = None
+) -> list[RunRow]:
     """Return a client's runs, newest first, each with its top Elo."""
     with connect(db_path) as conn:
         # One grouped aggregate joined in, rather than a correlated subquery
@@ -170,10 +188,9 @@ def _fail_interrupted_run(
         "completed_at=? WHERE id=?",
         (RunStatus.FAILED.value, reason, now, now, run_id),
     )
-    _append_event(conn, run_id, "status", {
-        "status": "failed",
-        "error": reason
-    }, now)
+    _append_event(
+        conn, run_id, "status", {"status": "failed", "error": reason}, now
+    )
 
 
 def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
@@ -211,9 +228,11 @@ def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
     return reconciled
 
 
-def summary_counts(run_id: str,
-                   db_path: str | None = None,
-                   conn: sqlite3.Connection | None = None) -> dict[str, int]:
+def summary_counts(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, int]:
     """Return per-table row counts for a run in a single connection.
 
     Uses COUNT(*) per table rather than materializing and parsing whole tables.
@@ -235,9 +254,9 @@ def summary_counts(run_id: str,
     }
     with _use_conn(conn, db_path) as conn:
         return {
-            field:
-                conn.execute(
-                    f"SELECT COUNT(*) FROM {table} WHERE run_id=?",
-                    (run_id,),
-                ).fetchone()[0] for field, table in tables.items()
+            field: conn.execute(
+                f"SELECT COUNT(*) FROM {table} WHERE run_id=?",
+                (run_id,),
+            ).fetchone()[0]
+            for field, table in tables.items()
         }

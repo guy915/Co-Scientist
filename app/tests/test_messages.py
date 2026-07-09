@@ -1,4 +1,5 @@
 """Tests for the messages store layer."""
+
 # pylint: disable=unused-argument
 from __future__ import annotations
 
@@ -12,24 +13,22 @@ from tests._client import wait_for_status
 
 
 def test_append_and_list_messages(isolated_db: str) -> None:
-    store.create_run("rg",
-                     "standard",
-                     "mock", {},
-                     client_id="c1",
-                     db_path=isolated_db)
+    store.create_run(
+        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+    )
     runs = store.list_runs(client_id="c1", db_path=isolated_db)
     run_id = runs[0].id
 
-    store.append_message(run_id,
-                         "user",
-                         "focus on cytokines",
-                         "steering",
-                         db_path=isolated_db)
-    store.append_message(run_id,
-                         "system",
-                         "Research plan ready",
-                         "milestone",
-                         db_path=isolated_db)
+    store.append_message(
+        run_id, "user", "focus on cytokines", "steering", db_path=isolated_db
+    )
+    store.append_message(
+        run_id,
+        "system",
+        "Research plan ready",
+        "milestone",
+        db_path=isolated_db,
+    )
 
     msgs = store.list_messages(run_id, db_path=isolated_db)
     assert len(msgs) == 2
@@ -40,28 +39,20 @@ def test_append_and_list_messages(isolated_db: str) -> None:
 
 
 def test_get_pending_steering(isolated_db: str) -> None:
-    store.create_run("rg",
-                     "standard",
-                     "mock", {},
-                     client_id="c1",
-                     db_path=isolated_db)
+    store.create_run(
+        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+    )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
-    store.append_message(run_id,
-                         "user",
-                         "steer A",
-                         "steering",
-                         db_path=isolated_db)
-    store.append_message(run_id,
-                         "system",
-                         "milestone msg",
-                         "milestone",
-                         db_path=isolated_db)
-    store.append_message(run_id,
-                         "user",
-                         "steer B",
-                         "steering",
-                         db_path=isolated_db)
+    store.append_message(
+        run_id, "user", "steer A", "steering", db_path=isolated_db
+    )
+    store.append_message(
+        run_id, "system", "milestone msg", "milestone", db_path=isolated_db
+    )
+    store.append_message(
+        run_id, "user", "steer B", "steering", db_path=isolated_db
+    )
 
     pending = store.get_pending_steering(run_id, db_path=isolated_db)
     assert len(pending) == 2
@@ -70,23 +61,17 @@ def test_get_pending_steering(isolated_db: str) -> None:
 
 
 def test_mark_steering_applied(isolated_db: str) -> None:
-    store.create_run("rg",
-                     "standard",
-                     "mock", {},
-                     client_id="c1",
-                     db_path=isolated_db)
+    store.create_run(
+        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+    )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
-    store.append_message(run_id,
-                         "user",
-                         "steer A",
-                         "steering",
-                         db_path=isolated_db)
-    store.append_message(run_id,
-                         "user",
-                         "steer B",
-                         "steering",
-                         db_path=isolated_db)
+    store.append_message(
+        run_id, "user", "steer A", "steering", db_path=isolated_db
+    )
+    store.append_message(
+        run_id, "user", "steer B", "steering", db_path=isolated_db
+    )
 
     pending = store.get_pending_steering(run_id, db_path=isolated_db)
     ids = [m.id for m in pending]
@@ -100,18 +85,14 @@ def test_mark_steering_applied(isolated_db: str) -> None:
 
 
 def test_message_to_dict(isolated_db: str) -> None:
-    store.create_run("rg",
-                     "standard",
-                     "mock", {},
-                     client_id="c1",
-                     db_path=isolated_db)
+    store.create_run(
+        "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db
+    )
     run_id = store.list_runs(client_id="c1", db_path=isolated_db)[0].id
 
-    msg = store.append_message(run_id,
-                               "user",
-                               "hello",
-                               "steering",
-                               db_path=isolated_db)
+    msg = store.append_message(
+        run_id, "user", "hello", "steering", db_path=isolated_db
+    )
     d = msg.to_dict()
     assert d["sender"] == "user"
     assert d["content"] == "hello"
@@ -127,12 +108,11 @@ def test_message_to_dict(isolated_db: str) -> None:
 
 
 def _make_run(client: TestClient, goal: str = "test goal") -> str:
-    res = client.post("/api/runs",
-                      json={
-                          "research_goal": goal,
-                          "profile": "standard"
-                      },
-                      headers={"X-Client-ID": "test-client"})
+    res = client.post(
+        "/api/runs",
+        json={"research_goal": goal, "profile": "standard"},
+        headers={"X-Client-ID": "test-client"},
+    )
     assert res.status_code == 200
     return cast(str, res.json()["id"])
 
@@ -141,8 +121,9 @@ def test_send_message_endpoint(isolated_db: str) -> None:
     client = _client()
     run_id = _make_run(client)
 
-    res = client.post(f"/api/runs/{run_id}/messages",
-                      json={"content": "focus on cytokines"})
+    res = client.post(
+        f"/api/runs/{run_id}/messages", json={"content": "focus on cytokines"}
+    )
     assert res.status_code == 200
     data = res.json()
     assert data["kind"] == "steering"
@@ -151,13 +132,17 @@ def test_send_message_endpoint(isolated_db: str) -> None:
 
 
 def test_send_message_always_stores_as_steering(isolated_db: str) -> None:
-    """POST /messages always stores as steering; Q&A routing is the
-    frontend's job."""
+    """POST /messages always stores as steering.
+
+    Q&A routing is the frontend's job.
+    """
     client = _client()
     run_id = _make_run(client)
 
-    res = client.post(f"/api/runs/{run_id}/messages",
-                      json={"content": "Why did hypothesis 3 drop?"})
+    res = client.post(
+        f"/api/runs/{run_id}/messages",
+        json={"content": "Why did hypothesis 3 drop?"},
+    )
     assert res.status_code == 200
     assert res.json()["kind"] == "steering"
 
@@ -184,16 +169,17 @@ def test_list_messages_404_on_unknown_run(isolated_db: str) -> None:
 
 
 def test_steering_messages_applied_after_run(isolated_db: str) -> None:
-    """Steering messages sent before a run starts should be marked applied
-    when the run completes."""
+    """Steering messages sent before a run starts are applied later.
+
+    They should be marked applied when the run completes.
+    """
     client = _client()
     run_id = _make_run(client, goal="test steering injection")
 
-    client.post(f"/api/runs/{run_id}/messages",
-                json={
-                    "content": "focus on apoptosis pathways",
-                    "kind": "steering"
-                })
+    client.post(
+        f"/api/runs/{run_id}/messages",
+        json={"content": "focus on apoptosis pathways", "kind": "steering"},
+    )
 
     msgs_before = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
     assert msgs_before[0]["applied"] is False

@@ -1,6 +1,6 @@
 """Progress emission helper shared by workflow nodes."""
 
-from typing import Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 # WorkflowState is only needed for the type hint below, so import it under
 # TYPE_CHECKING to avoid a runtime dependency on the state module (and its
@@ -38,5 +38,6 @@ async def emit_progress(
                 "progress": progress,
                 # Extra fields (e.g. key_areas, hypotheses_count) are merged
                 # flat into the payload alongside message/progress.
-                **extra
-            })
+                **extra,
+            },
+        )

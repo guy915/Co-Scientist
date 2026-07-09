@@ -10,7 +10,7 @@ Supports both single-server (legacy) and multi-server configurations.
 import json
 import logging
 import os
-from typing import Any, Optional, TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Optional, cast
 
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -69,7 +69,8 @@ def _resolve_server_configs(
 
 
 def _ensure_tools_initialized(
-        tools_dict: dict[str, Any] | None) -> dict[str, Any]:
+    tools_dict: dict[str, Any] | None,
+) -> dict[str, Any]:
     """Guards that a client's tools dict has been populated by initialize().
 
     Args:
@@ -84,7 +85,8 @@ def _ensure_tools_initialized(
     """
     if tools_dict is None:
         raise RuntimeError(
-            "mcp client not initialized. call initialize() first.")
+            "mcp client not initialized. call initialize() first."
+        )
     return tools_dict
 
 
@@ -101,8 +103,12 @@ def _is_wrapped_text_result(result: Any) -> bool:
         True if result is a non-empty list whose first item is a dict
         containing a "text" key.
     """
-    return (isinstance(result, list) and len(result) > 0 and
-            isinstance(result[0], dict) and "text" in result[0])
+    return (
+        isinstance(result, list)
+        and len(result) > 0
+        and isinstance(result[0], dict)
+        and "text" in result[0]
+    )
 
 
 def _unwrap_tool_result(result: Any) -> Any:
@@ -156,8 +162,11 @@ def _filter_tools_by_whitelist(
         if k in filtered_tools_dict
     ]
 
-    logger.debug("filtered to %s tools: %s", len(filtered_tools_dict),
-                 list(filtered_tools_dict.keys()))
+    logger.debug(
+        "filtered to %s tools: %s",
+        len(filtered_tools_dict),
+        list(filtered_tools_dict.keys()),
+    )
 
     return filtered_tools_dict, filtered_openai_tools
 
@@ -198,13 +207,16 @@ class MCPToolClient:
         self._openai_tools: list[dict[str, Any]] | None = None
         self._tool_to_server: dict[str, str] = {}  # maps tool_name -> server_id
 
-        self._server_configs = _resolve_server_configs(tool_registry,
-                                                       server_configs,
-                                                       server_url)
+        self._server_configs = _resolve_server_configs(
+            tool_registry, server_configs, server_url
+        )
 
         # Store for backwards compatibility
-        self.server_url = list(self._server_configs.values())[0].get(
-            "url") if self._server_configs else None
+        self.server_url = (
+            next(iter(self._server_configs.values())).get("url")
+            if self._server_configs
+            else None
+        )
 
     async def initialize(self) -> None:
         """Initialize the client and fetch available tools from all servers."""
@@ -218,11 +230,15 @@ class MCPToolClient:
             raise RuntimeError("no server configurations available")
 
         server_names = list(self._server_configs.keys())
-        logger.info("initializing MCP client for %s server(s): %s",
-                    len(server_names), server_names)
+        logger.info(
+            "initializing MCP client for %s server(s): %s",
+            len(server_names),
+            server_names,
+        )
 
         self._client = MultiServerMCPClient(
-            cast(dict[str, Connection], self._server_configs))
+            cast(dict[str, Connection], self._server_configs)
+        )
         # This round-trips to every configured server. A server that is down
         # or unreachable surfaces as a raised exception here, which
         # check_mcp_available / check_literature_source_available below catch
@@ -232,8 +248,11 @@ class MCPToolClient:
         self._index_tools(tools)
 
         assert self._tools_dict is not None  # set by _index_tools above
-        logger.info("MCP client initialized with %s tools: %s",
-                    len(self._tools_dict), list(self._tools_dict.keys()))
+        logger.info(
+            "MCP client initialized with %s tools: %s",
+            len(self._tools_dict),
+            list(self._tools_dict.keys()),
+        )
 
     def _index_tools(self, tools: list[Any]) -> None:
         """Populate lookup structures from the tools fetched by initialize().
@@ -257,7 +276,8 @@ class MCPToolClient:
             # available
             if self._tool_registry:
                 tool_config = self._tool_registry.get_tool_by_mcp_name(
-                    tool.name)
+                    tool.name
+                )
                 if tool_config:
                     self._tool_to_server[tool.name] = tool_config.server
 
@@ -287,16 +307,22 @@ class MCPToolClient:
         tools_dict = _ensure_tools_initialized(self._tools_dict)
 
         if tool_name not in tools_dict:
-            raise ValueError(f"tool '{tool_name}' not found. "
-                             f"available tools: {list(tools_dict.keys())}")
+            raise ValueError(
+                f"tool '{tool_name}' not found. "
+                f"available tools: {list(tools_dict.keys())}"
+            )
 
         logger.debug("calling mcp tool: %s with args: %s", tool_name, kwargs)
 
-        result = _unwrap_tool_result(await
-                                     tools_dict[tool_name].ainvoke(kwargs))
+        result = _unwrap_tool_result(
+            await tools_dict[tool_name].ainvoke(kwargs)
+        )
 
-        logger.debug("mcp tool result for %s: %s", tool_name,
-                     _truncate_for_log(str(result)))
+        logger.debug(
+            "mcp tool result for %s: %s",
+            tool_name,
+            _truncate_for_log(str(result)),
+        )
 
         return cast(str, result)
 
@@ -317,19 +343,25 @@ class MCPToolClient:
         # wraps this method for tool-call-counting).
         if self._tools_dict is None:
             raise RuntimeError(
-                "mcp client not initialized. call initialize() first.")
+                "mcp client not initialized. call initialize() first."
+            )
 
         tool_name = tool_call.function.name
         tool_args = json.loads(tool_call.function.arguments)
 
-        logger.debug("executing mcp tool: %s with args: %s", tool_name,
-                     tool_args)
+        logger.debug(
+            "executing mcp tool: %s with args: %s", tool_name, tool_args
+        )
 
         # Execute using the original MCP tool
         result = await self._tools_dict[tool_name].ainvoke(tool_args)
 
-        logger.debug("mcp tool result for %s: %s%s", tool_name,
-                     str(result)[:200], '...' if len(str(result)) > 200 else '')
+        logger.debug(
+            "mcp tool result for %s: %s%s",
+            tool_name,
+            str(result)[:200],
+            "..." if len(str(result)) > 200 else "",
+        )
 
         return {
             "role": "tool",
@@ -342,8 +374,7 @@ class MCPToolClient:
     # workflow's whitelist here so a node's LLM only ever sees the subset of
     # tools that workflow's YAML config authorizes for that phase.
     def get_tools(
-        self,
-        whitelist: list[str] | None = None
+        self, whitelist: list[str] | None = None
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         """Get MCP tools, optionally filtered by whitelist.
 
@@ -358,7 +389,8 @@ class MCPToolClient:
         """
         if self._tools_dict is None or self._openai_tools is None:
             raise RuntimeError(
-                "MCP client not initialized. Call initialize() first.")
+                "MCP client not initialized. Call initialize() first."
+            )
 
         if whitelist is None:
             return self._tools_dict, self._openai_tools
@@ -397,7 +429,8 @@ _global_client: MCPToolClient | None = None
 
 
 def _resolve_availability_check_tool(
-    tool_registry: Optional["ToolRegistry"],) -> tuple[str | None, bool]:
+    tool_registry: Optional["ToolRegistry"],
+) -> tuple[str | None, bool]:
     """Determine which MCP tool (if any) to use for an availability probe.
 
     Args:
@@ -420,8 +453,9 @@ def _resolve_availability_check_tool(
 
     if not workflow.availability_check:
         # availability_check is null/None - skip the check
-        logger.debug("availability check disabled in config"
-                     " (availability_check: null)")
+        logger.debug(
+            "availability check disabled in config (availability_check: null)"
+        )
         return None, True
 
     # Explicit check tool configured.
@@ -476,20 +510,24 @@ def _short_circuit_availability(
     # An empty tool list means the MCP server is not usable, so the
     # literature source is unavailable.
     if not all_tools_dict:
-        logger.warning("MCP server responded but provided no tools,"
-                       " literature source unavailable")
+        logger.warning(
+            "MCP server responded but provided no tools,"
+            " literature source unavailable"
+        )
         return False
 
     # If no availability check configured, assume available since MCP is up
     if skip_availability_check:
-        logger.info("MCP server available, skipping source-specific"
-                    " availability check")
+        logger.info(
+            "MCP server available, skipping source-specific availability check"
+        )
         return True
 
     # If no check tool configured but we have a registry, assume available
     if check_tool_name is None:
-        logger.info("no availability check tool configured,"
-                    " assuming source available")
+        logger.info(
+            "no availability check tool configured, assuming source available"
+        )
         return True
 
     return None
@@ -517,19 +555,23 @@ async def _probe_literature_source_availability(
     """
     all_tools_dict, _ = mcp_client.get_tools()
 
-    shortcut = _short_circuit_availability(all_tools_dict, check_tool_name,
-                                           skip_availability_check)
+    shortcut = _short_circuit_availability(
+        all_tools_dict, check_tool_name, skip_availability_check
+    )
     if shortcut is not None:
         return shortcut
 
-    logger.debug("checking literature source availability (tool: %s)",
-                 check_tool_name)
+    logger.debug(
+        "checking literature source availability (tool: %s)", check_tool_name
+    )
     logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
 
     if check_tool_name not in all_tools_dict:
         logger.warning(
             "availability check tool '%s' not found. available tools: %s",
-            check_tool_name, list(all_tools_dict.keys()))
+            check_tool_name,
+            list(all_tools_dict.keys()),
+        )
         return False
 
     logger.debug("%s tool found, executing", check_tool_name)
@@ -563,8 +605,9 @@ async def check_literature_source_available(
     Returns:
         True if literature source is available via MCP server, False otherwise
     """
-    check_tool_name, skip_availability_check = (
-        _resolve_availability_check_tool(tool_registry))
+    check_tool_name, skip_availability_check = _resolve_availability_check_tool(
+        tool_registry
+    )
 
     if server_url is None and tool_registry is None:
         server_url = _resolve_server_url()
@@ -573,20 +616,25 @@ async def check_literature_source_available(
         # One throwaway client serves both the server-availability probe and
         # the tool-name lookup. Deliberately not the cached global client: a
         # down server must not poison global state.
-        mcp_client = MCPToolClient(server_url=server_url,
-                                   tool_registry=tool_registry)
+        mcp_client = MCPToolClient(
+            server_url=server_url, tool_registry=tool_registry
+        )
         await mcp_client.initialize()
 
         return await _probe_literature_source_availability(
-            mcp_client, check_tool_name, skip_availability_check)
+            mcp_client, check_tool_name, skip_availability_check
+        )
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Deliberately broad: any MCP hiccup (connection refused, timeout,
         # malformed tool schema) degrades to "unavailable" here rather than
         # raising, so callers (e.g. HypothesisGenerator._prepare_generation)
         # can fall back to LLM-only mode instead of aborting the run.
-        logger.warning("error checking literature source availability: %s: %s",
-                       type(e).__name__, e)
+        logger.warning(
+            "error checking literature source availability: %s: %s",
+            type(e).__name__,
+            e,
+        )
         logger.debug("full traceback: %s", e, exc_info=True)
         return False
 
@@ -603,8 +651,9 @@ async def check_pubmed_available_via_mcp(
     return await check_literature_source_available(server_url, tool_registry)
 
 
-def _log_mcp_test_start(tool_registry: Optional["ToolRegistry"],
-                        server_url: str | None) -> None:
+def _log_mcp_test_start(
+    tool_registry: Optional["ToolRegistry"], server_url: str | None
+) -> None:
     """Logs which MCP target check_mcp_available is about to probe.
 
     Args:
@@ -612,8 +661,10 @@ def _log_mcp_test_start(tool_registry: Optional["ToolRegistry"],
         server_url: Single legacy server URL, used when tool_registry isn't.
     """
     if tool_registry:
-        logger.debug("testing mcp availability for %s server(s)",
-                     len(tool_registry.get_enabled_servers()))
+        logger.debug(
+            "testing mcp availability for %s server(s)",
+            len(tool_registry.get_enabled_servers()),
+        )
     else:
         logger.debug("testing mcp server availability at %s", server_url)
 
@@ -635,8 +686,11 @@ def _has_any_tools(tools_dict: dict[str, Any] | None) -> bool:
     return False
 
 
-def _log_mcp_unavailable(tool_registry: Optional["ToolRegistry"],
-                         server_url: str | None, error: Exception) -> None:
+def _log_mcp_unavailable(
+    tool_registry: Optional["ToolRegistry"],
+    server_url: str | None,
+    error: Exception,
+) -> None:
     """Logs the check_mcp_available exception-fallback-to-False path.
 
     Args:
@@ -669,8 +723,9 @@ async def check_mcp_available(
     try:
         _log_mcp_test_start(tool_registry, server_url)
 
-        test_client = MCPToolClient(server_url=server_url,
-                                    tool_registry=tool_registry)
+        test_client = MCPToolClient(
+            server_url=server_url, tool_registry=tool_registry
+        )
         await test_client.initialize()
 
         # Check if we got any tools
@@ -707,8 +762,9 @@ async def get_mcp_client(
     # / tool_registry mid-process); otherwise the first caller's arguments
     # win and later callers just get that same client re-initialized below.
     if _global_client is None or force_new:
-        _global_client = MCPToolClient(server_url=server_url,
-                                       tool_registry=tool_registry)
+        _global_client = MCPToolClient(
+            server_url=server_url, tool_registry=tool_registry
+        )
 
     # Always ensure it's initialized (safe to call multiple times)
     await _global_client.initialize()

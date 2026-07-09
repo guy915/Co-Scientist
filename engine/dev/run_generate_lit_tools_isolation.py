@@ -14,18 +14,20 @@ import asyncio
 import os
 from collections.abc import Sequence
 
-from absl import app
-from absl import flags
+from absl import app, flags
 from rich.console import Console
+from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.table import Table
-from rich.markdown import Markdown
+from state_helpers import (
+    DEFAULT_MODEL_NAME,
+    DEFAULT_RESEARCH_GOAL,
+    make_supervisor_state,
+)
 
-from state_helpers import (make_supervisor_state, DEFAULT_RESEARCH_GOAL,
-                           DEFAULT_MODEL_NAME)
 from co_scientist.models import Hypothesis
-from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.nodes.generate import generate_node
+from co_scientist.nodes.literature_review import literature_review_node
 
 console = Console()
 
@@ -35,8 +37,9 @@ flags.DEFINE_string("model", DEFAULT_MODEL_NAME, "LLM model to use.")
 flags.DEFINE_integer("count", 3, "Number of hypotheses to generate.")
 
 
-def _prepare_isolation_state(research_goal: str, model_name: str,
-                             hypotheses_count: int) -> dict:
+def _prepare_isolation_state(
+    research_goal: str, model_name: str, hypotheses_count: int
+) -> dict:
     """Build supervisor state configured for lit-tools isolation testing.
 
     Args:
@@ -49,14 +52,18 @@ def _prepare_isolation_state(research_goal: str, model_name: str,
     """
     # disable global cache so we see fresh generate output
     os.environ["COSCIENTIST_CACHE_ENABLED"] = "false"
-    console.print("[yellow]global cache disabled"
-                  " (will see fresh generate output)[/yellow]")
+    console.print(
+        "[yellow]global cache disabled"
+        " (will see fresh generate output)[/yellow]"
+    )
 
     # create base state with supervisor
     console.print(
-        "[yellow]preparing state (running supervisor first)...[/yellow]")
-    state = make_supervisor_state(research_goal=research_goal,
-                                  model_name=model_name)
+        "[yellow]preparing state (running supervisor first)...[/yellow]"
+    )
+    state = make_supervisor_state(
+        research_goal=research_goal, model_name=model_name
+    )
     state["initial_hypotheses_count"] = hypotheses_count
 
     # enable lit tools generation
@@ -91,9 +98,10 @@ async def _run_lit_review_phase(state: dict) -> bool:
         console.print("[red]error: no literature review data available[/red]")
         return False
 
-    n_arts = len(state.get('articles', []))
-    console.print(f"[green]literature review complete:"
-                  f" {n_arts} articles found[/green]")
+    n_arts = len(state.get("articles", []))
+    console.print(
+        f"[green]literature review complete: {n_arts} articles found[/green]"
+    )
     return True
 
 
@@ -129,23 +137,26 @@ def _show_first_hypothesis(hypotheses: list[Hypothesis]) -> None:
 
     first = hypotheses[0]
     console.print(
-        Panel(Markdown(f"""
+        Panel(
+            Markdown(f"""
 **hypothesis text:**
 {first.text}
 
 **justification:**
-{first.justification or 'none'}
+{first.justification or "none"}
 
 **literature review used:**
-{first.literature_review_used or 'none'}
+{first.literature_review_used or "none"}
 
 **novelty validation:**
-{first.novelty_validation or 'none'}
+{first.novelty_validation or "none"}
 
-**generation method:** {first.generation_method or 'unknown'}
+**generation method:** {first.generation_method or "unknown"}
 """),
-              title="[bold green]first hypothesis details[/bold green]",
-              border_style="green"))
+            title="[bold green]first hypothesis details[/bold green]",
+            border_style="green",
+        )
+    )
 
 
 def _tally_generation_methods(hypotheses: list[Hypothesis]) -> tuple[int, int]:
@@ -158,7 +169,8 @@ def _tally_generation_methods(hypotheses: list[Hypothesis]) -> tuple[int, int]:
         Tuple of (lit_tools_count, debate_count).
     """
     lit_tools_count = sum(
-        1 for h in hypotheses if h.generation_method == "literature_tools")
+        1 for h in hypotheses if h.generation_method == "literature_tools"
+    )
     debate_count = sum(1 for h in hypotheses if h.generation_method == "debate")
     return lit_tools_count, debate_count
 
@@ -177,49 +189,60 @@ def _print_lit_tools_summary(hypotheses: list[Hypothesis]) -> None:
     console.print(f"  debate: {debate_count}")
 
     if debate_count > 0:
-        console.print(f"\n[red]warning: expected 0 debate hypotheses in"
-                      f" isolation mode, got {debate_count}[/red]")
+        console.print(
+            f"\n[red]warning: expected 0 debate hypotheses in"
+            f" isolation mode, got {debate_count}[/red]"
+        )
     if lit_tools_count != len(hypotheses):
         n_total = len(hypotheses)
-        console.print(f"[red]warning: expected all hypotheses to be lit_tools,"
-                      f" got {lit_tools_count}/{n_total}[/red]")
+        console.print(
+            f"[red]warning: expected all hypotheses to be lit_tools,"
+            f" got {lit_tools_count}/{n_total}[/red]"
+        )
 
     if lit_tools_count == len(hypotheses):
-        console.print("\n[bold green]success: all hypotheses generated"
-                      " with lit tools![/bold green]")
+        console.print(
+            "\n[bold green]success: all hypotheses generated"
+            " with lit tools![/bold green]"
+        )
 
 
-async def test_lit_tools_isolation(research_goal: str,
-                                   model_name: str,
-                                   hypotheses_count: int = 3):
+async def test_lit_tools_isolation(
+    research_goal: str, model_name: str, hypotheses_count: int = 3
+):
     """Run generate node with lit tools in isolation mode.
 
-    args:
+    Args:
         research_goal: research question
         model_name: llm model to use
         hypotheses_count: number of hypotheses to generate
     """
+    console.print(
+        "\n[bold cyan]testing generate node with lit tools"
+        " (isolation mode)[/bold cyan]\n"
+    )
 
-    console.print("\n[bold cyan]testing generate node with lit tools"
-                  " (isolation mode)[/bold cyan]\n")
-
-    state = _prepare_isolation_state(research_goal, model_name,
-                                     hypotheses_count)
+    state = _prepare_isolation_state(
+        research_goal, model_name, hypotheses_count
+    )
 
     if not await _run_lit_review_phase(state):
         return
 
     console.print(f"\n[yellow]research goal:[/yellow] {state['research_goal']}")
-    n_hyps = state['initial_hypotheses_count']
+    n_hyps = state["initial_hypotheses_count"]
     console.print(f"[yellow]hypotheses to generate:[/yellow] {n_hyps}")
     console.print(f"[yellow]model:[/yellow] {state['model_name']}\n")
 
     # run generate node with lit tools
-    console.print("[yellow]calling generate node with lit tools"
-                  " (this may take 2-3 minutes)...[/yellow]")
+    console.print(
+        "[yellow]calling generate node with lit tools"
+        " (this may take 2-3 minutes)...[/yellow]"
+    )
     console.print("[dim]phase 1: draft hypotheses by reading papers[/dim]")
     console.print(
-        "[dim]phase 2: validate novelty by searching literature[/dim]\n")
+        "[dim]phase 2: validate novelty by searching literature[/dim]\n"
+    )
 
     result = await generate_node(state)
     hypotheses = result.get("hypotheses", [])
@@ -235,9 +258,12 @@ def main(argv: Sequence[str]) -> None:
     research_goal = argv[1] if len(argv) > 1 else DEFAULT_RESEARCH_GOAL
 
     asyncio.run(
-        test_lit_tools_isolation(research_goal=research_goal,
-                                 model_name=FLAGS.model,
-                                 hypotheses_count=FLAGS.count))
+        test_lit_tools_isolation(
+            research_goal=research_goal,
+            model_name=FLAGS.model,
+            hypotheses_count=FLAGS.count,
+        )
+    )
 
 
 if __name__ == "__main__":

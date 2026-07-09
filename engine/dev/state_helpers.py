@@ -6,14 +6,17 @@ Intentionally kept minimal to avoid mock data drift - add fields as needed.
 # pylint: disable=inconsistent-quotes
 
 import time
+
 from rich.console import Console
-from co_scientist.state import WorkflowState
+
 from co_scientist.models import ExecutionMetrics
+from co_scientist.state import WorkflowState
 
 console = Console()
 
 DEFAULT_RESEARCH_GOAL = (
-    "How can we detect Alzheimer's disease earlier using retinal imaging?")
+    "How can we detect Alzheimer's disease earlier using retinal imaging?"
+)
 DEFAULT_MODEL_NAME = "gemini/gemini-2.5-flash"
 
 
@@ -59,18 +62,22 @@ def make_supervisor_state(
     Use this for nodes that depend on supervisor output (eg generate node).
     Note: this creates a REAL supervisor output by calling the supervisor node.
     """
-    from co_scientist.nodes.supervisor import supervisor_node  # pylint: disable=import-outside-toplevel
     import asyncio  # pylint: disable=import-outside-toplevel
+
+    from co_scientist.nodes.supervisor import (
+        supervisor_node,  # pylint: disable=import-outside-toplevel
+    )
 
     base = make_base_state(research_goal, model_name)
 
     # Run supervisor to get real guidance
     console.print(
-        "[dim]Running supervisor node to create realistic state...[/dim]")
+        "[dim]Running supervisor node to create realistic state...[/dim]"
+    )
     result = asyncio.run(supervisor_node(base))
 
     base.update(result)
-    keys = list(base['supervisor_guidance'].keys())
+    keys = list(base["supervisor_guidance"].keys())
     console.print(f"[dim]Supervisor guidance keys: {keys}[/dim]")
 
     return base
@@ -92,15 +99,22 @@ def make_literature_state(
                             (requires MCP server); if False, uses
                             minimal mock data
     """
-    from co_scientist.nodes.literature_review import literature_review_node  # pylint: disable=import-outside-toplevel
-    from co_scientist.models import Article  # pylint: disable=import-outside-toplevel
     import asyncio  # pylint: disable=import-outside-toplevel
+
+    from co_scientist.models import (
+        Article,  # pylint: disable=import-outside-toplevel
+    )
+    from co_scientist.nodes.literature_review import (
+        literature_review_node,  # pylint: disable=import-outside-toplevel
+    )
 
     base = make_base_state(research_goal, model_name)
 
     if run_real_lit_review:
-        console.print("[dim]Running literature review node to create"
-                      " realistic state...[/dim]")
+        console.print(
+            "[dim]Running literature review node to create"
+            " realistic state...[/dim]"
+        )
         console.print("[dim](Requires MCP server available)[/dim]")
         result = asyncio.run(literature_review_node(base))
         base.update(result)
@@ -117,7 +131,7 @@ microvasculature changes appear years before cognitive symptoms
 """
         base["literature_review_queries"] = [
             "alzheimer's disease retinal imaging biomarkers",
-            "early detection cognitive decline optical coherence tomography"
+            "early detection cognitive decline optical coherence tomography",
         ]
         base["articles"] = [
             Article(
@@ -145,12 +159,13 @@ def make_generate_state(
     state = make_supervisor_state(research_goal, model_name)
 
     if with_literature:
-        lit_state = make_literature_state(research_goal,
-                                          model_name,
-                                          run_real_lit_review=False)
+        lit_state = make_literature_state(
+            research_goal, model_name, run_real_lit_review=False
+        )
         state["articles_with_reasoning"] = lit_state["articles_with_reasoning"]
         state["literature_review_queries"] = lit_state[
-            "literature_review_queries"]
+            "literature_review_queries"
+        ]
         state["articles"] = lit_state["articles"]
 
     return state

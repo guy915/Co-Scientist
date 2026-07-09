@@ -13,21 +13,23 @@ major repairs crashes).
 from typing import Any
 
 import pytest
-
-from co_scientist.llm_json import attempt_json_repair
-from co_scientist.llm_json import get_fallback_response
-from co_scientist.llm_json import validate_json_schema
 from jsonschema.exceptions import ValidationError
+
+from co_scientist.llm_json import (
+    attempt_json_repair,
+    get_fallback_response,
+    validate_json_schema,
+)
 
 # --- attempt_json_repair: clean parses (no repair) -------------------------
 
 
 def test_valid_object_parsed_without_repair() -> None:
     """A valid JSON object parses directly with ``was_repaired`` False."""
-    assert attempt_json_repair('{"a": 1, "b": "x"}') == ({
-        "a": 1,
-        "b": "x"
-    }, False)
+    assert attempt_json_repair('{"a": 1, "b": "x"}') == (
+        {"a": 1, "b": "x"},
+        False,
+    )
 
 
 def test_valid_object_with_surrounding_whitespace() -> None:
@@ -91,20 +93,21 @@ def test_trailing_comma_in_nested_array_is_minor_repair() -> None:
 
 
 def test_markdown_json_fence_is_not_unwrapped() -> None:
-    """A ```json fenced block is NOT stripped by ``attempt_json_repair``.
+    r"""A ```json fenced block is NOT stripped by ``attempt_json_repair``.
 
     Despite the task brief, fence stripping lives in ``call_llm_json`` (a
     network-backed caller), not in this pure function. With only minor
     repairs the fenced payload is unparseable and returns ``(None, False)``.
     Under major repairs the inner object is still recovered, but via the
-    generic ``\\{.*\\}`` regex-extraction strategy (treated as a major
+    generic ``\{.*\}`` regex-extraction strategy (treated as a major
     repair), NOT via any fence-aware logic.
     """
     fenced = '```json\n{"a": 1}\n```'
     assert attempt_json_repair(fenced) == (None, False)
-    assert attempt_json_repair(fenced, allow_major_repairs=True) == ({
-        "a": 1
-    }, True)
+    assert attempt_json_repair(fenced, allow_major_repairs=True) == (
+        {"a": 1},
+        True,
+    )
 
 
 # --- attempt_json_repair: single quotes are NOT repaired ------------------
@@ -117,8 +120,10 @@ def test_single_quoted_json_is_not_repaired() -> None:
     strategy; the input stays unparseable in both modes.
     """
     assert attempt_json_repair("{'a': 1}") == (None, False)
-    assert attempt_json_repair("{'a': 1}",
-                               allow_major_repairs=True) == (None, False)
+    assert attempt_json_repair("{'a': 1}", allow_major_repairs=True) == (
+        None,
+        False,
+    )
 
 
 # --- attempt_json_repair: the major-repair gate ----------------------------
@@ -132,12 +137,14 @@ def test_truncated_object_repaired_only_with_major_repairs() -> None:
     holds and nothing is returned.
     """
     truncated = '{"a": 1, "b": 2'
-    assert attempt_json_repair(truncated, allow_major_repairs=True) == ({
-        "a": 1,
-        "b": 2
-    }, True)
-    assert attempt_json_repair(truncated,
-                               allow_major_repairs=False) == (None, False)
+    assert attempt_json_repair(truncated, allow_major_repairs=True) == (
+        {"a": 1, "b": 2},
+        True,
+    )
+    assert attempt_json_repair(truncated, allow_major_repairs=False) == (
+        None,
+        False,
+    )
 
 
 def test_truncated_object_default_does_not_major_repair() -> None:
@@ -147,26 +154,25 @@ def test_truncated_object_default_does_not_major_repair() -> None:
 
 def test_unterminated_string_value_closed_with_major_repairs() -> None:
     """An unterminated string value is closed under major repairs."""
-    assert attempt_json_repair('{"a": "hello', allow_major_repairs=True) == ({
-        "a": "hello"
-    }, True)
+    assert attempt_json_repair('{"a": "hello', allow_major_repairs=True) == (
+        {"a": "hello"},
+        True,
+    )
 
 
 def test_truncated_array_value_closed_with_major_repairs() -> None:
     """A truncated array value is closed (string + bracket) under major."""
-    assert attempt_json_repair('{"items": ["x", "y',
-                               allow_major_repairs=True) == ({
-                                   "items": ["x", "y"]
-                               }, True)
+    assert attempt_json_repair(
+        '{"items": ["x", "y', allow_major_repairs=True
+    ) == ({"items": ["x", "y"]}, True)
 
 
 def test_nested_truncated_object_closed_with_major_repairs() -> None:
     """A truncated nested object gets both braces added under major repairs."""
-    assert attempt_json_repair('{"a": {"b": 1', allow_major_repairs=True) == ({
-        "a": {
-            "b": 1
-        }
-    }, True)
+    assert attempt_json_repair('{"a": {"b": 1', allow_major_repairs=True) == (
+        {"a": {"b": 1}},
+        True,
+    )
 
 
 def test_truncated_root_array_closed_with_major_repairs() -> None:
@@ -184,9 +190,10 @@ def test_json_object_embedded_in_prose_extracted_only_with_major() -> None:
     out of the text; without major repairs the input is left unparsed.
     """
     text = 'Here is the answer: {"a": 1} thanks'
-    assert attempt_json_repair(text, allow_major_repairs=True) == ({
-        "a": 1
-    }, True)
+    assert attempt_json_repair(text, allow_major_repairs=True) == (
+        {"a": 1},
+        True,
+    )
     assert attempt_json_repair(text, allow_major_repairs=False) == (None, False)
 
 
@@ -196,8 +203,9 @@ def test_json_object_embedded_in_prose_extracted_only_with_major() -> None:
 def test_plain_garbage_returns_none() -> None:
     """Non-JSON prose is unrepairable and returns ``(None, False)``."""
     assert attempt_json_repair("this is not json at all") == (None, False)
-    assert attempt_json_repair("this is not json at all",
-                               allow_major_repairs=True) == (None, False)
+    assert attempt_json_repair(
+        "this is not json at all", allow_major_repairs=True
+    ) == (None, False)
 
 
 def test_empty_string_without_major_repairs_returns_none() -> None:
@@ -226,11 +234,7 @@ def test_whitespace_only_with_major_repairs_returns_none() -> None:
 
 _SCHEMA: dict[str, Any] = {
     "type": "object",
-    "properties": {
-        "a": {
-            "type": "integer"
-        }
-    },
+    "properties": {"a": {"type": "integer"}},
     "required": ["a"],
 }
 
@@ -320,9 +324,7 @@ def test_valid_escapes_are_left_intact() -> None:
     """Legitimate JSON escapes are not double-escaped by the repair."""
     # Valid as-is, so it parses without any repair.
     assert attempt_json_repair(r'{"a": "line\n\t\"q\"\\done"}') == (
-        {
-            "a": 'line\n\t"q"\\done'
-        },
+        {"a": 'line\n\t"q"\\done'},
         False,
     )
 
@@ -333,22 +335,26 @@ def test_valid_escapes_are_left_intact() -> None:
 def test_enhancement_nodes_get_a_fallback() -> None:
     """Every post-generation enhancement node degrades instead of aborting."""
     for name in (
-            "proximity_analysis",
-            "hypothesis_evolution",
-            "hypothesis_review",
-            "hypothesis_batch_review",
-            "reflection_observations",
-            "meta_review",
-            "deep_verification",
-            "research_overview",
+        "proximity_analysis",
+        "hypothesis_evolution",
+        "hypothesis_review",
+        "hypothesis_batch_review",
+        "reflection_observations",
+        "meta_review",
+        "deep_verification",
+        "research_overview",
     ):
         assert get_fallback_response({"name": name}) is not None, name
 
 
 def test_foundational_nodes_have_no_fallback() -> None:
     """Foundational nodes fail loud (no fallback) -- no hypotheses, no run."""
-    for name in ("hypothesis_generation", "hypothesis_draft",
-                 "supervisor_guidance", "ranking_judgment"):
+    for name in (
+        "hypothesis_generation",
+        "hypothesis_draft",
+        "supervisor_guidance",
+        "ranking_judgment",
+    ):
         assert get_fallback_response({"name": name}) is None, name
 
 

@@ -5,21 +5,26 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any, Coroutine
+from collections.abc import Coroutine
+from typing import Any
 
 from co_scientist.constants import (
+    DUPLICATE_SIMILARITY_THRESHOLD,
+    EVOLVE_MAX_TOKENS_CAP,
+    EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
-    DUPLICATE_SIMILARITY_THRESHOLD,
-    EVOLVE_TOKENS_PER_CONTEXT_HYPOTHESIS,
-    EVOLVE_MAX_TOKENS_CAP,
-    PROGRESS_EVOLVE_START,
     PROGRESS_EVOLVE_COMPLETE,
+    PROGRESS_EVOLVE_START,
     scaled_max_tokens,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import (Hypothesis, create_metrics_update,
-                                 phase_message, rank_by_elo)
+from co_scientist.models import (
+    Hypothesis,
+    create_metrics_update,
+    phase_message,
+    rank_by_elo,
+)
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import load_prompt_with_schema
 from co_scientist.state import WorkflowState
@@ -44,9 +49,11 @@ def _sample_up_to(pool: list[Hypothesis], count: int) -> list[Hypothesis]:
     return random.sample(pool, min(count, len(pool)))
 
 
-def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
-                              exclude_hypothesis: Hypothesis,
-                              max_context: int = 15) -> list[str]:
+def sample_context_hypotheses(
+    all_hypotheses: list[Hypothesis],
+    exclude_hypothesis: Hypothesis,
+    max_context: int = 15,
+) -> list[str]:
     """Strategically sample a subset of other hypotheses for evolution context.
 
     To prevent token explosion with large hypothesis pools, we sample:
@@ -83,7 +90,10 @@ def sample_context_hypotheses(all_hypotheses: list[Hypothesis],
 
     logger.debug(
         "sampled %s context hypotheses (top 5 + %s random) from %s total",
-        len(context_hypotheses), len(sampled_others), len(others))
+        len(context_hypotheses),
+        len(sampled_others),
+        len(others),
+    )
 
     return _hypothesis_texts(context_hypotheses)
 
@@ -130,7 +140,7 @@ def _log_truncated_items(label: str, items: list[str]) -> None:
         return
     logger.debug("%s (%s):", label, len(items))
     for item in items[:3]:  # Show first 3
-        logger.debug("- %s%s", item[:100], '...' if len(item) > 100 else '')
+        logger.debug("- %s%s", item[:100], "..." if len(item) > 100 else "")
 
 
 def _log_items(label: str, items: list[str]) -> None:
@@ -159,12 +169,16 @@ def _log_meta_review_debug(meta_review: dict[str, Any]) -> None:
     logger.debug("\n=== evolve single hypothesis ===")
     logger.debug("using meta review for evolution")
 
-    _log_truncated_items("common Strengths",
-                         meta_review.get("common_strengths", []))
-    _log_truncated_items("common Weaknesses",
-                         meta_review.get("common_weaknesses", []))
-    _log_items("strategic Recommendations",
-               meta_review.get("strategic_recommendations", []))
+    _log_truncated_items(
+        "common Strengths", meta_review.get("common_strengths", [])
+    )
+    _log_truncated_items(
+        "common Weaknesses", meta_review.get("common_weaknesses", [])
+    )
+    _log_items(
+        "strategic Recommendations",
+        meta_review.get("strategic_recommendations", []),
+    )
     _log_items("emerging Themes", meta_review.get("emerging_themes", []))
 
 
@@ -206,21 +220,20 @@ def _build_meta_review_insights(meta_review: dict[str, Any]) -> str:
     """
     return json.dumps(
         {
-            "common_strengths":
-                meta_review.get("common_strengths", []),
-            "common_weaknesses":
-                meta_review.get("common_weaknesses", []),
-            "strategic_recommendations":
-                meta_review.get("strategic_recommendations", []),
-            "emerging_themes":
-                meta_review.get("emerging_themes", []),
+            "common_strengths": meta_review.get("common_strengths", []),
+            "common_weaknesses": meta_review.get("common_weaknesses", []),
+            "strategic_recommendations": meta_review.get(
+                "strategic_recommendations", []
+            ),
+            "emerging_themes": meta_review.get("emerging_themes", []),
         },
         indent=2,
     )
 
 
 def _format_refinement_priorities(
-        evolution_phase: dict[str, Any]) -> str | None:
+    evolution_phase: dict[str, Any],
+) -> str | None:
     """Format the refinement-priorities guidance line, if present."""
     priorities = evolution_phase.get("refinement_priorities")
     if not priorities:
@@ -239,11 +252,14 @@ def _format_iteration_strategy(evolution_phase: dict[str, Any]) -> str | None:
 
 
 def _format_evolution_guidance_lines(
-        evolution_phase: dict[str, Any]) -> list[str]:
+    evolution_phase: dict[str, Any],
+) -> list[str]:
     """Format the non-empty evolution-phase guidance lines."""
     lines = []
-    for formatter in (_format_refinement_priorities,
-                      _format_iteration_strategy):
+    for formatter in (
+        _format_refinement_priorities,
+        _format_iteration_strategy,
+    ):
         section = formatter(evolution_phase)
         if section:
             lines.append(section)
@@ -251,7 +267,8 @@ def _format_evolution_guidance_lines(
 
 
 def _build_supervisor_guidance_text(
-        supervisor_guidance: dict[str, Any] | None) -> str:
+    supervisor_guidance: dict[str, Any] | None,
+) -> str:
     """Formats the evolution-phase slice of supervisor guidance.
 
     Only the evolution_phase slice of the supervisor's workflow_plan is
@@ -273,13 +290,15 @@ def _build_supervisor_guidance_text(
 
     guidance_sections = ["## Supervisor Guidance for Evolution\n"]
     guidance_sections.extend(_format_evolution_guidance_lines(evolution_phase))
-    guidance_sections.append("\nUse this guidance to align your refinement"
-                             " with the research plan.\n")
+    guidance_sections.append(
+        "\nUse this guidance to align your refinement with the research plan.\n"
+    )
     return "".join(guidance_sections)
 
 
-def _format_diversity_instruction(other_hypotheses_texts: list[str],
-                                  removed_duplicates: list[str]) -> str:
+def _format_diversity_instruction(
+    other_hypotheses_texts: list[str], removed_duplicates: list[str]
+) -> str:
     """Builds the anti-convergence directive appended to the evolution prompt.
 
     Appended after the schema-driven prompt (not merged into its
@@ -298,12 +317,14 @@ def _format_diversity_instruction(other_hypotheses_texts: list[str],
     # Truncate each listed hypothesis to 200 chars: enough for the LLM to
     # recognize overlap without materially growing the prompt.
     other_hyps_formatted = "\n".join(
-        [f"- {text[:200]}..." for text in other_hypotheses_texts])
+        [f"- {text[:200]}..." for text in other_hypotheses_texts]
+    )
     # Only the 5 most recently removed duplicates are shown, keeping this
     # section bounded regardless of how many duplicates accumulate over a
     # run.
     removed_dups_formatted = "\n".join(
-        [f"- {text[:200]}..." for text in removed_duplicates[-5:]])  # Last 5
+        [f"- {text[:200]}..." for text in removed_duplicates[-5:]]
+    )  # Last 5
 
     return f"""
 
@@ -332,8 +353,8 @@ DO:
 
 
 def _find_most_similar(
-        refined_text: str,
-        other_hypotheses_texts: list[str]) -> tuple[float, str | None]:
+    refined_text: str, other_hypotheses_texts: list[str]
+) -> tuple[float, str | None]:
     """Finds the other hypothesis text most similar to the refined text.
 
     Guards against evolution converging this hypothesis toward one of the
@@ -390,21 +411,22 @@ def _build_evolution_variables(
     Returns:
         Template variables for the "evolution" prompt.
     """
-    from co_scientist.prompts import _format_run_guidance, _get_domain_variables  # pylint: disable=import-outside-toplevel
+    from co_scientist.prompts import (  # pylint: disable=import-outside-toplevel
+        _format_run_guidance,
+        _get_domain_variables,
+    )
 
     variables = {
-        "original_hypothesis":
-            hypothesis.text,
-        "review_feedback":
-            _build_review_feedback(hypothesis),
-        "meta_review_insights":
-            _build_meta_review_insights(meta_review),
-        "supervisor_guidance":
-            _build_supervisor_guidance_text(supervisor_guidance),
-        "run_guidance":
-            _format_run_guidance(run_setup_guidance, run_focus_guidance),
-        "articles_with_reasoning":
-            articles_with_reasoning or "",
+        "original_hypothesis": hypothesis.text,
+        "review_feedback": _build_review_feedback(hypothesis),
+        "meta_review_insights": _build_meta_review_insights(meta_review),
+        "supervisor_guidance": _build_supervisor_guidance_text(
+            supervisor_guidance
+        ),
+        "run_guidance": _format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
+        "articles_with_reasoning": articles_with_reasoning or "",
     }
     variables.update(_get_domain_variables(tool_registry))
     return variables
@@ -455,7 +477,8 @@ def _build_evolution_prompt(
 
     # Add critical diversity instruction
     diversity_instruction = _format_diversity_instruction(
-        other_hypotheses_texts, removed_duplicates)
+        other_hypotheses_texts, removed_duplicates
+    )
     full_prompt = prompt + diversity_instruction
 
     return full_prompt, schema
@@ -494,11 +517,17 @@ async def _call_evolution_llm(
         cap=EVOLVE_MAX_TOKENS_CAP,
     )
 
-    logger.debug("evolution token budget: %s (%s context hypotheses)",
-                 evolve_max_tokens, len(other_hypotheses_texts))
+    logger.debug(
+        "evolution token budget: %s (%s context hypotheses)",
+        evolve_max_tokens,
+        len(other_hypotheses_texts),
+    )
 
-    prompt_name = (f"evolve_{hypothesis_index}"
-                   if hypothesis_index is not None else "evolve")
+    prompt_name = (
+        f"evolve_{hypothesis_index}"
+        if hypothesis_index is not None
+        else "evolve"
+    )
 
     # Call LLM to evolve hypothesis
     return await call_llm_json(
@@ -519,8 +548,8 @@ async def _call_evolution_llm(
 
 
 def _extract_evolution_fields(
-        hypothesis: Hypothesis,
-        response: dict[str, Any]) -> tuple[str, str | None, str | None, str]:
+    hypothesis: Hypothesis, response: dict[str, Any]
+) -> tuple[str, str | None, str | None, str]:
     """Extracts the refined fields from an evolution LLM response.
 
     Args:
@@ -536,11 +565,13 @@ def _extract_evolution_fields(
     # "refined_hypothesis_text" name, and finally to the pre-evolution text
     # if the LLM response omits both (defensive against malformed output).
     refined_text = response.get("hypothesis") or response.get(
-        "refined_hypothesis_text", hypothesis.text)
+        "refined_hypothesis_text", hypothesis.text
+    )
     explanation = response.get("explanation", hypothesis.explanation)
     experiment = response.get("experiment", hypothesis.experiment)
-    refinement_summary = response.get("refinement_summary",
-                                      "no refinement summary provided")
+    refinement_summary = response.get(
+        "refinement_summary", "no refinement summary provided"
+    )
     return refined_text, explanation, experiment, refinement_summary
 
 
@@ -617,7 +648,8 @@ def _apply_evolution_result(
         None if the refinement was rejected).
     """
     refined_text, explanation, experiment, refinement_summary = (
-        _extract_evolution_fields(hypothesis, response))
+        _extract_evolution_fields(hypothesis, response)
+    )
 
     # Check if hypothesis actually changed
     # The LLM sometimes echoes the input back verbatim (e.g. it judges no
@@ -629,7 +661,8 @@ def _apply_evolution_result(
 
     # Check similarity to other hypotheses
     max_similarity, most_similar_text = _find_most_similar(
-        refined_text, other_hypotheses_texts)
+        refined_text, other_hypotheses_texts
+    )
 
     # If too similar, keep original
     # DUPLICATE_SIMILARITY_THRESHOLD (0.95) is the same bound proximity.py
@@ -639,15 +672,22 @@ def _apply_evolution_result(
     if max_similarity > DUPLICATE_SIMILARITY_THRESHOLD:
         logger.warning(
             "Evolution created near-duplicate! Similarity: %.2f."
-            " Keeping original hypothesis.", max_similarity)
+            " Keeping original hypothesis.",
+            max_similarity,
+        )
         logger.debug("original: %s...", hypothesis.text[:100])
         assert most_similar_text is not None
         logger.debug("similar to: %s...", most_similar_text[:100])
         return hypothesis, None  # Keep original, no evolution details
 
-    return _apply_refined_hypothesis(hypothesis, refined_text, explanation,
-                                     experiment, refinement_summary,
-                                     max_similarity)
+    return _apply_refined_hypothesis(
+        hypothesis,
+        refined_text,
+        explanation,
+        experiment,
+        refinement_summary,
+        max_similarity,
+    )
 
 
 async def evolve_single_hypothesis(
@@ -720,7 +760,7 @@ async def evolve_single_hypothesis(
 
 
 def _collect_evolution_results(
-    results: list[tuple[Hypothesis, dict[str, Any] | None]]
+    results: list[tuple[Hypothesis, dict[str, Any] | None]],
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
     """Unpacks gathered evolution results into hypotheses and details.
 
@@ -800,13 +840,18 @@ async def _prepare_evolution_round(
     logger.info("Evolving top %s hypotheses", actual_count)
 
     # Emit progress
-    await emit_progress(state, "evolve_start",
-                        f"Evolving top {actual_count} hypotheses...",
-                        PROGRESS_EVOLVE_START)
+    await emit_progress(
+        state,
+        "evolve_start",
+        f"Evolving top {actual_count} hypotheses...",
+        PROGRESS_EVOLVE_START,
+    )
 
     logger.info(
         "Evolving %s hypotheses with strategic context sampling "
-        "(max 15 context hypotheses per evolution)", len(top_k))
+        "(max 15 context hypotheses per evolution)",
+        len(top_k),
+    )
 
     # Get previously removed duplicates
     # Flatten proximity.py's removed_duplicates dicts down to bare text;
@@ -866,7 +911,8 @@ def _build_evolution_tasks(
             tool_registry=state.get("tool_registry"),
             run_setup_guidance=state.get("run_setup_guidance"),
             run_focus_guidance=state.get("run_focus_guidance"),
-        ) for i, hyp in enumerate(top_k)
+        )
+        for i, hyp in enumerate(top_k)
     ]
 
 
@@ -890,26 +936,27 @@ def _build_evolve_state_delta(
     # LLM once before deciding whether to keep the refinement.
     metrics = create_metrics_update(
         llm_calls_delta=len(evolved_hypotheses),
-        evolutions_count_delta=len(evolved_hypotheses))
+        evolutions_count_delta=len(evolved_hypotheses),
+    )
     logger.debug(
         "evolve node creating metrics delta: evolutions=%s, llm_calls=%s",
-        len(evolved_hypotheses), len(evolved_hypotheses))
+        len(evolved_hypotheses),
+        len(evolved_hypotheses),
+    )
 
     # deduplicate_hypotheses (state.py) recognizes this as a replacement
     # because every returned hypothesis id already exists in state, so the
     # pool reliably shrinks to just the evolved list even when evolution
     # rewrote every text.
     return {
-        "hypotheses":
-            evolved_hypotheses,
-        "evolution_details":
-            evolution_details,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message("evolve",
-                          f"Evolved {len(evolved_hypotheses)} hypotheses",
-                          evolved_count=len(evolved_hypotheses)),
+        "hypotheses": evolved_hypotheses,
+        "evolution_details": evolution_details,
+        "metrics": metrics,
+        "messages": phase_message(
+            "evolve",
+            f"Evolved {len(evolved_hypotheses)} hypotheses",
+            evolved_count=len(evolved_hypotheses),
+        ),
     }
 
 
@@ -919,8 +966,9 @@ async def _finalize_evolve_result(
     evolved_hypotheses: list[Hypothesis],
     evolution_details: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Applies the evolved pool, emits completion progress, and builds the
-    evolve_node state delta.
+    """Applies the evolved pool and builds the evolve_node state delta.
+
+    Also emits the completion progress event for the evolution phase.
 
     Args:
         state: Current workflow state.
@@ -942,17 +990,24 @@ async def _finalize_evolve_result(
     discarded_count = original_count - len(evolved_hypotheses)
     logger.info(
         "Keeping only %s evolved hypotheses (discarded %s lower-ranked)",
-        len(evolved_hypotheses), discarded_count)
+        len(evolved_hypotheses),
+        discarded_count,
+    )
 
-    logger.info("Evolved %s hypotheses, %s with changes",
-                len(evolved_hypotheses), len(evolution_details))
+    logger.info(
+        "Evolved %s hypotheses, %s with changes",
+        len(evolved_hypotheses),
+        len(evolution_details),
+    )
 
     # Emit progress
-    await emit_progress(state,
-                        "evolve_complete",
-                        f"Evolved {len(evolved_hypotheses)} hypotheses",
-                        PROGRESS_EVOLVE_COMPLETE,
-                        evolved_count=len(evolved_hypotheses))
+    await emit_progress(
+        state,
+        "evolve_complete",
+        f"Evolved {len(evolved_hypotheses)} hypotheses",
+        PROGRESS_EVOLVE_COMPLETE,
+        evolved_count=len(evolved_hypotheses),
+    )
 
     return _build_evolve_state_delta(evolved_hypotheses, evolution_details)
 
@@ -972,16 +1027,20 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     """
     hypotheses = state["hypotheses"]
 
-    top_k, removed_duplicates, supervisor_guidance = (await
-                                                      _prepare_evolution_round(
-                                                          state, hypotheses))
+    (
+        top_k,
+        removed_duplicates,
+        supervisor_guidance,
+    ) = await _prepare_evolution_round(state, hypotheses)
 
-    evolution_tasks = _build_evolution_tasks(state, top_k, removed_duplicates,
-                                             supervisor_guidance)
+    evolution_tasks = _build_evolution_tasks(
+        state, top_k, removed_duplicates, supervisor_guidance
+    )
     results = await asyncio.gather(*evolution_tasks)
 
     # Unpack results: (hypothesis, evolution_detail or None)
     evolved_hypotheses, evolution_details = _collect_evolution_results(results)
 
-    return await _finalize_evolve_result(state, hypotheses, evolved_hypotheses,
-                                         evolution_details)
+    return await _finalize_evolve_result(
+        state, hypotheses, evolved_hypotheses, evolution_details
+    )

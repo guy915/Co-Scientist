@@ -2,19 +2,18 @@
 # pylint: disable=inconsistent-quotes
 
 import asyncio
-from collections.abc import Coroutine
 import logging
+from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
     LOW_TEMPERATURE,
-    PROGRESS_REFLECTION_START,
     PROGRESS_REFLECTION_COMPLETE,
+    PROGRESS_REFLECTION_START,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis
-from co_scientist.models import phase_message
+from co_scientist.models import Hypothesis, phase_message
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_reflection_prompt
 from co_scientist.state import WorkflowState
@@ -47,8 +46,9 @@ async def analyze_single_hypothesis(
     Returns:
         dict with classification and reasoning, or None if failed
     """
-    logger.debug("\n→ analyzing hypothesis %s/%s", hypothesis_index,
-                 total_count)
+    logger.debug(
+        "\n→ analyzing hypothesis %s/%s", hypothesis_index, total_count
+    )
 
     # Pre-fetch INDRA evidence for this hypothesis (non-critical, skip on
     # failure)
@@ -68,16 +68,17 @@ async def analyze_single_hypothesis(
     )
 
     try:
-        response = await _call_reflection_llm(prompt, schema, model_name,
-                                              run_id, hypothesis_index,
-                                              total_count)
+        response = await _call_reflection_llm(
+            prompt, schema, model_name, run_id, hypothesis_index, total_count
+        )
         return _format_reflection_result(response, indra_data, hypothesis_index)
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Isolate this hypothesis's failure: return None instead of
         # raising, so the asyncio.gather in reflection_node still
         # completes for every other hypothesis in the batch.
-        logger.error("Reflection failed for hypothesis %s: %s",
-                     hypothesis_index, e)
+        logger.error(
+            "Reflection failed for hypothesis %s: %s", hypothesis_index, e
+        )
         return None
 
 
@@ -142,8 +143,9 @@ def _format_reflection_result(
     classification = response.get("classification", "neutral")
     reasoning = response.get("reasoning", "")
 
-    logger.debug("hypothesis %s classification: %s", hypothesis_index,
-                 classification)
+    logger.debug(
+        "hypothesis %s classification: %s", hypothesis_index, classification
+    )
 
     return {
         "classification": classification,
@@ -184,8 +186,9 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
 
     await _run_reflection_phase(state, hypotheses, articles_with_reasoning)
 
-    logger.info("Completed reflection analysis for %s hypotheses",
-                len(hypotheses))
+    logger.info(
+        "Completed reflection analysis for %s hypotheses", len(hypotheses)
+    )
 
     return _build_reflection_result(hypotheses)
 
@@ -207,24 +210,28 @@ async def _run_reflection_phase(
         articles_with_reasoning: literature review context shared by all
             tasks.
     """
-    await emit_progress(state,
-                        "reflection_start",
-                        f"Analyzing {len(hypotheses)} hypotheses"
-                        " against literature...",
-                        PROGRESS_REFLECTION_START,
-                        hypotheses_count=len(hypotheses))
+    await emit_progress(
+        state,
+        "reflection_start",
+        f"Analyzing {len(hypotheses)} hypotheses against literature...",
+        PROGRESS_REFLECTION_START,
+        hypotheses_count=len(hypotheses),
+    )
 
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
-    analysis_results = await _run_reflection_analysis(state, hypotheses,
-                                                      articles_with_reasoning)
+    analysis_results = await _run_reflection_analysis(
+        state, hypotheses, articles_with_reasoning
+    )
 
     _apply_reflection_results(hypotheses, analysis_results)
 
-    await emit_progress(state,
-                        "reflection_complete",
-                        "Reflection analysis complete",
-                        PROGRESS_REFLECTION_COMPLETE,
-                        hypotheses_count=len(hypotheses))
+    await emit_progress(
+        state,
+        "reflection_complete",
+        "Reflection analysis complete",
+        PROGRESS_REFLECTION_COMPLETE,
+        hypotheses_count=len(hypotheses),
+    )
 
 
 async def _run_reflection_analysis(
@@ -247,8 +254,9 @@ async def _run_reflection_analysis(
     Returns:
         Per-hypothesis result dicts, in the same order as hypotheses.
     """
-    analysis_tasks = _build_analysis_tasks(state, hypotheses,
-                                           articles_with_reasoning)
+    analysis_tasks = _build_analysis_tasks(
+        state, hypotheses, articles_with_reasoning
+    )
     return await asyncio.gather(*analysis_tasks)
 
 
@@ -268,17 +276,17 @@ def _build_reflection_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
         Dict with updated state fields (hypotheses, messages).
     """
     return {
-        "hypotheses":
-            hypotheses,
-        "messages":
-            phase_message(
-                "reflection", f"completed reflection analysis for"
-                f" {len(hypotheses)} hypotheses"),
+        "hypotheses": hypotheses,
+        "messages": phase_message(
+            "reflection",
+            f"completed reflection analysis for {len(hypotheses)} hypotheses",
+        ),
     }
 
 
 def _extract_reflection_inputs(
-        state: WorkflowState) -> tuple[str, list[Hypothesis]] | None:
+    state: WorkflowState,
+) -> tuple[str, list[Hypothesis]] | None:
     """Pulls the literature and hypotheses reflection needs out of state.
 
     Args:
@@ -291,7 +299,8 @@ def _extract_reflection_inputs(
     articles_with_reasoning = state.get("articles_with_reasoning")
     if not articles_with_reasoning:
         logger.warning(
-            "No articles_with_reasoning in state, skipping reflection")
+            "No articles_with_reasoning in state, skipping reflection"
+        )
         return None
 
     hypotheses = state.get("hypotheses", [])
@@ -338,7 +347,8 @@ def _build_analysis_tasks(
             run_id=state.get("run_id"),
             tool_registry=tool_registry,
             meta_review=meta_review,
-        ) for i, hyp in enumerate(hypotheses)
+        )
+        for i, hyp in enumerate(hypotheses)
     ]
 
 
@@ -359,12 +369,13 @@ def _apply_reflection_results(
         analysis_results: per-hypothesis result dicts from
             analyze_single_hypothesis, or None where analysis failed.
     """
-    for hypothesis, result in zip(hypotheses, analysis_results):
+    for hypothesis, result in zip(hypotheses, analysis_results, strict=True):
         if result:
             classification = result.get("classification", "neutral")
             reasoning = result.get("reasoning", "")
             hypothesis.reflection_notes = (
-                f"{reasoning}\n\nClassification: {classification}")
+                f"{reasoning}\n\nClassification: {classification}"
+            )
             # Store knowledge graph evidence in enrichments (yaml-driven,
             # only present for biomedical configs)
             enrichment_items = result.get("indra_enrichment_items", [])
@@ -374,7 +385,8 @@ def _apply_reflection_results(
             # Keep the same "Classification: neutral" suffix even on
             # failure so the ranking.py parser above never breaks.
             hypothesis.reflection_notes = (
-                "Analysis failed\n\nClassification: neutral")
+                "Analysis failed\n\nClassification: neutral"
+            )
 
 
 async def _fetch_indra_for_hypothesis(
@@ -394,7 +406,9 @@ async def _fetch_indra_for_hypothesis(
         # Imported locally (not at module scope) so this call site's own
         # try/except is what handles a broken/missing optional dependency,
         # rather than failing at reflection.py import time.
-        from co_scientist.nodes.reflection_helpers import fetch_indra_evidence  # pylint: disable=import-outside-toplevel
+        from co_scientist.nodes.reflection_helpers import (
+            fetch_indra_evidence,  # pylint: disable=import-outside-toplevel
+        )
 
         result = await fetch_indra_evidence(
             hypothesis_text=hypothesis_text,
@@ -405,10 +419,13 @@ async def _fetch_indra_for_hypothesis(
         if prompt_text:
             logger.debug(
                 "hypothesis %s: fetched INDRA evidence (%s chars, %s items)",
-                hypothesis_index, len(prompt_text),
-                len(result.get('enrichment_items', [])))
+                hypothesis_index,
+                len(prompt_text),
+                len(result.get("enrichment_items", [])),
+            )
         return result
     except Exception as e:  # pylint: disable=broad-exception-caught
-        logger.debug("hypothesis %s: INDRA fetch skipped: %s", hypothesis_index,
-                     e)
+        logger.debug(
+            "hypothesis %s: INDRA fetch skipped: %s", hypothesis_index, e
+        )
         return empty

@@ -28,14 +28,9 @@ def _make_review(**overrides: Any) -> HypothesisReview:
     """
     fields: dict[str, Any] = {
         "review_summary": "a solid review",
-        "scores": {
-            "novelty": 8,
-            "relevance": 7
-        },
+        "scores": {"novelty": 8, "relevance": 7},
         "safety_ethical_concerns": "none",
-        "detailed_feedback": {
-            "novelty": "novel angle"
-        },
+        "detailed_feedback": {"novelty": "novel angle"},
         "constructive_feedback": "tighten the experiment",
         "overall_score": 7.5,
     }
@@ -43,8 +38,9 @@ def _make_review(**overrides: Any) -> HypothesisReview:
     return HypothesisReview(**fields)
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch,
-              response: dict[str, Any]) -> list[dict[str, Any]]:
+def _stub_llm(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
+) -> list[dict[str, Any]]:
     """Patch meta_review's call_llm_json and record each invocation.
 
     Args:
@@ -65,7 +61,8 @@ def _stub_llm(monkeypatch: pytest.MonkeyPatch,
 
 
 async def test_no_reviews_returns_default_without_llm(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Hypotheses with empty reviews short-circuit to the default meta_review.
 
     The LLM must not be called, and the returned dict carries only the
@@ -73,8 +70,8 @@ async def test_no_reviews_returns_default_without_llm(
     """
     calls = _stub_llm(monkeypatch, {"meta_review_summary": "should not appear"})
     state = make_state(
-        hypotheses=[make_hypothesis(text="aaa"),
-                    make_hypothesis(text="bbb")])
+        hypotheses=[make_hypothesis(text="aaa"), make_hypothesis(text="bbb")]
+    )
 
     result = await meta_review_node(state)
 
@@ -94,23 +91,28 @@ async def test_no_reviews_returns_default_without_llm(
 
 
 async def test_with_reviews_maps_response_fields(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A populated review triggers the LLM and maps its response fields.
 
     summary/strengths/weaknesses/strategic_recommendations are copied through
     to their meta_review keys, and the LLM is called exactly once.
     """
     calls = _stub_llm(
-        monkeypatch, {
+        monkeypatch,
+        {
             "meta_review_summary": "overall the set is promising",
             "strengths": ["clear mechanism", "testable"],
             "weaknesses": ["narrow scope"],
             "strategic_recommendations": ["broaden the cohort"],
             "recurring_themes": [],
-        })
-    state = make_state(hypotheses=[
-        make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
-    ])
+        },
+    )
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
+        ]
+    )
 
     result = await meta_review_node(state)
 
@@ -126,16 +128,17 @@ async def test_with_reviews_maps_response_fields(
 
 
 async def test_recurring_themes_flattened_to_emerging_themes(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """recurring_themes objects and plain strings flatten to theme strings.
 
     A dict entry contributes its ``theme`` value; a plain-string entry is
     stringified, exercising both branches of the flattening logic.
     """
     _stub_llm(
-        monkeypatch, {
-            "meta_review_summary":
-                "summary",
+        monkeypatch,
+        {
+            "meta_review_summary": "summary",
             "recurring_themes": [
                 {
                     "theme": "mitochondrial dysfunction",
@@ -144,10 +147,13 @@ async def test_recurring_themes_flattened_to_emerging_themes(
                 },
                 "oxidative stress",
             ],
-        })
-    state = make_state(hypotheses=[
-        make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
-    ])
+        },
+    )
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text="reviewed hyp", reviews=[_make_review()])
+        ]
+    )
 
     result = await meta_review_node(state)
 

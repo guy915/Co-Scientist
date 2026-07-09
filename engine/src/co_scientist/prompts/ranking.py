@@ -3,8 +3,10 @@
 
 from typing import Any
 
-from co_scientist.prompts._common import _format_meta_review_context
-from co_scientist.prompts._common import _format_run_guidance
+from co_scientist.prompts._common import (
+    _format_meta_review_context,
+    _format_run_guidance,
+)
 from co_scientist.prompts.loading import _build_prompt
 
 
@@ -36,18 +38,16 @@ def _build_ranking_prompt_variables(
         Dict of template variables for the ranking prompt.
     """
     variables = {
-        "research_goal":
-            research_goal,
-        "hypothesis_a":
-            hypothesis_a,
-        "hypothesis_b":
-            hypothesis_b,
-        "review_context":
-            _format_review_context(review_a, review_b),
-        "hypothesis_a_reflection_notes": (reflection_notes_a or
-                                          "No reflection notes available."),
-        "hypothesis_b_reflection_notes": (reflection_notes_b or
-                                          "No reflection notes available."),
+        "research_goal": research_goal,
+        "hypothesis_a": hypothesis_a,
+        "hypothesis_b": hypothesis_b,
+        "review_context": _format_review_context(review_a, review_b),
+        "hypothesis_a_reflection_notes": (
+            reflection_notes_a or "No reflection notes available."
+        ),
+        "hypothesis_b_reflection_notes": (
+            reflection_notes_b or "No reflection notes available."
+        ),
     }
 
     # Add deep-verification probes if available (blank before the first
@@ -55,11 +55,15 @@ def _build_ranking_prompt_variables(
     dv_a = deep_verification_a or {}
     dv_b = deep_verification_b or {}
     variables["hypothesis_a_deep_verification"] = (
-        _format_deep_verification_context(dv_a.get("probes"),
-                                          dv_a.get("verdict"), "A"))
+        _format_deep_verification_context(
+            dv_a.get("probes"), dv_a.get("verdict"), "A"
+        )
+    )
     variables["hypothesis_b_deep_verification"] = (
-        _format_deep_verification_context(dv_b.get("probes"),
-                                          dv_b.get("verdict"), "B"))
+        _format_deep_verification_context(
+            dv_b.get("probes"), dv_b.get("verdict"), "B"
+        )
+    )
 
     return variables
 
@@ -102,10 +106,12 @@ def get_ranking_prompt(
         "ranking",
         variables,
         supervisor_guidance=_format_supervisor_guidance_for_ranking(
-            supervisor_guidance),
+            supervisor_guidance
+        ),
         meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(run_setup_guidance,
-                                          run_focus_guidance),
+        run_guidance=_format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
         tool_registry=tool_registry,
     )
 
@@ -114,8 +120,7 @@ def get_ranking_prompt(
 # are passed as a JSON array; include_domain=False because similarity
 # clustering is domain-neutral by design.
 def get_proximity_prompt(
-    hypotheses: list[Any],
-    supervisor_guidance: dict[str, Any] | None = None
+    hypotheses: list[Any], supervisor_guidance: dict[str, Any] | None = None
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the proximity/similarity analysis prompt and schema."""
     import json  # pylint: disable=import-outside-toplevel
@@ -123,20 +128,21 @@ def get_proximity_prompt(
     return _build_prompt(
         "proximity",
         {
-            "hypotheses":
-                json.dumps([
-                    h["text"] if isinstance(h, dict) else h for h in hypotheses
-                ],
-                           indent=2)
+            "hypotheses": json.dumps(
+                [h["text"] if isinstance(h, dict) else h for h in hypotheses],
+                indent=2,
+            )
         },
         supervisor_guidance=_format_supervisor_guidance_for_proximity(
-            supervisor_guidance),
+            supervisor_guidance
+        ),
         include_domain=False,
     )
 
 
-def _format_key_areas_guidance(supervisor_guidance: dict[str, Any] | None,
-                               header: str, trailer: str) -> str:
+def _format_key_areas_guidance(
+    supervisor_guidance: dict[str, Any] | None, header: str, trailer: str
+) -> str:
     """Format the supervisor's key research areas as a guidance section.
 
     Args:
@@ -163,39 +169,49 @@ def _format_key_areas_guidance(supervisor_guidance: dict[str, Any] | None,
 
 
 def _format_supervisor_guidance_for_ranking(
-        supervisor_guidance: dict[str, Any] | None) -> str:
+    supervisor_guidance: dict[str, Any] | None,
+) -> str:
     """Format supervisor guidance for ranking prompts."""
     return _format_key_areas_guidance(
-        supervisor_guidance, "Key Research Areas to Consider",
+        supervisor_guidance,
+        "Key Research Areas to Consider",
         "When comparing hypotheses, prioritize those that better"
-        " address these key areas.")
+        " address these key areas.",
+    )
 
 
 def _format_supervisor_guidance_for_proximity(
-        supervisor_guidance: dict[str, Any] | None) -> str:
+    supervisor_guidance: dict[str, Any] | None,
+) -> str:
     """Format supervisor guidance for proximity prompts."""
     return _format_key_areas_guidance(
-        supervisor_guidance, "Key Research Areas",
+        supervisor_guidance,
+        "Key Research Areas",
         "When assessing similarity, consider whether hypotheses"
         " explore different aspects of these key areas. Hypotheses"
         " that address the same area with similar approaches should"
-        " be flagged as duplicates.")
+        " be flagged as duplicates.",
+    )
 
 
 def _format_probe_lines(probe: dict[str, Any]) -> list[str]:
     """Format one deep-verification probe's question/answer lines."""
     question = probe.get("question", "")
     answer = probe.get("answer", "")
-    fundamental = (" (fundamental assumption)"
-                   if probe.get("assumption_is_fundamental") else "")
+    fundamental = (
+        " (fundamental assumption)"
+        if probe.get("assumption_is_fundamental")
+        else ""
+    )
     lines = [f"- Q{fundamental}: {question}\n"]
     if answer:
         lines.append(f"  A: {answer}\n")
     return lines
 
 
-def _format_deep_verification_context(probes: list[dict[str, Any]] | None,
-                                      verdict: str | None, label: str) -> str:
+def _format_deep_verification_context(
+    probes: list[dict[str, Any]] | None, verdict: str | None, label: str
+) -> str:
     """Format deep-verification probes for one hypothesis in ranking prompts.
 
     Returns an empty string when no probes are available so the ranking prompt
@@ -225,8 +241,9 @@ def _format_deep_verification_context(probes: list[dict[str, Any]] | None,
     return "".join(sections)
 
 
-def _format_single_review_scores(label: str,
-                                 review: dict[str, Any] | None) -> list[str]:
+def _format_single_review_scores(
+    label: str, review: dict[str, Any] | None
+) -> list[str]:
     """Format one hypothesis's review scores as a guidance section.
 
     Args:
@@ -249,8 +266,9 @@ def _format_single_review_scores(label: str,
     return sections
 
 
-def _format_review_context(review_a: dict[str, Any] | None,
-                           review_b: dict[str, Any] | None) -> str:
+def _format_review_context(
+    review_a: dict[str, Any] | None, review_b: dict[str, Any] | None
+) -> str:
     """Format review scores for ranking prompts."""
     if not review_a and not review_b:
         return ""
@@ -262,7 +280,9 @@ def _format_review_context(review_a: dict[str, Any] | None,
     ]
     sections.extend(_format_single_review_scores("A", review_a))
     sections.extend(_format_single_review_scores("B", review_b))
-    sections.append("Consider these scores, but make your judgment based on"
-                    " comprehensive comparison, not just scores.\n")
+    sections.append(
+        "Consider these scores, but make your judgment based on"
+        " comprehensive comparison, not just scores.\n"
+    )
 
     return "".join(sections) if sections else ""

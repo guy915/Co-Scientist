@@ -21,8 +21,7 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
-    "yapf>=0.43.0",
-    "pylint>=3.3",
+    "ruff>=0.15",
     "mypy>=1.5.0",
     "httpx>=0.25.0",
 ]
@@ -45,8 +44,8 @@ platforms = ["osx-arm64", "linux-64"]
 dev = "python -m uvicorn app.main:app --reload --reload-dir app --host 0.0.0.0 --port 8008"
 start = "python -m uvicorn app.main:app --host 0.0.0.0 --port 8008"
 test = "pytest"
-format = "yapf -ir app tests"
-lint = "pylint --rcfile=../pylintrc app tests"
+format = "ruff format app tests"
+lint = "ruff check app tests"
 typecheck = "mypy ."
 
 [tool.pixi.dependencies]
@@ -58,9 +57,47 @@ co-scientist-viewer = { path = ".", editable = true }
 [tool.pixi.environments]
 default = { features = ["dev"], solve-group = "default" }
 
-[tool.yapf]
-based_on_style = "google"
-column_limit = 80
+[tool.ruff]
+line-length = 80
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+    "D",   # pydocstyle
+]
+ignore = [
+    # Google-style docstrings use descriptive-mood summaries ("Returns the
+    # ...", "Fetches rows ..."), which the imperative-mood check rejects.
+    "D401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests are not public API; their names are self-describing, so
+# docstrings are not required.
+"tests/**" = ["D1"]
+# main.py must call load_dotenv() before importing app.config (and any
+# module that reads settings at import time), because pydantic-settings
+# reads os.environ when Settings() is constructed. The env-dependent
+# imports therefore intentionally sit below that call, so E402 is
+# expected here rather than a mistake to reorder away.
+"app/main.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.10"

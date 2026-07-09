@@ -4,17 +4,21 @@ import asyncio
 import logging
 from typing import Any
 
-from co_scientist.constants import DEEP_VERIFICATION_TOP_K
-from co_scientist.constants import EXTENDED_MAX_TOKENS
-from co_scientist.constants import LOW_TEMPERATURE
-from co_scientist.constants import MAX_CONCURRENT_LLM_CALLS
-from co_scientist.constants import PROGRESS_DEEP_VERIFICATION_COMPLETE
-from co_scientist.constants import PROGRESS_DEEP_VERIFICATION_START
+from co_scientist.constants import (
+    DEEP_VERIFICATION_TOP_K,
+    EXTENDED_MAX_TOKENS,
+    LOW_TEMPERATURE,
+    MAX_CONCURRENT_LLM_CALLS,
+    PROGRESS_DEEP_VERIFICATION_COMPLETE,
+    PROGRESS_DEEP_VERIFICATION_START,
+)
 from co_scientist.llm import call_llm_json
-from co_scientist.models import create_metrics_update
-from co_scientist.models import phase_message
-from co_scientist.models import Hypothesis
-from co_scientist.models import rank_by_elo
+from co_scientist.models import (
+    Hypothesis,
+    create_metrics_update,
+    phase_message,
+    rank_by_elo,
+)
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
 from co_scientist.state import WorkflowState
@@ -67,7 +71,8 @@ async def _verify_one(
 
 
 def _select_hypotheses_to_verify(
-        hypotheses: list[Hypothesis]) -> list[Hypothesis]:
+    hypotheses: list[Hypothesis],
+) -> list[Hypothesis]:
     """Picks the current Elo leaders that still need deep verification.
 
     Use the shared Elo ranking policy to pick the current leaders, then
@@ -86,8 +91,9 @@ def _select_hypotheses_to_verify(
     return [h for h in top_k if not h.deep_verification_probes]
 
 
-def _apply_verification_results(to_verify: list[Hypothesis],
-                                results: list[dict[str, Any] | None]) -> int:
+def _apply_verification_results(
+    to_verify: list[Hypothesis], results: list[dict[str, Any] | None]
+) -> int:
     """Applies deep-verification results onto their hypotheses in place.
 
     A None result (call failed, see _verify_one) is silently skipped,
@@ -102,7 +108,7 @@ def _apply_verification_results(to_verify: list[Hypothesis],
         Count of hypotheses whose probes/verdict were updated.
     """
     verified_count = 0
-    for hypothesis, result in zip(to_verify, results):
+    for hypothesis, result in zip(to_verify, results, strict=True):
         if result:
             hypothesis.deep_verification_probes = result.get("probes", [])
             hypothesis.deep_verification_verdict = result.get("verdict")
@@ -135,8 +141,10 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     # any of them since last time). Skip the LLM calls and return an empty
     # delta -- no hypotheses/metrics/messages changes needed.
     if not to_verify:
-        logger.info("Deep verification: top-%s already verified, skipping",
-                    DEEP_VERIFICATION_TOP_K)
+        logger.info(
+            "Deep verification: top-%s already verified, skipping",
+            DEEP_VERIFICATION_TOP_K,
+        )
         return {}
 
     verified_count = await _run_verification_batch(state, to_verify)
@@ -144,13 +152,12 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Deep verification complete: %s hypotheses", verified_count)
     metrics = create_metrics_update(llm_calls_delta=verified_count)
     return {
-        "hypotheses":
-            hypotheses,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message("deep_verification",
-                          f"Deep-verified {verified_count} top hypotheses"),
+        "hypotheses": hypotheses,
+        "metrics": metrics,
+        "messages": phase_message(
+            "deep_verification",
+            f"Deep-verified {verified_count} top hypotheses",
+        ),
     }
 
 
@@ -172,21 +179,35 @@ async def _run_verification_batch(
     Returns:
         Count of hypotheses whose probes/verdict were updated.
     """
-    await emit_progress(state, "deep_verification_start",
-                        f"Deep-verifying top {len(to_verify)} hypotheses...",
-                        PROGRESS_DEEP_VERIFICATION_START)
+    await emit_progress(
+        state,
+        "deep_verification_start",
+        f"Deep-verifying top {len(to_verify)} hypotheses...",
+        PROGRESS_DEEP_VERIFICATION_START,
+    )
 
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
     tool_registry = state.get("tool_registry")
-    results = await asyncio.gather(*[
-        _verify_one(h, state["research_goal"], state["model_name"], semaphore,
-                    tool_registry) for h in to_verify
-    ])
+    results = await asyncio.gather(
+        *[
+            _verify_one(
+                h,
+                state["research_goal"],
+                state["model_name"],
+                semaphore,
+                tool_registry,
+            )
+            for h in to_verify
+        ]
+    )
 
     verified_count = _apply_verification_results(to_verify, results)
 
-    await emit_progress(state, "deep_verification_complete",
-                        f"Deep-verified {verified_count} hypotheses",
-                        PROGRESS_DEEP_VERIFICATION_COMPLETE)
+    await emit_progress(
+        state,
+        "deep_verification_complete",
+        f"Deep-verified {verified_count} hypotheses",
+        PROGRESS_DEEP_VERIFICATION_COMPLETE,
+    )
 
     return verified_count

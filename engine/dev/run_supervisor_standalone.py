@@ -10,11 +10,14 @@ from collections.abc import Sequence
 
 from absl import app
 from rich.console import Console
-from rich.panel import Panel
 from rich.json import JSON
+from rich.panel import Panel
+from state_helpers import (
+    DEFAULT_MODEL_NAME,
+    DEFAULT_RESEARCH_GOAL,
+    make_base_state,
+)
 
-from state_helpers import (make_base_state, DEFAULT_RESEARCH_GOAL,
-                           DEFAULT_MODEL_NAME)
 from co_scientist.nodes.supervisor import supervisor_node
 
 console = Console()
@@ -22,7 +25,6 @@ console = Console()
 
 async def test_supervisor() -> None:
     """Run supervisor node with minimal state."""
-
     console.print("\n[bold cyan]Testing supervisor node[/bold cyan]\n")
 
     # Create minimal state
@@ -41,18 +43,22 @@ async def test_supervisor() -> None:
     guidance = result.get("supervisor_guidance", {})
 
     console.print(
-        Panel(JSON(json.dumps(guidance, indent=2)),
-              title="[bold green]Supervisor guidance output[/bold green]",
-              border_style="green"))
+        Panel(
+            JSON(json.dumps(guidance, indent=2)),
+            title="[bold green]Supervisor guidance output[/bold green]",
+            border_style="green",
+        )
+    )
 
     # Show what would be passed to next nodes
     console.print("\n[bold]Key fields for downstream nodes:[/bold]")
-    n_approach = len(guidance.get('approach_description', ''))
-    n_considerations = len(guidance.get('key_considerations', []))
+    n_approach = len(guidance.get("approach_description", ""))
+    n_considerations = len(guidance.get("key_considerations", []))
     console.print(f"  approach_description: {n_approach} chars")
     console.print(f"  key_considerations: {n_considerations} items")
     console.print(
-        f"  search_strategy: {len(guidance.get('search_strategy', {}))} keys")
+        f"  search_strategy: {len(guidance.get('search_strategy', {}))} keys"
+    )
 
 
 def main(argv: Sequence[str]) -> None:

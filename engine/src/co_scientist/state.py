@@ -4,14 +4,18 @@ The state is passed through all nodes and tracks the complete workflow.
 """
 
 import logging
-from typing import Annotated, Any
 from collections.abc import Awaitable, Callable
+from typing import Annotated, Any
 
 from langgraph.graph import add_messages
 from typing_extensions import TypedDict
 
-from co_scientist.models import (Article, ExecutionMetrics, Hypothesis,
-                                 merge_metrics)
+from co_scientist.models import (
+    Article,
+    ExecutionMetrics,
+    Hypothesis,
+    merge_metrics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +30,9 @@ def _normalized_texts(hypotheses: list[Hypothesis]) -> set[str]:
     return {hyp.text.strip().lower() for hyp in hypotheses}
 
 
-def _resolve_hypothesis_pool(existing: list[Hypothesis],
-                             new: list[Hypothesis]) -> list[Hypothesis]:
+def _resolve_hypothesis_pool(
+    existing: list[Hypothesis], new: list[Hypothesis]
+) -> list[Hypothesis]:
     """Decide whether `new` replaces or extends the existing hypothesis pool.
 
     Nodes use the reducer for two different purposes:
@@ -63,8 +68,9 @@ def _resolve_hypothesis_pool(existing: list[Hypothesis],
     return existing + new
 
 
-def _dedupe_by_text(all_hyps: list[Hypothesis],
-                    new_count: int) -> list[Hypothesis]:
+def _dedupe_by_text(
+    all_hyps: list[Hypothesis], new_count: int
+) -> list[Hypothesis]:
     """Drop hypotheses whose normalized text already appeared earlier.
 
     Identity here is by normalized text, not id: within `all_hyps`, the first
@@ -101,7 +107,8 @@ def _dedupe_by_text(all_hyps: list[Hypothesis],
             if len(all_hyps) > new_count:
                 logger.warning(
                     "Automatic dedup: Removed duplicate hypothesis: %s...",
-                    hyp.text[:80])
+                    hyp.text[:80],
+                )
 
     return deduplicated
 
@@ -111,8 +118,9 @@ def _dedupe_by_text(all_hyps: list[Hypothesis],
 # that returns a "hypotheses" key in its state update triggers this
 # function, with `existing` the current cumulative pool and `new` the value
 # just returned by that node.
-def deduplicate_hypotheses(existing: list[Hypothesis],
-                           new: list[Hypothesis]) -> list[Hypothesis]:
+def deduplicate_hypotheses(
+    existing: list[Hypothesis], new: list[Hypothesis]
+) -> list[Hypothesis]:
     """State reducer that automatically deduplicates hypotheses on state update.
 
     This is a LangGraph anti-duplicate strategy: duplicates are automatically

@@ -61,7 +61,8 @@ def _reports_dir() -> Path:
 
 @contextlib.contextmanager
 def connect(
-        path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
+    path: str | None = None,
+) -> Generator[sqlite3.Connection, None, None]:
     """Yield a sqlite3 connection with WAL + row factory enabled."""
     db_path = _resolved_db_path(path)
     # The parent dir only needs creating before the first connect for a path.
@@ -75,10 +76,9 @@ def connect(
     # BEGIN/COMMIT in `transaction()` below rather than via the DB-API's
     # implicit ones. check_same_thread=False: connections may be created on
     # one async task and used from another.
-    conn = sqlite3.connect(db_path,
-                           timeout=30,
-                           isolation_level=None,
-                           check_same_thread=False)
+    conn = sqlite3.connect(
+        db_path, timeout=30, isolation_level=None, check_same_thread=False
+    )
     conn.row_factory = sqlite3.Row  # Rows behave like dicts: row["col"].
     try:
         # Double-checked locking: skip the lock entirely once a db_path has
@@ -96,7 +96,8 @@ def connect(
 
 @contextlib.contextmanager
 def transaction(
-        path: str | None = None) -> Generator[sqlite3.Connection, None, None]:
+    path: str | None = None,
+) -> Generator[sqlite3.Connection, None, None]:
     """Yield a connection whose writes commit as a single transaction.
 
     Pass the yielded connection to the store helpers' ``conn`` parameter to
@@ -140,8 +141,9 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     _run_migrations(conn)
 
 
-def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str,
-                           coltype: str) -> bool:
+def _add_column_if_missing(
+    conn: sqlite3.Connection, table: str, column: str, coltype: str
+) -> bool:
     """Adds a column to a table when absent, idempotently.
 
     Args:
@@ -154,8 +156,7 @@ def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str,
         True if the column was added, False if it already existed.
     """
     cols = {
-        row[1]
-        for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
+        row[1] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()
     }
     if column in cols:
         return False
@@ -166,8 +167,9 @@ def _add_column_if_missing(conn: sqlite3.Connection, table: str, column: str,
 
 def _run_migrations(conn: sqlite3.Connection) -> None:
     """Apply idempotent in-place schema migrations to an open connection."""
-    if _add_column_if_missing(conn, "runs", "client_id",
-                              "TEXT NOT NULL DEFAULT ''"):
+    if _add_column_if_missing(
+        conn, "runs", "client_id", "TEXT NOT NULL DEFAULT ''"
+    ):
         # One-time purge of runs that predate client isolation. This MUST run
         # only when the column is first added -- running it on every startup
         # would silently delete every header-less (empty client_id) run on each

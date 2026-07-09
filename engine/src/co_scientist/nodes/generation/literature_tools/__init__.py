@@ -7,7 +7,7 @@ Orchestrates both phases to generate hypotheses with dynamic literature access.
 """
 
 import logging
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from co_scientist.nodes.generation.citations import ReferenceIndex
@@ -15,11 +15,14 @@ if TYPE_CHECKING:
 # pylint: disable=wrong-import-position
 from co_scientist.mcp_client import get_mcp_client
 from co_scientist.models import Hypothesis
-from co_scientist.state import WorkflowState
 from co_scientist.nodes.generation.literature_tools.draft import (
-    draft_hypotheses,)
+    draft_hypotheses,
+)
 from co_scientist.nodes.generation.literature_tools.validate import (
-    validate_hypotheses,)
+    validate_hypotheses,
+)
+from co_scientist.state import WorkflowState
+
 # pylint: enable=wrong-import-position
 
 logger = logging.getLogger(__name__)
@@ -53,25 +56,34 @@ def _log_warm_start_diagnostics(articles: list[Any] | None) -> None:
     used_count = _count_used_articles(articles)
     logger.debug(
         "state.articles contains %s total articles,"
-        " %s with used_in_analysis=True", len(articles), used_count)
+        " %s with used_in_analysis=True",
+        len(articles),
+        used_count,
+    )
     if used_count > 0:
         # Split further for logging only: PDF-backed articles carry full
         # text into the draft prompt; abstract-only ones carry less.
         articles_with_pdfs = _count_used_articles_with_pdfs(articles)
         logger.info(
             "Including %s analyzed articles in prompt"
-            " (%s with PDFs, %s abstract-only)", used_count, articles_with_pdfs,
-            used_count - articles_with_pdfs)
+            " (%s with PDFs, %s abstract-only)",
+            used_count,
+            articles_with_pdfs,
+            used_count - articles_with_pdfs,
+        )
     else:
         # No warm-started reading context available; Phase 1 falls back to
         # discovering and reading literature via its own tool calls.
-        logger.warning("No articles with used_in_analysis=True found in state"
-                       " - agent will search fresh")
+        logger.warning(
+            "No articles with used_in_analysis=True found in state"
+            " - agent will search fresh"
+        )
 
 
-async def _get_mcp_client_for_generation(tool_registry: Optional[Any],) -> Any:
-    """Fetch the MCP client used by both generation phases, re-raising
-    failures.
+async def _get_mcp_client_for_generation(
+    tool_registry: Any | None,
+) -> Any:
+    """Fetches the MCP client used by both generation phases.
 
     Without an MCP client neither phase can read or search literature, so
     failures are logged and re-raised rather than degraded.
@@ -100,7 +112,10 @@ def _log_generated_hypothesis_methods(hypotheses: list[Hypothesis]) -> None:
         method = hyp.generation_method
         logger.debug(
             "tool-generated hypothesis %s: generation_method=%s, text=%s...",
-            i + 1, method.value if method else None, hyp.text[:80])
+            i + 1,
+            method.value if method else None,
+            hyp.text[:80],
+        )
 
 
 async def generate_with_tools(
@@ -108,8 +123,7 @@ async def generate_with_tools(
     count: int,
     reference_index: Optional["ReferenceIndex"] = None,
 ) -> list[Hypothesis]:
-    """Generates hypotheses with two-phase tool-based process
-    (draft -> validate).
+    """Generates hypotheses with a two-phase tool-based process.
 
     Phase 1: draft hypotheses by reading papers and identifying gaps
     Phase 2: validate novelty by searching and refining/pivoting
@@ -122,8 +136,9 @@ async def generate_with_tools(
     Returns:
         List of validated hypotheses with generation_method="literature_tools"
     """
-    logger.info("Generating %s hypotheses with two-phase tool-based process",
-                count)
+    logger.info(
+        "Generating %s hypotheses with two-phase tool-based process", count
+    )
 
     # Resolved once and threaded into both draft_hypotheses() and
     # validate_hypotheses() below, so both phases resolve tool whitelists
@@ -164,4 +179,4 @@ async def generate_with_tools(
     return hypotheses
 
 
-__all__ = ["draft_hypotheses", "validate_hypotheses", "generate_with_tools"]
+__all__ = ["draft_hypotheses", "generate_with_tools", "validate_hypotheses"]

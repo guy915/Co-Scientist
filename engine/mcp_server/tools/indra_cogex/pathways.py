@@ -4,9 +4,9 @@ import logging
 from typing import Any
 
 from mcp_server.tools.indra_cogex.client import (
-    parse_id,
-    indra_post,
     cap_results,
+    indra_post,
+    parse_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -52,10 +52,7 @@ async def query_pathways(
         return {
             "pathways": pathways,
             "total_pathways": total,
-            "query": {
-                "gene_ids": gene_ids,
-                "mode": mode
-            },
+            "query": {"gene_ids": gene_ids, "mode": mode},
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -91,26 +88,29 @@ async def query_causal_subnetwork(
         if find_mediators:
             # Search for indirect paths A -> X -> B through an unlisted
             # intermediate node X, ranked by supporting evidence count.
-            raw = await indra_post("/api/indra_mediated_subnetwork", {
-                "nodes": curies,
-                "order_by_ev_count": True,
-            })
+            raw = await indra_post(
+                "/api/indra_mediated_subnetwork",
+                {
+                    "nodes": curies,
+                    "order_by_ev_count": True,
+                },
+            )
         else:
             # Only direct statements between the given nodes, including
             # evidence sourced from curated pathway databases.
-            raw = await indra_post("/api/indra_subnetwork_relations", {
-                "nodes": curies,
-                "include_db_evidence": True,
-            })
+            raw = await indra_post(
+                "/api/indra_subnetwork_relations",
+                {
+                    "nodes": curies,
+                    "include_db_evidence": True,
+                },
+            )
 
         items, total = cap_results(raw, max_results)
         return {
             "subnetwork": items,
             "total_relations": total,
-            "query": {
-                "node_ids": node_ids,
-                "find_mediators": find_mediators
-            },
+            "query": {"node_ids": node_ids, "find_mediators": find_mediators},
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught

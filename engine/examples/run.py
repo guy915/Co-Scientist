@@ -11,6 +11,7 @@ Prerequisites:
     - The provider API key for ``MODEL_NAME`` set in the environment (for
       example GEMINI_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY).
 """
+
 import asyncio
 from typing import Any
 
@@ -100,7 +101,8 @@ async def _run() -> None:
 
     _print_ranked_hypotheses(hypotheses)
     _print_research_overview(
-        result.get("research_overview", {}).get("overview", {}))
+        result.get("research_overview", {}).get("overview", {})
+    )
 
 
 if __name__ == "__main__":

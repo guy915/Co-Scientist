@@ -1,12 +1,13 @@
 """Formatting helpers shared by several prompt-builder modules."""
 # pylint: disable=inconsistent-quotes
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
-def _format_bullet_section(header: str,
-                           items: list[Any],
-                           format_item: Callable[[Any], str] = str) -> str:
+def _format_bullet_section(
+    header: str, items: list[Any], format_item: Callable[[Any], str] = str
+) -> str:
     """Render a "**header:**" line followed by one bullet per item.
 
     Shared by the common-strengths/common-weaknesses/strategic-
@@ -44,8 +45,9 @@ def _format_recommendation(rec: Any) -> str:
 # common_weaknesses when storing state), not the raw META_REVIEW_SCHEMA
 # output.
 def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
-    """Format meta-review insights for review prompts (when re-reviewing evolved
-    hypotheses).
+    """Format meta-review insights for review prompts.
+
+    Used when re-reviewing evolved hypotheses.
     """
     if not meta_review or not isinstance(meta_review, dict):
         return ""
@@ -54,27 +56,39 @@ def _format_meta_review_context(meta_review: dict[str, Any] | None) -> str:
     sections.append("## Meta-Review Context\n")
     sections.append(
         "The following insights were synthesized from previous reviews"
-        " of all hypotheses:\n\n")
+        " of all hypotheses:\n\n"
+    )
 
     sections.append(
-        _format_bullet_section("Common Strengths Across Hypotheses",
-                               meta_review.get("common_strengths", [])))
+        _format_bullet_section(
+            "Common Strengths Across Hypotheses",
+            meta_review.get("common_strengths", []),
+        )
+    )
     sections.append(
-        _format_bullet_section("Common Weaknesses to Watch For",
-                               meta_review.get("common_weaknesses", [])))
+        _format_bullet_section(
+            "Common Weaknesses to Watch For",
+            meta_review.get("common_weaknesses", []),
+        )
+    )
     sections.append(
-        _format_bullet_section("Strategic Recommendations",
-                               meta_review.get("strategic_recommendations", []),
-                               _format_recommendation))
+        _format_bullet_section(
+            "Strategic Recommendations",
+            meta_review.get("strategic_recommendations", []),
+            _format_recommendation,
+        )
+    )
 
     sections.append(
-        "Use these insights to provide more informed and consistent reviews.\n")
+        "Use these insights to provide more informed and consistent reviews.\n"
+    )
 
     return "".join(sections) if sections else ""
 
 
-def _format_run_guidance(run_setup_guidance: str | None = None,
-                         run_focus_guidance: str | None = None) -> str:
+def _format_run_guidance(
+    run_setup_guidance: str | None = None, run_focus_guidance: str | None = None
+) -> str:
     """Format durable run setup/focus guidance for downstream prompts."""
     sections = []
     if run_setup_guidance:

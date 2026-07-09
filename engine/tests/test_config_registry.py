@@ -14,11 +14,11 @@ from pathlib import Path
 import pytest
 
 from co_scientist.config.registry import (
+    ToolRegistry,
     get_tool_registry,
     parse_bool_env,
     reset_tool_registry,
     substitute_env_vars,
-    ToolRegistry,
 )
 from co_scientist.exceptions import ConfigError
 
@@ -102,7 +102,8 @@ def registry(tmp_path: Path) -> ToolRegistry:
 
 
 def test_replace_strategy_yields_only_custom_config(
-        registry: ToolRegistry) -> None:
+    registry: ToolRegistry,
+) -> None:
     """``merge_strategy: replace`` drops the bundled defaults entirely."""
     assert registry.config.version == "2.0"
     assert set(registry.config.servers) == {"myserver", "offserver"}
@@ -171,7 +172,8 @@ def test_get_enabled_tools_excludes_disabled(registry: ToolRegistry) -> None:
 
 
 def test_get_tools_for_workflow_returns_enabled_ids(
-        registry: ToolRegistry) -> None:
+    registry: ToolRegistry,
+) -> None:
     """Workflow tool lists are filtered down to enabled tools only.
 
     literature_review references alpha (enabled), beta (disabled), and gamma
@@ -188,7 +190,8 @@ def test_get_tools_for_workflow_returns_enabled_ids(
 
 
 def test_get_tools_for_unknown_workflow_returns_empty(
-        registry: ToolRegistry) -> None:
+    registry: ToolRegistry,
+) -> None:
     """An unknown workflow name resolves to an empty list (documented)."""
     assert registry.get_tools_for_workflow("does_not_exist") == []
 
@@ -207,10 +210,12 @@ def test_get_workflow_returns_config_or_none(registry: ToolRegistry) -> None:
 
 
 def test_get_mcp_tool_names_maps_and_drops_disabled(
-        registry: ToolRegistry) -> None:
+    registry: ToolRegistry,
+) -> None:
     """IDs map to mcp_tool_name; disabled tools are skipped, order preserved."""
     names = registry.get_mcp_tool_names(
-        ["alpha_search", "beta_search", "gamma_util"])
+        ["alpha_search", "beta_search", "gamma_util"]
+    )
     # beta_search is disabled -> dropped, leaving alpha + gamma in order.
     assert names == ["search_alpha", "util_gamma"]
 
@@ -233,7 +238,8 @@ def test_get_tool_by_mcp_name(registry: ToolRegistry) -> None:
 
 
 def test_get_enrichment_configs_filters_by_workflow(
-        registry: ToolRegistry) -> None:
+    registry: ToolRegistry,
+) -> None:
     """Enrichments are filtered by ``enabled`` and ``workflow`` phase."""
     generation = registry.get_enrichment_configs("generation")
     assert [e.output_key for e in generation] == ["gamma_out"]
@@ -251,7 +257,8 @@ def test_get_enrichment_configs_filters_by_workflow(
 
 
 def test_get_prompts_config_parses_domain_fields(
-        registry: ToolRegistry) -> None:
+    registry: ToolRegistry,
+) -> None:
     """The domain-specific prompts section parses into a PromptsConfig."""
     prompts = registry.get_prompts_config()
     assert prompts.domain_context == "test domain context"
@@ -357,7 +364,8 @@ def test_malformed_config_falls_back_to_default(tmp_path: Path) -> None:
 
 
 def test_config_property_raises_when_uninitialized(
-        registry: ToolRegistry) -> None:
+    registry: ToolRegistry,
+) -> None:
     """The ``config`` property raises ConfigError when state is missing.
 
     This is the only path in the registry that raises ConfigError. Malformed
@@ -373,7 +381,8 @@ def test_config_property_raises_when_uninitialized(
 
 
 def test_substitute_env_vars_set_default_and_missing(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """``${VAR}`` / ``${VAR:-default}`` expand from env, default, or empty."""
     monkeypatch.setenv("COS_TEST_VAR", "hello")
     monkeypatch.delenv("COS_TEST_MISSING", raising=False)
@@ -385,15 +394,17 @@ def test_substitute_env_vars_set_default_and_missing(
 
 
 def test_substitute_env_vars_recurses_into_containers(
-        monkeypatch: pytest.MonkeyPatch) -> None:
-    """Substitution recurses through nested dicts and lists; leaves non-strings.
-    """
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Substitution recurses through dicts and lists; leaves non-strings."""
     monkeypatch.setenv("COS_TEST_VAR", "X")
-    result = substitute_env_vars({
-        "url": "${COS_TEST_VAR}",
-        "items": ["${COS_TEST_VAR}", 5],
-        "flag": True,
-    })
+    result = substitute_env_vars(
+        {
+            "url": "${COS_TEST_VAR}",
+            "items": ["${COS_TEST_VAR}", 5],
+            "flag": True,
+        }
+    )
     assert result == {"url": "X", "items": ["X", 5], "flag": True}
 
 

@@ -3,8 +3,10 @@
 
 from typing import Any
 
-from co_scientist.prompts._common import _format_meta_review_context
-from co_scientist.prompts._common import _format_run_guidance
+from co_scientist.prompts._common import (
+    _format_meta_review_context,
+    _format_run_guidance,
+)
 from co_scientist.prompts.loading import _build_prompt
 
 
@@ -22,15 +24,14 @@ def get_review_prompt(
     """Get the hypothesis review prompt and schema."""
     return _build_prompt(
         "review",
-        {
-            "research_goal": research_goal,
-            "hypothesis_text": hypothesis_text
-        },
+        {"research_goal": research_goal, "hypothesis_text": hypothesis_text},
         supervisor_guidance=_format_supervisor_guidance_for_review(
-            supervisor_guidance),
+            supervisor_guidance
+        ),
         meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(run_setup_guidance,
-                                          run_focus_guidance),
+        run_guidance=_format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
         tool_registry=tool_registry,
     )
 
@@ -69,15 +70,14 @@ def get_review_batch_prompt(
     """Get the comparative batch hypothesis review prompt and schema."""
     return _build_prompt(
         "review_batch",
-        {
-            "research_goal": research_goal,
-            "hypotheses_list": hypotheses_list
-        },
+        {"research_goal": research_goal, "hypotheses_list": hypotheses_list},
         supervisor_guidance=_format_supervisor_guidance_for_review(
-            supervisor_guidance),
+            supervisor_guidance
+        ),
         meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(run_setup_guidance,
-                                          run_focus_guidance),
+        run_guidance=_format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
         tool_registry=tool_registry,
     )
 
@@ -109,12 +109,14 @@ def _format_review_phase_guidance(review_phase: dict[str, Any]) -> list[str]:
         sections.append(f"**Critical Criteria to Emphasize:** {criteria}\n")
     if review_phase.get("review_depth"):
         sections.append(
-            f"**Review Depth Required:** {review_phase['review_depth']}\n")
+            f"**Review Depth Required:** {review_phase['review_depth']}\n"
+        )
     return sections
 
 
 def _format_config_preferences_guidance(
-        preferences: list[Any] | None) -> list[str]:
+    preferences: list[Any] | None,
+) -> list[str]:
     """Format the config_synthesis preferences slice of supervisor guidance."""
     if not preferences:
         return []
@@ -124,10 +126,9 @@ def _format_config_preferences_guidance(
 
 
 def _format_config_review_instructions_guidance(
-        review_instructions: list[Any] | None) -> list[str]:
-    """Format the config_synthesis review-instructions slice of supervisor
-    guidance.
-    """
+    review_instructions: list[Any] | None,
+) -> list[str]:
+    """Format the config_synthesis review-instructions guidance slice."""
     if not review_instructions:
         return []
     sections = [
@@ -139,10 +140,9 @@ def _format_config_review_instructions_guidance(
 
 
 def _format_config_attributes_guidance(
-        attributes: list[Any] | None) -> list[str]:
-    """Format the config_synthesis stratification-attributes slice of
-    supervisor guidance.
-    """
+    attributes: list[Any] | None,
+) -> list[str]:
+    """Format the config_synthesis stratification-attributes slice."""
     if not attributes:
         return []
     sections = ["\n**Stratification attributes (score each 1-5):**\n"]
@@ -152,8 +152,9 @@ def _format_config_attributes_guidance(
     return sections
 
 
-def _format_config_synthesis_guidance(config: Any, *,
-                                      needs_header: bool) -> list[str]:
+def _format_config_synthesis_guidance(
+    config: Any, *, needs_header: bool
+) -> list[str]:
     """Format the config_synthesis slice of supervisor guidance.
 
     Synthesized config: preferences constrain what a good idea is (shared
@@ -183,24 +184,28 @@ def _format_config_synthesis_guidance(config: Any, *,
         sections.append("## Supervisor Guidance for Review\n")
     sections.extend(_format_config_preferences_guidance(preferences))
     sections.extend(
-        _format_config_review_instructions_guidance(review_instructions))
+        _format_config_review_instructions_guidance(review_instructions)
+    )
     sections.extend(_format_config_attributes_guidance(attributes))
     return sections
 
 
 def _format_supervisor_guidance_for_review(
-        supervisor_guidance: dict[str, Any] | None) -> str:
+    supervisor_guidance: dict[str, Any] | None,
+) -> str:
     """Format supervisor guidance for review prompts."""
     if not supervisor_guidance or not isinstance(supervisor_guidance, dict):
         return ""
 
     workflow_plan = supervisor_guidance.get("workflow_plan", {})
     sections = _format_review_phase_guidance(
-        workflow_plan.get("review_phase", {}))
+        workflow_plan.get("review_phase", {})
+    )
 
     config = supervisor_guidance.get("config_synthesis", {})
     sections.extend(
-        _format_config_synthesis_guidance(config, needs_header=not sections))
+        _format_config_synthesis_guidance(config, needs_header=not sections)
+    )
 
     return "".join(sections) if sections else ""
 

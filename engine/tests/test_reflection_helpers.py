@@ -10,14 +10,16 @@ formatters. ``fetch_indra_evidence`` is only exercised on its
 from typing import Any, cast
 
 from co_scientist.config import ToolRegistry
-from co_scientist.nodes.reflection_helpers import _build_enrichment_items
-from co_scientist.nodes.reflection_helpers import _ev_count_str
-from co_scientist.nodes.reflection_helpers import _format_single_statement
-from co_scientist.nodes.reflection_helpers import _normalize_entity
-from co_scientist.nodes.reflection_helpers import _parse_tool_result
-from co_scientist.nodes.reflection_helpers import extract_entity_names
-from co_scientist.nodes.reflection_helpers import fetch_indra_evidence
-from co_scientist.nodes.reflection_helpers import get_kg_tools_for_workflow
+from co_scientist.nodes.reflection_helpers import (
+    _build_enrichment_items,
+    _ev_count_str,
+    _format_single_statement,
+    _normalize_entity,
+    _parse_tool_result,
+    extract_entity_names,
+    fetch_indra_evidence,
+    get_kg_tools_for_workflow,
+)
 
 
 class _FakeRegistry:
@@ -180,8 +182,9 @@ def test_get_kg_tools_swallows_exception() -> None:
 
 async def test_fetch_indra_evidence_none_registry_short_circuits() -> None:
     """With no registry the coroutine returns the empty result without I/O."""
-    result = await fetch_indra_evidence("KRAS drives tumor growth",
-                                        tool_registry=None)
+    result = await fetch_indra_evidence(
+        "KRAS drives tumor growth", tool_registry=None
+    )
     assert result == {"prompt_text": "", "enrichment_items": []}
 
 
@@ -229,32 +232,28 @@ def test_ev_count_str_at_limit_marks_truncation() -> None:
 
 def test_format_single_statement_subject_object() -> None:
     """A subj/obj statement renders as a directed relationship line."""
-    line = _format_single_statement({
-        "type": "Activation",
-        "belief": 0.9,
-        "evidence": [1, 2],
-        "subj": {
-            "name": "KRAS"
-        },
-        "obj": {
-            "name": "BRAF"
-        },
-    })
+    line = _format_single_statement(
+        {
+            "type": "Activation",
+            "belief": 0.9,
+            "evidence": [1, 2],
+            "subj": {"name": "KRAS"},
+            "obj": {"name": "BRAF"},
+        }
+    )
     assert line == "- KRAS --[Activation]--> BRAF (belief: 0.90, 2 papers)"
 
 
 def test_format_single_statement_complex_members() -> None:
     """A members-only statement renders as a Complex(...) line."""
-    line = _format_single_statement({
-        "type": "Complex",
-        "belief": 0.8,
-        "evidence": [],
-        "members": [{
-            "name": "A"
-        }, {
-            "name": "B"
-        }],
-    })
+    line = _format_single_statement(
+        {
+            "type": "Complex",
+            "belief": 0.8,
+            "evidence": [],
+            "members": [{"name": "A"}, {"name": "B"}],
+        }
+    )
     assert line == "- Complex(A, B) [Complex] (belief: 0.80, 0 papers)"
 
 
@@ -274,22 +273,14 @@ def test_build_enrichment_items_injects_queried_entities_on_first() -> None:
                 "type": "Activation",
                 "belief": 0.9,
                 "evidence": [1, 2],
-                "subj": {
-                    "name": "KRAS"
-                },
-                "obj": {
-                    "name": "BRAF"
-                },
+                "subj": {"name": "KRAS"},
+                "obj": {"name": "BRAF"},
             },
             {
                 "type": "Complex",
                 "belief": 0.8,
                 "evidence": [],
-                "members": [{
-                    "name": "A"
-                }, {
-                    "name": "B"
-                }],
+                "members": [{"name": "A"}, {"name": "B"}],
             },
         ],
         ["KRAS", "TREM2"],

@@ -19,33 +19,32 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
         "type": "object",
         "properties": {
             "hypothesis": {
-                "type":
-                    "string",
-                "description":
-                    ("Refined dense technical hypothesis following"
-                     " 'We want to develop [X] to enable [Y]' format."
-                     " Similar sentence count to original hypothesis."),
+                "type": "string",
+                "description": (
+                    "Refined dense technical hypothesis following"
+                    " 'We want to develop [X] to enable [Y]' format."
+                    " Similar sentence count to original hypothesis."
+                ),
             },
             "refinement_summary": {
-                "type":
-                    "string",
-                "description":
-                    ("Summary of changes and improvements made during"
-                     " evolution."),
+                "type": "string",
+                "description": (
+                    "Summary of changes and improvements made during evolution."
+                ),
             },
             "explanation": {
-                "type":
-                    "string",
-                "description":
-                    ("Updated step-by-step layman explanation reflecting"
-                     " any refinements made (4-6 sentences)"),
+                "type": "string",
+                "description": (
+                    "Updated step-by-step layman explanation reflecting"
+                    " any refinements made (4-6 sentences)"
+                ),
             },
             "experiment": {
-                "type":
-                    "string",
-                "description":
-                    ("Concrete experiment design with models, datasets,"
-                     " metrics, and validation criteria (4-6 sentences)"),
+                "type": "string",
+                "description": (
+                    "Concrete experiment design with models, datasets,"
+                    " metrics, and validation criteria (4-6 sentences)"
+                ),
             },
         },
         "required": [
@@ -73,28 +72,18 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "summary": {
-                        "type": "string"
-                    },
+                    "summary": {"type": "string"},
                     "research_directions": {
                         "type": "array",
                         "items": {
-                            "type":
-                                "object",
-                            "additionalProperties":
-                                False,
+                            "type": "object",
+                            "additionalProperties": False,
                             "properties": {
-                                "title": {
-                                    "type": "string"
-                                },
-                                "importance": {
-                                    "type": "string"
-                                },
+                                "title": {"type": "string"},
+                                "importance": {"type": "string"},
                                 "suggested_experiments": {
                                     "type": "array",
-                                    "items": {
-                                        "type": "string"
-                                    },
+                                    "items": {"type": "string"},
                                 },
                             },
                             "required": [
@@ -111,31 +100,21 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "introduction": {
-                        "type": "string"
-                    },
+                    "introduction": {"type": "string"},
                     "aims": {
                         "type": "array",
                         "items": {
                             "type": "object",
                             "additionalProperties": False,
                             "properties": {
-                                "aim": {
-                                    "type": "string"
-                                },
-                                "rationale": {
-                                    "type": "string"
-                                },
-                                "approach": {
-                                    "type": "string"
-                                },
+                                "aim": {"type": "string"},
+                                "rationale": {"type": "string"},
+                                "approach": {"type": "string"},
                             },
                             "required": ["aim", "rationale", "approach"],
                         },
                     },
-                    "impact": {
-                        "type": "string"
-                    },
+                    "impact": {"type": "string"},
                 },
                 "required": ["introduction", "aims", "impact"],
             },

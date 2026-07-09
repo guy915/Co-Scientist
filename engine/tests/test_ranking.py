@@ -17,8 +17,9 @@ from co_scientist.nodes.ranking import ranking_node
 from tests._state import make_hypothesis, make_state
 
 
-def _stub_winner_by_text(monkeypatch: pytest.MonkeyPatch,
-                         winner_text: str) -> None:
+def _stub_winner_by_text(
+    monkeypatch: pytest.MonkeyPatch, winner_text: str
+) -> None:
     """Patch ranking's call_llm_json to always elect ``winner_text``.
 
     ``judge_matchup`` builds a prompt that embeds both hypotheses' texts in
@@ -38,8 +39,9 @@ def _stub_winner_by_text(monkeypatch: pytest.MonkeyPatch,
         winner_pos = prompt.find(winner_text)
         # The winner is in slot "a" when its text precedes the opponent's; the
         # opponent occupies whichever slot the winner does not.
-        winner = "a" if winner_pos < _other_text_pos(prompt,
-                                                     winner_text) else "b"
+        winner = (
+            "a" if winner_pos < _other_text_pos(prompt, winner_text) else "b"
+        )
         return {
             "winner": winner,
             "decision_summary": "stub decision",
@@ -67,7 +69,7 @@ def _other_text_pos(prompt: str, winner_text: str) -> int:
     winner_pos = prompt.find(winner_text)
     # Search for the other text by looking on each side of the winner's text.
     before = prompt[:winner_pos]
-    after = prompt[winner_pos + len(winner_text):]
+    after = prompt[winner_pos + len(winner_text) :]
     # The opponent text marker is a stable unique token shared by test inputs.
     marker = "TXT"
     pos_after = after.find(marker)
@@ -98,7 +100,8 @@ async def test_empty_hypotheses_skips_tournament() -> None:
 
 
 async def test_deterministic_winner_updates_elo_and_counts(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The elected winner gains Elo and wins every round; the loser drops."""
     winner = make_hypothesis(text="winner pathway TXT alpha")
     loser = make_hypothesis(text="loser pathway TXT beta")
@@ -132,7 +135,8 @@ async def test_deterministic_winner_updates_elo_and_counts(
 
 
 async def test_matchups_carry_hypothesis_ids(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Each matchup records the two hypotheses' stable ids and the winner's id.
 
     The id fields sit alongside the truncated-text fields and must resolve to
@@ -162,7 +166,8 @@ async def test_matchups_carry_hypothesis_ids(
 
 
 async def test_malformed_judge_response_defaults_to_slot_a(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """An empty judge response defaults winner to slot 'a' with fallbacks."""
 
     async def fake(**_: Any) -> dict[str, Any]:
@@ -170,10 +175,12 @@ async def test_malformed_judge_response_defaults_to_slot_a(
 
     monkeypatch.setattr(ranking, "call_llm_json", fake)
 
-    state = make_state(hypotheses=[
-        make_hypothesis(text="first hypothesis TXT"),
-        make_hypothesis(text="second hypothesis TXT"),
-    ])
+    state = make_state(
+        hypotheses=[
+            make_hypothesis(text="first hypothesis TXT"),
+            make_hypothesis(text="second hypothesis TXT"),
+        ]
+    )
     result = await ranking_node(state)
 
     matchups = result["tournament_matchups"]
@@ -187,7 +194,8 @@ async def test_malformed_judge_response_defaults_to_slot_a(
 
 
 async def test_ranking_honors_tournament_pairs(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Per-run tournament depth controls the number of pairwise matches."""
     hypotheses = [
         make_hypothesis(text="first tournament TXT"),
@@ -214,9 +222,13 @@ async def test_ranking_honors_tournament_pairs(
 
 
 def test_match_tier_upset_when_loser_outrated_winner() -> None:
-    """A win by a hypothesis rated >= ELO_UPSET_MARGIN below the loser is an
-    upset, regardless of confidence."""
+    """A deep-underdog win is an upset regardless of confidence.
+
+    Specifically, a win by a hypothesis rated >= ELO_UPSET_MARGIN below
+    the loser.
+    """
     from co_scientist.constants import ELO_UPSET_MARGIN
+
     assert ranking.match_tier(1200, 1200 + ELO_UPSET_MARGIN, "High") == "upset"
     assert ranking.match_tier(1200, 1200 + ELO_UPSET_MARGIN, "Low") == "upset"
 
@@ -228,8 +240,9 @@ def test_match_tier_maps_confidence_when_not_an_upset() -> None:
     assert ranking.match_tier(1300, 1200, "Low") == "narrow"
 
 
-def test_match_tier_confidence_is_case_insensitive_with_narrow_fallback(
-) -> None:
+def test_match_tier_confidence_is_case_insensitive_with_narrow_fallback() -> (
+    None
+):
     """Casing is ignored and an unknown confidence falls back to 'narrow'."""
     assert ranking.match_tier(1300, 1200, "high") == "decisive"
     assert ranking.match_tier(1300, 1200, "") == "narrow"

@@ -10,7 +10,6 @@ The two MCP-availability probes are stubbed so the helper runs offline.
 from typing import Any
 
 import pytest
-
 from langgraph.graph.state import CompiledStateGraph
 
 from co_scientist import mcp_client
@@ -136,7 +135,8 @@ def test_cache_dir_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_cache_unset_leaves_env_untouched(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """With cache args left as None the constructor sets no cache env vars."""
     monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
     monkeypatch.delenv("COSCIENTIST_CACHE_DIR", raising=False)
@@ -192,7 +192,8 @@ def test_research_overview_is_the_only_terminal_node() -> None:
 
 
 async def test_prepare_generation_populates_core_config(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Initial state carries the configured model names and counts."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator(
@@ -215,7 +216,8 @@ async def test_prepare_generation_populates_core_config(
 
 
 async def test_prepare_generation_generates_run_id(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A run_id is auto-generated and threaded into the state when absent."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
@@ -224,7 +226,8 @@ async def test_prepare_generation_generates_run_id(
 
 
 async def test_prepare_generation_honors_explicit_run_id(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A caller-supplied run_id is used verbatim."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
@@ -233,7 +236,8 @@ async def test_prepare_generation_honors_explicit_run_id(
 
 
 async def test_prepare_generation_passes_through_opts(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Optional preferences/constraints and user inputs land in the state."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
@@ -255,7 +259,8 @@ async def test_prepare_generation_passes_through_opts(
 
 
 async def test_prepare_generation_opt_defaults(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Omitted optional fields default to None / empty / False."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
@@ -270,12 +275,14 @@ async def test_prepare_generation_opt_defaults(
 
 
 async def test_prepare_generation_dev_isolation_flag(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The dev lit-tools isolation flag is passed through to the state."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
-        "goal", opts={"dev_test_lit_tools_isolation": True})
+        "goal", opts={"dev_test_lit_tools_isolation": True}
+    )
     assert state["dev_test_lit_tools_isolation"] is True
 
 
@@ -283,7 +290,8 @@ async def test_prepare_generation_dev_isolation_flag(
 
 
 async def test_mcp_available_enables_lit_review_graph(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """When MCP is available the auto-detected graph includes lit review."""
     _stub_mcp(monkeypatch, available=True)
     gen = HypothesisGenerator()
@@ -295,7 +303,8 @@ async def test_mcp_available_enables_lit_review_graph(
 
 
 async def test_mcp_unavailable_uses_simplified_graph(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Without MCP, lit review is dropped and flags reflect unavailability."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
@@ -306,7 +315,8 @@ async def test_mcp_unavailable_uses_simplified_graph(
 
 
 async def test_mcp_availability_cached_per_instance(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """MCP probes run once; the cached result persists across calls."""
     calls = {"n": 0}
 
@@ -327,7 +337,8 @@ async def test_mcp_availability_cached_per_instance(
 
 
 async def test_explicit_disable_skips_mcp_probe(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Explicitly disabling lit review avoids invoking the MCP probes."""
 
     async def explode(**_: Any) -> bool:
@@ -338,34 +349,40 @@ async def test_explicit_disable_skips_mcp_probe(
 
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
-        "goal", opts={"enable_literature_review_node": False})
+        "goal", opts={"enable_literature_review_node": False}
+    )
     assert state["mcp_available"] is False
     assert gen._graph is not None
     assert "literature_review" not in gen._graph.nodes
 
 
 async def test_tool_calling_honored_when_mcp_available(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Tool-calling generation stays on when MCP + lit review are available."""
     _stub_mcp(monkeypatch, available=True)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
-        "goal", opts={"enable_tool_calling_generation": True})
+        "goal", opts={"enable_tool_calling_generation": True}
+    )
     assert state["enable_tool_calling_generation"] is True
 
 
 async def test_tool_calling_disabled_when_mcp_unavailable(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Tool-calling generation is silently disabled when MCP is unavailable."""
     _stub_mcp(monkeypatch, available=False)
     gen = HypothesisGenerator()
     state = await gen._prepare_generation(
-        "goal", opts={"enable_tool_calling_generation": True})
+        "goal", opts={"enable_tool_calling_generation": True}
+    )
     assert state["enable_tool_calling_generation"] is False
 
 
 async def test_tool_calling_with_lit_disabled_does_not_raise(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Tool calling + explicit lit-review-off degrades gracefully (no raise).
 
     Note: ``_prepare_generation`` documents a ValueError for this combination,
@@ -392,14 +409,17 @@ def test_graph_includes_deep_verification_node() -> None:
     """The graph registers a deep_verification node after ranking."""
     gen = HypothesisGenerator(model_name="test/model")
     graph = gen._build_graph(  # pylint: disable=protected-access
-        enable_literature_review_node=False)
+        enable_literature_review_node=False
+    )
     assert "deep_verification" in graph.nodes
 
 
-def test_graph_includes_research_overview_node_and_terminates_through_it(
-) -> None:
+def test_graph_includes_research_overview_node_and_terminates_through_it() -> (
+    None
+):
     """The graph registers a terminal research_overview node."""
     gen = HypothesisGenerator(model_name="test/model")
     graph = gen._build_graph(  # pylint: disable=protected-access
-        enable_literature_review_node=False)
+        enable_literature_review_node=False
+    )
     assert "research_overview" in graph.nodes

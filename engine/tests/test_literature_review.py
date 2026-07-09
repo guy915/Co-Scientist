@@ -33,10 +33,10 @@ import pytest
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.nodes.literature_review import analysis as lr_analysis
 from co_scientist.nodes.literature_review import enrichment as lr_enrichment
+from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.nodes.literature_review import node as lr
 from co_scientist.nodes.literature_review import queries as lr_queries
 from co_scientist.nodes.literature_review import synthesis as lr_synthesis
-from co_scientist.nodes.literature_review import literature_review_node
 from tests._state import make_state
 
 
@@ -139,8 +139,10 @@ def _stub_node(
     return fake_client
 
 
-def _make_event_recorder() -> tuple[list[tuple[str, dict[str, Any]]], Callable[
-    [str, dict[str, Any]], Awaitable[None]]]:
+def _make_event_recorder() -> tuple[
+    list[tuple[str, dict[str, Any]]],
+    Callable[[str, dict[str, Any]], Awaitable[None]],
+]:
     """Build a progress callback that records (event, payload) tuples.
 
     Returns:
@@ -162,7 +164,8 @@ def _make_event_recorder() -> tuple[list[tuple[str, dict[str, Any]]], Callable[
 
 
 async def test_source_unavailable_returns_failure_without_search(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """When the literature source is unavailable the node fails fast.
 
     It returns the documented failure result (``articles_with_reasoning`` set to
@@ -188,7 +191,8 @@ async def test_source_unavailable_returns_failure_without_search(
 
 
 async def test_happy_path_populates_synthesis_and_articles(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A full single-source run yields synthesis, queries and Article objects.
 
     Two papers (both with ``fulltext``) are returned by the stubbed search, the
@@ -239,7 +243,8 @@ async def test_happy_path_populates_synthesis_and_articles(
 
 
 async def test_happy_path_falls_back_to_research_goal_query(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """An empty query LLM response falls back to the research goal as a query.
 
     ``_phase1_generate_queries`` uses ``[research_goal]`` when neither the MCP
@@ -273,7 +278,8 @@ async def test_happy_path_falls_back_to_research_goal_query(
 
 
 async def test_no_papers_found_returns_failure_with_queries(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """An empty search result returns failure but still surfaces the queries.
 
     The node reaches the ``len(all_paper_metadata) == 0`` gate and returns the
@@ -296,7 +302,8 @@ async def test_no_papers_found_returns_failure_with_queries(
 
 
 async def test_papers_without_fulltext_fail_but_keep_articles(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Papers found but none with fulltext fail analysis yet keep Article rows.
 
     ``count_papers_with_fulltext`` finds zero fulltext (abstract alone does not
@@ -328,7 +335,8 @@ async def test_papers_without_fulltext_fail_but_keep_articles(
 
 
 async def test_progress_callback_receives_events(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A configured progress callback receives start and completion events.
 
     Exercises the ``emit_progress`` seam along the happy path: the callback is
@@ -347,8 +355,9 @@ async def test_progress_callback_receives_events(
         queries=["q"],
         synthesis="REVIEW",
     )
-    state = make_state(research_goal="callback goal",
-                       progress_callback=callback)
+    state = make_state(
+        research_goal="callback goal", progress_callback=callback
+    )
 
     await literature_review_node(state)
 
@@ -357,7 +366,8 @@ async def test_progress_callback_receives_events(
 
 
 async def test_no_papers_with_search_error_emits_error_event(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A failed search surfaces a distinct error event, not a silent empty run.
 
     When every search call raises, the node reports ``literature_review_error``
@@ -369,13 +379,11 @@ async def test_no_papers_with_search_error_emits_error_event(
 
     # Reuse the standard stubs, then replace the client with one that raises on
     # every search call (query generation uses the stubbed LLM, not call_tool).
-    _stub_node(monkeypatch,
-               source_available=True,
-               search_payload={},
-               queries=["q"])
+    _stub_node(
+        monkeypatch, source_available=True, search_payload={}, queries=["q"]
+    )
 
     class _RaisingClient:
-
         async def call_tool(self, _tool_name: str, **_: Any) -> Any:
             raise ConnectionError("All connection attempts failed")
 
@@ -387,19 +395,23 @@ async def test_no_papers_with_search_error_emits_error_event(
 
     monkeypatch.setattr(lr, "get_mcp_client", fake_get_client)
 
-    state = make_state(research_goal="connection blip goal",
-                       progress_callback=callback)
+    state = make_state(
+        research_goal="connection blip goal", progress_callback=callback
+    )
     await literature_review_node(state)
 
     error_payloads = [p for e, p in events if e == "literature_review_error"]
     assert error_payloads, "expected a literature_review_error event"
     assert error_payloads[0]["search_errors_count"] >= 1
-    assert any("ConnectionError" in sample
-               for sample in error_payloads[0]["search_error_sample"])
+    assert any(
+        "ConnectionError" in sample
+        for sample in error_payloads[0]["search_error_sample"]
+    )
 
 
 async def test_no_papers_without_error_emits_empty_event(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A search that returns nothing without errors emits the empty event.
 
     Distinct from the error path: ``literature_review_empty`` with
@@ -407,12 +419,12 @@ async def test_no_papers_without_error_emits_empty_event(
     """
     events, callback = _make_event_recorder()
 
-    _stub_node(monkeypatch,
-               source_available=True,
-               search_payload={},
-               queries=["q"])
-    state = make_state(research_goal="genuinely empty goal",
-                       progress_callback=callback)
+    _stub_node(
+        monkeypatch, source_available=True, search_payload={}, queries=["q"]
+    )
+    state = make_state(
+        research_goal="genuinely empty goal", progress_callback=callback
+    )
     await literature_review_node(state)
 
     empty_payloads = [p for e, p in events if e == "literature_review_empty"]
@@ -425,7 +437,7 @@ async def test_no_papers_without_error_emits_empty_event(
 # =============================================================================
 
 
-class _FakeExceptionGroup(Exception):
+class _FakeExceptionGroupError(Exception):
     """Duck-typed stand-in for ``ExceptionGroup`` (portable to Python 3.10).
 
     Exposes the ``exceptions`` tuple that ``_describe_exc`` unwraps, mirroring
@@ -445,15 +457,18 @@ def test_describe_exc_plain_exception() -> None:
 def test_describe_exc_unwraps_exception_group() -> None:
     """A grouped exception is unwrapped to its underlying leaf cause."""
     leaf = ConnectionError("All connection attempts failed")
-    group = _FakeExceptionGroup("unhandled errors in a TaskGroup", [leaf])
-    assert lr._describe_exc(
-        group) == "ConnectionError: All connection attempts failed"
+    group = _FakeExceptionGroupError("unhandled errors in a TaskGroup", [leaf])
+    assert (
+        lr._describe_exc(group)
+        == "ConnectionError: All connection attempts failed"
+    )
 
 
 def test_get_search_config_defaults_single_source() -> None:
     """With no tool registry the config defaults to single-source pubmed."""
     config = lr._get_search_config(  # pylint: disable=protected-access
-        make_state())
+        make_state()
+    )
     assert config.is_multi_source is False
     assert config.source_name == "pubmed"
     assert config.search_tool_name == "pubmed_search_with_fulltext"
@@ -463,11 +478,13 @@ def test_get_search_config_defaults_single_source() -> None:
 
 
 def test_get_search_config_honors_run_paper_count(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Per-run literature count overrides the default outside dev mode."""
     monkeypatch.delenv("COSCIENTIST_DEV_MODE", raising=False)
     config = lr._get_search_config(  # pylint: disable=protected-access
-        make_state(literature_review_papers_count=12))
+        make_state(literature_review_papers_count=12)
+    )
     assert config.papers_to_read_count == 12
 
 
@@ -506,16 +523,14 @@ def test_parse_enrichment_indra_empty_statements() -> None:
 def test_parse_enrichment_indra_statements_formatted() -> None:
     """INDRA statements format as 'subj -> obj [type] (belief: ..)' lines."""
     raw = {
-        "statements": [{
-            "subj": {
-                "name": "KRAS"
-            },
-            "obj": {
-                "name": "MAPK1"
-            },
-            "type": "Activation",
-            "belief": 0.97,
-        }]
+        "statements": [
+            {
+                "subj": {"name": "KRAS"},
+                "obj": {"name": "MAPK1"},
+                "type": "Activation",
+                "belief": 0.97,
+            }
+        ]
     }
     # pylint: disable-next=protected-access
     text, items = lr_enrichment._parse_enrichment_result(raw)

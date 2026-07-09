@@ -9,8 +9,8 @@ import logging
 from typing import Any
 
 from co_scientist.models import create_metrics_update
-from co_scientist.state import WorkflowState
 from co_scientist.nodes.generation import generate_hypotheses
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +48,9 @@ async def generate_node(state: WorkflowState) -> dict[str, Any]:
     metrics = create_metrics_update(hypothesis_count=result["hypothesis_count"])
     result["metrics"] = metrics
 
-    logger.info("Generate node complete: %s",
-                result.get('message', 'generated hypotheses'))
+    logger.info(
+        "Generate node complete: %s",
+        result.get("message", "generated hypotheses"),
+    )
 
     return result

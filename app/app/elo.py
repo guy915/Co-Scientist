@@ -29,7 +29,7 @@ def expected_score(player_elo: float, opponent_elo: float) -> float:
     """Standard Elo expected score for `player` against `opponent`."""
     # Logistic curve; 400 is the standard Elo scaling constant (a 400-point
     # rating gap implies a 10:1 expected-score ratio between the players).
-    result: float = 1.0 / (1.0 + 10.0**((opponent_elo - player_elo) / 400.0))
+    result: float = 1.0 / (1.0 + 10.0 ** ((opponent_elo - player_elo) / 400.0))
     return result
 
 
@@ -45,7 +45,7 @@ def update_pair(
     # how far the rating moves toward that actual outcome from expectation.
     new_winner = winner_elo + k_factor * (1.0 - e_win)
     new_loser = loser_elo + k_factor * (0.0 - e_lose)
-    return int(round(new_winner)), int(round(new_loser))
+    return round(new_winner), round(new_loser)
 
 
 def _first(*values: Any) -> Any:
@@ -82,8 +82,9 @@ def _leaderboard_row(rank: int, h: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def live_leaderboard(hyps: list[dict[str, Any]],
-                     cap: int = 10) -> list[dict[str, Any]]:
+def live_leaderboard(
+    hyps: list[dict[str, Any]], cap: int = 10
+) -> list[dict[str, Any]]:
     """Compact Elo standings snapshot carried on workflow event payloads.
 
     Shared by the engine adapter and the mock workflow so the frontend's
@@ -101,7 +102,8 @@ def live_leaderboard(hyps: list[dict[str, Any]],
     # rather than sorting an unranked hypothesis to the very top.
     ordered = sorted(
         hyps,
-        key=lambda h: -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO))
+        key=lambda h: -int(h.get("elo_rating", INITIAL_ELO) or INITIAL_ELO),
+    )
     return [
         _leaderboard_row(rank, h)
         for rank, h in enumerate(ordered[:cap], start=1)

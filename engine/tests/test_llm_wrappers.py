@@ -26,9 +26,7 @@ import pytest
 from co_scientist import llm
 from co_scientist import prompts as prompts_mod
 from co_scientist.cache import LLMCache
-from co_scientist.llm import call_llm
-from co_scientist.llm import call_llm_json
-from co_scientist.llm import call_llm_with_tools
+from co_scientist.llm import call_llm, call_llm_json, call_llm_with_tools
 
 # The real prompt writer, captured at import time -- i.e. before the autouse
 # ``_no_prompt_disk_writes`` conftest fixture swaps in its per-test no-op.
@@ -37,9 +35,11 @@ _REAL_SAVE_PROMPT_TO_DISK = prompts_mod.save_prompt_to_disk
 # --- helpers ---------------------------------------------------------------
 
 
-def _message(content: str | None,
-             tool_calls: list[Any] | None = None,
-             role: str = "assistant") -> SimpleNamespace:
+def _message(
+    content: str | None,
+    tool_calls: list[Any] | None = None,
+    role: str = "assistant",
+) -> SimpleNamespace:
     """Build a litellm-shaped ``choices[0].message`` object.
 
     Args:
@@ -80,9 +80,9 @@ def _tool_call(call_id: str, name: str, arguments: str) -> SimpleNamespace:
     Returns:
         A namespace exposing ``id`` and ``function.{name,arguments}``.
     """
-    return SimpleNamespace(id=call_id,
-                           function=SimpleNamespace(name=name,
-                                                    arguments=arguments))
+    return SimpleNamespace(
+        id=call_id, function=SimpleNamespace(name=name, arguments=arguments)
+    )
 
 
 def _disable_cache(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -97,8 +97,9 @@ def _disable_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(llm, "get_cache", lambda: LLMCache(enabled=False))
 
 
-def _patch_acompletion(monkeypatch: pytest.MonkeyPatch,
-                       responses: list[SimpleNamespace]) -> dict[str, int]:
+def _patch_acompletion(
+    monkeypatch: pytest.MonkeyPatch, responses: list[SimpleNamespace]
+) -> dict[str, int]:
     """Patch ``litellm.acompletion`` to return queued responses in order.
 
     Args:
@@ -115,35 +116,30 @@ def _patch_acompletion(monkeypatch: pytest.MonkeyPatch,
         state["calls"] += 1
         return next(queue)
 
-    monkeypatch.setattr("co_scientist.llm.litellm.acompletion",
-                        fake_acompletion)
+    monkeypatch.setattr(
+        "co_scientist.llm.litellm.acompletion", fake_acompletion
+    )
     return state
 
 
 _INT_SCHEMA: dict[str, Any] = {
     "type": "object",
-    "properties": {
-        "a": {
-            "type": "integer"
-        }
-    },
+    "properties": {"a": {"type": "integer"}},
     "required": ["a"],
 }
 
 # The tool schema shared verbatim by every call_llm_with_tools test below; the
 # wrapper only reads it (passes it through to the fake acompletion), never
 # mutates it, so sharing one instance across tests is safe.
-_SEARCH_TOOL: list[dict[str, Any]] = [{
-    "type": "function",
-    "function": {
-        "name": "search"
-    }
-}]
+_SEARCH_TOOL: list[dict[str, Any]] = [
+    {"type": "function", "function": {"name": "search"}}
+]
 
 
 # --- call_llm --------------------------------------------------------------
 async def test_call_llm_returns_message_content(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """``call_llm`` returns the assistant message content verbatim."""
     _disable_cache(monkeypatch)
     _patch_acompletion(monkeypatch, [_completion(_message("the answer text"))])
@@ -154,7 +150,8 @@ async def test_call_llm_returns_message_content(
 
 
 async def test_call_llm_empty_content_raises(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """``call_llm`` raises ``ValueError`` when the model returns empty content.
 
     The wrapper treats whitespace-only content as empty (``content.strip()``).
@@ -180,11 +177,13 @@ async def test_call_llm_invoked_once(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def test_call_llm_json_parses_clean_object(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Clean JSON content is parsed into a dict and returned."""
     _disable_cache(monkeypatch)
-    _patch_acompletion(monkeypatch,
-                       [_completion(_message('{"a": 1, "b": "x"}'))])
+    _patch_acompletion(
+        monkeypatch, [_completion(_message('{"a": 1, "b": "x"}'))]
+    )
 
     result = await call_llm_json("a prompt", "test-model")
 
@@ -192,7 +191,8 @@ async def test_call_llm_json_parses_clean_object(
 
 
 async def test_call_llm_json_strips_markdown_fence(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A ```json fenced response is unwrapped before parsing.
 
     Fence stripping lives in ``call_llm_json`` (unlike ``attempt_json_repair``),
@@ -208,7 +208,8 @@ async def test_call_llm_json_strips_markdown_fence(
 
 
 async def test_call_llm_json_repairs_trailing_comma_and_validates_schema(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A trailing comma is repaired, then the repaired dict passes the schema.
 
     This drives the schema-injection path (a ``json_schema`` is supplied) and
@@ -218,16 +219,16 @@ async def test_call_llm_json_repairs_trailing_comma_and_validates_schema(
     _disable_cache(monkeypatch)
     _patch_acompletion(monkeypatch, [_completion(_message('{"a": 1,}'))])
 
-    result = await call_llm_json("a prompt",
-                                 "test-model",
-                                 json_schema=_INT_SCHEMA,
-                                 max_attempts=2)
+    result = await call_llm_json(
+        "a prompt", "test-model", json_schema=_INT_SCHEMA, max_attempts=2
+    )
 
     assert result == {"a": 1}
 
 
 async def test_call_llm_json_unparseable_raises_json_decode_error(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Content that never parses surfaces as ``json.JSONDecodeError``.
 
     With no schema, garbage content fails ``json.loads``, every repair strategy
@@ -244,30 +245,33 @@ async def test_call_llm_json_unparseable_raises_json_decode_error(
 
 
 async def test_call_llm_json_schema_mismatch_raises_validation_error(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Parseable JSON that violates the schema raises ``ValidationError``.
 
     The content parses cleanly but ``a`` is a string, so schema validation
     fails on every attempt and the wrapper re-raises a ``ValidationError``.
     """
-    from jsonschema.exceptions import ValidationError  # pylint: disable=import-outside-toplevel
+    from jsonschema.exceptions import (
+        ValidationError,  # pylint: disable=import-outside-toplevel
+    )
 
     _disable_cache(monkeypatch)
     bad = _completion(_message('{"a": "not an int"}'))
     _patch_acompletion(monkeypatch, [bad, bad])
 
     with pytest.raises(ValidationError):
-        await call_llm_json("a prompt",
-                            "test-model",
-                            json_schema=_INT_SCHEMA,
-                            max_attempts=2)
+        await call_llm_json(
+            "a prompt", "test-model", json_schema=_INT_SCHEMA, max_attempts=2
+        )
 
 
 # --- call_llm_with_tools ---------------------------------------------------
 
 
 async def test_call_llm_with_tools_runs_executor_then_finishes(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The tool loop executes a requested tool, then ends on a tool-free reply.
 
     First completion carries a ``tool_calls`` entry, so ``tool_executor`` runs;
@@ -278,7 +282,8 @@ async def test_call_llm_with_tools_runs_executor_then_finishes(
     """
     _disable_cache(monkeypatch)
     first = _completion(
-        _message(None, tool_calls=[_tool_call("call-1", "search", '{"q": 1}')]))
+        _message(None, tool_calls=[_tool_call("call-1", "search", '{"q": 1}')])
+    )
     second = _completion(_message("final answer"))
     state = _patch_acompletion(monkeypatch, [first, second])
 
@@ -292,10 +297,12 @@ async def test_call_llm_with_tools_runs_executor_then_finishes(
             "content": "tool result",
         }
 
-    final_text, history = await call_llm_with_tools("a prompt",
-                                                    "test-model",
-                                                    tools=_SEARCH_TOOL,
-                                                    tool_executor=tool_executor)
+    final_text, history = await call_llm_with_tools(
+        "a prompt",
+        "test-model",
+        tools=_SEARCH_TOOL,
+        tool_executor=tool_executor,
+    )
 
     assert final_text == "final answer"
     assert state["calls"] == 2
@@ -315,7 +322,8 @@ async def test_call_llm_with_tools_runs_executor_then_finishes(
 
 
 async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A first reply without tool calls returns at once without the executor."""
     _disable_cache(monkeypatch)
     _patch_acompletion(monkeypatch, [_completion(_message("direct answer"))])
@@ -326,10 +334,12 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
         called["ran"] = True
         return {"role": "tool", "content": ""}
 
-    final_text, history = await call_llm_with_tools("a prompt",
-                                                    "test-model",
-                                                    tools=_SEARCH_TOOL,
-                                                    tool_executor=tool_executor)
+    final_text, history = await call_llm_with_tools(
+        "a prompt",
+        "test-model",
+        tools=_SEARCH_TOOL,
+        tool_executor=tool_executor,
+    )
 
     assert final_text == "direct answer"
     assert called["ran"] is False
@@ -339,8 +349,9 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
 # --- prompt debug-artifact saving --------------------------------------------
 
 
-def _enable_real_prompt_saving(monkeypatch: pytest.MonkeyPatch,
-                               tmp_path: Path) -> None:
+def _enable_real_prompt_saving(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Restore the real prompt writer and sandbox its output under tmp_path.
 
     The autouse ``_no_prompt_disk_writes`` conftest fixture no-ops
@@ -355,14 +366,16 @@ def _enable_real_prompt_saving(monkeypatch: pytest.MonkeyPatch,
         monkeypatch: The pytest monkeypatch fixture.
         tmp_path: The pytest per-test temporary directory.
     """
-    monkeypatch.setattr(prompts_mod, "save_prompt_to_disk",
-                        _REAL_SAVE_PROMPT_TO_DISK)
+    monkeypatch.setattr(
+        prompts_mod, "save_prompt_to_disk", _REAL_SAVE_PROMPT_TO_DISK
+    )
     monkeypatch.setenv("COSCIENTIST_SAVE_PROMPTS", "true")
     monkeypatch.chdir(tmp_path)
 
 
 async def test_call_llm_json_saves_prompt_when_named(
-        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """``call_llm_json`` writes the prompt artifact when prompt_name is given.
 
     The file lands at ``.coscientist_prompts/<run_id>/<prompt_name>.txt`` and
@@ -389,7 +402,8 @@ async def test_call_llm_json_saves_prompt_when_named(
 
 
 async def test_call_llm_json_does_not_save_without_prompt_name(
-        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Without a prompt_name, ``call_llm_json`` writes no prompt artifact."""
     _enable_real_prompt_saving(monkeypatch, tmp_path)
     _disable_cache(monkeypatch)
@@ -401,7 +415,8 @@ async def test_call_llm_json_does_not_save_without_prompt_name(
 
 
 async def test_call_llm_json_run_id_falls_back_to_unknown(
-        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """A named prompt with no run_id is saved under the "unknown" directory.
 
     This is the unified save policy: ``prompt_name`` alone triggers the save;
@@ -417,8 +432,9 @@ async def test_call_llm_json_run_id_falls_back_to_unknown(
     assert saved.exists()
 
 
-async def test_call_llm_saves_prompt_when_named(monkeypatch: pytest.MonkeyPatch,
-                                                tmp_path: Path) -> None:
+async def test_call_llm_saves_prompt_when_named(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """``call_llm`` shares the same save-when-named policy."""
     _enable_real_prompt_saving(monkeypatch, tmp_path)
     _disable_cache(monkeypatch)
@@ -431,14 +447,19 @@ async def test_call_llm_saves_prompt_when_named(monkeypatch: pytest.MonkeyPatch,
         prompt_name="literature_review_synthesis",
     )
 
-    saved = (tmp_path / ".coscientist_prompts" / "run-2" /
-             "literature_review_synthesis.txt")
+    saved = (
+        tmp_path
+        / ".coscientist_prompts"
+        / "run-2"
+        / "literature_review_synthesis.txt"
+    )
     assert saved.exists()
     assert saved.read_text(encoding="utf-8").startswith("the synthesis prompt")
 
 
 async def test_call_llm_with_tools_saves_prompt_when_named(
-        monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """``call_llm_with_tools`` shares the same save-when-named policy."""
     _enable_real_prompt_saving(monkeypatch, tmp_path)
     _disable_cache(monkeypatch)
@@ -455,7 +476,11 @@ async def test_call_llm_with_tools_saves_prompt_when_named(
         prompt_name="generate_draft_with_tools",
     )
 
-    saved = (tmp_path / ".coscientist_prompts" / "unknown" /
-             "generate_draft_with_tools.txt")
+    saved = (
+        tmp_path
+        / ".coscientist_prompts"
+        / "unknown"
+        / "generate_draft_with_tools.txt"
+    )
     assert saved.exists()
     assert saved.read_text(encoding="utf-8").startswith("the draft prompt")

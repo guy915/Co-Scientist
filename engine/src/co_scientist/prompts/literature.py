@@ -3,8 +3,7 @@
 
 from typing import Any
 
-from co_scientist.prompts._common import _format_authors
-from co_scientist.prompts._common import _format_year
+from co_scientist.prompts._common import _format_authors, _format_year
 from co_scientist.prompts.loading import load_prompt
 
 
@@ -59,9 +58,13 @@ def get_literature_review_query_generation_pubmed_prompt(
     """Get the PubMed query generation prompt."""
     return load_prompt(
         "literature_review_query_generation_pubmed",
-        _format_query_generation_variables(research_goal, preferences,
-                                           attributes, user_literature,
-                                           user_hypotheses),
+        _format_query_generation_variables(
+            research_goal,
+            preferences,
+            attributes,
+            user_literature,
+            user_hypotheses,
+        ),
     )
 
 
@@ -105,19 +108,26 @@ def get_literature_review_query_generation_prompt(
 
     return load_prompt(
         template_name,
-        _format_query_generation_variables(research_goal, preferences,
-                                           attributes, user_literature,
-                                           user_hypotheses),
+        _format_query_generation_variables(
+            research_goal,
+            preferences,
+            attributes,
+            user_literature,
+            user_hypotheses,
+        ),
     )
 
 
 # Renders prompts/literature_review_paper_analysis.md, called by
 # nodes/literature_review.py once per fetched paper (paired there with
 # LITERATURE_PAPER_ANALYSIS_SCHEMA).
-def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
-                                                authors: list[str],
-                                                year: int | None,
-                                                fulltext: str) -> str:
+def get_literature_review_paper_analysis_prompt(
+    research_goal: str,
+    title: str,
+    authors: list[str],
+    year: int | None,
+    fulltext: str,
+) -> str:
     """Get the prompt for analyzing a single paper."""
     return load_prompt(
         "literature_review_paper_analysis",
@@ -132,8 +142,9 @@ def get_literature_review_paper_analysis_prompt(research_goal: str, title: str,
 
 
 def _format_paper_analyses(paper_analyses: list[dict[str, Any]]) -> str:
-    """Render each paper's metadata and analysis as a numbered markdown
-    section.
+    """Render each paper's metadata and analysis as a markdown section.
+
+    Sections are numbered in input order.
 
     Args:
         paper_analyses: Per-paper entries, each with a ``metadata`` dict and
@@ -147,21 +158,21 @@ def _format_paper_analyses(paper_analyses: list[dict[str, Any]]) -> str:
         metadata = analysis_data.get("metadata", {})
         analysis = analysis_data.get("analysis", {})
 
-        paper_section = f"""### paper {i}: {metadata.get('title', 'Unknown')}
-**authors:** {', '.join(metadata.get('authors', ['Unknown']))}
-**year:** {metadata.get('year', 'Unknown')}
+        paper_section = f"""### paper {i}: {metadata.get("title", "Unknown")}
+**authors:** {", ".join(metadata.get("authors", ["Unknown"]))}
+**year:** {metadata.get("year", "Unknown")}
 
-**key findings:** {analysis.get('key_findings', 'N/A')}
+**key findings:** {analysis.get("key_findings", "N/A")}
 
-**gaps identified:** {analysis.get('gaps_identified', 'N/A')}
+**gaps identified:** {analysis.get("gaps_identified", "N/A")}
 
-**future work suggested:** {analysis.get('future_work', 'N/A')}
+**future work suggested:** {analysis.get("future_work", "N/A")}
 
-**methodology limitations:** {analysis.get('methodology_limitations', 'N/A')}
+**methodology limitations:** {analysis.get("methodology_limitations", "N/A")}
 
-**unexplored areas:** {analysis.get('unexplored_areas', 'N/A')}
+**unexplored areas:** {analysis.get("unexplored_areas", "N/A")}
 
-**relevance:** {analysis.get('relevance', 'N/A')}
+**relevance:** {analysis.get("relevance", "N/A")}
 """
         analyses_text.append(paper_section)
 
@@ -185,8 +196,10 @@ def get_literature_review_synthesis_prompt(
         "to supplement the literature. Use it to ground the synthesis"
         " in known causal "
         "relationships and flag where hypotheses can leverage or"
-        " contradict this background.\n\n" +
-        background_context if background_context else "")
+        " contradict this background.\n\n" + background_context
+        if background_context
+        else ""
+    )
 
     return load_prompt(
         "literature_review_synthesis",

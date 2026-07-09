@@ -1,4 +1,5 @@
 """Backend health + status endpoints."""
+
 from __future__ import annotations
 
 import pytest
@@ -25,7 +26,8 @@ def test_status_reports_mock_mode() -> None:
 
 
 def test_status_supervisor_model_falls_back_to_worker(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """With SUPERVISOR_MODEL_NAME unset, /status mirrors the engine fallback."""
     from app.config import settings  # pylint: disable=import-outside-toplevel
 
@@ -36,7 +38,8 @@ def test_status_supervisor_model_falls_back_to_worker(
 
 
 def test_status_reports_configured_supervisor_model(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A configured supervisor model is surfaced distinctly from the worker."""
     from app.config import settings  # pylint: disable=import-outside-toplevel
 

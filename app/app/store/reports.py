@@ -55,19 +55,28 @@ def save_report(
             "(id, run_id, payload_json, markdown_path, "
             "markdown_text, created_at) "
             "VALUES (?,?,?,?,?,?)",
-            (report_id, run_id, json.dumps(payload), str(md_path), markdown,
-             _now()),
+            (
+                report_id,
+                run_id,
+                json.dumps(payload),
+                str(md_path),
+                markdown,
+                _now(),
+            ),
         )
     return {"id": report_id, "markdown_path": str(md_path)}
 
 
-def get_latest_report(run_id: str,
-                      db_path: str | None = None) -> dict[str, Any] | None:
+def get_latest_report(
+    run_id: str, db_path: str | None = None
+) -> dict[str, Any] | None:
     """Return the most recent report row for a run, or None."""
     with connect(db_path) as conn:
         row = conn.execute(
             "SELECT * FROM reports WHERE run_id=? "
-            "ORDER BY created_at DESC LIMIT 1", (run_id,)).fetchone()
+            "ORDER BY created_at DESC LIMIT 1",
+            (run_id,),
+        ).fetchone()
         if not row:
             return None
         return {

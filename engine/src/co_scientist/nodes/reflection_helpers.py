@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import re
-from typing import Any, cast, NamedTuple, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, NamedTuple, Optional, cast
 
 from co_scientist.tools.response_parser import parse_mcp_result
 
@@ -27,101 +27,103 @@ _STANDALONE_RE = re.compile(r"\b([A-Z][A-Z0-9]{2,5})\b")
 
 # Common false positives: english words, non-gene abbreviations, protein
 # families
-_STOP = frozenset({
-    # English
-    "THE",
-    "AND",
-    "FOR",
-    "WITH",
-    "THIS",
-    "THAT",
-    "FROM",
-    "INTO",
-    "BUT",
-    "NOT",
-    "HAS",
-    "CAN",
-    "MAY",
-    "WILL",
-    "ARE",
-    "WAS",
-    "TWO",
-    "ONE",
-    "USE",
-    "NEW",
-    "ALL",
-    "HOW",
-    "ANY",
-    "ITS",
-    "VIA",
-    "WHO",
-    "WHY",
-    "YET",
-    "SET",
-    "OUR",
-    "OUT",
-    "WAY",
-    "TRY",
-    "LET",
-    "PUT",
-    "GET",
-    "END",
-    "DID",
-    "HIS",
-    "HER",
-    "BEEN",
-    "ALSO",
-    "SHOW",
-    "THAN",
-    "DOES",
-    "SUCH",
-    "HAVE",
-    "MORE",
-    "WELL",
-    "MOST",
-    "ONLY",
-    "BOTH",
-    "SOME",
-    # tech/science abbreviations (not genes)
-    "MCP",
-    "LLM",
-    "API",
-    "PDF",
-    "URL",
-    "PCT",
-    "KEY",
-    "RED",
-    "DNA",
-    "RNA",
-    "ATP",
-    "ADP",
-    "GDP",
-    "GTP",
-    "USA",
-    "NIH",
-    # Biomedical non-gene abbreviations
-    "CSF",
-    "CNS",
-    "BBB",
-    "PPI",
-    "PET",
-    "MRI",
-    "CVE",
-    "ROS",
-    "iPSC",
-    "CRISPR",
-    "ELISA",
-    "GWAS",
-    "SNP",
-    "DOID",
-    "MESH",
-    "HGNC",
-    "CHEBI",
-    # Protein families/classes (too broad for INDRA single-agent queries)
-    "CYP450",
-    "CSPG",
-    "CSPGS",
-})
+_STOP = frozenset(
+    {
+        # English
+        "THE",
+        "AND",
+        "FOR",
+        "WITH",
+        "THIS",
+        "THAT",
+        "FROM",
+        "INTO",
+        "BUT",
+        "NOT",
+        "HAS",
+        "CAN",
+        "MAY",
+        "WILL",
+        "ARE",
+        "WAS",
+        "TWO",
+        "ONE",
+        "USE",
+        "NEW",
+        "ALL",
+        "HOW",
+        "ANY",
+        "ITS",
+        "VIA",
+        "WHO",
+        "WHY",
+        "YET",
+        "SET",
+        "OUR",
+        "OUT",
+        "WAY",
+        "TRY",
+        "LET",
+        "PUT",
+        "GET",
+        "END",
+        "DID",
+        "HIS",
+        "HER",
+        "BEEN",
+        "ALSO",
+        "SHOW",
+        "THAN",
+        "DOES",
+        "SUCH",
+        "HAVE",
+        "MORE",
+        "WELL",
+        "MOST",
+        "ONLY",
+        "BOTH",
+        "SOME",
+        # tech/science abbreviations (not genes)
+        "MCP",
+        "LLM",
+        "API",
+        "PDF",
+        "URL",
+        "PCT",
+        "KEY",
+        "RED",
+        "DNA",
+        "RNA",
+        "ATP",
+        "ADP",
+        "GDP",
+        "GTP",
+        "USA",
+        "NIH",
+        # Biomedical non-gene abbreviations
+        "CSF",
+        "CNS",
+        "BBB",
+        "PPI",
+        "PET",
+        "MRI",
+        "CVE",
+        "ROS",
+        "iPSC",
+        "CRISPR",
+        "ELISA",
+        "GWAS",
+        "SNP",
+        "DOID",
+        "MESH",
+        "HGNC",
+        "CHEBI",
+        # Protein families/classes (too broad for INDRA single-agent queries)
+        "CYP450",
+        "CSPG",
+        "CSPGS",
+    }
+)
 
 # Known informal → canonical mappings for common biomedical abbreviations
 _ALIAS_MAP: dict[str, str] = {
@@ -150,8 +152,7 @@ def _normalize_entity(raw: str) -> str:
 
 
 def _should_skip_entity(upper: str, seen: set[str]) -> bool:
-    """True if a normalized entity name is a known stop-word or already seen.
-    """
+    """True if a normalized entity name is a known stop-word or already seen."""
     return upper in _STOP or upper in seen
 
 
@@ -164,8 +165,9 @@ def _is_mutation_notation(raw: str) -> bool:
     return len(raw) >= 2 and raw[0].isupper() and raw[1].isdigit()
 
 
-def _add_hyphenated_entities(hyphenated: list[str], seen: set[str],
-                             result: list[str]) -> None:
+def _add_hyphenated_entities(
+    hyphenated: list[str], seen: set[str], result: list[str]
+) -> None:
     """Appends normalized hyphenated entity names to result (pass 1).
 
     Hyphenated names (IL-6, YKL-40) are higher-signal than standalone
@@ -188,8 +190,9 @@ def _add_hyphenated_entities(hyphenated: list[str], seen: set[str],
         result.append(normalized)
 
 
-def _add_standalone_entities(standalone: list[str], seen: set[str],
-                             result: list[str], max_entities: int) -> None:
+def _add_standalone_entities(
+    standalone: list[str], seen: set[str], result: list[str], max_entities: int
+) -> None:
     """Appends normalized standalone entity names to result (pass 2).
 
     Args:
@@ -229,8 +232,9 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
     return result[:max_entities]
 
 
-def get_kg_tools_for_workflow(tool_registry: Optional["ToolRegistry"],
-                              workflow_name: str) -> list[str]:
+def get_kg_tools_for_workflow(
+    tool_registry: Optional["ToolRegistry"], workflow_name: str
+) -> list[str]:
     """Resolve which MCP tool names the yaml config assigned to search_tools.
 
     Returns an empty list when:
@@ -282,8 +286,9 @@ async def _fetch_evidence_result(
     if not tool_name:
         return None
 
-    all_stmts = await _query_entities(client, tool_name, entities,
-                                      max_statements)
+    all_stmts = await _query_entities(
+        client, tool_name, entities, max_statements
+    )
     if not all_stmts:
         return None
 
@@ -330,14 +335,17 @@ async def fetch_indra_evidence(
         return empty
 
     try:
-        from co_scientist.mcp_client import get_mcp_client  # pylint: disable=import-outside-toplevel
+        from co_scientist.mcp_client import (
+            get_mcp_client,  # pylint: disable=import-outside-toplevel
+        )
 
         # get_mcp_client returns a shared/global client (lazily created and
         # cached), so this reuses the same connection across hypotheses and
         # nodes rather than opening one per call.
         client = await get_mcp_client(tool_registry=tool_registry)
-        result = await _fetch_evidence_result(client, mcp_names, entities,
-                                              max_statements)
+        result = await _fetch_evidence_result(
+            client, mcp_names, entities, max_statements
+        )
         return result if result is not None else empty
 
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -349,9 +357,7 @@ async def fetch_indra_evidence(
 
 
 def _pick_available_tool(client: Any, mcp_names: list[str]) -> str:
-    """Return the first tool from the workflow list that exists on the MCP
-    server.
-    """
+    """Return the first workflow-listed tool that exists on the MCP server."""
     for name in mcp_names:
         if client.has_tool(name):
             return name
@@ -384,8 +390,9 @@ async def _query_single_entity(
     except Exception as e:  # pylint: disable=broad-exception-caught
         # One entity's query failure does not block the others gathered in
         # _query_entities below.
-        logger.debug("entity query failed for '%s' via %s: %s", entity,
-                     tool_name, e)
+        logger.debug(
+            "entity query failed for '%s' via %s: %s", entity, tool_name, e
+        )
         return []
 
 
@@ -416,14 +423,17 @@ def _parse_tool_result(raw: Any) -> dict[str, Any]:
     return decoded if isinstance(decoded, dict) else {}
 
 
-def _format_evidence(statements: list[dict[str, Any]],
-                     queried_entities: list[str]) -> str:
+def _format_evidence(
+    statements: list[dict[str, Any]], queried_entities: list[str]
+) -> str:
     """Format INDRA statements concisely for prompt injection.
 
     Target: ~200-300 tokens for 5 statements. Each line is one relationship.
     """
-    header = ("Structured knowledge from the INDRA biomedical knowledge graph "
-              f"(queried for: {', '.join(queried_entities)}):")
+    header = (
+        "Structured knowledge from the INDRA biomedical knowledge graph "
+        f"(queried for: {', '.join(queried_entities)}):"
+    )
     lines = [header]
 
     for stmt in statements:
@@ -438,8 +448,7 @@ def _format_evidence(statements: list[dict[str, Any]],
 
 
 def _ev_count_str(ev_count: int) -> str:
-    """Format evidence count, appending '+' when truncated at the fetch limit.
-    """
+    """Format evidence count, adding '+' when capped at the fetch limit."""
     return f"{ev_count}+" if ev_count >= _EVIDENCE_LIMIT else str(ev_count)
 
 
@@ -482,13 +491,17 @@ def _format_single_statement(stmt: dict[str, Any]) -> str:
     ev_str = _ev_count_str(core.ev_count)
 
     if core.subj and core.obj:
-        return (f"- {core.subj} --[{core.rel_type}]--> {core.obj} "
-                f"(belief: {core.belief:.2f}, {ev_str} papers)")
+        return (
+            f"- {core.subj} --[{core.rel_type}]--> {core.obj} "
+            f"(belief: {core.belief:.2f}, {ev_str} papers)"
+        )
 
     # complex/family statements have members instead of subj/obj
     if core.member_names:
-        return (f"- Complex({', '.join(core.member_names)}) [{core.rel_type}] "
-                f"(belief: {core.belief:.2f}, {ev_str} papers)")
+        return (
+            f"- Complex({', '.join(core.member_names)}) [{core.rel_type}] "
+            f"(belief: {core.belief:.2f}, {ev_str} papers)"
+        )
 
     # Neither shape matched (malformed statement); _format_evidence's
     # `if line:` check drops this line rather than the caller crashing.
@@ -518,7 +531,8 @@ def _build_enrichment_items(
 
 
 def _statement_to_enrichment_item(
-        stmt: dict[str, Any]) -> dict[str, str] | None:
+    stmt: dict[str, Any],
+) -> dict[str, str] | None:
     """Convert one INDRA statement into a flat dict for UI display."""
     # Mirrors _format_single_statement's subj/obj vs. members branching,
     # but returns a dict of individual fields instead of one text line.

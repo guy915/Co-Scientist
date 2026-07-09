@@ -11,8 +11,6 @@ import logging
 from typing import Any
 
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.state import WorkflowState
-
 from co_scientist.nodes.literature_review.helpers import (
     ContentToolConfig,
     SearchConfig,
@@ -23,6 +21,7 @@ from co_scientist.nodes.literature_review.helpers import (
     parse_content_result,
     parse_pdf_discovery_result,
 )
+from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -129,14 +128,20 @@ async def _phase2_4_discover_pdf_links(
     if not papers_needing_discovery:
         return
 
-    logger.info("Phase 2.4: discovering PDF links for %s papers",
-                len(papers_needing_discovery))
+    logger.info(
+        "Phase 2.4: discovering PDF links for %s papers",
+        len(papers_needing_discovery),
+    )
 
-    discovered_count = await _run_pdf_discovery(papers_needing_discovery,
-                                                mcp_client, all_paper_metadata)
+    discovered_count = await _run_pdf_discovery(
+        papers_needing_discovery, mcp_client, all_paper_metadata
+    )
 
-    logger.info("PDF discovery complete: %s/%s papers", discovered_count,
-                len(papers_needing_discovery))
+    logger.info(
+        "PDF discovery complete: %s/%s papers",
+        discovered_count,
+        len(papers_needing_discovery),
+    )
 
 
 async def _fetch_paper_content(
@@ -149,7 +154,9 @@ async def _fetch_paper_content(
     """Fetch content for a single paper."""
     # Imported locally to avoid a module-level import cycle between
     # config.schema and the nodes package.
-    from co_scientist.config.schema import resolve_content_params  # pylint: disable=import-outside-toplevel
+    from co_scientist.config.schema import (
+        resolve_content_params,  # pylint: disable=import-outside-toplevel
+    )
 
     content_url = metadata.get(content_cfg.url_field)
     if not content_url:
@@ -160,23 +167,30 @@ async def _fetch_paper_content(
         # content_cfg's raw YAML params may contain placeholders (e.g.
         # referencing the research goal) that resolve_content_params fills
         # in from runtime_context before the tool call.
-        resolved_params = resolve_content_params(content_cfg.content_params,
-                                                 runtime_context)
+        resolved_params = resolve_content_params(
+            content_cfg.content_params, runtime_context
+        )
 
         # Build tool call args: url is always required, add any resolved params
         tool_args = {"url": content_url, **resolved_params}
 
-        logger.debug("Fetching content for %s via %s: %s", paper_id,
-                     content_cfg.mcp_tool_name, content_url)
+        logger.debug(
+            "Fetching content for %s via %s: %s",
+            paper_id,
+            content_cfg.mcp_tool_name,
+            content_url,
+        )
         if resolved_params:
             logger.debug("  with params: %s", list(resolved_params.keys()))
 
-        result = await mcp_client.call_tool(content_cfg.mcp_tool_name,
-                                            **tool_args)
+        result = await mcp_client.call_tool(
+            content_cfg.mcp_tool_name, **tool_args
+        )
         content = parse_content_result(result)
         if content:
-            logger.debug("Retrieved %s chars for paper %s", len(content),
-                         paper_id)
+            logger.debug(
+                "Retrieved %s chars for paper %s", len(content), paper_id
+            )
         return (paper_id, content)
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Leaves the paper without fulltext; it may still be analyzable via
@@ -213,14 +227,15 @@ def _build_content_runtime_context(state: "WorkflowState") -> dict[str, Any]:
     """
     return {
         "research_goal": state.get("research_goal", ""),
-        "focus_areas": [
-        ],  # could be extracted from hypothesis categories later
+        # Could be extracted from hypothesis categories later.
+        "focus_areas": [],
     }
 
 
 async def _run_content_fetch(
-    papers_needing_content: list[tuple[str, dict[str, Any],
-                                       "ContentToolConfig"]],
+    papers_needing_content: list[
+        tuple[str, dict[str, Any], "ContentToolConfig"]
+    ],
     mcp_client: MCPToolClient,
     runtime_context: dict[str, Any],
     all_paper_metadata: dict[str, dict[str, Any]],
@@ -241,8 +256,9 @@ async def _run_content_fetch(
         The number of papers updated with newly fetched fulltext.
     """
     tasks = [
-        _fetch_paper_content(pid, meta, content_cfg, mcp_client,
-                             runtime_context)
+        _fetch_paper_content(
+            pid, meta, content_cfg, mcp_client, runtime_context
+        )
         for pid, meta, content_cfg in papers_needing_content
     ]
     results = await asyncio.gather(*tasks)
@@ -268,8 +284,9 @@ async def _phase2_5_fetch_content(
     if not content_config:
         return
 
-    logger.info("Content retrieval configured for %s source(s)",
-                len(content_config))
+    logger.info(
+        "Content retrieval configured for %s source(s)", len(content_config)
+    )
 
     # Only papers still missing fulltext but with a URL suitable for the
     # configured content tool (typically the pdf_url found in Phase 2.4).
@@ -282,14 +299,18 @@ async def _phase2_5_fetch_content(
     if not papers_needing_content:
         return
 
-    logger.info("Phase 2.5: fetching content for %s papers",
-                len(papers_needing_content))
+    logger.info(
+        "Phase 2.5: fetching content for %s papers", len(papers_needing_content)
+    )
 
     runtime_context = _build_content_runtime_context(state)
 
-    fetched_count = await _run_content_fetch(papers_needing_content, mcp_client,
-                                             runtime_context,
-                                             all_paper_metadata)
+    fetched_count = await _run_content_fetch(
+        papers_needing_content, mcp_client, runtime_context, all_paper_metadata
+    )
 
-    logger.info("Content retrieval complete: %s/%s papers", fetched_count,
-                len(papers_needing_content))
+    logger.info(
+        "Content retrieval complete: %s/%s papers",
+        fetched_count,
+        len(papers_needing_content),
+    )

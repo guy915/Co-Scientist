@@ -4,9 +4,9 @@ import logging
 from typing import Any
 
 from mcp_server.tools.indra_cogex.client import (
-    parse_id,
-    indra_post,
     cap_results,
+    indra_post,
+    parse_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -48,10 +48,7 @@ async def query_drug_info(
     try:  # pylint: disable=broad-exception-caught
         curie = parse_id(identifier)
         result: dict[str, Any] = {
-            "query": {
-                "identifier": identifier,
-                "query_type": query_type
-            },
+            "query": {"identifier": identifier, "query_type": query_type},
         }
 
         if query_type not in _DRUG_ENDPOINTS:
@@ -72,10 +69,7 @@ async def query_drug_info(
         logger.error("query_drug_info failed: %s", e)
         return {
             "error": str(e),
-            "query": {
-                "identifier": identifier,
-                "query_type": query_type
-            },
+            "query": {"identifier": identifier, "query_type": query_type},
         }
 
 
@@ -121,18 +115,12 @@ async def query_clinical_trials(
         return {
             "trials": trials,
             "total_trials": total,
-            "query": {
-                "identifier": identifier,
-                "entity_type": entity_type
-            },
+            "query": {"identifier": identifier, "entity_type": entity_type},
         }
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("query_clinical_trials failed: %s", e)
         return {
             "error": str(e),
-            "query": {
-                "identifier": identifier,
-                "entity_type": entity_type
-            },
+            "query": {"identifier": identifier, "entity_type": entity_type},
         }

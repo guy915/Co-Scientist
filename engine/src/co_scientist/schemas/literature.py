@@ -22,14 +22,16 @@ LITERATURE_QUERY_SCHEMA: dict[str, Any] = {
         "properties": {
             "queries": {
                 "type": "array",
-                "description": ("Natural language search queries for PubMed"
-                                " literature search"),
+                "description": (
+                    "Natural language search queries for PubMed"
+                    " literature search"
+                ),
                 "items": {
-                    "type":
-                        "string",
-                    "description":
-                        ("A focused search phrase covering a specific"
-                         " aspect of the research goal"),
+                    "type": "string",
+                    "description": (
+                        "A focused search phrase covering a specific"
+                        " aspect of the research goal"
+                    ),
                 },
             }
         },
@@ -54,10 +56,10 @@ LITERATURE_PAPER_ANALYSIS_SCHEMA: dict[str, Any] = {
                 "description": "main contributions and results from this work",
             },
             "gaps_identified": {
-                "type":
-                    "string",
-                "description":
-                    "limitations or gaps explicitly mentioned by authors",
+                "type": "string",
+                "description": (
+                    "limitations or gaps explicitly mentioned by authors"
+                ),
             },
             "future_work": {
                 "type": "string",

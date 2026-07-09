@@ -1,5 +1,9 @@
-"""Storage-layer invariants: append-only event log, evidence/citation
-linkage, reports survive."""
+"""Storage-layer invariants.
+
+Covers the append-only event log, evidence/citation linkage, and report
+survival.
+"""
+
 # pylint: disable=unused-argument,redefined-outer-name
 from __future__ import annotations
 
@@ -40,10 +44,9 @@ def test_list_events_filters_after_seq(db: str) -> None:
 def test_list_runs_reports_top_elo(db: str) -> None:
     run = store.create_run("top-elo", "standard", "mock", {})
     for rating in (1240, 1310, 1180):
-        hid = store.add_hypothesis(run.id,
-                                   title="t",
-                                   statement="s",
-                                   created_by_agent="generation")
+        hid = store.add_hypothesis(
+            run.id, title="t", statement="s", created_by_agent="generation"
+        )
         store.update_hypothesis_state(hid, elo_rating=rating)
     # A second run with no hypotheses reports None rather than a stray value.
     store.create_run("no-hyps", "standard", "mock", {})
@@ -115,8 +118,9 @@ def test_reports_round_trip_markdown_to_disk(db: str) -> None:
 
 def test_safety_decision_persists_matches_array(db: str) -> None:
     run = store.create_run("safety", "standard", "mock", {})
-    store.add_safety_decision(run.id, "intake", "block", "test reason",
-                              ["match-a", "match-b"])
+    store.add_safety_decision(
+        run.id, "intake", "block", "test reason", ["match-a", "match-b"]
+    )
     rows = store.list_safety_decisions(run.id)
     assert rows[0]["decision"] == "block"
     assert rows[0]["matches"] == ["match-a", "match-b"]

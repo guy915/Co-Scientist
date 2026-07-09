@@ -173,7 +173,7 @@ def get_draft_max_iterations(hypotheses_count: int) -> int:
     - need to draft each hypothesis: ~2 iterations per hypothesis
     - cap at 30 to prevent runaway
 
-    examples:
+    Examples:
     - 3 hypotheses: 5 + 6 = 11 iterations
     - 10 hypotheses: 5 + 20 = 25 iterations
     - 50 hypotheses: 5 + 100 = 30 (capped)
@@ -191,7 +191,7 @@ def get_validate_max_iterations(hypotheses_count: int) -> int:
     - ~10 iterations per hypothesis
     - cap at 50 to prevent runaway
 
-    examples:
+    Examples:
     - 3 hypotheses: 30 iterations
     - 10 hypotheses: 50 (capped)
     - 50 hypotheses: 50 (capped)
@@ -214,12 +214,9 @@ token budgets (e.g. gemini-3-pro). Trade-off: more parallel API calls.
 # large batches from requesting unbounded output budgets.
 
 
-def scaled_max_tokens(base: int,
-                      count: int,
-                      *,
-                      per_item: int,
-                      cap: int,
-                      free_count: int = 0) -> int:
+def scaled_max_tokens(
+    base: int, count: int, *, per_item: int, cap: int, free_count: int = 0
+) -> int:
     """Scales an LLM output-token budget with the number of items in a call.
 
     Computes ``min(base + max(0, count - free_count) * per_item, cap)``:

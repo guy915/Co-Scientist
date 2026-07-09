@@ -9,7 +9,6 @@ import asyncio
 from typing import Any
 
 import httpx
-
 from mcp_server.tools.lit_review.openalex_search import (
     normalize_works,
     search_openalex,
@@ -22,25 +21,15 @@ _SAMPLE: dict[str, Any] = {
             "title": "Ambient nitrogen fixation",
             "publication_year": 2023,
             "authorships": [
-                {
-                    "author": {
-                        "display_name": "Ada Lovelace"
-                    }
-                },
-                {
-                    "author": {
-                        "display_name": "Alan Turing"
-                    }
-                },
+                {"author": {"display_name": "Ada Lovelace"}},
+                {"author": {"display_name": "Alan Turing"}},
             ],
             "abstract_inverted_index": {
                 "Nitrogen": [0],
                 "fixation": [1],
                 "matters": [2],
             },
-            "primary_location": {
-                "landing_page_url": "https://example/w123"
-            },
+            "primary_location": {"landing_page_url": "https://example/w123"},
             "doi": "https://doi.org/10.1/x",
         },
         {
@@ -88,7 +77,6 @@ def test_normalize_handles_garbage() -> None:
 
 
 class _FakeResp:
-
     def __init__(self, data: Any, raise_exc: Exception | None = None) -> None:
         self._data = data
         self._raise = raise_exc
@@ -102,7 +90,6 @@ class _FakeResp:
 
 
 class _FakeClient:
-
     def __init__(self, resp: _FakeResp) -> None:
         self._resp = resp
 

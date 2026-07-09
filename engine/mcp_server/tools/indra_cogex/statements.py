@@ -8,10 +8,10 @@ import logging
 from typing import Any
 
 from mcp_server.tools.indra_cogex.client import (
-    parse_id,
-    maybe_parse_agent,
-    indra_post,
     cap_results,
+    indra_post,
+    maybe_parse_agent,
+    parse_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -115,12 +115,14 @@ async def _query_by_mesh(
     # specific MeSH descendants of this term (e.g. subtypes of a
     # disease).
     raw = await indra_post(
-        "/api/get_stmts_for_mesh", {
+        "/api/get_stmts_for_mesh",
+        {
             "mesh_term": curie,
             "include_child_terms": True,
             "evidence_limit": evidence_limit,
             "include_db_evidence": True,
-        })
+        },
+    )
     stmts, total = cap_results(raw, limit)
     return {
         "statements": stmts,

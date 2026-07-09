@@ -8,18 +8,19 @@ refactors a safety net.
 
 import pytest
 
-from co_scientist.models import Article
-from co_scientist.models import ExecutionMetrics
-from co_scientist.models import GenerationMethod
-from co_scientist.models import Hypothesis
-from co_scientist.models import HypothesisReview
+from co_scientist.models import (
+    Article,
+    ExecutionMetrics,
+    GenerationMethod,
+    Hypothesis,
+    HypothesisReview,
+)
 
 # --- Hypothesis: construction and defaults ----------------------------------
 
 
 def test_hypothesis_minimal_construction_defaults() -> None:
-    """Only ``text`` is required; every other field has its documented default.
-    """
+    """Only ``text`` is required; other fields use documented defaults."""
     hyp = Hypothesis(text="A hypothesis")
     assert hyp.text == "A hypothesis"
     assert hyp.category is None
@@ -416,12 +417,14 @@ def test_hypothesis_deep_verification_fields_default_empty() -> None:
 def test_hypothesis_to_dict_includes_deep_verification() -> None:
     """``to_dict`` serializes the deep-verification probes and verdict."""
     h = Hypothesis(text="X inhibits Y")
-    h.deep_verification_probes = [{
-        "question": "q",
-        "answer": "a",
-        "reasoning": "r",
-        "assumption_is_fundamental": True,
-    }]
+    h.deep_verification_probes = [
+        {
+            "question": "q",
+            "answer": "a",
+            "reasoning": "r",
+            "assumption_is_fundamental": True,
+        }
+    ]
     h.deep_verification_verdict = "weakened"
     d = h.to_dict()
     assert d["deep_verification_probes"][0]["question"] == "q"

@@ -8,30 +8,31 @@ but uses LangGraph under the hood.
 import logging
 import time
 import uuid
-from typing import Any, Literal, cast, overload
 from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any, Literal, cast, overload
 
 from langgraph.graph import END, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from co_scientist.constants import (
-    DEFAULT_MAX_ITERATIONS,
-    DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_EVOLUTION_MAX_COUNT,
+    DEFAULT_INITIAL_HYPOTHESES_COUNT,
+    DEFAULT_MAX_ITERATIONS,
 )
 from co_scientist.models import ExecutionMetrics, merge_metrics
+from co_scientist.nodes.deep_verification import deep_verification_node
+from co_scientist.nodes.evolve import evolve_node
+
 # Node callables, one per LangGraph node; see _build_graph below for how
 # they are wired into the workflow graph.
 from co_scientist.nodes.generate import generate_node
 from co_scientist.nodes.literature_review import literature_review_node
-from co_scientist.nodes.reflection import reflection_node
-from co_scientist.nodes.review import review_node
-from co_scientist.nodes.ranking import ranking_node
-from co_scientist.nodes.deep_verification import deep_verification_node
 from co_scientist.nodes.meta_review import meta_review_node
-from co_scientist.nodes.evolve import evolve_node
 from co_scientist.nodes.proximity import proximity_node
+from co_scientist.nodes.ranking import ranking_node
+from co_scientist.nodes.reflection import reflection_node
 from co_scientist.nodes.research_overview import research_overview_node
+from co_scientist.nodes.review import review_node
 from co_scientist.nodes.supervisor import supervisor_node
 from co_scientist.state import WorkflowState
 
@@ -73,8 +74,11 @@ def _after_ranking(state: WorkflowState) -> str:
     if not has_meta_review:
         # First ranking - check if we should start iterating
         if current_iteration < max_iterations:
-            logger.info("Starting iteration %s/%s", current_iteration + 1,
-                        max_iterations)
+            logger.info(
+                "Starting iteration %s/%s",
+                current_iteration + 1,
+                max_iterations,
+            )
             return "iterate"
         else:
             logger.info("No iterations needed, ending workflow")
@@ -93,8 +97,11 @@ def _after_proximity(state: WorkflowState) -> str:
     max_iterations = state.get("max_iterations", 0)
 
     if current_iteration < max_iterations:
-        logger.info("Continuing to iteration %s/%s", current_iteration + 1,
-                    max_iterations)
+        logger.info(
+            "Continuing to iteration %s/%s",
+            current_iteration + 1,
+            max_iterations,
+        )
         return "iterate"
     else:
         logger.info("All iterations complete after deduplication")
@@ -127,15 +134,18 @@ def _resolve_tool_calling_generation(
     """
     # Determine if generate node should use tool-calling generation
     # user can override via opts, default False
-    enable_tool_calling_generation = opts.get("enable_tool_calling_generation",
-                                              False)
+    enable_tool_calling_generation = opts.get(
+        "enable_tool_calling_generation", False
+    )
     if not enable_tool_calling_generation:
         return False
 
     # Check MCP availability first - if unavailable, disable tool calling
     if not mcp_available:
-        logger.warning("enable_tool_calling_generation=True but MCP server"
-                       " unavailable - disabling tool-calling mode")
+        logger.warning(
+            "enable_tool_calling_generation=True but MCP server"
+            " unavailable - disabling tool-calling mode"
+        )
         return False
 
     # Then check if literature review node is enabled
@@ -145,15 +155,19 @@ def _resolve_tool_calling_generation(
     # Only raise error if user explicitly disabled literature review but
     # enabled tool calling
     if opts.get("enable_literature_review_node") is False:
-        raise ValueError("enable_tool_calling_generation requires"
-                         " enable_literature_review_node=True. "
-                         "Tool-calling generation needs literature context"
-                         " from the review node.")
+        raise ValueError(
+            "enable_tool_calling_generation requires"
+            " enable_literature_review_node=True. "
+            "Tool-calling generation needs literature context"
+            " from the review node."
+        )
 
     # Literature review was disabled due to MCP unavailability, disable
     # tool calling
-    logger.warning("enable_tool_calling_generation=True but literature"
-                   " review node unavailable - disabling tool-calling mode")
+    logger.warning(
+        "enable_tool_calling_generation=True but literature"
+        " review node unavailable - disabling tool-calling mode"
+    )
     return False
 
 
@@ -182,8 +196,9 @@ def _merge_node_state_into_cumulative(
         cumulative_state["research_plan"] = node_state["supervisor_guidance"]
         logger.debug("updated research_plan")
     if "metrics" in node_state:
-        cumulative_state["metrics"] = merge_metrics(cumulative_state["metrics"],
-                                                    node_state["metrics"])
+        cumulative_state["metrics"] = merge_metrics(
+            cumulative_state["metrics"], node_state["metrics"]
+        )
         logger.debug(
             "merged metrics: reviews=%s, "
             "tournaments=%s, evolutions=%s, llm_calls=%s",
@@ -224,7 +239,8 @@ def _initial_cumulative_stream_state() -> dict[str, Any]:
 
 
 def _build_stream_state_dict(
-        cumulative_state: dict[str, Any]) -> dict[str, Any]:
+    cumulative_state: dict[str, Any],
+) -> dict[str, Any]:
     """Shapes cumulative streaming state into a per-node yield payload.
 
     Args:
@@ -235,18 +251,20 @@ def _build_stream_state_dict(
     """
     metrics = cumulative_state["metrics"]
     state_dict = {key: cumulative_state[key] for key in _STREAMED_STATE_KEYS}
-    state_dict.update({
-        "hypotheses": [h.to_dict() for h in cumulative_state["hypotheses"]],
-        "articles": [a.to_dict() for a in cumulative_state["articles"]],
-        "research_plan": cumulative_state["research_plan"],
-        "metrics": {
-            "hypothesis_count": metrics.hypothesis_count,
-            "reviews_count": metrics.reviews_count,
-            "tournaments_count": metrics.tournaments_count,
-            "evolutions_count": metrics.evolutions_count,
-            "llm_calls": metrics.llm_calls,
-        },
-    })
+    state_dict.update(
+        {
+            "hypotheses": [h.to_dict() for h in cumulative_state["hypotheses"]],
+            "articles": [a.to_dict() for a in cumulative_state["articles"]],
+            "research_plan": cumulative_state["research_plan"],
+            "metrics": {
+                "hypothesis_count": metrics.hypothesis_count,
+                "reviews_count": metrics.reviews_count,
+                "tournaments_count": metrics.tournaments_count,
+                "evolutions_count": metrics.evolutions_count,
+                "llm_calls": metrics.llm_calls,
+            },
+        }
+    )
     return state_dict
 
 
@@ -300,8 +318,9 @@ def _cache_enabled_env_value(enable_cache: bool | None) -> str | None:
     return "true" if enable_cache else "false"
 
 
-def _configure_cache_env(enable_cache: bool | None,
-                         cache_dir: str | None) -> None:
+def _configure_cache_env(
+    enable_cache: bool | None, cache_dir: str | None
+) -> None:
     """Applies constructor-supplied cache overrides to the environment.
 
     ``cache.get_cache()`` reads these env vars once and memoizes the result
@@ -355,8 +374,10 @@ def _resolve_dev_isolation_flag(opts: dict[str, Any]) -> bool:
     """
     enabled = bool(opts.get("dev_test_lit_tools_isolation", False))
     if enabled:
-        logger.info("Dev isolation mode enabled: forcing lit review cache"
-                    " + all hypotheses to lit tools")
+        logger.info(
+            "Dev isolation mode enabled: forcing lit review cache"
+            " + all hypotheses to lit tools"
+        )
     return enabled
 
 
@@ -378,19 +399,24 @@ def _build_tool_registry(
     if tools_config is None and disable_tools is None:
         return None
 
-    from co_scientist.config import ToolRegistry  # pylint: disable=import-outside-toplevel
+    from co_scientist.config import (
+        ToolRegistry,  # pylint: disable=import-outside-toplevel
+    )
 
     registry = ToolRegistry(
         config_path=tools_config,
         disabled_tools=disable_tools,
     )
-    logger.info("Initialized tool registry: %s enabled tools",
-                len(registry.get_enabled_tools()))
+    logger.info(
+        "Initialized tool registry: %s enabled tools",
+        len(registry.get_enabled_tools()),
+    )
     return registry
 
 
-def _add_workflow_nodes(workflow: _WorkflowBuilder,
-                        enable_literature_review_node: bool) -> None:
+def _add_workflow_nodes(
+    workflow: _WorkflowBuilder, enable_literature_review_node: bool
+) -> None:
     """Registers every workflow node on the graph.
 
     Args:
@@ -413,8 +439,9 @@ def _add_workflow_nodes(workflow: _WorkflowBuilder,
         workflow.add_node("reflection", reflection_node)
 
 
-def _add_workflow_edges(workflow: _WorkflowBuilder,
-                        enable_literature_review_node: bool) -> None:
+def _add_workflow_edges(
+    workflow: _WorkflowBuilder, enable_literature_review_node: bool
+) -> None:
     """Wires every workflow edge, including the entry point and routing.
 
     Args:
@@ -452,17 +479,21 @@ def _add_workflow_edges(workflow: _WorkflowBuilder,
     # made one node later.
     workflow.add_edge("ranking", "deep_verification")
     workflow.add_conditional_edges(
-        "deep_verification", _after_ranking, {
+        "deep_verification",
+        _after_ranking,
+        {
             "iterate": "meta_review",
             "proximity": "proximity",
-            "end": "research_overview"
-        })
+            "end": "research_overview",
+        },
+    )
 
     # After proximity, check if we should continue iterating
-    workflow.add_conditional_edges("proximity", _after_proximity, {
-        "iterate": "meta_review",
-        "end": "research_overview"
-    })
+    workflow.add_conditional_edges(
+        "proximity",
+        _after_proximity,
+        {"iterate": "meta_review", "end": "research_overview"},
+    )
 
     # Terminal synthesis: every completion path flows through the
     # research-overview node before ending.
@@ -503,6 +534,8 @@ class HypothesisGenerator:
 
         Args:
             model_name: LLM model to use (litellm format)
+            supervisor_model_name: Model for the supervisor and meta-review
+                steps (None = use model_name)
             max_iterations: Number of refinement iterations
             initial_hypotheses_count: Number of initial hypotheses
             evolution_max_count: Number of top hypotheses to evolve
@@ -541,8 +574,8 @@ class HypothesisGenerator:
         self._pubmed_available: bool | None = None
 
     def _build_graph(
-            self,
-            enable_literature_review_node: bool = True) -> CompiledWorkflow:
+        self, enable_literature_review_node: bool = True
+    ) -> CompiledWorkflow:
         """Build the LangGraph workflow.
 
         Complete workflow:
@@ -581,7 +614,8 @@ class HypothesisGenerator:
         """
         if self._graph is None:
             self._graph = self._build_graph(
-                enable_literature_review_node=enable_literature_review_node)
+                enable_literature_review_node=enable_literature_review_node
+            )
 
     async def _check_cached_availability(self) -> tuple[bool, bool]:
         """Lazily checks and caches MCP/PubMed availability for this call.
@@ -592,14 +626,19 @@ class HypothesisGenerator:
         Returns:
             Tuple of (mcp_available, pubmed_available).
         """
-        from co_scientist.mcp_client import check_mcp_available, check_pubmed_available_via_mcp  # pylint: disable=import-outside-toplevel
+        from co_scientist.mcp_client import (  # pylint: disable=import-outside-toplevel
+            check_mcp_available,
+            check_pubmed_available_via_mcp,
+        )
 
         if self._mcp_available is None:
             self._mcp_available = await check_mcp_available(
-                tool_registry=self._tool_registry)
+                tool_registry=self._tool_registry
+            )
         if self._pubmed_available is None:
             self._pubmed_available = await check_pubmed_available_via_mcp(
-                tool_registry=self._tool_registry)
+                tool_registry=self._tool_registry
+            )
 
         return self._mcp_available, self._pubmed_available
 
@@ -627,18 +666,23 @@ class HypothesisGenerator:
             return False, False, False
 
         # Check system availability (cached per instance)
-        mcp_available, pubmed_available = await self._check_cached_availability(
-        )
+        (
+            mcp_available,
+            pubmed_available,
+        ) = await self._check_cached_availability()
 
         # Determine if literature review node should be included
         # user can override via opts, otherwise auto-detect based on MCP
         # availability
         enable_literature_review_node = opts.get(
-            "enable_literature_review_node", mcp_available)
+            "enable_literature_review_node", mcp_available
+        )
 
         if not mcp_available and enable_literature_review_node:
-            logger.warning("Literature review node requested but MCP server"
-                           " unavailable - disabling")
+            logger.warning(
+                "Literature review node requested but MCP server"
+                " unavailable - disabling"
+            )
             enable_literature_review_node = False
 
         return mcp_available, pubmed_available, enable_literature_review_node
@@ -646,8 +690,8 @@ class HypothesisGenerator:
     async def _prepare_generation(
         self,
         research_goal: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
     ) -> WorkflowState:
@@ -665,10 +709,14 @@ class HypothesisGenerator:
 
         # Determine literature review node / MCP availability, then whether
         # tool-calling generation can run (it requires both).
-        (mcp_available, pubmed_available, enable_literature_review_node) = (
-            await self._resolve_literature_review_settings(opts))
+        (
+            mcp_available,
+            pubmed_available,
+            enable_literature_review_node,
+        ) = await self._resolve_literature_review_settings(opts)
         enable_tool_calling_generation = _resolve_tool_calling_generation(
-            opts, mcp_available, enable_literature_review_node)
+            opts, mcp_available, enable_literature_review_node
+        )
 
         # This flag is threaded through to initial_state below and the
         # consuming nodes branch on it directly.
@@ -699,23 +747,17 @@ class HypothesisGenerator:
             (model names, iteration/count knobs, and the tool registry).
         """
         return {
-            "model_name":
-                self.model_name,
-            "supervisor_model_name":
-                self.supervisor_model_name,
-            "max_iterations":
-                self.max_iterations,
-            "initial_hypotheses_count":
-                self.initial_hypotheses_count,
-            "evolution_max_count":
-                self.evolution_max_count,
-            "tournament_pairs":
-                self.tournament_pairs,
-            "literature_review_papers_count":
-                self.literature_review_papers_count,
+            "model_name": self.model_name,
+            "supervisor_model_name": self.supervisor_model_name,
+            "max_iterations": self.max_iterations,
+            "initial_hypotheses_count": self.initial_hypotheses_count,
+            "evolution_max_count": self.evolution_max_count,
+            "tournament_pairs": self.tournament_pairs,
+            "literature_review_papers_count": (
+                self.literature_review_papers_count
+            ),
             # Tool registry for config-driven tool selection
-            "tool_registry":
-                self._tool_registry,
+            "tool_registry": self._tool_registry,
         }
 
     def _initial_runtime_fields(self) -> dict[str, Any]:
@@ -744,8 +786,8 @@ class HypothesisGenerator:
         research_goal: str,
         start_time: float,
         run_id: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]),
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]),
         mcp_available: bool,
         pubmed_available: bool,
         enable_tool_calling_generation: bool,
@@ -822,8 +864,8 @@ class HypothesisGenerator:
         research_goal: str,
         start_time: float,
         run_id: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]),
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]),
         opts: dict[str, Any],
         user_inputs: dict[str, Any],
         mcp_available: bool,
@@ -862,14 +904,17 @@ class HypothesisGenerator:
             dev_test_lit_tools_isolation=dev_test_lit_tools_isolation,
         )
         user_and_literature_fields = self._initial_user_and_literature_fields(
-            opts=opts, user_inputs=user_inputs)
+            opts=opts, user_inputs=user_inputs
+        )
         return cast(
-            WorkflowState, {
+            WorkflowState,
+            {
                 **self._initial_config_fields(),
                 **self._initial_runtime_fields(),
                 **identity_fields,
                 **user_and_literature_fields,
-            })
+            },
+        )
 
     # Two @overload stubs give type checkers a precise return type per
     # stream value; the un-decorated implementation below (with a union
@@ -878,36 +923,33 @@ class HypothesisGenerator:
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
         stream: Literal[False] = False,
-    ) -> Awaitable[dict[str, Any]]:
-        ...
+    ) -> Awaitable[dict[str, Any]]: ...
 
     @overload
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
         stream: Literal[True] = True,
-    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-        ...
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]: ...
 
     def generate_hypotheses(
         self,
         research_goal: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
         stream: bool = False,
-    ) -> (Awaitable[dict[str, Any]] | AsyncIterator[tuple[str, dict[str, Any]]]
-         ):
+    ) -> Awaitable[dict[str, Any]] | AsyncIterator[tuple[str, dict[str, Any]]]:
         """Generate hypotheses, with optional streaming.
 
         Args:
@@ -977,8 +1019,8 @@ class HypothesisGenerator:
     async def _generate_hypotheses_without_streaming(
         self,
         research_goal: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
     ) -> dict[str, Any]:
@@ -1000,13 +1042,15 @@ class HypothesisGenerator:
             # Run the workflow. Uses 100 recursion limit to support higher max
             # iterations.
             final_state = await self._graph.ainvoke(
-                initial_state, config={"recursion_limit": 100})
+                initial_state, config={"recursion_limit": 100}
+            )
 
             # Format result to match expected interface
             execution_time = time.time() - start_time
 
-            return _build_generation_result(cast(WorkflowState, final_state),
-                                            execution_time)
+            return _build_generation_result(
+                cast(WorkflowState, final_state), execution_time
+            )
 
         except Exception as e:
             logger.error("Hypothesis generation failed: %s", e, exc_info=True)
@@ -1015,8 +1059,8 @@ class HypothesisGenerator:
     async def _generate_hypotheses_with_streaming(
         self,
         research_goal: str,
-        progress_callback: None |
-        (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
         opts: dict[str, Any] | None = None,
         run_id: str | None = None,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
@@ -1034,7 +1078,8 @@ class HypothesisGenerator:
 
         # Delegate to streaming implementation
         async for node_name, state_dict in self._handle_streaming(
-            initial_state):
+            initial_state
+        ):
             yield node_name, state_dict
 
     async def _handle_streaming(
@@ -1056,13 +1101,15 @@ class HypothesisGenerator:
 
             # Stream the workflow execution
             async for chunk in self._graph.astream(
-                initial_state, config={"recursion_limit": 100}):
+                initial_state, config={"recursion_limit": 100}
+            ):
                 # Chunk is a dict with node names as keys
                 for node_name, node_state in chunk.items():
                     logger.debug("streaming node: %s", node_name)
 
-                    _merge_node_state_into_cumulative(cumulative_state,
-                                                      node_state)
+                    _merge_node_state_into_cumulative(
+                        cumulative_state, node_state
+                    )
 
                     # Yield the node name and CUMULATIVE state
                     state_dict = _build_stream_state_dict(cumulative_state)
@@ -1072,9 +1119,9 @@ class HypothesisGenerator:
                     yield node_name, state_dict
 
         except Exception as e:
-            logger.error("Hypothesis generation streaming failed: %s",
-                         e,
-                         exc_info=True)
+            logger.error(
+                "Hypothesis generation streaming failed: %s", e, exc_info=True
+            )
             raise
 
 

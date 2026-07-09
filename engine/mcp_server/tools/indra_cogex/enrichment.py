@@ -17,8 +17,7 @@ async def run_enrichment_analysis(
     minimum_evidence_count: int = 1,
     minimum_belief: float = 0.0,
 ) -> dict[str, Any]:
-    """Runs statistical enrichment analysis on gene or phosphosite sets via
-    INDRA.
+    """Runs statistical enrichment analysis on gene/phosphosite sets via INDRA.
 
     Three analysis types available:
     - "discrete": Over-representation analysis on a gene list. Finds enriched
@@ -161,13 +160,15 @@ async def _run_discrete(
     # (belief is INDRA's calibrated confidence score for a statement,
     # in the range 0-1).
     return await indra_post(
-        "/api/discrete_analysis", {
+        "/api/discrete_analysis",
+        {
             "gene_list": gene_list,
             "alpha": alpha,
             "keep_insignificant": keep_insignificant,
             "minimum_evidence_count": min_evidence,
             "minimum_belief": min_belief,
-        })
+        },
+    )
 
 
 async def _run_signed(
@@ -195,14 +196,16 @@ async def _run_signed(
     # search for upstream regulators consistent with both directions of
     # change simultaneously.
     return await indra_post(
-        "/api/signed_analysis", {
+        "/api/signed_analysis",
+        {
             "positive_genes": positive_genes,
             "negative_genes": negative_genes,
             "alpha": alpha,
             "keep_insignificant": keep_insignificant,
             "minimum_evidence_count": min_evidence,
             "minimum_belief": min_belief,
-        })
+        },
+    )
 
 
 async def _run_kinase(
@@ -228,10 +231,12 @@ async def _run_kinase(
     # among the given phosphosites, pointing to which kinases are likely
     # active/inactive in the underlying experiment.
     return await indra_post(
-        "/api/kinase_analysis", {
+        "/api/kinase_analysis",
+        {
             "phosphosite_list": phosphosite_list,
             "alpha": alpha,
             "keep_insignificant": keep_insignificant,
             "minimum_evidence_count": min_evidence,
             "minimum_belief": min_belief,
-        })
+        },
+    )

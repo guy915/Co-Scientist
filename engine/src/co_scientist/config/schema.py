@@ -25,10 +25,10 @@ from typing import Any
 # to a declared field (typos, deprecated keys) are silently dropped instead
 # of raising, and fields the caller fills in specially are not double-set.
 def _declared_field_kwargs(
-        cls: type[Any],
-        data: dict[str, Any],
-        *,
-        exclude: tuple[str, ...] = (),
+    cls: type[Any],
+    data: dict[str, Any],
+    *,
+    exclude: tuple[str, ...] = (),
 ) -> dict[str, Any]:
     """Build constructor kwargs from keys in data that are declared fields.
 
@@ -55,9 +55,14 @@ def _declared_field_kwargs(
     return {key: value for key, value in data.items() if key in names}
 
 
-def _apply_placeholder_match(resolved_value: Any, match: str, value: str,
-                             context: dict[str,
-                                           Any], *, preserve_type: bool) -> Any:
+def _apply_placeholder_match(
+    resolved_value: Any,
+    match: str,
+    value: str,
+    context: dict[str, Any],
+    *,
+    preserve_type: bool,
+) -> Any:
     """Fold one matched placeholder's substitution into resolved_value.
 
     Args:
@@ -83,12 +88,17 @@ def _apply_placeholder_match(resolved_value: Any, match: str, value: str,
         return context_val
     return resolved_value.replace(
         f"{{{match}}}",
-        str(context_val) if not isinstance(context_val, str) else context_val)
+        str(context_val) if not isinstance(context_val, str) else context_val,
+    )
 
 
-def _substitute_placeholders(value: str, context: dict[str, Any],
-                             placeholder_pattern: "re.Pattern[str]", *,
-                             preserve_type: bool) -> Any:
+def _substitute_placeholders(
+    value: str,
+    context: dict[str, Any],
+    placeholder_pattern: "re.Pattern[str]",
+    *,
+    preserve_type: bool,
+) -> Any:
     """Replace every known {placeholder} in value with its context value.
 
     Args:
@@ -112,17 +122,16 @@ def _substitute_placeholders(value: str, context: dict[str, Any],
 
     resolved_value: Any = value
     for match in matches:
-        resolved_value = _apply_placeholder_match(resolved_value,
-                                                  match,
-                                                  value,
-                                                  context,
-                                                  preserve_type=preserve_type)
+        resolved_value = _apply_placeholder_match(
+            resolved_value, match, value, context, preserve_type=preserve_type
+        )
 
     return resolved_value
 
 
-def _resolve_content_param_value(value: Any, context: dict[str, Any],
-                                 placeholder_pattern: "re.Pattern[str]") -> Any:
+def _resolve_content_param_value(
+    value: Any, context: dict[str, Any], placeholder_pattern: "re.Pattern[str]"
+) -> Any:
     """Resolve one content_params value: a string, a list, or passthrough.
 
     Args:
@@ -136,10 +145,9 @@ def _resolve_content_param_value(value: Any, context: dict[str, Any],
         into).
     """
     if isinstance(value, str):
-        return _substitute_placeholders(value,
-                                        context,
-                                        placeholder_pattern,
-                                        preserve_type=True)
+        return _substitute_placeholders(
+            value, context, placeholder_pattern, preserve_type=True
+        )
     if not isinstance(value, list):
         return value
     # Resolve each item in the list. Note: unlike the string case above,
@@ -147,13 +155,17 @@ def _resolve_content_param_value(value: Any, context: dict[str, Any],
     # inherently a list of strings.
     return [
         _substitute_placeholders(
-            item, context, placeholder_pattern, preserve_type=False)
-        if isinstance(item, str) else item for item in value
+            item, context, placeholder_pattern, preserve_type=False
+        )
+        if isinstance(item, str)
+        else item
+        for item in value
     ]
 
 
-def resolve_content_params(params: dict[str, Any],
-                           context: dict[str, Any]) -> dict[str, Any]:
+def resolve_content_params(
+    params: dict[str, Any], context: dict[str, Any]
+) -> dict[str, Any]:
     """Resolve content params by substituting {placeholders} with context.
 
     Supports:
@@ -173,11 +185,12 @@ def resolve_content_params(params: dict[str, Any],
         return {}
 
     resolved: dict[str, Any] = {}
-    placeholder_pattern = re.compile(r'\{(\w+)\}')
+    placeholder_pattern = re.compile(r"\{(\w+)\}")
 
     for key, value in params.items():
-        resolved[key] = _resolve_content_param_value(value, context,
-                                                     placeholder_pattern)
+        resolved[key] = _resolve_content_param_value(
+            value, context, placeholder_pattern
+        )
 
     return resolved
 
@@ -194,8 +207,10 @@ class ServerConfig:
     def from_dict(cls, data: dict[str, Any]) -> "ServerConfig":
         """Create ServerConfig from dictionary."""
         # url is required on the dataclass but tolerated as missing in YAML.
-        return cls(url=data.get("url", ""),
-                   **_declared_field_kwargs(cls, data, exclude=("url",)))
+        return cls(
+            url=data.get("url", ""),
+            **_declared_field_kwargs(cls, data, exclude=("url",)),
+        )
 
 
 # Consumed by tools/response_parser.py's ResponseParser: type/results_path/
@@ -317,30 +332,36 @@ class ToolConfig:
         # back to the YAML tool id (not the dataclass default); parameters and
         # response_format are parsed into nested dataclasses; _yaml_tool_id is
         # internal and never read from YAML.
-        kwargs = _declared_field_kwargs(cls,
-                                        data,
-                                        exclude=(
-                                            "server",
-                                            "mcp_tool_name",
-                                            "display_name",
-                                            "response_format",
-                                            "parameters",
-                                            "_yaml_tool_id",
-                                        ))
-        return cls(server=data.get("server", "default"),
-                   mcp_tool_name=data.get("mcp_tool_name", tool_id),
-                   display_name=data.get("display_name", tool_id),
-                   response_format=ResponseFormat.from_dict(
-                       data.get("response_format", {})),
-                   parameters=parameters,
-                   **kwargs)
+        kwargs = _declared_field_kwargs(
+            cls,
+            data,
+            exclude=(
+                "server",
+                "mcp_tool_name",
+                "display_name",
+                "response_format",
+                "parameters",
+                "_yaml_tool_id",
+            ),
+        )
+        return cls(
+            server=data.get("server", "default"),
+            mcp_tool_name=data.get("mcp_tool_name", tool_id),
+            display_name=data.get("display_name", tool_id),
+            response_format=ResponseFormat.from_dict(
+                data.get("response_format", {})
+            ),
+            parameters=parameters,
+            **kwargs,
+        )
 
     # Called by literature_review.py and validate.py just before invoking an
     # MCP tool, so nodes can build requests in canonical terms while each
     # tool config supplies the translation to that server's actual
     # parameter names.
-    def map_parameters(self, canonical_params: dict[str,
-                                                    Any]) -> dict[str, Any]:
+    def map_parameters(
+        self, canonical_params: dict[str, Any]
+    ) -> dict[str, Any]:
         """Map canonical parameter names to tool-specific parameter names.
 
         Args:
@@ -358,14 +379,16 @@ class ToolConfig:
         mapped = {}
         for canonical_name, value in canonical_params.items():
             tool_param_name, mapped_value = self._map_single_parameter(
-                canonical_name, value)
+                canonical_name, value
+            )
             if tool_param_name is not None:
                 mapped[tool_param_name] = mapped_value
 
         return mapped
 
-    def _map_single_parameter(self, canonical_name: str,
-                              value: Any) -> tuple[str | None, Any]:
+    def _map_single_parameter(
+        self, canonical_name: str, value: Any
+    ) -> tuple[str | None, Any]:
         """Map one canonical parameter to its tool-specific name and value.
 
         Args:
@@ -385,8 +408,10 @@ class ToolConfig:
             # Explicitly ignore this parameter (null in YAML)
             return None, None
 
-        if (canonical_name == "recency_years" and
-                tool_param_name == "starting_year"):
+        if (
+            canonical_name == "recency_years"
+            and tool_param_name == "starting_year"
+        ):
             return tool_param_name, _recency_years_to_starting_year(value)
 
         return tool_param_name, value
@@ -430,8 +455,10 @@ class SearchSourceConfig:
             # Simple format: just tool name
             return cls(tool=data)
         # tool is required on the dataclass but tolerated as missing in YAML.
-        return cls(tool=data.get("tool", ""),
-                   **_declared_field_kwargs(cls, data, exclude=("tool",)))
+        return cls(
+            tool=data.get("tool", ""),
+            **_declared_field_kwargs(cls, data, exclude=("tool",)),
+        )
 
 
 def _search_source_tool_ids(sources: list["SearchSourceConfig"]) -> list[str]:
@@ -514,10 +541,10 @@ class WorkflowConfig:
             for source_data in data.get("search_sources", [])
         ]
 
-        return cls(search_sources=search_sources,
-                   **_declared_field_kwargs(cls,
-                                            data,
-                                            exclude=("search_sources",)))
+        return cls(
+            search_sources=search_sources,
+            **_declared_field_kwargs(cls, data, exclude=("search_sources",)),
+        )
 
     def get_enabled_search_sources(self) -> list[SearchSourceConfig]:
         """Get list of enabled search sources."""
@@ -582,8 +609,10 @@ class EnrichmentConfig:
     def from_dict(cls, data: dict[str, Any]) -> "EnrichmentConfig":
         """Create EnrichmentConfig from dictionary."""
         # tool is required on the dataclass but tolerated as missing in YAML.
-        return cls(tool=data.get("tool", ""),
-                   **_declared_field_kwargs(cls, data, exclude=("tool",)))
+        return cls(
+            tool=data.get("tool", ""),
+            **_declared_field_kwargs(cls, data, exclude=("tool",)),
+        )
 
 
 # Read by prompts.py's _get_domain_variables() via
@@ -634,7 +663,8 @@ def _parse_servers(data: dict[str, Any]) -> dict[str, ServerConfig]:
 
 
 def _parse_tools_by_category(
-        data: dict[str, Any]) -> dict[str, dict[str, ToolConfig]]:
+    data: dict[str, Any],
+) -> dict[str, dict[str, ToolConfig]]:
     """Parse the top-level ``tools`` section, keyed by category then id."""
     tools: dict[str, dict[str, ToolConfig]] = {}
     tools_data = data.get("tools", {})
@@ -686,22 +716,26 @@ class ToolsConfig:
         # scalar fields (currently just version) go through the generic path.
         # The YAML settings section is read from the raw dict by the registry
         # (merge_strategy), so it has no parsed counterpart here.
-        kwargs = _declared_field_kwargs(cls,
-                                        data,
-                                        exclude=(
-                                            "servers",
-                                            "tools",
-                                            "workflows",
-                                            "settings",
-                                            "prompts",
-                                            "enrichments",
-                                        ))
-        return cls(servers=servers,
-                   tools=tools,
-                   workflows=workflows,
-                   prompts=prompts,
-                   enrichments=enrichments,
-                   **kwargs)
+        kwargs = _declared_field_kwargs(
+            cls,
+            data,
+            exclude=(
+                "servers",
+                "tools",
+                "workflows",
+                "settings",
+                "prompts",
+                "enrichments",
+            ),
+        )
+        return cls(
+            servers=servers,
+            tools=tools,
+            workflows=workflows,
+            prompts=prompts,
+            enrichments=enrichments,
+            **kwargs,
+        )
 
     def get_tool(self, tool_id: str) -> ToolConfig | None:
         """Get a tool config by ID, searching all categories."""

@@ -9,10 +9,6 @@ import logging
 from dataclasses import dataclass
 from typing import Any
 
-from co_scientist.nodes.generation.citations import (
-    hypothesis_from_llm_output,
-    ReferenceIndex,
-)
 from co_scientist.constants import (
     DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
     DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
@@ -24,6 +20,10 @@ from co_scientist.constants import (
 from co_scientist.exceptions import GenerationError
 from co_scientist.llm import call_llm, call_llm_json
 from co_scientist.models import GenerationMethod, Hypothesis
+from co_scientist.nodes.generation.citations import (
+    ReferenceIndex,
+    hypothesis_from_llm_output,
+)
 from co_scientist.prompts import get_debate_generation_prompt
 from co_scientist.state import WorkflowState
 
@@ -45,8 +45,9 @@ _DEBATE_DIVERSITY_ANGLES = [
 ]
 
 
-def _debate_diversity_instruction(debate_id: int | None,
-                                  total_debates: int) -> str | None:
+def _debate_diversity_instruction(
+    debate_id: int | None, total_debates: int
+) -> str | None:
     """Return a debate-specific angle for parallel hypothesis diversity."""
     # A single, non-parallel debate has no sibling to diverge from, so no
     # diversity nudge is needed.
@@ -58,11 +59,13 @@ def _debate_diversity_instruction(debate_id: int | None,
         f"debate on {angle}. Produce a final hypothesis that is meaningfully "
         "different from what other parallel debates would generate; do not "
         "collapse to the most generic or obvious mechanism unless it uniquely "
-        "fits this assigned angle.")
+        "fits this assigned angle."
+    )
 
 
-def _append_diversity_instruction(preferences: str | None,
-                                  instruction: str | None) -> str | None:
+def _append_diversity_instruction(
+    preferences: str | None, instruction: str | None
+) -> str | None:
     """Append the parallel-debate diversity instruction to preferences."""
     # Augments, rather than replaces, any user-supplied preferences so both
     # constraints are honored together in the generation prompt.
@@ -161,9 +164,9 @@ async def _run_final_debate_turn(
     Raises:
         GenerationError: if the final turn produced no hypothesis.
     """
-    response = await _call_final_debate_turn(state, prompt, schema, debate_id,
-                                             turn, articles_with_reasoning,
-                                             ref_idx)
+    response = await _call_final_debate_turn(
+        state, prompt, schema, debate_id, turn, articles_with_reasoning, ref_idx
+    )
 
     # The schema wraps a single hypothesis in a list to keep the response
     # shape consistent with other generation paths' schemas (e.g. batch
@@ -237,8 +240,9 @@ def _build_debate_turn_prompt(
     )
 
 
-async def _run_intermediate_debate_turn(state: WorkflowState,
-                                        prompt: str) -> str:
+async def _run_intermediate_debate_turn(
+    state: WorkflowState, prompt: str
+) -> str:
     """Run one non-final debate turn and return its free-form response text.
 
     Args:
@@ -294,15 +298,18 @@ def _build_debate_context(
         The resolved _DebateContext for this debate.
     """
     diversity_instruction = _debate_diversity_instruction(
-        debate_id, total_debates)
+        debate_id, total_debates
+    )
     return _DebateContext(
         ref_idx=reference_index or ReferenceIndex(text="", sources={}),
-        debate_label=(f"debate {debate_id}"
-                      if debate_id is not None else "debate"),
+        debate_label=(
+            f"debate {debate_id}" if debate_id is not None else "debate"
+        ),
         supervisor_guidance=state.get("supervisor_guidance"),
         meta_review=state.get("meta_review"),
-        preferences=_append_diversity_instruction(state.get("preferences"),
-                                                  diversity_instruction),
+        preferences=_append_diversity_instruction(
+            state.get("preferences"), diversity_instruction
+        ),
         attributes=state.get("attributes"),
     )
 
@@ -328,8 +335,9 @@ async def _run_single_debate(
     Returns:
         Tuple of (single generated Hypothesis object, debate transcript string)
     """
-    ctx = _build_debate_context(state, debate_id, total_debates,
-                                reference_index)
+    ctx = _build_debate_context(
+        state, debate_id, total_debates, reference_index
+    )
     transcript = ""
 
     # Earlier turns produce free-form adversarial dialogue that accumulates
@@ -390,11 +398,14 @@ def _unpack_debate_results(
         {debate_id, transcript, hypothesis_text}.
     """
     debate_hypotheses = [hyp for hyp, _ in debate_results]
-    debate_transcripts = [{
-        "debate_id": i,
-        "transcript": transcript,
-        "hypothesis_text": debate_hypotheses[i].text
-    } for i, (_, transcript) in enumerate(debate_results)]
+    debate_transcripts = [
+        {
+            "debate_id": i,
+            "transcript": transcript,
+            "hypothesis_text": debate_hypotheses[i].text,
+        }
+        for i, (_, transcript) in enumerate(debate_results)
+    ]
     return debate_hypotheses, debate_transcripts
 
 
@@ -435,12 +446,14 @@ async def generate_with_debate(
             total_debates=count,
             articles_with_reasoning=articles_with_reasoning,
             reference_index=reference_index,
-        ) for i in range(count)
+        )
+        for i in range(count)
     ]
 
     debate_results = await asyncio.gather(*debate_tasks)
     debate_hypotheses, debate_transcripts = _unpack_debate_results(
-        debate_results)
+        debate_results
+    )
 
     logger.info("Generated %s hypotheses from debates", len(debate_hypotheses))
     return debate_hypotheses, debate_transcripts

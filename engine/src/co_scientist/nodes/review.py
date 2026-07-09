@@ -10,15 +10,15 @@ import logging
 from typing import Any
 
 from co_scientist.constants import (
-    THINKING_MAX_TOKENS,
+    COMPARATIVE_BATCH_THRESHOLD,
     EXTENDED_MAX_TOKENS,
     HIGH_TEMPERATURE,
-    PROGRESS_REVIEW_START,
     PROGRESS_REVIEW_COMPLETE,
-    COMPARATIVE_BATCH_THRESHOLD,
-    REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
+    PROGRESS_REVIEW_START,
     REVIEW_BATCH_FREE_HYPOTHESES,
     REVIEW_BATCH_MAX_TOKENS_CAP,
+    REVIEW_BATCH_TOKENS_PER_HYPOTHESIS,
+    THINKING_MAX_TOKENS,
     scaled_max_tokens,
 )
 from co_scientist.exceptions import GenerationError
@@ -115,8 +115,11 @@ async def review_single_hypothesis(
 
     # prompt_name distinguishes each hypothesis's saved prompt artifact on
     # disk (when COSCIENTIST_SAVE_PROMPTS is enabled) for debugging.
-    prompt_name = (f"review_individual_{hypothesis_index}"
-                   if hypothesis_index is not None else "review_individual")
+    prompt_name = (
+        f"review_individual_{hypothesis_index}"
+        if hypothesis_index is not None
+        else "review_individual"
+    )
     # Unlike analyze_single_hypothesis in reflection.py, this call is not
     # wrapped in a try/except: a failure here (e.g. exhausted retries)
     # raises out of this coroutine and, via asyncio.gather in
@@ -185,7 +188,8 @@ async def review_parallel_individual(
             tool_registry=tool_registry,
             run_setup_guidance=run_setup_guidance,
             run_focus_guidance=run_focus_guidance,
-        ) for i, hyp in enumerate(hypotheses)
+        )
+        for i, hyp in enumerate(hypotheses)
     ]
 
     return await asyncio.gather(*review_tasks)
@@ -214,9 +218,9 @@ def _prepare_batch_review_call(
     Returns:
         Tuple of (prompt, schema, max_tokens, max_attempts).
     """
-    hypotheses_list = "\n\n".join([
-        f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)
-    ])
+    hypotheses_list = "\n\n".join(
+        [f"**Hypothesis {i}:**\n{hyp.text}" for i, hyp in enumerate(hypotheses)]
+    )
     prompt, schema = get_review_batch_prompt(
         research_goal=research_goal,
         hypotheses_list=hypotheses_list,
@@ -240,8 +244,11 @@ def _prepare_batch_review_call(
     # More retries for large batches.
     max_attempts = 7 if hypothesis_count > 10 else 5
 
-    logger.debug("batch review: %s hypotheses, max_tokens=%s", hypothesis_count,
-                 max_tokens)
+    logger.debug(
+        "batch review: %s hypotheses, max_tokens=%s",
+        hypothesis_count,
+        max_tokens,
+    )
 
     return prompt, schema, max_tokens, max_attempts
 
@@ -320,10 +327,14 @@ def _log_batch_review_response_shape(
         run_id: optional run ID, referenced in the mismatch log message.
     """
     logger.info("Batch review response keys: %s", list(response.keys()))
-    logger.info("Reviews data type: %s, length: %s", type(reviews_data),
-                len(reviews_data) if isinstance(reviews_data, list) else 'N/A')
-    logger.info("Expected %s reviews, received %s", len(hypotheses),
-                len(reviews_data))
+    logger.info(
+        "Reviews data type: %s, length: %s",
+        type(reviews_data),
+        len(reviews_data) if isinstance(reviews_data, list) else "N/A",
+    )
+    logger.info(
+        "Expected %s reviews, received %s", len(hypotheses), len(reviews_data)
+    )
 
     if len(reviews_data) != len(hypotheses):
         logger.error(
@@ -331,8 +342,11 @@ def _log_batch_review_response_shape(
             "This indicates the LLM may have hit output token limits"
             " or failed to generate all reviews. "
             "Check the saved prompt at"
-            " .coscientist_prompts/%s/review_batch.txt", len(hypotheses),
-            len(reviews_data), run_id)
+            " .coscientist_prompts/%s/review_batch.txt",
+            len(hypotheses),
+            len(reviews_data),
+            run_id,
+        )
 
 
 def _build_reviews_with_placeholders(
@@ -369,7 +383,8 @@ def _build_reviews_with_placeholders(
                     detailed_feedback={},
                     constructive_feedback="",
                     overall_score=0.0,
-                ))
+                )
+            )
 
     return reviews
 
@@ -411,12 +426,18 @@ def _select_review_strategy(num_hypotheses: int) -> tuple[bool, str]:
     """
     use_comparative = num_hypotheses <= COMPARATIVE_BATCH_THRESHOLD
     if use_comparative:
-        logger.info("Reviewing %s hypotheses via comparative batch (≤%s)",
-                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
+        logger.info(
+            "Reviewing %s hypotheses via comparative batch (≤%s)",
+            num_hypotheses,
+            COMPARATIVE_BATCH_THRESHOLD,
+        )
         strategy_name = "comparative batch"
     else:
-        logger.info("Reviewing %s hypotheses via parallel individual (>%s)",
-                    num_hypotheses, COMPARATIVE_BATCH_THRESHOLD)
+        logger.info(
+            "Reviewing %s hypotheses via parallel individual (>%s)",
+            num_hypotheses,
+            COMPARATIVE_BATCH_THRESHOLD,
+        )
         strategy_name = "parallel"
     return use_comparative, strategy_name
 
@@ -435,12 +456,15 @@ def _validate_reviews(reviews: list[HypothesisReview]) -> None:
         GenerationError: if one or more reviews is unavailable.
     """
     invalid_reviews = [
-        i for i, r in enumerate(reviews)
+        i
+        for i, r in enumerate(reviews)
         if r.review_summary == "Review unavailable"
     ]
     if invalid_reviews:
-        error_msg = (f"review node failed: {len(invalid_reviews)}"
-                     f"/{len(reviews)} reviews invalid")
+        error_msg = (
+            f"review node failed: {len(invalid_reviews)}"
+            f"/{len(reviews)} reviews invalid"
+        )
         logger.error(error_msg)
         raise GenerationError(error_msg)
 
@@ -549,7 +573,7 @@ def _attach_reviews_to_hypotheses(
         hypotheses: Hypotheses to update, in the same order as reviews.
         reviews: Reviews to attach, in the same order as hypotheses.
     """
-    for hypothesis, review in zip(hypotheses, reviews):
+    for hypothesis, review in zip(hypotheses, reviews, strict=True):
         hypothesis.reviews.append(review)
         hypothesis.score = review.overall_score
 
@@ -576,39 +600,48 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
 
     use_comparative, strategy_name = _select_review_strategy(num_hypotheses)
 
-    await emit_progress(state, "review_start",
-                        f"Reviewing {num_hypotheses} hypotheses...",
-                        PROGRESS_REVIEW_START)
+    await emit_progress(
+        state,
+        "review_start",
+        f"Reviewing {num_hypotheses} hypotheses...",
+        PROGRESS_REVIEW_START,
+    )
 
-    reviews, llm_calls = await _run_review_strategy(state, hypotheses,
-                                                    use_comparative)
+    reviews, llm_calls = await _run_review_strategy(
+        state, hypotheses, use_comparative
+    )
 
     _validate_reviews(reviews)
     _attach_reviews_to_hypotheses(hypotheses, reviews)
 
-    logger.info("Completed %s reviews using %s strategy", len(reviews),
-                strategy_name)
+    logger.info(
+        "Completed %s reviews using %s strategy", len(reviews), strategy_name
+    )
 
-    await emit_progress(state,
-                        "review_complete",
-                        f"Completed {len(reviews)} reviews",
-                        PROGRESS_REVIEW_COMPLETE,
-                        reviews_count=len(reviews))
+    await emit_progress(
+        state,
+        "review_complete",
+        f"Completed {len(reviews)} reviews",
+        PROGRESS_REVIEW_COMPLETE,
+        reviews_count=len(reviews),
+    )
 
     # Update metrics (deltas only, merge_metrics will add to existing state)
-    metrics = create_metrics_update(reviews_count_delta=len(reviews),
-                                    llm_calls_delta=llm_calls)
-    logger.debug("review node creating metrics delta: reviews=%s, llm_calls=%s",
-                 len(reviews), llm_calls)
+    metrics = create_metrics_update(
+        reviews_count_delta=len(reviews), llm_calls_delta=llm_calls
+    )
+    logger.debug(
+        "review node creating metrics delta: reviews=%s, llm_calls=%s",
+        len(reviews),
+        llm_calls,
+    )
 
     return {
-        "hypotheses":
-            hypotheses,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message(
-                "review",
-                f"Reviewed {len(reviews)} hypotheses ({strategy_name})",
-                strategy=strategy_name),
+        "hypotheses": hypotheses,
+        "metrics": metrics,
+        "messages": phase_message(
+            "review",
+            f"Reviewed {len(reviews)} hypotheses ({strategy_name})",
+            strategy=strategy_name,
+        ),
     }

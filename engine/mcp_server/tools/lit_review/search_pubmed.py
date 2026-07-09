@@ -30,7 +30,8 @@ def check_pubmed_available() -> str:
         # NCBI requires (or strongly recommends) an identifying email for
         # Entrez API use; treat it as a hard prerequisite here.
         logger.warning(
-            "PubMed unavailable: ENTREZ_EMAIL not set (recommended by NCBI)")
+            "PubMed unavailable: ENTREZ_EMAIL not set (recommended by NCBI)"
+        )
         return "false"
 
     return "true" if _pubmed_canary_query_succeeds() else "false"
@@ -49,7 +50,8 @@ def _pubmed_canary_query_succeeds() -> bool:
         # Cheap canary query: "cancer" is guaranteed to have results if
         # PubMed access is working at all.
         test_results = _entrez_read(
-            Entrez.esearch(db="pubmed", term="cancer", retmax=1))
+            Entrez.esearch(db="pubmed", term="cancer", retmax=1)
+        )
     except HTTPError as e:
         _log_pubmed_canary_http_error(e)
         return False
@@ -66,7 +68,8 @@ def _pubmed_canary_query_succeeds() -> bool:
         return True
 
     logger.warning(
-        "PubMed test query returned no results - might be unavailable")
+        "PubMed test query returned no results - might be unavailable"
+    )
     logger.debug("PubMed test query results: %s", test_results)
     return False
 
@@ -79,15 +82,18 @@ def _log_pubmed_canary_http_error(e: HTTPError) -> None:
     """
     logger.error("PubMed test query failed: HTTP %s %s", e.code, e.reason)
     logger.error("Error type: %s", type(e).__name__)
-    logger.debug("Request URL: %s", getattr(e, 'url', 'N/A'))
-    logger.debug("Response headers: %s", dict(getattr(e, 'headers', {})))
+    logger.debug("Request URL: %s", getattr(e, "url", "N/A"))
+    logger.debug("Response headers: %s", dict(getattr(e, "headers", {})))
 
     # Try to read error response body
     try:  # pylint: disable=broad-exception-caught
-        if hasattr(e, 'read'):
+        if hasattr(e, "read"):
             error_body = e.read()
-            error_text = (error_body.decode('utf-8', errors='ignore')
-                          if isinstance(error_body, bytes) else error_body)
+            error_text = (
+                error_body.decode("utf-8", errors="ignore")
+                if isinstance(error_body, bytes)
+                else error_body
+            )
             logger.debug("Error response body: %s", error_text[:500])
     except Exception:  # pylint: disable=broad-exception-caught
         pass
@@ -102,10 +108,12 @@ def _log_pubmed_canary_url_error(e: URLError) -> None:
     Args:
         e: The URLError raised by the canary query.
     """
-    logger.error("PubMed test query failed: URL error - %s",
-                 e.reason if hasattr(e, 'reason') else e)
+    logger.error(
+        "PubMed test query failed: URL error - %s",
+        e.reason if hasattr(e, "reason") else e,
+    )
     logger.error("Error type: %s", type(e).__name__)
-    if hasattr(e, 'url'):
+    if hasattr(e, "url"):
         logger.debug("Request URL: %s", e.url)
     logger.debug("Full traceback:\n%s", traceback.format_exc())
     logger.warning("PubMed is unavailable - skipping PubMed literature review")
@@ -169,10 +177,13 @@ def _log_entrez_http_error_body(e: HTTPError) -> None:
         e: The HTTPError whose response body should be logged.
     """
     try:  # pylint: disable=broad-exception-caught
-        if hasattr(e, 'read'):
+        if hasattr(e, "read"):
             error_body = e.read()
-            error_text = (error_body.decode('utf-8', errors='ignore')
-                          if isinstance(error_body, bytes) else error_body)
+            error_text = (
+                error_body.decode("utf-8", errors="ignore")
+                if isinstance(error_body, bytes)
+                else error_body
+            )
             logger.debug("Error response body: %s", error_text[:1000])
     except Exception as read_err:  # pylint: disable=broad-exception-caught
         logger.debug("Could not read error response body: %s", read_err)
@@ -184,11 +195,12 @@ def _log_entrez_read_http_error(e: HTTPError) -> None:
     Args:
         e: The HTTPError raised while reading the Entrez response.
     """
-    logger.error("Entrez HTTP error (%s): %s %s",
-                 type(e).__name__, e.code, e.reason)
-    if hasattr(e, 'url'):
+    logger.error(
+        "Entrez HTTP error (%s): %s %s", type(e).__name__, e.code, e.reason
+    )
+    if hasattr(e, "url"):
         logger.debug("Request URL: %s", e.url)
-    if hasattr(e, 'headers'):
+    if hasattr(e, "headers"):
         logger.debug("Response headers: %s", dict(e.headers))
 
     # Try to read error response body from the exception
@@ -201,9 +213,12 @@ def _log_entrez_read_url_error(e: URLError) -> None:
     Args:
         e: The URLError raised while reading the Entrez response.
     """
-    logger.error("Entrez URL error (%s): %s",
-                 type(e).__name__, e.reason if hasattr(e, 'reason') else e)
-    if hasattr(e, 'url'):
+    logger.error(
+        "Entrez URL error (%s): %s",
+        type(e).__name__,
+        e.reason if hasattr(e, "reason") else e,
+    )
+    if hasattr(e, "url"):
         logger.debug("Request URL: %s", e.url)
 
 
@@ -219,12 +234,14 @@ def _log_entrez_read_generic_error(e: Exception, handle: Any) -> None:
 
     # Try to read raw response from handle if possible
     try:  # pylint: disable=broad-exception-caught
-        if hasattr(handle, 'read'):
+        if hasattr(handle, "read"):
             raw_response = handle.read()
             if isinstance(raw_response, bytes):
-                raw_response = raw_response.decode('utf-8', errors='ignore')
-            logger.debug("Raw response from handle (first 1000 chars): %s",
-                         raw_response[:1000])
+                raw_response = raw_response.decode("utf-8", errors="ignore")
+            logger.debug(
+                "Raw response from handle (first 1000 chars): %s",
+                raw_response[:1000],
+            )
     except Exception:  # pylint: disable=broad-exception-caught
         pass
 
@@ -259,17 +276,22 @@ def _fetch_pubmed_article(paper_id: str) -> Article:
 
     # Prefer the DOI resolver link when available since it points at the
     # publisher's copy; fall back to the PubMed record page otherwise.
-    url = (f"https://doi.org/{doi}"
-           if doi else f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/")
+    url = (
+        f"https://doi.org/{doi}"
+        if doi
+        else f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
+    )
 
-    return Article(title=title,
-                   url=url,
-                   authors=authors,
-                   year=year,
-                   venue=venue,
-                   abstract=abstract,
-                   source_id=paper_id,
-                   source="pubmed")
+    return Article(
+        title=title,
+        url=url,
+        authors=authors,
+        year=year,
+        venue=venue,
+        abstract=abstract,
+        source_id=paper_id,
+        source="pubmed",
+    )
 
 
 def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
@@ -285,10 +307,14 @@ def _parse_pubmed_abstract(article_data: dict[str, Any]) -> str | None:
         The joined abstract text, or None if unavailable/malformed.
     """
     try:
-        abstract_parts = article_data.get("Abstract",
-                                          {}).get("AbstractText", [])
-        return (" ".join(
-            str(part) for part in abstract_parts) if abstract_parts else None)
+        abstract_parts = article_data.get("Abstract", {}).get(
+            "AbstractText", []
+        )
+        return (
+            " ".join(str(part) for part in abstract_parts)
+            if abstract_parts
+            else None
+        )
     except (KeyError, TypeError):
         return None
 
@@ -346,11 +372,14 @@ def _parse_pubmed_doi(pubmed_article: dict[str, Any]) -> str | None:
         # ArticleIdList mixes several id types (pubmed, doi, pii, ...);
         # each entry carries its type as an XML attribute, so filter for
         # "doi" specifically.
-        article_ids = pubmed_article.get("PubmedData",
-                                         {}).get("ArticleIdList", [])
+        article_ids = pubmed_article.get("PubmedData", {}).get(
+            "ArticleIdList", []
+        )
         for article_id in article_ids:
-            if (hasattr(article_id, "attributes") and
-                    article_id.attributes.get("IdType") == "doi"):
+            if (
+                hasattr(article_id, "attributes")
+                and article_id.attributes.get("IdType") == "doi"
+            ):
                 doi = str(article_id)
                 break
     except (KeyError, TypeError, AttributeError):
@@ -359,7 +388,8 @@ def _parse_pubmed_doi(pubmed_article: dict[str, Any]) -> str | None:
 
 
 def _parse_pubmed_venue_year(
-        article_data: dict[str, Any]) -> tuple[str | None, int | None]:
+    article_data: dict[str, Any],
+) -> tuple[str | None, int | None]:
     """Extracts the journal venue and publication year of an article.
 
     Args:
@@ -396,13 +426,15 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
     """
     initialize_entrez()
 
-    logger.info("Searching PubMed with query: '%s' (max %s papers)", query,
-                max_papers)
+    logger.info(
+        "Searching PubMed with query: '%s' (max %s papers)", query, max_papers
+    )
 
     try:  # pylint: disable=broad-exception-caught
         # Step 1: esearch resolves the query to a list of PubMed ids.
         results = _entrez_read(
-            Entrez.esearch(db="pubmed", term=query, retmax=max_papers))
+            Entrez.esearch(db="pubmed", term=query, retmax=max_papers)
+        )
         id_list = results.get("IdList", [])
 
         if not id_list:
@@ -414,8 +446,9 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
         # Step 2: efetch pulls full metadata per id.
         articles = _fetch_pubmed_articles(id_list)
 
-        logger.info("Successfully retrieved %s papers from PubMed",
-                    len(articles))
+        logger.info(
+            "Successfully retrieved %s papers from PubMed", len(articles)
+        )
 
         articles_json = [article.to_dict() for article in articles]
         return json.dumps({"results": articles_json, "count": len(articles)})
@@ -442,10 +475,14 @@ def _fetch_pubmed_articles(id_list: list[str]) -> list[Article]:
         try:  # pylint: disable=broad-exception-caught
             article = _fetch_pubmed_article(paper_id)
             articles.append(article)
-            logger.debug("fetched metadata for paper %s: %s...", paper_id,
-                         article.title[:50])
+            logger.debug(
+                "fetched metadata for paper %s: %s...",
+                paper_id,
+                article.title[:50],
+            )
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.warning("Failed to fetch metadata for paper %s: %s",
-                           paper_id, e)
+            logger.warning(
+                "Failed to fetch metadata for paper %s: %s", paper_id, e
+            )
             continue
     return articles

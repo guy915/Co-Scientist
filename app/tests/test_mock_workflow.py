@@ -1,4 +1,5 @@
 """Deterministic mock workflow: seed → identical artefacts."""
+
 # pylint: disable=unused-argument
 from __future__ import annotations
 
@@ -18,8 +19,9 @@ def _drain(coro_gen: AsyncIterator[Any]) -> list[Any]:
     return asyncio.run(_run())
 
 
-async def _drain_mock_workflow(rid: str, goal: str,
-                               cfg: dict[str, Any]) -> list[Any]:
+async def _drain_mock_workflow(
+    rid: str, goal: str, cfg: dict[str, Any]
+) -> list[Any]:
     """Drain ``run_mock_workflow`` for a hand-pinned run id, goal, and config.
 
     Args:
@@ -30,7 +32,10 @@ async def _drain_mock_workflow(rid: str, goal: str,
     Returns:
         The list of events emitted by the drained workflow.
     """
-    from app.mock_workflow import run_mock_workflow  # pylint: disable=import-outside-toplevel
+    from app.mock_workflow import (
+        run_mock_workflow,  # pylint: disable=import-outside-toplevel
+    )
+
     return [e async for e in run_mock_workflow(rid, goal, cfg, sleep_seconds=0)]
 
 
@@ -39,10 +44,10 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
     # The workflow uses (run_id, goal, run mode) as seed material.
     run_a = store.create_run("Identical goal", "standard", "mock", {})
     events_a = _drain(
-        engine_adapter.run_workflow(run_a.id,
-                                    run_a.research_goal,
-                                    run_a.config,
-                                    sleep_seconds=0))
+        engine_adapter.run_workflow(
+            run_a.id, run_a.research_goal, run_a.config, sleep_seconds=0
+        )
+    )
     titles_a = [h["title"] for h in store.list_hypotheses(run_a.id)]
 
     # Same run id → same titles. (We can't insert two rows with the same id,
@@ -56,10 +61,10 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
     # deterministic from the run config).
     run_b = store.create_run("Identical goal", "standard", "mock", {})
     events_b = _drain(
-        engine_adapter.run_workflow(run_b.id,
-                                    run_b.research_goal,
-                                    run_b.config,
-                                    sleep_seconds=0))
+        engine_adapter.run_workflow(
+            run_b.id, run_b.research_goal, run_b.config, sleep_seconds=0
+        )
+    )
     titles_b = [h["title"] for h in store.list_hypotheses(run_b.id)]
 
     # Same number of events and same number of hypotheses; titles will
@@ -74,9 +79,13 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
 
 
 def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
-    """Re-running the inner mock with identical seed inputs yields identical
-    title sequences."""
-    from app.run_modes import resolved_run_config  # pylint: disable=import-outside-toplevel
+    """Re-running the inner mock with identical seed inputs is stable.
+
+    It yields identical title sequences.
+    """
+    from app.run_modes import (
+        resolved_run_config,  # pylint: disable=import-outside-toplevel
+    )
 
     cfg = resolved_run_config({})
 
@@ -91,16 +100,20 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
 
     # Same seed → same sequence
     a_events = asyncio.run(
-        _drain_mock_workflow(fixed_id + "-a", fixed_goal, cfg))
+        _drain_mock_workflow(fixed_id + "-a", fixed_goal, cfg)
+    )
     b_events = asyncio.run(
-        _drain_mock_workflow(fixed_id + "-a", fixed_goal, cfg))
+        _drain_mock_workflow(fixed_id + "-a", fixed_goal, cfg)
+    )
     assert len(a_events) == len(b_events)
 
     # Different ids → different sequence (verifies run_id is in the seed)
     c_events = asyncio.run(
-        _drain_mock_workflow(fixed_id + "-c", fixed_goal, cfg))
+        _drain_mock_workflow(fixed_id + "-c", fixed_goal, cfg)
+    )
     assert len(c_events) == len(
-        a_events)  # same length because cfg is identical
+        a_events
+    )  # same length because cfg is identical
 
     # Cleanup unused runs created above
     _ = (run_a, run_b)
@@ -109,13 +122,17 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
 def test_legacy_standard_profile_uses_default_depth(isolated_db: str) -> None:
     run = store.create_run("Default depth test", "standard", "mock", {})
     events = _drain(
-        engine_adapter.run_workflow(run.id,
-                                    run.research_goal, {
-                                        "initial_hypotheses_count": 1,
-                                        "max_iterations": 0,
-                                        "evolution_max_count": 1,
-                                    },
-                                    sleep_seconds=0))
+        engine_adapter.run_workflow(
+            run.id,
+            run.research_goal,
+            {
+                "initial_hypotheses_count": 1,
+                "max_iterations": 0,
+                "evolution_max_count": 1,
+            },
+            sleep_seconds=0,
+        )
+    )
 
     assert len(events) >= 14
     plan = next(e for e in events if e["type"] == "supervisor.plan")
@@ -128,10 +145,10 @@ def test_legacy_standard_profile_uses_default_depth(isolated_db: str) -> None:
 def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:
     run = store.create_run("Sequence test", "standard", "mock", {})
     events = _drain(
-        engine_adapter.run_workflow(run.id,
-                                    run.research_goal,
-                                    run.config,
-                                    sleep_seconds=0))
+        engine_adapter.run_workflow(
+            run.id, run.research_goal, run.config, sleep_seconds=0
+        )
+    )
     types = [e["type"] for e in events]
     # Expected canonical agents must all appear in order at least once.
     expected_order = [
@@ -155,14 +172,16 @@ def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:
     assert all(t in types for t in expected_order)
 
 
-def _events_of_type(events: list[dict[str, Any]],
-                    event_type: str) -> list[dict[str, Any]]:
+def _events_of_type(
+    events: list[dict[str, Any]], event_type: str
+) -> list[dict[str, Any]]:
     """Filter a drained event list down to one event type."""
     return [e for e in events if e["type"] == event_type]
 
 
-def _rows_by_reviewer_agent(rows: list[dict[str, Any]],
-                            agent: str) -> list[dict[str, Any]]:
+def _rows_by_reviewer_agent(
+    rows: list[dict[str, Any]], agent: str
+) -> list[dict[str, Any]]:
     """Filter review rows down to those written by one reviewer agent."""
     return [r for r in rows if r["reviewer_agent"] == agent]
 
@@ -196,10 +215,10 @@ def test_mock_deep_verification_writes_reviews(isolated_db: str) -> None:
     """Deep verification attaches reviewer_agent='deep_verification' rows."""
     run = store.create_run("Deep verify goal", "standard", "mock", {})
     events = _drain(
-        engine_adapter.run_workflow(run.id,
-                                    run.research_goal,
-                                    run.config,
-                                    sleep_seconds=0))
+        engine_adapter.run_workflow(
+            run.id, run.research_goal, run.config, sleep_seconds=0
+        )
+    )
 
     # The event is emitted.
     dv_events = _events_of_type(events, "deep_verification")
@@ -222,10 +241,10 @@ def test_mock_research_overview_rides_report(isolated_db: str) -> None:
     """Research overview lands in the report payload and markdown."""
     run = store.create_run("Overview goal", "standard", "mock", {})
     events = _drain(
-        engine_adapter.run_workflow(run.id,
-                                    run.research_goal,
-                                    run.config,
-                                    sleep_seconds=0))
+        engine_adapter.run_workflow(
+            run.id, run.research_goal, run.config, sleep_seconds=0
+        )
+    )
 
     ro_events = [e for e in events if e["type"] == "research_overview"]
     assert len(ro_events) == 1
@@ -245,14 +264,17 @@ def test_mock_research_overview_rides_report(isolated_db: str) -> None:
 
 
 def test_mock_deep_verification_and_overview_are_deterministic(
-        isolated_db: str) -> None:
+    isolated_db: str,
+) -> None:
     """Seeded probe + overview content is byte-identical for a fixed seed.
 
     Hypothesis IDs are fresh UUIDs per run, so we compare only the seeded
     text content (the research_overview event payload and the probe dicts),
     never DB row IDs.
     """
-    from app.run_modes import resolved_run_config  # pylint: disable=import-outside-toplevel
+    from app.run_modes import (
+        resolved_run_config,  # pylint: disable=import-outside-toplevel
+    )
 
     cfg = resolved_run_config({})
     fixed_goal = "Pinned goal for deep-verification determinism"
@@ -270,10 +292,10 @@ def test_mock_deep_verification_and_overview_are_deterministic(
         dv = _find(events, "deep_verification")
         ro = _find(events, "research_overview")
         # Strip the per-row hypothesis_id; keep only seeded text content.
-        probes = [{
-            "verdict": entry["verdict"],
-            "probes": entry["probes"]
-        } for entry in dv["payload"]["probes"]]
+        probes = [
+            {"verdict": entry["verdict"], "probes": entry["probes"]}
+            for entry in dv["payload"]["probes"]
+        ]
         return {
             "probes": probes,
             "research_overview": ro["payload"]["research_overview"],
@@ -285,5 +307,6 @@ def test_mock_deep_verification_and_overview_are_deterministic(
 
     # A different run_id seeds different content.
     c_events = asyncio.run(
-        _drain_mock_workflow("fixed-dv-seed-c", fixed_goal, cfg))
+        _drain_mock_workflow("fixed-dv-seed-c", fixed_goal, cfg)
+    )
     assert _seeded_content(c_events) != _seeded_content(a_events)

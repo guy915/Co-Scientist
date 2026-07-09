@@ -124,18 +124,13 @@ def setup_config(
     # `or` also covers lists that become empty after cleaning, so a caller
     # sending only blank strings still gets the baseline defaults.
     return {
-        "goal":
-            research_goal.strip(),
-        "requirements":
-            clean_string_list(requirements) or list(DEFAULT_REQUIREMENTS),
-        "attributes":
-            clean_string_list(attributes) or list(DEFAULT_ATTRIBUTES),
-        "criteria":
-            clean_string_list(criteria) or list(DEFAULT_CRITERIA),
-        "focus":
-            normalize_run_focus(focus),
-        "tier":
-            normalize_run_tier(tier),
+        "goal": research_goal.strip(),
+        "requirements": clean_string_list(requirements)
+        or list(DEFAULT_REQUIREMENTS),
+        "attributes": clean_string_list(attributes) or list(DEFAULT_ATTRIBUTES),
+        "criteria": clean_string_list(criteria) or list(DEFAULT_CRITERIA),
+        "focus": normalize_run_focus(focus),
+        "tier": normalize_run_tier(tier),
     }
 
 
@@ -146,17 +141,24 @@ def focus_guidance(focus: str | None) -> str:
         return (
             "Prefer evidence: prioritize literature-grounded, feasible, and "
             "well-supported hypotheses. Penalize speculative leaps unless "
-            "they include a clear validation path.")
+            "they include a clear validation path."
+        )
     if focus == "prefer_novelty":
-        return ("Prefer novelty: reward hypotheses that introduce distinct "
-                "mechanisms or experimental angles while preserving scientific "
-                "plausibility and testability.")
+        return (
+            "Prefer novelty: reward hypotheses that introduce distinct "
+            "mechanisms or experimental angles while preserving scientific "
+            "plausibility and testability."
+        )
     if focus == "breakthrough":
-        return ("Breakthrough: actively explore high-impact, high-risk ideas. "
-                "Surface uncertainties explicitly instead of over-penalizing "
-                "speculative but testable mechanisms.")
-    return ("Balance: weigh evidence support, novelty, feasibility, and "
-            "testability evenly.")
+        return (
+            "Breakthrough: actively explore high-impact, high-risk ideas. "
+            "Surface uncertainties explicitly instead of over-penalizing "
+            "speculative but testable mechanisms."
+        )
+    return (
+        "Balance: weigh evidence support, novelty, feasibility, and "
+        "testability evenly."
+    )
 
 
 def _setup_field_lines(title: str, raw_values: Any) -> list[str]:
@@ -201,8 +203,9 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def _apply_numeric_override(base: dict[str, Any], key: str,
-                            raw_value: Any) -> None:
+def _apply_numeric_override(
+    base: dict[str, Any], key: str, raw_value: Any
+) -> None:
     """Coerce and merge a numeric knob override into `base`, in place.
 
     Non-coercible values are dropped rather than failing run creation.
@@ -223,14 +226,16 @@ def _apply_numeric_override(base: dict[str, Any], key: str,
     base[key] = max(base[key], value) if key in base else value
 
 
-def _apply_setup_override(base: dict[str, Any], unused_key: str,
-                          raw_value: Any) -> None:
+def _apply_setup_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
     """Carry the setup block through verbatim, in place."""
     base["setup"] = raw_value
 
 
-def _apply_tier_override(unused_base: dict[str, Any], unused_key: str,
-                         unused_raw_value: Any) -> None:
+def _apply_tier_override(
+    unused_base: dict[str, Any], unused_key: str, unused_raw_value: Any
+) -> None:
     """No-op: tier is resolved once, before overrides are applied.
 
     The final tier assignment in `resolved_run_config` always wins, so this
@@ -238,15 +243,18 @@ def _apply_tier_override(unused_base: dict[str, Any], unused_key: str,
     """
 
 
-def _apply_focus_override(base: dict[str, Any], unused_key: str,
-                          raw_value: Any) -> None:
+def _apply_focus_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
     """Normalize and merge the focus override into `base`, in place."""
     base["focus"] = normalize_run_focus(
-        raw_value if isinstance(raw_value, str) else None)
+        raw_value if isinstance(raw_value, str) else None
+    )
 
 
-def _apply_literature_review_override(base: dict[str, Any], unused_key: str,
-                                      raw_value: Any) -> None:
+def _apply_literature_review_override(
+    base: dict[str, Any], unused_key: str, raw_value: Any
+) -> None:
     """Coerce and merge the literature-review toggle into `base`, in place."""
     base["enable_literature_review"] = bool(raw_value)
 
@@ -263,8 +271,9 @@ _OVERRIDE_HANDLERS: dict[str, Callable[[dict[str, Any], str, Any], None]] = {
 }
 
 
-def _apply_run_config_override(base: dict[str, Any], key: str,
-                               raw_value: Any) -> None:
+def _apply_run_config_override(
+    base: dict[str, Any], key: str, raw_value: Any
+) -> None:
     """Merge one (key, raw_value) override pair into `base`, in place.
 
     Args:
@@ -307,7 +316,8 @@ def _ensure_focus_default(base: dict[str, Any]) -> None:
 
 
 def resolved_run_config(
-        overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Resolve run config defaults plus user-provided numeric overrides."""
     # Resolve the tier first since it selects the numeric baseline.
     tier = _resolve_tier_override(overrides)

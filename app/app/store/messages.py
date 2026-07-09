@@ -46,20 +46,23 @@ def append_message(
             (run_id, sender, content, kind, now, meta_json),
         )
         msg_id = cur.lastrowid or 0
-    return MessageRow(id=msg_id,
-                      run_id=run_id,
-                      sender=sender,
-                      content=content,
-                      kind=kind,
-                      created_at=now,
-                      applied=False,
-                      meta=meta)
+    return MessageRow(
+        id=msg_id,
+        run_id=run_id,
+        sender=sender,
+        content=content,
+        kind=kind,
+        created_at=now,
+        applied=False,
+        meta=meta,
+    )
 
 
 # Explicit column list shared by the message queries below, so they stay in
 # lockstep with what _row_to_message reads.
-_MESSAGE_COLUMNS = ("id, run_id, sender, content, kind, created_at, applied, "
-                    "meta_json")
+_MESSAGE_COLUMNS = (
+    "id, run_id, sender, content, kind, created_at, applied, meta_json"
+)
 
 
 def list_messages(
@@ -77,8 +80,9 @@ def list_messages(
         return [_row_to_message(r) for r in rows]
 
 
-def get_pending_steering(run_id: str,
-                         db_path: str | None = None) -> list[MessageRow]:
+def get_pending_steering(
+    run_id: str, db_path: str | None = None
+) -> list[MessageRow]:
     """Return unapplied steering messages, oldest first.
 
     The workflow polls this between iterations to pick up user guidance,
@@ -102,4 +106,5 @@ def mark_steering_applied(ids: list[int], db_path: str | None = None) -> None:
     placeholders = ",".join("?" * len(ids))
     with connect(db_path) as conn:
         conn.execute(
-            f"UPDATE messages SET applied=1 WHERE id IN ({placeholders})", ids)
+            f"UPDATE messages SET applied=1 WHERE id IN ({placeholders})", ids
+        )

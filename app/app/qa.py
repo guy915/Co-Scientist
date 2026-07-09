@@ -126,15 +126,17 @@ def _build_manifest_entries(
     # 1-based numbering matches the [n] citation markers in the prompt.
     for n, eid in enumerate(ordered_ids[:cap], start=1):
         row = by_id[eid]
-        manifest.append({
-            "n": n,
-            "evidence_id": eid,
-            "title": row.get("title") or "Untitled source",
-            "url": row.get("url"),
-            "source": row.get("source"),
-            "year": row.get("year"),
-            "state": _resolve_entry_state(row, cited_state.get(eid)),
-        })
+        manifest.append(
+            {
+                "n": n,
+                "evidence_id": eid,
+                "title": row.get("title") or "Untitled source",
+                "url": row.get("url"),
+                "source": row.get("source"),
+                "year": row.get("year"),
+                "state": _resolve_entry_state(row, cited_state.get(eid)),
+            }
+        )
     return manifest
 
 
@@ -174,10 +176,12 @@ def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:
         meta = ", ".join(
             str(part)
             for part in (entry.get("source"), entry.get("year"))
-            if part)
+            if part
+        )
         suffix = f" ({meta})" if meta else ""
-        lines.append(f"[{entry['n']}] {entry['title']}{suffix}"
-                     f" — {entry['state']}")
+        lines.append(
+            f"[{entry['n']}] {entry['title']}{suffix} — {entry['state']}"
+        )
     return "\n".join(lines)
 
 
@@ -207,18 +211,25 @@ def build_system_prompt(
     # matches, last 10 messages) to keep the prompt bounded on long runs.
     # list_hypotheses already orders by Elo descending.
     top_hyps = hypotheses[:5]
-    hyp_lines = "\n".join(f"- [{h['title']}] Elo {h['elo_rating']}, "
-                          f"{h['win_count']}W/{h['loss_count']}L"
-                          for h in top_hyps)
+    hyp_lines = "\n".join(
+        f"- [{h['title']}] Elo {h['elo_rating']}, "
+        f"{h['win_count']}W/{h['loss_count']}L"
+        for h in top_hyps
+    )
     review_lines = "\n".join(
         f"- {r['reviewer_agent']} on {r['hypothesis_id'][:8]}: "
-        f"{r['summary'][:120]}" for r in reviews[-5:])
+        f"{r['summary'][:120]}"
+        for r in reviews[-5:]
+    )
     match_lines = "\n".join(
         f"- Winner {m['winner_id'][:8]} (Elo {m['winner_elo_after']}) — "
-        f"{(m.get('rationale') or '')[:100]}" for m in matches[-3:])
+        f"{(m.get('rationale') or '')[:100]}"
+        for m in matches[-3:]
+    )
     conv_lines = "\n".join(
         f"{'User' if m.sender == 'user' else 'Assistant'}: {m.content}"
-        for m in history[-10:])
+        for m in history[-10:]
+    )
 
     return (
         f"You are a concise research assistant helping the user understand "
@@ -232,7 +243,8 @@ def build_system_prompt(
         f"{evidence_lines or '(no evidence retrieved)'}\n\n"
         f"Conversation history:\n{conv_lines or '(none)'}\n\n"
         f"Answer concisely and accurately. Do not repeat the question. When a "
-        f"statement is supported by a listed source, cite it inline as [n].")
+        f"statement is supported by a listed source, cite it inline as [n]."
+    )
 
 
 async def _stream_llm_deltas(
@@ -258,14 +270,8 @@ async def _stream_llm_deltas(
     response = await litellm.acompletion(
         model=model,
         messages=[
-            {
-                "role": "system",
-                "content": system_prompt
-            },
-            {
-                "role": "user",
-                "content": question
-            },
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": question},
         ],
         stream=True,
     )
@@ -311,19 +317,18 @@ async def _relay_answer_chunks(
         yield sse_frame({"type": "chunk", "content": delta})
 
 
-def _persist_qa_answer(run_id: str, full: list[str],
-                       manifest: list[dict[str, Any]]) -> None:
+def _persist_qa_answer(
+    run_id: str, full: list[str], manifest: list[dict[str, Any]]
+) -> None:
     """Persist the accumulated answer text, with its evidence manifest.
 
     Persisted before the caller signals `done`, so a reload right after
     completion still shows the exchange.
     """
     answer = "".join(full)
-    store.append_message(run_id,
-                         "system",
-                         answer,
-                         "qa",
-                         meta=_citation_meta(manifest))
+    store.append_message(
+        run_id, "system", answer, "qa", meta=_citation_meta(manifest)
+    )
 
 
 def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
@@ -334,8 +339,10 @@ def _handle_qa_stream_error(run_id: str, exc: Exception) -> str:
     with what the user saw.
     """
     logger.error("Q&A stream error for run %s: %s", run_id, exc)
-    fallback = ("Q&A requires a language model API key "
-                "(set CHAT_MODEL_NAME or MODEL_NAME).")
+    fallback = (
+        "Q&A requires a language model API key "
+        "(set CHAT_MODEL_NAME or MODEL_NAME)."
+    )
     store.append_message(run_id, "system", fallback, "qa")
     return fallback
 
@@ -373,8 +380,9 @@ async def stream_answer(
         # Relay each token delta as its own SSE frame, accumulating the
         # full text so the complete answer can be persisted at the end.
         full: list[str] = []
-        async for frame in _relay_answer_chunks(model, system_prompt, question,
-                                                full):
+        async for frame in _relay_answer_chunks(
+            model, system_prompt, question, full
+        ):
             yield frame
 
         _persist_qa_answer(run_id, full, manifest)

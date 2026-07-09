@@ -4,8 +4,8 @@ All INDRA CoGex endpoints are POST with JSON body payloads.
 Entity identifiers use a 2-element tuple format: [namespace, id].
 """
 
-import os
 import logging
+import os
 from typing import Any
 
 import httpx
@@ -42,8 +42,10 @@ def parse_id(identifier: str) -> list[str]:
     # id portion.
     parts = identifier.split(":", 1)
     if len(parts) != 2 or not parts[0] or not parts[1]:
-        raise ValueError(f"invalid identifier: '{identifier}'. "
-                         f"expected 'NAMESPACE:id' (e.g. 'HGNC:6407')")
+        raise ValueError(
+            f"invalid identifier: '{identifier}'. "
+            f"expected 'NAMESPACE:id' (e.g. 'HGNC:6407')"
+        )
     return parts
 
 

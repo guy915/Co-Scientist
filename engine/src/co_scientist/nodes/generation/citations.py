@@ -39,8 +39,9 @@ class ReferenceIndex:
         return not self.sources
 
 
-def _paper_citation_label(authors: list[str], year: int | None,
-                          title: str) -> str:
+def _paper_citation_label(
+    authors: list[str], year: int | None, title: str
+) -> str:
     """Build the short author/year (or title-fallback) label for a citation.
 
     Args:
@@ -61,7 +62,8 @@ def _paper_citation_label(authors: list[str], year: int | None,
 
 
 def _article_paper_fields(
-        article: Any) -> tuple[str, str, list[str], int | None]:
+    article: Any,
+) -> tuple[str, str, list[str], int | None]:
     """Extract title/url/authors/year from an article, defaulting empties.
 
     Args:
@@ -180,11 +182,13 @@ def build_reference_index(
     # sequence.
     paper_lines, sources, counter = _paper_reference_entries(articles, 1)
     enrichment_lines, enrichment_sources, _ = _enrichment_reference_entries(
-        context_enrichment_sources, counter)
+        context_enrichment_sources, counter
+    )
     sources.update(enrichment_sources)
 
-    return ReferenceIndex(text="\n".join(paper_lines + enrichment_lines),
-                          sources=sources)
+    return ReferenceIndex(
+        text="\n".join(paper_lines + enrichment_lines), sources=sources
+    )
 
 
 def _record_citation_key(

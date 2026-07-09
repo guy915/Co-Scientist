@@ -1,5 +1,9 @@
-"""Elo invariants: initial rating, expected score, configurable K factor,
-symmetric update."""
+"""Elo invariants.
+
+Covers initial rating, expected score, configurable K factor, and
+symmetric update.
+"""
+
 from __future__ import annotations
 
 from app.elo import DEFAULT_K_FACTOR, INITIAL_ELO, expected_score, update_pair
@@ -21,11 +25,11 @@ def test_expected_score_higher_player_above_half() -> None:
 
 
 def test_update_pair_zero_sum_in_integer_form() -> None:
-    w, l = update_pair(1200, 1200)
+    w, loser = update_pair(1200, 1200)
     # Equal ratings → winner gains K/2, loser loses K/2
-    assert w + l == 2400  # zero-sum
+    assert w + loser == 2400  # zero-sum
     assert w == 1212
-    assert l == 1188
+    assert loser == 1188
 
 
 def test_update_pair_respects_k_factor() -> None:

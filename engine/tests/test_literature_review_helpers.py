@@ -10,8 +10,7 @@ without any LLM, MCP, or network mocking.
 import json
 from typing import Any
 
-from co_scientist.config.schema import ResponseFormat
-from co_scientist.config.schema import ToolConfig
+from co_scientist.config.schema import ResponseFormat, ToolConfig
 from co_scientist.models import Article
 from co_scientist.nodes.literature_review import helpers
 
@@ -45,8 +44,9 @@ def test_extract_source_name_from_quoted_field_mapping() -> None:
     assert helpers.extract_source_name(tc) == "pubmed"
 
 
-def test_extract_source_name_unquoted_mapping_falls_back_to_source_type(
-) -> None:
+def test_extract_source_name_unquoted_mapping_falls_back_to_source_type() -> (
+    None
+):
     """A non-literal mapping value falls through to ``source_type``."""
     tc = _tool_config(
         ResponseFormat(field_mapping={"source": "paper.source"}),
@@ -113,14 +113,8 @@ def test_normalize_list_response_keys_by_source_id() -> None:
     """A list response is keyed by the configured ``source_id`` field."""
     tc = _tool_config(ResponseFormat(field_mapping={"source_id": "pmid"}))
     data = [
-        {
-            "pmid": "111",
-            "title": "A"
-        },
-        {
-            "pmid": "222",
-            "title": "B"
-        },
+        {"pmid": "111", "title": "A"},
+        {"pmid": "222", "title": "B"},
     ]
     result = helpers.normalize_search_response(data, tc)
     assert set(result) == {"111", "222"}
@@ -161,10 +155,9 @@ def test_build_article_maps_all_fields() -> None:
         "fulltext": "Full body text.",
         "url": "https://example.com/article",
     }
-    article = helpers.build_article_from_metadata("PMID42",
-                                                  metadata,
-                                                  source_name="pubmed",
-                                                  used_in_analysis=True)
+    article = helpers.build_article_from_metadata(
+        "PMID42", metadata, source_name="pubmed", used_in_analysis=True
+    )
     assert isinstance(article, Article)
     assert article.title == "Cancer signaling"
     assert article.url == "https://example.com/article"
@@ -179,11 +172,10 @@ def test_build_article_maps_all_fields() -> None:
 
 
 def test_build_article_defaults_for_missing_fields() -> None:
-    """Missing metadata yields safe defaults (title 'unknown', empty authors).
-    """
-    article = helpers.build_article_from_metadata("x1", {},
-                                                  source_name="arxiv",
-                                                  used_in_analysis=False)
+    """Missing metadata yields safe defaults (unknown title, no authors)."""
+    article = helpers.build_article_from_metadata(
+        "x1", {}, source_name="arxiv", used_in_analysis=False
+    )
     assert article.title == "unknown"
     assert article.authors == []
     assert article.year is None
@@ -195,8 +187,9 @@ def test_build_article_defaults_for_missing_fields() -> None:
 
 def test_build_article_venue_falls_back_to_venue_key() -> None:
     """When ``publication`` is absent the ``venue`` key is used."""
-    article = helpers.build_article_from_metadata("x1", {"venue": "JMLR"},
-                                                  source_name="arxiv")
+    article = helpers.build_article_from_metadata(
+        "x1", {"venue": "JMLR"}, source_name="arxiv"
+    )
     assert article.venue == "JMLR"
 
 
@@ -208,28 +201,32 @@ def test_build_article_venue_falls_back_to_venue_key() -> None:
 def test_build_url_prefers_metadata_url() -> None:
     """An explicit metadata URL takes precedence over construction."""
     url = helpers._build_article_url(  # pylint: disable=protected-access
-        "999", {"url": "https://custom.example/x"}, "pubmed")
+        "999", {"url": "https://custom.example/x"}, "pubmed"
+    )
     assert url == "https://custom.example/x"
 
 
 def test_build_url_pubmed_construction() -> None:
     """A pubmed source with no URL builds the canonical pubmed URL."""
     url = helpers._build_article_url(  # pylint: disable=protected-access
-        "12345", {}, "pubmed")
+        "12345", {}, "pubmed"
+    )
     assert url == "https://pubmed.ncbi.nlm.nih.gov/12345/"
 
 
 def test_build_url_doi_construction() -> None:
     """A DOI-style id on a non-pubmed source builds a doi.org URL."""
     url = helpers._build_article_url(  # pylint: disable=protected-access
-        "10.1000/xyz123", {}, "crossref")
+        "10.1000/xyz123", {}, "crossref"
+    )
     assert url == "https://doi.org/10.1000/xyz123"
 
 
 def test_build_url_fallback_returns_paper_id() -> None:
     """A non-pubmed, non-DOI id with no URL falls back to the raw id."""
     url = helpers._build_article_url(  # pylint: disable=protected-access
-        "arxiv:2401.0001", {}, "arxiv")
+        "arxiv:2401.0001", {}, "arxiv"
+    )
     assert url == "arxiv:2401.0001"
 
 
@@ -250,8 +247,9 @@ def test_parse_year_from_year_field_int() -> None:
 
 def test_parse_year_from_date_revised() -> None:
     """A ``date_revised`` like ``2021/03/01`` yields the leading year."""
-    assert helpers.parse_year_from_metadata({"date_revised": "2021/03/01"
-                                            }) == 2021
+    assert (
+        helpers.parse_year_from_metadata({"date_revised": "2021/03/01"}) == 2021
+    )
 
 
 def test_parse_year_garbage_returns_none() -> None:
@@ -278,24 +276,12 @@ def test_parse_year_falls_back_to_date_revised_when_year_empty() -> None:
 def test_count_papers_with_fulltext_mixed() -> None:
     """A mix of fulltext indicators is counted as (with, without)."""
     metadata: dict[str, dict[str, Any]] = {
-        "a": {
-            "fulltext": "body"
-        },
-        "b": {
-            "pmc_full_text_id": "PMC1"
-        },
-        "c": {
-            "has_fulltext": True
-        },
-        "d": {
-            "pdf_url": "http://x/p.pdf"
-        },
-        "e": {
-            "title": "no content"
-        },
-        "f": {
-            "abstract": "only abstract"
-        },
+        "a": {"fulltext": "body"},
+        "b": {"pmc_full_text_id": "PMC1"},
+        "c": {"has_fulltext": True},
+        "d": {"pdf_url": "http://x/p.pdf"},
+        "e": {"title": "no content"},
+        "f": {"abstract": "only abstract"},
     }
     with_ft, without_ft = helpers.count_papers_with_fulltext(metadata)
     assert with_ft == 4
@@ -305,9 +291,7 @@ def test_count_papers_with_fulltext_mixed() -> None:
 def test_count_papers_with_fulltext_ignores_non_dicts() -> None:
     """Non-dict metadata entries are skipped but still counted as 'without'."""
     metadata: dict[str, Any] = {
-        "a": {
-            "fulltext": "body"
-        },
+        "a": {"fulltext": "body"},
         "b": "not a dict",
     }
     with_ft, without_ft = helpers.count_papers_with_fulltext(metadata)
@@ -403,8 +387,9 @@ def test_get_content_non_string_coerced_to_string() -> None:
 def test_get_content_truncates_at_max_chars() -> None:
     """Content longer than ``max_chars`` is truncated with a marker suffix."""
     long_text = "x" * 500
-    out = helpers.get_paper_content_for_analysis({"fulltext": long_text},
-                                                 max_chars=100)
+    out = helpers.get_paper_content_for_analysis(
+        {"fulltext": long_text}, max_chars=100
+    )
     assert out.startswith("x" * 100)
     assert out.endswith("[... truncated for length ...]")
     assert "x" * 101 not in out
@@ -414,8 +399,9 @@ def test_get_content_truncates_at_max_chars() -> None:
 def test_get_content_no_truncation_under_limit() -> None:
     """Content within the limit is returned untouched."""
     text = "short"
-    out = helpers.get_paper_content_for_analysis({"fulltext": text},
-                                                 max_chars=100)
+    out = helpers.get_paper_content_for_analysis(
+        {"fulltext": text}, max_chars=100
+    )
     assert out == text
 
 
@@ -489,16 +475,8 @@ def test_calculate_papers_per_query_clamps_to_two_minimum() -> None:
 def test_merge_search_results_combines_and_maps_sources() -> None:
     """Results from multiple sources merge with a paper -> source map."""
     source_results = [
-        ("pubmed", {
-            "p1": {
-                "title": "Alpha"
-            }
-        }),
-        ("arxiv", {
-            "a1": {
-                "title": "Beta"
-            }
-        }),
+        ("pubmed", {"p1": {"title": "Alpha"}}),
+        ("arxiv", {"a1": {"title": "Beta"}}),
     ]
     merged, source_map = helpers.merge_search_results(source_results)
     assert set(merged) == {"p1", "a1"}
@@ -508,16 +486,8 @@ def test_merge_search_results_combines_and_maps_sources() -> None:
 def test_merge_search_results_deduplicates_by_title() -> None:
     """A title seen earlier (case/space-insensitive) is dropped."""
     source_results = [
-        ("pubmed", {
-            "p1": {
-                "title": "Shared Title"
-            }
-        }),
-        ("arxiv", {
-            "a1": {
-                "title": "  shared title  "
-            }
-        }),
+        ("pubmed", {"p1": {"title": "Shared Title"}}),
+        ("arxiv", {"a1": {"title": "  shared title  "}}),
     ]
     merged, source_map = helpers.merge_search_results(source_results)
     assert set(merged) == {"p1"}
@@ -527,16 +497,8 @@ def test_merge_search_results_deduplicates_by_title() -> None:
 def test_merge_search_results_no_dedup_keeps_duplicates() -> None:
     """With ``deduplicate=False`` duplicate titles are all retained."""
     source_results = [
-        ("pubmed", {
-            "p1": {
-                "title": "Same"
-            }
-        }),
-        ("arxiv", {
-            "a1": {
-                "title": "Same"
-            }
-        }),
+        ("pubmed", {"p1": {"title": "Same"}}),
+        ("arxiv", {"a1": {"title": "Same"}}),
     ]
     merged, _ = helpers.merge_search_results(source_results, deduplicate=False)
     assert set(merged) == {"p1", "a1"}
@@ -567,8 +529,9 @@ def test_parse_pdf_discovery_json_dict_links_with_url() -> None:
 
 def test_parse_pdf_discovery_bare_http_string() -> None:
     """A non-JSON string starting with http is treated as the URL."""
-    assert helpers.parse_pdf_discovery_result(
-        "http://x/c.pdf") == "http://x/c.pdf"
+    assert (
+        helpers.parse_pdf_discovery_result("http://x/c.pdf") == "http://x/c.pdf"
+    )
 
 
 def test_parse_pdf_discovery_non_url_string_returns_none() -> None:
@@ -578,15 +541,18 @@ def test_parse_pdf_discovery_non_url_string_returns_none() -> None:
 
 def test_parse_pdf_discovery_list_input_string() -> None:
     """A list input returns its first element when it is a string."""
-    assert helpers.parse_pdf_discovery_result(["http://x/d.pdf"
-                                              ]) == "http://x/d.pdf"
+    assert (
+        helpers.parse_pdf_discovery_result(["http://x/d.pdf"])
+        == "http://x/d.pdf"
+    )
 
 
 def test_parse_pdf_discovery_list_input_dict() -> None:
     """A list input whose first element is a dict resolves via ``url``."""
-    assert helpers.parse_pdf_discovery_result([{
-        "url": "http://x/e.pdf"
-    }]) == "http://x/e.pdf"
+    assert (
+        helpers.parse_pdf_discovery_result([{"url": "http://x/e.pdf"}])
+        == "http://x/e.pdf"
+    )
 
 
 def test_parse_pdf_discovery_empty_returns_none() -> None:

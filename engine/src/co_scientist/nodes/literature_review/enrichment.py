@@ -9,13 +9,12 @@ unless the workflow lists ``context_enrichment_tools``.
 import asyncio
 import json
 import logging
-from typing import Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.state import WorkflowState
-
-from co_scientist.nodes.reflection_helpers import extract_entity_names
 from co_scientist.nodes.literature_review.helpers import SearchConfig
+from co_scientist.nodes.reflection_helpers import extract_entity_names
+from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolConfig, ToolRegistry, WorkflowConfig
@@ -48,7 +47,8 @@ async def _call_enrichment_tool_for_entity(
 
 
 def _format_generic_items(
-    items: list[Any],) -> tuple[str, list[dict[str, Any]]]:
+    items: list[Any],
+) -> tuple[str, list[dict[str, Any]]]:
     """Format a generic list of result items as (display_text, structured).
 
     Shared by the "results"-wrapped dict shape and the bare-list shape in
@@ -57,15 +57,19 @@ def _format_generic_items(
     """
     capped = items[:_CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY]
     text = "\n".join(str(item)[:120] for item in capped)
-    structured = [{
-        "display": str(item)[:120],
-        "data": item if isinstance(item, dict) else {}
-    } for item in capped]
+    structured = [
+        {
+            "display": str(item)[:120],
+            "data": item if isinstance(item, dict) else {},
+        }
+        for item in capped
+    ]
     return text, structured
 
 
 def _format_one_indra_statement(
-        s: dict[str, Any]) -> Optional[tuple[str, dict[str, Any]]]:
+    s: dict[str, Any],
+) -> tuple[str, dict[str, Any]] | None:
     """Format one INDRA subject/object/relation statement as a causal edge.
 
     INDRA statements encode subject/object/relation triples with a belief
@@ -83,7 +87,8 @@ def _format_one_indra_statement(
 
 
 def _format_indra_statements(
-    stmts: list[dict[str, Any]],) -> tuple[str, list[dict[str, Any]]]:
+    stmts: list[dict[str, Any]],
+) -> tuple[str, list[dict[str, Any]]]:
     """Format INDRA subject/object/relation statements as causal-edge text."""
     lines = []
     items = []
@@ -117,7 +122,8 @@ def _wrap_as_text_result(value: Any) -> tuple[str, list[dict[str, Any]]]:
 
 
 def _format_dict_result(
-        data: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+    data: dict[str, Any],
+) -> tuple[str, list[dict[str, Any]]]:
     """Format a dict-shaped enrichment result.
 
     Handles the INDRA "statements" shape and the generic "results" list
@@ -180,17 +186,18 @@ async def _call_enrichment_tool_for_entities(
     tool_id = getattr(tool_config, "tool_id", tool_name)
     canonical = {
         "entity_name": "",
-        "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY
+        "limit": _CONTEXT_ENRICHMENT_RESULTS_PER_ENTITY,
     }
 
     async def _query_one(entity: str) -> tuple[str, list[dict[str, Any]]]:
         # map_parameters translates the canonical entity_name/limit pair
         # into this tool's own YAML-configured parameter names.
-        params = tool_config.map_parameters({
-            **canonical, "entity_name": entity
-        })
-        raw = await _call_enrichment_tool_for_entity(tool_name, params,
-                                                     mcp_client)
+        params = tool_config.map_parameters(
+            {**canonical, "entity_name": entity}
+        )
+        raw = await _call_enrichment_tool_for_entity(
+            tool_name, params, mcp_client
+        )
         if raw is None:
             return "", []
         text, items = _parse_enrichment_result(raw)
@@ -205,7 +212,7 @@ async def _call_enrichment_tool_for_entities(
 
     text_lines: list[str] = []
     all_items: list[dict[str, Any]] = []
-    for entity, (text, items) in zip(entities, per_entity):
+    for entity, (text, items) in zip(entities, per_entity, strict=True):
         if text:
             text_lines.append(f"[{entity}]\n{text}")
         all_items.extend(items)
@@ -231,8 +238,8 @@ def _resolve_enrichment_tool_configs(
             tool_configs.append(tc)
         else:
             logger.debug(
-                "context enrichment: tool '%s' unavailable or disabled",
-                tool_id)
+                "context enrichment: tool '%s' unavailable or disabled", tool_id
+            )
     return tool_configs
 
 
@@ -248,10 +255,11 @@ def _aggregate_enrichment_results(
     """
     sections: list[str] = []
     all_structured: list[dict[str, Any]] = []
-    for tc, result in zip(tool_configs, tool_results):
+    for tc, result in zip(tool_configs, tool_results, strict=True):
         if isinstance(result, BaseException):
-            logger.debug("context enrichment: %s raised %s", tc.mcp_tool_name,
-                         result)
+            logger.debug(
+                "context enrichment: %s raised %s", tc.mcp_tool_name, result
+            )
             continue
         text, items = result
         if text:
@@ -289,7 +297,8 @@ def _resolve_enrichment_context(
     entities = extract_entity_names(state["research_goal"], max_entities=3)
     if not entities:
         logger.debug(
-            "context enrichment: no entities extracted from research goal")
+            "context enrichment: no entities extracted from research goal"
+        )
         return None
 
     return workflow, tool_registry, entities
@@ -336,7 +345,7 @@ async def _phase2_6_fetch_context_enrichment(
     lists tools under 'context_enrichment_tools'. Returns ("", []) when not
     configured, keeping lit review unchanged for other domains.
 
-    Calls all configured tools × all extracted entities in parallel.
+    Calls all configured tools x all extracted entities in parallel.
     Output text is capped to avoid bloating the synthesis prompt.
 
     Returns:
@@ -351,15 +360,19 @@ async def _phase2_6_fetch_context_enrichment(
 
     logger.info(
         "Phase 2.6: fetching context enrichment for entities %s via %s tool(s)",
-        entities, len(workflow.context_enrichment_tools))
+        entities,
+        len(workflow.context_enrichment_tools),
+    )
 
-    tool_configs = _resolve_enrichment_tool_configs(workflow, tool_registry,
-                                                    mcp_client)
+    tool_configs = _resolve_enrichment_tool_configs(
+        workflow, tool_registry, mcp_client
+    )
     if not tool_configs:
         return empty
 
     sections, all_structured = await _run_enrichment_tools(
-        entities, tool_configs, mcp_client)
+        entities, tool_configs, mcp_client
+    )
     if not sections and not all_structured:
         return empty
 
@@ -367,7 +380,10 @@ async def _phase2_6_fetch_context_enrichment(
 
     logger.info(
         "Phase 2.6 complete: %s tool(s), %s structured items (%s chars)",
-        len(sections), len(all_structured), len(combined))
+        len(sections),
+        len(all_structured),
+        len(combined),
+    )
     return combined, all_structured
 
 

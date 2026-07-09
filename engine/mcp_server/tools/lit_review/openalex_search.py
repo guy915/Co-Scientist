@@ -24,7 +24,8 @@ _MAX_PER_PAGE = 25  # OpenAlex /works page-size ceiling used by this tool.
 
 
 def _inverted_index_positions(
-        inverted_index: dict[str, Any]) -> list[tuple[int, str]]:
+    inverted_index: dict[str, Any],
+) -> list[tuple[int, str]]:
     """Flattens an OpenAlex inverted index into (position, word) pairs.
 
     Args:
@@ -132,8 +133,9 @@ def _work_url(work: dict[str, Any]) -> str:
         Best-available URL string for the work.
     """
     location = work.get("primary_location") or {}
-    landing_page = (location.get("landing_page_url") if isinstance(
-        location, dict) else None)
+    landing_page = (
+        location.get("landing_page_url") if isinstance(location, dict) else None
+    )
     raw_id = str(work.get("id") or "")
     return _first_truthy(landing_page, work.get("doi"), raw_id)
 
@@ -201,13 +203,14 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
         authors, year, abstract, url, and source.
     """
     out: dict[str, Any] = {}
-    for work in _works_results(data)[:max(max_papers, 0)]:
+    for work in _works_results(data)[: max(max_papers, 0)]:
         _add_normalized_work(out, work)
     return out
 
 
-def _build_search_params(query: str, max_papers: int,
-                         recency_years: int) -> tuple[dict[str, str], int]:
+def _build_search_params(
+    query: str, max_papers: int, recency_years: int
+) -> tuple[dict[str, str], int]:
     """Builds OpenAlex /works query params for a search request.
 
     Pure function (no I/O) so it can be unit-tested directly.
@@ -242,10 +245,10 @@ def _build_search_params(query: str, max_papers: int,
 
 
 async def search_openalex(
-        query: str,
-        max_papers: int = 10,
-        recency_years: int = 0,
-        run_id: str | None = None,  # pylint: disable=unused-argument
+    query: str,
+    max_papers: int = 10,
+    recency_years: int = 0,
+    run_id: str | None = None,  # pylint: disable=unused-argument
 ) -> dict[str, Any]:
     """Search OpenAlex works and return ``{work_id: metadata}``.
 

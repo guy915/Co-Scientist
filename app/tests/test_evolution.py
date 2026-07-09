@@ -1,4 +1,5 @@
 """Tests for append-only evolution and hypothesis lineage."""
+
 # pylint: disable=unused-argument
 from __future__ import annotations
 
@@ -10,11 +11,12 @@ from tests._client import make_client as _client
 from tests._client import wait_for_status
 
 
-def _wait_completed(client: TestClient,
-                    run_id: str,
-                    timeout: float = 20.0) -> None:
-    assert wait_for_status(client, run_id, "completed",
-                           timeout=timeout), "run did not complete in time"
+def _wait_completed(
+    client: TestClient, run_id: str, timeout: float = 20.0
+) -> None:
+    assert wait_for_status(client, run_id, "completed", timeout=timeout), (
+        "run did not complete in time"
+    )
 
 
 def _by_id(hyps: list[dict[str, Any]], hid: str) -> dict[str, Any]:
@@ -22,8 +24,9 @@ def _by_id(hyps: list[dict[str, Any]], hid: str) -> dict[str, Any]:
     return next(h for h in hyps if h["id"] == hid)
 
 
-def _walk_to_root(hyps: list[dict[str, Any]],
-                  child: dict[str, Any]) -> dict[str, Any]:
+def _walk_to_root(
+    hyps: list[dict[str, Any]], child: dict[str, Any]
+) -> dict[str, Any]:
     """Walk a hypothesis's parent chain back to its root.
 
     Asserts there is no cycle along the way.
@@ -38,7 +41,7 @@ def _walk_to_root(hyps: list[dict[str, Any]],
 
 
 def _split_by_lineage(
-    hyps: list[dict[str, Any]]
+    hyps: list[dict[str, Any]],
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     """Split hypotheses into (initial, evolved) by parent_id presence."""
     initial = [h for h in hyps if h["parent_id"] is None]
@@ -46,8 +49,9 @@ def _split_by_lineage(
     return initial, evolved
 
 
-def _assert_child_lineage(hyps: list[dict[str, Any]], child: dict[str, Any],
-                          initial_ids: set[str]) -> None:
+def _assert_child_lineage(
+    hyps: list[dict[str, Any]], child: dict[str, Any], initial_ids: set[str]
+) -> None:
     """Assert one evolved child's lineage, generation, and identity.
 
     Walks the child's lineage back to an initial (gen 0) hypothesis, checks
@@ -62,13 +66,14 @@ def _assert_child_lineage(hyps: list[dict[str, Any]], child: dict[str, Any],
 
 
 def test_evolution_creates_new_rows_with_parent_lineage(
-        isolated_db: str) -> None:
+    isolated_db: str,
+) -> None:
     client = _client()
     rid = client.post(
         "/api/runs",
         json={
             "research_goal": "Targeted apoptosis in glioma stem cells",
-            "profile": "advanced"
+            "profile": "advanced",
         },
     ).json()["id"]
     client.post(f"/api/runs/{rid}/start", json={})
@@ -93,14 +98,16 @@ def test_evolution_creates_new_rows_with_parent_lineage(
 
 
 def test_evolution_event_emitted(isolated_db: str) -> None:
-    """The evolve agent emits at least one event; the citation/audit step
-    follows."""
+    """The evolve agent emits at least one event.
+
+    The citation/audit step follows.
+    """
     client = _client()
     rid = client.post(
         "/api/runs",
         json={
             "research_goal": "Lipid raft remodelling in viral entry",
-            "profile": "standard"
+            "profile": "standard",
         },
     ).json()["id"]
     client.post(f"/api/runs/{rid}/start", json={})
@@ -114,5 +121,6 @@ def test_evolution_event_emitted(isolated_db: str) -> None:
 
     matches = client.get(f"/api/runs/{rid}/matches").json()["matches"]
     iterations = {m["iteration"] for m in matches}
-    assert len(iterations
-              ) >= 2, "run should have >=2 ranking iterations (pre/post evolve)"
+    assert len(iterations) >= 2, (
+        "run should have >=2 ranking iterations (pre/post evolve)"
+    )

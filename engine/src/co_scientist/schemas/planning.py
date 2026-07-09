@@ -31,28 +31,19 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "goal_summary": {
-                        "type":
-                            "string",
-                        "description":
-                            "concise restatement of the research goal",
+                        "type": "string",
+                        "description": (
+                            "concise restatement of the research goal"
+                        ),
                     },
-                    "key_areas": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
+                    "key_areas": {"type": "array", "items": {"type": "string"}},
                     "constraints_identified": {
                         "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "items": {"type": "string"},
                     },
                     "success_criteria": {
                         "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "items": {"type": "string"},
                     },
                 },
                 "required": [
@@ -77,16 +68,14 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                         "properties": {
                             "focus_areas": {
                                 "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
+                                "items": {"type": "string"},
                             },
                             "diversity_targets": {
-                                "type":
-                                    "string",
-                                "description":
-                                    ("description of diversity targets"
-                                     " for hypotheses"),
+                                "type": "string",
+                                "description": (
+                                    "description of diversity targets"
+                                    " for hypotheses"
+                                ),
                             },
                             "quantity_target": {
                                 "type": "string",
@@ -94,8 +83,9 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                             },
                         },
                         "required": [
-                            "focus_areas", "diversity_targets",
-                            "quantity_target"
+                            "focus_areas",
+                            "diversity_targets",
+                            "quantity_target",
                         ],
                         "additionalProperties": False,
                     },
@@ -104,9 +94,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                         "properties": {
                             "critical_criteria": {
                                 "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
+                                "items": {"type": "string"},
                             },
                             "review_depth": {
                                 "type": "string",
@@ -120,16 +108,14 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                         "type": "object",
                         "properties": {
                             "ranking_approach": {
-                                "type":
-                                    "string",
-                                "description":
-                                    "description of ranking approach",
+                                "type": "string",
+                                "description": (
+                                    "description of ranking approach"
+                                ),
                             },
                             "selection_criteria": {
                                 "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
+                                "items": {"type": "string"},
                             },
                         },
                         "required": ["ranking_approach", "selection_criteria"],
@@ -140,19 +126,18 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                         "properties": {
                             "refinement_priorities": {
                                 "type": "array",
-                                "items": {
-                                    "type": "string"
-                                }
+                                "items": {"type": "string"},
                             },
                             "iteration_strategy": {
-                                "type":
-                                    "string",
-                                "description":
-                                    "description of iteration strategy",
+                                "type": "string",
+                                "description": (
+                                    "description of iteration strategy"
+                                ),
                             },
                         },
                         "required": [
-                            "refinement_priorities", "iteration_strategy"
+                            "refinement_priorities",
+                            "iteration_strategy",
                         ],
                         "additionalProperties": False,
                     },
@@ -171,39 +156,37 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
             # path currently reads config_synthesis back out.
             "config_synthesis": {
                 "type": "object",
-                "description":
-                    ("Normalized run configuration synthesized from the goal,"
-                     " mirroring the reference product's Config. Keep the three"
-                     " lists strictly separate."),
+                "description": (
+                    "Normalized run configuration synthesized from the goal,"
+                    " mirroring the reference product's Config. Keep the three"
+                    " lists strictly separate."
+                ),
                 "properties": {
                     "preferences": {
-                        "type":
-                            "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description":
-                            ("Hard scope constraints plus the soft 'what makes"
-                             " a good idea' qualities. Used by BOTH generation"
-                             " and review."),
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Hard scope constraints plus the soft 'what makes"
+                            " a good idea' qualities. Used by BOTH generation"
+                            " and review."
+                        ),
                     },
                     "review_instructions": {
-                        "type":
-                            "array",
-                        "items": {
-                            "type": "string"
-                        },
-                        "description":
-                            ("Comparative critique guidance for reviewers"
-                             " ONLY: how to validate soundness and tell strong"
-                             " ideas from weak ones. Do NOT restate the"
-                             " preferences here."),
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": (
+                            "Comparative critique guidance for reviewers"
+                            " ONLY: how to validate soundness and tell strong"
+                            " ideas from weak ones. Do NOT restate the"
+                            " preferences here."
+                        ),
                     },
                     "attributes": {
                         "type": "array",
-                        "description":
-                            ("Up to 3 axes used to stratify and compare ideas,"
-                             " each with a 1-5 scoring rubric."),
+                        "description": (
+                            "Up to 3 axes used to stratify and compare ideas,"
+                            " each with a 1-5 scoring rubric."
+                        ),
                         "items": {
                             "type": "object",
                             "properties": {
@@ -212,11 +195,11 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                                     "description": "short attribute name",
                                 },
                                 "rubric": {
-                                    "type":
-                                        "string",
-                                    "description":
-                                        ("how to score this attribute from 1"
-                                         " (worst) to 5 (best)"),
+                                    "type": "string",
+                                    "description": (
+                                        "how to score this attribute from 1"
+                                        " (worst) to 5 (best)"
+                                    ),
                                 },
                             },
                             "required": ["name", "rubric"],
@@ -225,7 +208,9 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     },
                 },
                 "required": [
-                    "preferences", "review_instructions", "attributes"
+                    "preferences",
+                    "review_instructions",
+                    "attributes",
                 ],
                 "additionalProperties": False,
             },
@@ -242,49 +227,47 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     },
                     "bottlenecks_identified": {
                         "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "items": {"type": "string"},
                     },
                     "agent_performance": {
                         "type": "object",
                         "properties": {
                             "generation_agent": {
-                                "type":
-                                    "string",
-                                "description": ("assessment of generation agent"
-                                                " performance"),
+                                "type": "string",
+                                "description": (
+                                    "assessment of generation agent performance"
+                                ),
                             },
                             "reflection_agent": {
-                                "type":
-                                    "string",
-                                "description": ("assessment of reflection agent"
-                                                " performance"),
+                                "type": "string",
+                                "description": (
+                                    "assessment of reflection agent performance"
+                                ),
                             },
                             "ranking_agent": {
-                                "type":
-                                    "string",
-                                "description": ("assessment of ranking agent"
-                                                " performance"),
+                                "type": "string",
+                                "description": (
+                                    "assessment of ranking agent performance"
+                                ),
                             },
                             "evolution_agent": {
-                                "type":
-                                    "string",
-                                "description": ("assessment of evolution agent"
-                                                " performance"),
+                                "type": "string",
+                                "description": (
+                                    "assessment of evolution agent performance"
+                                ),
                             },
                             "proximity_agent": {
-                                "type":
-                                    "string",
-                                "description": ("assessment of proximity agent"
-                                                " performance"),
+                                "type": "string",
+                                "description": (
+                                    "assessment of proximity agent performance"
+                                ),
                             },
                             "meta_review_agent": {
-                                "type":
-                                    "string",
-                                "description":
-                                    ("assessment of meta-review agent"
-                                     " performance"),
+                                "type": "string",
+                                "description": (
+                                    "assessment of meta-review agent"
+                                    " performance"
+                                ),
                             },
                         },
                         "required": [
@@ -299,8 +282,9 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     },
                 },
                 "required": [
-                    "current_status", "bottlenecks_identified",
-                    "agent_performance"
+                    "current_status",
+                    "bottlenecks_identified",
+                    "agent_performance",
                 ],
                 "additionalProperties": False,
             },
@@ -311,7 +295,7 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                     "properties": {
                         "aspect": {
                             "type": "string",
-                            "description": "aspect to adjust"
+                            "description": "aspect to adjust",
                         },
                         "adjustment": {
                             "type": "string",
@@ -330,22 +314,20 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "hypothesis_selection_strategy": {
-                        "type":
-                            "string",
-                        "description":
-                            "strategy for selecting final hypotheses",
+                        "type": "string",
+                        "description": (
+                            "strategy for selecting final hypotheses"
+                        ),
                     },
                     "presentation_format": {
-                        "type":
-                            "string",
-                        "description":
-                            "format for presenting results to scientist",
+                        "type": "string",
+                        "description": (
+                            "format for presenting results to scientist"
+                        ),
                     },
                     "key_insights_to_highlight": {
                         "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
+                        "items": {"type": "string"},
                     },
                 },
                 "required": [
@@ -393,47 +375,27 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "theme": {
-                            "type": "string"
-                        },
-                        "description": {
-                            "type": "string"
-                        },
-                        "frequency": {
-                            "type": "string"
-                        },
+                        "theme": {"type": "string"},
+                        "description": {"type": "string"},
+                        "frequency": {"type": "string"},
                     },
                     "required": ["theme", "description", "frequency"],
                     "additionalProperties": False,
                 },
             },
-            "strengths": {
-                "type": "array",
-                "items": {
-                    "type": "string"
-                }
-            },
-            "weaknesses": {
-                "type": "array",
-                "items": {
-                    "type": "string"
-                }
-            },
+            "strengths": {"type": "array", "items": {"type": "string"}},
+            "weaknesses": {"type": "array", "items": {"type": "string"}},
             "process_assessment": {
                 "type": "object",
                 "properties": {
-                    "generation_process": {
-                        "type": "string"
-                    },
-                    "review_process": {
-                        "type": "string"
-                    },
-                    "evolution_process": {
-                        "type": "string"
-                    },
+                    "generation_process": {"type": "string"},
+                    "review_process": {"type": "string"},
+                    "evolution_process": {"type": "string"},
                 },
                 "required": [
-                    "generation_process", "review_process", "evolution_process"
+                    "generation_process",
+                    "review_process",
+                    "evolution_process",
                 ],
                 "additionalProperties": False,
             },
@@ -442,18 +404,14 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "focus_area": {
-                            "type": "string"
-                        },
-                        "recommendation": {
-                            "type": "string"
-                        },
-                        "justification": {
-                            "type": "string"
-                        },
+                        "focus_area": {"type": "string"},
+                        "recommendation": {"type": "string"},
+                        "justification": {"type": "string"},
                     },
                     "required": [
-                        "focus_area", "recommendation", "justification"
+                        "focus_area",
+                        "recommendation",
+                        "justification",
                     ],
                     "additionalProperties": False,
                 },
@@ -465,20 +423,15 @@ META_REVIEW_SCHEMA: dict[str, Any] = {
                     "properties": {
                         "related_hypotheses": {
                             "type": "array",
-                            "items": {
-                                "type": "string"
-                            }
+                            "items": {"type": "string"},
                         },
-                        "connection_type": {
-                            "type": "string"
-                        },
-                        "synthesis_opportunity": {
-                            "type": "string"
-                        },
+                        "connection_type": {"type": "string"},
+                        "synthesis_opportunity": {"type": "string"},
                     },
                     "required": [
-                        "related_hypotheses", "connection_type",
-                        "synthesis_opportunity"
+                        "related_hypotheses",
+                        "connection_type",
+                        "synthesis_opportunity",
                     ],
                     "additionalProperties": False,
                 },

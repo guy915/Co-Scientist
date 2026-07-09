@@ -3,16 +3,20 @@
 import logging
 from typing import Any
 
-from co_scientist.constants import MEDIUM_TEMPERATURE
-from co_scientist.constants import PROGRESS_RESEARCH_OVERVIEW_COMPLETE
-from co_scientist.constants import PROGRESS_RESEARCH_OVERVIEW_START
-from co_scientist.constants import RESEARCH_OVERVIEW_TOP_K
-from co_scientist.constants import THINKING_MAX_TOKENS
+from co_scientist.constants import (
+    MEDIUM_TEMPERATURE,
+    PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
+    PROGRESS_RESEARCH_OVERVIEW_START,
+    RESEARCH_OVERVIEW_TOP_K,
+    THINKING_MAX_TOKENS,
+)
 from co_scientist.llm import call_llm_json
-from co_scientist.models import create_metrics_update
-from co_scientist.models import Hypothesis
-from co_scientist.models import phase_message
-from co_scientist.models import rank_by_elo
+from co_scientist.models import (
+    Hypothesis,
+    create_metrics_update,
+    phase_message,
+    rank_by_elo,
+)
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_research_overview_prompt
 from co_scientist.state import WorkflowState
@@ -38,15 +42,21 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
 
     summary = _summarize_top_hypotheses(hypotheses)
 
-    await emit_progress(state, "research_overview_start",
-                        "Synthesizing research overview...",
-                        PROGRESS_RESEARCH_OVERVIEW_START)
+    await emit_progress(
+        state,
+        "research_overview_start",
+        "Synthesizing research overview...",
+        PROGRESS_RESEARCH_OVERVIEW_START,
+    )
 
     research_overview = await _synthesize_research_overview(state, summary)
 
-    await emit_progress(state, "research_overview_complete",
-                        "Research overview ready",
-                        PROGRESS_RESEARCH_OVERVIEW_COMPLETE)
+    await emit_progress(
+        state,
+        "research_overview_complete",
+        "Research overview ready",
+        PROGRESS_RESEARCH_OVERVIEW_COMPLETE,
+    )
 
     logger.info("Research overview complete")
 
@@ -69,7 +79,8 @@ def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
     ranked = rank_by_elo(hypotheses)
     top = ranked[:RESEARCH_OVERVIEW_TOP_K]
     return "\n".join(
-        f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top))
+        f"{i + 1}. (Elo {h.elo_rating}) {h.text}" for i, h in enumerate(top)
+    )
 
 
 async def _synthesize_research_overview(
@@ -116,7 +127,8 @@ async def _synthesize_research_overview(
 
 
 def _build_research_overview_result(
-        research_overview: dict[str, Any]) -> dict[str, Any]:
+    research_overview: dict[str, Any],
+) -> dict[str, Any]:
     """Assembles the research_overview_node return dict.
 
     Args:
@@ -132,11 +144,10 @@ def _build_research_overview_result(
     # research_overview has no reducer annotation in state.py, so this is a
     # plain overwrite -- appropriate since this node runs once, terminally.
     return {
-        "research_overview":
-            research_overview,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message("research_overview",
-                          "Synthesized research overview and Specific Aims"),
+        "research_overview": research_overview,
+        "metrics": metrics,
+        "messages": phase_message(
+            "research_overview",
+            "Synthesized research overview and Specific Aims",
+        ),
     }

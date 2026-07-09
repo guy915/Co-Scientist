@@ -22,8 +22,11 @@ from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from app import store
-from app.citations import (CitationRecord, classify_citation,
-                           empty_citation_summary)
+from app.citations import (
+    CitationRecord,
+    classify_citation,
+    empty_citation_summary,
+)
 from app.config import settings
 from app.elo import INITIAL_ELO
 from app.mock_workflow import run_mock_workflow
@@ -51,7 +54,8 @@ from app.store import RunStatus
 # Inject the sibling engine src into sys.path at import time so that
 # `from co_scientist import HypothesisGenerator` in main.py succeeds.
 _engine_src = os.path.normpath(
-    os.path.join(os.path.dirname(__file__), "..", "..", "engine", "src"))
+    os.path.join(os.path.dirname(__file__), "..", "..", "engine", "src")
+)
 if os.path.isdir(_engine_src) and _engine_src not in sys.path:
     sys.path.insert(0, _engine_src)
 
@@ -64,13 +68,15 @@ logger = logging.getLogger(__name__)
 # controlled by settings.model_name / settings.supervisor_model_name.
 def _has_provider_key() -> bool:
     return any(
-        bool(os.getenv(k)) for k in (
+        bool(os.getenv(k))
+        for k in (
             "GEMINI_API_KEY",
             "OPENAI_API_KEY",
             "ANTHROPIC_API_KEY",
             "AZURE_API_KEY",
             "DEEPSEEK_API_KEY",
-        ))
+        )
+    )
 
 
 # Checks importability via find_spec rather than a real import, so this can
@@ -79,6 +85,7 @@ def _has_provider_key() -> bool:
 def _engine_importable() -> bool:
     try:
         import importlib.util  # pylint: disable=import-outside-toplevel
+
         return importlib.util.find_spec("co_scientist") is not None
     except Exception:  # pylint: disable=broad-exception-caught
         return False
@@ -108,8 +115,9 @@ def system_status() -> dict[str, Any]:
         "model_name": settings.model_name,
         # Report the effective supervisor model: the generator falls back to
         # model_name when supervisor_model_name is unset, so mirror that here.
-        "supervisor_model_name": (settings.supervisor_model_name or
-                                  settings.model_name),
+        "supervisor_model_name": (
+            settings.supervisor_model_name or settings.model_name
+        ),
         "mcp_server_url": settings.mcp_server_url,
     }
 
@@ -186,7 +194,8 @@ def _evolve_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
 
 
 def _supervisor_plan_payload_extra(
-        unused_state: dict[str, Any]) -> dict[str, Any]:
+    unused_state: dict[str, Any],
+) -> dict[str, Any]:
     """Build the ``supervisor.plan`` node's payload keys."""
     del unused_state
     return {"agents": list(_ENGINE_PIPELINE_AGENTS)}
@@ -205,8 +214,9 @@ _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
 }
 
 
-def _canonical_engine_payload(node_name: str, node_type: str,
-                              state: dict[str, Any]) -> dict[str, Any]:
+def _canonical_engine_payload(
+    node_name: str, node_type: str, state: dict[str, Any]
+) -> dict[str, Any]:
     """Build a canonical event payload for a streamed engine node.
 
     Per-stage keys match the mock's payload shape (``count``, ``hypotheses``,
@@ -297,7 +307,8 @@ def _format_milestone(node_type: str, payload: dict[str, Any]) -> str | None:
 
 
 def _article_coalesced_fields(
-        art: dict[str, Any]) -> tuple[str, list[str], str]:
+    art: dict[str, Any],
+) -> tuple[str, list[str], str]:
     """Extract an article's (url, authors, abstract), each falling back.
 
     Isolates the fields whose raw value needs an empty-default fallback (as
@@ -344,7 +355,8 @@ def _persist_engine_evidence(
 
 
 def _derive_hypothesis_identity(
-        h: dict[str, Any]) -> tuple[str, str, int, str, str | None]:
+    h: dict[str, Any],
+) -> tuple[str, str, int, str, str | None]:
     """Derive an engine hypothesis's statement, title, generation, and ids.
 
     The title is the first sentence (or first 120 chars) of the statement.
@@ -362,8 +374,9 @@ def _derive_hypothesis_identity(
     return text, title, generation, agent, engine_id
 
 
-def _persist_hypothesis_state(hyp_id: str, h: dict[str, Any],
-                              conn: sqlite3.Connection) -> None:
+def _persist_hypothesis_state(
+    hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
+) -> None:
     """Persist a hypothesis's mutable state: Elo rating, wins, losses, score."""
     store.update_hypothesis_state(
         hyp_id,
@@ -412,8 +425,9 @@ def _score_or_none(value: Any) -> float | None:
     return float(value or 0) or None
 
 
-def _persist_engine_review_rows(run_id: str, hyp_id: str, h: dict[str, Any],
-                                conn: sqlite3.Connection) -> None:
+def _persist_engine_review_rows(
+    run_id: str, hyp_id: str, h: dict[str, Any], conn: sqlite3.Connection
+) -> None:
     """Persist a hypothesis's per-review rows from the engine's reviews list."""
     for rv in h.get("reviews") or []:
         scores = rv.get("scores", {})
@@ -442,7 +456,8 @@ def _persist_deep_verification_review(
     if not probes:
         return
     summary, critique = format_deep_verification_critique(
-        probes, h.get("deep_verification_verdict"))
+        probes, h.get("deep_verification_verdict")
+    )
     store.add_review(
         run_id=run_id,
         hypothesis_id=hyp_id,
@@ -537,9 +552,9 @@ def _persist_engine_citations(
     for cite_key, cite_info in _citation_map(h).items():
         cite_title = cite_info.get("title", cite_key)
         cite_url = _citation_url(cite_info)
-        cite_ev_id = _ensure_citation_evidence_id(run_id, cite_title, cite_info,
-                                                  cite_url, ev_id_by_title,
-                                                  conn)
+        cite_ev_id = _ensure_citation_evidence_id(
+            run_id, cite_title, cite_info, cite_url, ev_id_by_title, conn
+        )
         claim = f"[{cite_key}] cited in hypothesis"
         state = classify_citation(
             CitationRecord(
@@ -547,7 +562,8 @@ def _persist_engine_citations(
                 abstract=abstract_by_title.get(cite_title, ""),
                 claim=grounding,
                 available=True,
-            ))
+            )
+        )
         citation_summary[state] += 1
         store.add_citation(run_id, hyp_id, cite_ev_id, claim, state, conn=conn)
 
@@ -571,12 +587,20 @@ def _persist_engine_hypothesis(
     if engine_id:
         store_id_by_engine_id[engine_id] = hyp_id
     _persist_engine_reviews(run_id, hyp_id, h, conn)
-    _persist_engine_citations(run_id, hyp_id, h, ev_id_by_title,
-                              abstract_by_title, citation_summary, conn)
+    _persist_engine_citations(
+        run_id,
+        hyp_id,
+        h,
+        ev_id_by_title,
+        abstract_by_title,
+        citation_summary,
+        conn,
+    )
 
 
-def _matchup_loser_engine_id(m: dict[str, Any], a_engine_id: str | None,
-                             winner_engine_id: str | None) -> str | None:
+def _matchup_loser_engine_id(
+    m: dict[str, Any], a_engine_id: str | None, winner_engine_id: str | None
+) -> str | None:
     """Return the losing side's engine id: whichever side didn't win."""
     b_engine_id = m.get("hypothesis_b_id")
     return b_engine_id if winner_engine_id == a_engine_id else a_engine_id
@@ -604,7 +628,10 @@ def _resolve_match_sides(
         logger.warning(
             "skipping matchup: unresolved hypothesis id "
             "(winner=%s, loser=%s) — likely a hypothesis dropped "
-            "during evolution", winner_engine_id, loser_engine_id)
+            "during evolution",
+            winner_engine_id,
+            loser_engine_id,
+        )
         return None
     return winner_id, loser_id
 
@@ -636,8 +663,9 @@ def _persist_engine_matches(
         )
 
 
-def _final_state_list(final_state: dict[str, Any],
-                      key: str) -> list[dict[str, Any]]:
+def _final_state_list(
+    final_state: dict[str, Any], key: str
+) -> list[dict[str, Any]]:
     """Return a list-valued key from the engine's final state, or empty."""
     return final_state.get(key) or []
 
@@ -682,25 +710,31 @@ def _persist_final_state(
     with store.transaction(db_path) as conn:
         # 1. Evidence: persist retrieved articles.
         ev_id_by_title, abstract_by_title = _persist_engine_evidence(
-            run_id, articles, conn)
+            run_id, articles, conn
+        )
 
         # 2. Hypotheses: persist in generation order; mark evolved ones.
         for h in hyps:
-            _persist_engine_hypothesis(run_id, h, ev_id_by_title,
-                                       abstract_by_title, store_id_by_engine_id,
-                                       citation_summary, conn)
+            _persist_engine_hypothesis(
+                run_id,
+                h,
+                ev_id_by_title,
+                abstract_by_title,
+                store_id_by_engine_id,
+                citation_summary,
+                conn,
+            )
 
         # 3. Tournament matches: resolve each side by the engine's stable
         # hypothesis id.
         _persist_engine_matches(run_id, matchups, store_id_by_engine_id, conn)
 
     return {
-        "citation_summary":
-            citation_summary,
-        "meta_review":
-            _final_state_dict(final_state, "meta_review"),
-        "research_overview":
-            _final_state_dict(final_state, "research_overview"),
+        "citation_summary": citation_summary,
+        "meta_review": _final_state_dict(final_state, "meta_review"),
+        "research_overview": _final_state_dict(
+            final_state, "research_overview"
+        ),
     }
 
 
@@ -713,21 +747,22 @@ def _drain_pre_run_steering(run_id: str, db_path: str | None) -> None:
     """
     pre_run_steering = store.get_pending_steering(run_id, db_path=db_path)
     if pre_run_steering:
-        store.mark_steering_applied([m.id for m in pre_run_steering],
-                                    db_path=db_path)
+        store.mark_steering_applied(
+            [m.id for m in pre_run_steering], db_path=db_path
+        )
 
 
-def _emit_mock_milestone(run_id: str, event: dict[str, Any],
-                         db_path: str | None) -> None:
+def _emit_mock_milestone(
+    run_id: str, event: dict[str, Any], db_path: str | None
+) -> None:
     """Surface a mock event's milestone, if any, as a user-facing message."""
-    milestone = _format_milestone(event.get("type", ""),
-                                  event.get("payload", {}))
+    milestone = _format_milestone(
+        event.get("type", ""), event.get("payload", {})
+    )
     if milestone:
-        store.append_message(run_id,
-                             "system",
-                             milestone,
-                             "milestone",
-                             db_path=db_path)
+        store.append_message(
+            run_id, "system", milestone, "milestone", db_path=db_path
+        )
 
 
 async def _stream_mock_provider(
@@ -747,12 +782,12 @@ async def _stream_mock_provider(
     _drain_pre_run_steering(run_id, db_path)
 
     async for event in run_mock_workflow(
-            run_id=run_id,
-            research_goal=research_goal,
-            config=cfg,
-            db_path=db_path,
-            cancelled=cancelled,
-            sleep_seconds=sleep_seconds,
+        run_id=run_id,
+        research_goal=research_goal,
+        config=cfg,
+        db_path=db_path,
+        cancelled=cancelled,
+        sleep_seconds=sleep_seconds,
     ):
         _emit_mock_milestone(run_id, event, db_path)
         yield event
@@ -761,7 +796,10 @@ async def _stream_mock_provider(
 def _import_hypothesis_generator() -> Any | None:
     """Import the engine's `HypothesisGenerator`, or None if unavailable."""
     try:
-        from co_scientist import HypothesisGenerator  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
+        from co_scientist import (
+            HypothesisGenerator,  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
+        )
+
         return HypothesisGenerator
     # pylint: disable-next=broad-exception-caught
     except Exception as e:  # pragma: no cover (defensive)
@@ -800,8 +838,8 @@ def _append_if(parts: list[str], value: str | None) -> None:
 
 
 def _steering_preference_part(
-        db_path: str | None,
-        pending_steering: list[store.MessageRow]) -> str | None:
+    db_path: str | None, pending_steering: list[store.MessageRow]
+) -> str | None:
     """Return the queued-steering preference text, marking it applied.
 
     Returns None (and leaves the queue untouched) when there is nothing
@@ -810,13 +848,15 @@ def _steering_preference_part(
     if not pending_steering:
         return None
     guidance = "\n".join(f"- {m.content}" for m in pending_steering)
-    store.mark_steering_applied([m.id for m in pending_steering],
-                                db_path=db_path)
+    store.mark_steering_applied(
+        [m.id for m in pending_steering], db_path=db_path
+    )
     return f"User steering guidance:\n{guidance}"
 
 
-def _fold_steering_preferences(run_id: str, db_path: str | None,
-                               setup_text: str) -> str | None:
+def _fold_steering_preferences(
+    run_id: str, db_path: str | None, setup_text: str
+) -> str | None:
     """Fold setup guidance and queued user steering into one "preferences" opt.
 
     Steering consumed here is marked applied so a later iteration does not
@@ -825,8 +865,9 @@ def _fold_steering_preferences(run_id: str, db_path: str | None,
     pending_steering = store.get_pending_steering(run_id, db_path=db_path)
     preference_parts: list[str] = []
     _append_if(preference_parts, setup_text)
-    _append_if(preference_parts,
-               _steering_preference_part(db_path, pending_steering))
+    _append_if(
+        preference_parts, _steering_preference_part(db_path, pending_steering)
+    )
     return "\n\n".join(preference_parts) if preference_parts else None
 
 
@@ -845,8 +886,9 @@ def _resolve_literature_review_toggle(cfg: dict[str, Any]) -> bool:
     return enable_literature_review
 
 
-def _build_engine_opts(cfg: dict[str, Any], run_id: str,
-                       db_path: str | None) -> dict[str, Any]:
+def _build_engine_opts(
+    cfg: dict[str, Any], run_id: str, db_path: str | None
+) -> dict[str, Any]:
     """Translate a run's durable config into the engine's `opts` vocabulary.
 
     Folds the composer "setup" (focus/attributes/requirements/criteria), any
@@ -856,11 +898,13 @@ def _build_engine_opts(cfg: dict[str, Any], run_id: str,
     """
     initial_opts = _setup_opts_from_cfg(cfg.get("setup"))
     preferences = _fold_steering_preferences(
-        run_id, db_path, str(initial_opts.get("run_setup_guidance") or ""))
+        run_id, db_path, str(initial_opts.get("run_setup_guidance") or "")
+    )
     if preferences:
         initial_opts["preferences"] = preferences
     initial_opts["enable_literature_review_node"] = (
-        _resolve_literature_review_toggle(cfg))
+        _resolve_literature_review_toggle(cfg)
+    )
     return initial_opts
 
 
@@ -886,21 +930,28 @@ def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
     )
 
 
-def _merge_engine_state(final_state: dict[str, Any], state: dict[str,
-                                                                 Any]) -> None:
+def _merge_engine_state(
+    final_state: dict[str, Any], state: dict[str, Any]
+) -> None:
     """Merge one streamed engine snapshot's known keys into `final_state`.
 
     Mutates `final_state` in place with any of the tracked keys present in
     `state` (a node may omit keys it doesn't touch).
     """
-    for key in ("hypotheses", "articles", "tournament_matchups", "meta_review",
-                "research_overview"):
+    for key in (
+        "hypotheses",
+        "articles",
+        "tournament_matchups",
+        "meta_review",
+        "research_overview",
+    ):
         if state.get(key) is not None:
             final_state[key] = state[key]
 
 
-async def _emit_cancelled_event(run_id: str, db_path: str | None,
-                                emit: EmitFn) -> dict[str, Any]:
+async def _emit_cancelled_event(
+    run_id: str, db_path: str | None, emit: EmitFn
+) -> dict[str, Any]:
     """Persist a CANCELLED status and return the terminal event to yield."""
     store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
     return await emit("status", {"status": "cancelled"})
@@ -923,11 +974,9 @@ async def _emit_engine_node_event(
     payload = _canonical_engine_payload(node_name, node_type, state)
     milestone = _format_milestone(node_type, payload)
     if milestone:
-        store.append_message(run_id,
-                             "system",
-                             milestone,
-                             "milestone",
-                             db_path=db_path)
+        store.append_message(
+            run_id, "system", milestone, "milestone", db_path=db_path
+        )
     return await emit(node_type, payload)
 
 
@@ -951,10 +1000,10 @@ async def _stream_engine_nodes(
     is exhausted to distinguish that from a natural finish.
     """
     async for node_name, state in generator.generate_hypotheses(
-            research_goal=research_goal,
-            stream=True,
-            run_id=run_id,
-            opts=initial_opts,
+        research_goal=research_goal,
+        stream=True,
+        run_id=run_id,
+        opts=initial_opts,
     ):
         if cancelled and cancelled.is_set():
             yield await _emit_cancelled_event(run_id, db_path, emit)
@@ -962,8 +1011,9 @@ async def _stream_engine_nodes(
 
         # Update final_state from each yielded cumulative snapshot.
         _merge_engine_state(final_state, state)
-        yield await _emit_engine_node_event(run_id, node_name, state, db_path,
-                                            emit)
+        yield await _emit_engine_node_event(
+            run_id, node_name, state, db_path, emit
+        )
 
 
 def _new_engine_final_state() -> dict[str, Any]:
@@ -999,14 +1049,14 @@ async def _persist_and_report(
         db_path=db_path,
     )
     async for event in finalize_report(
-            run_id=run_id,
-            research_goal=research_goal,
-            run_mode=run_mode,
-            provider="engine",
-            emit=emit,
-            execution_time=time.time() - start,
-            db_path=db_path,
-            **report_inputs,
+        run_id=run_id,
+        research_goal=research_goal,
+        run_mode=run_mode,
+        provider="engine",
+        emit=emit,
+        execution_time=time.time() - start,
+        db_path=db_path,
+        **report_inputs,
     ):
         yield event
 
@@ -1031,33 +1081,34 @@ async def _run_engine_and_report(
     """
     final_state = _new_engine_final_state()
     async for event in _stream_engine_nodes(
-            generator,
-            research_goal,
-            run_id,
-            initial_opts,
-            final_state,
-            cancelled=cancelled,
-            db_path=db_path,
-            emit=emit,
+        generator,
+        research_goal,
+        run_id,
+        initial_opts,
+        final_state,
+        cancelled=cancelled,
+        db_path=db_path,
+        emit=emit,
     ):
         yield event
     if cancelled and cancelled.is_set():
         return
 
     async for event in _persist_and_report(
-            run_id,
-            research_goal,
-            run_mode,
-            final_state,
-            start=start,
-            db_path=db_path,
-            emit=emit,
+        run_id,
+        research_goal,
+        run_mode,
+        final_state,
+        start=start,
+        db_path=db_path,
+        emit=emit,
     ):
         yield event
 
 
-async def _emit_engine_running(run_id: str, db_path: str | None,
-                               emit: EmitFn) -> dict[str, Any]:
+async def _emit_engine_running(
+    run_id: str, db_path: str | None, emit: EmitFn
+) -> dict[str, Any]:
     """Persist RUNNING status and return the status event to yield.
 
     Persists the running state, not just emits it. The mock path sets this;
@@ -1068,15 +1119,14 @@ async def _emit_engine_running(run_id: str, db_path: str | None,
     return await emit("status", {"status": "running"})
 
 
-async def _emit_engine_failure(run_id: str, error: Exception,
-                               db_path: str | None,
-                               emit: EmitFn) -> dict[str, Any]:
+async def _emit_engine_failure(
+    run_id: str, error: Exception, db_path: str | None, emit: EmitFn
+) -> dict[str, Any]:
     """Log an engine-run crash, mark the run FAILED, and return the event."""
     logger.exception("engine run failed: %s", error)
-    store.update_run_status(run_id,
-                            RunStatus.FAILED,
-                            error=str(error),
-                            db_path=db_path)
+    store.update_run_status(
+        run_id, RunStatus.FAILED, error=str(error), db_path=db_path
+    )
     return await emit("status", {"status": "failed", "error": str(error)})
 
 
@@ -1105,15 +1155,15 @@ async def _run_engine_provider(
 
     try:
         async for event in _run_engine_and_report(
-                generator,
-                research_goal,
-                run_id,
-                run_mode,
-                initial_opts if initial_opts else None,
-                start=start,
-                cancelled=cancelled,
-                db_path=db_path,
-                emit=emit,
+            generator,
+            research_goal,
+            run_id,
+            run_mode,
+            initial_opts if initial_opts else None,
+            start=start,
+            cancelled=cancelled,
+            db_path=db_path,
+            emit=emit,
         ):
             yield event
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -1247,8 +1297,12 @@ async def run_workflow(
     run_mode = CANONICAL_RUN_MODE
     cfg = resolved_run_config(config)
 
-    logger.info("starting workflow run=%s provider=%s run_mode=%s", run_id,
-                provider, run_mode)
+    logger.info(
+        "starting workflow run=%s provider=%s run_mode=%s",
+        run_id,
+        provider,
+        run_mode,
+    )
 
     emit = make_emitter(run_id, db_path=db_path)
 
@@ -1261,14 +1315,14 @@ async def run_workflow(
         return
 
     async for event in _dispatch_provider(
-            provider,
-            research_goal,
-            run_id,
-            run_mode,
-            cfg,
-            cancelled=cancelled,
-            db_path=db_path,
-            sleep_seconds=sleep_seconds,
-            emit=emit,
+        provider,
+        research_goal,
+        run_id,
+        run_mode,
+        cfg,
+        cancelled=cancelled,
+        db_path=db_path,
+        sleep_seconds=sleep_seconds,
+        emit=emit,
     ):
         yield event

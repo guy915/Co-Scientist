@@ -8,11 +8,10 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Any, cast, Optional
+from typing import Any, cast
 
 import yaml
 
-from co_scientist.exceptions import ConfigError
 from co_scientist.config.schema import (
     EnrichmentConfig,
     PromptsConfig,
@@ -21,6 +20,7 @@ from co_scientist.config.schema import (
     ToolsConfig,
     WorkflowConfig,
 )
+from co_scientist.exceptions import ConfigError
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +64,8 @@ def _substitute_env_vars_in_string(value: str) -> str:
             return default
         # Return empty string if no env var and no default
         logger.warning(
-            "environment variable %s not set and no default provided", var_name)
+            "environment variable %s not set and no default provided", var_name
+        )
         return ""
 
     return re.sub(pattern, replacer, value)
@@ -121,12 +122,16 @@ def _both_dicts(existing: Any, value: Any) -> bool:
 
 def _both_lists_to_extend(existing: Any, value: Any, strategy: str) -> bool:
     """True if strategy is "extend" and both existing and value are lists."""
-    return (strategy == "extend" and isinstance(value, list) and
-            isinstance(existing, list))
+    return (
+        strategy == "extend"
+        and isinstance(value, list)
+        and isinstance(existing, list)
+    )
 
 
-def _determine_merge_strategy(user: dict[str, Any] | None,
-                              custom: dict[str, Any] | None) -> str:
+def _determine_merge_strategy(
+    user: dict[str, Any] | None, custom: dict[str, Any] | None
+) -> str:
     """Pick the merge_strategy declared by custom or user config settings.
 
     The overlay that actually sets settings.merge_strategy wins: custom is
@@ -142,8 +147,9 @@ def _determine_merge_strategy(user: dict[str, Any] | None,
         declares one.
     """
     if custom and "settings" in custom:
-        strategy: str = custom.get("settings", {}).get("merge_strategy",
-                                                       "override")
+        strategy: str = custom.get("settings", {}).get(
+            "merge_strategy", "override"
+        )
         return strategy
     if user and "settings" in user:
         strategy = user.get("settings", {}).get("merge_strategy", "override")
@@ -190,8 +196,10 @@ class ToolRegistry:
         # Start with default config
         default_data = self._load_yaml_file(DEFAULT_CONFIG_PATH)
         if default_data is None:
-            logger.warning("default config not found at %s, using empty config",
-                           DEFAULT_CONFIG_PATH)
+            logger.warning(
+                "default config not found at %s, using empty config",
+                DEFAULT_CONFIG_PATH,
+            )
             default_data = {}
 
         user_data = self._load_user_config()
@@ -212,9 +220,11 @@ class ToolRegistry:
         # Apply disabled tools
         self._apply_disabled_tools()
 
-        logger.info("Tool registry initialized: %s servers, %s enabled tools",
-                    len(self._config.servers),
-                    len(self._config.get_enabled_tools()))
+        logger.info(
+            "Tool registry initialized: %s servers, %s enabled tools",
+            len(self._config.servers),
+            len(self._config.get_enabled_tools()),
+        )
 
     def _load_user_config(self) -> dict[str, Any] | None:
         """Load the first existing user config from USER_CONFIG_PATHS.
@@ -246,11 +256,13 @@ class ToolRegistry:
 
         custom_data = self._load_yaml_file(Path(self._custom_config_path))
         if custom_data is not None:
-            logger.info("loaded custom config from %s",
-                        self._custom_config_path)
+            logger.info(
+                "loaded custom config from %s", self._custom_config_path
+            )
         else:
-            logger.warning("custom config not found at %s",
-                           self._custom_config_path)
+            logger.warning(
+                "custom config not found at %s", self._custom_config_path
+            )
         return custom_data
 
     def _load_yaml_file(self, path: Path) -> dict[str, Any] | None:
@@ -258,14 +270,13 @@ class ToolRegistry:
         try:
             if path.exists():
                 with open(path, encoding="utf-8") as f:
-                    return cast(Optional[dict[str, Any]], yaml.safe_load(f))
+                    return cast(dict[str, Any] | None, yaml.safe_load(f))
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.error("failed to load %s: %s", path, e)
         return None
 
     def _parse_enabled_values(self, data: dict[str, Any]) -> None:
-        """Parse 'enabled' fields that might be string booleans from env vars.
-        """
+        """Parse 'enabled' fields that may be string booleans from env vars."""
         # substitute_env_vars() only replaces ${VAR} text, so a YAML
         # `enabled: ${SOME_FLAG}` becomes the literal string "true"/"false"
         # rather than a bool; this pass coerces those strings before the
@@ -280,7 +291,8 @@ class ToolRegistry:
             self._parse_tool_category_enabled_values(category_tools)
 
     def _parse_tool_category_enabled_values(
-            self, category_tools: dict[str, Any]) -> None:
+        self, category_tools: dict[str, Any]
+    ) -> None:
         """Coerce string 'enabled' values to bool for one tools.yaml category.
 
         Args:
@@ -314,8 +326,9 @@ class ToolRegistry:
 
         return result
 
-    def _merge_dict(self, base: dict[str, Any], overlay: dict[str, Any],
-                    strategy: str) -> dict[str, Any]:
+    def _merge_dict(
+        self, base: dict[str, Any], overlay: dict[str, Any], strategy: str
+    ) -> dict[str, Any]:
         """Merge overlay dict into base dict.
 
         Strategies:
@@ -412,8 +425,9 @@ class ToolRegistry:
         # Get all referenced tools, filtering to only enabled ones
         return self._enabled_tool_ids(workflow.get_all_tools(), workflow_name)
 
-    def _enabled_tool_ids(self, tool_ids: list[str],
-                          workflow_name: str) -> list[str]:
+    def _enabled_tool_ids(
+        self, tool_ids: list[str], workflow_name: str
+    ) -> list[str]:
         """Filter tool_ids down to enabled tools, logging skipped ones.
 
         Args:
@@ -431,7 +445,9 @@ class ToolRegistry:
             elif tool_id:  # only warn if tool_id is not empty
                 logger.debug(
                     "tool '%s' in workflow '%s' is disabled or missing",
-                    tool_id, workflow_name)
+                    tool_id,
+                    workflow_name,
+                )
 
         return enabled_ids
 
@@ -473,9 +489,9 @@ class ToolRegistry:
         """Get the domain-specific prompts configuration."""
         return self.config.prompts
 
-    def get_enrichment_configs(self,
-                               workflow: str = "generation"
-                              ) -> list[EnrichmentConfig]:
+    def get_enrichment_configs(
+        self, workflow: str = "generation"
+    ) -> list[EnrichmentConfig]:
         """Get enabled enrichment configurations for a given workflow phase.
 
         Args:
@@ -487,13 +503,13 @@ class ToolRegistry:
                       phase.
         """
         return [
-            e for e in self.config.enrichments
+            e
+            for e in self.config.enrichments
             if e.enabled and (workflow == "all" or e.workflow == workflow)
         ]
 
     def get_server_configs_for_langchain(self) -> dict[str, dict[str, str]]:
-        """Get server configs in format expected by langchain
-        MultiServerMCPClient.
+        """Get server configs in the langchain MultiServerMCPClient format.
 
         Returns:
             Dict of {server_id: {"transport": ..., "url": ...}}

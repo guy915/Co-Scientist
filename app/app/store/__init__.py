@@ -78,10 +78,10 @@ from app.store.runs import (
 
 __all__ = [
     "DEMO_CLIENT_ID",
+    "TERMINAL_STATUSES",
     "MessageRow",
     "RunRow",
     "RunStatus",
-    "TERMINAL_STATUSES",
     "add_citation",
     "add_evidence",
     "add_hypothesis",

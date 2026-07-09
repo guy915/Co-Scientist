@@ -25,7 +25,7 @@ REVIEW_SCHEMA: dict[str, Any] = {
         "properties": {
             "hypothesis_text": {
                 "type": "string",
-                "description": "The hypothesis being reviewed"
+                "description": "The hypothesis being reviewed",
             },
             "review_summary": {
                 "type": "string",
@@ -67,43 +67,43 @@ REVIEW_SCHEMA: dict[str, Any] = {
                 "type": "object",
                 "properties": {
                     "scientific_soundness": {
-                        "type":
-                            "string",
-                        "description":
-                            ("Specific feedback on theoretical foundation"
-                             " and logical consistency"),
+                        "type": "string",
+                        "description": (
+                            "Specific feedback on theoretical foundation"
+                            " and logical consistency"
+                        ),
                     },
                     "novelty": {
-                        "type":
-                            "string",
-                        "description":
-                            ("Specific feedback on originality and unique"
-                             " contribution"),
+                        "type": "string",
+                        "description": (
+                            "Specific feedback on originality and unique"
+                            " contribution"
+                        ),
                     },
                     "relevance": {
-                        "type":
-                            "string",
-                        "description": ("Specific feedback on alignment with"
-                                        " research goal"),
+                        "type": "string",
+                        "description": (
+                            "Specific feedback on alignment with research goal"
+                        ),
                     },
                     "testability": {
-                        "type":
-                            "string",
-                        "description": ("Specific feedback on feasibility of"
-                                        " testing"),
+                        "type": "string",
+                        "description": (
+                            "Specific feedback on feasibility of testing"
+                        ),
                     },
                     "clarity": {
-                        "type":
-                            "string",
-                        "description":
-                            ("Specific feedback on precision and clarity"
-                             " of formulation"),
+                        "type": "string",
+                        "description": (
+                            "Specific feedback on precision and clarity"
+                            " of formulation"
+                        ),
                     },
                     "potential_impact": {
-                        "type":
-                            "string",
-                        "description":
-                            ("Specific feedback on potential significance"),
+                        "type": "string",
+                        "description": (
+                            "Specific feedback on potential significance"
+                        ),
                     },
                 },
                 "required": [
@@ -117,10 +117,10 @@ REVIEW_SCHEMA: dict[str, Any] = {
                 "additionalProperties": False,
             },
             "constructive_feedback": {
-                "type":
-                    "string",
-                "description":
-                    ("Specific, actionable suggestions for improvement"),
+                "type": "string",
+                "description": (
+                    "Specific, actionable suggestions for improvement"
+                ),
             },
             "safety_ethical_concerns": {
                 "type": "string",
@@ -164,11 +164,11 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis_index": {
-                            "type":
-                                "integer",
-                            "description":
-                                ("Index of the hypothesis being reviewed"
-                                 " (0-based)"),
+                            "type": "integer",
+                            "description": (
+                                "Index of the hypothesis being reviewed"
+                                " (0-based)"
+                            ),
                         },
                         "hypothesis_text": {
                             "type": "string",
@@ -214,47 +214,47 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                             "type": "object",
                             "properties": {
                                 "scientific_soundness": {
-                                    "type":
-                                        "string",
-                                    "description":
-                                        ("Specific feedback on theoretical"
-                                         " foundation and logical"
-                                         " consistency"),
+                                    "type": "string",
+                                    "description": (
+                                        "Specific feedback on theoretical"
+                                        " foundation and logical"
+                                        " consistency"
+                                    ),
                                 },
                                 "novelty": {
-                                    "type":
-                                        "string",
-                                    "description":
-                                        ("Specific feedback on originality"
-                                         " and unique contribution"),
+                                    "type": "string",
+                                    "description": (
+                                        "Specific feedback on originality"
+                                        " and unique contribution"
+                                    ),
                                 },
                                 "relevance": {
-                                    "type":
-                                        "string",
-                                    "description":
-                                        ("Specific feedback on alignment"
-                                         " with research goal"),
+                                    "type": "string",
+                                    "description": (
+                                        "Specific feedback on alignment"
+                                        " with research goal"
+                                    ),
                                 },
                                 "testability": {
-                                    "type":
-                                        "string",
-                                    "description":
-                                        ("Specific feedback on feasibility"
-                                         " of testing"),
+                                    "type": "string",
+                                    "description": (
+                                        "Specific feedback on feasibility"
+                                        " of testing"
+                                    ),
                                 },
                                 "clarity": {
-                                    "type":
-                                        "string",
-                                    "description":
-                                        ("Specific feedback on precision"
-                                         " and clarity of formulation"),
+                                    "type": "string",
+                                    "description": (
+                                        "Specific feedback on precision"
+                                        " and clarity of formulation"
+                                    ),
                                 },
                                 "potential_impact": {
-                                    "type":
-                                        "string",
-                                    "description":
-                                        ("Specific feedback on potential"
-                                         " significance"),
+                                    "type": "string",
+                                    "description": (
+                                        "Specific feedback on potential"
+                                        " significance"
+                                    ),
                                 },
                             },
                             "required": [
@@ -268,22 +268,22 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                             "additionalProperties": False,
                         },
                         "constructive_feedback": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Specific, actionable suggestions for"
-                                 " improvement"),
+                            "type": "string",
+                            "description": (
+                                "Specific, actionable suggestions for"
+                                " improvement"
+                            ),
                         },
                         "safety_ethical_concerns": {
                             "type": "string",
                             "description": "Any ethical or safety concerns",
                         },
                         "comparative_notes": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Brief note on how this hypothesis compares"
-                                 " to the others"),
+                            "type": "string",
+                            "description": (
+                                "Brief note on how this hypothesis compares"
+                                " to the others"
+                            ),
                         },
                     },
                     "required": [
@@ -317,15 +317,14 @@ REFLECTION_SCHEMA: dict[str, Any] = {
         "properties": {
             "hypothesis_text": {
                 "type": "string",
-                "description": "The hypothesis being analyzed"
+                "description": "The hypothesis being analyzed",
             },
             "reasoning": {
                 "type": "string",
                 "description": "Detailed reasoning for the classification",
             },
             "classification": {
-                "type":
-                    "string",
+                "type": "string",
                 "enum": [
                     "already explained",
                     "other explanations more likely",
@@ -333,9 +332,10 @@ REFLECTION_SCHEMA: dict[str, Any] = {
                     "neutral",
                     "disproved",
                 ],
-                "description":
-                    ("Classification of hypothesis based on literature"
-                     " observations"),
+                "description": (
+                    "Classification of hypothesis based on literature"
+                    " observations"
+                ),
             },
         },
         "required": ["hypothesis_text", "reasoning", "classification"],
@@ -358,23 +358,13 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
             "probes": {
                 "type": "array",
                 "items": {
-                    "type":
-                        "object",
-                    "additionalProperties":
-                        False,
+                    "type": "object",
+                    "additionalProperties": False,
                     "properties": {
-                        "question": {
-                            "type": "string"
-                        },
-                        "answer": {
-                            "type": "string"
-                        },
-                        "reasoning": {
-                            "type": "string"
-                        },
-                        "assumption_is_fundamental": {
-                            "type": "boolean"
-                        },
+                        "question": {"type": "string"},
+                        "answer": {"type": "string"},
+                        "reasoning": {"type": "string"},
+                        "assumption_is_fundamental": {"type": "boolean"},
                     },
                     "required": [
                         "question",
@@ -388,9 +378,7 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "enum": ["holds", "weakened", "undermined"],
             },
-            "overall_assessment": {
-                "type": "string"
-            },
+            "overall_assessment": {"type": "string"},
         },
         "required": ["probes", "verdict", "overall_assessment"],
     },

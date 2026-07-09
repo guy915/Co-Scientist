@@ -17,8 +17,7 @@ from typing import Any
 import pytest
 
 from co_scientist import cache
-from co_scientist.cache import LLMCache
-from co_scientist.cache import NodeCache
+from co_scientist.cache import LLMCache, NodeCache
 
 
 @pytest.fixture(autouse=True)
@@ -56,9 +55,11 @@ def test_key_stable_for_same_inputs(tmp_path: Path) -> None:
     """The same request parameters always derive the same cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
     key_a = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST)
+        **_REQUEST
+    )
     key_b = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST)
+        **_REQUEST
+    )
     assert key_a == key_b
     # SHA256 hex digest.
     assert len(key_a) == 64
@@ -68,15 +69,16 @@ def test_key_differs_for_different_inputs(tmp_path: Path) -> None:
     """Changing any request parameter changes the derived cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
     base = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST)
+        **_REQUEST
+    )
     # pylint: disable-next=protected-access
-    other_prompt = cache_obj._generate_cache_key(**{
-        **_REQUEST, "prompt": "different prompt"
-    })
+    other_prompt = cache_obj._generate_cache_key(
+        **{**_REQUEST, "prompt": "different prompt"}
+    )
     # pylint: disable-next=protected-access
-    other_temp = cache_obj._generate_cache_key(**{
-        **_REQUEST, "temperature": 0.9
-    })
+    other_temp = cache_obj._generate_cache_key(
+        **{**_REQUEST, "temperature": 0.9}
+    )
     assert base != other_prompt
     assert base != other_temp
     assert other_prompt != other_temp
@@ -86,12 +88,12 @@ def test_key_changes_with_optional_params(tmp_path: Path) -> None:
     """Optional params (tools/json_schema/force_json) participate in the key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
     base = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST)
+        **_REQUEST
+    )
     # pylint: disable-next=protected-access
-    with_tools = cache_obj._generate_cache_key(**_REQUEST,
-                                               tools=[{
-                                                   "name": "search"
-                                               }])
+    with_tools = cache_obj._generate_cache_key(
+        **_REQUEST, tools=[{"name": "search"}]
+    )
     # pylint: disable-next=protected-access
     with_force_json = cache_obj._generate_cache_key(**_REQUEST, force_json=True)
     assert base != with_tools
@@ -255,8 +257,10 @@ def test_node_cache_force_bypasses_disabled_gate(tmp_path: Path) -> None:
     # Without force, the disabled gate still hides the entry.
     assert node.get("literature_review", research_goal="x") is None
     # With force, the forced entry is retrievable.
-    assert node.get("literature_review", force=True,
-                    research_goal="x") == _NODE_OUTPUT
+    assert (
+        node.get("literature_review", force=True, research_goal="x")
+        == _NODE_OUTPUT
+    )
 
 
 def test_node_cache_stats_and_clear(tmp_path: Path) -> None:

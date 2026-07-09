@@ -25,54 +25,56 @@ GENERATION_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Dense technical hypothesis following"
-                                 " 'We want to develop [X] to enable [Y]'"
-                                 " format (2-3 sentences maximum)"),
+                            "type": "string",
+                            "description": (
+                                "Dense technical hypothesis following"
+                                " 'We want to develop [X] to enable [Y]'"
+                                " format (2-3 sentences maximum)"
+                            ),
                         },
                         "explanation": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Step-by-step layman explanation breaking"
-                                 " down the technical hypothesis"
-                                 " (4-6 sentences)"),
+                            "type": "string",
+                            "description": (
+                                "Step-by-step layman explanation breaking"
+                                " down the technical hypothesis"
+                                " (4-6 sentences)"
+                            ),
                         },
                         "literature_grounding": {
-                            "type":
-                                "string",
-                            "description":
-                                ("2-4 sentences grounding the hypothesis in"
-                                 " the provided reference list. Use ONLY the"
-                                 " bracketed [C*] citation keys supplied"
-                                 " (e.g. [C1], [C2], [C3]) — do NOT invent"
-                                 " author-year citations. If no reference"
-                                 " list was provided, state that explicitly."),
+                            "type": "string",
+                            "description": (
+                                "2-4 sentences grounding the hypothesis in"
+                                " the provided reference list. Use ONLY the"
+                                " bracketed [C*] citation keys supplied"
+                                " (e.g. [C1], [C2], [C3]) — do NOT invent"
+                                " author-year citations. If no reference"
+                                " list was provided, state that explicitly."
+                            ),
                         },
                         "experiment": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Concrete experiment design with models,"
-                                 " datasets, metrics, and validation"
-                                 " criteria (4-6 sentences)"),
+                            "type": "string",
+                            "description": (
+                                "Concrete experiment design with models,"
+                                " datasets, metrics, and validation"
+                                " criteria (4-6 sentences)"
+                            ),
                         },
                         "category": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Short (2-4 word) classification label naming"
-                                 " the mechanism family or research sub-area"
-                                 " this hypothesis belongs to, e.g."
-                                 " 'Metabolic reprogramming' or 'Epitope"
-                                 " editing'. Used to group and label ideas."),
+                            "type": "string",
+                            "description": (
+                                "Short (2-4 word) classification label naming"
+                                " the mechanism family or research sub-area"
+                                " this hypothesis belongs to, e.g."
+                                " 'Metabolic reprogramming' or 'Epitope"
+                                " editing'. Used to group and label ideas."
+                            ),
                         },
                     },
                     "required": [
-                        "hypothesis", "explanation", "literature_grounding",
-                        "experiment"
+                        "hypothesis",
+                        "explanation",
+                        "literature_grounding",
+                        "experiment",
                     ],
                     "additionalProperties": False,
                 },
@@ -101,47 +103,47 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Dense technical hypothesis following"
-                                 " 'We want to develop [X] to enable [Y]'"
-                                 " format (2-3 sentences maximum)"),
+                            "type": "string",
+                            "description": (
+                                "Dense technical hypothesis following"
+                                " 'We want to develop [X] to enable [Y]'"
+                                " format (2-3 sentences maximum)"
+                            ),
                         },
                         "explanation": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Step-by-step layman explanation breaking"
-                                 " down the technical hypothesis"
-                                 " (4-6 sentences)"),
+                            "type": "string",
+                            "description": (
+                                "Step-by-step layman explanation breaking"
+                                " down the technical hypothesis"
+                                " (4-6 sentences)"
+                            ),
                         },
                         "experiment": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Concrete experiment design with models,"
-                                 " datasets, metrics, and validation"
-                                 " criteria (4-6 sentences)"),
+                            "type": "string",
+                            "description": (
+                                "Concrete experiment design with models,"
+                                " datasets, metrics, and validation"
+                                " criteria (4-6 sentences)"
+                            ),
                         },
                         "gap_reasoning": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Brief explanation of what gap in the"
-                                 " literature this hypothesis addresses and"
-                                 " why it seems promising"),
+                            "type": "string",
+                            "description": (
+                                "Brief explanation of what gap in the"
+                                " literature this hypothesis addresses and"
+                                " why it seems promising"
+                            ),
                         },
                         "literature_sources": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Sources from the reference list that"
-                                 " informed this gap. Use ONLY the bracketed"
-                                 " [C*] keys provided (e.g. [C1], [C2],"
-                                 " [C3]). Example: 'Gap identified via"
-                                 " retinal imaging findings [C1] and tau"
-                                 " isoform research [C2][C3].'"),
+                            "type": "string",
+                            "description": (
+                                "Sources from the reference list that"
+                                " informed this gap. Use ONLY the bracketed"
+                                " [C*] keys provided (e.g. [C1], [C2],"
+                                " [C3]). Example: 'Gap identified via"
+                                " retinal imaging findings [C1] and tau"
+                                " isoform research [C2][C3].'"
+                            ),
                         },
                     },
                     "required": [
@@ -181,48 +183,48 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                     "type": "object",
                     "properties": {
                         "hypothesis": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Final dense technical hypothesis text,"
-                                 " following 'We want to develop [X] to"
-                                 " enable [Y]' format (2-3 sentences maximum)"
-                                 " (approved/refined/pivoted)"),
+                            "type": "string",
+                            "description": (
+                                "Final dense technical hypothesis text,"
+                                " following 'We want to develop [X] to"
+                                " enable [Y]' format (2-3 sentences maximum)"
+                                " (approved/refined/pivoted)"
+                            ),
                         },
                         "explanation": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Step-by-step layman explanation breaking"
-                                 " down the technical hypothesis"
-                                 " (4-6 sentences)"),
+                            "type": "string",
+                            "description": (
+                                "Step-by-step layman explanation breaking"
+                                " down the technical hypothesis"
+                                " (4-6 sentences)"
+                            ),
                         },
                         "literature_grounding": {
-                            "type":
-                                "string",
-                            "description":
-                                ("2-4 sentences grounding the hypothesis in"
-                                 " the provided reference list. Use ONLY the"
-                                 " bracketed [C*] citation keys supplied"
-                                 " (e.g. [C1], [C2], [C3]) — do NOT invent"
-                                 " author-year citations. If no reference"
-                                 " list was provided, state that explicitly."),
+                            "type": "string",
+                            "description": (
+                                "2-4 sentences grounding the hypothesis in"
+                                " the provided reference list. Use ONLY the"
+                                " bracketed [C*] citation keys supplied"
+                                " (e.g. [C1], [C2], [C3]) — do NOT invent"
+                                " author-year citations. If no reference"
+                                " list was provided, state that explicitly."
+                            ),
                         },
                         "experiment": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Concrete experiment design with models,"
-                                 " datasets, metrics, and validation"
-                                 " criteria (4-6 sentences)"),
+                            "type": "string",
+                            "description": (
+                                "Concrete experiment design with models,"
+                                " datasets, metrics, and validation"
+                                " criteria (4-6 sentences)"
+                            ),
                         },
                         "category": {
-                            "type":
-                                "string",
-                            "description":
-                                ("Short (2-4 word) classification label naming"
-                                 " the mechanism family or research sub-area"
-                                 " this hypothesis belongs to."),
+                            "type": "string",
+                            "description": (
+                                "Short (2-4 word) classification label naming"
+                                " the mechanism family or research sub-area"
+                                " this hypothesis belongs to."
+                            ),
                         },
                         "novelty_validation": {
                             "type": "object",
@@ -290,21 +292,21 @@ HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA: dict[str, Any] = {
                 "description": "future directions the authors propose",
             },
             "novelty_assessment": {
-                "type":
-                    "string",
-                "description":
-                    "how hypothesis compares to this paper",
+                "type": "string",
+                "description": "how hypothesis compares to this paper",
                 "enum": [
-                    "overlapping", "complementary", "orthogonal",
-                    "addresses_gaps"
+                    "overlapping",
+                    "complementary",
+                    "orthogonal",
+                    "addresses_gaps",
                 ],
             },
             "overlap_explanation": {
-                "type":
-                    "string",
-                "description":
-                    ("detailed explanation of how hypothesis compares"
-                     " to this paper"),
+                "type": "string",
+                "description": (
+                    "detailed explanation of how hypothesis compares"
+                    " to this paper"
+                ),
             },
         },
         "required": [

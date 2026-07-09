@@ -3,22 +3,30 @@
 
 from typing import Any
 
-from co_scientist.prompts._common import _format_authors
-from co_scientist.prompts._common import _format_meta_review_context
-from co_scientist.prompts._common import _format_run_guidance
-from co_scientist.prompts._common import _format_year
-from co_scientist.prompts.loading import _build_prompt
-from co_scientist.prompts.loading import _get_domain_variables
-from co_scientist.prompts.loading import load_prompt
-from co_scientist.prompts.loading import load_prompt_with_schema
+from co_scientist.prompts._common import (
+    _format_authors,
+    _format_meta_review_context,
+    _format_run_guidance,
+    _format_year,
+)
+from co_scientist.prompts.loading import (
+    _build_prompt,
+    _get_domain_variables,
+    load_prompt,
+    load_prompt_with_schema,
+)
 
 
 # Renders prompts/hypothesis_novelty_analysis.md, called by
 # nodes/generation/literature_tools/validate.py once per (draft hypothesis,
 # paper) pair (paired there with HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA).
-def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
-                                           authors: list[str], year: int | None,
-                                           fulltext: str) -> str:
+def get_hypothesis_novelty_analysis_prompt(
+    hypothesis_text: str,
+    title: str,
+    authors: list[str],
+    year: int | None,
+    fulltext: str,
+) -> str:
     """Get the prompt for analyzing a paper for hypothesis novelty."""
     return load_prompt(
         "hypothesis_novelty_analysis",
@@ -32,8 +40,9 @@ def get_hypothesis_novelty_analysis_prompt(hypothesis_text: str, title: str,
     )
 
 
-def _format_novelty_paper_analysis(j: int, analysis_data: dict[str,
-                                                               Any]) -> str:
+def _format_novelty_paper_analysis(
+    j: int, analysis_data: dict[str, Any]
+) -> str:
     """Format one paper's novelty analysis within a draft hypothesis section.
 
     Args:
@@ -45,31 +54,34 @@ def _format_novelty_paper_analysis(j: int, analysis_data: dict[str,
     """
     paper_meta = analysis_data.get("paper_metadata", {})
     analysis = analysis_data.get("analysis", {})
-    p_title = paper_meta.get('title', 'Unknown')
-    p_year = paper_meta.get('year', 'N/A')
+    p_title = paper_meta.get("title", "Unknown")
+    p_year = paper_meta.get("year", "N/A")
 
-    return (f"\n**paper {j}:** {p_title} ({p_year})\n"
-            f"- methods used:"
-            f" {analysis.get('methods_used', 'N/A')}\n"
-            f"- populations studied:"
-            f" {analysis.get('populations_studied', 'N/A')}\n"
-            f"- mechanisms investigated:"
-            f" {analysis.get('mechanisms_investigated', 'N/A')}\n"
-            f"- key findings:"
-            f" {analysis.get('key_findings', 'N/A')}\n"
-            f"- stated limitations:"
-            f" {analysis.get('stated_limitations', 'N/A')}\n"
-            f"- future work suggested:"
-            f" {analysis.get('future_work_suggested', 'N/A')}\n"
-            f"- **novelty assessment:"
-            f" {analysis.get('novelty_assessment', 'N/A')}**\n"
-            f"- overlap explanation:"
-            f" {analysis.get('overlap_explanation', 'N/A')}\n")
+    return (
+        f"\n**paper {j}:** {p_title} ({p_year})\n"
+        f"- methods used:"
+        f" {analysis.get('methods_used', 'N/A')}\n"
+        f"- populations studied:"
+        f" {analysis.get('populations_studied', 'N/A')}\n"
+        f"- mechanisms investigated:"
+        f" {analysis.get('mechanisms_investigated', 'N/A')}\n"
+        f"- key findings:"
+        f" {analysis.get('key_findings', 'N/A')}\n"
+        f"- stated limitations:"
+        f" {analysis.get('stated_limitations', 'N/A')}\n"
+        f"- future work suggested:"
+        f" {analysis.get('future_work_suggested', 'N/A')}\n"
+        f"- **novelty assessment:"
+        f" {analysis.get('novelty_assessment', 'N/A')}**\n"
+        f"- overlap explanation:"
+        f" {analysis.get('overlap_explanation', 'N/A')}\n"
+    )
 
 
 def _format_novelty_hypothesis_section(i: int, hyp_data: dict[str, Any]) -> str:
-    """Format one draft hypothesis section with its per-paper novelty
-    analyses.
+    """Format one draft hypothesis section.
+
+    The section includes the hypothesis's per-paper novelty analyses.
 
     Args:
         i: 1-based index of the hypothesis.
@@ -83,9 +95,9 @@ def _format_novelty_hypothesis_section(i: int, hyp_data: dict[str, Any]) -> str:
     analyses = hyp_data.get("novelty_analyses", [])
 
     hyp_section = f"""### draft hypothesis {i}
-**text:** {draft.get('text', 'Unknown')}
-**gap reasoning:** {draft.get('gap_reasoning', 'N/A')}
-**literature sources:** {draft.get('literature_sources', 'N/A')}
+**text:** {draft.get("text", "Unknown")}
+**gap reasoning:** {draft.get("gap_reasoning", "N/A")}
+**literature sources:** {draft.get("literature_sources", "N/A")}
 
 **novelty analyses ({len(analyses)} papers examined):**
 """
@@ -97,7 +109,8 @@ def _format_novelty_hypothesis_section(i: int, hyp_data: dict[str, Any]) -> str:
 
 
 def _format_hypotheses_with_novelty_analyses(
-        hypotheses_with_analyses: list[dict[str, Any]]) -> str:
+    hypotheses_with_analyses: list[dict[str, Any]],
+) -> str:
     """Render draft hypotheses and their per-paper novelty analyses.
 
     Shared by both validation-synthesis prompt builders so the draft/analysis
@@ -140,14 +153,14 @@ def get_hypothesis_validation_synthesis_prompt(
         Formatted prompt string
     """
     variables = {
-        "research_goal":
-            research_goal,
-        "hypotheses_with_analyses":
-            _format_hypotheses_with_novelty_analyses(hypotheses_with_analyses),
-        "articles_metadata":
-            format_articles_metadata(articles or []),
-        "citation_reference_section":
-            _build_citation_reference_section(reference_list),
+        "research_goal": research_goal,
+        "hypotheses_with_analyses": _format_hypotheses_with_novelty_analyses(
+            hypotheses_with_analyses
+        ),
+        "articles_metadata": format_articles_metadata(articles or []),
+        "citation_reference_section": _build_citation_reference_section(
+            reference_list
+        ),
     }
 
     # Inject domain-specific prompt customizations
@@ -157,7 +170,8 @@ def get_hypothesis_validation_synthesis_prompt(
 
 
 def _build_already_validated_context(
-        already_validated_texts: list[str] | None) -> str:
+    already_validated_texts: list[str] | None,
+) -> str:
     """Build diversity constraint block for retry path.
 
     Injected only when retrying failed batches individually, so the model
@@ -169,9 +183,11 @@ def _build_already_validated_context(
     return f"""
 ## Hypotheses Already Validated (Diversity Constraint)
 
-The following hypotheses have already been validated and will be included in the final output.
+The following hypotheses have already been validated and will be included in \
+the final output.
 Your output **must explore different mechanistic territory** from each of these.
-If your draft overlaps significantly with any entry below, treat it as saturated and pivot:
+If your draft overlaps significantly with any entry below, treat it as \
+saturated and pivot:
 
 {lines}
 
@@ -196,29 +212,24 @@ def _build_validation_synthesis_prompt_variables(
     tool_instructions: str,
     already_validated_texts: list[str] | None,
 ) -> dict[str, Any]:
-    """Build the template variables for the Phase 2 validation-with-tools
-    prompt.
-    """
+    """Build the Phase 2 validation-with-tools prompt template variables."""
     return {
-        "research_goal":
-            research_goal,
-        "hypotheses_with_analyses":
-            _format_hypotheses_with_novelty_analyses(hypotheses_with_analyses),
-        "hypotheses_count":
-            len(hypotheses_with_analyses),
-        "articles_metadata":
-            format_articles_metadata(articles or []),
-        "articles_with_reasoning":
-            articles_with_reasoning
-            or "no literature review summary available.",
-        "citation_reference_section":
-            _build_citation_reference_section(reference_list or ""),
-        "max_iterations":
-            max_iterations,
-        "tool_instructions":
-            tool_instructions,
-        "already_validated_context":
-            _build_already_validated_context(already_validated_texts),
+        "research_goal": research_goal,
+        "hypotheses_with_analyses": _format_hypotheses_with_novelty_analyses(
+            hypotheses_with_analyses
+        ),
+        "hypotheses_count": len(hypotheses_with_analyses),
+        "articles_metadata": format_articles_metadata(articles or []),
+        "articles_with_reasoning": articles_with_reasoning
+        or "no literature review summary available.",
+        "citation_reference_section": _build_citation_reference_section(
+            reference_list or ""
+        ),
+        "max_iterations": max_iterations,
+        "tool_instructions": tool_instructions,
+        "already_validated_context": _build_already_validated_context(
+            already_validated_texts
+        ),
     }
 
 
@@ -273,8 +284,9 @@ def get_validation_synthesis_prompt_with_tools(
     )
 
 
-def _format_debate_key_areas_section(key_areas: list[Any], *,
-                                     needs_header: bool) -> list[str]:
+def _format_debate_key_areas_section(
+    key_areas: list[Any], *, needs_header: bool
+) -> list[str]:
     """Format the key-research-areas slice of debate supervisor guidance.
 
     Args:
@@ -296,8 +308,9 @@ def _format_debate_key_areas_section(key_areas: list[Any], *,
     return sections
 
 
-def _format_debate_generation_phase_section(generation_phase: dict[str, Any], *,
-                                            needs_header: bool) -> list[str]:
+def _format_debate_generation_phase_section(
+    generation_phase: dict[str, Any], *, needs_header: bool
+) -> list[str]:
     """Format the generation-phase slice of debate supervisor guidance.
 
     Args:
@@ -324,7 +337,8 @@ def _format_debate_generation_phase_section(generation_phase: dict[str, Any], *,
 
 
 def _format_supervisor_guidance_for_debate(
-        supervisor_guidance: dict[str, Any] | None) -> str:
+    supervisor_guidance: dict[str, Any] | None,
+) -> str:
     """Format supervisor guidance for the debate generation prompt.
 
     Args:
@@ -341,12 +355,14 @@ def _format_supervisor_guidance_for_debate(
     workflow_plan = supervisor_guidance.get("workflow_plan", {})
     generation_phase = workflow_plan.get("generation_phase", {})
 
-    sections = _format_debate_key_areas_section(goal_analysis.get(
-        "key_areas", []),
-                                                needs_header=True)
+    sections = _format_debate_key_areas_section(
+        goal_analysis.get("key_areas", []), needs_header=True
+    )
     sections.extend(
-        _format_debate_generation_phase_section(generation_phase,
-                                                needs_header=not sections))
+        _format_debate_generation_phase_section(
+            generation_phase, needs_header=not sections
+        )
+    )
 
     return "".join(sections) if sections else ""
 
@@ -355,14 +371,20 @@ _DEBATE_FINAL_TURN_INSTRUCTIONS = """
 
 ## FINAL TURN - OUTPUT FORMAT
 
-This is the final turn of the debate. Based on the discussion above, output your finalized hypothesis in JSON format with all four required components:
+This is the final turn of the debate. Based on the discussion above, output \
+your finalized hypothesis in JSON format with all four required components:
 
 ### 1. hypothesis (required)
-Dense technical description following "We want to develop [X] to enable [Y]" format (2-3 sentences).
-- Include specific technical details: algorithms, mechanisms, mathematical formulations
+Dense technical description following "We want to develop [X] to enable [Y]" \
+format (2-3 sentences).
+- Include specific technical details: algorithms, mechanisms, mathematical \
+formulations
 - Be precise about what will be developed and the technical approach
 
-Example: "We want to develop a 'Dynamic Velocity Sentinel'—which monitors the rate of change in latent activation directions across early-to-mid layers rather than static depths—to enable anticipatory gating that triggers only when precursor signals cross a 'point of no return' for danger features."
+Example: "We want to develop a 'Dynamic Velocity Sentinel'—which monitors the \
+rate of change in latent activation directions across early-to-mid layers \
+rather than static depths—to enable anticipatory gating that triggers only \
+when precursor signals cross a 'point of no return' for danger features."
 
 ### 2. explanation (required)
 Clear explanation for technical audiences in layman terms (4-6 sentences).
@@ -371,20 +393,36 @@ Clear explanation for technical audiences in layman terms (4-6 sentences).
 - How components interact
 - Practical advantages
 
-Example: "This approach addresses the computational bottleneck by focusing on early layers where precursor signals first emerge. Rather than analyzing static magnitudes, the technique tracks velocity—the rate of change—which provides earlier detection of trajectories toward dangerous outputs. The system employs autoencoders to identify danger features, with dynamic gating that triggers only when trajectories cross a learned threshold."
+Example: "This approach addresses the computational bottleneck by focusing on \
+early layers where precursor signals first emerge. Rather than analyzing \
+static magnitudes, the technique tracks velocity—the rate of change—which \
+provides earlier detection of trajectories toward dangerous outputs. The \
+system employs autoencoders to identify danger features, with dynamic gating \
+that triggers only when trajectories cross a learned threshold."
 
 ### 3. literature_grounding (required)
 Explicit grounding with inline citation keys (2-4 sentences).
-- If a Citation Reference List was provided above, use ONLY those `[C*]` keys (e.g. `[C1]`, `[C2]`, `[C3]`)
+- If a Citation Reference List was provided above, use ONLY those `[C*]` keys \
+(e.g. `[C1]`, `[C2]`, `[C3]`)
 - Do NOT invent author-year citations — only use keys from the list
-- If no Citation Reference List was provided, state: "This hypothesis is formulated without access to a literature review."
+- If no Citation Reference List was provided, state: "This hypothesis is \
+formulated without access to a literature review."
 
-Example: "This approach builds on sparse autoencoder analysis [C1] and circuit tracing [C2]. The velocity monitoring concept addresses a gap in static-analysis methods [C3][C4]."
+Example: "This approach builds on sparse autoencoder analysis [C1] and circuit \
+tracing [C2]. The velocity monitoring concept addresses a gap in \
+static-analysis methods [C3][C4]."
 
 ### 4. experiment (required)
-Concrete experiment design with models, datasets, methodology, metrics, and validation (4-6 sentences).
+Concrete experiment design with models, datasets, methodology, metrics, and \
+validation (4-6 sentences).
 
-Example format: "Objective: Demonstrate that velocity monitoring achieves comparable detection with reduced cost. Models: GPT-2 Medium, pre-trained SAE layers 1-6. Datasets: AdvBench harmful prompts (500 examples), HH-RLHF benign prompts (1000 examples). Methodology: (1) Implement velocity tracking, (2) Train threshold detector, (3) Compare against baseline. Metrics: Detection accuracy, timing, false positive rate, computational overhead. Validation: Success requires >90% detection, <5% false positives, >50% cost reduction."
+Example format: "Objective: Demonstrate that velocity monitoring achieves \
+comparable detection with reduced cost. Models: GPT-2 Medium, pre-trained SAE \
+layers 1-6. Datasets: AdvBench harmful prompts (500 examples), HH-RLHF benign \
+prompts (1000 examples). Methodology: (1) Implement velocity tracking, (2) \
+Train threshold detector, (3) Compare against baseline. Metrics: Detection \
+accuracy, timing, false positive rate, computational overhead. Validation: \
+Success requires >90% detection, <5% false positives, >50% cost reduction."
 
 ---
 
@@ -400,7 +438,8 @@ Output exactly 1 hypothesis as valid JSON:
   ]
 }
 
-IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative Unicode).
+IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative \
+Unicode).
 """
 
 
@@ -426,10 +465,10 @@ def _build_debate_literature_variables(
     can distinguish "no literature review ran" from "ran but empty".
     """
     variables: dict[str, Any] = {
-        "articles_metadata":
-            format_articles_metadata(articles or []),
-        "citation_reference_section":
-            _build_citation_reference_section(reference_list or ""),
+        "articles_metadata": format_articles_metadata(articles or []),
+        "citation_reference_section": _build_citation_reference_section(
+            reference_list or ""
+        ),
     }
     if articles_with_reasoning:
         variables["articles_with_reasoning"] = articles_with_reasoning
@@ -473,33 +512,32 @@ def _build_debate_prompt_variables(
         Dict of template variables for the debate generation prompt.
     """
     variables = {
-        "goal":
-            research_goal,
-        "hypotheses_count":
-            hypotheses_count,
-        "transcript":
-            transcript or "",
-        "preferences":
-            preferences
-            or "Novel, testable, scientifically sound, specific, and diverse"
-            " hypotheses",
-        "attributes":
-            _format_debate_attributes(attributes),
+        "goal": research_goal,
+        "hypotheses_count": hypotheses_count,
+        "transcript": transcript or "",
+        "preferences": preferences
+        or "Novel, testable, scientifically sound, specific, and diverse"
+        " hypotheses",
+        "attributes": _format_debate_attributes(attributes),
     }
 
     # Add literature review, article metadata, and citation context.
     variables.update(
-        _build_debate_literature_variables(articles_with_reasoning, articles,
-                                           reference_list))
+        _build_debate_literature_variables(
+            articles_with_reasoning, articles, reference_list
+        )
+    )
 
     # Format supervisor guidance if available
     variables["supervisor_guidance"] = _format_supervisor_guidance_for_debate(
-        supervisor_guidance)
+        supervisor_guidance
+    )
 
     # Add meta-review context if available (blank on iteration 1).
     variables["meta_review_context"] = _format_meta_review_context(meta_review)
-    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
-                                                     run_focus_guidance)
+    variables["run_guidance"] = _format_run_guidance(
+        run_setup_guidance, run_focus_guidance
+    )
 
     # Inject domain-specific prompt customizations
     variables.update(_get_domain_variables(tool_registry))
@@ -602,8 +640,11 @@ def get_debate_generation_prompt(
     )
 
     # Determine which prompt to use based on literature availability
-    prompt_name = ("generation_debate_and_literature"
-                   if articles_with_reasoning else "generation_after_debate")
+    prompt_name = (
+        "generation_debate_and_literature"
+        if articles_with_reasoning
+        else "generation_after_debate"
+    )
 
     return _render_debate_prompt(prompt_name, variables, is_final_turn)
 
@@ -636,9 +677,11 @@ def format_user_hypotheses(user_hypotheses: list[str] | None) -> str:
 
 
 def format_supervisor_guidance_for_generation(
-        supervisor_guidance: dict[str, Any] | None) -> str:
-    """Format supervisor guidance for generation prompts with research strategy
-    section.
+    supervisor_guidance: dict[str, Any] | None,
+) -> str:
+    """Format supervisor guidance for generation prompts.
+
+    Renders the guidance as a research-strategy section.
     """
     if not supervisor_guidance:
         return ""
@@ -678,12 +721,14 @@ def _format_article_authors(article: Any) -> str:
 
 def _format_article_entry(index: int, article: Any) -> str:
     """Format one analyzed article's metadata block."""
-    return (f"**{index + 1}. {article.title}**\n"
-            f"   - Authors: {_format_article_authors(article)}\n"
-            f"   - Year: {article.year or 'Unknown'}\n"
-            f"   - Citations: {article.citations}\n"
-            f"   - PDF: {_format_pdf_status(article)}\n"
-            f"   - URL: {article.url}")
+    return (
+        f"**{index + 1}. {article.title}**\n"
+        f"   - Authors: {_format_article_authors(article)}\n"
+        f"   - Year: {article.year or 'Unknown'}\n"
+        f"   - Citations: {article.citations}\n"
+        f"   - PDF: {_format_pdf_status(article)}\n"
+        f"   - URL: {article.url}"
+    )
 
 
 def format_articles_metadata(articles: list[Any]) -> str:
@@ -701,18 +746,21 @@ def format_articles_metadata(articles: list[Any]) -> str:
         return ""
 
     articles_list_text = "\n\n".join(
-        _format_article_entry(i, art) for i, art in enumerate(used_articles))
+        _format_article_entry(i, art) for i, art in enumerate(used_articles)
+    )
 
     n = len(used_articles)
-    return ("\n### Papers Analyzed in Literature Review\n\n"
-            f"These {n} papers were ranked highest and analyzed."
-            " Some may have had accessibility issues"
-            " (abstracts only, paywalls, captchas).\n"
-            "You can use tools to:\n"
-            "- Try accessing PDFs that weren't available initially\n"
-            "- Query specific papers for detailed information\n"
-            "- Search for alternative papers if these have issues\n"
-            f"\n{articles_list_text}\n")
+    return (
+        "\n### Papers Analyzed in Literature Review\n\n"
+        f"These {n} papers were ranked highest and analyzed."
+        " Some may have had accessibility issues"
+        " (abstracts only, paywalls, captchas).\n"
+        "You can use tools to:\n"
+        "- Try accessing PDFs that weren't available initially\n"
+        "- Query specific papers for detailed information\n"
+        "- Search for alternative papers if these have issues\n"
+        f"\n{articles_list_text}\n"
+    )
 
 
 def _build_citation_reference_section(reference_list: str) -> str:
@@ -724,11 +772,12 @@ def _build_citation_reference_section(reference_list: str) -> str:
     """
     if not reference_list.strip():
         return ""
-    return ("\n## Citation Reference List\n\n"
-            "Use **only** these `[C*]` citation keys inline in"
-            " `literature_grounding` "
-            "— do NOT invent author-year citations.\n\n" + reference_list +
-            "\n")
+    return (
+        "\n## Citation Reference List\n\n"
+        "Use **only** these `[C*]` citation keys inline in"
+        " `literature_grounding` "
+        "— do NOT invent author-year citations.\n\n" + reference_list + "\n"
+    )
 
 
 def _format_tool_entry(tool_config: Any) -> list[str]:
@@ -776,13 +825,16 @@ def _resolve_tool_registry(
     """
     if tool_registry is None:
         try:
-            from co_scientist.config import get_tool_registry  # pylint: disable=import-outside-toplevel
+            from co_scientist.config import (
+                get_tool_registry,  # pylint: disable=import-outside-toplevel
+            )
 
             tool_registry = get_tool_registry()
             # If no tool_ids provided, get them from draft workflow
             if not tool_ids:
                 tool_ids = tool_registry.get_tools_for_workflow(
-                    "draft_generation")
+                    "draft_generation"
+                )
         except Exception:  # pylint: disable=broad-exception-caught
             pass
 
@@ -814,8 +866,10 @@ def build_tool_instructions(
 
     if not tool_registry or not tool_ids:
         # Minimal fallback when no config available
-        return ("No tool configuration available."
-                " Literature tools may not be accessible.")
+        return (
+            "No tool configuration available."
+            " Literature tools may not be accessible."
+        )
 
     sections = []
     for tool_id in tool_ids:
@@ -851,34 +905,26 @@ def _build_draft_prompt_variables(
 ) -> dict[str, Any]:
     """Build the template variables for the Phase 1 draft-with-tools prompt."""
     return {
-        "goal":
-            research_goal,
-        "hypotheses_count":
-            hypotheses_count,
-        "preferences":
-            format_preferences(preferences),
-        "attributes":
-            format_attributes(attributes),
-        "user_hypotheses":
-            format_user_hypotheses(user_hypotheses),
-        "supervisor_guidance":
-            format_supervisor_guidance_for_generation(supervisor_guidance),
-        "articles_with_reasoning":
-            articles_with_reasoning
-            or "no literature review summary available - examine papers"
-            " below directly.",
-        "articles_metadata":
-            format_articles_metadata(articles or []),
-        "citation_reference_section":
-            _build_citation_reference_section(reference_list or ""),
-        "max_iterations":
-            max_iterations,
-        "instructions":
-            instructions
-            or "Focus on creative ideation - draft diverse hypotheses"
-            " based on literature gaps.",
-        "tool_instructions":
-            tool_instructions,
+        "goal": research_goal,
+        "hypotheses_count": hypotheses_count,
+        "preferences": format_preferences(preferences),
+        "attributes": format_attributes(attributes),
+        "user_hypotheses": format_user_hypotheses(user_hypotheses),
+        "supervisor_guidance": format_supervisor_guidance_for_generation(
+            supervisor_guidance
+        ),
+        "articles_with_reasoning": articles_with_reasoning
+        or "no literature review summary available - examine papers"
+        " below directly.",
+        "articles_metadata": format_articles_metadata(articles or []),
+        "citation_reference_section": _build_citation_reference_section(
+            reference_list or ""
+        ),
+        "max_iterations": max_iterations,
+        "instructions": instructions
+        or "Focus on creative ideation - draft diverse hypotheses"
+        " based on literature gaps.",
+        "tool_instructions": tool_instructions,
     }
 
 
@@ -946,7 +992,8 @@ def get_draft_prompt_with_tools(
         "generation_draft_with_tools",
         variables,
         meta_review_context=_format_meta_review_context(meta_review),
-        run_guidance=_format_run_guidance(run_setup_guidance,
-                                          run_focus_guidance),
+        run_guidance=_format_run_guidance(
+            run_setup_guidance, run_focus_guidance
+        ),
         tool_registry=tool_registry,
     )

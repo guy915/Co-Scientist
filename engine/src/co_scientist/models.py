@@ -47,7 +47,8 @@ def _strip_computed_fields(data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _rebuild_reviews(
-        reviews_data: list[dict[str, Any]]) -> list[HypothesisReview]:
+    reviews_data: list[dict[str, Any]],
+) -> list[HypothesisReview]:
     """Rebuild serialized review dicts into HypothesisReview instances."""
     return [HypothesisReview(**review) for review in reviews_data]
 
@@ -114,7 +115,8 @@ class Hypothesis:
     # 'debate' or 'literature_tools'
     generation_method: GenerationMethod | None = None
     debate_id: None | (
-        int) = None  # None for literature-generated, 0-N for debate-generated
+        int
+    ) = None  # None for literature-generated, 0-N for debate-generated
     win_count: int = 0
     loss_count: int = 0
 
@@ -136,12 +138,13 @@ class Hypothesis:
         # consumers; from_dict() below strips both back out on the way in,
         # since they are recomputed from win_count/loss_count, not stored
         # state.
-        generation_method = (self.generation_method.value
-                             if self.generation_method else None)
+        generation_method = (
+            self.generation_method.value if self.generation_method else None
+        )
         return {
             "id": self.id,
-            "text":
-                self.text,  # Also referred to as "hypothesis" in other contexts
+            # Also referred to as "hypothesis" in other contexts.
+            "text": self.text,
             "category": self.category,
             "explanation": self.explanation,
             "literature_grounding": self.literature_grounding,
@@ -152,14 +155,17 @@ class Hypothesis:
             "citation_map": self.citation_map,
             "score": self.score,
             "elo_rating": self.elo_rating,
-            "reviews": [{
-                "review_summary": r.review_summary,
-                "scores": r.scores,
-                "safety_ethical_concerns": r.safety_ethical_concerns,
-                "detailed_feedback": r.detailed_feedback,
-                "constructive_feedback": r.constructive_feedback,
-                "overall_score": r.overall_score,
-            } for r in self.reviews],
+            "reviews": [
+                {
+                    "review_summary": r.review_summary,
+                    "scores": r.scores,
+                    "safety_ethical_concerns": r.safety_ethical_concerns,
+                    "detailed_feedback": r.detailed_feedback,
+                    "constructive_feedback": r.constructive_feedback,
+                    "overall_score": r.overall_score,
+                }
+                for r in self.reviews
+            ],
             "similarity_cluster_id": self.similarity_cluster_id,
             "evolution_history": self.evolution_history,
             "reflection_notes": self.reflection_notes,
@@ -236,8 +242,9 @@ class ExecutionMetrics:
     phase_times: dict[str, float] = field(default_factory=dict)
 
 
-def _merge_phase_times(existing_phase_times: dict[str, float],
-                       new_phase_times: dict[str, float]) -> dict[str, float]:
+def _merge_phase_times(
+    existing_phase_times: dict[str, float], new_phase_times: dict[str, float]
+) -> dict[str, float]:
     """Merge two phase-timing dicts, summing seconds for phases in both.
 
     Args:
@@ -261,8 +268,9 @@ def _merge_phase_times(existing_phase_times: dict[str, float],
     return merged_phase_times
 
 
-def merge_metrics(existing: ExecutionMetrics,
-                  new: ExecutionMetrics) -> ExecutionMetrics:
+def merge_metrics(
+    existing: ExecutionMetrics, new: ExecutionMetrics
+) -> ExecutionMetrics:
     """State reducer that merges metrics from multiple nodes.
 
     When multiple nodes update metrics concurrently, this combines them. Lives
@@ -280,8 +288,9 @@ def merge_metrics(existing: ExecutionMetrics,
     # a "metrics" key; "new" is that node's create_metrics_update(...)
     # output (deltas only, per its docstring), not a cumulative snapshot.
     # Create a NEW metrics object (don't mutate existing!)
-    merged_phase_times = _merge_phase_times(existing.phase_times,
-                                            new.phase_times)
+    merged_phase_times = _merge_phase_times(
+        existing.phase_times, new.phase_times
+    )
 
     # Per-field merge policy, matched to what create_metrics_update
     # produces: hypothesis_count is the node's reported running *total*
@@ -295,7 +304,8 @@ def merge_metrics(existing: ExecutionMetrics,
         evolutions_count=existing.evolutions_count + new.evolutions_count,
         llm_calls=existing.llm_calls + new.llm_calls,
         total_time=new.total_time
-        if new.total_time > 0 else existing.total_time,
+        if new.total_time > 0
+        else existing.total_time,
         phase_times=merged_phase_times,
     )
 
@@ -331,7 +341,8 @@ def create_metrics_update(
     """
     return ExecutionMetrics(
         hypothesis_count=hypothesis_count
-        if hypothesis_count is not None else 0,
+        if hypothesis_count is not None
+        else 0,
         reviews_count=reviews_count_delta,
         tournaments_count=tournaments_count_delta,
         evolutions_count=evolutions_count_delta,
@@ -341,8 +352,9 @@ def create_metrics_update(
     )
 
 
-def phase_message(phase: str, content: str,
-                  **metadata: Any) -> list[dict[str, Any]]:
+def phase_message(
+    phase: str, content: str, **metadata: Any
+) -> list[dict[str, Any]]:
     """Build the one-message list a node returns in its state update.
 
     Args:
@@ -353,14 +365,13 @@ def phase_message(phase: str, content: str,
     Returns:
         A single-element assistant-message list for the messages channel.
     """
-    return [{
-        "role": "assistant",
-        "content": content,
-        "metadata": {
-            "phase": phase,
-            **metadata
-        },
-    }]
+    return [
+        {
+            "role": "assistant",
+            "content": content,
+            "metadata": {"phase": phase, **metadata},
+        }
+    ]
 
 
 @dataclass
@@ -383,7 +394,8 @@ class Article:
     source_id: str | None = None
     source: str = "pubmed"  # default changed to "pubmed" (was "google_scholar")
     pdf_links: list[str] = field(
-        default_factory=list)  # unused in PubMed-only mode (HTML-only)
+        default_factory=list
+    )  # unused in PubMed-only mode (HTML-only)
     # Flag indicating if this article was analyzed by the agent
     used_in_analysis: bool = False
 

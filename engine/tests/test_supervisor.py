@@ -16,8 +16,9 @@ from co_scientist.nodes.supervisor import supervisor_node
 from tests._state import make_state
 
 
-def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
-                                                              Any]) -> None:
+def _stub_llm(
+    monkeypatch: pytest.MonkeyPatch, response: dict[str, Any]
+) -> None:
     """Patch supervisor's call_llm_json to return a fixed JSON response."""
 
     async def fake(**_: Any) -> dict[str, Any]:
@@ -27,45 +28,43 @@ def _stub_llm(monkeypatch: pytest.MonkeyPatch, response: dict[str,
 
 
 async def test_guidance_carries_response_subobjects(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Each response sub-object is copied verbatim into supervisor_guidance."""
     response = {
         "research_goal_analysis": {
             "summary": "study alpha pathway",
             "key_areas": ["a", "b"],
         },
-        "workflow_plan": {
-            "iterations": 3
-        },
+        "workflow_plan": {"iterations": 3},
         "config_synthesis": {
             "preferences": ["testable within 2 years"],
             "review_instructions": ["check the assay measures the claim"],
-            "attributes": [{
-                "name": "Feasibility",
-                "rubric": "1 impossible .. 5 routine"
-            }],
+            "attributes": [
+                {"name": "Feasibility", "rubric": "1 impossible .. 5 routine"}
+            ],
         },
-        "performance_assessment": {
-            "status": "on track"
-        },
+        "performance_assessment": {"status": "on track"},
         "adjustment_recommendations": ["broaden search"],
-        "output_preparation": {
-            "format": "ranked list"
-        },
+        "output_preparation": {"format": "ranked list"},
     }
     _stub_llm(monkeypatch, response)
 
     result = await supervisor_node(make_state())
 
     guidance = result["supervisor_guidance"]
-    assert guidance["research_goal_analysis"] == response[
-        "research_goal_analysis"]
+    assert (
+        guidance["research_goal_analysis"] == response["research_goal_analysis"]
+    )
     assert guidance["workflow_plan"] == response["workflow_plan"]
     assert guidance["config_synthesis"] == response["config_synthesis"]
-    assert guidance["performance_assessment"] == response[
-        "performance_assessment"]
-    assert guidance["adjustment_recommendations"] == response[
-        "adjustment_recommendations"]
+    assert (
+        guidance["performance_assessment"] == response["performance_assessment"]
+    )
+    assert (
+        guidance["adjustment_recommendations"]
+        == response["adjustment_recommendations"]
+    )
     assert guidance["output_preparation"] == response["output_preparation"]
     # Metrics update is always emitted (one LLM call this node).
     assert result["metrics"] is not None
@@ -73,7 +72,8 @@ async def test_guidance_carries_response_subobjects(
 
 
 async def test_missing_response_fields_default_to_empty(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """An empty response yields guidance with empty defaults, not a crash."""
     _stub_llm(monkeypatch, {})
 
@@ -89,7 +89,8 @@ async def test_missing_response_fields_default_to_empty(
 
 
 async def test_list_research_goal_analysis_does_not_crash(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A list research_goal_analysis falls back to empty key_areas safely.
 
     The node only reads ``key_areas`` when the analysis is a dict; a list must
@@ -108,19 +109,23 @@ async def test_list_research_goal_analysis_does_not_crash(
 
 
 async def test_key_areas_feed_message_metadata(
-        monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Present key_areas are counted into the emitted message metadata."""
     _stub_llm(
-        monkeypatch, {
+        monkeypatch,
+        {
             "research_goal_analysis": {
                 "key_areas": ["alpha", "beta", "gamma", "delta"],
             }
-        })
+        },
+    )
 
     result = await supervisor_node(make_state())
 
     assert result["supervisor_guidance"]["research_goal_analysis"][
-        "key_areas"] == ["alpha", "beta", "gamma", "delta"]
+        "key_areas"
+    ] == ["alpha", "beta", "gamma", "delta"]
     message = result["messages"][0]
     assert message["metadata"]["phase"] == "supervisor"
     assert message["metadata"]["key_areas"] == 4

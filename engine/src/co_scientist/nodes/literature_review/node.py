@@ -14,49 +14,49 @@ import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, cast, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
+from co_scientist.cache import NodeCache, get_node_cache
+from co_scientist.config.registry import parse_bool_env
 from co_scientist.constants import (
-    corpus_slug,
+    LITERATURE_REVIEW_FAILED,
     LITERATURE_REVIEW_PAPERS_COUNT,
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
-    LITERATURE_REVIEW_FAILED,
+    corpus_slug,
 )
-from co_scientist.cache import get_node_cache, NodeCache
-from co_scientist.config.registry import parse_bool_env
 from co_scientist.mcp_client import (
-    get_mcp_client,
-    check_literature_source_available,
     MCPToolClient,
+    check_literature_source_available,
+    get_mcp_client,
 )
 from co_scientist.models import Article
-from co_scientist.state import WorkflowState
-
-from co_scientist.nodes.progress import emit_progress
-from co_scientist.nodes.literature_review.helpers import (
-    SearchConfig,
-    extract_source_name,
-    build_articles_from_metadata,
-    count_papers_with_fulltext,
-    make_failure_result,
-    make_success_result,
-)
-from co_scientist.nodes.literature_review.queries import (
-    _phase1_generate_queries,)
-from co_scientist.nodes.literature_review.search import (
-    _phase2_collect_papers_multi_source,
-    _phase2_collect_papers_single_source,
-)
+from co_scientist.nodes.literature_review.analysis import _phase3_analyze_papers
 from co_scientist.nodes.literature_review.content import (
     _phase2_4_discover_pdf_links,
     _phase2_5_fetch_content,
 )
 from co_scientist.nodes.literature_review.enrichment import (
-    _phase2_6_fetch_context_enrichment,
     _format_kg_section_with_keys,
+    _phase2_6_fetch_context_enrichment,
 )
-from co_scientist.nodes.literature_review.analysis import _phase3_analyze_papers
+from co_scientist.nodes.literature_review.helpers import (
+    SearchConfig,
+    build_articles_from_metadata,
+    count_papers_with_fulltext,
+    extract_source_name,
+    make_failure_result,
+    make_success_result,
+)
+from co_scientist.nodes.literature_review.queries import (
+    _phase1_generate_queries,
+)
+from co_scientist.nodes.literature_review.search import (
+    _phase2_collect_papers_multi_source,
+    _phase2_collect_papers_single_source,
+)
 from co_scientist.nodes.literature_review.synthesis import _phase4_synthesize
+from co_scientist.nodes.progress import emit_progress
+from co_scientist.state import WorkflowState
 
 if TYPE_CHECKING:
     from co_scientist.config import ToolConfig, ToolRegistry, WorkflowConfig
@@ -84,8 +84,11 @@ def _describe_exc(exc: BaseException) -> str:
     while getattr(current, "exceptions", None):
         current = current.exceptions[0]  # type: ignore[attr-defined]
     message = str(current).strip()
-    return (f"{type(current).__name__}: {message}"
-            if message else type(current).__name__)
+    return (
+        f"{type(current).__name__}: {message}"
+        if message
+        else type(current).__name__
+    )
 
 
 # =============================================================================
@@ -104,9 +107,11 @@ def _resolve_papers_to_read_count(state: WorkflowState) -> tuple[int, bool]:
     """
     is_dev_mode = parse_bool_env(os.getenv("COSCIENTIST_DEV_MODE", "false"))
     run_papers_count = state.get("literature_review_papers_count")
-    papers_to_read_count = (LITERATURE_REVIEW_PAPERS_COUNT_DEV if is_dev_mode
-                            else int(run_papers_count or
-                                     LITERATURE_REVIEW_PAPERS_COUNT))
+    papers_to_read_count = (
+        LITERATURE_REVIEW_PAPERS_COUNT_DEV
+        if is_dev_mode
+        else int(run_papers_count or LITERATURE_REVIEW_PAPERS_COUNT)
+    )
     return papers_to_read_count, is_dev_mode
 
 
@@ -121,8 +126,11 @@ def _resolve_literature_workflow(
         multi-source and single-source Phase 2 code paths.
     """
     tool_registry = state.get("tool_registry")
-    workflow = (tool_registry.get_workflow("literature_review")
-                if tool_registry else None)
+    workflow = (
+        tool_registry.get_workflow("literature_review")
+        if tool_registry
+        else None
+    )
     is_multi_source = bool(workflow and workflow.is_multi_source())
     return tool_registry, workflow, is_multi_source
 
@@ -131,8 +139,11 @@ def _log_multi_source_config(workflow: "WorkflowConfig") -> None:
     """Log the enabled search sources for multi-source mode."""
     enabled_sources = workflow.get_enabled_search_sources()
     source_names = [s.tool for s in enabled_sources]
-    logger.info("Multi-source mode: %s sources configured: %s",
-                len(enabled_sources), source_names)
+    logger.info(
+        "Multi-source mode: %s sources configured: %s",
+        len(enabled_sources),
+        source_names,
+    )
 
 
 def _resolve_single_source_tool(
@@ -154,8 +165,11 @@ def _resolve_single_source_tool(
         if search_tool_config:
             search_tool_name = search_tool_config.mcp_tool_name
             source_name = extract_source_name(search_tool_config)
-            logger.info("Single-source mode: %s (source: %s)", search_tool_name,
-                        source_name)
+            logger.info(
+                "Single-source mode: %s (source: %s)",
+                search_tool_name,
+                source_name,
+            )
 
     return search_tool_name, source_name, search_tool_config
 
@@ -179,11 +193,12 @@ def _resolve_primary_search_source(
 def _get_search_config(state: WorkflowState) -> SearchConfig:
     """Extract search configuration from state and tool registry."""
     tool_registry, workflow, is_multi_source = _resolve_literature_workflow(
-        state)
+        state
+    )
 
     search_tool_name, source_name, search_tool_config = (
-        _resolve_primary_search_source(tool_registry, workflow,
-                                       is_multi_source))
+        _resolve_primary_search_source(tool_registry, workflow, is_multi_source)
+    )
 
     papers_to_read_count, is_dev_mode = _resolve_papers_to_read_count(state)
 
@@ -222,25 +237,34 @@ async def _emit_empty_search_diagnostics(
     if search_errors:
         logger.error(
             "Literature review found no papers: %s of %s search call(s) "
-            "errored: %s", len(search_errors), len(queries),
-            "; ".join(search_errors[:5]))
-        await emit_progress(state,
-                            "literature_review_error",
-                            "Literature search failed (no papers retrieved)",
-                            0.2,
-                            queries_count=len(queries),
-                            search_errors_count=len(search_errors),
-                            search_error_sample=search_errors[:5])
+            "errored: %s",
+            len(search_errors),
+            len(queries),
+            "; ".join(search_errors[:5]),
+        )
+        await emit_progress(
+            state,
+            "literature_review_error",
+            "Literature search failed (no papers retrieved)",
+            0.2,
+            queries_count=len(queries),
+            search_errors_count=len(search_errors),
+            search_error_sample=search_errors[:5],
+        )
     else:
         logger.warning(
             "Literature review found no papers: all %s query/queries "
-            "returned zero results (no errors)", len(queries))
-        await emit_progress(state,
-                            "literature_review_empty",
-                            "Literature search returned no results",
-                            0.2,
-                            queries_count=len(queries),
-                            search_errors_count=0)
+            "returned zero results (no errors)",
+            len(queries),
+        )
+        await emit_progress(
+            state,
+            "literature_review_empty",
+            "Literature search returned no results",
+            0.2,
+            queries_count=len(queries),
+            search_errors_count=0,
+        )
 
 
 async def _handle_no_papers_found(
@@ -249,8 +273,12 @@ async def _handle_no_papers_found(
 ) -> dict[str, Any]:
     """Build the failure result when Phase 2 collected zero papers."""
     logger.warning("No papers collected")
-    await emit_progress(state, "literature_review_complete",
-                        "Literature review completed (no papers found)", 0.2)
+    await emit_progress(
+        state,
+        "literature_review_complete",
+        "Literature review completed (no papers found)",
+        0.2,
+    )
     return make_failure_result("no papers found", queries=queries)
 
 
@@ -273,8 +301,7 @@ async def _handle_no_fulltext_available(
     await emit_progress(
         state,
         "literature_review_complete",
-        f"Literature review failed ({n} papers found but none"
-        " have fulltexts)",
+        f"Literature review failed ({n} papers found but none have fulltexts)",
         0.2,
     )
     articles = build_articles_from_metadata(all_paper_metadata, source_name)
@@ -289,10 +316,16 @@ def _log_sample_papers(all_paper_metadata: dict[str, dict[str, Any]]) -> None:
     """Debug-log a small sample of collected papers before Phase 3 analysis."""
     for paper_id, meta in list(all_paper_metadata.items())[:3]:
         has_ft = bool(
-            meta.get("pmc_full_text_id") or meta.get("fulltext") or
-            meta.get("pdf_url"))
-        logger.debug("Paper %s: title='%s...' has_fulltext=%s", paper_id,
-                     meta.get('title', '')[:60], has_ft)
+            meta.get("pmc_full_text_id")
+            or meta.get("fulltext")
+            or meta.get("pdf_url")
+        )
+        logger.debug(
+            "Paper %s: title='%s...' has_fulltext=%s",
+            paper_id,
+            meta.get("title", "")[:60],
+            has_ft,
+        )
 
 
 def _count_used_papers(articles: list[Article]) -> int:
@@ -320,13 +353,17 @@ def _append_kg_evidence_section(
         return synthesis
 
     used_paper_count = _count_used_papers(articles)
-    kg_section = _format_kg_section_with_keys(context_enrichment_sources,
-                                              used_paper_count)
+    kg_section = _format_kg_section_with_keys(
+        context_enrichment_sources, used_paper_count
+    )
     if not kg_section:
         return synthesis
 
-    logger.info("Appended %s KG source(s) with [C%s...] keys to synthesis",
-                len(context_enrichment_sources), used_paper_count + 1)
+    logger.info(
+        "Appended %s KG source(s) with [C%s...] keys to synthesis",
+        len(context_enrichment_sources),
+        used_paper_count + 1,
+    )
     return synthesis + kg_section
 
 
@@ -354,18 +391,20 @@ async def _check_cache(
     Returns:
         The cached result dict on a cache hit, else None.
     """
-    cached = node_cache.get("literature_review",
-                            force=force_cache,
-                            **cache_params)
+    cached = node_cache.get(
+        "literature_review", force=force_cache, **cache_params
+    )
     if cached is None:
         return None
 
     logger.info("Literature review cache hit")
-    await emit_progress(state,
-                        "literature_review_complete",
-                        "Literature review completed (cached)",
-                        0.2,
-                        cached=True)
+    await emit_progress(
+        state,
+        "literature_review_complete",
+        "Literature review completed (cached)",
+        0.2,
+        cached=True,
+    )
     return cached
 
 
@@ -382,13 +421,18 @@ async def _check_source_available(
         A failure result dict if unavailable, else None to continue.
     """
     source_available = await check_literature_source_available(
-        tool_registry=config.tool_registry)
+        tool_registry=config.tool_registry
+    )
     if source_available:
         return None
 
     logger.error("Literature source MCP service unavailable")
-    await emit_progress(state, "literature_review_error",
-                        "Literature review failed (source unavailable)", 0.2)
+    await emit_progress(
+        state,
+        "literature_review_error",
+        "Literature review failed (source unavailable)",
+        0.2,
+    )
     return make_failure_result("literature source service unavailable")
 
 
@@ -410,10 +454,11 @@ async def _phase2_collect_papers(
 
     if config.is_multi_source:
         return await _phase2_collect_papers_multi_source(
-            queries, slug, state, config, mcp_client, search_errors)
-    return await _phase2_collect_papers_single_source(queries, slug, state,
-                                                      config, mcp_client,
-                                                      search_errors)
+            queries, slug, state, config, mcp_client, search_errors
+        )
+    return await _phase2_collect_papers_single_source(
+        queries, slug, state, config, mcp_client, search_errors
+    )
 
 
 async def _fetch_content_and_enrichment(
@@ -433,10 +478,12 @@ async def _fetch_content_and_enrichment(
     Returns:
         (background_context, context_enrichment_sources) from Phase 2.6.
     """
-    content_task = _phase2_5_fetch_content(all_paper_metadata, paper_source_map,
-                                           config, mcp_client, state)
+    content_task = _phase2_5_fetch_content(
+        all_paper_metadata, paper_source_map, config, mcp_client, state
+    )
     enrichment_task = _phase2_6_fetch_context_enrichment(
-        state, config, mcp_client)
+        state, config, mcp_client
+    )
     _, enrichment_result = await asyncio.gather(content_task, enrichment_task)
     return cast(tuple[str, list[dict[str, Any]]], enrichment_result)
 
@@ -466,10 +513,9 @@ def _build_and_cache_result(
     result = make_success_result(synthesis, queries, articles)
     if context_enrichment_sources:
         result["context_enrichment_sources"] = context_enrichment_sources
-    node_cache.set("literature_review",
-                   result,
-                   force=force_cache,
-                   **cache_params)
+    node_cache.set(
+        "literature_review", result, force=force_cache, **cache_params
+    )
     return result
 
 
@@ -486,6 +532,7 @@ class _CollectionResult:
         with_fulltext: Count of papers that have usable fulltext.
         without_fulltext: Count of papers missing usable fulltext.
     """
+
     all_paper_metadata: dict[str, dict[str, Any]]
     paper_source_map: dict[str, str]
     search_errors: list[str]
@@ -504,8 +551,11 @@ def _initialize_review(
         A (config, node_cache, cache_params, force_cache) tuple.
     """
     config = _get_search_config(state)
-    logger.info("Literature review config: dev_mode=%s, papers=%s",
-                config.is_dev_mode, config.papers_to_read_count)
+    logger.info(
+        "Literature review config: dev_mode=%s, papers=%s",
+        config.is_dev_mode,
+        config.papers_to_read_count,
+    )
 
     node_cache = get_node_cache()
     cache_params = {"research_goal": state["research_goal"]}
@@ -534,29 +584,38 @@ async def _collect_and_enrich_papers(
     """
     search_errors: list[str] = []
     all_paper_metadata, paper_source_map = await _phase2_collect_papers(
-        queries, state, config, mcp_client, search_errors)
+        queries, state, config, mcp_client, search_errors
+    )
 
     if not all_paper_metadata:
         await _emit_empty_search_diagnostics(state, queries, search_errors)
 
     # Phase 2.4: discover PDF links. Mutates all_paper_metadata in place
     # (no-op when no pdf_discovery_tool is configured for any source).
-    await _phase2_4_discover_pdf_links(all_paper_metadata, paper_source_map,
-                                       config, mcp_client)
+    await _phase2_4_discover_pdf_links(
+        all_paper_metadata, paper_source_map, config, mcp_client
+    )
 
     # Phase 2.5 + 2.6: fetch content and context enrichment in parallel
-    background_context, context_enrichment_sources = (
-        await _fetch_content_and_enrichment(all_paper_metadata,
-                                            paper_source_map, config,
-                                            mcp_client, state))
+    (
+        background_context,
+        context_enrichment_sources,
+    ) = await _fetch_content_and_enrichment(
+        all_paper_metadata, paper_source_map, config, mcp_client, state
+    )
 
     with_fulltext, without_fulltext = count_papers_with_fulltext(
-        all_paper_metadata)
-    logger.info("Collected %s papers (%s with fulltext)",
-                len(all_paper_metadata), with_fulltext)
+        all_paper_metadata
+    )
+    logger.info(
+        "Collected %s papers (%s with fulltext)",
+        len(all_paper_metadata),
+        with_fulltext,
+    )
     if without_fulltext > 0:
-        logger.warning("%s papers do not have fulltexts available",
-                       without_fulltext)
+        logger.warning(
+            "%s papers do not have fulltexts available", without_fulltext
+        )
 
     return _CollectionResult(
         all_paper_metadata=all_paper_metadata,
@@ -589,9 +648,9 @@ async def _handle_collection_edge_cases(
         return await _handle_no_papers_found(state, queries)
 
     if collected.with_fulltext == 0:
-        return await _handle_no_fulltext_available(state,
-                                                   collected.all_paper_metadata,
-                                                   queries, config.source_name)
+        return await _handle_no_fulltext_available(
+            state, collected.all_paper_metadata, queries, config.source_name
+        )
 
     return None
 
@@ -638,8 +697,9 @@ def _finalize_synthesis_and_articles(
     articles = build_articles_from_metadata(all_paper_metadata, source_name)
     logger.info("Created %s article objects", len(articles))
 
-    synthesis = _append_kg_evidence_section(synthesis, articles,
-                                            context_enrichment_sources)
+    synthesis = _append_kg_evidence_section(
+        synthesis, articles, context_enrichment_sources
+    )
     return synthesis, articles
 
 
@@ -663,7 +723,11 @@ async def _emit_and_log_completion(
 
     logger.info(
         "Literature review complete: %s articles from %s queries,"
-        " %s char synthesis", len(articles), len(queries), len(synthesis))
+        " %s char synthesis",
+        len(articles),
+        len(queries),
+        len(synthesis),
+    )
 
 
 # =============================================================================
@@ -694,8 +758,9 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     if unavailable_result is not None:
         return unavailable_result
 
-    await emit_progress(state, "literature_review_start",
-                        "Conducting literature review...", 0.1)
+    await emit_progress(
+        state, "literature_review_start", "Conducting literature review...", 0.1
+    )
 
     mcp_client = await get_mcp_client(tool_registry=config.tool_registry)
 
@@ -703,29 +768,41 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     queries = await _phase1_generate_queries(state, config, mcp_client)
 
     # Phases 2-2.6: collect papers, discover PDFs, fetch content/enrichment
-    collected = await _collect_and_enrich_papers(queries, state, config,
-                                                 mcp_client)
+    collected = await _collect_and_enrich_papers(
+        queries, state, config, mcp_client
+    )
 
     edge_case_result = await _handle_collection_edge_cases(
-        state, collected, queries, config)
+        state, collected, queries, config
+    )
     if edge_case_result is not None:
         return edge_case_result
 
     _log_sample_papers(collected.all_paper_metadata)
 
     # Phase 3 + 4: analyze papers, then synthesize
-    synthesis = await _analyze_and_synthesize(collected.all_paper_metadata,
-                                              state,
-                                              collected.background_context)
+    synthesis = await _analyze_and_synthesize(
+        collected.all_paper_metadata, state, collected.background_context
+    )
 
     # Phase 5: create articles and append KG evidence
     synthesis, articles = _finalize_synthesis_and_articles(
-        synthesis, collected.all_paper_metadata,
-        collected.context_enrichment_sources, config.source_name)
+        synthesis,
+        collected.all_paper_metadata,
+        collected.context_enrichment_sources,
+        config.source_name,
+    )
 
-    await _emit_and_log_completion(state, queries, articles,
-                                   collected.search_errors, synthesis)
+    await _emit_and_log_completion(
+        state, queries, articles, collected.search_errors, synthesis
+    )
 
-    return _build_and_cache_result(synthesis, queries, articles,
-                                   collected.context_enrichment_sources,
-                                   node_cache, cache_params, force_cache)
+    return _build_and_cache_result(
+        synthesis,
+        queries,
+        articles,
+        collected.context_enrichment_sources,
+        node_cache,
+        cache_params,
+        force_cache,
+    )

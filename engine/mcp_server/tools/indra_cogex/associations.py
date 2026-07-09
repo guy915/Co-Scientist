@@ -4,9 +4,9 @@ import logging
 from typing import Any
 
 from mcp_server.tools.indra_cogex.client import (
-    parse_id,
-    indra_post,
     cap_results,
+    indra_post,
+    parse_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -18,8 +18,7 @@ async def query_gene_disease_network(
     include_variants: bool = False,
     max_results: int = 50,
 ) -> dict[str, Any]:
-    """Queries gene-disease-variant associations from the INDRA biomedical
-    knowledge graph.
+    """Queries gene-disease-variant associations from INDRA's knowledge graph.
 
     Given a disease, find associated genes (and optionally genetic variants).
     Given a gene, find associated diseases (and optionally genetic variants).
@@ -43,19 +42,18 @@ async def query_gene_disease_network(
         # expects.
         curie = parse_id(identifier)
         result: dict[str, Any] = {
-            "query": {
-                "identifier": identifier,
-                "entity_type": entity_type
-            },
+            "query": {"identifier": identifier, "entity_type": entity_type},
         }
 
         if entity_type == "disease":
             disease_result = await _fetch_genes_for_disease(
-                curie, include_variants, max_results)
+                curie, include_variants, max_results
+            )
             result.update(disease_result)
         elif entity_type == "gene":
             gene_result = await _fetch_diseases_for_gene(
-                curie, include_variants, max_results)
+                curie, include_variants, max_results
+            )
             result.update(gene_result)
         else:
             entity_err = f"invalid entity_type '{entity_type}'"
@@ -70,10 +68,7 @@ async def query_gene_disease_network(
         logger.error("query_gene_disease_network failed: %s", e)
         return {
             "error": str(e),
-            "query": {
-                "identifier": identifier,
-                "entity_type": entity_type
-            },
+            "query": {"identifier": identifier, "entity_type": entity_type},
         }
 
 
@@ -179,9 +174,7 @@ async def query_gene_codependents(
         return {
             "codependent_genes": genes,
             "total_codependents": total,
-            "query": {
-                "gene_id": gene_id
-            },
+            "query": {"gene_id": gene_id},
         }
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("query_gene_codependents failed: %s", e)

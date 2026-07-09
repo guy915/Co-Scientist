@@ -9,13 +9,13 @@ calls, so the tests run deterministically with no mocking.
 
 from typing import Any
 
-from co_scientist.config.schema import ResponseFormat
-from co_scientist.config.schema import ToolConfig
+from co_scientist.config.schema import ResponseFormat, ToolConfig
 from co_scientist.tools.response_parser import ResponseParser
 
 
-def _parser(response_format: ResponseFormat | None = None,
-            **tool_kwargs: Any) -> ResponseParser:
+def _parser(
+    response_format: ResponseFormat | None = None, **tool_kwargs: Any
+) -> ResponseParser:
     """Build a ResponseParser around a minimal ToolConfig."""
     tc = ToolConfig(
         server="s",
@@ -107,8 +107,11 @@ def test_navigate_through_non_dict_returns_none() -> None:
 
 def test_transform_split() -> None:
     """``split:DELIM`` splits a string on the delimiter."""
-    assert _parser()._apply_transform("split:/",
-                                      "2023/01/02") == ["2023", "01", "02"]
+    assert _parser()._apply_transform("split:/", "2023/01/02") == [
+        "2023",
+        "01",
+        "02",
+    ]
 
 
 def test_transform_index() -> None:
@@ -199,8 +202,9 @@ def test_evaluate_simple_field_access() -> None:
 
 def test_evaluate_transform_chain() -> None:
     """A transform chain applies each transform left to right."""
-    result = _parser()._evaluate_expression("date|split:/|index:0|int",
-                                            {"date": "2023/01/02"})
+    result = _parser()._evaluate_expression(
+        "date|split:/|index:0|int", {"date": "2023/01/02"}
+    )
     assert result == 2023
 
 
@@ -227,11 +231,9 @@ def test_parse_to_articles_list_search_maps_articles() -> None:
         response_format=rf,
     )
     resp = {
-        "results": [{
-            "name": "Paper One",
-            "pub_year": "2021",
-            "authors": ["X Y"]
-        }]
+        "results": [
+            {"name": "Paper One", "pub_year": "2021", "authors": ["X Y"]}
+        ]
     }
     articles = ResponseParser(tc).parse_to_articles(resp)
     assert len(articles) == 1
@@ -250,10 +252,9 @@ def test_parse_to_articles_skips_items_without_title() -> None:
         results_path="results",
         field_mapping={"title": "name"},
     )
-    tc = ToolConfig(server="s",
-                    mcp_tool_name="t",
-                    category="search",
-                    response_format=rf)
+    tc = ToolConfig(
+        server="s", mcp_tool_name="t", category="search", response_format=rf
+    )
     resp = {"results": [{"name": "Has Title"}, {"no_name": "x"}]}
     articles = ResponseParser(tc).parse_to_articles(resp)
     assert [a.title for a in articles] == ["Has Title"]
@@ -271,10 +272,9 @@ def test_parse_to_articles_dict_results_with_key_mapping() -> None:
             "url": "@url_from_key",
         },
     )
-    tc = ToolConfig(server="s",
-                    mcp_tool_name="t",
-                    category="search",
-                    response_format=rf)
+    tc = ToolConfig(
+        server="s", mcp_tool_name="t", category="search", response_format=rf
+    )
     resp = {"12345": {"title": "KG paper"}}
     articles = ResponseParser(tc).parse_to_articles(resp)
     assert len(articles) == 1
@@ -297,18 +297,19 @@ def test_parse_to_articles_boolean_category() -> None:
 
 def test_parse_to_articles_non_search_returns_raw() -> None:
     """A non-search, non-boolean tool returns the raw parsed response."""
-    tc = ToolConfig(server="s",
-                    mcp_tool_name="t",
-                    category="read",
-                    response_format=ResponseFormat())
+    tc = ToolConfig(
+        server="s",
+        mcp_tool_name="t",
+        category="read",
+        response_format=ResponseFormat(),
+    )
     assert ResponseParser(tc).parse_response('{"a": 1}') == {"a": 1}
 
 
 def test_parse_to_articles_none_response_returns_empty() -> None:
     """A ``null`` JSON response parses to an empty article list."""
     rf = ResponseFormat(results_path=".", field_mapping={"title": "name"})
-    tc = ToolConfig(server="s",
-                    mcp_tool_name="t",
-                    category="search",
-                    response_format=rf)
+    tc = ToolConfig(
+        server="s", mcp_tool_name="t", category="search", response_format=rf
+    )
     assert ResponseParser(tc).parse_to_articles("null") == []

@@ -149,8 +149,10 @@ def update_hypothesis_state(
         cluster_id=cluster_id,
     )
     sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
-    params: list[Any] = [value for _, value in updates
-                        ] + [_now(), hypothesis_id]
+    params: list[Any] = [value for _, value in updates] + [
+        _now(),
+        hypothesis_id,
+    ]
     set_clause = ", ".join(sets)
     with _use_conn(conn, db_path) as conn:
         conn.execute(
@@ -168,7 +170,8 @@ _HYP_SELECT = (
     "COALESCE(s.loss_count, 0) AS loss_count, "
     "s.novelty_score, s.plausibility_score, "
     "s.testability_score, s.safety_status, s.status, s.cluster_id "
-    "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id ")
+    "FROM hypotheses h LEFT JOIN hypothesis_state s ON h.id=s.hypothesis_id "
+)
 
 
 def list_hypotheses(
@@ -181,8 +184,8 @@ def list_hypotheses(
         # Consumers (API, Q&A prompt builder) rely on this Elo-descending
         # order; created_at breaks ties deterministically.
         rows = conn.execute(
-            _HYP_SELECT +
-            "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
+            _HYP_SELECT
+            + "WHERE h.run_id=? ORDER BY s.elo_rating DESC, h.created_at ASC",
             (run_id,),
         ).fetchall()
         return [dict(r) for r in rows]
