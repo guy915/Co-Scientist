@@ -47,7 +47,8 @@ const IDEA_CHIP_CLASSES =
   'px-3 bg-cosci-idea-chip-bg text-[0.875rem] font-normal ' +
   'text-cosci-idea-chip-text';
 
-const IDEA_ELO_CHIP_CLASSES = `${IDEA_CHIP_CLASSES} idea-elo-chip w-fit min-w-[6.35rem]`;
+const IDEA_ELO_CHIP_CLASSES =
+  IDEA_CHIP_CLASSES + ' idea-elo-chip w-fit min-w-[6.35rem]';
 
 const IDEA_RANK_TITLE_CLASSES =
   'idea-rank-title mt-[0.35rem] block min-w-0 overflow-hidden ' +

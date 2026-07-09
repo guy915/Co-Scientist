@@ -48,8 +48,9 @@
   --cosci-step-heading: #444746;
   --cosci-step-text: #1f1f1f;
   --cosci-suggestion-border: #c4c7c5;
-  /* Suggestion chips read as outlined pills — transparent at rest so they sit on
-     the page rather than as filled cards; hover paints a subtle state layer. */
+  /* Suggestion chips read as outlined pills — transparent at rest so
+     they sit on the page rather than as filled cards; hover paints a
+     subtle state layer. */
   --cosci-suggestion-bg: transparent;
   --cosci-suggestion-text: #1f1f1f;
   --cosci-suggestion-hover-border: #c4c7c5;
@@ -68,7 +69,8 @@
   --cosci-source-button: #747775;
   --cosci-source-button-hover: #444746;
 
-  /* Shared state-layer fill for round icon buttons (see ICON_BUTTON_CLASSES). */
+  /* Shared state-layer fill for round icon buttons (see
+     ICON_BUTTON_CLASSES). */
   --cosci-icon-button-hover-bg: #f0f4f9;
   --cosci-menu-border: #c4c7c5;
   --cosci-menu-bg: #fff;

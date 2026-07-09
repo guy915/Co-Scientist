@@ -42,12 +42,13 @@ function fitTruncatedText(
 }
 
 /**
- * Label that truncates on word boundaries: when the text does not fit its
- * container it drops whole trailing words and appends a single ellipsis, so the
- * result is always "word…" — never a mid-word cut ("wor…") or a dangling space
- * ("word …"), which is what CSS `text-overflow: ellipsis` and
- * `-webkit-line-clamp` produce. The only exception is a first word itself wider
- * than the container, which must be clipped.
+ * Label that truncates on word boundaries: when the text does not fit
+ * its container it drops whole trailing words and appends a single
+ * ellipsis, so the result is always "word…" — never a mid-word cut
+ * ("wor…") or a dangling space ("word …"), which is what CSS
+ * `text-overflow: ellipsis` and `-webkit-line-clamp` produce. The only
+ * exception is a first word itself wider than the container, which
+ * must be clipped.
  *
  * `lines` selects the fit test: 1 (default) measures width against a single
  * nowrap line; a value > 1 measures height, relying on the host's own clamp
@@ -58,10 +59,10 @@ function fitTruncatedText(
  * so measurement can rewrite it freely without fighting reconciliation. A
  * ResizeObserver re-fits on size changes (rail collapse, window resize).
  *
- * The host element must constrain the relevant axis and hide overflow — for one
- * line `min-width: 0; overflow: hidden; white-space: nowrap`; for multiple, a
- * clamped box such as `display: -webkit-box; -webkit-line-clamp: N; overflow:
- * hidden`.
+ * The host element must constrain the relevant axis and hide overflow
+ * — for one line `min-width: 0; overflow: hidden; white-space:
+ * nowrap`; for multiple, a clamped box such as `display: -webkit-box;
+ * -webkit-line-clamp: N; overflow: hidden`.
  */
 export function TruncatedLabel({
   text,

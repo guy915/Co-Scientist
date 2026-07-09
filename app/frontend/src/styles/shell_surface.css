@@ -266,9 +266,10 @@
 .ucs-header-title {
   position: absolute;
   left: 50%;
-  /* Grow with the content up to a viewport-scaled cap (kept clear of the logo
-     and Logs control), so the title uses the available space and only
-     word-truncates when it genuinely overflows — not at a fixed char count. */
+  /* Grow with the content up to a viewport-scaled cap (kept clear of the
+     logo and Logs control), so the title uses the available space and
+     only word-truncates when it genuinely overflows — not at a fixed
+     char count. */
   width: max-content;
   max-width: min(52rem, 44vw);
   overflow: hidden;
@@ -713,8 +714,9 @@
   color: #1f1f1f;
 }
 
-/* One sidebar treatment for every route — the chat rail must look identical on
-   the home surface and inside a run (no home/report variants). */
+/* One sidebar treatment for every route — the chat rail must look
+   identical on the home surface and inside a run (no home/report
+   variants). */
 .ucs-side-content {
   display: grid;
   min-width: 0;
@@ -792,7 +794,8 @@
 .ucs-chat-label {
   /* Fill the link's width regardless of content so word-boundary truncation
      measures against the full available width (flex-basis:0 grow), not the
-     truncated text — otherwise the label collapses to its own clipped content. */
+     truncated text — otherwise the label collapses to its own clipped
+     content. */
   flex: 1 1 0;
   min-width: 0;
   overflow: hidden;
@@ -1003,9 +1006,9 @@
     }
   }
 
-  /* Inside the drawer, use the full icon+label rows and show the chat history —
-     the drawer is only ever visible when open, so it always renders expanded
-     regardless of the shared collapsed/open state. */
+  /* Inside the drawer, use the full icon+label rows and show the chat
+     history — the drawer is only ever visible when open, so it always
+     renders expanded regardless of the shared collapsed/open state. */
   .ucs-nav-top,
   .ucs-nav-items,
   .ucs-nav-bottom {
@@ -1015,12 +1018,13 @@
     gap: 0.3rem;
   }
 
-  /* Only the chat list scrolls inside the drawer — Menu, New chat, the "Chats"
-     heading, and Settings stay put. nav-top fills the space between the top
-     actions and Settings and clips (no scroll of its own); the scroll lives on
-     the chat list below. Using overflow: hidden here (not overflow-y: auto)
-     also avoids the phantom horizontal scrollbar the browser synthesizes when
-     one axis is auto and the other is visible. */
+  /* Only the chat list scrolls inside the drawer — Menu, New chat, the
+     "Chats" heading, and Settings stay put. nav-top fills the space
+     between the top actions and Settings and clips (no scroll of its
+     own); the scroll lives on the chat list below. Using overflow:
+     hidden here (not overflow-y: auto) also avoids the phantom
+     horizontal scrollbar the browser synthesizes when one axis is auto
+     and the other is visible. */
   .ucs-nav-top {
     display: flex;
     flex: 1;
@@ -1029,9 +1033,10 @@
     overflow: hidden;
   }
 
-  /* The .ucs-app-shell prefix lifts these above tooltips.css, which (loading
-     last) forces overflow: visible on .ucs-side-content / .ucs-chat-list at
-     single-class specificity — otherwise the chat list can't clip or scroll. */
+  /* The .ucs-app-shell prefix lifts these above tooltips.css, which
+     (loading last) forces overflow: visible on .ucs-side-content /
+     .ucs-chat-list at single-class specificity — otherwise the chat
+     list can't clip or scroll. */
   .ucs-app-shell .ucs-side-content {
     flex: 1;
     min-height: 0;
@@ -1052,9 +1057,9 @@
     overflow-y: auto;
   }
 
-  /* Hover tooltips are useless on touch and their (full-goal-text) pseudo pushes
-     the list wider than the drawer — the actual source of the horizontal
-     scroll. Drop them on the phone drawer. */
+  /* Hover tooltips are useless on touch and their (full-goal-text)
+     pseudo pushes the list wider than the drawer — the actual source
+     of the horizontal scroll. Drop them on the phone drawer. */
   .ucs-chat-list [data-tooltip].ucs-tooltip-anchor::after {
     display: none;
   }
@@ -1118,11 +1123,11 @@
     display: none;
   }
 
-  /* Balance the lockup against the hamburger: the hamburger's 24px glyph sits
-     ~8px inside its 40px tap target (which starts at the 8px bar padding), so
-     the lockup gets a matching ~8px right margin to land the same ~16px from
-     its edge — otherwise the wordmark hugs the right edge while the menu looks
-     inset. */
+  /* Balance the lockup against the hamburger: the hamburger's 24px
+     glyph sits ~8px inside its 40px tap target (which starts at the
+     8px bar padding), so the lockup gets a matching ~8px right margin
+     to land the same ~16px from its edge — otherwise the wordmark hugs
+     the right edge while the menu looks inset. */
   .ucs-product-lockup {
     margin-left: 0;
     margin-right: 0.5rem;
@@ -1160,8 +1165,9 @@
     margin-top: 0.9rem;
   }
 
-  /* Vertical phone layout: the section options stack above the panel and sit
-     top-right (justify-content: flex-end) rather than spanning from the left. */
+  /* Vertical phone layout: the section options stack above the panel
+     and sit top-right (justify-content: flex-end) rather than
+     spanning from the left. */
   .ucs-settings-dialog-nav {
     display: flex;
     justify-content: flex-end;

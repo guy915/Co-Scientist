@@ -488,9 +488,9 @@
   list-style: none;
 }
 
-/* Live-run "session loading" flow (reference: Step X of N + the four run
-   steps). Present at every width — the run card renders it in the recents rail
-   while a run is active. */
+/* Live-run "session loading" flow (reference: Step X of N + the four
+   run steps). Present at every width — the run card renders it in
+   the recents rail while a run is active. */
 .reference-run-steps {
   display: grid;
   gap: 0.7rem;
@@ -674,9 +674,10 @@
   }
 
   .reference-recents-list {
-    /* Fill the panel's flexible row (min-height:0 from base enables scrolling)
-       so the list ends at the panel's bottom padding — level with the composer
-       — rather than at a viewport-relative cap. */
+    /* Fill the panel's flexible row (min-height:0 from base enables
+       scrolling) so the list ends at the panel's bottom padding —
+       level with the composer — rather than at a viewport-relative
+       cap. */
     max-height: none;
     /* Symmetric horizontal padding: the old asymmetric 1.2rem right inset was
        sized for a wider column and, together with the vertical scrollbar,
@@ -861,8 +862,9 @@
     line-height: 1.16;
   }
 
-  /* Push the suggestions — and the composer that follows — to the bottom of the
-     column; the flexible space lands between the title and this row. */
+  /* Push the suggestions — and the composer that follows — to the
+     bottom of the column; the flexible space lands between the title
+     and this row. */
   .reference-suggestion-row {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.15rem;
@@ -880,8 +882,8 @@
     min-height: 0;
     max-height: none;
     border: 0;
-    /* Fully rounded, matching the sidebar chat pills — the 12px xl radius read
-       as square-ish on a short, wide row. */
+    /* Fully rounded, matching the sidebar chat pills — the 12px xl
+       radius read as square-ish on a short, wide row. */
     border-radius: 9999px;
     background: transparent;
     padding: 0.6rem 0.85rem;
@@ -902,9 +904,10 @@
     color: var(--cosci-shell-icon);
   }
 
-  /* Single-line, word-level truncation is done by TruncatedLabel (lines=1); the
-     container only clips — deliberately NO text-overflow: ellipsis, which would
-     cut mid-word (letter-level) and violate the app-wide truncation rule. */
+  /* Single-line, word-level truncation is done by TruncatedLabel
+     (lines=1); the container only clips — deliberately NO
+     text-overflow: ellipsis, which would cut mid-word (letter-level)
+     and violate the app-wide truncation rule. */
   .reference-suggestion-text {
     display: block;
     flex: 1 1 auto;

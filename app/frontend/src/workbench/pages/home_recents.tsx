@@ -23,9 +23,11 @@ const RECENTS_HEADING_CLASSES = 'reference-recents-heading-title';
 
 const RECENTS_LIST_CLASSES = HOME_RECENTS_LIST_CLASSES;
 
-const EMPTY_RECENTS_PANEL_CLASSES = `${RECENTS_PANEL_CLASSES} reference-recents--empty`;
+const EMPTY_RECENTS_PANEL_CLASSES =
+  RECENTS_PANEL_CLASSES + ' reference-recents--empty';
 
-const EMPTY_RECENTS_LIST_CLASSES = `${RECENTS_LIST_CLASSES} reference-recents-list--empty`;
+const EMPTY_RECENTS_LIST_CLASSES =
+  RECENTS_LIST_CLASSES + ' reference-recents-list--empty';
 
 const EMPTY_RECENTS_ITEM_CLASSES = 'reference-recents-empty-item';
 

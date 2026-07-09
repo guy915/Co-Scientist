@@ -69,7 +69,8 @@
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
 @theme {
-  /* MD3 color bridge — actual values set at runtime by applyMd3Theme() in theme.ts */
+  /* MD3 color bridge — actual values set at runtime by applyMd3Theme() in
+     theme.ts */
   --color-th-bg: var(--md-sys-color-background, hsl(0 0% 100%));
   --color-th-fg: var(--md-sys-color-on-background, hsl(0 0% 3.9%));
   --color-th-card: var(--md-sys-color-surface, hsl(0 0% 100%));
@@ -252,7 +253,8 @@
 
 :root {
   /* Matches the live product: Google Sans Text for running UI text (plain),
-     Google Sans proper for display — greeting, document headings, wordmark. */
+     Google Sans proper for display — greeting, document headings,
+     wordmark. */
   --md-ref-typeface-brand: "Google Sans", system-ui, sans-serif;
   --md-ref-typeface-plain:
     "Google Sans Text", "Google Sans", "Roboto", system-ui, sans-serif;
@@ -281,10 +283,11 @@
   box-shadow: var(--md-elevation-3);
 }
 
-/* MD3 state layer — a translucent overlay of the content color that fades in on
-   hover/focus/press, composited over whatever background the element carries.
-   Opacities (8% / 10% / 10%) are the MD3 spec values. Add `md-state` to any
-   interactive element; it establishes its own stacking/positioning context. */
+/* MD3 state layer — a translucent overlay of the content color that fades in
+   on hover/focus/press, composited over whatever background the element
+   carries. Opacities (8% / 10% / 10%) are the MD3 spec values. Add
+   `md-state` to any interactive element; it establishes its own
+   stacking/positioning context. */
 .md-state {
   position: relative;
   isolation: isolate;

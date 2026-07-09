@@ -11,29 +11,41 @@ import {
 } from './run_detail_document';
 
 const REPORT_INLINE_ACTION_CLASSES =
-  'cosci-inline-action mt-4 inline-flex cursor-pointer items-center gap-[0.3rem] border-0 bg-transparent font-[inherit] text-[0.82rem] text-cosci-fg';
+  'cosci-inline-action mt-4 inline-flex cursor-pointer items-center ' +
+  'gap-[0.3rem] border-0 bg-transparent font-[inherit] text-[0.82rem] ' +
+  'text-cosci-fg';
 
 const REPORT_INLINE_ACTION_ICON_CLASSES = 'text-base';
 
 const REFERENCE_SEARCH_CLASSES =
-  'cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-cosci-muted';
+  'cosci-reference-search mb-[1.4rem] flex w-[min(100%,44rem)] items-center ' +
+  'gap-3 border-b border-cosci-border px-0 py-[0.45rem] text-cosci-muted';
 
 const REFERENCE_SEARCH_ICON_CLASSES = 'text-base';
 
 const REFERENCE_SEARCH_INPUT_CLASSES =
-  'min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-[0.86rem] text-cosci-fg outline-0 placeholder:text-cosci-muted';
+  'min-w-0 flex-1 border-0 bg-transparent font-[inherit] text-[0.86rem] ' +
+  'text-cosci-fg outline-0 placeholder:text-cosci-muted';
 
 const REFERENCE_LIST_CLASSES = 'm-0 grid list-none gap-0 p-0';
 
 const REFERENCE_LIST_ITEM_CLASSES =
-  'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center gap-[0.8rem] border-b border-cosci-border text-[0.86rem] max-[720px]:grid-cols-[2rem_minmax(0,1fr)]';
+  'grid min-h-[3.8rem] grid-cols-[2.2rem_minmax(0,1fr)_auto] items-center ' +
+  'gap-[0.8rem] border-b border-cosci-border text-[0.86rem] ' +
+  'max-[720px]:grid-cols-[2rem_minmax(0,1fr)]';
 
 const REFERENCE_LIST_INDEX_CLASSES = 'text-cosci-muted';
 
 const REFERENCE_LIST_TITLE_CLASSES = 'font-medium leading-[1.35]';
 
 const REFERENCE_LIST_LINK_CLASSES =
-  'reference-open-pill inline-flex items-center gap-[0.35rem] rounded-full border border-cosci-reference-open-border bg-transparent px-[0.7rem] py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg no-underline transition-colors hover:border-cosci-reference-open-hover-border hover:bg-cosci-reference-open-hover-bg max-[720px]:col-start-2 max-[720px]:w-fit';
+  'reference-open-pill inline-flex items-center gap-[0.35rem] rounded-full ' +
+  'border border-cosci-reference-open-border bg-transparent px-[0.7rem] ' +
+  'py-[0.3rem] text-[0.78rem] font-medium text-cosci-reference-open-fg ' +
+  'no-underline transition-colors ' +
+  'hover:border-cosci-reference-open-hover-border ' +
+  'hover:bg-cosci-reference-open-hover-bg max-[720px]:col-start-2 ' +
+  'max-[720px]:w-fit';
 
 const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 
