@@ -347,6 +347,35 @@ def _persist_engine_reviews(
         )
 
 
+def _ensure_citation_evidence_id(
+    run_id: str,
+    cite_title: str,
+    cite_info: dict[str, Any],
+    cite_url: str,
+    ev_id_by_title: dict[str, str],
+    conn: sqlite3.Connection,
+) -> str:
+    """Return the evidence id for a cited source, adding it on the fly.
+
+    Mutates `ev_id_by_title` in place when a new evidence row is added.
+    """
+    cite_ev_id = ev_id_by_title.get(cite_title)
+    if cite_ev_id is None:
+        cite_ev_id = store.add_evidence(
+            run_id,
+            cite_title,
+            source=cite_info.get("type", "engine"),
+            url=cite_url,
+            authors=cite_info.get("authors") or [],
+            year=cite_info.get("year"),
+            abstract="",
+            available=True,
+            conn=conn,
+        )
+        ev_id_by_title[cite_title] = cite_ev_id
+    return cite_ev_id
+
+
 def _persist_engine_citations(
     run_id: str,
     hyp_id: str,
@@ -372,21 +401,9 @@ def _persist_engine_citations(
     for cite_key, cite_info in (h.get("citation_map") or {}).items():
         cite_title = cite_info.get("title", cite_key)
         cite_url = cite_info.get("url") or ""
-        cite_ev_id = ev_id_by_title.get(cite_title)
-        if cite_ev_id is None:
-            # Add evidence on the fly for this citation source.
-            cite_ev_id = store.add_evidence(
-                run_id,
-                cite_title,
-                source=cite_info.get("type", "engine"),
-                url=cite_url,
-                authors=cite_info.get("authors") or [],
-                year=cite_info.get("year"),
-                abstract="",
-                available=True,
-                conn=conn,
-            )
-            ev_id_by_title[cite_title] = cite_ev_id
+        cite_ev_id = _ensure_citation_evidence_id(run_id, cite_title, cite_info,
+                                                  cite_url, ev_id_by_title,
+                                                  conn)
         claim = f"[{cite_key}] cited in hypothesis"
         state = classify_citation(
             CitationRecord(
@@ -575,6 +592,67 @@ def _import_hypothesis_generator() -> Any | None:
         return None
 
 
+def _setup_opts_from_cfg(setup: dict[str, Any] | None) -> dict[str, Any]:
+    """Translate the composer "setup" dict into engine opts keys.
+
+    Note "requirements" (UI/store term) maps to "constraints" (engine term)
+    -- the only renamed key in this block. Returns an empty dict when `setup`
+    is not a dict (e.g. absent from an older/partial run config).
+    """
+    if not isinstance(setup, dict):
+        return {}
+    focus = normalize_run_focus(setup.get("focus"))
+    return {
+        "run_focus_guidance":
+            focus_guidance(focus),
+        "run_setup_guidance":
+            setup_guidance(setup),
+        "attributes":
+            clean_string_list(
+                [str(value) for value in setup.get("attributes") or []]),
+        "constraints":
+            clean_string_list(
+                [str(value) for value in setup.get("requirements") or []]),
+        "criteria":
+            clean_string_list(
+                [str(value) for value in setup.get("criteria") or []]),
+    }
+
+
+def _fold_steering_preferences(run_id: str, db_path: str | None,
+                               setup_text: str) -> str | None:
+    """Fold setup guidance and queued user steering into one "preferences" opt.
+
+    Steering consumed here is marked applied so a later iteration does not
+    replay the same message. Returns None when there is nothing to fold.
+    """
+    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
+    preference_parts: list[str] = []
+    if setup_text:
+        preference_parts.append(setup_text)
+    if pending_steering:
+        guidance = "\n".join(f"- {m.content}" for m in pending_steering)
+        preference_parts.append(f"User steering guidance:\n{guidance}")
+        store.mark_steering_applied([m.id for m in pending_steering],
+                                    db_path=db_path)
+    return "\n\n".join(preference_parts) if preference_parts else None
+
+
+def _resolve_literature_review_toggle(cfg: dict[str, Any]) -> bool:
+    """Resolve the per-run literature-review toggle, honoring the kill switch.
+
+    Literature grounding defaults on but is user-controlled per run (the
+    PubMed connector toggle in the composer). The engine still degrades
+    gracefully to LLM-only if MCP is unreachable, so a down MCP never breaks
+    a run. FORCE_LITERATURE_REVIEW=0 is a hard kill switch for tests/dev
+    that must run without it, regardless of the per-run setting.
+    """
+    enable_literature_review = bool(cfg.get("enable_literature_review", True))
+    if os.getenv("FORCE_LITERATURE_REVIEW") == "0":
+        enable_literature_review = False
+    return enable_literature_review
+
+
 def _build_engine_opts(cfg: dict[str, Any], run_id: str,
                        db_path: str | None) -> dict[str, Any]:
     """Translate a run's durable config into the engine's `opts` vocabulary.
@@ -584,49 +662,13 @@ def _build_engine_opts(cfg: dict[str, Any], run_id: str,
     dict. Steering consumed here is marked applied so a later iteration does
     not replay the same message.
     """
-    # Translate the durable run "setup" (captured from the composer UI) into
-    # the engine's opts vocabulary. Note "requirements" (UI/store term) maps
-    # to "constraints" (engine term) -- the only renamed key in this block.
-    initial_opts: dict[str, Any] = {}
-    setup = cfg.get("setup")
-    if isinstance(setup, dict):
-        focus = normalize_run_focus(setup.get("focus"))
-        setup_text = setup_guidance(setup)
-        initial_opts["run_focus_guidance"] = focus_guidance(focus)
-        initial_opts["run_setup_guidance"] = setup_text
-        initial_opts["attributes"] = clean_string_list(
-            [str(value) for value in setup.get("attributes") or []])
-        initial_opts["constraints"] = clean_string_list(
-            [str(value) for value in setup.get("requirements") or []])
-        initial_opts["criteria"] = clean_string_list(
-            [str(value) for value in setup.get("criteria") or []])
-
-    # Fold setup guidance and any queued user steering messages into a single
-    # free-text "preferences" opt the engine's supervisor/generate prompts
-    # read.
-    pending_steering = store.get_pending_steering(run_id, db_path=db_path)
-    preference_parts: list[str] = []
-    setup_text = str(initial_opts.get("run_setup_guidance") or "")
-    if setup_text:
-        preference_parts.append(setup_text)
-    if pending_steering:
-        guidance = "\n".join(f"- {m.content}" for m in pending_steering)
-        preference_parts.append(f"User steering guidance:\n{guidance}")
-        store.mark_steering_applied([m.id for m in pending_steering],
-                                    db_path=db_path)
-    if preference_parts:
-        initial_opts["preferences"] = "\n\n".join(preference_parts)
-
-    # Literature grounding defaults on but is user-controlled per run (the
-    # PubMed connector toggle in the composer). The engine still degrades
-    # gracefully to LLM-only if MCP is unreachable, so a down MCP never breaks
-    # a run. FORCE_LITERATURE_REVIEW=0 is a hard kill switch for tests/dev
-    # that must run without it, regardless of the per-run setting.
-    enable_literature_review = bool(cfg.get("enable_literature_review", True))
-    if os.getenv("FORCE_LITERATURE_REVIEW") == "0":
-        enable_literature_review = False
-    initial_opts["enable_literature_review_node"] = enable_literature_review
-
+    initial_opts = _setup_opts_from_cfg(cfg.get("setup"))
+    preferences = _fold_steering_preferences(
+        run_id, db_path, str(initial_opts.get("run_setup_guidance") or ""))
+    if preferences:
+        initial_opts["preferences"] = preferences
+    initial_opts["enable_literature_review_node"] = (
+        _resolve_literature_review_toggle(cfg))
     return initial_opts
 
 
@@ -650,6 +692,19 @@ def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
         # boundary rather than persisting a second synced key.
         literature_review_papers_count=int(cfg["evidence_count"]),
     )
+
+
+def _merge_engine_state(final_state: dict[str, Any], state: dict[str,
+                                                                 Any]) -> None:
+    """Merge one streamed engine snapshot's known keys into `final_state`.
+
+    Mutates `final_state` in place with any of the tracked keys present in
+    `state` (a node may omit keys it doesn't touch).
+    """
+    for key in ("hypotheses", "articles", "tournament_matchups", "meta_review",
+                "research_overview"):
+        if state.get(key) is not None:
+            final_state[key] = state[key]
 
 
 async def _stream_engine_nodes(
@@ -685,10 +740,7 @@ async def _stream_engine_nodes(
             return
 
         # Update final_state from each yielded cumulative snapshot.
-        for key in ("hypotheses", "articles", "tournament_matchups",
-                    "meta_review", "research_overview"):
-            if state.get(key) is not None:
-                final_state[key] = state[key]
+        _merge_engine_state(final_state, state)
 
         # Normalize the engine node to the canonical mock event vocabulary so
         # every downstream consumer reads one shape (no engine.* types).
@@ -704,66 +756,24 @@ async def _stream_engine_nodes(
         yield await emit(node_type, payload)
 
 
-async def run_workflow(
-    run_id: str,
+async def _run_engine_provider(
+    generator_cls: Any,
     research_goal: str,
-    config: dict[str, Any],
+    run_id: str,
+    run_mode: str,
+    cfg: dict[str, Any],
     *,
-    db_path: str | None = None,
-    cancelled: asyncio.Event | None = None,
-    sleep_seconds: float = 0.05,
-    force_provider: str | None = None,
+    cancelled: asyncio.Event | None,
+    db_path: str | None,
+    emit: EmitFn,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Drive the chosen workflow and yield events as the store records them.
+    """Run the real engine end to end: stream nodes, drain state, report.
 
-    Intake safety screening runs here, at the shared boundary both providers
-    pass through, so every run (engine or mock) is gated before any work.
+    Persists the running status, streams the engine's per-node events, drains
+    the final state into the store, and builds/persists/emits the report
+    through the shared finalize path. On any exception, marks the run failed
+    and yields a terminal "failed" status event.
     """
-    # force_provider lets a caller (e.g. seed.py's demo seeding) pin the
-    # provider explicitly, bypassing select_provider()'s env/import probes.
-    provider = force_provider or select_provider()
-    run_mode = CANONICAL_RUN_MODE
-    cfg = resolved_run_config(config)
-
-    logger.info("starting workflow run=%s provider=%s run_mode=%s", run_id,
-                provider, run_mode)
-
-    emit = make_emitter(run_id, db_path=db_path)
-
-    # Intake safety gate, shared by every provider. A hard block short-circuits
-    # the run before any hypotheses are generated.
-    intake = screen_intake(research_goal)
-    async for event in apply_safety_gate(run_id, intake, emit, db_path=db_path):
-        yield event
-    if intake.decision == "block":
-        return
-
-    if provider == "mock":
-        async for event in _stream_mock_provider(
-                run_id,
-                research_goal,
-                cfg,
-                db_path=db_path,
-                cancelled=cancelled,
-                sleep_seconds=sleep_seconds,
-        ):
-            yield event
-        return
-
-    # Real engine path — bridge engine streaming events into our event log.
-    generator_cls = _import_hypothesis_generator()
-    if generator_cls is None:
-        async for event in run_mock_workflow(
-                run_id=run_id,
-                research_goal=research_goal,
-                config=cfg,
-                db_path=db_path,
-                cancelled=cancelled,
-                sleep_seconds=sleep_seconds,
-        ):
-            yield event
-        return
-
     # Persist the running state, not just emit it. The mock path sets this; the
     # engine path previously only emitted the event, leaving the run row stuck
     # at "queued" for the entire run (misleading status pill in the UI).
@@ -827,3 +837,76 @@ async def run_workflow(
                                 error=str(e),
                                 db_path=db_path)
         yield await emit("status", {"status": "failed", "error": str(e)})
+
+
+async def run_workflow(
+    run_id: str,
+    research_goal: str,
+    config: dict[str, Any],
+    *,
+    db_path: str | None = None,
+    cancelled: asyncio.Event | None = None,
+    sleep_seconds: float = 0.05,
+    force_provider: str | None = None,
+) -> AsyncIterator[dict[str, Any]]:
+    """Drive the chosen workflow and yield events as the store records them.
+
+    Intake safety screening runs here, at the shared boundary both providers
+    pass through, so every run (engine or mock) is gated before any work.
+    """
+    # force_provider lets a caller (e.g. seed.py's demo seeding) pin the
+    # provider explicitly, bypassing select_provider()'s env/import probes.
+    provider = force_provider or select_provider()
+    run_mode = CANONICAL_RUN_MODE
+    cfg = resolved_run_config(config)
+
+    logger.info("starting workflow run=%s provider=%s run_mode=%s", run_id,
+                provider, run_mode)
+
+    emit = make_emitter(run_id, db_path=db_path)
+
+    # Intake safety gate, shared by every provider. A hard block short-circuits
+    # the run before any hypotheses are generated.
+    intake = screen_intake(research_goal)
+    async for event in apply_safety_gate(run_id, intake, emit, db_path=db_path):
+        yield event
+    if intake.decision == "block":
+        return
+
+    if provider == "mock":
+        async for event in _stream_mock_provider(
+                run_id,
+                research_goal,
+                cfg,
+                db_path=db_path,
+                cancelled=cancelled,
+                sleep_seconds=sleep_seconds,
+        ):
+            yield event
+        return
+
+    # Real engine path — bridge engine streaming events into our event log.
+    generator_cls = _import_hypothesis_generator()
+    if generator_cls is None:
+        async for event in run_mock_workflow(
+                run_id=run_id,
+                research_goal=research_goal,
+                config=cfg,
+                db_path=db_path,
+                cancelled=cancelled,
+                sleep_seconds=sleep_seconds,
+        ):
+            yield event
+        return
+
+    async for event in _run_engine_provider(
+            generator_cls,
+            research_goal,
+            run_id,
+            run_mode,
+            cfg,
+            cancelled=cancelled,
+            db_path=db_path,
+            emit=emit,
+    ):
+        yield event
