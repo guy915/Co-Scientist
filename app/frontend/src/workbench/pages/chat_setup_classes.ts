@@ -43,9 +43,10 @@ export const CHAT_COMPOSER_CLASSES = 'reference-chat-composer px-4 pb-8';
 export const CHAT_COLUMN_CLASSES =
   'reference-chat-column mx-auto grid w-[min(100%,50.75rem)] gap-[1.15rem]';
 
-// Bubble row containers: assistant messages left-align (CHAT_BUBBLE_ROW_CLASSES),
-// user messages right-align and carry the `group/user` marker that the
-// hover-revealed action row (MESSAGE_ACTIONS_END_CLASSES) keys off of.
+// Bubble row containers: assistant messages left-align
+// (CHAT_BUBBLE_ROW_CLASSES), user messages right-align and carry the
+// `group/user` marker that the hover-revealed action row
+// (MESSAGE_ACTIONS_END_CLASSES) keys off of.
 export const CHAT_BUBBLE_ROW_CLASSES =
   'reference-bubble-row relative flex flex-col items-start justify-start ' +
   'gap-[0.35rem]';
@@ -55,8 +56,8 @@ export const CHAT_BUBBLE_USER_ROW_CLASSES =
   'justify-end gap-[0.35rem]';
 
 // User bubble chrome (bg, asymmetric corner radii). Its text styling and the
-// expand/collapse affordance are the USER_BUBBLE_TEXT_*/USER_COLLAPSE_BUTTON_CLASSES
-// group below.
+// expand/collapse affordance are the
+// USER_BUBBLE_TEXT_*/USER_COLLAPSE_BUTTON_CLASSES group below.
 export const USER_BUBBLE_CLASSES =
   'reference-user-bubble flex max-w-[31rem] items-start gap-4 ' +
   'rounded-tl-[26px] rounded-tr-[4px] rounded-br-[26px] rounded-bl-[26px] ' +

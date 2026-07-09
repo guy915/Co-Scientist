@@ -1,6 +1,9 @@
 import {useEffect, useMemo, useRef} from 'react';
 
-/** A trailing-edge debounced function returned by {@link useDebouncedCallback}. */
+/**
+ * A trailing-edge debounced function returned by
+ * {@link useDebouncedCallback}.
+ */
 export interface DebouncedCallback<T extends (...args: never[]) => void> {
   /** Schedules an invocation with these arguments after the delay elapses. */
   (...args: Parameters<T>): void;

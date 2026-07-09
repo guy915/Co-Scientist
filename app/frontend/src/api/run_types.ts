@@ -100,15 +100,18 @@ export interface RunWithSummary extends Run {
 export interface Hypothesis {
   id: string;
   run_id: string;
-  parent_id: string | null; // id of the hypothesis this one evolved from, if any
-  generation: number; // 0 for an initial hypothesis, incremented by each evolve pass
+  // id of the hypothesis this one evolved from, if any
+  parent_id: string | null;
+  // 0 for an initial hypothesis, incremented by each evolve pass
+  generation: number;
   category: string | null;
   title: string;
   statement: string;
   mechanism: string | null;
   expected_effect: string | null;
   experimental_context: string | null;
-  created_by_agent: string; // node/agent name that produced it, e.g. "generate", "evolve"
+  // node/agent name that produced it, e.g. "generate", "evolve"
+  created_by_agent: string;
   created_at: number;
   elo_rating: number; // current tournament rating; see app/elo.py
   win_count: number;
@@ -117,8 +120,10 @@ export interface Hypothesis {
   plausibility_score: number | null;
   testability_score: number | null;
   safety_status: string | null; // outcome of the safety screening gate, if run
-  status: string | null; // lifecycle state, e.g. active vs. superseded by a later generation
-  cluster_id: string | null; // proximity/dedup cluster this hypothesis was grouped into
+  // lifecycle state, e.g. active vs. superseded by a later generation
+  status: string | null;
+  // proximity/dedup cluster this hypothesis was grouped into
+  cluster_id: string | null;
 }
 
 /** A literature record cited as supporting or contextual evidence. */
@@ -130,7 +135,8 @@ export interface Evidence {
   authors: string[];
   year: number | null;
   abstract: string;
-  available: boolean; // whether the full source was reachable when evidence was gathered
+  // whether the full source was reachable when evidence was gathered
+  available: boolean;
 }
 
 /** One pairwise tournament match and the Elo changes it produced. */
@@ -163,7 +169,8 @@ export interface Review {
 
 /**
  * Structured contents of a run's final synthesis report. One canonical shape
- * for every provider, built server-side by `report_render.build_report_payload`.
+ * for every provider, built server-side by
+ * `report_render.build_report_payload`.
  */
 export interface ReportPayload {
   research_goal: string;
@@ -172,7 +179,8 @@ export interface ReportPayload {
   hypothesis_count?: number;
   evidence_count?: number;
   match_count?: number;
-  citation_summary?: Record<string, number>; // counts by classification, e.g. verified/partial/unsupported/unavailable
+  // counts by classification, e.g. verified/partial/unsupported/unavailable
+  citation_summary?: Record<string, number>;
   leaderboard: {id: string; title: string; elo: number}[];
   meta_review?: Record<string, unknown>;
   research_overview?: ResearchOverview;

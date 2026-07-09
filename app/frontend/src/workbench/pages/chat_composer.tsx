@@ -154,9 +154,9 @@ export function Composer({
 
   // Grow the textarea with its content up to a cap, then let it scroll — the
   // reference composer expands as you type before it becomes scrollable. Runs
-  // on every input change (including programmatic fills from suggestions) so the
-  // height always tracks the current value; clearing the input snaps it back to
-  // the CSS min-height floor.
+  // on every input change (including programmatic fills from suggestions)
+  // so the height always tracks the current value; clearing the input snaps
+  // it back to the CSS min-height floor.
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -481,8 +481,9 @@ function AttachmentCard({
 function fileToAttachment(file: File): ComposerAttachment {
   const extension = fileExtension(file.name);
   const isImage = file.type.startsWith('image/');
+  const suffix = Math.random().toString(36).slice(2);
   return {
-    id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+    id: `${file.name}-${file.lastModified}-${suffix}`,
     name: file.name,
     badge: fileBadge(extension),
     kind: fileKind(file, extension),

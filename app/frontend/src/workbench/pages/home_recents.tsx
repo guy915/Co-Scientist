@@ -356,8 +356,8 @@ function homeRunScore(
  * Derives the 1-based active step (1-4) for a live run. The run summary carries
  * no fine-grained stage, so this mirrors the existing progress heuristic:
  * `queued` sits on Exploring, `synthesizing` on the final Tournament step, and
- * `running` advances Generating -> Reviewing -> Tournament by elapsed minutes so
- * the flow visibly moves without a backend stage signal.
+ * `running` advances Generating -> Reviewing -> Tournament by elapsed
+ * minutes so the flow visibly moves without a backend stage signal.
  *
  * @param run The active run.
  * @returns The active step index in the range 1-4.

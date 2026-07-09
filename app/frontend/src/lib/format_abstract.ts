@@ -53,12 +53,18 @@ export interface AbstractSection {
   html: string;
 }
 
-/** Escapes regex metacharacters so `value` can be embedded literally in a pattern. */
+/**
+ * Escapes regex metacharacters so `value` can be embedded literally in a
+ * pattern.
+ */
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** "SUMMARY" -> "Summary", "MAIN OUTCOME MEASURES" -> "Main outcome measures". */
+/**
+ * "SUMMARY" -> "Summary", "MAIN OUTCOME MEASURES" -> "Main outcome
+ * measures".
+ */
 function titleCase(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1).toLowerCase();
 }

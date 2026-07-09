@@ -5,7 +5,8 @@
  * already partially visible. This keeps section rails deterministic.
  *
  * @param sectionId The DOM id of the section element to scroll to.
- * @param offset Extra pixels to leave above the section (e.g. for sticky headers).
+ * @param offset Extra pixels to leave above the section (e.g. for sticky
+ *   headers).
  * @returns True when the target element exists and a scroll was initiated.
  */
 export function smoothScrollToSection(sectionId: string, offset = 0): boolean {

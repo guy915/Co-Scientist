@@ -11,7 +11,8 @@
  * escaped and is rendered by the browser as plain text.
  */
 
-// Tags allowed to survive sanitization, attribute-less; anything else stays escaped.
+// Tags allowed to survive sanitization, attribute-less; anything else
+// stays escaped.
 const INLINE_TAGS = ['i', 'b', 'em', 'strong', 'sub', 'sup', 'u'] as const;
 
 const ESCAPE_MAP: Record<string, string> = {

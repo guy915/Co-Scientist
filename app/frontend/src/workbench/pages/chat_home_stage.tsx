@@ -119,9 +119,10 @@ export function HomeStage({
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
   );
-  // Mobile shows suggestions as a single-line glyph list, so the label truncates
-  // to one line (word-level, via TruncatedLabel); desktop keeps the two-line
-  // card. Tracks viewport width so the line budget follows the active layout.
+  // Mobile shows suggestions as a single-line glyph list, so the label
+  // truncates to one line (word-level, via TruncatedLabel); desktop keeps the
+  // two-line card. Tracks viewport width so the line budget follows the
+  // active layout.
   const isMobile = useIsMobile();
 
   return (

@@ -158,9 +158,9 @@ function HelpSection() {
       <h3 className="ucs-settings-card-title">Help</h3>
       <p className="ucs-settings-card-copy">
         Co-Scientist is a multi-agent workspace for generating and
-        pressure-testing research hypotheses. Set a research goal and a team
-        of agents proposes ideas, reviews them, and ranks the strongest
-        directions tournament-style.
+        pressure-testing research hypotheses. Set a research goal and a team of
+        agents proposes ideas, reviews them, and ranks the strongest directions
+        tournament-style.
       </p>
       <div className="ucs-faq">
         {FAQ.map(item => (

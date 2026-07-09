@@ -1,7 +1,10 @@
 /** Shared factories for building typed API objects in tests. */
 import type {Hypothesis} from '@/api/runs';
 
-/** A fully-populated Hypothesis; override only the fields a test cares about. */
+/**
+ * A fully-populated Hypothesis; override only the fields a test cares
+ * about.
+ */
 export function makeHypothesis(over: Partial<Hypothesis> = {}): Hypothesis {
   return {
     id: 'h1',

@@ -5,14 +5,18 @@ import {Icon} from './icon';
 
 interface ErrorBoundaryProps {
   children: ReactNode;
-  /** Optional replacement UI; when set it renders instead of the default card. */
+  /**
+   * Optional replacement UI; when set it renders instead of the default
+   * card.
+   */
   fallback?: ReactNode;
 }
 
 interface ErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
-  errorInfo: React.ErrorInfo | null; // component stack; arrives after the error itself
+  // component stack; arrives after the error itself
+  errorInfo: React.ErrorInfo | null;
 }
 
 const FALLBACK_CARD_CLASSES =

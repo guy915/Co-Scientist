@@ -158,8 +158,9 @@ export const ICON_BUTTON_CLASSES =
   'enabled:focus-visible:bg-cosci-icon-button-hover-bg ' +
   'focus-visible:outline-none disabled:cursor-default';
 
-// Round source-control button (Files, Connectors), built on ICON_BUTTON_CLASSES;
-// stays visibly "on" via aria-expanded while its menu is open.
+// Round source-control button (Files, Connectors), built on
+// ICON_BUTTON_CLASSES; stays visibly "on" via aria-expanded while its menu
+// is open.
 export const COMPOSER_SOURCE_BUTTON_CLASSES =
   ICON_BUTTON_CLASSES +
   ' reference-composer-source-button size-8 text-cosci-source-button ' +

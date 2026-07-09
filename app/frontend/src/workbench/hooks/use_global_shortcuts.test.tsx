@@ -20,7 +20,10 @@ function wrapperAt(pathname: string) {
   );
 }
 
-/** Dispatches a keydown carrying `key` on the given target (defaults document). */
+/**
+ * Dispatches a keydown carrying `key` on the given target (defaults
+ * document).
+ */
 function keyDown(key: string, target: EventTarget = document): void {
   target.dispatchEvent(
     new KeyboardEvent('keydown', {key, bubbles: true, cancelable: true}),

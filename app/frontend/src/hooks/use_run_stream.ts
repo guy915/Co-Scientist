@@ -80,7 +80,8 @@ export function useRunStream(runId: string | null): UseRunStreamResult {
       window.clearTimeout(flushTimer);
       es.close();
     };
-    // Re-subscribe only when runId changes; other referenced setters are stable.
+    // Re-subscribe only when runId changes; other referenced setters are
+    // stable.
   }, [runId]);
 
   return {events, terminal};

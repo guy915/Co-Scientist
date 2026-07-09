@@ -51,8 +51,8 @@ function fitTruncatedText(
  *
  * `lines` selects the fit test: 1 (default) measures width against a single
  * nowrap line; a value > 1 measures height, relying on the host's own clamp
- * (`-webkit-line-clamp` / a fixed max-height) to bound `clientHeight`. The exact
- * visible line count therefore comes from the host CSS, not this prop.
+ * (`-webkit-line-clamp` / a fixed max-height) to bound `clientHeight`. The
+ * exact visible line count therefore comes from the host CSS, not this prop.
  *
  * The visible text is owned imperatively (the span renders no React children),
  * so measurement can rewrite it freely without fighting reconciliation. A
@@ -88,8 +88,8 @@ export function TruncatedLabel({
 
     // Fit synchronously, again on the next frame (the first paint can measure
     // before the rail's flex/grid layout has settled), and once more after web
-    // fonts load (which changes text metrics). A ResizeObserver keeps it correct
-    // on later width changes.
+    // fonts load (which changes text metrics). A ResizeObserver keeps it
+    // correct on later width changes.
     fit();
     const raf = requestAnimationFrame(fit);
     let cancelled = false;

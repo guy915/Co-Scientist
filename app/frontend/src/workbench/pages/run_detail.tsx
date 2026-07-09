@@ -289,7 +289,8 @@ export function RunDetail() {
 
   return (
     <div className={REPORT_PAGE_CLASSES}>
-      {/* Titlebar: back link plus the run's (possibly domain-overridden) title. */}
+      {/* Titlebar: back link plus the run's (possibly domain-overridden)
+          title. */}
       <header className={REPORT_TITLEBAR_CLASSES}>
         <div className={REPORT_TITLE_LEFT_CLASSES}>
           <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
@@ -577,7 +578,10 @@ function runDurationPhrase(run: RunWithSummary | null): string {
   return formatDurationPhrase(seconds);
 }
 
-/** Curated display title for known domains, or null to fall back to the goal. */
+/**
+ * Curated display title for known domains, or null to fall back to the
+ * goal.
+ */
 function domainTitleOverride(goal: string): string | null {
   if (isLiverFibrosisGoal(goal)) {
     return 'Epigenetic and stromal reversal strategies for MASH-associated liver fibrosis';

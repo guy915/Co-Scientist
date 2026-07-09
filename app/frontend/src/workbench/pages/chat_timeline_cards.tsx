@@ -66,7 +66,10 @@ import {
   USER_COLLAPSE_BUTTON_CLASSES,
 } from './chat_setup_classes';
 
-/** One rendered chat-timeline message (either the user's or the assistant's). */
+/**
+ * One rendered chat-timeline message (either the user's or the
+ * assistant's).
+ */
 export interface ChatEntry {
   id: string;
   role: 'user' | 'assistant';
@@ -320,7 +323,8 @@ export function ChatBubble({
 
   // Fires when the animated max-height transition finishes: locks in the
   // clamp (collapse) or drops the cap entirely via `settled` (expand) so the
-  // final state matches toggleExpanded's intent rather than a mid-animation one.
+  // final state matches toggleExpanded's intent rather than a mid-animation
+  // one.
   function handleBubbleTransitionEnd(event: TransitionEvent<HTMLSpanElement>) {
     if (event.propertyName !== 'max-height') return;
     if (expanded) {

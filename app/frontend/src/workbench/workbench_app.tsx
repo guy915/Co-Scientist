@@ -54,7 +54,8 @@ export function WorkbenchApp() {
               element={<Navigate to="details" replace />}
             />
             {/* Run detail with its active tab in the URL (details, learning,
-                overview, ideas); RunDetail reads :id and :tab via useParams. */}
+                overview, ideas); RunDetail reads :id and :tab via
+                useParams. */}
             <Route
               path="/runs/:id/:tab"
               element={
