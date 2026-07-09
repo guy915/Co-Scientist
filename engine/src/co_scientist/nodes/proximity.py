@@ -56,6 +56,71 @@ def _assign_cluster_ids(hypotheses: list[Hypothesis],
                     break
 
 
+def _resolve_cluster_duplicates(
+    cluster_id: str, cluster_hypotheses: list[Hypothesis]
+) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+    """Resolves high-similarity duplicates within a single cluster.
+
+    Keeps every non-"high" similarity hypothesis plus only the single best
+    "high" similarity hypothesis (ranked by Elo, then score, then text),
+    recording the rest as removed duplicates.
+
+    Args:
+        cluster_id: Identifier of the cluster being resolved.
+        cluster_hypotheses: Hypotheses assigned to this cluster.
+
+    Returns:
+        Tuple of (hypotheses_to_keep, removed_duplicates) for this cluster.
+    """
+    if len(cluster_hypotheses) == 1:
+        # No duplicates possible
+        return list(cluster_hypotheses), []
+
+    hypotheses_to_keep: list[Hypothesis] = []
+    removed_duplicates: list[dict[str, Any]] = []
+
+    # Separate by similarity degree
+    # Only hypotheses tagged "high" are candidates for removal;
+    # "medium"/"low" degree hypotheses in the same cluster are related
+    # but distinct enough to keep both.
+    high_similarity = [
+        h for h in cluster_hypotheses if h.similarity_degree == "high"
+    ]
+    others = [h for h in cluster_hypotheses if h.similarity_degree != "high"]
+
+    # Keep all non-high-similarity hypotheses
+    hypotheses_to_keep.extend(others)
+
+    if high_similarity:
+        # For high-similarity duplicates, keep only the best. Rank by Elo
+        # (primary), then score, then text as deterministic tiebreakers.
+        high_similarity[:] = rank_by_elo(high_similarity)
+
+        # Keep the best
+        best = high_similarity[0]
+        hypotheses_to_keep.append(best)
+
+        # Remove the rest
+        # Every other high-similarity hypothesis in the cluster is
+        # dropped; record what was removed, why, and what was kept
+        # instead for the removed_duplicates audit trail (state.py),
+        # which evolve.py later reads to avoid recreating them and the
+        # UI surfaces for transparency.
+        for duplicate in high_similarity[1:]:
+            removed_duplicates.append({
+                "text": duplicate.text,
+                "cluster_id": cluster_id,
+                "reason": "high_similarity_duplicate",
+                "kept_instead": best.text[:200],
+                "elo_rating": duplicate.elo_rating,
+                "score": duplicate.score,
+            })
+            logger.info("Removed duplicate from cluster %s: %s... (Elo: %s)",
+                        cluster_id, duplicate.text[:100], duplicate.elo_rating)
+
+    return hypotheses_to_keep, removed_duplicates
+
+
 def _dedupe_by_cluster(
     hypotheses: list[Hypothesis]
 ) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
@@ -93,54 +158,87 @@ def _dedupe_by_cluster(
 
     # For each cluster, handle high-similarity duplicates
     for cluster_id, cluster_hypotheses in clusters_dict.items():
-        if len(cluster_hypotheses) == 1:
-            # No duplicates possible
-            hypotheses_to_keep.extend(cluster_hypotheses)
-            continue
-
-        # Separate by similarity degree
-        # Only hypotheses tagged "high" are candidates for removal;
-        # "medium"/"low" degree hypotheses in the same cluster are related
-        # but distinct enough to keep both.
-        high_similarity = [
-            h for h in cluster_hypotheses if h.similarity_degree == "high"
-        ]
-        others = [
-            h for h in cluster_hypotheses if h.similarity_degree != "high"
-        ]
-
-        # Keep all non-high-similarity hypotheses
-        hypotheses_to_keep.extend(others)
-
-        if high_similarity:
-            # For high-similarity duplicates, keep only the best. Rank by Elo
-            # (primary), then score, then text as deterministic tiebreakers.
-            high_similarity[:] = rank_by_elo(high_similarity)
-
-            # Keep the best
-            best = high_similarity[0]
-            hypotheses_to_keep.append(best)
-
-            # Remove the rest
-            # Every other high-similarity hypothesis in the cluster is
-            # dropped; record what was removed, why, and what was kept
-            # instead for the removed_duplicates audit trail (state.py),
-            # which evolve.py later reads to avoid recreating them and the
-            # UI surfaces for transparency.
-            for duplicate in high_similarity[1:]:
-                removed_duplicates.append({
-                    "text": duplicate.text,
-                    "cluster_id": cluster_id,
-                    "reason": "high_similarity_duplicate",
-                    "kept_instead": best.text[:200],
-                    "elo_rating": duplicate.elo_rating,
-                    "score": duplicate.score,
-                })
-                logger.info(
-                    "Removed duplicate from cluster %s: %s... (Elo: %s)",
-                    cluster_id, duplicate.text[:100], duplicate.elo_rating)
+        kept, removed = _resolve_cluster_duplicates(cluster_id,
+                                                    cluster_hypotheses)
+        hypotheses_to_keep.extend(kept)
+        removed_duplicates.extend(removed)
 
     return hypotheses_to_keep, removed_duplicates
+
+
+async def _fetch_similarity_clusters(
+        state: WorkflowState,
+        hypotheses: list[Hypothesis]) -> list[dict[str, Any]]:
+    """Calls the proximity LLM to cluster hypotheses by similarity.
+
+    A single call analyzes the whole pool at once; LOW_TEMPERATURE keeps
+    clustering decisions consistent across cache-hit reruns.
+
+    Args:
+        state: Current workflow state.
+        hypotheses: All hypotheses being analyzed for proximity.
+
+    Returns:
+        Similarity clusters as returned by the proximity LLM call (empty
+        if the response was malformed or contained none).
+    """
+    # Prepare hypotheses for similarity analysis
+    # Send only the fields the clustering prompt needs, plus a positional
+    # `index` used only for prompt authoring; matching responses back to
+    # Hypothesis objects below is done by text prefix, not this index.
+    hypotheses_for_analysis = [{
+        "text": hyp.text,
+        "score": hyp.score,
+        "elo_rating": hyp.elo_rating,
+        "index": i
+    } for i, hyp in enumerate(hypotheses)]
+
+    # Get supervisor guidance from state
+    supervisor_guidance = state.get("supervisor_guidance")
+
+    # Call LLM to cluster by similarity
+    prompt, schema = get_proximity_prompt(
+        hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
+
+    response = await call_llm_json(
+        prompt=prompt,
+        model_name=state["model_name"],
+        max_tokens=LONG_MAX_TOKENS,
+        temperature=LOW_TEMPERATURE,
+        json_schema=schema,
+        run_id=state.get("run_id"),
+        prompt_name="proximity",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+            "hypotheses_count": len(hypotheses),
+        },
+    )
+
+    similarity_clusters: list[dict[str,
+                                   Any]] = response.get("similarity_clusters",
+                                                        [])
+    return similarity_clusters
+
+
+def _log_dedup_summary(original_count: int, kept_count: int,
+                       removed_duplicates: list[dict[str, Any]]) -> None:
+    """Logs a summary of proximity deduplication results.
+
+    Args:
+        original_count: Number of hypotheses before deduplication.
+        kept_count: Number of hypotheses retained after deduplication.
+        removed_duplicates: Duplicates removed during this pass.
+    """
+    logger.info(
+        "Proximity analysis complete: %s → %s hypotheses"
+        " (%s duplicates removed)", original_count, kept_count,
+        len(removed_duplicates))
+
+    if removed_duplicates:
+        logger.warning("Removed %s high-similarity duplicates:",
+                       len(removed_duplicates))
+        for dup in removed_duplicates[:3]:  # Log first 3
+            logger.warning("- %s...", dup['text'][:80])
 
 
 async def proximity_node(state: WorkflowState) -> dict[str, Any]:
@@ -178,41 +276,8 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
         f"Analyzing similarity of {len(hypotheses)} hypotheses...",
         PROGRESS_PROXIMITY_START)
 
-    # Prepare hypotheses for similarity analysis
-    # Send only the fields the clustering prompt needs, plus a positional
-    # `index` used only for prompt authoring; matching responses back to
-    # Hypothesis objects below is done by text prefix, not this index.
-    hypotheses_for_analysis = [{
-        "text": hyp.text,
-        "score": hyp.score,
-        "elo_rating": hyp.elo_rating,
-        "index": i
-    } for i, hyp in enumerate(hypotheses)]
-
-    # Get supervisor guidance from state
-    supervisor_guidance = state.get("supervisor_guidance")
-
     # Call LLM to cluster by similarity
-    # A single call analyzes the whole pool at once; LOW_TEMPERATURE keeps
-    # clustering decisions consistent across cache-hit reruns.
-    prompt, schema = get_proximity_prompt(
-        hypotheses_for_analysis, supervisor_guidance=supervisor_guidance)
-
-    response = await call_llm_json(
-        prompt=prompt,
-        model_name=state["model_name"],
-        max_tokens=LONG_MAX_TOKENS,
-        temperature=LOW_TEMPERATURE,
-        json_schema=schema,
-        run_id=state.get("run_id"),
-        prompt_name="proximity",
-        prompt_metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": len(hypotheses),
-        },
-    )
-
-    similarity_clusters = response.get("similarity_clusters", [])
+    similarity_clusters = await _fetch_similarity_clusters(state, hypotheses)
 
     # Malformed or empty LLM output: skip deduplication for this iteration
     # rather than raising, so a bad response degrades gracefully instead
@@ -228,16 +293,8 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     # Identify and remove high-similarity duplicates
     hypotheses_to_keep, removed_duplicates = _dedupe_by_cluster(hypotheses)
 
-    logger.info(
-        "Proximity analysis complete: %s → %s hypotheses"
-        " (%s duplicates removed)", len(hypotheses), len(hypotheses_to_keep),
-        len(removed_duplicates))
-
-    if removed_duplicates:
-        logger.warning("Removed %s high-similarity duplicates:",
-                       len(removed_duplicates))
-        for dup in removed_duplicates[:3]:  # Log first 3
-            logger.warning("- %s...", dup['text'][:80])
+    _log_dedup_summary(len(hypotheses), len(hypotheses_to_keep),
+                       removed_duplicates)
 
     # Emit progress
     await emit_progress(state,

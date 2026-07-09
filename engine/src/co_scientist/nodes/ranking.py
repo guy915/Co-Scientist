@@ -426,6 +426,57 @@ async def judge_matchup(
     return winner, response
 
 
+async def _run_tournament_matchups(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    tournament_rounds: int,
+    supervisor_guidance: dict[str, Any] | None,
+    tool_registry: Any | None,
+    meta_review: dict[str, Any] | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> tuple[list[tuple[Hypothesis, Hypothesis]], list[tuple[str, dict[str,
+                                                                     Any]]]]:
+    """Builds tournament pairings and judges them concurrently.
+
+    Args:
+        state: Current workflow state.
+        hypotheses: Hypotheses sorted by review score, eligible for pairing.
+        tournament_rounds: Number of pairings to generate and judge.
+        supervisor_guidance: Optional planning guidance from the supervisor.
+        tool_registry: Optional ToolRegistry for dynamic tool instructions.
+        meta_review: Optional cross-iteration meta-review feedback.
+        run_setup_guidance: Optional run-setup guidance for the prompt.
+        run_focus_guidance: Optional run-focus guidance for the prompt.
+
+    Returns:
+        Tuple of (pairings, results): the per-round hypothesis pairs and
+        their aligned judged (winner, response) outcomes.
+    """
+    research_goal = state["research_goal"]
+    current_iteration = state.get("current_iteration", 0)
+    pairings = _build_tournament_pairings(hypotheses, tournament_rounds,
+                                          research_goal, current_iteration)
+    # Fire all matchup judgments concurrently; judge_matchup's semaphore
+    # caps how many LLM calls are actually in flight at once.
+    results = await asyncio.gather(*[
+        judge_matchup(
+            a,
+            b,
+            state["research_goal"],
+            state["model_name"],
+            supervisor_guidance,
+            run_id=state.get("run_id"),
+            matchup_index=i,
+            tool_registry=tool_registry,
+            meta_review=meta_review,
+            run_setup_guidance=run_setup_guidance,
+            run_focus_guidance=run_focus_guidance,
+        ) for i, (a, b) in enumerate(pairings)
+    ])
+    return pairings, results
+
+
 async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     """Runs tournament-style pairwise comparisons with Elo rating updates.
 
@@ -493,27 +544,9 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     run_focus_guidance = state.get("run_focus_guidance")
 
     # Prepare all random pairwise matchups and judge them in parallel
-    research_goal = state["research_goal"]
-    current_iteration = state.get("current_iteration", 0)
-    pairings = _build_tournament_pairings(hypotheses, tournament_rounds,
-                                          research_goal, current_iteration)
-    # Fire all matchup judgments concurrently; judge_matchup's semaphore
-    # caps how many LLM calls are actually in flight at once.
-    results = await asyncio.gather(*[
-        judge_matchup(
-            a,
-            b,
-            state["research_goal"],
-            state["model_name"],
-            supervisor_guidance,
-            run_id=state.get("run_id"),
-            matchup_index=i,
-            tool_registry=tool_registry,
-            meta_review=meta_review,
-            run_setup_guidance=run_setup_guidance,
-            run_focus_guidance=run_focus_guidance,
-        ) for i, (a, b) in enumerate(pairings)
-    ])
+    pairings, results = await _run_tournament_matchups(
+        state, hypotheses, tournament_rounds, supervisor_guidance,
+        tool_registry, meta_review, run_setup_guidance, run_focus_guidance)
 
     # Apply Elo updates based on judged results and collect matchup details
     llm_calls = tournament_rounds
