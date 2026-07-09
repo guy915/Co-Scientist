@@ -1,5 +1,9 @@
 import {useEffect} from 'react';
-import {useLocation, useNavigate} from 'react-router-dom';
+import {
+  type NavigateFunction,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
 
 /**
  * Global keyboard shortcuts:
@@ -80,6 +84,47 @@ function nextTabPath(pathname: string, key: string): string | null {
   return `/runs/${route.id}/${nextTab === 'details' ? '' : nextTab}`;
 }
 
+// Builds the document keydown handler for the given navigation callback and
+// current pathname. Pulled out of the effect below so the effect only wires
+// up listener registration/cleanup; this factory decides what a keypress
+// means. `lastG` (the timestamp of the last bare "g" press) lives in the
+// returned closure rather than a ref, so it resets whenever a fresh handler
+// is built -- i.e. on every navigate/pathname change, matching the original
+// per-effect-run reset.
+function createKeyDownHandler(
+  navigate: NavigateFunction,
+  pathname: string,
+): (e: KeyboardEvent) => void {
+  let lastG = 0;
+  return e => {
+    if (shouldIgnoreShortcut(e)) return;
+
+    const now = Date.now();
+    // Two-key "g n" sequence (Vim-style).
+    if (e.key === 'g') {
+      lastG = now;
+      return;
+    }
+    // The prefix is only honored within 800ms, and any non-"g" key
+    // consumes it so a stale "g" can't pair with a much later "n".
+    const wasG = isHomeShortcut(e.key, lastG, now);
+    lastG = 0;
+
+    if (wasG) {
+      e.preventDefault();
+      void navigate('/');
+      return;
+    }
+
+    // Tab nav while on a run page.
+    const path = nextTabPath(pathname, e.key);
+    if (path) {
+      e.preventDefault();
+      void navigate(path);
+    }
+  };
+}
+
 /**
  * Registers the app-wide keyboard shortcuts for the lifetime of the calling
  * component.
@@ -92,39 +137,7 @@ export function useGlobalShortcuts() {
   // every pathname change so the handler closure always sees the current
   // route; cleanup on unmount removes the last listener.
   useEffect(() => {
-    // Timestamp of the last bare "g" press, held in the effect closure (not
-    // state -- it should never cause a render). Reset whenever the effect
-    // re-runs, which harmlessly drops a pending "g" across a navigation.
-    let lastG = 0;
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (shouldIgnoreShortcut(e)) return;
-
-      const now = Date.now();
-      // Two-key "g n" sequence (Vim-style).
-      if (e.key === 'g') {
-        lastG = now;
-        return;
-      }
-      // The prefix is only honored within 800ms, and any non-"g" key
-      // consumes it so a stale "g" can't pair with a much later "n".
-      const wasG = isHomeShortcut(e.key, lastG, now);
-      lastG = 0;
-
-      if (wasG) {
-        e.preventDefault();
-        void navigate('/');
-        return;
-      }
-
-      // Tab nav while on a run page.
-      const path = nextTabPath(location.pathname, e.key);
-      if (path) {
-        e.preventDefault();
-        void navigate(path);
-      }
-    }
-
+    const onKeyDown = createKeyDownHandler(navigate, location.pathname);
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [navigate, location.pathname]);

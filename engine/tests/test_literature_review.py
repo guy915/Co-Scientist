@@ -25,6 +25,7 @@ context-enrichment phases (2.4/2.5/2.6) all early-return, so the node runs in
 its real single-source, LLM-only orchestration.
 """
 
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 import pytest
@@ -136,6 +137,23 @@ def _stub_node(
     monkeypatch.setattr(lr_synthesis, "call_llm", fake_llm)
 
     return fake_client
+
+
+def _make_event_recorder() -> tuple[list[tuple[str, dict[str, Any]]], Callable[
+    [str, dict[str, Any]], Awaitable[None]]]:
+    """Build a progress callback that records (event, payload) tuples.
+
+    Returns:
+        A tuple of the (initially empty) recorded-events list and the async
+        callback that appends to it; pass the callback as ``progress_callback``
+        and inspect the list afterwards.
+    """
+    events: list[tuple[str, dict[str, Any]]] = []
+
+    async def callback(event: str, payload: dict[str, Any]) -> None:
+        events.append((event, payload))
+
+    return events, callback
 
 
 # =============================================================================
@@ -347,10 +365,7 @@ async def test_no_papers_with_search_error_emits_error_event(
     connection/transport failure is distinguishable from a search that
     legitimately found nothing.
     """
-    events: list[tuple[str, dict[str, Any]]] = []
-
-    async def callback(event: str, payload: dict[str, Any]) -> None:
-        events.append((event, payload))
+    events, callback = _make_event_recorder()
 
     # Reuse the standard stubs, then replace the client with one that raises on
     # every search call (query generation uses the stubbed LLM, not call_tool).
@@ -390,10 +405,7 @@ async def test_no_papers_without_error_emits_empty_event(
     Distinct from the error path: ``literature_review_empty`` with
     ``search_errors_count == 0``.
     """
-    events: list[tuple[str, dict[str, Any]]] = []
-
-    async def callback(event: str, payload: dict[str, Any]) -> None:
-        events.append((event, payload))
+    events, callback = _make_event_recorder()
 
     _stub_node(monkeypatch,
                source_available=True,

@@ -1,3 +1,4 @@
+import type {RefObject} from 'react';
 import {useLayoutEffect, useRef} from 'react';
 
 // True when the node's content no longer fits its box on the axis being
@@ -41,6 +42,54 @@ function fitTruncatedText(
   node.textContent = `${words.slice(0, Math.max(best, 1)).join(' ')}…`;
 }
 
+// Keeps `ref`'s span fitted to `text` (see fitTruncatedText) across every
+// event that can change what fits: mount, next-frame layout settle, web-font
+// load, container resize, and tab foregrounding. Extracted verbatim from the
+// component so TruncatedLabel itself stays a thin render — the
+// scheduling/timing here is deliberate (see the inline comments) and must
+// not change.
+function useTruncatedFit(
+  ref: RefObject<HTMLSpanElement | null>,
+  text: string,
+  lines: number,
+) {
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    function fit() {
+      const node = ref.current;
+      if (!node) return;
+      fitTruncatedText(node, text, lines);
+    }
+
+    // Fit synchronously, again on the next frame (the first paint can measure
+    // before the rail's flex/grid layout has settled), and once more after web
+    // fonts load (which changes text metrics). A ResizeObserver keeps it
+    // correct on later width changes.
+    fit();
+    const raf = requestAnimationFrame(fit);
+    let cancelled = false;
+    void document.fonts?.ready.then(() => {
+      if (!cancelled) fit();
+    });
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    // A tab that loads in the background suspends rAF/ResizeObserver, so the
+    // first fit can run against an unsettled width; re-fit when it foregrounds.
+    const onVisible = () => {
+      if (!document.hidden) fit();
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(raf);
+      observer.disconnect();
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [ref, text, lines]);
+}
+
 /**
  * Label that truncates on word boundaries: when the text does not fit
  * its container it drops whole trailing words and appends a single
@@ -76,42 +125,7 @@ export function TruncatedLabel({
   // Holds the span whose textContent is rewritten imperatively by fit();
   // React never re-renders text into this node (see the bare <span> below).
   const ref = useRef<HTMLSpanElement>(null);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    function fit() {
-      const node = ref.current;
-      if (!node) return;
-      fitTruncatedText(node, text, lines);
-    }
-
-    // Fit synchronously, again on the next frame (the first paint can measure
-    // before the rail's flex/grid layout has settled), and once more after web
-    // fonts load (which changes text metrics). A ResizeObserver keeps it
-    // correct on later width changes.
-    fit();
-    const raf = requestAnimationFrame(fit);
-    let cancelled = false;
-    void document.fonts?.ready.then(() => {
-      if (!cancelled) fit();
-    });
-    const observer = new ResizeObserver(fit);
-    observer.observe(el);
-    // A tab that loads in the background suspends rAF/ResizeObserver, so the
-    // first fit can run against an unsettled width; re-fit when it foregrounds.
-    const onVisible = () => {
-      if (!document.hidden) fit();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(raf);
-      observer.disconnect();
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [text, lines]);
+  useTruncatedFit(ref, text, lines);
 
   // No children: fit() owns this node's textContent directly.
   return <span ref={ref} className={className} />;

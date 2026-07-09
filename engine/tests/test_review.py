@@ -106,12 +106,28 @@ async def test_comparative_batch_attaches_reviews(
     assert result["metrics"].reviews_count == 3
     # Each hypothesis received exactly one review with parsed fields.
     expected_overalls = [7.0, 5.0, 9.0]
-    for hyp, expected in zip(returned, expected_overalls):
+    expected_scores = [
+        {
+            "soundness": 8,
+            "novelty": 6
+        },
+        {
+            "soundness": 4,
+            "novelty": 6
+        },
+        {
+            "soundness": 9,
+            "novelty": 9
+        },
+    ]
+    for hyp, expected, scores in zip(returned, expected_overalls,
+                                     expected_scores):
         assert len(hyp.reviews) == 1
         rev = hyp.reviews[0]
         assert rev.overall_score == pytest.approx(expected)
         assert rev.review_summary == "batch summary"
-        assert rev.scores == hyp.reviews[0].scores
+        # scores flow through verbatim, keyed to the matching batch entry.
+        assert rev.scores == scores
         assert rev.safety_ethical_concerns == "none noted"
         assert rev.constructive_feedback == "tighten the experiment"
         # Node mirrors the review's overall_score onto the hypothesis score.

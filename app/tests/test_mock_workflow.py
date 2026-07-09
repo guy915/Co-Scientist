@@ -18,6 +18,22 @@ def _drain(coro_gen: AsyncIterator[Any]) -> list[Any]:
     return asyncio.run(_run())
 
 
+async def _drain_mock_workflow(rid: str, goal: str,
+                               cfg: dict[str, Any]) -> list[Any]:
+    """Drain ``run_mock_workflow`` for a hand-pinned run id, goal, and config.
+
+    Args:
+        rid: The run id to seed the mock workflow's RNG with.
+        goal: The research goal to seed the mock workflow's RNG with.
+        cfg: The resolved run config to drive the workflow with.
+
+    Returns:
+        The list of events emitted by the drained workflow.
+    """
+    from app.mock_workflow import run_mock_workflow  # pylint: disable=import-outside-toplevel
+    return [e async for e in run_mock_workflow(rid, goal, cfg, sleep_seconds=0)]
+
+
 def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
     """Same goal + run mode + run_id → identical artefacts."""
     # The workflow uses (run_id, goal, run mode) as seed material.
@@ -60,7 +76,6 @@ def test_mock_workflow_is_deterministic(isolated_db: str) -> None:
 def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     """Re-running the inner mock with identical seed inputs yields identical
     title sequences."""
-    from app.mock_workflow import run_mock_workflow  # pylint: disable=import-outside-toplevel
     from app.run_modes import resolved_run_config  # pylint: disable=import-outside-toplevel
 
     cfg = resolved_run_config({})
@@ -74,19 +89,16 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     fixed_id = "fixed-seed-id"
     fixed_goal = "Pinned goal for determinism"
 
-    async def _drain_async(rid: str) -> list[Any]:
-        return [
-            e async for e in run_mock_workflow(
-                rid, fixed_goal, cfg, sleep_seconds=0)
-        ]
-
     # Same seed → same sequence
-    a_events = asyncio.run(_drain_async(fixed_id + "-a"))
-    b_events = asyncio.run(_drain_async(fixed_id + "-a"))
+    a_events = asyncio.run(
+        _drain_mock_workflow(fixed_id + "-a", fixed_goal, cfg))
+    b_events = asyncio.run(
+        _drain_mock_workflow(fixed_id + "-a", fixed_goal, cfg))
     assert len(a_events) == len(b_events)
 
     # Different ids → different sequence (verifies run_id is in the seed)
-    c_events = asyncio.run(_drain_async(fixed_id + "-c"))
+    c_events = asyncio.run(
+        _drain_mock_workflow(fixed_id + "-c", fixed_goal, cfg))
     assert len(c_events) == len(
         a_events)  # same length because cfg is identical
 
@@ -240,7 +252,6 @@ def test_mock_deep_verification_and_overview_are_deterministic(
     text content (the research_overview event payload and the probe dicts),
     never DB row IDs.
     """
-    from app.mock_workflow import run_mock_workflow  # pylint: disable=import-outside-toplevel
     from app.run_modes import resolved_run_config  # pylint: disable=import-outside-toplevel
 
     cfg = resolved_run_config({})
@@ -251,12 +262,6 @@ def test_mock_deep_verification_and_overview_are_deterministic(
     # one that enables the FK pragma) is not the one writing rows for the
     # hand-pinned run ids below. Mirrors the existing replay-determinism test.
     store.create_run(fixed_goal, "standard", "mock", {})
-
-    async def _drain_async(rid: str) -> list[Any]:
-        return [
-            e async for e in run_mock_workflow(
-                rid, fixed_goal, cfg, sleep_seconds=0)
-        ]
 
     def _find(events: list[Any], event_type: str) -> Any:
         return next(e for e in events if e["type"] == event_type)
@@ -274,10 +279,11 @@ def test_mock_deep_verification_and_overview_are_deterministic(
             "research_overview": ro["payload"]["research_overview"],
         }
 
-    a_events = asyncio.run(_drain_async(fixed_id))
-    b_events = asyncio.run(_drain_async(fixed_id))
+    a_events = asyncio.run(_drain_mock_workflow(fixed_id, fixed_goal, cfg))
+    b_events = asyncio.run(_drain_mock_workflow(fixed_id, fixed_goal, cfg))
     assert _seeded_content(a_events) == _seeded_content(b_events)
 
     # A different run_id seeds different content.
-    c_events = asyncio.run(_drain_async("fixed-dv-seed-c"))
+    c_events = asyncio.run(
+        _drain_mock_workflow("fixed-dv-seed-c", fixed_goal, cfg))
     assert _seeded_content(c_events) != _seeded_content(a_events)

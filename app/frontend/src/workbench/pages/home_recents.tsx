@@ -110,14 +110,7 @@ export function HomeRecentsPanel({
 
   return (
     <aside className={panelClassName} aria-label="Recent runs">
-      <div className={HOME_RECENTS_HEADING_ROW_CLASSES}>
-        <Icon
-          aria-hidden="true"
-          className={RECENTS_HEADING_ICON_CLASSES}
-          name="history"
-        />
-        <h2 className={RECENTS_HEADING_CLASSES}>Recents</h2>
-      </div>
+      <RecentsHeading />
       <ol className={listClassName}>
         {hasVisibleRuns ? (
           visibleRuns.map(run => (
@@ -131,18 +124,27 @@ export function HomeRecentsPanel({
           <EmptyRecentsState />
         )}
         {hasExtraRuns && (
-          <li className={HOME_LOAD_MORE_ITEM_CLASSES}>
-            <button
-              type="button"
-              className={HOME_LOAD_MORE_BUTTON_CLASSES}
-              onClick={onToggleShowAll}
-            >
-              {showAll ? 'Show less' : 'Show more'}
-            </button>
-          </li>
+          <LoadMoreRunsItem
+            showAll={showAll}
+            onToggleShowAll={onToggleShowAll}
+          />
         )}
       </ol>
     </aside>
+  );
+}
+
+// The panel's "Recents" heading row: history glyph plus title.
+function RecentsHeading() {
+  return (
+    <div className={HOME_RECENTS_HEADING_ROW_CLASSES}>
+      <Icon
+        aria-hidden="true"
+        className={RECENTS_HEADING_ICON_CLASSES}
+        name="history"
+      />
+      <h2 className={RECENTS_HEADING_CLASSES}>Recents</h2>
+    </div>
   );
 }
 
@@ -160,6 +162,27 @@ function EmptyRecentsState() {
           You have not started any sessions yet.
         </strong>
       </div>
+    </li>
+  );
+}
+
+// Trailing list item toggling between the capped and full recents list.
+function LoadMoreRunsItem({
+  showAll,
+  onToggleShowAll,
+}: {
+  showAll: boolean;
+  onToggleShowAll: () => void;
+}) {
+  return (
+    <li className={HOME_LOAD_MORE_ITEM_CLASSES}>
+      <button
+        type="button"
+        className={HOME_LOAD_MORE_BUTTON_CLASSES}
+        onClick={onToggleShowAll}
+      >
+        {showAll ? 'Show less' : 'Show more'}
+      </button>
     </li>
   );
 }
@@ -279,31 +302,14 @@ function RunStepFlow({activeIndex}: {activeIndex: number}) {
       <div className="reference-run-step-list">
         {RUN_STEPS.map((step, index) => {
           const stepNumber = index + 1;
-          const done = stepNumber < activeIndex;
-          const active = stepNumber === activeIndex;
           return (
             <Fragment key={step.label}>
-              <div className="reference-run-step">
-                <Icon
-                  aria-hidden="true"
-                  className="reference-run-step-icon"
-                  name={step.icon}
-                />
-                <span className="reference-run-step-label">{step.label}</span>
-                {done && (
-                  <Icon
-                    aria-hidden="true"
-                    className="reference-run-step-done"
-                    name="check"
-                  />
-                )}
-                {active && (
-                  <span
-                    aria-hidden="true"
-                    className="reference-run-step-spinner"
-                  />
-                )}
-              </div>
+              <RunStepItem
+                icon={step.icon}
+                label={step.label}
+                done={stepNumber < activeIndex}
+                active={stepNumber === activeIndex}
+              />
               {index < RUN_STEPS.length - 1 && (
                 <div
                   aria-hidden="true"
@@ -314,6 +320,41 @@ function RunStepFlow({activeIndex}: {activeIndex: number}) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+// One step's glyph, label, green check once done, and indeterminate spinner
+// while it's the one currently in progress.
+function RunStepItem({
+  icon,
+  label,
+  done,
+  active,
+}: {
+  icon: IconName;
+  label: string;
+  done: boolean;
+  active: boolean;
+}) {
+  return (
+    <div className="reference-run-step">
+      <Icon
+        aria-hidden="true"
+        className="reference-run-step-icon"
+        name={icon}
+      />
+      <span className="reference-run-step-label">{label}</span>
+      {done && (
+        <Icon
+          aria-hidden="true"
+          className="reference-run-step-done"
+          name="check"
+        />
+      )}
+      {active && (
+        <span aria-hidden="true" className="reference-run-step-spinner" />
+      )}
     </div>
   );
 }

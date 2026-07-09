@@ -2,6 +2,7 @@ import {
   type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
+  type ReactNode,
   type RefObject,
   useEffect,
   useLayoutEffect,
@@ -214,25 +215,14 @@ function composerReferenceLabel(setupDraftMode: boolean) {
     : 'Start a new research goal to begin';
 }
 
-// Owns the composer's non-controlled state: the staged attachments, the
-// connectors-menu open flag, and the refs/effects wiring the auto-grow
-// textarea, blob-URL cleanup, and outside-click dismissal. `input`/`large`
-// are read (not owned) here, only to drive the auto-grow effect.
-function useComposerState(input: string, large: boolean) {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+// Grows the textarea with its content up to a cap, then lets it scroll — the
+// reference composer expands as you type before it becomes scrollable. Runs
+// on every input change (including programmatic fills from suggestions) so
+// the height always tracks the current value; clearing the input snaps it
+// back to the CSS min-height floor.
+function useAutoGrowTextarea(input: string, large: boolean) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const sourceControlsRef = useRef<HTMLDivElement>(null);
-  // Mirrors `attachments` for use inside the unmount-cleanup effect below,
-  // which must read the latest value without re-subscribing on every change.
-  const attachmentRef = useRef<ComposerAttachment[]>([]);
-  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
-  const [connectorsOpen, setConnectorsOpen] = useState(false);
 
-  // Grow the textarea with its content up to a cap, then let it scroll — the
-  // reference composer expands as you type before it becomes scrollable. Runs
-  // on every input change (including programmatic fills from suggestions)
-  // so the height always tracks the current value; clearing the input snaps
-  // it back to the CSS min-height floor.
   useLayoutEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
@@ -240,6 +230,37 @@ function useComposerState(input: string, large: boolean) {
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
   }, [input, large]);
+
+  return textareaRef;
+}
+
+// Revokes every remaining preview object URL on unmount, via a ref mirroring
+// `attachments`, so navigating away doesn't leak blob URLs for attachments
+// that were never explicitly removed.
+function useAttachmentPreviewCleanup(attachments: ComposerAttachment[]) {
+  // Mirrors `attachments` for use inside the unmount-only effect below, which
+  // must read the latest value without re-subscribing on every change.
+  const attachmentRef = useRef<ComposerAttachment[]>([]);
+
+  useEffect(() => {
+    attachmentRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      attachmentRef.current.forEach(attachment => {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      });
+    };
+  }, []);
+}
+
+// Owns the staged-attachments list: appending newly picked files and
+// removing one by id (revoking its preview object URL), plus the cleanup
+// that revokes any remaining preview object URLs on unmount.
+function useComposerAttachments() {
+  const [attachments, setAttachments] = useState<ComposerAttachment[]>([]);
+  useAttachmentPreviewCleanup(attachments);
 
   // Appends newly picked files as attachments and resets the file input so
   // selecting the same file again still fires a change event.
@@ -261,24 +282,16 @@ function useComposerState(input: string, large: boolean) {
     });
   }
 
-  // Keeps attachmentRef current for the unmount-only cleanup effect below.
-  useEffect(() => {
-    attachmentRef.current = attachments;
-  }, [attachments]);
+  return {attachments, onFilesChanged, removeAttachment};
+}
 
-  // Runs once, on unmount: revokes every remaining preview object URL so
-  // navigating away doesn't leak blob URLs for attachments that were never
-  // explicitly removed.
-  useEffect(() => {
-    return () => {
-      attachmentRef.current.forEach(attachment => {
-        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
-      });
-    };
-  }, []);
+// Owns the connectors-menu open flag and the outside-mousedown listener that
+// closes it; only subscribes to the document listener when the menu is
+// actually open.
+function useConnectorsMenu() {
+  const sourceControlsRef = useRef<HTMLDivElement>(null);
+  const [connectorsOpen, setConnectorsOpen] = useState(false);
 
-  // Closes the connectors menu on any outside mousedown while it's open; only
-  // subscribes to the document listener when the menu is actually open.
   useEffect(() => {
     if (!connectorsOpen) return;
 
@@ -295,6 +308,21 @@ function useComposerState(input: string, large: boolean) {
     document.addEventListener('mousedown', closeConnectors);
     return () => document.removeEventListener('mousedown', closeConnectors);
   }, [connectorsOpen]);
+
+  return {connectorsOpen, setConnectorsOpen, sourceControlsRef};
+}
+
+// Owns the composer's non-controlled state: the staged attachments, the
+// connectors-menu open flag, and the refs/effects wiring the auto-grow
+// textarea, blob-URL cleanup, and outside-click dismissal. `input`/`large`
+// are read (not owned) here, only to drive the auto-grow effect.
+function useComposerState(input: string, large: boolean) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useAutoGrowTextarea(input, large);
+  const {attachments, onFilesChanged, removeAttachment} =
+    useComposerAttachments();
+  const {connectorsOpen, setConnectorsOpen, sourceControlsRef} =
+    useConnectorsMenu();
 
   return {
     fileInputRef,
@@ -603,45 +631,64 @@ function AttachmentCard({
   onRemove: (id: string) => void;
 }) {
   const removeButton = (
-    <button
-      type="button"
-      className={tooltipClassNames({
-        className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
-        placement: 'top',
-      })}
-      aria-label={`Remove ${attachment.name}`}
-      data-tooltip={`Remove ${attachment.name}`}
-      onClick={() => onRemove(attachment.id)}
-    >
-      <Icon
-        aria-hidden="true"
-        className={ATTACHMENT_REMOVE_ICON_CLASSES}
-        name="close"
-      />
-    </button>
+    <AttachmentRemoveButton attachment={attachment} onRemove={onRemove} />
   );
 
   if (attachment.isImage && attachment.previewUrl) {
     return (
-      <div
-        className={tooltipClassNames({
-          className: ATTACHMENT_IMAGE_CARD_CLASSES,
-          placement: 'top',
-          wrap: true,
-          alignStart: true,
-        })}
-        data-tooltip={attachment.name}
-      >
-        <img
-          src={attachment.previewUrl}
-          alt={attachment.name}
-          className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
-        />
-        {removeButton}
-      </div>
+      <ImageAttachmentCard
+        name={attachment.name}
+        previewUrl={attachment.previewUrl}
+        removeButton={removeButton}
+      />
     );
   }
 
+  return (
+    <FileAttachmentCard attachment={attachment} removeButton={removeButton} />
+  );
+}
+
+// Image attachment-card variant: a cropped preview plus the shared remove
+// button.
+function ImageAttachmentCard({
+  name,
+  previewUrl,
+  removeButton,
+}: {
+  name: string;
+  previewUrl: string;
+  removeButton: ReactNode;
+}) {
+  return (
+    <div
+      className={tooltipClassNames({
+        className: ATTACHMENT_IMAGE_CARD_CLASSES,
+        placement: 'top',
+        wrap: true,
+        alignStart: true,
+      })}
+      data-tooltip={name}
+    >
+      <img
+        src={previewUrl}
+        alt={name}
+        className={ATTACHMENT_PREVIEW_IMAGE_CLASSES}
+      />
+      {removeButton}
+    </div>
+  );
+}
+
+// File attachment-card variant: name + kind badge plus the shared remove
+// button.
+function FileAttachmentCard({
+  attachment,
+  removeButton,
+}: {
+  attachment: ComposerAttachment;
+  removeButton: ReactNode;
+}) {
   return (
     <div
       className={tooltipClassNames({
@@ -663,6 +710,34 @@ function AttachmentCard({
       </div>
       {removeButton}
     </div>
+  );
+}
+
+// The hover-revealed remove button shared by both attachment-card variants.
+function AttachmentRemoveButton({
+  attachment,
+  onRemove,
+}: {
+  attachment: ComposerAttachment;
+  onRemove: (id: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({
+        className: ATTACHMENT_REMOVE_BUTTON_CLASSES,
+        placement: 'top',
+      })}
+      aria-label={`Remove ${attachment.name}`}
+      data-tooltip={`Remove ${attachment.name}`}
+      onClick={() => onRemove(attachment.id)}
+    >
+      <Icon
+        aria-hidden="true"
+        className={ATTACHMENT_REMOVE_ICON_CLASSES}
+        name="close"
+      />
+    </button>
   );
 }
 

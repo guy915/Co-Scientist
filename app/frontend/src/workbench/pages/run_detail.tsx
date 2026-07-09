@@ -165,16 +165,39 @@ function dataKeysFromEvents(events: readonly StreamEvent[]): Set<RunDataKey> {
   return keys;
 }
 
+// Tab-switch handling: navigates to the new tab route, and (special case)
+// bumps ideasViewKey when "All Ideas" is re-tapped while already active so
+// IdeasTab remounts and resets its mobile master-detail selection back to
+// the list (that view has no back button of its own — see MobileIdeaView).
+function useTabNavigation(id: string | undefined, activeTab: TabName) {
+  const navigate = useNavigate();
+  // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
+  // mobile master-detail selection back to the list.
+  const [ideasViewKey, setIdeasViewKey] = useState(0);
+
+  const onTabChange = useCallback(
+    (nextTab: TabName) => {
+      if (!id) return;
+      if (nextTab === 'ideas' && activeTab === 'ideas') {
+        setIdeasViewKey(key => key + 1);
+      }
+      // Always include the tab (details included) so every tab is the same
+      // required-param route — switching tabs never remounts RunDetail.
+      void navigate(`/runs/${id}/${nextTab}`);
+    },
+    [id, navigate, activeTab],
+  );
+
+  return {ideasViewKey, onTabChange};
+}
+
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.
  */
 export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
-  const navigate = useNavigate();
   const activeTab = normalizeTab(tab);
-  // Bumped when "All Ideas" is re-tapped, remounting IdeasTab to reset its
-  // mobile master-detail selection back to the list.
-  const [ideasViewKey, setIdeasViewKey] = useState(0);
+  const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
 
   const {
     run,
@@ -188,22 +211,6 @@ export function RunDetail() {
     toast,
     title,
   } = useRunDetailData(id);
-
-  const onTabChange = useCallback(
-    (nextTab: TabName) => {
-      if (!id) return;
-      // Tapping "All Ideas" while already on it resets the mobile master-detail
-      // back to the list: the detail view has no back button, so re-tapping the
-      // tab (which remounts the ideas view via ideasViewKey) is the way back.
-      if (nextTab === 'ideas' && activeTab === 'ideas') {
-        setIdeasViewKey(key => key + 1);
-      }
-      // Always include the tab (details included) so every tab is the same
-      // required-param route — switching tabs never remounts RunDetail.
-      void navigate(`/runs/${id}/${nextTab}`);
-    },
-    [id, navigate, activeTab],
-  );
 
   if (!id) return null;
 
@@ -261,6 +268,45 @@ function applyIfFetched<T>(value: T | undefined, setState: (value: T) => void) {
   if (value !== undefined) setState(value);
 }
 
+// Debounced, key-accumulating scheduler around `refresh`: the SSE stream
+// replays the full history on mount and live runs emit rapid bursts, so
+// per-event refetches collapse into one trailing call. Data keys accumulate
+// in a ref across the debounce window (the underlying debounce keeps only
+// the latest call's args), so a burst mixing event types still refetches
+// every collection it touched. `cancelPending` drops a pending call without
+// touching the accumulated keys (used when a full refresh makes them moot);
+// `resetPending` also clears them (used on id change, so a stray key from
+// the previous run doesn't leak into the next one's first batch).
+function useDebouncedKeyedRefresh(
+  refresh: (keys?: ReadonlySet<RunDataKey>) => Promise<void>,
+) {
+  const pendingRefreshKeys = useRef(new Set<RunDataKey>());
+  const debouncedRefresh = useDebouncedCallback(() => {
+    const keys = pendingRefreshKeys.current;
+    pendingRefreshKeys.current = new Set();
+    void refresh(keys);
+  }, 600);
+
+  const scheduleRefresh = useCallback(
+    (keys: Iterable<RunDataKey>) => {
+      for (const key of keys) pendingRefreshKeys.current.add(key);
+      debouncedRefresh();
+    },
+    [debouncedRefresh],
+  );
+
+  const cancelPending = useCallback(() => {
+    debouncedRefresh.cancel();
+  }, [debouncedRefresh]);
+
+  const resetPending = useCallback(() => {
+    debouncedRefresh.cancel();
+    pendingRefreshKeys.current = new Set();
+  }, [debouncedRefresh]);
+
+  return {scheduleRefresh, cancelPending, resetPending};
+}
+
 // Fetches and keeps in sync the run row plus its hypotheses/evidence/
 // matches/reviews/report collections. `scheduleRefresh` is a debounced
 // partial refetch keyed by collection (used by the SSE event stream below),
@@ -301,39 +347,19 @@ function useRunFetch(id: string | undefined) {
     [id],
   );
 
-  // Debounced variant for event-driven refetches: the SSE stream replays the
-  // full history on mount and live runs emit rapid bursts, so per-event
-  // refetches collapse into one trailing call. Data keys accumulate in a ref
-  // across the debounce window (the hook keeps only the latest call's args),
-  // so a burst mixing event types still refetches every collection it
-  // touched. The identity is stable, and any pending call is cancelled on
-  // unmount.
-  const pendingRefreshKeys = useRef(new Set<RunDataKey>());
-  const debouncedRefresh = useDebouncedCallback(() => {
-    const keys = pendingRefreshKeys.current;
-    pendingRefreshKeys.current = new Set();
-    void refresh(keys);
-  }, 600);
-
-  const scheduleRefresh = useCallback(
-    (keys: Iterable<RunDataKey>) => {
-      for (const key of keys) pendingRefreshKeys.current.add(key);
-      debouncedRefresh();
-    },
-    [debouncedRefresh],
-  );
+  const {scheduleRefresh, cancelPending, resetPending} =
+    useDebouncedKeyedRefresh(refresh);
 
   const refreshNow = useCallback(() => {
-    debouncedRefresh.cancel();
+    cancelPending();
     void refresh();
-  }, [refresh, debouncedRefresh]);
+  }, [refresh, cancelPending]);
 
   // Initial load (and reload when the run id changes) stays immediate.
   useEffect(() => {
-    debouncedRefresh.cancel();
-    pendingRefreshKeys.current = new Set();
+    resetPending();
     void refresh();
-  }, [refresh, debouncedRefresh]);
+  }, [refresh, resetPending]);
 
   return {
     run,
@@ -654,6 +680,42 @@ function winningIdeasItems(
     .map(h => ({id: h.id, title: h.title, elo: h.elo_rating}));
 }
 
+// Derives the lead-stat sentence and the top-5 "Winning ideas" list for the
+// research-overview tab, memoized off the same report-or-live stats the
+// caller already resolved via overviewReportStats.
+function useResearchOverviewDerived({
+  run,
+  leaderboard,
+  hypotheses,
+  ideaCount,
+  matchCount,
+}: {
+  run: RunWithSummary | null;
+  leaderboard: ReportPayload['leaderboard'];
+  hypotheses: Hypothesis[];
+  ideaCount: number;
+  matchCount: number;
+}) {
+  const leadStat = useMemo(
+    () =>
+      researchOverviewLeadStat({
+        run,
+        leaderboard,
+        hypotheses,
+        ideaCount,
+        matchCount,
+      }),
+    [run, leaderboard, hypotheses, ideaCount, matchCount],
+  );
+
+  const winningIdeas = useMemo(
+    () => winningIdeasItems(leaderboard, hypotheses),
+    [leaderboard, hypotheses],
+  );
+
+  return {leadStat, winningIdeas};
+}
+
 // "Research Overview" tab: the synthesized report (summary, research
 // directions, specific aims), a lead-stat sentence, a top-5 leaderboard, and
 // a tournament-match count. Falls back to live hypotheses/matches when no
@@ -674,22 +736,13 @@ function ResearchOverviewView({
     hypotheses,
     matches,
   );
-  const leadStat = useMemo(
-    () =>
-      researchOverviewLeadStat({
-        run,
-        leaderboard,
-        hypotheses,
-        ideaCount,
-        matchCount,
-      }),
-    [run, leaderboard, hypotheses, ideaCount, matchCount],
-  );
-
-  const winningIdeas = useMemo(
-    () => winningIdeasItems(leaderboard, hypotheses),
-    [leaderboard, hypotheses],
-  );
+  const {leadStat, winningIdeas} = useResearchOverviewDerived({
+    run,
+    leaderboard,
+    hypotheses,
+    ideaCount,
+    matchCount,
+  });
 
   return (
     <ReportDocument title="Research overview">

@@ -41,9 +41,80 @@ const FALLBACK_OUTLINE_BUTTON_CLASSES =
   'font-medium text-th-fg hover:bg-th-muted focus-visible:outline-2 ' +
   'focus-visible:outline-offset-2 focus-visible:outline-th-ring';
 
+// Static header of the fallback card: title plus subtitle.
+function FallbackHeader() {
+  return (
+    <header className="p-6">
+      <h1 className={FALLBACK_TITLE_CLASSES}>
+        <span aria-hidden="true">
+          <Icon name="warning" />
+        </span>
+        Something went wrong
+      </h1>
+      <p className={FALLBACK_DESCRIPTION_CLASSES}>
+        An error occurred while rendering this component
+      </p>
+    </header>
+  );
+}
+
+// The caught error's message, rendered in a highlighted block.
+function FallbackErrorMessage({error}: {error: Error | null}) {
+  return (
+    <div className="rounded-lg border border-th-destructive bg-th-muted p-4">
+      <p className="font-mono text-sm text-th-destructive">
+        {error?.toString()}
+      </p>
+    </div>
+  );
+}
+
+// Collapsible component-stack details; renders nothing until
+// componentDidCatch has captured `errorInfo` (see ErrorFallbackCard).
+function FallbackComponentStack({
+  errorInfo,
+}: {
+  errorInfo: React.ErrorInfo | null;
+}) {
+  if (!errorInfo) return null;
+  return (
+    <details className="text-sm">
+      <summary className="mb-2 cursor-pointer font-medium">
+        Component Stack
+      </summary>
+      <pre className="overflow-auto rounded bg-th-muted p-4 text-xs">
+        {errorInfo.componentStack}
+      </pre>
+    </details>
+  );
+}
+
+// "Try Again" (calls onReset) and "Reload Page" (hard reload) actions.
+function FallbackActions({onReset}: {onReset: () => void}) {
+  return (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        className={FALLBACK_BUTTON_CLASSES}
+        onClick={onReset}
+      >
+        Try Again
+      </button>
+      <button
+        type="button"
+        className={FALLBACK_OUTLINE_BUTTON_CLASSES}
+        onClick={() => window.location.reload()}
+      >
+        Reload Page
+      </button>
+    </div>
+  );
+}
+
 // Default fallback UI shown in place of a subtree that threw during render;
 // `errorInfo` (the component stack) arrives one commit after `error` itself,
-// so it renders only once componentDidCatch has captured it.
+// so FallbackComponentStack renders only once componentDidCatch has
+// captured it.
 function ErrorFallbackCard({
   error,
   errorInfo,
@@ -56,49 +127,11 @@ function ErrorFallbackCard({
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
       <section className={FALLBACK_CARD_CLASSES}>
-        <header className="p-6">
-          <h1 className={FALLBACK_TITLE_CLASSES}>
-            <span aria-hidden="true">
-              <Icon name="warning" />
-            </span>
-            Something went wrong
-          </h1>
-          <p className={FALLBACK_DESCRIPTION_CLASSES}>
-            An error occurred while rendering this component
-          </p>
-        </header>
+        <FallbackHeader />
         <div className="space-y-4 p-6 pt-0">
-          <div className="rounded-lg border border-th-destructive bg-th-muted p-4">
-            <p className="font-mono text-sm text-th-destructive">
-              {error?.toString()}
-            </p>
-          </div>
-          {errorInfo && (
-            <details className="text-sm">
-              <summary className="mb-2 cursor-pointer font-medium">
-                Component Stack
-              </summary>
-              <pre className="overflow-auto rounded bg-th-muted p-4 text-xs">
-                {errorInfo.componentStack}
-              </pre>
-            </details>
-          )}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={FALLBACK_BUTTON_CLASSES}
-              onClick={onReset}
-            >
-              Try Again
-            </button>
-            <button
-              type="button"
-              className={FALLBACK_OUTLINE_BUTTON_CLASSES}
-              onClick={() => window.location.reload()}
-            >
-              Reload Page
-            </button>
-          </div>
+          <FallbackErrorMessage error={error} />
+          <FallbackComponentStack errorInfo={errorInfo} />
+          <FallbackActions onReset={onReset} />
         </div>
       </section>
     </div>

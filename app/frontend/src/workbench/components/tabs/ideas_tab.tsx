@@ -106,6 +106,36 @@ const IDEA_SECTION_LINK_CLASSES =
   'block whitespace-nowrap text-[0.85rem] leading-6 font-medium ' +
   'text-cosci-blue no-underline';
 
+// Default selection for the split/master-detail views: an explicit tap wins
+// (falling back to the top idea if it no longer exists), otherwise desktop
+// pre-selects the top idea while mobile opens on the bare list.
+function resolveSelectedHypothesis(
+  sorted: Hypothesis[],
+  selectedId: string | null,
+  isMobile: boolean,
+): Hypothesis | null {
+  if (!sorted.length) return null;
+  if (selectedId) return sorted.find(h => h.id === selectedId) ?? sorted[0];
+  return isMobile ? null : sorted[0];
+}
+
+// Elo-ranked hypothesis list plus the currently selected one, keyed off
+// whichever layout (mobile vs. desktop) is active. `sorted` mirrors the
+// research-overview tab's "Winning ideas" ordering via the same
+// sortByEloDesc helper.
+function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
+  // Explicitly selected hypothesis id (set by tapping a row); null means "use
+  // the default" - see resolveSelectedHypothesis for what that resolves to.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const sorted = useMemo(() => sortByEloDesc(hypotheses), [hypotheses]);
+  const selected = useMemo(
+    () => resolveSelectedHypothesis(sorted, selectedId, isMobile),
+    [sorted, selectedId, isMobile],
+  );
+
+  return {sorted, selected, onSelect: setSelectedId};
+}
+
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
  *
@@ -120,22 +150,8 @@ export function IdeasTab({
   reviews: Review[];
   matches?: MatchRow[];
 }) {
-  // Explicitly selected hypothesis id (set by tapping a row); null means "use
-  // the default" - see `selected` below for what that resolves to per layout.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const isMobile = useIsMobile();
-
-  // Canonical ranking: highest Elo first, shared with the research-overview
-  // tab's "Winning ideas" list via the same sortByEloDesc helper.
-  const sorted = useMemo(() => sortByEloDesc(hypotheses), [hypotheses]);
-
-  const selected = useMemo(() => {
-    if (!sorted.length) return null;
-    if (selectedId) return sorted.find(h => h.id === selectedId) ?? sorted[0];
-    // Desktop pre-selects the top idea in the split view; mobile opens on the
-    // list with nothing selected until the user taps an idea.
-    return isMobile ? null : sorted[0];
-  }, [sorted, selectedId, isMobile]);
+  const {sorted, selected, onSelect} = useIdeaSelection(hypotheses, isMobile);
 
   if (!hypotheses.length) {
     return (
@@ -145,25 +161,16 @@ export function IdeasTab({
     );
   }
 
-  if (isMobile) {
-    return (
-      <MobileIdeaView
-        sorted={sorted}
-        selected={selected}
-        reviews={reviews}
-        matches={matches}
-        onSelect={setSelectedId}
-      />
-    );
-  }
-
+  // Both views share the exact same prop shape, so the layout choice is just
+  // which component to render.
+  const IdeaView = isMobile ? MobileIdeaView : DesktopIdeaSplit;
   return (
-    <DesktopIdeaSplit
+    <IdeaView
       sorted={sorted}
       selected={selected}
       reviews={reviews}
       matches={matches}
-      onSelect={setSelectedId}
+      onSelect={onSelect}
     />
   );
 }
@@ -254,6 +261,13 @@ function DesktopIdeaSplit({
   );
 }
 
+// Picks the selected vs. unselected idea-row class variant.
+function ideaRowClassName(selected: boolean): string {
+  return selected
+    ? `${IDEA_RANK_ROW_CLASSES} ${IDEA_RANK_SELECTED_CLASSES}`
+    : IDEA_RANK_ROW_CLASSES;
+}
+
 // A single row in the ranked hypothesis list: rank badge, Elo chip, title,
 // and a truncated statement preview.
 function IdeaListItem({
@@ -271,11 +285,7 @@ function IdeaListItem({
     <li>
       <button
         type="button"
-        className={
-          selected
-            ? `${IDEA_RANK_ROW_CLASSES} ${IDEA_RANK_SELECTED_CLASSES}`
-            : IDEA_RANK_ROW_CLASSES
-        }
+        className={ideaRowClassName(selected)}
         onClick={onSelect}
       >
         <span className={IDEA_RANK_HEAD_CLASSES}>
@@ -320,6 +330,26 @@ const RAIL_SECTIONS: readonly string[] = [
   SECTIONS.tournament,
 ];
 
+// The one review recorded for a hypothesis, if any. At most one review per
+// hypothesis is expected, so find() is fine here.
+function findHypothesisReview(
+  hypothesis: Hypothesis,
+  reviews: Review[],
+): Review | undefined {
+  return reviews.find(r => r.hypothesis_id === hypothesis.id);
+}
+
+// Most recent match involving a hypothesis on either side, used for the
+// "Match summary" section's outcome/rationale.
+function findLatestMatch(
+  hypothesis: Hypothesis,
+  matches: MatchRow[],
+): MatchRow | undefined {
+  return matches
+    .filter(m => m.winner_id === hypothesis.id || m.loser_id === hypothesis.id)
+    .sort((a, b) => b.created_at - a.created_at)[0];
+}
+
 // Detail pane for one hypothesis: overview/description, review summary and
 // full critique, tournament win/loss record, and the most recent match's
 // outcome and rationale. Renders an empty-state placeholder when nothing is
@@ -344,13 +374,8 @@ function HypothesisDetail({
     );
   }
 
-  // At most one review per hypothesis is expected; find() is fine here.
-  const review = reviews.find(r => r.hypothesis_id === hypothesis.id);
-  // Most recent match involving this hypothesis on either side, used for the
-  // "Match summary" section's outcome/rationale.
-  const latestMatch = matches
-    .filter(m => m.winner_id === hypothesis.id || m.loser_id === hypothesis.id)
-    .sort((a, b) => b.created_at - a.created_at)[0];
+  const review = findHypothesisReview(hypothesis, reviews);
+  const latestMatch = findLatestMatch(hypothesis, matches);
 
   return (
     <section

@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react';
-import {Icon} from '@/components/icon';
+import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {tooltipClassNames} from './tooltip';
 
@@ -177,37 +177,15 @@ function LogsTriggerButton({
   );
 }
 
-/**
- * Header "Logs" button plus its diagnostics popover. Accumulates
- * `cosci-diagnostic-event` CustomEvents dispatched anywhere in the app into
- * an in-memory (non-persisted) log for local debugging.
- *
- * @param props.open Whether the popover is shown; owned by the parent shell
- *   so it stays mutually exclusive with the Settings popover.
- * @param props.onToggle Requests the parent flip `open`.
- * @param props.renderPopover Lets the parent wrap the panel content in its
- *   own positioned popover container (shared with the Settings menu).
- */
-export function DiagnosticsControl({
-  open,
-  onToggle,
-  renderPopover,
-}: {
-  open: boolean;
-  onToggle: () => void;
-  renderPopover: (children: ReactNode, className: string) => ReactNode;
-}) {
+// Accumulates `cosci-diagnostic-event` CustomEvents dispatched anywhere in
+// the app into an in-memory (non-persisted) log for local debugging, plus
+// the Clear/Copy actions and the "Copied" confirmation flag.
+function useDiagnosticLog() {
   const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
   const [copied, setCopied] = useState(false); // Copy button shows "Copied"
   // Monotonic id source for entries; a ref (not state) because it is only
   // read/written imperatively and must not itself trigger re-renders.
   const nextEntryId = useRef(1);
-  const errorCount = entries.filter(entry => entry.level === 'error').length;
-  const successCount = entries.filter(
-    entry => entry.level === 'success',
-  ).length;
-  const infoCount = entries.filter(entry => entry.level === 'info').length;
-  const runCount = new Set(entries.map(({run}) => run).filter(Boolean)).size;
 
   function clearLogs() {
     nextEntryId.current = 1;
@@ -238,6 +216,50 @@ export function DiagnosticsControl({
     };
   }, []);
 
+  return {entries, copied, clearLogs, copyLogs};
+}
+
+// Per-level entry tallies plus the number of distinct runs represented, for
+// the summary chips in DiagnosticLogsPanel.
+interface DiagnosticCounts {
+  errorCount: number;
+  successCount: number;
+  infoCount: number;
+  runCount: number;
+}
+
+function summarizeDiagnosticEntries(
+  entries: DiagnosticLogEntry[],
+): DiagnosticCounts {
+  return {
+    errorCount: entries.filter(entry => entry.level === 'error').length,
+    successCount: entries.filter(entry => entry.level === 'success').length,
+    infoCount: entries.filter(entry => entry.level === 'info').length,
+    runCount: new Set(entries.map(({run}) => run).filter(Boolean)).size,
+  };
+}
+
+/**
+ * Header "Logs" button plus its diagnostics popover.
+ *
+ * @param props.open Whether the popover is shown; owned by the parent shell
+ *   so it stays mutually exclusive with the Settings popover.
+ * @param props.onToggle Requests the parent flip `open`.
+ * @param props.renderPopover Lets the parent wrap the panel content in its
+ *   own positioned popover container (shared with the Settings menu).
+ */
+export function DiagnosticsControl({
+  open,
+  onToggle,
+  renderPopover,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  renderPopover: (children: ReactNode, className: string) => ReactNode;
+}) {
+  const {entries, copied, clearLogs, copyLogs} = useDiagnosticLog();
+  const counts = summarizeDiagnosticEntries(entries);
+
   return (
     <>
       <LogsTriggerButton
@@ -250,10 +272,7 @@ export function DiagnosticsControl({
           <DiagnosticLogsPanel
             entries={entries}
             copied={copied}
-            errorCount={errorCount}
-            successCount={successCount}
-            infoCount={infoCount}
-            runCount={runCount}
+            counts={counts}
             onClear={clearLogs}
             onCopy={copyLogs}
           />,
@@ -290,71 +309,117 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
   );
 }
 
-// Presentational body of the popover: header actions (Clear/Copy), summary
-// count chips, and the scrolling entry list. All state stays in
-// DiagnosticsControl; this only renders what it is handed.
+// One Clear/Copy button in the header's actions row.
+function DiagnosticActionButton({
+  icon,
+  label,
+  onClick,
+}: {
+  icon: IconName;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
+      onClick={onClick}
+    >
+      <Icon aria-hidden="true" className="text-base" name={icon} />
+      <span>{label}</span>
+    </button>
+  );
+}
+
+// One entry in the header's actions row.
+interface DiagnosticAction {
+  id: string;
+  icon: IconName;
+  label: string;
+  onClick: () => void;
+}
+
+// Popover header: the "Diagnostic Logs" title plus the Clear/Copy actions.
+function DiagnosticLogsHeader({
+  copied,
+  onClear,
+  onCopy,
+}: {
+  copied: boolean;
+  onClear: () => void;
+  onCopy: () => void;
+}) {
+  const actions: DiagnosticAction[] = [
+    {id: 'clear', icon: 'refresh', label: 'Clear', onClick: onClear},
+    {
+      id: 'copy',
+      icon: 'content_copy',
+      label: copied ? 'Copied' : 'Copy',
+      onClick: onCopy,
+    },
+  ];
+
+  return (
+    <div className={DIAGNOSTIC_HEADER_CLASSES}>
+      <div className="ucs-diagnostic-title">
+        <h2 className={DIAGNOSTIC_TITLE_CLASSES}>Diagnostic Logs</h2>
+      </div>
+      <div className={DIAGNOSTIC_ACTIONS_CLASSES}>
+        {actions.map(({id, icon, label, onClick}) => (
+          <DiagnosticActionButton
+            key={id}
+            icon={icon}
+            label={label}
+            onClick={onClick}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// [label, count, chip class] rows for the summary chips; the Errors chip
+// switches to the danger styling only when there is at least one error.
+function buildDiagnosticChips(
+  entryCount: number,
+  counts: DiagnosticCounts,
+): Array<[string, number, string]> {
+  return [
+    ['Total', entryCount, DIAGNOSTIC_CHIP_CLASSES],
+    [
+      'Errors',
+      counts.errorCount,
+      counts.errorCount
+        ? DIAGNOSTIC_ERROR_CHIP_CLASSES
+        : DIAGNOSTIC_CHIP_CLASSES,
+    ],
+    ['Success', counts.successCount, DIAGNOSTIC_CHIP_CLASSES],
+    ['Info', counts.infoCount, DIAGNOSTIC_CHIP_CLASSES],
+    ['Runs', counts.runCount, DIAGNOSTIC_CHIP_CLASSES],
+  ];
+}
+
+// Presentational body of the popover: the header (title + Clear/Copy
+// actions), summary count chips, and the scrolling entry list. All state
+// stays in DiagnosticsControl; this only renders what it is handed.
 function DiagnosticLogsPanel({
   entries,
   copied,
-  errorCount,
-  successCount,
-  infoCount,
-  runCount,
+  counts,
   onClear,
   onCopy,
 }: {
   entries: DiagnosticLogEntry[];
   copied: boolean;
-  errorCount: number;
-  successCount: number;
-  infoCount: number;
-  runCount: number;
+  counts: DiagnosticCounts;
   onClear: () => void;
   onCopy: () => void;
 }) {
-  // [label, count, chip class]; the Errors chip switches to the danger
-  // styling only when there is at least one error.
-  const chips: Array<[string, number, string]> = [
-    ['Total', entries.length, DIAGNOSTIC_CHIP_CLASSES],
-    [
-      'Errors',
-      errorCount,
-      errorCount ? DIAGNOSTIC_ERROR_CHIP_CLASSES : DIAGNOSTIC_CHIP_CLASSES,
-    ],
-    ['Success', successCount, DIAGNOSTIC_CHIP_CLASSES],
-    ['Info', infoCount, DIAGNOSTIC_CHIP_CLASSES],
-    ['Runs', runCount, DIAGNOSTIC_CHIP_CLASSES],
-  ];
+  const chips = buildDiagnosticChips(entries.length, counts);
 
   return (
     <>
-      <div className={DIAGNOSTIC_HEADER_CLASSES}>
-        <div className="ucs-diagnostic-title">
-          <h2 className={DIAGNOSTIC_TITLE_CLASSES}>Diagnostic Logs</h2>
-        </div>
-        <div className={DIAGNOSTIC_ACTIONS_CLASSES}>
-          <button
-            type="button"
-            className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
-            onClick={onClear}
-          >
-            <Icon aria-hidden="true" className="text-base" name="refresh" />
-            <span>Clear</span>
-          </button>
-          <button
-            type="button"
-            className={DIAGNOSTIC_ACTION_BUTTON_CLASSES}
-            onClick={onCopy}
-          >
-            <Icon
-              aria-hidden="true"
-              className="text-base"
-              name="content_copy"
-            />
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
-        </div>
-      </div>
+      <DiagnosticLogsHeader copied={copied} onClear={onClear} onCopy={onCopy} />
       <div className={DIAGNOSTIC_INTRO_CLASSES}>
         <div className={DIAGNOSTIC_CHIPS_CLASSES}>
           {chips.map(([label, count, className]) => (

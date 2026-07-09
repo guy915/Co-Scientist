@@ -3,10 +3,17 @@ import {
   useEffect,
   useRef,
   useState,
+  type Dispatch,
   type ReactNode,
   type RefObject,
+  type SetStateAction,
 } from 'react';
-import {Link, useLocation, useNavigate} from 'react-router-dom';
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  type NavigateFunction,
+} from 'react-router-dom';
 import {loadRunHistory, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
@@ -152,6 +159,39 @@ function deriveRoutePresentation(pathname: string): {
   };
 }
 
+// The shell root's classes: the report/home variant (route-driven, see
+// deriveRoutePresentation above) and the open/collapsed grid (navOpen-driven,
+// see useLayoutChrome below). `nav-open`/`nav-collapsed` is the class
+// shell_surface.css keys its responsive rules off: on desktop (>700px) it
+// toggles the rail's grid column width; on mobile (<=700px) both variants
+// collapse to a single full-width column and the rail instead becomes a
+// fixed, off-canvas drawer that slides over the content (see the scrim below
+// and the ~700px breakpoint in shell_surface.css for the iOS-safe dvh
+// sizing).
+function shellClassFor(isRunRoute: boolean, navOpen: boolean): string {
+  return [
+    'ucs-app-shell',
+    isRunRoute ? 'report-shell' : 'home-shell',
+    navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
+  ].join(' ');
+}
+
+// Builds the "New chat" / product-lockup handler: resets the chat workspace
+// and dismisses the mobile drawer. On desktop the expanded rail is a user
+// preference, so clicking Home or New chat leaves it untouched there.
+function createStartNewChatHandler(
+  navigate: NavigateFunction,
+  setNavOpen: (open: boolean) => void,
+): () => void {
+  return () => {
+    if (isMobileViewport()) setNavOpen(false);
+    // Lets the chat workspace page (mounted separately) know to reset its own
+    // session state; see ChatWorkspace's listener for 'cosci-new-chat'.
+    window.dispatchEvent(new Event('cosci-new-chat'));
+    void navigate('/', {state: {cosciAction: 'new-chat'}});
+  };
+}
+
 /**
  * Renders the app shell with header navigation, main content, and footer.
  *
@@ -183,28 +223,8 @@ export function Layout({children}: {children: ReactNode}) {
     togglePanel,
     openSettings,
   } = useLayoutChrome(location.pathname);
-
-  // `nav-open`/`nav-collapsed` is the class shell_surface.css keys its
-  // responsive rules off: on desktop (>700px) it toggles the rail's grid
-  // column width; on mobile (<=700px) both variants collapse to a single
-  // full-width column and the rail instead becomes a fixed, off-canvas
-  // drawer that slides over the content (see the scrim below and the
-  // ~700px breakpoint in shell_surface.css for the iOS-safe dvh sizing).
-  const shellClass = [
-    'ucs-app-shell',
-    isRunRoute ? 'report-shell' : 'home-shell',
-    navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
-  ].join(' ');
-
-  function startNewChat() {
-    // Only dismiss the mobile drawer; on desktop the expanded rail is a user
-    // preference and clicking Home or New chat should leave it untouched.
-    if (isMobileViewport()) setNavOpen(false);
-    // Lets the chat workspace page (mounted separately) know to reset its own
-    // session state; see ChatWorkspace's listener for 'cosci-new-chat'.
-    window.dispatchEvent(new Event('cosci-new-chat'));
-    void navigate('/', {state: {cosciAction: 'new-chat'}});
-  }
+  const shellClass = shellClassFor(isRunRoute, navOpen);
+  const startNewChat = createStartNewChatHandler(navigate, setNavOpen);
 
   return (
     <div className={shellClass}>
@@ -307,25 +327,75 @@ function useHeaderTitle(contextKey: string): string {
   return overrideTitle;
 }
 
-// Bundles the rail's open/collapsed state, the mutually-exclusive
-// Settings/Logs popover, and the full-screen Settings dialog, plus the
-// effects that keep them in sync with navigation and outside clicks.
-function useLayoutChrome(pathname: string) {
-  // Collapsed icon rail by default, matching the reference product; the
-  // hamburger expands it. On mobile this same flag toggles an off-canvas
-  // drawer instead (see shell_surface.css's <=700px breakpoint).
-  const [navOpen, setNavOpen] = useState(false);
-  // Which header popover (Settings menu or the Logs panel) is currently
-  // shown, if any; the two are mutually exclusive via togglePanel.
-  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
-  // Non-null renders the full-screen SettingsDialog overlay for that section.
-  const [settingsSection, setSettingsSection] =
-    useState<SettingsSection | null>(null);
-  // Anchors for the outside-pointerdown handler below: a click landing
-  // outside both refs closes whichever popover is open.
-  const settingsControlRef = useRef<HTMLDivElement>(null);
-  const logsControlRef = useRef<HTMLDivElement>(null);
+// Close any open popover on navigation, and dismiss the mobile drawer so a
+// chat tap doesn't leave the overlay covering the run it just opened. On the
+// desktop rail the open/collapsed state is a user preference, so it is left
+// untouched.
+function useDismissChromeOnNavigate(
+  pathname: string,
+  setActivePanel: (panel: ShellPanel | null) => void,
+  setNavOpen: (open: boolean) => void,
+) {
+  useEffect(() => {
+    setActivePanel(null);
+    if (isMobileViewport()) setNavOpen(false);
+  }, [pathname]);
+}
 
+// Escape closes the mobile drawer (a standard dismiss affordance for an
+// overlay); the desktop rail is unaffected.
+function useEscapeClosesDrawer(
+  navOpen: boolean,
+  setNavOpen: (open: boolean) => void,
+) {
+  useEffect(() => {
+    if (!navOpen) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && isMobileViewport()) setNavOpen(false);
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [navOpen]);
+}
+
+// Closes `activePanel` on a pointerdown landing outside both the Settings and
+// Logs control anchors. Only attaches the listener while a popover is
+// actually open (skipped via the early return otherwise), and detaches it on
+// close/unmount so idle renders of the shell don't pay for a document-wide
+// pointerdown listener. `activePanel` is a dep both to gate the effect and
+// because the handler closure reads the two refs directly (stable across
+// renders, so they don't need to be deps themselves).
+function useDismissPanelOnOutsideClick(
+  activePanel: ShellPanel | null,
+  setActivePanel: (panel: ShellPanel | null) => void,
+  settingsControlRef: RefObject<HTMLDivElement | null>,
+  logsControlRef: RefObject<HTMLDivElement | null>,
+) {
+  useEffect(() => {
+    if (!activePanel) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Node;
+      const settingsContains = settingsControlRef.current?.contains(target);
+      const logsContains = logsControlRef.current?.contains(target);
+      if (!settingsContains && !logsContains) setActivePanel(null);
+    }
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [activePanel]);
+}
+
+// The rail/popover action handlers, derived from the three chrome setters:
+// toggling the nav rail, toggling a popover open/closed, and opening the
+// full-screen Settings dialog for a given section.
+function useChromeActions(
+  setNavOpen: Dispatch<SetStateAction<boolean>>,
+  setActivePanel: Dispatch<SetStateAction<ShellPanel | null>>,
+  setSettingsSection: Dispatch<SetStateAction<SettingsSection | null>>,
+) {
   // Flips the rail between expanded/collapsed (desktop) or open/closed
   // (mobile drawer), and closes any open popover since its anchor may move.
   function toggleNav() {
@@ -347,47 +417,43 @@ function useLayoutChrome(pathname: string) {
     setSettingsSection(section);
   }
 
-  // Close any open popover on navigation, and dismiss the mobile drawer so a
-  // chat tap doesn't leave the overlay covering the run it just opened. On the
-  // desktop rail the open/collapsed state is a user preference, so it is left
-  // untouched.
-  useEffect(() => {
-    setActivePanel(null);
-    if (isMobileViewport()) setNavOpen(false);
-  }, [pathname]);
+  return {toggleNav, togglePanel, openSettings};
+}
 
-  // Escape closes the mobile drawer (a standard dismiss affordance for an
-  // overlay); the desktop rail is unaffected.
-  useEffect(() => {
-    if (!navOpen) return;
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && isMobileViewport()) setNavOpen(false);
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [navOpen]);
+// Bundles the rail's open/collapsed state, the mutually-exclusive
+// Settings/Logs popover, and the full-screen Settings dialog, plus (via the
+// sub-hooks above) the actions and effects that keep them in sync with
+// navigation, Escape, and outside clicks.
+function useLayoutChrome(pathname: string) {
+  // Collapsed icon rail by default, matching the reference product; the
+  // hamburger expands it. On mobile this same flag toggles an off-canvas
+  // drawer instead (see shell_surface.css's <=700px breakpoint).
+  const [navOpen, setNavOpen] = useState(false);
+  // Which header popover (Settings menu or the Logs panel) is currently
+  // shown, if any; the two are mutually exclusive via togglePanel.
+  const [activePanel, setActivePanel] = useState<ShellPanel | null>(null);
+  // Non-null renders the full-screen SettingsDialog overlay for that section.
+  const [settingsSection, setSettingsSection] =
+    useState<SettingsSection | null>(null);
+  // Anchors for the outside-pointerdown handler below: a click landing
+  // outside both refs closes whichever popover is open.
+  const settingsControlRef = useRef<HTMLDivElement>(null);
+  const logsControlRef = useRef<HTMLDivElement>(null);
 
-  // Only attaches the listener while a popover is actually open (skipped
-  // via the early return otherwise), and detaches it on close/unmount so
-  // idle renders of the shell don't pay for a document-wide pointerdown
-  // listener. `activePanel` is a dep both to gate the effect and because the
-  // handler closure reads settingsControlRef/logsControlRef via refs (stable
-  // across renders, so they don't need to be deps themselves).
-  useEffect(() => {
-    if (!activePanel) return;
-    function onPointerDown(event: PointerEvent) {
-      const target = event.target as Node;
-      const settingsContains = settingsControlRef.current?.contains(target);
-      const logsContains = logsControlRef.current?.contains(target);
-      if (!settingsContains && !logsContains) setActivePanel(null);
-    }
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-    };
-  }, [activePanel]);
+  const {toggleNav, togglePanel, openSettings} = useChromeActions(
+    setNavOpen,
+    setActivePanel,
+    setSettingsSection,
+  );
+
+  useDismissChromeOnNavigate(pathname, setActivePanel, setNavOpen);
+  useEscapeClosesDrawer(navOpen, setNavOpen);
+  useDismissPanelOnOutsideClick(
+    activePanel,
+    setActivePanel,
+    settingsControlRef,
+    logsControlRef,
+  );
 
   return {
     navOpen,
@@ -417,6 +483,47 @@ function DrawerScrim({
   return <div className="ucs-scrim" aria-hidden="true" onClick={onDismiss} />;
 }
 
+// Mobile drawer / desktop rail toggle; the header's leftmost control.
+function HamburgerButton({
+  navOpen,
+  onClick,
+}: {
+  navOpen: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="ucs-nav-hamburger"
+      aria-label="Open navigation"
+      aria-expanded={navOpen}
+      aria-controls="primary-navigation"
+      onClick={onClick}
+    >
+      <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name="menu" />
+    </button>
+  );
+}
+
+// The Co-Scientist wordmark/icon; doubles as a "go home" / new-chat control.
+function ProductLockup({onClick}: {onClick: () => void}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({
+        className: PRODUCT_LOCKUP_CLASSES,
+        placement: 'right',
+      })}
+      aria-label="Go to Co-Scientist home"
+      data-tooltip="Home"
+      onClick={onClick}
+    >
+      <GoogleLabsIcon aria-hidden="true" />
+      <span>Co-Scientist</span>
+    </button>
+  );
+}
+
 // The header action bar: hamburger (mobile drawer / desktop rail toggle),
 // product lockup (doubles as "go home"), the page's dispatched title, and
 // the Logs/diagnostics control.
@@ -439,29 +546,8 @@ function ShellHeader({
 }) {
   return (
     <header className={HEADER_CLASSES}>
-      <button
-        type="button"
-        className="ucs-nav-hamburger"
-        aria-label="Open navigation"
-        aria-expanded={navOpen}
-        aria-controls="primary-navigation"
-        onClick={toggleNav}
-      >
-        <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name="menu" />
-      </button>
-      <button
-        type="button"
-        className={tooltipClassNames({
-          className: PRODUCT_LOCKUP_CLASSES,
-          placement: 'right',
-        })}
-        aria-label="Go to Co-Scientist home"
-        data-tooltip="Home"
-        onClick={startNewChat}
-      >
-        <GoogleLabsIcon aria-hidden="true" />
-        <span>Co-Scientist</span>
-      </button>
+      <HamburgerButton navOpen={navOpen} onClick={toggleNav} />
+      <ProductLockup onClick={startNewChat} />
       <div className={HEADER_TITLE_CLASSES}>
         {headerTitle && (
           <TruncatedLabel
@@ -577,6 +663,31 @@ function NavRail({
   );
 }
 
+// One row in the "Chats" list: the run's title linked to its details tab,
+// with a tooltip showing the full research goal and the active run
+// highlighted.
+function ChatHistoryLink({run, isActive}: {run: Run; isActive: boolean}) {
+  return (
+    <Link
+      to={`/runs/${run.id}/details`}
+      className={tooltipClassNames({
+        className: isActive
+          ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
+          : CHAT_HISTORY_LINK_CLASSES,
+        placement: 'right',
+        wrap: true,
+      })}
+      aria-current={isActive ? 'page' : undefined}
+      data-tooltip={run.research_goal}
+    >
+      <TruncatedLabel
+        className={CHAT_HISTORY_LABEL_CLASSES}
+        text={conciseTitle(run.research_goal)}
+      />
+    </Link>
+  );
+}
+
 // The "Chats" section of the rail: the recent-run list (capped to 10 until
 // expanded) with the active run highlighted.
 function ChatHistorySidebar({
@@ -603,29 +714,13 @@ function ChatHistorySidebar({
     <div className={sideContentClasses}>
       <p className={SIDE_HEADING_CLASSES}>Chats</p>
       <div className={CHAT_LIST_CLASSES}>
-        {visibleHistory.map(run => {
-          const isActive = run.id === activeRunId;
-          return (
-            <Link
-              key={run.id}
-              to={`/runs/${run.id}/details`}
-              className={tooltipClassNames({
-                className: isActive
-                  ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
-                  : CHAT_HISTORY_LINK_CLASSES,
-                placement: 'right',
-                wrap: true,
-              })}
-              aria-current={isActive ? 'page' : undefined}
-              data-tooltip={run.research_goal}
-            >
-              <TruncatedLabel
-                className={CHAT_HISTORY_LABEL_CLASSES}
-                text={conciseTitle(run.research_goal)}
-              />
-            </Link>
-          );
-        })}
+        {visibleHistory.map(run => (
+          <ChatHistoryLink
+            key={run.id}
+            run={run}
+            isActive={run.id === activeRunId}
+          />
+        ))}
         {hasExtraChats && (
           <button
             type="button"
@@ -637,6 +732,39 @@ function ChatHistorySidebar({
         )}
       </div>
     </div>
+  );
+}
+
+// [label, icon, section] for each row of the Settings popover menu, in
+// display order.
+const SETTINGS_MENU_ITEMS: ReadonlyArray<
+  [label: string, icon: IconName, section: SettingsSection]
+> = [
+  ['Appearance', 'palette', 'appearance'],
+  ['Model', 'neurology', 'model'],
+  ['Help', 'help', 'help'],
+];
+
+// The Settings popover menu itself (Appearance/Model/Help), shown while the
+// rail's Settings control is the active panel.
+function SettingsPopoverMenu({
+  onOpenSettings,
+}: {
+  onOpenSettings: (section: SettingsSection) => void;
+}) {
+  return (
+    <ShellPopover className={`${RAIL_POPOVER_CLASSES} ucs-popover--menu`}>
+      <div className={SETTINGS_MENU_CLASSES} role="menu">
+        {SETTINGS_MENU_ITEMS.map(([label, icon, section]) => (
+          <SettingsMenuButton
+            key={section}
+            label={label}
+            icon={icon}
+            onClick={() => onOpenSettings(section)}
+          />
+        ))}
+      </div>
+    </ShellPopover>
   );
 }
 
@@ -655,12 +783,7 @@ function RailSettingsControl({
   onOpenSettings: (section: SettingsSection) => void;
   settingsControlRef: RefObject<HTMLDivElement | null>;
 }) {
-  const navItemClasses = navOpen
-    ? NAV_ITEM_OPEN_CLASSES
-    : NAV_ITEM_COLLAPSED_CLASSES;
-  const navLabelClasses = navOpen
-    ? NAV_LABEL_OPEN_CLASSES
-    : NAV_LABEL_COLLAPSED_CLASSES;
+  const nav = navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed;
 
   return (
     <div
@@ -674,31 +797,13 @@ function RailSettingsControl({
       <NavActionButton
         label="Settings"
         icon="settings"
-        className={navItemClasses}
-        labelClassName={navLabelClasses}
+        className={nav.item}
+        labelClassName={nav.label}
         expanded={activePanel === 'settings'}
         onClick={() => onTogglePanel('settings')}
       />
       {activePanel === 'settings' && (
-        <ShellPopover className={`${RAIL_POPOVER_CLASSES} ucs-popover--menu`}>
-          <div className={SETTINGS_MENU_CLASSES} role="menu">
-            <SettingsMenuButton
-              label="Appearance"
-              icon="palette"
-              onClick={() => onOpenSettings('appearance')}
-            />
-            <SettingsMenuButton
-              label="Model"
-              icon="neurology"
-              onClick={() => onOpenSettings('model')}
-            />
-            <SettingsMenuButton
-              label="Help"
-              icon="help"
-              onClick={() => onOpenSettings('help')}
-            />
-          </div>
-        </ShellPopover>
+        <SettingsPopoverMenu onOpenSettings={onOpenSettings} />
       )}
     </div>
   );

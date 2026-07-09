@@ -170,24 +170,8 @@ function useComposerLog(clearSessionState: () => void) {
   };
 }
 
-/**
- * Runs the create+start API round trip for a confirmed draft spec and
- * applies the resulting state transitions and diagnostic events. Pulled out
- * of the hook so it takes every value and setter it needs as an argument
- * instead of closing over hook state (it calls no hooks itself).
- */
-async function startDraftRun({
-  specToStart,
-  specCreatedAt,
-  pubmedEnabled,
-  reloadHistory,
-  setConfirmedSpec,
-  setConfirmedSpecCreatedAt,
-  setDraftSpec,
-  setDraftSpecCreatedAt,
-  setStartedSession,
-  setError,
-}: {
+/** Dependencies shared by {@link executeStart} and {@link startDraftRun}. */
+interface ExecuteStartDeps {
   specToStart: InferredRunSpec;
   specCreatedAt: number;
   pubmedEnabled: boolean;
@@ -197,43 +181,72 @@ async function startDraftRun({
   setDraftSpec: (spec: InferredRunSpec | null) => void;
   setDraftSpecCreatedAt: (createdAt: number | null) => void;
   setStartedSession: (session: StartedSession) => void;
-  setError: (message: string) => void;
-}): Promise<void> {
+}
+
+// Runs the create+start API round trip for a confirmed draft spec and
+// applies the resulting state transitions, returning the session that was
+// started. Pulled out of startDraftRun so that function's try/catch shell
+// only carries diagnostics and error handling.
+async function executeStart({
+  specToStart,
+  specCreatedAt,
+  pubmedEnabled,
+  reloadHistory,
+  setConfirmedSpec,
+  setConfirmedSpecCreatedAt,
+  setDraftSpec,
+  setDraftSpecCreatedAt,
+  setStartedSession,
+}: ExecuteStartDeps): Promise<StartedSession> {
+  const created = await createRun({
+    research_goal: specToStart.goal,
+    requirements: specToStart.requirements,
+    attributes: specToStart.attributes,
+    criteria: specToStart.criteria,
+    focus: specToStart.focus,
+    tier: specToStart.tier,
+    enable_literature_review: pubmedEnabled,
+  });
+  const session: StartedSession = {
+    id: created.id,
+    title: referenceSetupTitle(specToStart.goal),
+    at: Date.now() / 1000,
+  };
+  setConfirmedSpec(specToStart);
+  setConfirmedSpecCreatedAt(specCreatedAt);
+  setDraftSpec(null);
+  setDraftSpecCreatedAt(null);
+  await startRun(created.id);
+  setStartedSession(session);
+  await reloadHistory();
+  // Tell the shell sidebar (which owns a separate history copy) that a new
+  // run exists, so it appears immediately instead of only after a reload.
+  window.dispatchEvent(new Event('cosci-runs-changed'));
+  return session;
+}
+
+/**
+ * Runs the create+start API round trip for a confirmed draft spec and
+ * applies the resulting state transitions and diagnostic events. Pulled out
+ * of the hook so it takes every value and setter it needs as an argument
+ * instead of closing over hook state (it calls no hooks itself).
+ */
+async function startDraftRun(
+  deps: ExecuteStartDeps & {setError: (message: string) => void},
+): Promise<void> {
+  const {specToStart, setError} = deps;
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
     run: referenceSetupTitle(specToStart.goal),
     payload: {event: 'start_requested'},
   });
   try {
-    const created = await createRun({
-      research_goal: specToStart.goal,
-      requirements: specToStart.requirements,
-      attributes: specToStart.attributes,
-      criteria: specToStart.criteria,
-      focus: specToStart.focus,
-      tier: specToStart.tier,
-      enable_literature_review: pubmedEnabled,
-    });
-    const session: StartedSession = {
-      id: created.id,
-      title: referenceSetupTitle(specToStart.goal),
-      at: Date.now() / 1000,
-    };
-    setConfirmedSpec(specToStart);
-    setConfirmedSpecCreatedAt(specCreatedAt);
-    setDraftSpec(null);
-    setDraftSpecCreatedAt(null);
-    await startRun(created.id);
-    setStartedSession(session);
-    await reloadHistory();
-    // Tell the shell sidebar (which owns a separate history copy) that a new
-    // run exists, so it appears immediately instead of only after a reload.
-    window.dispatchEvent(new Event('cosci-runs-changed'));
+    const session = await executeStart(deps);
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
       run: session.title,
       level: 'success',
-      payload: {event: 'start_queued', run_id: created.id},
+      payload: {event: 'start_queued', run_id: session.id},
     });
   } catch (err) {
     setError(err instanceof Error ? err.message : String(err));
@@ -268,20 +281,7 @@ async function promoteDraftToRun({
   setDraftSpec,
   setDraftSpecCreatedAt,
   setStartedSession,
-}: {
-  draftSpec: InferredRunSpec | null;
-  draftSpecCreatedAt: number | null;
-  pubmedEnabled: boolean;
-  reloadHistory: () => Promise<void>;
-  setIsStarting: (value: boolean) => void;
-  setError: (message: string | null) => void;
-  setToast: (value: string | ToastState | null) => void;
-  setConfirmedSpec: (spec: InferredRunSpec) => void;
-  setConfirmedSpecCreatedAt: (createdAt: number) => void;
-  setDraftSpec: (spec: InferredRunSpec | null) => void;
-  setDraftSpecCreatedAt: (createdAt: number | null) => void;
-  setStartedSession: (session: StartedSession) => void;
-}): Promise<void> {
+}: HandlerDeps): Promise<void> {
   if (!draftSpec) return;
   // Snapshot the draft up front so state changes during the awaits below
   // can't swap the spec out from under this start attempt.
@@ -306,6 +306,59 @@ async function promoteDraftToRun({
   } finally {
     setIsStarting(false);
   }
+}
+
+// Revises the staged draft against a follow-up message and acknowledges it
+// in the chat log. Split out of submitComposerMessage so that function's two
+// branches (revise vs. infer) each read as a single call.
+function reviseDraftFromMessage({
+  draftSpec,
+  text,
+  sentAt,
+  setMessages,
+  stageDraftSpec,
+}: {
+  draftSpec: InferredRunSpec;
+  text: string;
+  sentAt: number;
+  setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
+  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
+}): void {
+  const next = reviseRunSpec(draftSpec, text);
+  // The +0.001/+0.002 offsets keep the spec card and the assistant reply
+  // ordered strictly after the user message in the timeline sort.
+  stageDraftSpec(next, sentAt + 0.001);
+  appendChatMessage(
+    setMessages,
+    'assistant',
+    'I updated the run setup. Start it when the spec looks right.',
+    sentAt + 0.002,
+  );
+  emitDiagnosticEvent({
+    stage: 'CHAT',
+    run: referenceSetupTitle(next.goal),
+    payload: {event: 'draft_revised'},
+  });
+}
+
+// Infers a brand-new draft spec from the message's text. Split out of
+// submitComposerMessage alongside {@link reviseDraftFromMessage}.
+function createDraftFromMessage({
+  text,
+  sentAt,
+  stageDraftSpec,
+}: {
+  text: string;
+  sentAt: number;
+  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
+}): void {
+  const next = inferRunSpec(text);
+  stageDraftSpec(next, sentAt + 0.001);
+  emitDiagnosticEvent({
+    stage: 'LIFECYCLE',
+    run: referenceSetupTitle(next.goal),
+    payload: {event: 'draft_created'},
+  });
 }
 
 // Composer submit. With a draft staged, the message is treated as a revision
@@ -339,34 +392,18 @@ async function submitComposerMessage({
   setError(null);
   setToast(null);
 
-  if (draftSpec) {
-    const sentAt = appendChatMessage(setMessages, 'user', text);
-    const next = reviseRunSpec(draftSpec, text);
-    // The +0.001/+0.002 offsets keep the spec card and the assistant reply
-    // ordered strictly after the user message in the timeline sort.
-    stageDraftSpec(next, sentAt + 0.001);
-    appendChatMessage(
-      setMessages,
-      'assistant',
-      'I updated the run setup. Start it when the spec looks right.',
-      sentAt + 0.002,
-    );
-    emitDiagnosticEvent({
-      stage: 'CHAT',
-      run: referenceSetupTitle(next.goal),
-      payload: {event: 'draft_revised'},
-    });
-    return;
-  }
-
   const sentAt = appendChatMessage(setMessages, 'user', text);
-  const next = inferRunSpec(text);
-  stageDraftSpec(next, sentAt + 0.001);
-  emitDiagnosticEvent({
-    stage: 'LIFECYCLE',
-    run: referenceSetupTitle(next.goal),
-    payload: {event: 'draft_created'},
-  });
+  if (draftSpec) {
+    reviseDraftFromMessage({
+      draftSpec,
+      text,
+      sentAt,
+      setMessages,
+      stageDraftSpec,
+    });
+  } else {
+    createDraftFromMessage({text, sentAt, stageDraftSpec});
+  }
 }
 
 // Cancels the draft and clears the whole conversation (not just the spec),
@@ -492,54 +529,91 @@ interface HandlerDeps {
   pubmedEnabled: boolean;
 }
 
+// Re-emits the assistant message as a fresh bubble at the end of the log.
+// Pulled out of buildChatHandlers alongside the other module-level handler
+// functions above, instead of staying inline as the sole exception.
+function retryAssistantMessage(
+  message: ChatEntry,
+  setMessages: Dispatch<SetStateAction<ChatEntry[]>>,
+): void {
+  appendChatMessage(setMessages, 'assistant', message.content);
+}
+
+// Loads a previous message back into the composer for editing.
+function loadMessageIntoComposer(
+  message: ChatEntry,
+  setInput: (value: string) => void,
+  focusComposer: () => void,
+): void {
+  setInput(message.content);
+  focusComposer();
+}
+
+// Re-runs spec inference from the draft's goal, discarding any revisions.
+function retryDraftSpec(
+  draftSpec: InferredRunSpec | null,
+  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void,
+): void {
+  if (!draftSpec) return;
+  stageDraftSpec(inferRunSpec(draftSpec.goal));
+}
+
 // Builds the full wrapped-handler set from a `handlerDeps` bag: each handler
-// below either closes directly over the deps it needs or forwards the whole
-// bag to one of the module-level functions above. Takes no hooks itself
-// (plain function, not a sub-hook), so it can be called unconditionally from
+// below either forwards to one of the module-level functions above or closes
+// directly over the one or two deps it needs. Takes no hooks itself (plain
+// function, not a sub-hook), so it can be called unconditionally from
 // anywhere in useChatSession's body.
 function buildChatHandlers(handlerDeps: HandlerDeps) {
   const {setInput, setMessages, focusComposer, draftSpec, stageDraftSpec} =
     handlerDeps;
 
-  // Re-emits the assistant message as a fresh bubble at the end of the log.
-  function handleRetryMessage(message: ChatEntry) {
-    appendChatMessage(setMessages, 'assistant', message.content);
-  }
-
-  // Loads a previous message back into the composer for editing.
-  function handleEditMessage(message: ChatEntry) {
-    setInput(message.content);
-    focusComposer();
-  }
-
-  const handleCopyRequest = (message: ChatEntry) =>
-    copyMessagePrompt({message, ...handlerDeps});
-
-  // Re-runs spec inference from the draft's goal, discarding any revisions.
-  function handleRetryDraftSpec() {
-    if (!draftSpec) return;
-    stageDraftSpec(inferRunSpec(draftSpec.goal));
-  }
-
-  const handleCancelDraftSpec = () => cancelDraftSpec(handlerDeps);
-
-  const handleEditPlan = (spec: InferredRunSpec) =>
-    editPlan({spec, ...handlerDeps});
-
-  const handleSubmit = (e: FormEvent<HTMLFormElement>) =>
-    submitComposerMessage({e, ...handlerDeps});
-
-  const handleStartRun = () => promoteDraftToRun(handlerDeps);
-
   return {
-    handleRetryMessage,
-    handleEditMessage,
-    handleCopyRequest,
-    handleRetryDraftSpec,
-    handleCancelDraftSpec,
-    handleEditPlan,
-    handleSubmit,
-    handleStartRun,
+    handleRetryMessage: (message: ChatEntry) =>
+      retryAssistantMessage(message, setMessages),
+    handleEditMessage: (message: ChatEntry) =>
+      loadMessageIntoComposer(message, setInput, focusComposer),
+    handleCopyRequest: (message: ChatEntry) =>
+      copyMessagePrompt({message, ...handlerDeps}),
+    handleRetryDraftSpec: () => retryDraftSpec(draftSpec, stageDraftSpec),
+    handleCancelDraftSpec: () => cancelDraftSpec(handlerDeps),
+    handleEditPlan: (spec: InferredRunSpec) => editPlan({spec, ...handlerDeps}),
+    handleSubmit: (e: FormEvent<HTMLFormElement>) =>
+      submitComposerMessage({e, ...handlerDeps}),
+    handleStartRun: () => promoteDraftToRun(handlerDeps),
+  };
+}
+
+type RunSpecLifecycle = ReturnType<typeof useRunSpecLifecycle>;
+type ComposerLog = ReturnType<typeof useComposerLog>;
+
+// Assembles the deps bag every module-level handler function reads from, out
+// of the two sub-hooks' state plus the view-layer collaborators. Pulled out
+// of the hook so it takes the sub-hooks' return values as arguments instead
+// of closing over hook state (it calls no hooks itself).
+function toHandlerDeps(
+  lifecycle: RunSpecLifecycle,
+  composer: ComposerLog,
+  view: ChatSessionDeps,
+): HandlerDeps {
+  return {
+    input: composer.input,
+    setInput: composer.setInput,
+    draftSpec: lifecycle.draftSpec,
+    draftSpecCreatedAt: lifecycle.draftSpecCreatedAt,
+    setDraftSpec: lifecycle.setDraftSpec,
+    setDraftSpecCreatedAt: lifecycle.setDraftSpecCreatedAt,
+    setConfirmedSpec: lifecycle.setConfirmedSpec,
+    setConfirmedSpecCreatedAt: lifecycle.setConfirmedSpecCreatedAt,
+    setStartedSession: lifecycle.setStartedSession,
+    setIsStarting: composer.setIsStarting,
+    setMessages: composer.setMessages,
+    setError: composer.setError,
+    setToast: view.setToast,
+    clearSessionState: lifecycle.clearSessionState,
+    stageDraftSpec: lifecycle.stageDraftSpec,
+    focusComposer: view.focusComposer,
+    reloadHistory: view.reloadHistory,
+    pubmedEnabled: view.pubmedEnabled,
   };
 }
 
@@ -549,91 +623,41 @@ function buildChatHandlers(handlerDeps: HandlerDeps) {
  * every handler that transitions between them. State is delegated to the
  * {@link useRunSpecLifecycle} and {@link useComposerLog} sub-hooks; the
  * heavier handlers are the module-level functions above, wrapped by
- * {@link buildChatHandlers} against a shared `handlerDeps` bag. View concerns
- * (history reload, composer focus, toasts) are injected via
- * {@link ChatSessionDeps}.
+ * {@link buildChatHandlers} against a shared `handlerDeps` bag (assembled by
+ * {@link toHandlerDeps}). View concerns (history reload, composer focus,
+ * toasts) are injected via {@link ChatSessionDeps}.
  */
-export function useChatSession({
-  reloadHistory,
-  focusComposer,
-  setToast,
-  pubmedEnabled,
-}: ChatSessionDeps) {
-  const {
-    draftSpec,
-    setDraftSpec,
-    draftSpecCreatedAt,
-    setDraftSpecCreatedAt,
-    confirmedSpec,
-    setConfirmedSpec,
-    confirmedSpecCreatedAt,
-    setConfirmedSpecCreatedAt,
-    startedSession,
-    setStartedSession,
-    clearSessionState,
-    stageDraftSpec,
-  } = useRunSpecLifecycle();
-  const {
-    input,
-    setInput,
-    isStarting,
-    setIsStarting,
-    messages,
-    setMessages,
-    error,
-    setError,
-    resetSession,
-  } = useComposerLog(clearSessionState);
+export function useChatSession(deps: ChatSessionDeps) {
+  const lifecycle = useRunSpecLifecycle();
+  const composer = useComposerLog(lifecycle.clearSessionState);
 
   // Anything at all in the session? Drives the empty-state vs timeline view.
   const hasConversation =
-    messages.length > 0 ||
-    Boolean(draftSpec) ||
-    Boolean(confirmedSpec) ||
-    Boolean(startedSession);
+    composer.messages.length > 0 ||
+    Boolean(lifecycle.draftSpec) ||
+    Boolean(lifecycle.confirmedSpec) ||
+    Boolean(lifecycle.startedSession);
 
-  // Every value/setter the module-level handler functions above might need;
-  // see {@link buildChatHandlers} for how each handler consumes this.
-  const handlerDeps: HandlerDeps = {
-    input,
-    setInput,
-    draftSpec,
-    draftSpecCreatedAt,
-    setDraftSpec,
-    setDraftSpecCreatedAt,
-    setConfirmedSpec,
-    setConfirmedSpecCreatedAt,
-    setStartedSession,
-    setIsStarting,
-    setMessages,
-    setError,
-    setToast,
-    clearSessionState,
-    stageDraftSpec,
-    focusComposer,
-    reloadHistory,
-    pubmedEnabled,
-  };
-  const handlers = buildChatHandlers(handlerDeps);
+  const handlers = buildChatHandlers(toHandlerDeps(lifecycle, composer, deps));
 
   // Exposed surface: raw state + setters for the view to render the
   // timeline, and the handler set that encodes every legal transition.
   return {
-    input,
-    setInput,
-    draftSpec,
-    setDraftSpec,
-    draftSpecCreatedAt,
-    confirmedSpec,
-    confirmedSpecCreatedAt,
-    startedSession,
-    setStartedSession,
-    isStarting,
-    messages,
-    error,
+    input: composer.input,
+    setInput: composer.setInput,
+    draftSpec: lifecycle.draftSpec,
+    setDraftSpec: lifecycle.setDraftSpec,
+    draftSpecCreatedAt: lifecycle.draftSpecCreatedAt,
+    confirmedSpec: lifecycle.confirmedSpec,
+    confirmedSpecCreatedAt: lifecycle.confirmedSpecCreatedAt,
+    startedSession: lifecycle.startedSession,
+    setStartedSession: lifecycle.setStartedSession,
+    isStarting: composer.isStarting,
+    messages: composer.messages,
+    error: composer.error,
     hasConversation,
-    resetSession,
-    stageDraftSpec,
+    resetSession: composer.resetSession,
+    stageDraftSpec: lifecycle.stageDraftSpec,
     ...handlers,
   };
 }

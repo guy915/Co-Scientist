@@ -189,6 +189,23 @@ function responseActions(
   ];
 }
 
+/**
+ * Builds the edit/copy action set shown under a user request bubble.
+ *
+ * @param onEdit Handler to re-open the message for editing.
+ * @param onCopyRequest Handler to copy the message's text.
+ * @returns The two-action array for a MessageActionRow.
+ */
+function requestActions(
+  onEdit: () => void,
+  onCopyRequest: () => void,
+): MessageAction[] {
+  return [
+    {icon: 'edit', label: 'Edit prompt', onClick: onEdit},
+    {icon: 'content_copy', label: 'Copy prompt', onClick: onCopyRequest},
+  ];
+}
+
 const COLLAPSED_LINE_COUNT = 4;
 
 /**
@@ -512,18 +529,7 @@ function ChatBubbleActions({
     return (
       <MessageActionRow
         align="end"
-        actions={[
-          {
-            icon: 'edit',
-            label: 'Edit prompt',
-            onClick: onEdit,
-          },
-          {
-            icon: 'content_copy',
-            label: 'Copy prompt',
-            onClick: onCopyRequest,
-          },
-        ]}
+        actions={requestActions(onEdit, onCopyRequest)}
       />
     );
   }
@@ -591,25 +597,7 @@ export function RunSpecCard({
         Please review or edit the details below as needed. Once ready, click
         "Start research" to start generating hypotheses.
       </p>
-      <div className={PLAN_HEADING_CLASSES}>
-        <h2 className={PLAN_TITLE_CLASSES}>Research plan</h2>
-        <button
-          type="button"
-          className={tooltipClassNames({
-            className: PLAN_EDIT_BUTTON_CLASSES,
-            placement: 'top',
-          })}
-          aria-label="Edit research plan"
-          data-tooltip="Edit research plan"
-          onClick={onEdit}
-        >
-          <Icon
-            aria-hidden="true"
-            className={PLAN_EDIT_ICON_CLASSES}
-            name="edit"
-          />
-        </button>
-      </div>
+      <PlanHeading onEdit={onEdit} />
       <p className={PLAN_SUBHEADING_CLASSES}>
         Here's my plan to tackle the topic:
       </p>
@@ -630,6 +618,32 @@ export function RunSpecCard({
         )}
       />
     </section>
+  );
+}
+
+// The "Research plan" title plus its edit-plan trigger, shown atop
+// RunSpecCard's document body.
+function PlanHeading({onEdit}: {onEdit: () => void}) {
+  return (
+    <div className={PLAN_HEADING_CLASSES}>
+      <h2 className={PLAN_TITLE_CLASSES}>Research plan</h2>
+      <button
+        type="button"
+        className={tooltipClassNames({
+          className: PLAN_EDIT_BUTTON_CLASSES,
+          placement: 'top',
+        })}
+        aria-label="Edit research plan"
+        data-tooltip="Edit research plan"
+        onClick={onEdit}
+      >
+        <Icon
+          aria-hidden="true"
+          className={PLAN_EDIT_ICON_CLASSES}
+          name="edit"
+        />
+      </button>
+    </div>
   );
 }
 
@@ -658,12 +672,7 @@ function RunSpecDocument({
       <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
         {referenceSetupTitle(spec.goal)}
       </h3>
-      <dl className={SPEC_GRID_CLASSES}>
-        <SpecRow label="Goal">{spec.goal}</SpecRow>
-        <SpecList label="Requirements" values={spec.requirements} />
-        <SpecList label="Attributes" values={spec.attributes} />
-        <SpecList label="Criteria" values={spec.criteria} />
-      </dl>
+      <SpecSummary spec={spec} />
       <RunOptionGroup
         label="Focus"
         name="focus"
@@ -680,26 +689,63 @@ function RunSpecDocument({
         disabled={locked}
         onChange={value => onTierChange(value as RunTier)}
       />
-      <div className={SETUP_ACTIONS_CLASSES}>
-        {!locked && (
-          <button
-            type="button"
-            className={SETUP_SECONDARY_BUTTON_CLASSES}
-            onClick={onCancel}
-            disabled={isStarting}
-          >
-            Cancel
-          </button>
-        )}
+      <RunSpecActions
+        locked={locked}
+        isStarting={isStarting}
+        onCancel={onCancel}
+        onStart={onStart}
+      />
+    </div>
+  );
+}
+
+// The goal/requirements/attributes/criteria definition list at the top of
+// RunSpecDocument.
+function SpecSummary({spec}: {spec: InferredRunSpec}) {
+  return (
+    <dl className={SPEC_GRID_CLASSES}>
+      <SpecRow label="Goal">{spec.goal}</SpecRow>
+      <SpecList label="Requirements" values={spec.requirements} />
+      <SpecList label="Attributes" values={spec.attributes} />
+      <SpecList label="Criteria" values={spec.criteria} />
+    </dl>
+  );
+}
+
+// The cancel/start action row under RunSpecDocument: Cancel is hidden when
+// `locked` (a confirmed spec can't be discarded), and Start is disabled
+// while starting or locked.
+function RunSpecActions({
+  locked,
+  isStarting,
+  onCancel,
+  onStart,
+}: {
+  locked: boolean;
+  isStarting: boolean;
+  onCancel: () => void;
+  onStart: () => void;
+}) {
+  return (
+    <div className={SETUP_ACTIONS_CLASSES}>
+      {!locked && (
         <button
           type="button"
-          className={SETUP_PRIMARY_BUTTON_CLASSES}
-          onClick={onStart}
-          disabled={isStarting || locked}
+          className={SETUP_SECONDARY_BUTTON_CLASSES}
+          onClick={onCancel}
+          disabled={isStarting}
         >
-          {isStarting ? 'Starting...' : 'Start research'}
+          Cancel
         </button>
-      </div>
+      )}
+      <button
+        type="button"
+        className={SETUP_PRIMARY_BUTTON_CLASSES}
+        onClick={onStart}
+        disabled={isStarting || locked}
+      >
+        {isStarting ? 'Starting...' : 'Start research'}
+      </button>
     </div>
   );
 }
@@ -742,43 +788,8 @@ export function StartedSessionCard({
           it might take a few minutes for the first ideas to be ready to view.
         </p>
       </div>
-      <button
-        type="button"
-        className={STARTED_SESSION_CARD_CLASSES}
-        onClick={onOpen}
-      >
-        <span className="block min-w-0">
-          <strong className={STARTED_SESSION_TITLE_CLASSES}>
-            <TruncatedLabel
-              className="block min-w-0 overflow-hidden whitespace-nowrap"
-              text={session.title}
-            />
-          </strong>
-          <small className={STARTED_SESSION_META_CLASSES}>
-            Research session
-          </small>
-        </span>
-        <span className={STARTED_OPEN_CLASSES}>Open</span>
-      </button>
-      <div className={STARTED_NEXT_CLASSES}>
-        <p className={STARTED_NEXT_COPY_CLASSES}>
-          What would you like to do next?
-        </p>
-        <button
-          type="button"
-          className={STARTED_NEXT_BUTTON_CLASSES}
-          onClick={onOpen}
-        >
-          View session details
-        </button>
-        <button
-          type="button"
-          className={STARTED_NEXT_BUTTON_CLASSES}
-          onClick={onNewTopic}
-        >
-          Start a new research goal session on a new topic
-        </button>
-      </div>
+      <SessionLinkCard session={session} onOpen={onOpen} />
+      <SessionNextActions onOpen={onOpen} onNewTopic={onNewTopic} />
       <MessageActionRow
         actions={responseActions(
           onRetry,
@@ -787,6 +798,67 @@ export function StartedSessionCard({
         )}
       />
     </section>
+  );
+}
+
+// The clickable card linking to the started session's detail page: title
+// (truncated) plus a "Research session" byline and an "Open" affordance.
+function SessionLinkCard({
+  session,
+  onOpen,
+}: {
+  session: StartedSession;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={STARTED_SESSION_CARD_CLASSES}
+      onClick={onOpen}
+    >
+      <span className="block min-w-0">
+        <strong className={STARTED_SESSION_TITLE_CLASSES}>
+          <TruncatedLabel
+            className="block min-w-0 overflow-hidden whitespace-nowrap"
+            text={session.title}
+          />
+        </strong>
+        <small className={STARTED_SESSION_META_CLASSES}>Research session</small>
+      </span>
+      <span className={STARTED_OPEN_CLASSES}>Open</span>
+    </button>
+  );
+}
+
+// The "what next" block under a started session: view the session details,
+// or start a fresh topic.
+function SessionNextActions({
+  onOpen,
+  onNewTopic,
+}: {
+  onOpen: () => void;
+  onNewTopic: () => void;
+}) {
+  return (
+    <div className={STARTED_NEXT_CLASSES}>
+      <p className={STARTED_NEXT_COPY_CLASSES}>
+        What would you like to do next?
+      </p>
+      <button
+        type="button"
+        className={STARTED_NEXT_BUTTON_CLASSES}
+        onClick={onOpen}
+      >
+        View session details
+      </button>
+      <button
+        type="button"
+        className={STARTED_NEXT_BUTTON_CLASSES}
+        onClick={onNewTopic}
+      >
+        Start a new research goal session on a new topic
+      </button>
+    </div>
   );
 }
 

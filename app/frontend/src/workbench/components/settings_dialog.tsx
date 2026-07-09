@@ -1,3 +1,4 @@
+import type {RefObject} from 'react';
 import {useEffect, useRef, useState} from 'react';
 import {Icon, type IconName} from '@/components/icon';
 import {getStoredApiKey, setStoredApiKey} from '@/lib/api_key';
@@ -104,6 +105,23 @@ function AppearanceSection({
   );
 }
 
+// Static "Get a DeepSeek API key" link shown below the key field.
+function ApiKeyHint() {
+  return (
+    <p className="ucs-settings-field-hint">
+      <a
+        className="ucs-settings-field-link"
+        href="https://platform.deepseek.com/api_keys"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Get a DeepSeek API key
+        <Icon aria-hidden="true" name="open_in_new" />
+      </a>
+    </p>
+  );
+}
+
 // Model section: browser-local API key entry, saved on blur or Enter.
 function ModelSection({
   apiKey,
@@ -136,17 +154,7 @@ function ModelSection({
           if (event.key === 'Enter') onSave();
         }}
       />
-      <p className="ucs-settings-field-hint">
-        <a
-          className="ucs-settings-field-link"
-          href="https://platform.deepseek.com/api_keys"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Get a DeepSeek API key
-          <Icon aria-hidden="true" name="open_in_new" />
-        </a>
-      </p>
+      <ApiKeyHint />
     </section>
   );
 }
@@ -219,6 +227,107 @@ function HelpSection() {
   );
 }
 
+// Moves focus to `ref`'s element once on mount, so keyboard/screen-reader
+// users land inside a newly opened dialog rather than on whatever was
+// focused behind it.
+function useFocusOnMount(ref: RefObject<HTMLButtonElement | null>) {
+  useEffect(() => {
+    ref.current?.focus();
+  }, [ref]);
+}
+
+// Global Escape-to-close, active for as long as the caller stays mounted.
+function useEscapeKey(onClose: () => void) {
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [onClose]);
+}
+
+// Model section's API key field: a local editable copy of the persisted key
+// (written back to storage only on blur/Enter, not every keystroke) plus the
+// brief "Settings saved" confirmation toast.
+function useApiKeyField() {
+  // Local editable copy of the persisted key; only written back to storage on
+  // blur/Enter (see onSave), not on every keystroke.
+  const [apiKey, setApiKey] = useState(getStoredApiKey);
+  const {toast: savedToast, setToast: setSavedToast} = useToast(2400);
+
+  // Persists the API key (trimmed; a blank value clears it, see
+  // setStoredApiKey) only when it actually changed, then re-syncs local state
+  // from storage and shows a brief confirmation toast.
+  function onSave() {
+    if (apiKey.trim() === getStoredApiKey()) return;
+    setStoredApiKey(apiKey);
+    setApiKey(getStoredApiKey());
+    setSavedToast('Settings saved');
+  }
+
+  return {apiKey, onApiKeyChange: setApiKey, onSave, savedToast};
+}
+
+// Dialog header: title plus the close button that also anchors the
+// open-focus behavior (see useFocusOnMount).
+function SettingsDialogHeader({
+  onClose,
+  closeRef,
+}: {
+  onClose: () => void;
+  closeRef: RefObject<HTMLButtonElement | null>;
+}) {
+  return (
+    <header className="ucs-settings-dialog-header">
+      <h2 className="ucs-settings-dialog-title">Settings</h2>
+      <button
+        ref={closeRef}
+        type="button"
+        className="ucs-settings-dialog-close"
+        aria-label="Close settings"
+        onClick={onClose}
+      >
+        <Icon aria-hidden="true" name="close" />
+      </button>
+    </header>
+  );
+}
+
+// Active section panel, switching over `section`. `theme` and `apiKeyField`
+// forward the two hooks' return values as-is (see useTheme, useApiKeyField).
+function SettingsPanel({
+  section,
+  theme,
+  apiKeyField,
+}: {
+  section: SettingsSection;
+  theme: {mode: ThemeMode; setMode: (mode: ThemeMode) => void};
+  apiKeyField: {
+    apiKey: string;
+    onApiKeyChange: (value: string) => void;
+    onSave: () => void;
+  };
+}) {
+  return (
+    <div className="ucs-settings-dialog-panel">
+      {section === 'appearance' && (
+        <AppearanceSection mode={theme.mode} setMode={theme.setMode} />
+      )}
+      {section === 'model' && (
+        <ModelSection
+          apiKey={apiKeyField.apiKey}
+          onApiKeyChange={apiKeyField.onApiKeyChange}
+          onSave={apiKeyField.onSave}
+        />
+      )}
+      {section === 'help' && <HelpSection />}
+    </div>
+  );
+}
+
 /**
  * Centered Settings dialog with a section rail (Appearance, Model, Help),
  * matching the reference product's settings window.
@@ -234,39 +343,12 @@ export function SettingsDialog({
   onSectionChange: (section: SettingsSection) => void;
   onClose: () => void;
 }) {
-  const {mode, setMode} = useTheme();
+  const theme = useTheme();
   const closeRef = useRef<HTMLButtonElement>(null);
-  // Local editable copy of the persisted key; only written back to storage on
-  // blur/Enter (see saveApiKey), not on every keystroke.
-  const [apiKey, setApiKey] = useState(getStoredApiKey);
-  const {toast: savedToast, setToast: setSavedToast} = useToast(2400);
+  const apiKeyField = useApiKeyField();
 
-  // Move focus to the close button on open, so keyboard/screen-reader users
-  // land inside the dialog rather than on whatever was focused behind it.
-  useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
-
-  // Global Escape-to-close, active for as long as the dialog is mounted.
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') onClose();
-    }
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      window.removeEventListener('keydown', onKeyDown);
-    };
-  }, [onClose]);
-
-  // Persists the API key (trimmed; a blank value clears it, see
-  // setStoredApiKey) only when it actually changed, then re-syncs local state
-  // from storage and shows a brief confirmation toast.
-  function saveApiKey() {
-    if (apiKey.trim() === getStoredApiKey()) return;
-    setStoredApiKey(apiKey);
-    setApiKey(getStoredApiKey());
-    setSavedToast('Settings saved');
-  }
+  useFocusOnMount(closeRef);
+  useEscapeKey(onClose);
 
   return (
     <div className="ucs-settings-dialog-root">
@@ -281,37 +363,18 @@ export function SettingsDialog({
         aria-modal="true"
         aria-label="Settings"
       >
-        <header className="ucs-settings-dialog-header">
-          <h2 className="ucs-settings-dialog-title">Settings</h2>
-          <button
-            ref={closeRef}
-            type="button"
-            className="ucs-settings-dialog-close"
-            aria-label="Close settings"
-            onClick={onClose}
-          >
-            <Icon aria-hidden="true" name="close" />
-          </button>
-        </header>
+        <SettingsDialogHeader onClose={onClose} closeRef={closeRef} />
         <div className="ucs-settings-dialog-body">
           <SettingsNav section={section} onSectionChange={onSectionChange} />
-          <div className="ucs-settings-dialog-panel">
-            {section === 'appearance' && (
-              <AppearanceSection mode={mode} setMode={setMode} />
-            )}
-            {section === 'model' && (
-              <ModelSection
-                apiKey={apiKey}
-                onApiKeyChange={setApiKey}
-                onSave={saveApiKey}
-              />
-            )}
-            {section === 'help' && <HelpSection />}
-          </div>
+          <SettingsPanel
+            section={section}
+            theme={theme}
+            apiKeyField={apiKeyField}
+          />
         </div>
-        {savedToast && (
+        {apiKeyField.savedToast && (
           <div className="ucs-settings-toast" role="status">
-            {savedToast.message}
+            {apiKeyField.savedToast.message}
           </div>
         )}
       </div>

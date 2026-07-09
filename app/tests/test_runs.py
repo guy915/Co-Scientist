@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 
 from tests._client import make_client as _client
-from tests._client import wait_for as _wait_for
+from tests._client import wait_for_status as _wait_status
 
 
 def test_create_run_returns_draft_status() -> None:
@@ -136,13 +136,8 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     start = client.post(f"/api/runs/{run_id}/start", json={})
     assert start.status_code == 200
 
-    def is_completed() -> bool:
-        r = client.get(f"/api/runs/{run_id}")
-        status = str(r.json().get("status"))
-        return r.status_code == 200 and status == "completed"
-
-    assert _wait_for(is_completed,
-                     timeout=20.0), "run did not reach 'completed'"
+    assert _wait_status(client, run_id, "completed",
+                        timeout=20.0), "run did not reach 'completed'"
 
     # Sanity: hypotheses, evidence, matches, citations, report all persisted.
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
@@ -178,12 +173,7 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     run_id = res.json()["id"]
     client.post(f"/api/runs/{run_id}/start", json={})
 
-    def is_completed() -> bool:
-        r = client.get(f"/api/runs/{run_id}")
-        status = str(r.json().get("status"))
-        return r.status_code == 200 and status == "completed"
-
-    assert _wait_for(is_completed, timeout=20.0)
+    assert _wait_status(client, run_id, "completed", timeout=20.0)
 
     # Discard the client and re-import the app, simulating a fresh process.
     import importlib  # pylint: disable=import-outside-toplevel
@@ -226,12 +216,7 @@ def test_legacy_advanced_run_uses_default_artifact_depth(
     run_id = res.json()["id"]
     client.post(f"/api/runs/{run_id}/start", json={})
 
-    def done() -> bool:
-        r = client.get(f"/api/runs/{run_id}")
-        status = str(r.json().get("status"))
-        return r.status_code == 200 and status == "completed"
-
-    assert _wait_for(done, timeout=30.0)
+    assert _wait_status(client, run_id, "completed", timeout=30.0)
 
     run = client.get(f"/api/runs/{run_id}").json()
     assert run["run_mode"] == "default"

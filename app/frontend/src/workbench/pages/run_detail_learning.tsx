@@ -49,21 +49,10 @@ const REFERENCE_LIST_LINK_CLASSES =
 
 const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 
-/**
- * Renders the "Learning" tab: up to three synthesized summary sections
- * (derived from the run's evidence, or a fallback placeholder when none has
- * been gathered yet) followed by a searchable reference list.
- *
- * @param props The research goal (used in fallback copy) and the run's
- *   collected evidence.
- */
-export function LearningView({
-  goal,
-  evidence,
-}: {
-  goal: string;
-  evidence: Evidence[];
-}) {
+// State and derived data behind the "Learning" tab: the synthesized sections
+// (see learningSections), the query-filtered reference list, and the
+// per-section "Details" expand/collapse toggle.
+function useLearningViewState(goal: string, evidence: Evidence[]) {
   const [query, setQuery] = useState('');
   // Section ids currently showing their "Details" block; toggled independently
   // per section so expanding one does not affect the others.
@@ -82,6 +71,40 @@ export function LearningView({
     );
   }
 
+  return {
+    sections,
+    filteredReferences,
+    query,
+    setQuery,
+    expandedSectionIds,
+    toggleSection,
+  };
+}
+
+/**
+ * Renders the "Learning" tab: up to three synthesized summary sections
+ * (derived from the run's evidence, or a fallback placeholder when none has
+ * been gathered yet) followed by a searchable reference list.
+ *
+ * @param props The research goal (used in fallback copy) and the run's
+ *   collected evidence.
+ */
+export function LearningView({
+  goal,
+  evidence,
+}: {
+  goal: string;
+  evidence: Evidence[];
+}) {
+  const {
+    sections,
+    filteredReferences,
+    query,
+    setQuery,
+    expandedSectionIds,
+    toggleSection,
+  } = useLearningViewState(goal, evidence);
+
   return (
     <ReportDocument title="Learning">
       {sections.map(section => (
@@ -98,6 +121,46 @@ export function LearningView({
         onQueryChange={setQuery}
       />
     </ReportDocument>
+  );
+}
+
+// Expanded "Details" block within a Learning section: renders nothing when
+// collapsed, so the caller can render it unconditionally.
+function LearningSectionDetailsBlock({detail}: {detail: string}) {
+  return (
+    <>
+      <h4 className={REPORT_H4_CLASSES}>Details</h4>
+      <p
+        dangerouslySetInnerHTML={{
+          __html: renderInlineHtml(detail),
+        }}
+      />
+    </>
+  );
+}
+
+// "Show more"/"Show less" toggle button beneath a Learning section's body.
+function LearningSectionToggle({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={REPORT_INLINE_ACTION_CLASSES}
+      aria-expanded={expanded}
+      onClick={onToggle}
+    >
+      <span>{expanded ? 'Show less' : 'Show more'}</span>
+      <Icon
+        className={REPORT_INLINE_ACTION_ICON_CLASSES}
+        aria-hidden="true"
+        name={expanded ? 'expand_less' : 'expand_more'}
+      />
+    </button>
   );
 }
 
@@ -124,29 +187,8 @@ function LearningSectionBlock({
       />
       <h4 className={REPORT_H4_CLASSES}>Summary</h4>
       <AbstractBody text={section.summary} />
-      {expanded && (
-        <>
-          <h4 className={REPORT_H4_CLASSES}>Details</h4>
-          <p
-            dangerouslySetInnerHTML={{
-              __html: renderInlineHtml(section.detail),
-            }}
-          />
-        </>
-      )}
-      <button
-        type="button"
-        className={REPORT_INLINE_ACTION_CLASSES}
-        aria-expanded={expanded}
-        onClick={onToggle}
-      >
-        <span>{expanded ? 'Show less' : 'Show more'}</span>
-        <Icon
-          className={REPORT_INLINE_ACTION_ICON_CLASSES}
-          aria-hidden="true"
-          name={expanded ? 'expand_less' : 'expand_more'}
-        />
-      </button>
+      {expanded && <LearningSectionDetailsBlock detail={section.detail} />}
+      <LearningSectionToggle expanded={expanded} onToggle={onToggle} />
     </section>
   );
 }

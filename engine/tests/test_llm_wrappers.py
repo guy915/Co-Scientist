@@ -130,6 +130,16 @@ _INT_SCHEMA: dict[str, Any] = {
     "required": ["a"],
 }
 
+# The tool schema shared verbatim by every call_llm_with_tools test below; the
+# wrapper only reads it (passes it through to the fake acompletion), never
+# mutates it, so sharing one instance across tests is safe.
+_SEARCH_TOOL: list[dict[str, Any]] = [{
+    "type": "function",
+    "function": {
+        "name": "search"
+    }
+}]
+
 
 # --- call_llm --------------------------------------------------------------
 async def test_call_llm_returns_message_content(
@@ -282,16 +292,9 @@ async def test_call_llm_with_tools_runs_executor_then_finishes(
             "content": "tool result",
         }
 
-    tools: list[dict[str, Any]] = [{
-        "type": "function",
-        "function": {
-            "name": "search"
-        }
-    }]
-
     final_text, history = await call_llm_with_tools("a prompt",
                                                     "test-model",
-                                                    tools=tools,
+                                                    tools=_SEARCH_TOOL,
                                                     tool_executor=tool_executor)
 
     assert final_text == "final answer"
@@ -325,12 +328,7 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
 
     final_text, history = await call_llm_with_tools("a prompt",
                                                     "test-model",
-                                                    tools=[{
-                                                        "type": "function",
-                                                        "function": {
-                                                            "name": "search"
-                                                        }
-                                                    }],
+                                                    tools=_SEARCH_TOOL,
                                                     tool_executor=tool_executor)
 
     assert final_text == "direct answer"
@@ -452,12 +450,7 @@ async def test_call_llm_with_tools_saves_prompt_when_named(
     await call_llm_with_tools(
         "the draft prompt",
         "test-model",
-        tools=[{
-            "type": "function",
-            "function": {
-                "name": "search"
-            }
-        }],
+        tools=_SEARCH_TOOL,
         tool_executor=tool_executor,
         prompt_name="generate_draft_with_tools",
     )

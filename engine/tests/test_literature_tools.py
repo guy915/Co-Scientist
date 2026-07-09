@@ -217,16 +217,6 @@ def _stub_synthesis_llm(monkeypatch: pytest.MonkeyPatch,
     monkeypatch.setattr(validate_mod, "call_llm_with_tools", fake)
 
 
-def _stub_novelty_llm(monkeypatch: pytest.MonkeyPatch,
-                      analysis: dict[str, Any]) -> None:
-    """Stub ``validate.call_llm_json`` (the per-paper novelty pass)."""
-
-    async def fake(**_: Any) -> dict[str, Any]:
-        return analysis
-
-    monkeypatch.setattr(validate_mod, "call_llm_json", fake)
-
-
 async def test_validate_builds_literature_tools_hypotheses(
         monkeypatch: pytest.MonkeyPatch) -> None:
     """Synthesis output is assembled into LITERATURE_TOOLS Hypothesis objects.

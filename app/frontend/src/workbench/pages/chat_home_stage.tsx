@@ -269,8 +269,9 @@ function suggestionPreviewPositionClass(index: number) {
 }
 
 // Renders one suggestion card in the home-stage suggestion row: the
-// hover/focus-revealed full-text preview bubble, and the button that fills
-// the composer with the suggestion's text when selected.
+// hover/focus-revealed full-text preview bubble (SuggestionPreviewBubble),
+// and the button that fills the composer with the suggestion's text when
+// selected (SuggestionTriggerButton).
 function SuggestionCard({
   suggestion,
   index,
@@ -293,54 +294,96 @@ function SuggestionCard({
 
   return (
     <div className={HOME_SUGGESTION_SLOT_CLASSES}>
-      <p
-        className={[
-          HOME_SUGGESTION_PREVIEW_CLASSES,
-          previewPositionClass,
-          isPreviewed ? HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        aria-hidden={!isPreviewed}
-      >
-        {suggestion.text}
-      </p>
-      <button
-        type="button"
-        className={[
-          HOME_SUGGESTION_BUTTON_CLASSES,
-          isPreviewed ? HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES : '',
-        ]
-          .filter(Boolean)
-          .join(' ')}
-        // Mouse/pointer and focus/blur handlers both drive the same preview
-        // state, so touch/keyboard users get the same full-text preview that
-        // mouse hover provides.
-        onMouseEnter={() => onPreview(suggestion.text)}
-        onMouseLeave={() => onPreview(null)}
-        onPointerEnter={() => onPreview(suggestion.text)}
-        onPointerLeave={() => onPreview(null)}
-        onFocus={() => onPreview(suggestion.text)}
-        onBlur={() => onPreview(null)}
-        // Clicking a suggestion fills the composer with its full text rather
-        // than submitting immediately.
-        onClick={() => onSelect(suggestion.text)}
-      >
-        {/* Leading glyph is part of the phone list layout only; desktop cards
-            are text-only. */}
-        {isMobile && (
-          <Icon
-            aria-hidden="true"
-            className={HOME_SUGGESTION_ICON_CLASSES}
-            name={suggestion.icon}
-          />
-        )}
-        <TruncatedLabel
-          className={HOME_SUGGESTION_TEXT_CLASSES}
-          text={suggestion.text}
-          lines={isMobile ? 1 : 2}
-        />
-      </button>
+      <SuggestionPreviewBubble
+        text={suggestion.text}
+        isPreviewed={isPreviewed}
+        positionClass={previewPositionClass}
+      />
+      <SuggestionTriggerButton
+        suggestion={suggestion}
+        isMobile={isMobile}
+        isPreviewed={isPreviewed}
+        onPreview={onPreview}
+        onSelect={onSelect}
+      />
     </div>
+  );
+}
+
+// Full-text preview bubble revealed above a suggestion card on hover/focus.
+function SuggestionPreviewBubble({
+  text,
+  isPreviewed,
+  positionClass,
+}: {
+  text: string;
+  isPreviewed: boolean;
+  positionClass: string;
+}) {
+  return (
+    <p
+      className={[
+        HOME_SUGGESTION_PREVIEW_CLASSES,
+        positionClass,
+        isPreviewed ? HOME_SUGGESTION_PREVIEW_VISIBLE_CLASSES : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      aria-hidden={!isPreviewed}
+    >
+      {text}
+    </p>
+  );
+}
+
+// The suggestion's clickable trigger: fills the composer with the
+// suggestion's full text when clicked, and drives the preview bubble's
+// visibility on hover/pointer/focus so touch/keyboard users get the same
+// full-text preview that mouse hover provides.
+function SuggestionTriggerButton({
+  suggestion,
+  isMobile,
+  isPreviewed,
+  onPreview,
+  onSelect,
+}: {
+  suggestion: {text: string; icon: IconName};
+  isMobile: boolean;
+  isPreviewed: boolean;
+  onPreview: (text: string | null) => void;
+  onSelect: (text: string) => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={[
+        HOME_SUGGESTION_BUTTON_CLASSES,
+        isPreviewed ? HOME_SUGGESTION_BUTTON_PREVIEWED_CLASSES : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onMouseEnter={() => onPreview(suggestion.text)}
+      onMouseLeave={() => onPreview(null)}
+      onPointerEnter={() => onPreview(suggestion.text)}
+      onPointerLeave={() => onPreview(null)}
+      onFocus={() => onPreview(suggestion.text)}
+      onBlur={() => onPreview(null)}
+      onClick={() => onSelect(suggestion.text)}
+    >
+      {/* Leading glyph is part of the phone list layout only; desktop cards
+          are text-only. */}
+      {isMobile && (
+        <Icon
+          aria-hidden="true"
+          className={HOME_SUGGESTION_ICON_CLASSES}
+          name={suggestion.icon}
+        />
+      )}
+      <TruncatedLabel
+        className={HOME_SUGGESTION_TEXT_CLASSES}
+        text={suggestion.text}
+        lines={isMobile ? 1 : 2}
+      />
+    </button>
   );
 }

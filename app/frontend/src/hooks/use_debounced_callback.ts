@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef} from 'react';
+import {type RefObject, useEffect, useMemo, useRef} from 'react';
 
 /**
  * A trailing-edge debounced function returned by
@@ -11,6 +11,47 @@ export interface DebouncedCallback<T extends (...args: never[]) => void> {
   flush: () => void;
   /** Drops a pending invocation without running it. */
   cancel: () => void;
+}
+
+/**
+ * Builds the trailing-edge debounced wrapper itself, given the refs that
+ * back it. Pulled out of {@link useDebouncedCallback} so the hook body only
+ * has to wire up the refs and the two effects that keep them in sync /
+ * cancel them on unmount; this factory is a pure function of those refs and
+ * calls no hooks itself.
+ */
+function createDebouncedWrapper<T extends (...args: never[]) => void>(
+  fnRef: RefObject<T>,
+  delayRef: RefObject<number>,
+  timerRef: RefObject<ReturnType<typeof setTimeout> | null>,
+  pendingArgsRef: RefObject<Parameters<T> | null>,
+): DebouncedCallback<T> {
+  // Fires the pending call. Clears state before invoking so a re-entrant
+  // call from inside fn schedules a fresh timer instead of being dropped.
+  const invoke = () => {
+    timerRef.current = null;
+    const args = pendingArgsRef.current;
+    pendingArgsRef.current = null;
+    if (args) fnRef.current(...args);
+  };
+  // Trailing edge: each call replaces the pending args and restarts the
+  // timer, so only the last call within the window wins.
+  const wrapper = ((...args: Parameters<T>) => {
+    pendingArgsRef.current = args;
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(invoke, delayRef.current);
+  }) as DebouncedCallback<T>;
+  wrapper.cancel = () => {
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
+    timerRef.current = null;
+    pendingArgsRef.current = null;
+  };
+  wrapper.flush = () => {
+    if (timerRef.current === null) return; // nothing pending
+    clearTimeout(timerRef.current);
+    invoke();
+  };
+  return wrapper;
 }
 
 /**
@@ -47,34 +88,10 @@ export function useDebouncedCallback<T extends (...args: never[]) => void>(
 
   // Empty deps: the wrapper is created exactly once and keeps its identity
   // for the component's lifetime (the doc-comment contract above).
-  const debounced = useMemo(() => {
-    // Fires the pending call. Clears state before invoking so a re-entrant
-    // call from inside fn schedules a fresh timer instead of being dropped.
-    const invoke = () => {
-      timerRef.current = null;
-      const args = pendingArgsRef.current;
-      pendingArgsRef.current = null;
-      if (args) fnRef.current(...args);
-    };
-    // Trailing edge: each call replaces the pending args and restarts the
-    // timer, so only the last call within the window wins.
-    const wrapper = ((...args: Parameters<T>) => {
-      pendingArgsRef.current = args;
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(invoke, delayRef.current);
-    }) as DebouncedCallback<T>;
-    wrapper.cancel = () => {
-      if (timerRef.current !== null) clearTimeout(timerRef.current);
-      timerRef.current = null;
-      pendingArgsRef.current = null;
-    };
-    wrapper.flush = () => {
-      if (timerRef.current === null) return; // nothing pending
-      clearTimeout(timerRef.current);
-      invoke();
-    };
-    return wrapper;
-  }, []);
+  const debounced = useMemo(
+    () => createDebouncedWrapper(fnRef, delayRef, timerRef, pendingArgsRef),
+    [],
+  );
 
   // Unmount cleanup: drop any still-pending invocation so fn never fires
   // against an unmounted component. `debounced` is stable, so this effect

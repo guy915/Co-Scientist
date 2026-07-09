@@ -269,20 +269,24 @@ def _persist_and_finalize(run: Any, final_state: dict[str, Any],
         ))
 
 
-def test_engine_adapter_emits_canonical_event_types(
-        isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
-    """The real-engine branch emits the canonical vocabulary, never engine.*.
+def _run_fake_engine(monkeypatch: pytest.MonkeyPatch,
+                     goal: str) -> tuple[Any, list[Any]]:
+    """Patch in the fake generator and drain a full engine-provider run.
 
-    CI only exercises the mock path, so this fake-driven test is the sole guard
-    on the node→type mapping and the frontend-facing payload shape.
+    Resolves the lazy ``from co_scientist import HypothesisGenerator`` to the
+    fake regardless of whether the real engine is installed.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+        goal: The research goal to create the run with.
+
+    Returns:
+        A tuple of the created run and its drained events.
     """
-    # pylint: disable=unused-argument  # isolated_db is a side-effect fixture.
-    # Resolve the lazy ``from co_scientist import HypothesisGenerator`` to the
-    # fake regardless of whether the real engine is installed.
     fake_module = types.SimpleNamespace(HypothesisGenerator=_FakeGenerator)
     monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
 
-    run = store.create_run("Canonical vocab goal", "standard", "engine", {})
+    run = store.create_run(goal, "standard", "engine", {})
     events = _drain(
         engine_adapter.run_workflow(
             run.id,
@@ -291,6 +295,18 @@ def test_engine_adapter_emits_canonical_event_types(
             force_provider="engine",
             sleep_seconds=0,
         ))
+    return run, events
+
+
+def test_engine_adapter_emits_canonical_event_types(
+        isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The real-engine branch emits the canonical vocabulary, never engine.*.
+
+    CI only exercises the mock path, so this fake-driven test is the sole guard
+    on the node→type mapping and the frontend-facing payload shape.
+    """
+    # pylint: disable=unused-argument  # isolated_db is a side-effect fixture.
+    _, events = _run_fake_engine(monkeypatch, "Canonical vocab goal")
 
     types_emitted = [e["type"] for e in events]
 
@@ -325,18 +341,7 @@ def test_engine_adapter_emits_canonical_event_types(
 def test_engine_adapter_generates_canonical_milestones(
         isolated_db: str, monkeypatch: pytest.MonkeyPatch) -> None:
     """Milestone messages are produced from the canonical payload shape."""
-    fake_module = types.SimpleNamespace(HypothesisGenerator=_FakeGenerator)
-    monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
-
-    run = store.create_run("Milestone goal", "standard", "engine", {})
-    _drain(
-        engine_adapter.run_workflow(
-            run.id,
-            run.research_goal,
-            run.config,
-            force_provider="engine",
-            sleep_seconds=0,
-        ))
+    run, _ = _run_fake_engine(monkeypatch, "Milestone goal")
 
     msgs = store.list_messages(run.id, db_path=isolated_db)
     milestones = [m for m in msgs if m.kind == "milestone"]

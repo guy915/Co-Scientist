@@ -75,9 +75,6 @@ export function ChatWorkspace() {
   const [showAllRecents, setShowAllRecents] = useState(false);
   // PubMed connector toggle, shared between the home and in-chat composer.
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
-  // Wraps the overlaid composer; its measured height drives the timeline's
-  // bottom padding (see the ResizeObserver effect below).
-  const composerRef = useRef<HTMLDivElement>(null);
 
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
@@ -116,23 +113,14 @@ export function ChatWorkspace() {
     [draftSpec, startedSession],
   );
 
-  // Merges messages/draft/confirmed/started state into one sorted timeline;
-  // `session` supplies every field but navigate/resetWorkspace/focusComposer.
-  const timelineItems = buildTimelineItems({
-    ...session,
+  // Timeline items, its auto-scroll ref, and the composer ref whose measured
+  // height feeds the timeline's bottom padding all live together in one
+  // layout hook (see useConversationLayout).
+  const {timelineItems, scrollRef, composerRef} = useConversationLayout(
+    session,
     navigate,
     resetWorkspace,
     focusComposer,
-  });
-
-  // Auto-scrolls the timeline as it changes shape/order (see the hook).
-  const scrollRef = useChatTimelineScroll(timelineItems, startedSession);
-
-  // The composer overlays the timeline, so its measured height becomes the
-  // timeline's bottom padding; tracks the composer as it auto-grows.
-  useEffect(
-    () => syncComposerHeight(composerRef, scrollRef, hasConversation),
-    [hasConversation, scrollRef],
   );
 
   return (
@@ -221,6 +209,47 @@ function syncComposerHeight(
   return () => observer.disconnect();
 }
 
+// Builds the in-conversation timeline and owns the two refs that keep it
+// laid out correctly: the auto-scroll ref (see useChatTimelineScroll) and
+// the composer ref whose measured height feeds the timeline's bottom padding
+// (see syncComposerHeight). Grouped together since all three only matter
+// once there's a conversation to lay out, and the composer-height sync
+// depends on the scroll ref the timeline hook returns.
+function useConversationLayout(
+  session: ReturnType<typeof useChatSession>,
+  navigate: NavigateFunction,
+  resetWorkspace: () => void,
+  focusComposer: () => void,
+) {
+  // Wraps the overlaid composer; its measured height drives the timeline's
+  // bottom padding (see the ResizeObserver effect below).
+  const composerRef = useRef<HTMLDivElement>(null);
+
+  // Merges messages/draft/confirmed/started state into one sorted timeline;
+  // `session` supplies every field but navigate/resetWorkspace/focusComposer.
+  const timelineItems = buildTimelineItems({
+    ...session,
+    navigate,
+    resetWorkspace,
+    focusComposer,
+  });
+
+  // Auto-scrolls the timeline as it changes shape/order (see the hook).
+  const scrollRef = useChatTimelineScroll(
+    timelineItems,
+    session.startedSession,
+  );
+
+  // The composer overlays the timeline, so its measured height becomes the
+  // timeline's bottom padding; tracks the composer as it auto-grows.
+  useEffect(
+    () => syncComposerHeight(composerRef, scrollRef, session.hasConversation),
+    [session.hasConversation, scrollRef],
+  );
+
+  return {timelineItems, scrollRef, composerRef};
+}
+
 // The in-conversation view: the scrolling timeline (rendered items plus any
 // session-level error) and the composer overlaid at the bottom. Split out of
 // ChatWorkspace as a pure render component; every ref/handler it needs is
@@ -246,48 +275,92 @@ function ConversationView({
   pubmedEnabled: boolean;
   onPubmedEnabledChange: (value: boolean) => void;
 }) {
-  const {input, setInput, error, isStarting, handleSubmit} = session;
   return (
     <>
-      <section ref={scrollRef} className={CHAT_TIMELINE_CLASSES}>
-        <div className={CHAT_COLUMN_CLASSES}>
-          {timelineItems.map(item => (
-            <Fragment key={item.id}>{item.node}</Fragment>
-          ))}
-
-          {/* Session-level error (e.g. a failed submit/start), shown below
-              the last timeline item. */}
-          {error && (
-            <div
-              role="alert"
-              className="rounded-md border p-3 text-sm"
-              style={{
-                borderColor: 'var(--md-sys-color-error)',
-                color: 'var(--md-sys-color-error)',
-              }}
-            >
-              {error}
-            </div>
-          )}
-        </div>
-      </section>
-      {/* Overlaid, non-scrolling composer; setupDraftMode swaps its
-          placeholder copy while a draft/confirmed spec or started session is
-          in view, and disabled locks input while starting. */}
-      <div ref={composerRef} className={CHAT_COMPOSER_CLASSES}>
-        <div className={CHAT_COLUMN_CLASSES}>
-          <Composer
-            input={input}
-            setInput={setInput}
-            setupDraftMode={setupDraftMode}
-            disabled={isStarting}
-            pubmedEnabled={pubmedEnabled}
-            onPubmedEnabledChange={onPubmedEnabledChange}
-            onSubmit={handleSubmit}
-          />
-        </div>
-      </div>
+      <TimelineSection
+        scrollRef={scrollRef}
+        timelineItems={timelineItems}
+        error={session.error}
+      />
+      <ComposerSection
+        composerRef={composerRef}
+        session={session}
+        setupDraftMode={setupDraftMode}
+        pubmedEnabled={pubmedEnabled}
+        onPubmedEnabledChange={onPubmedEnabledChange}
+      />
     </>
+  );
+}
+
+// The scrolling timeline: every rendered item in order, plus any
+// session-level error (e.g. a failed submit/start) shown below the last one.
+function TimelineSection({
+  scrollRef,
+  timelineItems,
+  error,
+}: {
+  scrollRef: RefObject<HTMLDivElement | null>;
+  timelineItems: TimelineItem[];
+  error: string | null;
+}) {
+  return (
+    <section ref={scrollRef} className={CHAT_TIMELINE_CLASSES}>
+      <div className={CHAT_COLUMN_CLASSES}>
+        {timelineItems.map(item => (
+          <Fragment key={item.id}>{item.node}</Fragment>
+        ))}
+        {error && (
+          <div
+            role="alert"
+            className="rounded-md border p-3 text-sm"
+            style={{
+              borderColor: 'var(--md-sys-color-error)',
+              color: 'var(--md-sys-color-error)',
+            }}
+          >
+            {error}
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// Overlaid, non-scrolling composer; setupDraftMode swaps its placeholder
+// copy while a draft/confirmed spec or started session is in view, and
+// disabled locks input while starting.
+function ComposerSection({
+  composerRef,
+  session,
+  setupDraftMode,
+  pubmedEnabled,
+  onPubmedEnabledChange,
+}: {
+  composerRef: RefObject<HTMLDivElement | null>;
+  session: Pick<
+    ReturnType<typeof useChatSession>,
+    'input' | 'setInput' | 'isStarting' | 'handleSubmit'
+  >;
+  setupDraftMode: boolean;
+  pubmedEnabled: boolean;
+  onPubmedEnabledChange: (value: boolean) => void;
+}) {
+  const {input, setInput, isStarting, handleSubmit} = session;
+  return (
+    <div ref={composerRef} className={CHAT_COMPOSER_CLASSES}>
+      <div className={CHAT_COLUMN_CLASSES}>
+        <Composer
+          input={input}
+          setInput={setInput}
+          setupDraftMode={setupDraftMode}
+          disabled={isStarting}
+          pubmedEnabled={pubmedEnabled}
+          onPubmedEnabledChange={onPubmedEnabledChange}
+          onSubmit={handleSubmit}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -552,12 +625,78 @@ function buildTimelineItems(args: BuildTimelineItemsArgs): TimelineItem[] {
   return timelineItems;
 }
 
+// Cheap fingerprint of the timeline's identity/order, used to detect when it
+// actually changed shape/order without deep-comparing React nodes, plus
+// whether an auto-scroll should anchor to the top (a newly arrived, tall
+// spec card) or bottom (everything else, and always once a session has
+// started).
+function timelineScrollTarget(
+  timelineItems: TimelineItem[],
+  startedSession: StartedSession | null,
+): {signature: string; anchorMode: 'top' | 'bottom'} {
+  const signature = timelineItems
+    .map(item => `${item.id}:${item.at}`)
+    .join('|');
+  const latestTimelineItemId =
+    timelineItems.length > 0 ? timelineItems[timelineItems.length - 1].id : '';
+  // Once a run has started, always anchor to the bottom. Otherwise, a newly
+  // arrived spec card (which is tall) anchors to the top so its heading is
+  // visible; anything else (chat bubbles) anchors to the bottom as usual.
+  const anchorMode: 'top' | 'bottom' = startedSession
+    ? 'bottom'
+    : latestTimelineItemId === 'draft-spec' ||
+        latestTimelineItemId === 'confirmed-spec'
+      ? 'top'
+      : 'bottom';
+  return {signature, anchorMode};
+}
+
+// Effect body for the signature-based auto-scroll below: fires whenever the
+// timeline's signature changes (new item, or an item's timestamp changed),
+// skipping the very first render's signature and any re-render that doesn't
+// actually change the timeline. The zero-delay timeout defers until after
+// layout so scrollHeight reflects the new DOM.
+function syncTimelineScroll(
+  scrollRef: RefObject<HTMLDivElement | null>,
+  previousTimelineSignature: RefObject<string>,
+  timelineSignature: string,
+  timelineAnchorMode: 'top' | 'bottom',
+) {
+  const scroller = scrollRef.current;
+  if (!scroller || previousTimelineSignature.current === timelineSignature) {
+    return;
+  }
+  previousTimelineSignature.current = timelineSignature;
+  const timeout = window.setTimeout(() => {
+    scroller.scrollTop =
+      timelineAnchorMode === 'top' ? 0 : scroller.scrollHeight;
+  }, 0);
+  return () => window.clearTimeout(timeout);
+}
+
+// Effect body for the belt-and-suspenders scroll-to-bottom below: fires
+// specifically when a session starts, independent of the signature-based
+// effect above, since the started-card arriving can coincide with other
+// timeline changes.
+function syncStartedSessionScroll(
+  scrollRef: RefObject<HTMLDivElement | null>,
+  startedSession: StartedSession | null,
+) {
+  const scroller = scrollRef.current;
+  if (!startedSession || !scroller) {
+    return;
+  }
+  const timeout = window.setTimeout(() => {
+    scroller.scrollTop = scroller.scrollHeight;
+  }, 0);
+  return () => window.clearTimeout(timeout);
+}
+
 /**
- * Owns the timeline's auto-scroll behavior: computes a cheap signature from
- * the current items to detect when the timeline actually changed shape/
- * order, decides whether to anchor to the top (a newly arrived, tall spec
- * card) or bottom (everything else, and always once a session has started),
- * and scrolls the returned ref accordingly.
+ * Owns the timeline's auto-scroll behavior: derives a scroll signature and
+ * anchor mode from the current items (see timelineScrollTarget), then scrolls
+ * the returned ref accordingly whenever the timeline changes or a session
+ * starts (see syncTimelineScroll and syncStartedSessionScroll).
  *
  * @param timelineItems The current, already-sorted timeline items.
  * @param startedSession The started session, if any (always anchors bottom).
@@ -573,53 +712,24 @@ function useChatTimelineScroll(
   // fires when the timeline actually changed shape/order.
   const previousTimelineSignature = useRef('');
 
-  // Cheap fingerprint of the timeline's identity/order used below to decide
-  // whether an auto-scroll is warranted, without deep-comparing React nodes.
-  const timelineSignature = timelineItems
-    .map(item => `${item.id}:${item.at}`)
-    .join('|');
-  const latestTimelineItemId =
-    timelineItems.length > 0 ? timelineItems[timelineItems.length - 1].id : '';
-  // Once a run has started, always anchor to the bottom. Otherwise, a newly
-  // arrived spec card (which is tall) anchors to the top so its heading is
-  // visible; anything else (chat bubbles) anchors to the bottom as usual.
-  const timelineAnchorMode = startedSession
-    ? 'bottom'
-    : latestTimelineItemId === 'draft-spec' ||
-        latestTimelineItemId === 'confirmed-spec'
-      ? 'top'
-      : 'bottom';
+  const {signature: timelineSignature, anchorMode: timelineAnchorMode} =
+    timelineScrollTarget(timelineItems, startedSession);
 
-  // Auto-scrolls the timeline whenever its signature changes (new item, or an
-  // item's timestamp changed), skipping the very first render's signature and
-  // any re-render that doesn't actually change the timeline. The zero-delay
-  // timeout defers until after layout so scrollHeight reflects the new DOM.
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!scroller || previousTimelineSignature.current === timelineSignature) {
-      return;
-    }
-    previousTimelineSignature.current = timelineSignature;
-    const timeout = window.setTimeout(() => {
-      scroller.scrollTop =
-        timelineAnchorMode === 'top' ? 0 : scroller.scrollHeight;
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [timelineAnchorMode, timelineSignature]);
+  useEffect(
+    () =>
+      syncTimelineScroll(
+        scrollRef,
+        previousTimelineSignature,
+        timelineSignature,
+        timelineAnchorMode,
+      ),
+    [timelineAnchorMode, timelineSignature],
+  );
 
-  // Belt-and-suspenders scroll-to-bottom specifically when a session starts,
-  // independent of the signature-based effect above, since the started-card
-  // arriving can coincide with other timeline changes.
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!startedSession || !scroller) {
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      scroller.scrollTop = scroller.scrollHeight;
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [startedSession]);
+  useEffect(
+    () => syncStartedSessionScroll(scrollRef, startedSession),
+    [startedSession],
+  );
 
   return scrollRef;
 }
