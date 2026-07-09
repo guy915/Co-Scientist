@@ -662,6 +662,46 @@ def _message_to_history_dict(message: Any) -> dict[str, Any]:
     return message_dict
 
 
+async def _execute_tool_calls(
+    tool_calls: list[Any],
+    tool_executor: Callable[[Any], Awaitable[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Executes all requested tool calls concurrently.
+
+    Args:
+        tool_calls: The tool_calls list from the assistant message.
+        tool_executor: Async callable that executes a single tool call and
+            returns its tool response message.
+
+    Returns:
+        The tool response messages, in the same order as ``tool_calls``.
+    """
+    return await asyncio.gather(*[tool_executor(tc) for tc in tool_calls])
+
+
+def _finalize_tool_call_response(message: Any, model_name: str) -> str:
+    """Validates and returns the final (non-tool-call) assistant response.
+
+    Args:
+        message: The assistant message from the iteration where the LLM
+            stopped requesting tool calls.
+        model_name: Model name in litellm format, included in the error
+            message when the response is empty.
+
+    Returns:
+        The final response text.
+
+    Raises:
+        ValueError: If the message has no non-whitespace content.
+    """
+    final_content = message.content if message.content else ""
+    if not final_content.strip():
+        logger.error("LLM returned empty final response in tool call loop")
+        raise ValueError("LLM returned empty final response. "
+                         f"Model: {model_name}")
+    return final_content
+
+
 async def call_llm_with_tools(
     prompt: str,
     model_name: str,
@@ -751,25 +791,18 @@ async def call_llm_with_tools(
                 logger.debug("llm requested %s tool calls",
                              len(message.tool_calls))
 
-                # Execute all tool calls in parallel
-                tool_results = await asyncio.gather(
-                    *[tool_executor(tc) for tc in message.tool_calls])
-
-                # Add tool results to message history
-                messages.extend(tool_results)
+                # Execute all tool calls in parallel and add the results to
+                # message history
+                messages.extend(await
+                                _execute_tool_calls(message.tool_calls,
+                                                    tool_executor))
 
                 # Continue loop - LLM will see tool results and respond
                 continue
             else:
                 # No tool calls - this is the final response
-                final_content = message.content if message.content else ""
-
-                # Validate response before caching
-                if not final_content.strip():
-                    logger.error(
-                        "LLM returned empty final response in tool call loop")
-                    raise ValueError("LLM returned empty final response. "
-                                     f"Model: {model_name}")
+                final_content = _finalize_tool_call_response(
+                    message, model_name)
 
                 logger.debug("llm finished after %s iterations", iteration + 1)
 

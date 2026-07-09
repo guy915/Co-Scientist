@@ -157,6 +157,80 @@ async def _run_final_debate_turn(
     )
 
 
+def _build_debate_turn_prompt(
+    state: WorkflowState,
+    count: int,
+    transcript: str,
+    supervisor_guidance: Any,
+    preferences: str | None,
+    attributes: Any,
+    is_final: bool,
+    articles_with_reasoning: str | None,
+    ref_idx: ReferenceIndex,
+    meta_review: Any,
+) -> tuple[str, Any]:
+    """Build the prompt/schema for one debate turn.
+
+    Thin wrapper around get_debate_generation_prompt that isolates its long
+    keyword-argument list from the turn loop in _run_single_debate.
+
+    Args:
+        state: current workflow state
+        count: number of hypotheses this debate is producing (always 1)
+        transcript: accumulated free-form dialogue from earlier turns
+        supervisor_guidance: supervisor guidance carried into every prompt
+        preferences: user preferences, augmented with any diversity
+            instruction
+        attributes: hypothesis attribute constraints from state
+        is_final: whether this is the structured-output final turn
+        articles_with_reasoning: optional literature review context
+        ref_idx: citation key → source mapping for structured citations
+        meta_review: meta-review guidance from state
+
+    Returns:
+        The (prompt, schema) pair for this turn.
+    """
+    return get_debate_generation_prompt(
+        research_goal=state["research_goal"],
+        hypotheses_count=count,
+        transcript=transcript,
+        supervisor_guidance=supervisor_guidance,
+        preferences=preferences,
+        attributes=attributes,
+        is_final_turn=is_final,
+        articles_with_reasoning=articles_with_reasoning,
+        articles=state.get("articles"),
+        tool_registry=state.get("tool_registry"),
+        reference_list=ref_idx.text,
+        meta_review=meta_review,
+        run_setup_guidance=state.get("run_setup_guidance"),
+        run_focus_guidance=state.get("run_focus_guidance"),
+    )
+
+
+async def _run_intermediate_debate_turn(state: WorkflowState,
+                                        prompt: str) -> str:
+    """Run one non-final debate turn and return its free-form response text.
+
+    Args:
+        state: current workflow state
+        prompt: intermediate-turn prompt built from the transcript so far
+
+    Returns:
+        The raw response text to fold into the debate transcript.
+    """
+    # Intermediate turns are unconstrained free text (no JSON schema) - this
+    # is where the adversarial back-and-forth dialogue that gets folded into
+    # transcript actually happens.
+    return await call_llm(
+        prompt=prompt,
+        model_name=state["model_name"],
+        max_tokens=EXTENDED_MAX_TOKENS,
+        temperature=HIGH_TEMPERATURE,
+        use_cache=False,  # keep debate turns fresh too
+    )
+
+
 async def _run_single_debate(
     state: WorkflowState,
     debate_id: int | None = None,
@@ -202,21 +276,17 @@ async def _run_single_debate(
     for turn in range(1, num_turns + 1):
         is_final = turn == num_turns
 
-        prompt, schema = get_debate_generation_prompt(
-            research_goal=state["research_goal"],
-            hypotheses_count=count,
-            transcript=transcript,
-            supervisor_guidance=supervisor_guidance,
-            preferences=preferences,
-            attributes=attributes,
-            is_final_turn=is_final,
-            articles_with_reasoning=articles_with_reasoning,
-            articles=state.get("articles"),
-            tool_registry=state.get("tool_registry"),
-            reference_list=ref_idx.text,
-            meta_review=meta_review,
-            run_setup_guidance=state.get("run_setup_guidance"),
-            run_focus_guidance=state.get("run_focus_guidance"),
+        prompt, schema = _build_debate_turn_prompt(
+            state,
+            count,
+            transcript,
+            supervisor_guidance,
+            preferences,
+            attributes,
+            is_final,
+            articles_with_reasoning,
+            ref_idx,
+            meta_review,
         )
 
         if is_final:
@@ -232,16 +302,7 @@ async def _run_single_debate(
             )
             return hypothesis, transcript
         else:
-            # Intermediate turns are unconstrained free text (no JSON
-            # schema) - this is where the adversarial back-and-forth
-            # dialogue that gets folded into transcript actually happens.
-            response_text = await call_llm(
-                prompt=prompt,
-                model_name=state["model_name"],
-                max_tokens=EXTENDED_MAX_TOKENS,
-                temperature=HIGH_TEMPERATURE,
-                use_cache=False,  # keep debate turns fresh too
-            )
+            response_text = await _run_intermediate_debate_turn(state, prompt)
 
             transcript += f"\n\nTurn {turn}:\n{response_text}"
 

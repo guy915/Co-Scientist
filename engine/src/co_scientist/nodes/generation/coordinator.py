@@ -237,13 +237,25 @@ def _unpack_generation_results(
     )
 
 
-async def _execute_generation_tasks(
+def _build_generation_tasks(
     state: WorkflowState,
     counts: GenerationCounts,
     articles_with_reasoning: str | None,
     reference_index: ReferenceIndex,
-) -> GenerationResults:
-    """Execute parallel generation tasks and return results."""
+) -> list[tuple[str, Coroutine[Any, Any, Any]]]:
+    """Build the (task_type, coroutine) pairs for each enabled strategy.
+
+    Args:
+        state: current workflow state
+        counts: per-strategy hypothesis counts from
+            _determine_generation_counts.
+        articles_with_reasoning: optional literature review context.
+        reference_index: citation key → source mapping shared across
+            strategies.
+
+    Returns:
+        Task list in the order they should be passed to asyncio.gather.
+    """
     # Collect tasks to run in parallel. Each entry pairs a tag with its
     # coroutine so results can be routed back to the right bucket after
     # asyncio.gather() returns them in call order (order is not otherwise
@@ -285,6 +297,19 @@ async def _execute_generation_tasks(
                 reference_index=ReferenceIndex(text="", sources={}),
             ),
         ))
+
+    return tasks
+
+
+async def _execute_generation_tasks(
+    state: WorkflowState,
+    counts: GenerationCounts,
+    articles_with_reasoning: str | None,
+    reference_index: ReferenceIndex,
+) -> GenerationResults:
+    """Execute parallel generation tasks and return results."""
+    tasks = _build_generation_tasks(state, counts, articles_with_reasoning,
+                                    reference_index)
 
     # Run all tasks in parallel; gather preserves the order tasks were
     # appended in, which is what the index-based unpack in
@@ -467,6 +492,19 @@ async def _enrich_hypotheses(
 # Main coordinator function
 
 
+def _log_reference_index_summary(reference_index: ReferenceIndex) -> None:
+    """Log a paper/KG-source breakdown of a non-empty reference index."""
+    if not reference_index.is_empty():
+        # Keys are uniformly "C<n>"; the paper/KG split lives in each
+        # source's "type" field (see build_reference_index).
+        logger.info(
+            "Built reference index: %s paper(s), %s KG source(s)",
+            sum(1 for s in reference_index.sources.values()
+                if s.get("type") == "paper"),
+            sum(1 for s in reference_index.sources.values()
+                if s.get("type") == "knowledge_graph"))
+
+
 async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
     """Coordinate hypothesis generation using appropriate strategies.
 
@@ -509,15 +547,7 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
         articles=state.get("articles"),
         context_enrichment_sources=state.get("context_enrichment_sources"),
     )
-    if not reference_index.is_empty():
-        # Keys are uniformly "C<n>"; the paper/KG split lives in each
-        # source's "type" field (see build_reference_index).
-        logger.info(
-            "Built reference index: %s paper(s), %s KG source(s)",
-            sum(1 for s in reference_index.sources.values()
-                if s.get("type") == "paper"),
-            sum(1 for s in reference_index.sources.values()
-                if s.get("type") == "knowledge_graph"))
+    _log_reference_index_summary(reference_index)
 
     _log_generation_strategy(counts, total_count)
     await _emit_start_progress(state, counts, total_count)

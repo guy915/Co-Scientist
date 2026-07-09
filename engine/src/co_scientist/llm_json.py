@@ -301,6 +301,30 @@ def get_fallback_response(
     return None
 
 
+def _default_for_field_schema(field_schema: dict[str, Any]) -> Any:
+    """Returns a type-neutral placeholder value for a schema field.
+
+    Args:
+        field_schema: JSON schema node describing the missing field.
+
+    Returns:
+        The first enum value (or empty string) for a "string" type, ``{}``
+        for "object", ``[]`` for "array", ``0`` for "integer"/"number", and
+        an empty string for any other (or missing) declared type.
+    """
+    field_type = field_schema.get("type")
+    if field_type == "string":
+        return field_schema["enum"][0] if "enum" in field_schema else ""
+    elif field_type == "object":
+        return {}
+    elif field_type == "array":
+        return []
+    elif field_type in ("integer", "number"):
+        return 0
+    else:
+        return ""
+
+
 def _backfill_required_fields(obj: Any, schema: Any) -> None:
     """Recursively fills missing required fields with empty defaults.
 
@@ -325,19 +349,7 @@ def _backfill_required_fields(obj: Any, schema: Any) -> None:
     # default so the schema's "required" check passes on validation.
     for field in schema.get("required", []):
         if field not in obj and field in props:
-            field_schema = props[field]
-            field_type = field_schema.get("type")
-            if field_type == "string":
-                obj[field] = (field_schema["enum"][0]
-                              if "enum" in field_schema else "")
-            elif field_type == "object":
-                obj[field] = {}
-            elif field_type == "array":
-                obj[field] = []
-            elif field_type in ("integer", "number"):
-                obj[field] = 0
-            else:
-                obj[field] = ""
+            obj[field] = _default_for_field_schema(props[field])
     # Step 2: recurse into every property present in obj -- both fields that
     # were already there and ones just backfilled above -- so nested
     # required fields at any depth get the same treatment.

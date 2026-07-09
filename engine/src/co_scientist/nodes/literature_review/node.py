@@ -13,7 +13,7 @@ Orchestrates a multi-phase literature review process:
 import asyncio
 import logging
 import os
-from typing import Any
+from typing import Any, cast
 
 from co_scientist.constants import (
     corpus_slug,
@@ -21,11 +21,12 @@ from co_scientist.constants import (
     LITERATURE_REVIEW_PAPERS_COUNT_DEV,
     LITERATURE_REVIEW_FAILED,
 )
-from co_scientist.cache import get_node_cache
+from co_scientist.cache import get_node_cache, NodeCache
 from co_scientist.config.registry import parse_bool_env
 from co_scientist.mcp_client import (
     get_mcp_client,
     check_literature_source_available,
+    MCPToolClient,
 )
 from co_scientist.models import Article
 from co_scientist.state import WorkflowState
@@ -275,6 +276,149 @@ def _append_kg_evidence_section(
 
 
 # =============================================================================
+# Phase orchestration helpers
+#
+# Each helper below wraps one self-contained step of literature_review_node's
+# phase sequence (a cache/availability gate, or a parallel phase dispatch),
+# factored out purely to keep the orchestrator's phase sequence readable.
+# =============================================================================
+
+
+async def _check_cache(
+    state: WorkflowState,
+    node_cache: NodeCache,
+    cache_params: dict[str, Any],
+    force_cache: bool,
+) -> dict[str, Any] | None:
+    """Return the cached literature review result, if any.
+
+    Keyed only on research_goal, so identical goals across runs reuse the
+    full literature review output (queries, articles, and synthesis) instead
+    of re-running every phase.
+
+    Returns:
+        The cached result dict on a cache hit, else None.
+    """
+    cached = node_cache.get("literature_review",
+                            force=force_cache,
+                            **cache_params)
+    if cached is None:
+        return None
+
+    logger.info("Literature review cache hit")
+    await emit_progress(state,
+                        "literature_review_complete",
+                        "Literature review completed (cached)",
+                        0.2,
+                        cached=True)
+    return cached
+
+
+async def _check_source_available(
+    state: WorkflowState,
+    config: SearchConfig,
+) -> dict[str, Any] | None:
+    """Verify the configured literature MCP source is reachable.
+
+    Fails fast (before spending any LLM calls on query generation) if the
+    configured literature MCP tool is unreachable.
+
+    Returns:
+        A failure result dict if unavailable, else None to continue.
+    """
+    source_available = await check_literature_source_available(
+        tool_registry=config.tool_registry)
+    if source_available:
+        return None
+
+    logger.error("Literature source MCP service unavailable")
+    await emit_progress(state, "literature_review_error",
+                        "Literature review failed (source unavailable)", 0.2)
+    return make_failure_result("literature source service unavailable")
+
+
+async def _phase2_collect_papers(
+    queries: list[str],
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    search_errors: list[str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """Phase 2: collect papers from configured sources.
+
+    Dispatches to the multi-source or single-source collection path based on
+    config.is_multi_source. The slug ties this run's searches to the shared
+    on-disk corpus so a warm-started corpus from a prior run/tool-based
+    generation phase is reused rather than re-downloaded.
+    """
+    slug = corpus_slug(state["research_goal"])
+
+    if config.is_multi_source:
+        return await _phase2_collect_papers_multi_source(
+            queries, slug, state, config, mcp_client, search_errors)
+    return await _phase2_collect_papers_single_source(queries, slug, state,
+                                                      config, mcp_client,
+                                                      search_errors)
+
+
+async def _fetch_content_and_enrichment(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    paper_source_map: dict[str, str],
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+    state: WorkflowState,
+) -> tuple[str, list[dict[str, Any]]]:
+    """Phase 2.5 + 2.6: fetch content and context enrichment in parallel.
+
+    These two phases are independent of each other (content fetching acts on
+    already-collected papers; enrichment queries external KG tools using
+    entities from the research goal), so running them concurrently shaves
+    wall-clock time off the node.
+
+    Returns:
+        (background_context, context_enrichment_sources) from Phase 2.6.
+    """
+    content_task = _phase2_5_fetch_content(all_paper_metadata, paper_source_map,
+                                           config, mcp_client, state)
+    enrichment_task = _phase2_6_fetch_context_enrichment(
+        state, config, mcp_client)
+    _, enrichment_result = await asyncio.gather(content_task, enrichment_task)
+    return cast(tuple[str, list[dict[str, Any]]], enrichment_result)
+
+
+def _build_and_cache_result(
+    synthesis: str,
+    queries: list[str],
+    articles: list[Article],
+    context_enrichment_sources: list[dict[str, Any]],
+    node_cache: NodeCache,
+    cache_params: dict[str, Any],
+    force_cache: bool,
+) -> dict[str, Any]:
+    """Build the success result dict and populate the node cache with it.
+
+    make_success_result always reports "success" even when synthesis is the
+    LITERATURE_REVIEW_FAILED sentinel (that case only reaches here via the
+    paper_analyses-empty branch, which still returns a normal-looking result
+    dict rather than an early failure return) - downstream nodes rely on
+    checking articles_with_reasoning for the sentinel rather than a
+    top-level status field.
+
+    Cached under the same force_cache flag used for the lookup, so a
+    dev-isolation run that missed the cache still populates it for the next
+    call.
+    """
+    result = make_success_result(synthesis, queries, articles)
+    if context_enrichment_sources:
+        result["context_enrichment_sources"] = context_enrichment_sources
+    node_cache.set("literature_review",
+                   result,
+                   force=force_cache,
+                   **cache_params)
+    return result
+
+
+# =============================================================================
 # Main node function
 # =============================================================================
 
@@ -298,9 +442,6 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
                 config.is_dev_mode, config.papers_to_read_count)
 
     # Check cache
-    # Keyed only on research_goal, so identical goals across runs reuse the
-    # full literature review output (queries, articles, and synthesis)
-    # instead of re-running every phase below.
     node_cache = get_node_cache()
     cache_params = {"research_goal": state["research_goal"]}
     # dev_test_lit_tools_isolation forces cache use even when the global
@@ -312,29 +453,14 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     if force_cache:
         logger.info("Dev isolation mode: forcing literature review cache")
 
-    cached = node_cache.get("literature_review",
-                            force=force_cache,
-                            **cache_params)
+    cached = await _check_cache(state, node_cache, cache_params, force_cache)
     if cached is not None:
-        logger.info("Literature review cache hit")
-        await emit_progress(state,
-                            "literature_review_complete",
-                            "Literature review completed (cached)",
-                            0.2,
-                            cached=True)
         return cached
 
     # Check source availability
-    # Fails fast (before spending any LLM calls on query generation) if the
-    # configured literature MCP tool is unreachable.
-    source_available = await check_literature_source_available(
-        tool_registry=config.tool_registry)
-    if not source_available:
-        logger.error("Literature source MCP service unavailable")
-        await emit_progress(state, "literature_review_error",
-                            "Literature review failed (source unavailable)",
-                            0.2)
-        return make_failure_result("literature source service unavailable")
+    unavailable_result = await _check_source_available(state, config)
+    if unavailable_result is not None:
+        return unavailable_result
 
     await emit_progress(state, "literature_review_start",
                         "Conducting literature review...", 0.1)
@@ -346,22 +472,9 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     queries = await _phase1_generate_queries(state, config, mcp_client)
 
     # Phase 2: collect papers
-    # slug ties this run's searches to the shared on-disk corpus (see
-    # corpus_slug docstring) so a warm-started corpus from a prior run/
-    # tool-based generation phase is reused rather than re-downloaded.
-    slug = corpus_slug(state["research_goal"])
-
     search_errors: list[str] = []
-    if config.is_multi_source:
-        all_paper_metadata, paper_source_map = (
-            await _phase2_collect_papers_multi_source(queries, slug, state,
-                                                      config, mcp_client,
-                                                      search_errors))
-    else:
-        all_paper_metadata, paper_source_map = (
-            await _phase2_collect_papers_single_source(queries, slug, state,
-                                                       config, mcp_client,
-                                                       search_errors))
+    all_paper_metadata, paper_source_map = await _phase2_collect_papers(
+        queries, state, config, mcp_client, search_errors)
 
     if not all_paper_metadata:
         await _emit_empty_search_diagnostics(state, queries, search_errors)
@@ -373,16 +486,10 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
                                        config, mcp_client)
 
     # Phase 2.5 + 2.6: fetch content and context enrichment in parallel
-    # These two phases are independent of each other (content fetching acts
-    # on already-collected papers; enrichment queries external KG tools
-    # using entities from the research goal), so running them concurrently
-    # shaves wall-clock time off the node.
-    content_task = _phase2_5_fetch_content(all_paper_metadata, paper_source_map,
-                                           config, mcp_client, state)
-    enrichment_task = _phase2_6_fetch_context_enrichment(
-        state, config, mcp_client)
-    _, enrichment_result = await asyncio.gather(content_task, enrichment_task)
-    background_context, context_enrichment_sources = enrichment_result
+    background_context, context_enrichment_sources = (
+        await _fetch_content_and_enrichment(all_paper_metadata,
+                                            paper_source_map, config,
+                                            mcp_client, state))
 
     # Check fulltext availability
     with_fulltext, without_fulltext = count_papers_with_fulltext(
@@ -449,21 +556,6 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
         " %s char synthesis", len(articles), len(queries), len(synthesis))
 
     # Build and cache result
-    # make_success_result always reports "success" even when synthesis is
-    # the LITERATURE_REVIEW_FAILED sentinel (that case only reaches here via
-    # the paper_analyses-empty branch above, which still returns a
-    # normal-looking result dict rather than an early failure return) --
-    # downstream nodes rely on checking articles_with_reasoning for the
-    # sentinel rather than a top-level status field.
-    result = make_success_result(synthesis, queries, articles)
-    if context_enrichment_sources:
-        result["context_enrichment_sources"] = context_enrichment_sources
-    # Cached under the same force_cache flag used for the lookup above, so
-    # a dev-isolation run that missed the cache still populates it for the
-    # next call.
-    node_cache.set("literature_review",
-                   result,
-                   force=force_cache,
-                   **cache_params)
-
-    return result
+    return _build_and_cache_result(synthesis, queries, articles,
+                                   context_enrichment_sources, node_cache,
+                                   cache_params, force_cache)
