@@ -13,6 +13,7 @@ Orchestrates a multi-phase literature review process:
 import asyncio
 import logging
 import os
+from dataclasses import dataclass
 from typing import Any, cast
 
 from co_scientist.constants import (
@@ -418,6 +419,199 @@ def _build_and_cache_result(
     return result
 
 
+@dataclass
+class _CollectionResult:
+    """Bundled output of Phases 2 through 2.6 for the orchestrator.
+
+    Attributes:
+        all_paper_metadata: Collected paper metadata keyed by paper ID.
+        paper_source_map: Maps paper ID to the source name it came from.
+        search_errors: Error strings from any failed search calls.
+        background_context: Context-enrichment text for Phase 4 synthesis.
+        context_enrichment_sources: Raw KG source dicts for citation keys.
+        with_fulltext: Count of papers that have usable fulltext.
+        without_fulltext: Count of papers missing usable fulltext.
+    """
+    all_paper_metadata: dict[str, dict[str, Any]]
+    paper_source_map: dict[str, str]
+    search_errors: list[str]
+    background_context: str
+    context_enrichment_sources: list[dict[str, Any]]
+    with_fulltext: int
+    without_fulltext: int
+
+
+def _initialize_review(
+    state: WorkflowState,
+) -> tuple[SearchConfig, NodeCache, dict[str, Any], bool]:
+    """Resolves search config and cache lookup parameters for this run.
+
+    Returns:
+        A (config, node_cache, cache_params, force_cache) tuple.
+    """
+    config = _get_search_config(state)
+    logger.info("Literature review config: dev_mode=%s, papers=%s",
+                config.is_dev_mode, config.papers_to_read_count)
+
+    node_cache = get_node_cache()
+    cache_params = {"research_goal": state["research_goal"]}
+    # dev_test_lit_tools_isolation forces cache use even when the global
+    # cache is disabled, so a developer iterating on the downstream
+    # lit-tools generation phase can skip re-running this expensive node
+    # every time.
+    force_cache = bool(state.get("dev_test_lit_tools_isolation", False))
+    if force_cache:
+        logger.info("Dev isolation mode: forcing literature review cache")
+
+    return config, node_cache, cache_params, force_cache
+
+
+async def _collect_and_enrich_papers(
+    queries: list[str],
+    state: WorkflowState,
+    config: SearchConfig,
+    mcp_client: MCPToolClient,
+) -> _CollectionResult:
+    """Phases 2 through 2.6: collect, discover PDFs, fetch content/enrichment.
+
+    Returns:
+        A _CollectionResult bundling the collected papers and fulltext
+        counts.
+    """
+    search_errors: list[str] = []
+    all_paper_metadata, paper_source_map = await _phase2_collect_papers(
+        queries, state, config, mcp_client, search_errors)
+
+    if not all_paper_metadata:
+        await _emit_empty_search_diagnostics(state, queries, search_errors)
+
+    # Phase 2.4: discover PDF links. Mutates all_paper_metadata in place
+    # (no-op when no pdf_discovery_tool is configured for any source).
+    await _phase2_4_discover_pdf_links(all_paper_metadata, paper_source_map,
+                                       config, mcp_client)
+
+    # Phase 2.5 + 2.6: fetch content and context enrichment in parallel
+    background_context, context_enrichment_sources = (
+        await _fetch_content_and_enrichment(all_paper_metadata,
+                                            paper_source_map, config,
+                                            mcp_client, state))
+
+    with_fulltext, without_fulltext = count_papers_with_fulltext(
+        all_paper_metadata)
+    logger.info("Collected %s papers (%s with fulltext)",
+                len(all_paper_metadata), with_fulltext)
+    if without_fulltext > 0:
+        logger.warning("%s papers do not have fulltexts available",
+                       without_fulltext)
+
+    return _CollectionResult(
+        all_paper_metadata=all_paper_metadata,
+        paper_source_map=paper_source_map,
+        search_errors=search_errors,
+        background_context=background_context,
+        context_enrichment_sources=context_enrichment_sources,
+        with_fulltext=with_fulltext,
+        without_fulltext=without_fulltext,
+    )
+
+
+async def _handle_collection_edge_cases(
+    state: WorkflowState,
+    collected: _CollectionResult,
+    queries: list[str],
+    config: SearchConfig,
+) -> dict[str, Any] | None:
+    """Builds an early failure result if collection yielded nothing usable.
+
+    Zero papers collected is a hard failure (nothing to analyze or
+    synthesize from); zero papers with fulltext is also a hard failure for
+    Phase 3 analysis, though still surfaced with the collected metadata.
+
+    Returns:
+        A failure result dict if either edge case applies, else None to
+        continue to analysis.
+    """
+    if len(collected.all_paper_metadata) == 0:
+        return await _handle_no_papers_found(state, queries)
+
+    if collected.with_fulltext == 0:
+        return await _handle_no_fulltext_available(state,
+                                                   collected.all_paper_metadata,
+                                                   queries, config.source_name)
+
+    return None
+
+
+async def _analyze_and_synthesize(
+    all_paper_metadata: dict[str, dict[str, Any]],
+    state: WorkflowState,
+    background_context: str,
+) -> str:
+    """Phase 3 + 4: analyze papers for gaps/limitations, then synthesize.
+
+    Guards against calling the synthesis LLM with an empty analyses list
+    (redundant with _phase4_synthesize's own check, but avoids the
+    call/log noise entirely when Phase 3 produced nothing).
+
+    Returns:
+        The synthesis text, or the LITERATURE_REVIEW_FAILED sentinel if
+        Phase 3 produced no analyses.
+    """
+    paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
+    if not paper_analyses:
+        return LITERATURE_REVIEW_FAILED
+    return await _phase4_synthesize(paper_analyses, state, background_context)
+
+
+def _finalize_synthesis_and_articles(
+    synthesis: str,
+    all_paper_metadata: dict[str, dict[str, Any]],
+    context_enrichment_sources: list[dict[str, Any]],
+    source_name: str,
+) -> tuple[str, list[Article]]:
+    """Phase 5: builds article objects and appends KG evidence to synthesis.
+
+    Built from all_paper_metadata (not just the analyzed subset) so
+    `articles` in the returned state includes every collected paper,
+    whether or not it had content for Phase 3 analysis. KG evidence keys
+    are appended aligned to the reference index (see
+    _append_kg_evidence_section for why the keys line up).
+
+    Returns:
+        The (synthesis, articles) pair to return from the node.
+    """
+    logger.info("Phase 5: creating article objects")
+    articles = build_articles_from_metadata(all_paper_metadata, source_name)
+    logger.info("Created %s article objects", len(articles))
+
+    synthesis = _append_kg_evidence_section(synthesis, articles,
+                                            context_enrichment_sources)
+    return synthesis, articles
+
+
+async def _emit_and_log_completion(
+    state: WorkflowState,
+    queries: list[str],
+    articles: list[Article],
+    search_errors: list[str],
+    synthesis: str,
+) -> None:
+    """Emits the completion progress event and logs the final summary."""
+    await emit_progress(
+        state,
+        "literature_review_complete",
+        "Literature review completed",
+        0.2,
+        queries_count=len(queries),
+        articles_count=len(articles),
+        search_errors_count=len(search_errors),
+    )
+
+    logger.info(
+        "Literature review complete: %s articles from %s queries,"
+        " %s char synthesis", len(articles), len(queries), len(synthesis))
+
+
 # =============================================================================
 # Main node function
 # =============================================================================
@@ -436,28 +630,12 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     """
     logger.info("Starting literature review node")
 
-    # Setup configuration
-    config = _get_search_config(state)
-    logger.info("Literature review config: dev_mode=%s, papers=%s",
-                config.is_dev_mode, config.papers_to_read_count)
-
-    # Check cache
-    node_cache = get_node_cache()
-    cache_params = {"research_goal": state["research_goal"]}
-    # dev_test_lit_tools_isolation forces cache use even when the global
-    # cache is disabled, so a developer iterating on the downstream
-    # lit-tools generation phase can skip re-running this expensive node
-    # every time.
-    force_cache = bool(state.get("dev_test_lit_tools_isolation", False))
-
-    if force_cache:
-        logger.info("Dev isolation mode: forcing literature review cache")
+    config, node_cache, cache_params, force_cache = _initialize_review(state)
 
     cached = await _check_cache(state, node_cache, cache_params, force_cache)
     if cached is not None:
         return cached
 
-    # Check source availability
     unavailable_result = await _check_source_available(state, config)
     if unavailable_result is not None:
         return unavailable_result
@@ -465,97 +643,35 @@ async def literature_review_node(state: WorkflowState) -> dict[str, Any]:
     await emit_progress(state, "literature_review_start",
                         "Conducting literature review...", 0.1)
 
-    # Initialize MCP client
     mcp_client = await get_mcp_client(tool_registry=config.tool_registry)
 
     # Phase 1: generate queries
     queries = await _phase1_generate_queries(state, config, mcp_client)
 
-    # Phase 2: collect papers
-    search_errors: list[str] = []
-    all_paper_metadata, paper_source_map = await _phase2_collect_papers(
-        queries, state, config, mcp_client, search_errors)
+    # Phases 2-2.6: collect papers, discover PDFs, fetch content/enrichment
+    collected = await _collect_and_enrich_papers(queries, state, config,
+                                                 mcp_client)
 
-    if not all_paper_metadata:
-        await _emit_empty_search_diagnostics(state, queries, search_errors)
+    edge_case_result = await _handle_collection_edge_cases(
+        state, collected, queries, config)
+    if edge_case_result is not None:
+        return edge_case_result
 
-    # Phase 2.4: discover PDF links
-    # Mutates all_paper_metadata in place (no-op when no pdf_discovery_tool
-    # is configured for any source).
-    await _phase2_4_discover_pdf_links(all_paper_metadata, paper_source_map,
-                                       config, mcp_client)
+    _log_sample_papers(collected.all_paper_metadata)
 
-    # Phase 2.5 + 2.6: fetch content and context enrichment in parallel
-    background_context, context_enrichment_sources = (
-        await _fetch_content_and_enrichment(all_paper_metadata,
-                                            paper_source_map, config,
-                                            mcp_client, state))
+    # Phase 3 + 4: analyze papers, then synthesize
+    synthesis = await _analyze_and_synthesize(collected.all_paper_metadata,
+                                              state,
+                                              collected.background_context)
 
-    # Check fulltext availability
-    with_fulltext, without_fulltext = count_papers_with_fulltext(
-        all_paper_metadata)
-    logger.info("Collected %s papers (%s with fulltext)",
-                len(all_paper_metadata), with_fulltext)
+    # Phase 5: create articles and append KG evidence
+    synthesis, articles = _finalize_synthesis_and_articles(
+        synthesis, collected.all_paper_metadata,
+        collected.context_enrichment_sources, config.source_name)
 
-    if without_fulltext > 0:
-        logger.warning("%s papers do not have fulltexts available",
-                       without_fulltext)
+    await _emit_and_log_completion(state, queries, articles,
+                                   collected.search_errors, synthesis)
 
-    # Handle edge cases
-    # Zero papers collected is a hard failure (nothing to analyze or
-    # synthesize from).
-    if len(all_paper_metadata) == 0:
-        return await _handle_no_papers_found(state, queries)
-
-    if with_fulltext == 0:
-        return await _handle_no_fulltext_available(state, all_paper_metadata,
-                                                   queries, config.source_name)
-
-    _log_sample_papers(all_paper_metadata)
-
-    # Phase 3: analyze papers
-    paper_analyses = await _phase3_analyze_papers(all_paper_metadata, state)
-
-    # Phase 4: synthesize
-    # Guards against calling the synthesis LLM with an empty analyses list
-    # (redundant with _phase4_synthesize's own check, but avoids the
-    # call/log noise entirely when Phase 3 produced nothing).
-    if paper_analyses:
-        synthesis = await _phase4_synthesize(paper_analyses, state,
-                                             background_context)
-    else:
-        synthesis = LITERATURE_REVIEW_FAILED
-
-    # Phase 5: create articles
-    # Built from all_paper_metadata (not just the analyzed subset) so
-    # `articles` in the returned state includes every collected paper,
-    # whether or not it had content for Phase 3 analysis.
-    logger.info("Phase 5: creating article objects")
-    articles = build_articles_from_metadata(all_paper_metadata,
-                                            config.source_name)
-    logger.info("Created %s article objects", len(articles))
-
-    # Append knowledge graph evidence with [C*] keys aligned to the reference
-    # index (see _append_kg_evidence_section for why the keys line up).
-    synthesis = _append_kg_evidence_section(synthesis, articles,
-                                            context_enrichment_sources)
-
-    # Emit completion
-    await emit_progress(
-        state,
-        "literature_review_complete",
-        "Literature review completed",
-        0.2,
-        queries_count=len(queries),
-        articles_count=len(articles),
-        search_errors_count=len(search_errors),
-    )
-
-    logger.info(
-        "Literature review complete: %s articles from %s queries,"
-        " %s char synthesis", len(articles), len(queries), len(synthesis))
-
-    # Build and cache result
     return _build_and_cache_result(synthesis, queries, articles,
-                                   context_enrichment_sources, node_cache,
-                                   cache_params, force_cache)
+                                   collected.context_enrichment_sources,
+                                   node_cache, cache_params, force_cache)

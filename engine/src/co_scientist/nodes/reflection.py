@@ -2,6 +2,7 @@
 # pylint: disable=inconsistent-quotes
 
 import asyncio
+from collections.abc import Coroutine
 import logging
 from typing import Any
 
@@ -132,18 +133,10 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     # depends on the (MCP-gated) literature_review node having run and
     # succeeded. If that node was skipped or failed, this node is a no-op
     # and hypotheses proceed to review with no reflection_notes set.
-    # Get articles with reasoning from state
-    articles_with_reasoning = state.get("articles_with_reasoning")
-    if not articles_with_reasoning:
-        logger.warning(
-            "No articles_with_reasoning in state, skipping reflection")
+    inputs = _extract_reflection_inputs(state)
+    if inputs is None:
         return {}
-
-    # Get hypotheses from state
-    hypotheses = state.get("hypotheses", [])
-    if not hypotheses:
-        logger.warning("No hypotheses in state, skipping reflection")
-        return {}
+    articles_with_reasoning, hypotheses = inputs
 
     logger.debug("analyzing %s hypotheses against literature", len(hypotheses))
 
@@ -159,35 +152,8 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
 
     # Analyze all hypotheses in parallel
     logger.info("Running %s reflection analyses in parallel", len(hypotheses))
-
-    # tool_registry/meta_review are threaded through to every parallel task
-    # below as shared, read-only context. In the current graph wiring,
-    # "reflection" is reached only once, from "generate", before the
-    # iteration cycle produces a meta_review, so meta_review is effectively
-    # always empty here; evolved hypotheses re-enter "review" directly and
-    # never pass back through reflection.
-    tool_registry = state.get("tool_registry")
-    meta_review = state.get("meta_review")
-    # No semaphore caps concurrency here (unlike the ranking and
-    # deep_verification nodes), so one LLM call fires per hypothesis at once.
-    analysis_tasks = [
-        analyze_single_hypothesis(
-            hypothesis=hyp,
-            articles_with_reasoning=articles_with_reasoning,
-            model_name=state["model_name"],
-            hypothesis_index=i + 1,
-            total_count=len(hypotheses),
-            run_id=state.get("run_id"),
-            tool_registry=tool_registry,
-            meta_review=meta_review,
-        ) for i, hyp in enumerate(hypotheses)
-    ]
-
-    # Gather all results
-    # asyncio.gather preserves input order, so zipping hypotheses against
-    # analysis_results by position is safe even though the tasks ran
-    # concurrently.
-    analysis_results = await asyncio.gather(*analysis_tasks)
+    analysis_results = await _run_reflection_analysis(state, hypotheses,
+                                                      articles_with_reasoning)
 
     # Apply results to hypotheses
     _apply_reflection_results(hypotheses, analysis_results)
@@ -202,10 +168,49 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Completed reflection analysis for %s hypotheses",
                 len(hypotheses))
 
-    # hypotheses is the same list of objects fetched from state, mutated
-    # in place above; returning it back through the "hypotheses" key hits
-    # the deduplicate_hypotheses reducer (state.py) with 100% text overlap,
-    # so it is treated as a same-set replacement rather than an addition.
+    return _build_reflection_result(hypotheses)
+
+
+async def _run_reflection_analysis(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    articles_with_reasoning: str,
+) -> list[dict[str, Any] | None]:
+    """Runs reflection analysis for every hypothesis concurrently.
+
+    asyncio.gather preserves input order, so the caller can zip hypotheses
+    against the returned results by position even though the tasks ran
+    concurrently.
+
+    Args:
+        state: current workflow state.
+        hypotheses: hypotheses to analyze.
+        articles_with_reasoning: literature review context shared by all
+            tasks.
+
+    Returns:
+        Per-hypothesis result dicts, in the same order as hypotheses.
+    """
+    analysis_tasks = _build_analysis_tasks(state, hypotheses,
+                                           articles_with_reasoning)
+    return await asyncio.gather(*analysis_tasks)
+
+
+def _build_reflection_result(hypotheses: list[Hypothesis]) -> dict[str, Any]:
+    """Assembles the reflection_node return dict.
+
+    hypotheses is the same list of objects fetched from state, mutated in
+    place by _apply_reflection_results; returning it back through the
+    "hypotheses" key hits the deduplicate_hypotheses reducer (state.py)
+    with 100% text overlap, so it is treated as a same-set replacement
+    rather than an addition.
+
+    Args:
+        hypotheses: hypotheses with reflection results applied.
+
+    Returns:
+        Dict with updated state fields (hypotheses, messages).
+    """
     return {
         "hypotheses":
             hypotheses,
@@ -214,6 +219,71 @@ async def reflection_node(state: WorkflowState) -> dict[str, Any]:
                 "reflection", f"completed reflection analysis for"
                 f" {len(hypotheses)} hypotheses"),
     }
+
+
+def _extract_reflection_inputs(
+        state: WorkflowState) -> tuple[str, list[Hypothesis]] | None:
+    """Pulls the literature and hypotheses reflection needs out of state.
+
+    Args:
+        state: current workflow state.
+
+    Returns:
+        Tuple of (articles_with_reasoning, hypotheses), or None if either
+        is missing, in which case the caller should no-op.
+    """
+    articles_with_reasoning = state.get("articles_with_reasoning")
+    if not articles_with_reasoning:
+        logger.warning(
+            "No articles_with_reasoning in state, skipping reflection")
+        return None
+
+    hypotheses = state.get("hypotheses", [])
+    if not hypotheses:
+        logger.warning("No hypotheses in state, skipping reflection")
+        return None
+
+    return articles_with_reasoning, hypotheses
+
+
+def _build_analysis_tasks(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    articles_with_reasoning: str,
+) -> list[Coroutine[Any, Any, dict[str, Any] | None]]:
+    """Builds the per-hypothesis reflection coroutines to run concurrently.
+
+    tool_registry/meta_review are threaded through to every task below as
+    shared, read-only context. In the current graph wiring, "reflection" is
+    reached only once, from "generate", before the iteration cycle produces
+    a meta_review, so meta_review is effectively always empty here; evolved
+    hypotheses re-enter "review" directly and never pass back through
+    reflection. No semaphore caps concurrency here (unlike the ranking and
+    deep_verification nodes), so one LLM call fires per hypothesis at once.
+
+    Args:
+        state: current workflow state.
+        hypotheses: hypotheses to analyze.
+        articles_with_reasoning: literature review context shared by all
+            tasks.
+
+    Returns:
+        List of analyze_single_hypothesis coroutines, one per hypothesis.
+    """
+    tool_registry = state.get("tool_registry")
+    meta_review = state.get("meta_review")
+    return [
+        analyze_single_hypothesis(
+            hypothesis=hyp,
+            articles_with_reasoning=articles_with_reasoning,
+            model_name=state["model_name"],
+            hypothesis_index=i + 1,
+            total_count=len(hypotheses),
+            run_id=state.get("run_id"),
+            tool_registry=tool_registry,
+            meta_review=meta_review,
+        ) for i, hyp in enumerate(hypotheses)
+    ]
 
 
 def _apply_reflection_results(

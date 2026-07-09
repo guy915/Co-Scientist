@@ -5,7 +5,7 @@ import asyncio
 import json
 import logging
 import random
-from typing import Any
+from typing import Any, Coroutine
 
 from co_scientist.constants import (
     EXTENDED_MAX_TOKENS,
@@ -623,27 +623,29 @@ def _collect_evolution_results(
     return evolved_hypotheses, evolution_details
 
 
-async def evolve_node(state: WorkflowState) -> dict[str, Any]:
-    """Evolve top-k hypotheses with context-aware refinement.
-
-    This node implements the most impactful anti-duplicate strategy:
-    context-aware evolution where each LLM call knows what all other
-    hypotheses are to prevent convergence.
+async def _prepare_evolution_round(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+) -> tuple[list[Hypothesis], list[str], dict[str, Any] | None]:
+    """Selects the evolution pool and emits the start-of-phase progress.
 
     Args:
-        state: Current workflow state
+        state: Current workflow state.
+        hypotheses: Hypothesis pool entering evolution; assumed already
+            sorted by descending Elo rating (set by ranking_node).
 
     Returns:
-        Dictionary with updated state fields (evolved hypotheses)
+        Tuple of (top_k hypotheses to evolve, flattened previously removed
+        duplicate texts, supervisor guidance for the evolution phase).
     """
-    hypotheses = state["hypotheses"]
     evolution_max_count = state.get("evolution_max_count", 10)
 
     # Calculate actual number to evolve (may be less than max if fewer
     # hypotheses available)
     # evolution_max_count doubles as the size of the pool going forward
-    # (see "Keep ONLY the evolved hypotheses" below), so clamp it to the
-    # available count rather than evolving hypotheses that do not exist.
+    # (see "Keep ONLY the evolved hypotheses" in _finalize_evolve_result),
+    # so clamp it to the available count rather than evolving hypotheses
+    # that do not exist.
     actual_count = min(len(hypotheses), evolution_max_count)
 
     logger.info("Evolving top %s hypotheses", actual_count)
@@ -674,10 +676,32 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     # Get supervisor guidance from state
     supervisor_guidance = state.get("supervisor_guidance")
 
-    # Evolve each hypothesis with strategically sampled context (PARALLEL)
-    # instead of including ALL other hypotheses, we sample a subset to control
-    # token budget
-    evolution_tasks = [
+    return top_k, removed_duplicates, supervisor_guidance
+
+
+def _build_evolution_tasks(
+    state: WorkflowState,
+    top_k: list[Hypothesis],
+    removed_duplicates: list[str],
+    supervisor_guidance: dict[str, Any] | None,
+) -> list[Coroutine[Any, Any, tuple[Hypothesis, dict[str, Any] | None]]]:
+    """Builds the per-hypothesis evolution coroutines for this round.
+
+    Evolve each hypothesis with strategically sampled context (PARALLEL):
+    instead of including ALL other hypotheses, we sample a subset to
+    control token budget.
+
+    Args:
+        state: Current workflow state.
+        top_k: Hypotheses selected for evolution this round.
+        removed_duplicates: Flattened previously removed duplicate texts.
+        supervisor_guidance: Supervisor guidance for the evolution phase.
+
+    Returns:
+        List of evolve_single_hypothesis coroutines, one per hypothesis in
+        top_k, ready to be awaited via asyncio.gather.
+    """
+    return [
         evolve_single_hypothesis(
             hypothesis=hyp,
             # Context is sampled from top_k (the peers also being evolved
@@ -702,22 +726,37 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
         ) for i, hyp in enumerate(top_k)
     ]
 
-    results = await asyncio.gather(*evolution_tasks)
 
-    # Unpack results: (hypothesis, evolution_detail or None)
-    evolved_hypotheses, evolution_details = _collect_evolution_results(results)
+async def _finalize_evolve_result(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    evolved_hypotheses: list[Hypothesis],
+    evolution_details: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Applies the evolved pool, emits completion progress, and builds the
+    evolve_node state delta.
 
+    Args:
+        state: Current workflow state.
+        hypotheses: Hypothesis pool before evolution (for the
+            discarded-count log).
+        evolved_hypotheses: Hypotheses returned by this round's evolution.
+        evolution_details: Evolution detail entries for hypotheses that
+            actually changed.
+
+    Returns:
+        The evolve_node state delta dictionary.
+    """
     # Keep ONLY the evolved hypotheses (discard lower-ranked ones)
     # This makes evolution_max_count the final pool size
     # Hypotheses ranked below top_k are not carried forward here; this is
     # how the pool shrinks across iterations rather than growing without
     # bound.
     original_count = len(hypotheses)
-    hypotheses = evolved_hypotheses
     discarded_count = original_count - len(evolved_hypotheses)
     logger.info(
         "Keeping only %s evolved hypotheses (discarded %s lower-ranked)",
-        len(hypotheses), discarded_count)
+        len(evolved_hypotheses), discarded_count)
 
     logger.info("Evolved %s hypotheses, %s with changes",
                 len(evolved_hypotheses), len(evolution_details))
@@ -746,7 +785,7 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     # rewrote every text.
     return {
         "hypotheses":
-            hypotheses,
+            evolved_hypotheses,
         "evolution_details":
             evolution_details,
         "metrics":
@@ -756,3 +795,33 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
                           f"Evolved {len(evolved_hypotheses)} hypotheses",
                           evolved_count=len(evolved_hypotheses)),
     }
+
+
+async def evolve_node(state: WorkflowState) -> dict[str, Any]:
+    """Evolve top-k hypotheses with context-aware refinement.
+
+    This node implements the most impactful anti-duplicate strategy:
+    context-aware evolution where each LLM call knows what all other
+    hypotheses are to prevent convergence.
+
+    Args:
+        state: Current workflow state
+
+    Returns:
+        Dictionary with updated state fields (evolved hypotheses)
+    """
+    hypotheses = state["hypotheses"]
+
+    top_k, removed_duplicates, supervisor_guidance = (await
+                                                      _prepare_evolution_round(
+                                                          state, hypotheses))
+
+    evolution_tasks = _build_evolution_tasks(state, top_k, removed_duplicates,
+                                             supervisor_guidance)
+    results = await asyncio.gather(*evolution_tasks)
+
+    # Unpack results: (hypothesis, evolution_detail or None)
+    evolved_hypotheses, evolution_details = _collect_evolution_results(results)
+
+    return await _finalize_evolve_result(state, hypotheses, evolved_hypotheses,
+                                         evolution_details)

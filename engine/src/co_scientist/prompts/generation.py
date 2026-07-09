@@ -259,104 +259,7 @@ def _format_supervisor_guidance_for_debate(
     return "".join(guidance_sections) if has_content else ""
 
 
-# Called by nodes/generation/debate.py once per debate turn. Template
-# choice depends on literature availability
-# (generation_debate_and_literature vs generation_after_debate), and the
-# final turn switches from free-form discussion to schema-constrained JSON
-# output (GENERATION_SCHEMA).
-def get_debate_generation_prompt(
-    research_goal: str,
-    hypotheses_count: int,
-    transcript: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    preferences: str | None = None,
-    attributes: str | list[str] | None = None,
-    is_final_turn: bool = False,
-    articles_with_reasoning: str | None = None,
-    articles: list[Any] | None = None,
-    tool_registry: Any | None = None,
-    reference_list: str = "",
-    meta_review: dict[str, Any] | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
-) -> tuple[str, dict[str, Any] | None]:
-    """Get the debate-based hypothesis generation prompt.
-
-    This uses a multi-turn debate strategy where experts discuss and refine
-    hypotheses.
-    The transcript accumulates over multiple turns until final hypotheses are
-    generated.
-
-    Args:
-        research_goal: The research goal
-        hypotheses_count: Number of hypotheses to generate
-        transcript: Accumulated conversation transcript from previous turns
-        supervisor_guidance: Optional guidance from supervisor
-        preferences: Criteria for strong hypotheses
-        attributes: Key attributes to prioritize
-        is_final_turn: Whether this is the final turn (outputs JSON schema)
-        articles_with_reasoning: Optional literature review synthesis for
-            context
-        articles: Optional list of Article objects for citation metadata
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        reference_list: Optional citation reference list of `[C*]` keys
-        meta_review: Optional cross-iteration meta-review feedback
-        run_setup_guidance: Optional durable run setup guidance text
-        run_focus_guidance: Optional durable run focus guidance text
-
-    Returns:
-        Tuple of (formatted prompt string, JSON schema dict or None)
-    """
-    variables = {
-        "goal":
-            research_goal,
-        "hypotheses_count":
-            hypotheses_count,
-        "transcript":
-            transcript or "",
-        "preferences":
-            preferences
-            or "Novel, testable, scientifically sound, specific, and diverse"
-            " hypotheses",
-        "attributes": (", ".join(attributes)
-                       if attributes and isinstance(attributes, list) else
-                       (attributes or "testable and falsifiable")),
-    }
-
-    # Add literature review if provided
-    if articles_with_reasoning:
-        variables["articles_with_reasoning"] = articles_with_reasoning
-
-    # Add article metadata for citations
-    variables["articles_metadata"] = format_articles_metadata(articles or [])
-    variables["citation_reference_section"] = _build_citation_reference_section(
-        reference_list or "")
-
-    # Format supervisor guidance if available
-    variables["supervisor_guidance"] = _format_supervisor_guidance_for_debate(
-        supervisor_guidance)
-
-    # Add meta-review context if available (blank on iteration 1).
-    variables["meta_review_context"] = _format_meta_review_context(meta_review)
-    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
-                                                     run_focus_guidance)
-
-    # Inject domain-specific prompt customizations
-    variables.update(_get_domain_variables(tool_registry))
-
-    # Determine which prompt to use based on literature availability
-    prompt_name = ("generation_debate_and_literature"
-                   if articles_with_reasoning else "generation_after_debate")
-
-    # If final turn, append instruction to output JSON and use schema
-    if is_final_turn:
-        prompt, schema = load_prompt_with_schema(prompt_name, variables)
-
-        # Append JSON output instructions for final turn
-        # Concatenated verbatim after the rendered template (never run
-        # through substitute_variables), so the literal braces in the JSON
-        # example below need no {{}} escaping.
-        final_instructions = """
+_DEBATE_FINAL_TURN_INSTRUCTIONS = """
 
 ## FINAL TURN - OUTPUT FORMAT
 
@@ -407,7 +310,161 @@ Output exactly 1 hypothesis as valid JSON:
 
 IMPORTANT: Use plain text with standard punctuation (no LaTeX, no decorative Unicode).
 """
-        prompt = prompt + final_instructions
+
+
+def _build_debate_prompt_variables(
+    research_goal: str,
+    hypotheses_count: int,
+    transcript: str,
+    preferences: str | None,
+    attributes: str | list[str] | None,
+    articles_with_reasoning: str | None,
+    articles: list[Any] | None,
+    reference_list: str,
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+    tool_registry: Any | None,
+) -> dict[str, Any]:
+    """Builds the template variables for the debate generation prompt.
+
+    Args:
+        research_goal: The research goal
+        hypotheses_count: Number of hypotheses to generate
+        transcript: Accumulated conversation transcript from previous turns
+        preferences: Criteria for strong hypotheses
+        attributes: Key attributes to prioritize
+        articles_with_reasoning: Optional literature review synthesis for
+            context
+        articles: Optional list of Article objects for citation metadata
+        reference_list: Optional citation reference list of `[C*]` keys
+        supervisor_guidance: Optional guidance from supervisor
+        meta_review: Optional cross-iteration meta-review feedback
+        run_setup_guidance: Optional durable run setup guidance text
+        run_focus_guidance: Optional durable run focus guidance text
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
+
+    Returns:
+        Dict of template variables for the debate generation prompt.
+    """
+    variables = {
+        "goal":
+            research_goal,
+        "hypotheses_count":
+            hypotheses_count,
+        "transcript":
+            transcript or "",
+        "preferences":
+            preferences
+            or "Novel, testable, scientifically sound, specific, and diverse"
+            " hypotheses",
+        "attributes": (", ".join(attributes)
+                       if attributes and isinstance(attributes, list) else
+                       (attributes or "testable and falsifiable")),
+    }
+
+    # Add literature review if provided
+    if articles_with_reasoning:
+        variables["articles_with_reasoning"] = articles_with_reasoning
+
+    # Add article metadata for citations
+    variables["articles_metadata"] = format_articles_metadata(articles or [])
+    variables["citation_reference_section"] = _build_citation_reference_section(
+        reference_list or "")
+
+    # Format supervisor guidance if available
+    variables["supervisor_guidance"] = _format_supervisor_guidance_for_debate(
+        supervisor_guidance)
+
+    # Add meta-review context if available (blank on iteration 1).
+    variables["meta_review_context"] = _format_meta_review_context(meta_review)
+    variables["run_guidance"] = _format_run_guidance(run_setup_guidance,
+                                                     run_focus_guidance)
+
+    # Inject domain-specific prompt customizations
+    variables.update(_get_domain_variables(tool_registry))
+
+    return variables
+
+
+# Called by nodes/generation/debate.py once per debate turn. Template
+# choice depends on literature availability
+# (generation_debate_and_literature vs generation_after_debate), and the
+# final turn switches from free-form discussion to schema-constrained JSON
+# output (GENERATION_SCHEMA).
+def get_debate_generation_prompt(
+    research_goal: str,
+    hypotheses_count: int,
+    transcript: str,
+    supervisor_guidance: dict[str, Any] | None = None,
+    preferences: str | None = None,
+    attributes: str | list[str] | None = None,
+    is_final_turn: bool = False,
+    articles_with_reasoning: str | None = None,
+    articles: list[Any] | None = None,
+    tool_registry: Any | None = None,
+    reference_list: str = "",
+    meta_review: dict[str, Any] | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
+) -> tuple[str, dict[str, Any] | None]:
+    """Get the debate-based hypothesis generation prompt.
+
+    This uses a multi-turn debate strategy where experts discuss and refine
+    hypotheses.
+    The transcript accumulates over multiple turns until final hypotheses are
+    generated.
+
+    Args:
+        research_goal: The research goal
+        hypotheses_count: Number of hypotheses to generate
+        transcript: Accumulated conversation transcript from previous turns
+        supervisor_guidance: Optional guidance from supervisor
+        preferences: Criteria for strong hypotheses
+        attributes: Key attributes to prioritize
+        is_final_turn: Whether this is the final turn (outputs JSON schema)
+        articles_with_reasoning: Optional literature review synthesis for
+            context
+        articles: Optional list of Article objects for citation metadata
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
+        reference_list: Optional citation reference list of `[C*]` keys
+        meta_review: Optional cross-iteration meta-review feedback
+        run_setup_guidance: Optional durable run setup guidance text
+        run_focus_guidance: Optional durable run focus guidance text
+
+    Returns:
+        Tuple of (formatted prompt string, JSON schema dict or None)
+    """
+    variables = _build_debate_prompt_variables(
+        research_goal=research_goal,
+        hypotheses_count=hypotheses_count,
+        transcript=transcript,
+        preferences=preferences,
+        attributes=attributes,
+        articles_with_reasoning=articles_with_reasoning,
+        articles=articles,
+        reference_list=reference_list,
+        supervisor_guidance=supervisor_guidance,
+        meta_review=meta_review,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
+        tool_registry=tool_registry,
+    )
+
+    # Determine which prompt to use based on literature availability
+    prompt_name = ("generation_debate_and_literature"
+                   if articles_with_reasoning else "generation_after_debate")
+
+    # If final turn, append instruction to output JSON and use schema
+    if is_final_turn:
+        prompt, schema = load_prompt_with_schema(prompt_name, variables)
+
+        # Append JSON output instructions for final turn
+        # Concatenated verbatim after the rendered template (never run
+        # through substitute_variables), so the literal braces in the JSON
+        # example below need no {{}} escaping.
+        prompt = prompt + _DEBATE_FINAL_TURN_INSTRUCTIONS
         return prompt, schema
     else:
         # Non-final turns: no schema, just conversational

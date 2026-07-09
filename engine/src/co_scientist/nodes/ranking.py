@@ -319,36 +319,33 @@ def _log_reflection_debug(label: str, reflection_notes: str | None) -> None:
                  reflection_notes[:200])
 
 
-async def judge_matchup(
+def _build_matchup_prompt(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
     research_goal: str,
-    model_name: str,
-    supervisor_guidance: dict[str, Any] | None = None,
-    run_id: str | None = None,
-    matchup_index: int | None = None,
-    tool_registry: Any | None = None,
-    meta_review: dict[str, Any] | None = None,
-    run_setup_guidance: str | None = None,
-    run_focus_guidance: str | None = None,
-) -> tuple[str, dict[str, Any]]:
-    """Has an LLM judge which hypothesis is superior.
+    supervisor_guidance: dict[str, Any] | None,
+    meta_review: dict[str, Any] | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> tuple[str, dict[str, Any] | None, str | None, str | None]:
+    """Assembles the ranking-matchup prompt (and schema) for one pairing.
 
     Args:
-        hypothesis_a: First hypothesis
-        hypothesis_b: Second hypothesis
-        research_goal: Research goal for context
-        model_name: LLM model to use
-        supervisor_guidance: Optional planning guidance from the supervisor
-        run_id: Optional run ID for saving prompts
-        matchup_index: Optional index for naming saved prompts
-        tool_registry: Optional ToolRegistry for dynamic tool instructions
-        meta_review: Optional cross-iteration meta-review feedback
-        run_setup_guidance: Optional run-setup guidance for the prompt
-        run_focus_guidance: Optional run-focus guidance for the prompt
+        hypothesis_a: First hypothesis.
+        hypothesis_b: Second hypothesis.
+        research_goal: Research goal for context.
+        supervisor_guidance: Optional planning guidance from the supervisor.
+        meta_review: Optional cross-iteration meta-review feedback.
+        tool_registry: Optional ToolRegistry for dynamic tool instructions.
+        run_setup_guidance: Optional run-setup guidance for the prompt.
+        run_focus_guidance: Optional run-focus guidance for the prompt.
 
     Returns:
-        Tuple of (winner, full_response) where winner is "a" or "b"
+        Tuple of (prompt, schema, reflection_notes_a, reflection_notes_b);
+        the reflection notes are returned alongside the prompt so the
+        caller can fold them into the LLM-call metadata without
+        re-reading the hypotheses.
     """
     # Extract review data if available
     review_a = _review_summary(hypothesis_a)
@@ -394,12 +391,38 @@ async def judge_matchup(
             logger.debug(
                 "warning: Reflection notes provided but not found in prompt")
 
+    return prompt, schema, reflection_notes_a, reflection_notes_b
+
+
+async def _call_matchup_judge(
+    prompt: str,
+    schema: dict[str, Any] | None,
+    model_name: str,
+    run_id: str | None,
+    matchup_index: int | None,
+    reflection_notes_a: str | None,
+    reflection_notes_b: str | None,
+) -> dict[str, Any]:
+    """Calls the LLM judge for one matchup, bounded by the ranking semaphore.
+
+    Args:
+        prompt: Rendered ranking-matchup prompt.
+        schema: JSON schema for the expected LLM response.
+        model_name: LLM model to use.
+        run_id: Optional run ID for saving prompts.
+        matchup_index: Optional index for naming saved prompts.
+        reflection_notes_a: Reflection notes for hypothesis A, if any.
+        reflection_notes_b: Reflection notes for hypothesis B, if any.
+
+    Returns:
+        Parsed JSON response from the LLM.
+    """
     prompt_name = (f"ranking_matchup_{matchup_index}"
                    if matchup_index is not None else "ranking_matchup")
 
     # Use semaphore to limit concurrent calls (avoid rate limits)
     async with _ranking_semaphore:
-        response = await call_llm_json(
+        return await call_llm_json(
             prompt=prompt,
             model_name=model_name,
             max_tokens=THINKING_MAX_TOKENS,
@@ -415,13 +438,68 @@ async def judge_matchup(
             },
         )
 
-    # Guard against a malformed/off-schema LLM judgment: if the model
-    # returns anything other than "a" or "b" for the winner field, fall
-    # back to "a" rather than propagating an invalid value downstream.
-    winner = response.get("winner", "a").lower()
+
+def _parse_matchup_winner(response: dict[str, Any]) -> str:
+    """Extracts and validates the winner side from a judge response.
+
+    Guards against a malformed/off-schema LLM judgment: if the model
+    returns anything other than "a" or "b" for the winner field, falls
+    back to "a" rather than propagating an invalid value downstream.
+
+    Args:
+        response: Parsed JSON response from the judge LLM call.
+
+    Returns:
+        "a" or "b".
+    """
+    winner: str = response.get("winner", "a").lower()
     if winner not in ["a", "b"]:
         logger.warning("Invalid winner '%s', defaulting to 'a'", winner)
         winner = "a"
+    return winner
+
+
+async def judge_matchup(
+    hypothesis_a: Hypothesis,
+    hypothesis_b: Hypothesis,
+    research_goal: str,
+    model_name: str,
+    supervisor_guidance: dict[str, Any] | None = None,
+    run_id: str | None = None,
+    matchup_index: int | None = None,
+    tool_registry: Any | None = None,
+    meta_review: dict[str, Any] | None = None,
+    run_setup_guidance: str | None = None,
+    run_focus_guidance: str | None = None,
+) -> tuple[str, dict[str, Any]]:
+    """Has an LLM judge which hypothesis is superior.
+
+    Args:
+        hypothesis_a: First hypothesis
+        hypothesis_b: Second hypothesis
+        research_goal: Research goal for context
+        model_name: LLM model to use
+        supervisor_guidance: Optional planning guidance from the supervisor
+        run_id: Optional run ID for saving prompts
+        matchup_index: Optional index for naming saved prompts
+        tool_registry: Optional ToolRegistry for dynamic tool instructions
+        meta_review: Optional cross-iteration meta-review feedback
+        run_setup_guidance: Optional run-setup guidance for the prompt
+        run_focus_guidance: Optional run-focus guidance for the prompt
+
+    Returns:
+        Tuple of (winner, full_response) where winner is "a" or "b"
+    """
+    prompt, schema, reflection_notes_a, reflection_notes_b = (
+        _build_matchup_prompt(hypothesis_a, hypothesis_b, research_goal,
+                              supervisor_guidance, meta_review, tool_registry,
+                              run_setup_guidance, run_focus_guidance))
+
+    response = await _call_matchup_judge(prompt, schema, model_name, run_id,
+                                         matchup_index, reflection_notes_a,
+                                         reflection_notes_b)
+
+    winner = _parse_matchup_winner(response)
 
     return winner, response
 
@@ -477,39 +555,23 @@ async def _run_tournament_matchups(
     return pairings, results
 
 
-async def ranking_node(state: WorkflowState) -> dict[str, Any]:
-    """Runs tournament-style pairwise comparisons with Elo rating updates.
-
-    This node runs multiple rounds of random pairwise matchups where an LLM
-    judges which hypothesis is superior. Elo ratings are updated after each
-    matchup to reflect relative quality.
-
-    Tournament rounds = len(hypotheses) * 1 (can be adjusted)
-
-    deterministic seeding: the random pairings are seeded using research_goal
-    and current_iteration to ensure cache consistency across runs. this allows
-    identical inputs to produce identical tournament results, enabling proper
-    cache hits in subsequent iterations.
+async def _prepare_ranking_round(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+) -> tuple[int, dict[str, Any] | None, Any, dict[str, Any] | None, str | None,
+           str | None]:
+    """Sorts the pool, emits start-of-tournament progress, and gathers the
+    cross-node context threaded into every judged matchup.
 
     Args:
-        state: Current workflow state
+        state: Current workflow state.
+        hypotheses: Hypothesis pool entering the tournament; sorted in
+            place by review score (text as tiebreaker for determinism).
 
     Returns:
-        Dictionary with updated state fields (hypotheses sorted by Elo)
+        Tuple of (tournament_rounds, supervisor_guidance, tool_registry,
+        meta_review, run_setup_guidance, run_focus_guidance).
     """
-    hypotheses = state["hypotheses"]
-    logger.info("Starting ranking tournament with %s hypotheses",
-                len(hypotheses))
-
-    _log_reflection_coverage(hypotheses)
-
-    # Edge case: a tournament requires at least two hypotheses to pair up.
-    # With fewer, skip the tournament entirely and pass the list through
-    # unchanged (Elo ratings stay at their prior/initial values).
-    if len(hypotheses) < 2:
-        logger.warning("Need at least 2 hypotheses for tournament")
-        return {"hypotheses": hypotheses}
-
     # Sort hypotheses by review score before tournament
     # This provides initial ordering based on review scores
     # Use hypothesis text as tiebreaker for deterministic ordering when scores
@@ -543,11 +605,31 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     run_setup_guidance = state.get("run_setup_guidance")
     run_focus_guidance = state.get("run_focus_guidance")
 
-    # Prepare all random pairwise matchups and judge them in parallel
-    pairings, results = await _run_tournament_matchups(
-        state, hypotheses, tournament_rounds, supervisor_guidance,
-        tool_registry, meta_review, run_setup_guidance, run_focus_guidance)
+    return (tournament_rounds, supervisor_guidance, tool_registry, meta_review,
+            run_setup_guidance, run_focus_guidance)
 
+
+async def _finalize_ranking_result(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+    pairings: list[tuple[Hypothesis, Hypothesis]],
+    results: list[tuple[str, dict[str, Any]]],
+    tournament_rounds: int,
+) -> dict[str, Any]:
+    """Applies matchup results, re-ranks by Elo, and builds the
+    ranking_node state delta.
+
+    Args:
+        state: Current workflow state.
+        hypotheses: Hypothesis pool that was paired for this tournament.
+        pairings: Per-round (hypothesis_a, hypothesis_b) pairs.
+        results: Per-round (winner, response) judgments, aligned with
+            pairings.
+        tournament_rounds: Number of tournament rounds run.
+
+    Returns:
+        The ranking_node state delta dictionary.
+    """
     # Apply Elo updates based on judged results and collect matchup details
     llm_calls = tournament_rounds
     matchup_details = _apply_matchup_results(pairings, results)
@@ -592,3 +674,49 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
                           rounds=tournament_rounds,
                           top_elo=hypotheses[0].elo_rating),
     }
+
+
+async def ranking_node(state: WorkflowState) -> dict[str, Any]:
+    """Runs tournament-style pairwise comparisons with Elo rating updates.
+
+    This node runs multiple rounds of random pairwise matchups where an LLM
+    judges which hypothesis is superior. Elo ratings are updated after each
+    matchup to reflect relative quality.
+
+    Tournament rounds = len(hypotheses) * 1 (can be adjusted)
+
+    deterministic seeding: the random pairings are seeded using research_goal
+    and current_iteration to ensure cache consistency across runs. this allows
+    identical inputs to produce identical tournament results, enabling proper
+    cache hits in subsequent iterations.
+
+    Args:
+        state: Current workflow state
+
+    Returns:
+        Dictionary with updated state fields (hypotheses sorted by Elo)
+    """
+    hypotheses = state["hypotheses"]
+    logger.info("Starting ranking tournament with %s hypotheses",
+                len(hypotheses))
+
+    _log_reflection_coverage(hypotheses)
+
+    # Edge case: a tournament requires at least two hypotheses to pair up.
+    # With fewer, skip the tournament entirely and pass the list through
+    # unchanged (Elo ratings stay at their prior/initial values).
+    if len(hypotheses) < 2:
+        logger.warning("Need at least 2 hypotheses for tournament")
+        return {"hypotheses": hypotheses}
+
+    (tournament_rounds, supervisor_guidance, tool_registry, meta_review,
+     run_setup_guidance,
+     run_focus_guidance) = await _prepare_ranking_round(state, hypotheses)
+
+    # Prepare all random pairwise matchups and judge them in parallel
+    pairings, results = await _run_tournament_matchups(
+        state, hypotheses, tournament_rounds, supervisor_guidance,
+        tool_registry, meta_review, run_setup_guidance, run_focus_guidance)
+
+    return await _finalize_ranking_result(state, hypotheses, pairings, results,
+                                          tournament_rounds)

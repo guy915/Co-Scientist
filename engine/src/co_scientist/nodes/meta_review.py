@@ -56,57 +56,16 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
     # "emerging_themes" key here is still handled safely.
     if not all_reviews:
         logger.warning("No reviews available for meta-review")
-        return {
-            "meta_review": {
-                "summary": "No reviews available",
-                "common_strengths": [],
-                "common_weaknesses": [],
-                "strategic_recommendations": [],
-            }
-        }
-
-    # Format all reviews for the LLM
-    reviews_text = json.dumps(all_reviews, indent=2)
-
-    # Get supervisor guidance from state
-    supervisor_guidance = state.get("supervisor_guidance")
+        return _empty_meta_review_result()
 
     # Call LLM to synthesize meta-review
-    prompt, schema = get_meta_review_prompt(
-        research_goal=state["research_goal"],
-        all_reviews=reviews_text,
-        supervisor_guidance=supervisor_guidance,
-        instructions=None,  # for the future
-        tool_registry=state.get("tool_registry"),
-        run_setup_guidance=state.get("run_setup_guidance"),
-        run_focus_guidance=state.get("run_focus_guidance"),
-    )
-
-    # Uses supervisor_model_name (the stronger strategic model), not the
-    # regular worker model_name used by ranking/review -- synthesizing
-    # cross-hypothesis insights that steer evolution benefits from the more
-    # capable model.
-    response = await call_llm_json(
-        prompt=prompt,
-        model_name=state["supervisor_model_name"],
-        max_tokens=THINKING_MAX_TOKENS,  # more space to aggregate all reviews
-        temperature=MEDIUM_TEMPERATURE,
-        json_schema=schema,
-        run_id=state.get("run_id"),
-        prompt_name="meta_review",
-        prompt_metadata={
-            "prompt_length_chars": len(prompt),
-            "hypotheses_count": len(hypotheses),
-            "reviews_count": len(all_reviews),
-        },
-    )
+    prompt_context = _build_meta_review_prompt_context(state, all_reviews)
+    prompt, schema = get_meta_review_prompt(**prompt_context)
+    response = await _call_meta_review_llm(state, prompt, schema,
+                                           len(hypotheses), len(all_reviews))
 
     meta_review = _build_meta_review(response)
-
-    logger.info("Meta-review complete")
-    logger.info("Common strengths: %s", len(meta_review['common_strengths']))
-    logger.info("Strategic recommendations: %s",
-                len(meta_review['strategic_recommendations']))
+    _log_meta_review_summary(meta_review)
 
     # Emit progress
     await emit_progress(state,
@@ -117,6 +76,59 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
                         recommendations_count=len(
                             meta_review["strategic_recommendations"]))
 
+    return _build_meta_review_result(meta_review)
+
+
+async def _call_meta_review_llm(
+    state: WorkflowState,
+    prompt: str,
+    schema: dict[str, Any] | None,
+    hypotheses_count: int,
+    reviews_count: int,
+) -> dict[str, Any]:
+    """Calls the LLM to synthesize the meta-review.
+
+    Uses supervisor_model_name (the stronger strategic model), not the
+    regular worker model_name used by ranking/review -- synthesizing
+    cross-hypothesis insights that steer evolution benefits from the more
+    capable model.
+
+    Args:
+        state: Current workflow state.
+        prompt: Rendered meta-review prompt.
+        schema: JSON schema the response must conform to.
+        hypotheses_count: Total hypotheses, recorded in prompt_metadata.
+        reviews_count: Total collected reviews, recorded in
+            prompt_metadata.
+
+    Returns:
+        The raw LLM JSON response.
+    """
+    return await call_llm_json(
+        prompt=prompt,
+        model_name=state["supervisor_model_name"],
+        max_tokens=THINKING_MAX_TOKENS,  # more space to aggregate all reviews
+        temperature=MEDIUM_TEMPERATURE,
+        json_schema=schema,
+        run_id=state.get("run_id"),
+        prompt_name="meta_review",
+        prompt_metadata={
+            "prompt_length_chars": len(prompt),
+            "hypotheses_count": hypotheses_count,
+            "reviews_count": reviews_count,
+        },
+    )
+
+
+def _build_meta_review_result(meta_review: dict[str, Any]) -> dict[str, Any]:
+    """Assembles the meta_review_node return dict.
+
+    Args:
+        meta_review: Assembled meta_review dict.
+
+    Returns:
+        Dict with updated state fields (meta_review, metrics, messages).
+    """
     # Update metrics (deltas only, merge_metrics will add to existing state)
     metrics = create_metrics_update(llm_calls_delta=1)
 
@@ -130,6 +142,61 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
                           "Synthesized meta-review from all hypotheses",
                           themes=len(meta_review.get("emerging_themes", []))),
     }
+
+
+def _empty_meta_review_result() -> dict[str, Any]:
+    """Builds the fallback return value when no hypothesis has a review.
+
+    Returns:
+        Dict with a minimal meta_review, matching the shape downstream
+        readers (evolve, ranking prompts) expect via dict.get() with
+        defaults.
+    """
+    return {
+        "meta_review": {
+            "summary": "No reviews available",
+            "common_strengths": [],
+            "common_weaknesses": [],
+            "strategic_recommendations": [],
+        }
+    }
+
+
+def _build_meta_review_prompt_context(
+        state: WorkflowState, all_reviews: list[dict[str,
+                                                     Any]]) -> dict[str, Any]:
+    """Extracts the state fields needed to build the meta-review prompt.
+
+    Args:
+        state: Current workflow state.
+        all_reviews: Per-hypothesis review summaries from
+            _collect_review_summaries.
+
+    Returns:
+        Dict of keyword arguments ready to spread into
+        get_meta_review_prompt.
+    """
+    return {
+        "research_goal": state["research_goal"],
+        "all_reviews": json.dumps(all_reviews, indent=2),
+        "supervisor_guidance": state.get("supervisor_guidance"),
+        "instructions": None,  # for the future
+        "tool_registry": state.get("tool_registry"),
+        "run_setup_guidance": state.get("run_setup_guidance"),
+        "run_focus_guidance": state.get("run_focus_guidance"),
+    }
+
+
+def _log_meta_review_summary(meta_review: dict[str, Any]) -> None:
+    """Logs a summary of the completed meta-review.
+
+    Args:
+        meta_review: assembled meta_review dict.
+    """
+    logger.info("Meta-review complete")
+    logger.info("Common strengths: %s", len(meta_review['common_strengths']))
+    logger.info("Strategic recommendations: %s",
+                len(meta_review['strategic_recommendations']))
 
 
 def _collect_review_summaries(
