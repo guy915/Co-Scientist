@@ -69,6 +69,40 @@ def _log_warm_start_diagnostics(articles: list[Any] | None) -> None:
                        " - agent will search fresh")
 
 
+async def _get_mcp_client_for_generation(tool_registry: Optional[Any],) -> Any:
+    """Fetch the MCP client used by both generation phases, re-raising
+    failures.
+
+    Without an MCP client neither phase can read or search literature, so
+    failures are logged and re-raised rather than degraded.
+
+    Args:
+        tool_registry: optional ToolRegistry for config-driven tool
+            selection.
+
+    Returns:
+        The MCP client.
+    """
+    try:
+        return await get_mcp_client(tool_registry=tool_registry)
+    except Exception as e:
+        logger.warning("Failed to get MCP client: %s", e)
+        raise
+
+
+def _log_generated_hypothesis_methods(hypotheses: list[Hypothesis]) -> None:
+    """Debug-trace the final generation_method/text for each hypothesis.
+
+    Args:
+        hypotheses: hypotheses produced by the two-phase pipeline.
+    """
+    for i, hyp in enumerate(hypotheses):
+        method = hyp.generation_method
+        logger.debug(
+            "tool-generated hypothesis %s: generation_method=%s, text=%s...",
+            i + 1, method.value if method else None, hyp.text[:80])
+
+
 async def generate_with_tools(
     state: WorkflowState,
     count: int,
@@ -95,14 +129,7 @@ async def generate_with_tools(
     # validate_hypotheses() below, so both phases resolve tool whitelists
     # from the same registry (see the fallback logic in draft.py/validate.py).
     tool_registry = state.get("tool_registry")
-
-    # Re-raised after logging: without an MCP client neither phase can read
-    # or search literature, so this must abort generation, not degrade.
-    try:
-        mcp_client = await get_mcp_client(tool_registry=tool_registry)
-    except Exception as e:
-        logger.warning("Failed to get MCP client: %s", e)
-        raise
+    mcp_client = await _get_mcp_client_for_generation(tool_registry)
 
     _log_warm_start_diagnostics(state.get("articles", []))
 
@@ -132,13 +159,7 @@ async def generate_with_tools(
 
     logger.info("Phase 2 complete: validated %s hypotheses", len(hypotheses))
 
-    # Debug trace of the final generation_method/text for every hypothesis
-    # produced by this two-phase pipeline.
-    for i, hyp in enumerate(hypotheses):
-        method = hyp.generation_method
-        logger.debug(
-            "tool-generated hypothesis %s: generation_method=%s, text=%s...",
-            i + 1, method.value if method else None, hyp.text[:80])
+    _log_generated_hypothesis_methods(hypotheses)
 
     return hypotheses
 

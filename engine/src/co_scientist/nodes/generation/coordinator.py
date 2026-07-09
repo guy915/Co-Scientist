@@ -120,6 +120,24 @@ def _classify_generation_strategy(state: WorkflowState, has_literature: bool,
     return "no_lit"
 
 
+def _split_tools_and_debate_counts(total_count: int) -> tuple[int, int]:
+    """Split total_count 50/50 between tools and debate-with-literature.
+
+    Args:
+        total_count: total hypotheses to allocate across the two methods.
+
+    Returns:
+        Tuple of (tools_count, debate_with_lit_count). If the 50/50 split
+        would leave debate_with_lit_count at zero (total_count=1), the full
+        count is routed to tools instead.
+    """
+    tools_count = max(1, total_count // 2)
+    debate_with_lit_count = total_count - tools_count
+    if debate_with_lit_count == 0:
+        tools_count = total_count
+    return tools_count, debate_with_lit_count
+
+
 def _determine_generation_counts(state: WorkflowState, total_count: int,
                                  has_literature: bool,
                                  enable_tool_calling: bool) -> GenerationCounts:
@@ -136,13 +154,8 @@ def _determine_generation_counts(state: WorkflowState, total_count: int,
         )
 
     if strategy == "lit_and_tools":
-        # Split 50/50, but ensure we don't exceed total_count
-        tools_count = max(1, total_count // 2)
-        debate_with_lit_count = total_count - tools_count
-        # If total_count=1, tools_count=1, debate_with_lit_count=0
-        # in this case, adjust to just use tools
-        if debate_with_lit_count == 0:
-            tools_count = total_count
+        tools_count, debate_with_lit_count = _split_tools_and_debate_counts(
+            total_count)
         return GenerationCounts(
             tools_count=tools_count,
             debate_with_lit_count=debate_with_lit_count,
@@ -581,22 +594,23 @@ def _log_reference_index_summary(reference_index: ReferenceIndex) -> None:
                 _count_sources_by_type(reference_index, "knowledge_graph"))
 
 
-async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
-    """Coordinate hypothesis generation using appropriate strategies.
+async def _prepare_generation(
+    state: WorkflowState,
+) -> tuple[GenerationCounts, ReferenceIndex, str | None]:
+    """Validate preconditions and resolve strategy, counts, and references.
 
-    Implements 3-condition strategy:
-    - Condition (a): lit review + tools → 50% tool-based + 50% debate-with-lit
-    - Condition (b): no lit review → 100% debate-only
-    - Condition (c): lit review but no tools → 100% debate-with-lit
+    Also logs the resolved strategy and emits the generation-start progress
+    callback, since both key off the counts computed here.
 
     Args:
         state: current workflow state
 
     Returns:
-        dict with hypotheses, debate_transcripts, metrics, and message
-    """
-    logger.info("Starting hypothesis generation")
+        Tuple of (counts, reference_index, articles_with_reasoning).
 
+    Raises:
+        GenerationError: if supervisor_guidance is missing from state.
+    """
     supervisor_guidance = state.get("supervisor_guidance")
     articles_with_reasoning = state.get("articles_with_reasoning")
     mcp_available = bool(state.get("mcp_available", False))
@@ -628,32 +642,71 @@ async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
     _log_generation_strategy(counts, total_count)
     await _emit_start_progress(state, counts, total_count)
 
+    return counts, reference_index, articles_with_reasoning
+
+
+async def _finalize_generation(
+    state: WorkflowState,
+    counts: GenerationCounts,
+    results: GenerationResults,
+) -> dict[str, Any]:
+    """Apply the degraded-mode fallback, enrich, and build the result dict.
+
+    Args:
+        state: current workflow state
+        counts: per-strategy counts from _determine_generation_counts
+        results: gathered generation results from _execute_generation_tasks
+
+    Returns:
+        dict with hypotheses, debate_transcripts, hypothesis_count, message.
+    """
+    # Only debate_only_hypotheses need the fallback message: tools_ and
+    # debate_with_lit_hypotheses are only populated when has_literature was
+    # true, so is_degraded_mode and those lists are mutually exclusive by
+    # construction.
+    if counts.is_degraded_mode:
+        _apply_degraded_mode_fallback(results.debate_only_hypotheses)
+
+    _log_generation_summary(results)
+    message_content = await _emit_complete_progress(state, results, counts)
+
+    all_hypotheses = results.all_hypotheses
+
+    # Run post-generation enrichments (e.g., NVD CVE lookup)
+    await _enrich_hypotheses(all_hypotheses, state)
+
+    return {
+        "hypotheses": all_hypotheses,
+        "debate_transcripts": results.debate_transcripts,
+        "hypothesis_count": len(all_hypotheses),
+        "message": message_content,
+    }
+
+
+async def generate_hypotheses(state: WorkflowState) -> dict[str, Any]:
+    """Coordinate hypothesis generation using appropriate strategies.
+
+    Implements 3-condition strategy:
+    - Condition (a): lit review + tools → 50% tool-based + 50% debate-with-lit
+    - Condition (b): no lit review → 100% debate-only
+    - Condition (c): lit review but no tools → 100% debate-with-lit
+
+    Args:
+        state: current workflow state
+
+    Returns:
+        dict with hypotheses, debate_transcripts, metrics, and message
+    """
+    logger.info("Starting hypothesis generation")
+
+    counts, reference_index, articles_with_reasoning = (
+        await _prepare_generation(state))
+
     try:
         results = await _execute_generation_tasks(state, counts,
                                                   articles_with_reasoning,
                                                   reference_index)
-
-        # Only debate_only_hypotheses need the fallback message: tools_ and
-        # debate_with_lit_hypotheses are only populated when has_literature
-        # was true, so is_degraded_mode and those lists are mutually
-        # exclusive by construction.
-        if counts.is_degraded_mode:
-            _apply_degraded_mode_fallback(results.debate_only_hypotheses)
-
-        _log_generation_summary(results)
-        message_content = await _emit_complete_progress(state, results, counts)
-
-        all_hypotheses = results.all_hypotheses
-
-        # Run post-generation enrichments (e.g., NVD CVE lookup)
-        await _enrich_hypotheses(all_hypotheses, state)
-
-        return {
-            "hypotheses": all_hypotheses,
-            "debate_transcripts": results.debate_transcripts,
-            "hypothesis_count": len(all_hypotheses),
-            "message": message_content,
-        }
+        return await _finalize_generation(state, counts, results)
 
     except Exception as e:
         # Log with full context here (this is the top-level entry point),

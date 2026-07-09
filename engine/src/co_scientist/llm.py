@@ -158,6 +158,53 @@ def _inject_schema_into_prompt(prompt: str, json_schema: dict[str, Any]) -> str:
             "(all required fields must be present):\n" + schema_str)
 
 
+def _apply_response_format(
+    completion_args: dict[str, Any],
+    prompt: str,
+    model_name: str,
+    force_json: bool,
+    json_schema: dict[str, Any] | None,
+) -> None:
+    """Sets the response_format for a completion call, in place.
+
+    When a schema is given, prefers the model's native json_schema response
+    format; models that reject it fall back to the json_object
+    provider-capability shim, which also rewrites "messages" to restate the
+    schema as prompt text. Without a schema, force_json requests plain
+    json_object mode.
+
+    Args:
+        completion_args: The in-progress completion kwargs dict; mutated in
+            place with "response_format" and, for the shim, "messages".
+        prompt: The original user prompt, used to rebuild "messages" when the
+            json_object shim applies.
+        model_name: Model name in litellm format.
+        force_json: If True, try to force JSON mode when no schema is given.
+        json_schema: Optional JSON schema to constrain the response format.
+    """
+    if json_schema:
+        if _supports_json_schema_response_format(model_name):
+            completion_args["response_format"] = {
+                "type": "json_schema",
+                "json_schema": json_schema,
+            }
+        else:
+            # Provider-capability shim: this model rejects the
+            # json_schema response format, so downgrade this call to
+            # json_object and restate the schema in the prompt. The
+            # cache keys above stay on the original prompt.
+            logger.debug(
+                "model %s does not support json_schema response format;"
+                " downgrading to json_object with schema in prompt", model_name)
+            completion_args["messages"] = [{
+                "role": "user",
+                "content": _inject_schema_into_prompt(prompt, json_schema),
+            }]
+            completion_args["response_format"] = {"type": "json_object"}
+    elif force_json:
+        completion_args["response_format"] = {"type": "json_object"}
+
+
 def _build_completion_args(
     prompt: str,
     model_name: str,
@@ -192,32 +239,8 @@ def _build_completion_args(
         "drop_params": True,
     }
 
-    # Try to add response_format based on schema or force_json
-    if json_schema:
-        if _supports_json_schema_response_format(model_name):
-            completion_args["response_format"] = {
-                "type": "json_schema",
-                "json_schema": json_schema,
-            }
-        else:
-            # Provider-capability shim: this model rejects the
-            # json_schema response format, so downgrade this call to
-            # json_object and restate the schema in the prompt. The
-            # cache keys above stay on the original prompt.
-            logger.debug(
-                "model %s does not support json_schema response format;"
-                " downgrading to json_object with schema in prompt", model_name)
-            completion_args["messages"] = [{
-                "role": "user",
-                "content": _inject_schema_into_prompt(prompt, json_schema),
-            }]
-            completion_args["response_format"] = {"type": "json_object"}
-    elif force_json:
-        try:
-            completion_args["response_format"] = {"type": "json_object"}
-        except Exception:  # pylint: disable=broad-exception-caught
-            # Some models/providers don't support this, silently continue
-            pass
+    _apply_response_format(completion_args, prompt, model_name, force_json,
+                           json_schema)
 
     return completion_args
 
@@ -269,6 +292,31 @@ async def _prepare_llm_call(
         logger.debug("cache miss for prompt: %s%s", prompt[:200],
                      '...' if len(prompt) > 200 else '')
     return temperature, cache, cached_response
+
+
+def _extract_completion_content(response: Any, model_name: str) -> str:
+    """Extracts and validates the text content of a completion response.
+
+    Args:
+        response: The raw response returned by ``litellm.acompletion``.
+        model_name: Model name in litellm format, included in the error
+            message when the response has no content.
+
+    Returns:
+        The non-empty response content.
+
+    Raises:
+        ValueError: If the response has no non-whitespace content.
+    """
+    content = response.choices[0].message.content
+
+    if content is None or not content.strip():
+        logger.error("LLM returned None or empty content. Response: %s",
+                     response)
+        raise ValueError(
+            f"LLM returned None or empty content. Model: {model_name}")
+
+    return cast(str, content)
 
 
 async def call_llm(
@@ -329,13 +377,7 @@ async def call_llm(
 
         response = await litellm.acompletion(**completion_args)
 
-        content = response.choices[0].message.content
-
-        if content is None or not content.strip():
-            logger.error("LLM returned None or empty content. Response: %s",
-                         response)
-            raise ValueError(
-                f"LLM returned None or empty content. Model: {model_name}")
+        content = _extract_completion_content(response, model_name)
 
         # Cache the response (only reached if content is valid)
         cache.set(
@@ -348,7 +390,7 @@ async def call_llm(
             force_json=force_json,
         )
 
-        return cast(str, content)
+        return content
 
     except Exception as e:
         # call_llm never falls back or retries itself; it fails loud and

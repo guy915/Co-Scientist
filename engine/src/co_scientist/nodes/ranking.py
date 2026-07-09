@@ -4,7 +4,7 @@ import asyncio
 import hashlib
 import logging
 import random
-from typing import Any
+from typing import Any, NamedTuple
 
 from co_scientist.constants import (
     # ELO_K_FACTOR bounds how much a single matchup can move a rating;
@@ -219,6 +219,102 @@ def _extract_reasoning(response: dict[str, Any]) -> str:
     return reasoning
 
 
+class _MatchupOutcome(NamedTuple):
+    """Pre/post Elo ratings for one judged matchup's winner and loser."""
+    winner_hyp: Hypothesis
+    loser_hyp: Hypothesis
+    winner_elo_before: int
+    winner_elo_after: int
+    loser_elo_before: int
+    loser_elo_after: int
+
+
+def _apply_matchup_elo(hyp_a: Hypothesis, hyp_b: Hypothesis,
+                       winner: str) -> _MatchupOutcome:
+    """Resolves the winner/loser of one matchup and applies its Elo update.
+
+    Mutates winner_hyp and loser_hyp in place (elo_rating and win/loss
+    counters), so these updates are visible on the same objects held by the
+    caller's hypothesis list without needing to rebuild it.
+
+    Args:
+        hyp_a: First hypothesis in the pairing.
+        hyp_b: Second hypothesis in the pairing.
+        winner: Side the judge picked, "a" or "b".
+
+    Returns:
+        The pre/post Elo ratings for the winner and loser.
+    """
+    # Resolve which Hypothesis object actually won this pairing based on the
+    # "a"/"b" side the judge picked.
+    winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b, hyp_a)
+    old_winner_elo = winner_hyp.elo_rating
+    old_loser_elo = loser_hyp.elo_rating
+
+    new_winner_elo, new_loser_elo = calculate_elo_update(
+        winner_elo=winner_hyp.elo_rating, loser_elo=loser_hyp.elo_rating)
+    logger.debug("Matchup result: Winner %s -> %s, Loser %s -> %s",
+                 winner_hyp.elo_rating, new_winner_elo, loser_hyp.elo_rating,
+                 new_loser_elo)
+
+    winner_hyp.elo_rating = new_winner_elo
+    loser_hyp.elo_rating = new_loser_elo
+    winner_hyp.win_count += 1
+    loser_hyp.loss_count += 1
+
+    return _MatchupOutcome(winner_hyp, loser_hyp, old_winner_elo,
+                           new_winner_elo, old_loser_elo, new_loser_elo)
+
+
+def _build_matchup_detail(hyp_a: Hypothesis, hyp_b: Hypothesis, winner: str,
+                          response: dict[str, Any],
+                          outcome: _MatchupOutcome) -> dict[str, Any]:
+    """Builds one matchup's detail dict for the UI's tournament view.
+
+    Args:
+        hyp_a: First hypothesis in the pairing.
+        hyp_b: Second hypothesis in the pairing.
+        winner: Side the judge picked, "a" or "b".
+        response: Full judge response for this matchup.
+        outcome: Elo outcome produced by _apply_matchup_elo.
+
+    Returns:
+        Matchup detail dict for this pairing, for the UI's "Performance
+        against other ideas" view.
+    """
+    return {
+        "hypothesis_a":
+            truncate(hyp_a.text),
+        "hypothesis_b":
+            truncate(hyp_b.text),
+        # Stable ids alongside the truncated text so downstream consumers
+        # can resolve identity exactly instead of by text-prefix matching.
+        "hypothesis_a_id":
+            hyp_a.id,
+        "hypothesis_b_id":
+            hyp_b.id,
+        "winner_id":
+            outcome.winner_hyp.id,
+        "winner":
+            winner,
+        "reasoning":
+            _extract_reasoning(response),
+        "confidence":
+            response.get("confidence_level", "Unknown"),
+        "tier":
+            match_tier(outcome.winner_elo_before, outcome.loser_elo_before,
+                       response.get("confidence_level", "")),
+        "winner_elo_before":
+            outcome.winner_elo_before,
+        "winner_elo_after":
+            outcome.winner_elo_after,
+        "loser_elo_before":
+            outcome.loser_elo_before,
+        "loser_elo_after":
+            outcome.loser_elo_after,
+    }
+
+
 def _apply_matchup_results(
         pairings: list[tuple[Hypothesis, Hypothesis]],
         results: list[tuple[str, dict[str, Any]]]) -> list[dict[str, Any]]:
@@ -228,8 +324,7 @@ def _apply_matchup_results(
     since judge_matchup only sees text/reviews/etc.), but ratings are
     applied here sequentially in pairing order, so a hypothesis appearing
     in multiple pairings picks up each prior update before the next one is
-    scored. Hypothesis objects are mutated in place (elo_rating and
-    win/loss counters).
+    scored.
 
     Args:
         pairings: Per-round (hypothesis_a, hypothesis_b) pairs.
@@ -241,65 +336,10 @@ def _apply_matchup_results(
         "Performance against other ideas" view.
     """
     matchup_details = []
-
     for (hyp_a, hyp_b), (winner, response) in zip(pairings, results):
-        # Resolve which Hypothesis object actually won this pairing based on
-        # the "a"/"b" side the judge picked.
-        winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b,
-                                                                      hyp_a)
-        old_winner_elo = winner_hyp.elo_rating
-        old_loser_elo = loser_hyp.elo_rating
-
-        new_winner_elo, new_loser_elo = calculate_elo_update(
-            winner_elo=winner_hyp.elo_rating, loser_elo=loser_hyp.elo_rating)
-        logger.debug("Matchup result: Winner %s -> %s, Loser %s -> %s",
-                     winner_hyp.elo_rating, new_winner_elo,
-                     loser_hyp.elo_rating, new_loser_elo)
-
-        reasoning = _extract_reasoning(response)
-
-        matchup_details.append({
-            "hypothesis_a":
-                truncate(hyp_a.text),
-            "hypothesis_b":
-                truncate(hyp_b.text),
-            # Stable ids alongside the truncated text so downstream
-            # consumers can resolve identity exactly instead of by
-            # text-prefix matching.
-            "hypothesis_a_id":
-                hyp_a.id,
-            "hypothesis_b_id":
-                hyp_b.id,
-            "winner_id":
-                winner_hyp.id,
-            "winner":
-                winner,
-            "reasoning":
-                reasoning,
-            "confidence":
-                response.get("confidence_level", "Unknown"),
-            "tier":
-                match_tier(old_winner_elo, old_loser_elo,
-                           response.get("confidence_level", "")),
-            "winner_elo_before":
-                old_winner_elo,
-            "winner_elo_after":
-                new_winner_elo,
-            "loser_elo_before":
-                old_loser_elo,
-            "loser_elo_after":
-                new_loser_elo,
-        })
-
-        # Hypothesis objects are mutated in place here (elo_rating and
-        # win/loss counters), so these updates are visible on the same
-        # objects held in the `hypotheses` list without needing to rebuild
-        # it -- rank_by_elo below only reorders, it does not recreate them.
-        winner_hyp.elo_rating = new_winner_elo
-        loser_hyp.elo_rating = new_loser_elo
-        winner_hyp.win_count += 1
-        loser_hyp.loss_count += 1
-
+        outcome = _apply_matchup_elo(hyp_a, hyp_b, winner)
+        matchup_details.append(
+            _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome))
     return matchup_details
 
 
@@ -322,6 +362,53 @@ def _log_reflection_debug(label: str, reflection_notes: str | None) -> None:
                  label, len(reflection_notes), classification)
     logger.debug("hypothesis %s reflection: %s...", label,
                  reflection_notes[:200])
+
+
+def _gather_matchup_summaries(
+    hypothesis_a: Hypothesis, hypothesis_b: Hypothesis
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None, dict[str, Any] | None,
+           dict[str, Any] | None]:
+    """Extracts review and deep-verification summaries for both sides.
+
+    Deep-verification probes are only populated after the first tournament,
+    once the deep_verification node has run on the leaders.
+
+    Args:
+        hypothesis_a: First hypothesis.
+        hypothesis_b: Second hypothesis.
+
+    Returns:
+        Tuple of (review_a, review_b, deep_verification_a,
+        deep_verification_b).
+    """
+    return (
+        _review_summary(hypothesis_a),
+        _review_summary(hypothesis_b),
+        _deep_verification_summary(hypothesis_a),
+        _deep_verification_summary(hypothesis_b),
+    )
+
+
+def _warn_if_reflection_notes_dropped(prompt: str,
+                                      reflection_notes_a: str | None,
+                                      reflection_notes_b: str | None) -> None:
+    """Confirms reflection notes made it into the rendered prompt text.
+
+    Catches silent template regressions where a variable stops being
+    interpolated.
+
+    Args:
+        prompt: Rendered ranking-matchup prompt.
+        reflection_notes_a: Reflection notes for hypothesis A, if any.
+        reflection_notes_b: Reflection notes for hypothesis B, if any.
+    """
+    if not (reflection_notes_a or reflection_notes_b):
+        return
+    if "Reflection Notes" in prompt:
+        logger.debug("prompt includes 'Reflection Notes' section")
+    else:
+        logger.debug(
+            "warning: Reflection notes provided but not found in prompt")
 
 
 def _build_matchup_prompt(
@@ -352,18 +439,11 @@ def _build_matchup_prompt(
         caller can fold them into the LLM-call metadata without
         re-reading the hypotheses.
     """
-    # Extract review data if available
-    review_a = _review_summary(hypothesis_a)
-    review_b = _review_summary(hypothesis_b)
+    review_a, review_b, deep_verification_a, deep_verification_b = (
+        _gather_matchup_summaries(hypothesis_a, hypothesis_b))
 
-    # Extract reflection notes if available
     reflection_notes_a = hypothesis_a.reflection_notes
     reflection_notes_b = hypothesis_b.reflection_notes
-
-    # Extract deep-verification probes if available (populated after the first
-    # tournament, once the deep_verification node has run on the leaders).
-    deep_verification_a = _deep_verification_summary(hypothesis_a)
-    deep_verification_b = _deep_verification_summary(hypothesis_b)
 
     logger.debug("\n→ Ranking Tournament Matchup")
     _log_reflection_debug("A", reflection_notes_a)
@@ -386,15 +466,8 @@ def _build_matchup_prompt(
         run_focus_guidance=run_focus_guidance,
     )
 
-    # Sanity check: if reflection notes were passed to the prompt builder,
-    # confirm they actually made it into the rendered prompt text. Catches
-    # silent template regressions where a variable stops being interpolated.
-    if reflection_notes_a or reflection_notes_b:
-        if "Reflection Notes" in prompt:
-            logger.debug("prompt includes 'Reflection Notes' section")
-        else:
-            logger.debug(
-                "warning: Reflection notes provided but not found in prompt")
+    _warn_if_reflection_notes_dropped(prompt, reflection_notes_a,
+                                      reflection_notes_b)
 
     return prompt, schema, reflection_notes_a, reflection_notes_b
 
@@ -560,6 +633,33 @@ async def _run_tournament_matchups(
     return pairings, results
 
 
+def _gather_tournament_context(
+    state: WorkflowState
+) -> tuple[dict[str, Any] | None, Any, dict[str, Any] | None, str | None, str |
+           None]:
+    """Gathers the cross-node context threaded into every judged matchup.
+
+    These are set earlier in the workflow (supervisor planning, a prior
+    iteration's meta-review, and the run's setup/focus prompts); threaded
+    unchanged into every judged matchup so the judge sees the same context
+    for every pairing.
+
+    Args:
+        state: Current workflow state.
+
+    Returns:
+        Tuple of (supervisor_guidance, tool_registry, meta_review,
+        run_setup_guidance, run_focus_guidance).
+    """
+    return (
+        state.get("supervisor_guidance"),
+        state.get("tool_registry"),
+        state.get("meta_review"),
+        state.get("run_setup_guidance"),
+        state.get("run_focus_guidance"),
+    )
+
+
 async def _prepare_ranking_round(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
@@ -577,15 +677,12 @@ async def _prepare_ranking_round(
         Tuple of (tournament_rounds, supervisor_guidance, tool_registry,
         meta_review, run_setup_guidance, run_focus_guidance).
     """
-    # Sort hypotheses by review score before tournament
-    # This provides initial ordering based on review scores
-    # Use hypothesis text as tiebreaker for deterministic ordering when scores
-    # are equal
+    # Sort hypotheses by review score before tournament. Use hypothesis text
+    # as tiebreaker for deterministic ordering when scores are equal.
     hypotheses.sort(key=lambda h: (h.score, h.text), reverse=True)
     logger.info("Sorted hypotheses by review score (top score: %.2f)",
                 hypotheses[0].score)
 
-    # Emit progress
     await emit_progress(
         state, "tournament_start",
         f"Running tournament with {len(hypotheses)} hypotheses...", 65)
@@ -599,19 +696,52 @@ async def _prepare_ranking_round(
         1, int(state.get("tournament_pairs") or len(hypotheses)))
     logger.info("Running %s tournament rounds", tournament_rounds)
 
-    # Get supervisor guidance and tool registry from state
-    # These are cross-node context set earlier in the workflow (supervisor
-    # planning, a prior iteration's meta-review, and the run's setup/focus
-    # prompts); threaded unchanged into every judged matchup below so the
-    # judge sees the same context for every pairing.
-    supervisor_guidance = state.get("supervisor_guidance")
-    tool_registry = state.get("tool_registry")
-    meta_review = state.get("meta_review")
-    run_setup_guidance = state.get("run_setup_guidance")
-    run_focus_guidance = state.get("run_focus_guidance")
+    (supervisor_guidance, tool_registry, meta_review, run_setup_guidance,
+     run_focus_guidance) = _gather_tournament_context(state)
 
     return (tournament_rounds, supervisor_guidance, tool_registry, meta_review,
             run_setup_guidance, run_focus_guidance)
+
+
+def _build_ranking_delta(hypotheses: list[Hypothesis],
+                         matchup_details: list[dict[str, Any]],
+                         tournament_rounds: int) -> dict[str, Any]:
+    """Builds the ranking_node state delta after Elo updates are applied.
+
+    Args:
+        hypotheses: Hypotheses sorted by Elo rating (highest first).
+        matchup_details: Per-round matchup detail dicts.
+        tournament_rounds: Number of tournament rounds run.
+
+    Returns:
+        The ranking_node state delta dictionary. Merged back into
+        WorkflowState by the graph runner: hypotheses carries forward with
+        updated Elo/win/loss fields for downstream nodes (e.g. meta-review,
+        evolve), tournament_matchups feeds the UI's "Performance against
+        other ideas" view, and metrics/messages accumulate via their
+        respective reducers rather than overwriting prior state.
+    """
+    # Update metrics (deltas only, merge_metrics will add to existing state)
+    llm_calls = tournament_rounds
+    metrics = create_metrics_update(llm_calls_delta=llm_calls,
+                                    tournaments_count_delta=tournament_rounds)
+    logger.debug(
+        "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
+        tournament_rounds, llm_calls)
+
+    return {
+        "hypotheses":
+            hypotheses,  # Now sorted by Elo rating
+        "tournament_matchups":
+            matchup_details,
+        "metrics":
+            metrics,
+        "messages":
+            phase_message("ranking",
+                          f"Completed {tournament_rounds} tournament rounds",
+                          rounds=tournament_rounds,
+                          top_elo=hypotheses[0].elo_rating),
+    }
 
 
 async def _finalize_ranking_result(
@@ -635,8 +765,6 @@ async def _finalize_ranking_result(
     Returns:
         The ranking_node state delta dictionary.
     """
-    # Apply Elo updates based on judged results and collect matchup details
-    llm_calls = tournament_rounds
     matchup_details = _apply_matchup_results(pairings, results)
 
     # Sort hypotheses by Elo rating (highest first), with score then text as
@@ -646,7 +774,6 @@ async def _finalize_ranking_result(
     logger.info("Tournament complete. Top Elo: %s", hypotheses[0].elo_rating)
     logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])
 
-    # Emit progress
     await emit_progress(state,
                         "tournament_complete",
                         f"Tournament complete ({tournament_rounds} rounds)",
@@ -654,31 +781,7 @@ async def _finalize_ranking_result(
                         top_elo=hypotheses[0].elo_rating,
                         top_hypothesis=hypotheses[0].text[:200])
 
-    # Update metrics (deltas only, merge_metrics will add to existing state)
-    metrics = create_metrics_update(llm_calls_delta=llm_calls,
-                                    tournaments_count_delta=tournament_rounds)
-    logger.debug(
-        "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
-        tournament_rounds, llm_calls)
-
-    # Merged back into WorkflowState by the graph runner: hypotheses carries
-    # forward with updated Elo/win/loss fields for downstream nodes (e.g.
-    # meta-review, evolve), tournament_matchups feeds the UI's "Performance
-    # against other ideas" view, and metrics/messages accumulate via their
-    # respective reducers rather than overwriting prior state.
-    return {
-        "hypotheses":
-            hypotheses,  # Now sorted by Elo rating
-        "tournament_matchups":
-            matchup_details,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message("ranking",
-                          f"Completed {tournament_rounds} tournament rounds",
-                          rounds=tournament_rounds,
-                          top_elo=hypotheses[0].elo_rating),
-    }
+    return _build_ranking_delta(hypotheses, matchup_details, tournament_rounds)
 
 
 async def ranking_node(state: WorkflowState) -> dict[str, Any]:

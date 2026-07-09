@@ -41,6 +41,10 @@ logger = logging.getLogger(__name__)
 # loose because langgraph's compile() leaks an unbound type variable.
 CompiledWorkflow = CompiledStateGraph[Any, Any, Any, Any]
 
+# Workflow graph under construction, pre-compile. Type parameters left loose
+# for the same reason as CompiledWorkflow above.
+_WorkflowBuilder = StateGraph[Any, Any, Any, Any]
+
 # State fields streamed to callers as plain last-write-wins copies. Two
 # streamed fields are handled separately in _handle_streaming: metrics
 # (merged across nodes) and supervisor_guidance (renamed to research_plan).
@@ -188,6 +192,35 @@ def _merge_node_state_into_cumulative(
             cumulative_state["metrics"].evolutions_count,
             cumulative_state["metrics"].llm_calls,
         )
+
+
+def _initial_cumulative_stream_state() -> dict[str, Any]:
+    """Seeds the cumulative streaming state before any node has run.
+
+    LangGraph's astream only yields the fields updated by each node, not
+    the full state, so the caller keeps a running cumulative state across
+    the stream; this seeds every field a caller might read before its node
+    has run yet. "research_plan" is not in _STREAMED_STATE_KEYS because it
+    is derived from supervisor_guidance in
+    _merge_node_state_into_cumulative rather than copied directly.
+
+    Returns:
+        The initial cumulative streaming state dict.
+    """
+    return {
+        "hypotheses": [],
+        "meta_review": {},
+        "research_overview": {},
+        "research_plan": {},
+        "tournament_matchups": [],
+        "evolution_details": [],
+        "current_iteration": 0,
+        "metrics": ExecutionMetrics(),
+        "articles_with_reasoning": None,
+        "literature_review_queries": [],
+        "articles": [],
+        "debate_transcripts": None,
+    }
 
 
 def _build_stream_state_dict(
@@ -356,6 +389,86 @@ def _build_tool_registry(
     return registry
 
 
+def _add_workflow_nodes(workflow: _WorkflowBuilder,
+                        enable_literature_review_node: bool) -> None:
+    """Registers every workflow node on the graph.
+
+    Args:
+        workflow: The graph under construction; mutated in place.
+        enable_literature_review_node: Whether to include the literature
+            review and reflection nodes (requires MCP server).
+    """
+    workflow.add_node("supervisor", supervisor_node)
+    workflow.add_node("generate", generate_node)
+    workflow.add_node("review", review_node)
+    workflow.add_node("ranking", ranking_node)
+    workflow.add_node("deep_verification", deep_verification_node)
+    workflow.add_node("meta_review", meta_review_node)
+    workflow.add_node("evolve", evolve_node)
+    workflow.add_node("proximity", proximity_node)
+    workflow.add_node("research_overview", research_overview_node)
+
+    if enable_literature_review_node:
+        workflow.add_node("literature_review", literature_review_node)
+        workflow.add_node("reflection", reflection_node)
+
+
+def _add_workflow_edges(workflow: _WorkflowBuilder,
+                        enable_literature_review_node: bool) -> None:
+    """Wires every workflow edge, including the entry point and routing.
+
+    Args:
+        workflow: The graph under construction, with all nodes already
+            registered; mutated in place.
+        enable_literature_review_node: Whether the literature review and
+            reflection nodes are present, which determines the initial
+            flow into "review".
+    """
+    # Initial flow - conditional based on literature review availability
+    workflow.set_entry_point("supervisor")
+
+    if enable_literature_review_node:
+        # Full flow: supervisor → literature_review → generate → reflection
+        # → review → ranking
+        workflow.add_edge("supervisor", "literature_review")
+        workflow.add_edge("literature_review", "generate")
+        workflow.add_edge("generate", "reflection")
+        workflow.add_edge("reflection", "review")
+    else:
+        # Simplified flow: supervisor → generate → review → ranking
+        workflow.add_edge("supervisor", "generate")
+        workflow.add_edge("generate", "review")
+
+    workflow.add_edge("review", "ranking")
+
+    # Iteration cycle: meta_review → evolve → review → ranking → proximity
+    workflow.add_edge("meta_review", "evolve")
+    workflow.add_edge("evolve", "review")  # Re-review evolved hypotheses
+
+    # Note: review → ranking already defined above
+
+    # Deep-verification runs on the top-ranked hypotheses after ranking,
+    # then the same post-ranking routing decision (_after_ranking) is
+    # made one node later.
+    workflow.add_edge("ranking", "deep_verification")
+    workflow.add_conditional_edges(
+        "deep_verification", _after_ranking, {
+            "iterate": "meta_review",
+            "proximity": "proximity",
+            "end": "research_overview"
+        })
+
+    # After proximity, check if we should continue iterating
+    workflow.add_conditional_edges("proximity", _after_proximity, {
+        "iterate": "meta_review",
+        "end": "research_overview"
+    })
+
+    # Terminal synthesis: every completion path flows through the
+    # research-overview node before ending.
+    workflow.add_edge("research_overview", END)
+
+
 class HypothesisGenerator:
     """Async wrapper for hypothesis generation using LangGraph.
 
@@ -455,69 +568,8 @@ class HypothesisGenerator:
                 review node (requires MCP server)
         """
         workflow = StateGraph(WorkflowState)
-
-        # These run unconditionally; the literature review and reflection
-        # nodes are added conditionally further below.
-        # Add all nodes
-        workflow.add_node("supervisor", supervisor_node)
-        workflow.add_node("generate", generate_node)
-        workflow.add_node("review", review_node)
-        workflow.add_node("ranking", ranking_node)
-        workflow.add_node("deep_verification", deep_verification_node)
-        workflow.add_node("meta_review", meta_review_node)
-        workflow.add_node("evolve", evolve_node)
-        workflow.add_node("proximity", proximity_node)
-        workflow.add_node("research_overview", research_overview_node)
-
-        # Conditionally add literature review and reflection nodes
-        if enable_literature_review_node:
-            workflow.add_node("literature_review", literature_review_node)
-            workflow.add_node("reflection", reflection_node)
-
-        # Initial flow - conditional based on literature review availability
-        workflow.set_entry_point("supervisor")
-
-        if enable_literature_review_node:
-            # Full flow: supervisor → literature_review → generate → reflection
-            # → review → ranking
-            workflow.add_edge("supervisor", "literature_review")
-            workflow.add_edge("literature_review", "generate")
-            workflow.add_edge("generate", "reflection")
-            workflow.add_edge("reflection", "review")
-        else:
-            # Simplified flow: supervisor → generate → review → ranking
-            workflow.add_edge("supervisor", "generate")
-            workflow.add_edge("generate", "review")
-
-        workflow.add_edge("review", "ranking")
-
-        # Iteration cycle: meta_review → evolve → review → ranking → proximity
-        workflow.add_edge("meta_review", "evolve")
-        workflow.add_edge("evolve", "review")  # Re-review evolved hypotheses
-
-        # Note: review → ranking already defined above
-
-        # Deep-verification runs on the top-ranked hypotheses after ranking,
-        # then the same post-ranking routing decision (_after_ranking) is
-        # made one node later.
-        workflow.add_edge("ranking", "deep_verification")
-        workflow.add_conditional_edges(
-            "deep_verification", _after_ranking, {
-                "iterate": "meta_review",
-                "proximity": "proximity",
-                "end": "research_overview"
-            })
-
-        # After proximity, check if we should continue iterating
-        workflow.add_conditional_edges("proximity", _after_proximity, {
-            "iterate": "meta_review",
-            "end": "research_overview"
-        })
-
-        # Terminal synthesis: every completion path flows through the
-        # research-overview node before ending.
-        workflow.add_edge("research_overview", END)
-
+        _add_workflow_nodes(workflow, enable_literature_review_node)
+        _add_workflow_edges(workflow, enable_literature_review_node)
         return workflow.compile()
 
     def _ensure_graph_built(self, enable_literature_review_node: bool) -> None:
@@ -1000,26 +1052,7 @@ class HypothesisGenerator:
         assert self._graph is not None  # built by _prepare_generation
         try:
             # Maintain cumulative state across nodes
-            # LangGraph's astream only yields fields updated by each node, not
-            # full state
-            # Seeds every field a caller might read before its node has run
-            # yet. "research_plan" is not in _STREAMED_STATE_KEYS because it
-            # is derived from supervisor_guidance below rather than copied
-            # directly.
-            cumulative_state: dict[str, Any] = {
-                "hypotheses": [],
-                "meta_review": {},
-                "research_overview": {},
-                "research_plan": {},
-                "tournament_matchups": [],
-                "evolution_details": [],
-                "current_iteration": 0,
-                "metrics": ExecutionMetrics(),
-                "articles_with_reasoning": None,
-                "literature_review_queries": [],
-                "articles": [],
-                "debate_transcripts": None,
-            }
+            cumulative_state = _initial_cumulative_stream_state()
 
             # Stream the workflow execution
             async for chunk in self._graph.astream(

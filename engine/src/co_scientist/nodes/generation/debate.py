@@ -6,6 +6,7 @@ Multiple debates can run in parallel.
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import Any
 
 from co_scientist.nodes.generation.citations import (
@@ -72,6 +73,63 @@ def _append_diversity_instruction(preferences: str | None,
     return instruction
 
 
+async def _call_final_debate_turn(
+    state: WorkflowState,
+    prompt: str,
+    schema: Any,
+    debate_id: int | None,
+    turn: int,
+    articles_with_reasoning: str | None,
+    ref_idx: ReferenceIndex,
+) -> dict[str, Any]:
+    """Call the LLM for a debate's final structured-output turn.
+
+    Args:
+        state: current workflow state
+        prompt: final-turn prompt built from the accumulated transcript
+        schema: JSON schema the final turn's structured output must match
+        debate_id: id for this debate (used for tracking/identification)
+        turn: turn number this call represents (for prompt metadata/logging)
+        articles_with_reasoning: optional literature review context
+        ref_idx: citation key → source mapping for structured citations
+
+    Returns:
+        Parsed JSON response containing the "hypotheses" list.
+    """
+    count = 1  # each debate generates exactly 1 hypothesis
+    # count is always 1 here (one hypothesis per debate), so this evaluates
+    # to a fixed budget (base + one per_item increment) rather than truly
+    # scaling with batch size, unlike other scaled_max_tokens call sites
+    # that pass a variable count.
+    final_max_tokens = scaled_max_tokens(
+        EXTENDED_MAX_TOKENS,
+        count,
+        per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
+        cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
+    )
+
+    return await call_llm_json(
+        prompt=prompt,
+        model_name=state["model_name"],
+        max_tokens=final_max_tokens,
+        temperature=HIGH_TEMPERATURE,
+        json_schema=schema,
+        # Generation is stochastic and diversity-critical: never cache it,
+        # so parallel debates and re-runs stay diverse regardless of cache
+        # state.
+        use_cache=False,
+        run_id=state.get("run_id"),
+        prompt_name=f"generate_debate_{debate_id}_final",
+        prompt_metadata={
+            "debate_id": debate_id,
+            "turn": turn,
+            "has_literature": articles_with_reasoning is not None,
+            "reference_keys": list(ref_idx.sources.keys()),
+            "prompt_length_chars": len(prompt),
+        },
+    )
+
+
 async def _run_final_debate_turn(
     state: WorkflowState,
     prompt: str,
@@ -103,38 +161,9 @@ async def _run_final_debate_turn(
     Raises:
         GenerationError: if the final turn produced no hypothesis.
     """
-    count = 1  # each debate generates exactly 1 hypothesis
-    # count is always 1 here (one hypothesis per debate), so this evaluates
-    # to a fixed budget (base + one per_item increment) rather than truly
-    # scaling with batch size, unlike other scaled_max_tokens call sites
-    # that pass a variable count.
-    final_max_tokens = scaled_max_tokens(
-        EXTENDED_MAX_TOKENS,
-        count,
-        per_item=DEBATE_FINAL_TURN_TOKENS_PER_HYPOTHESIS,
-        cap=DEBATE_FINAL_TURN_MAX_TOKENS_CAP,
-    )
-
-    response = await call_llm_json(
-        prompt=prompt,
-        model_name=state["model_name"],
-        max_tokens=final_max_tokens,
-        temperature=HIGH_TEMPERATURE,
-        json_schema=schema,
-        # Generation is stochastic and diversity-critical: never cache it,
-        # so parallel debates and re-runs stay diverse regardless of cache
-        # state.
-        use_cache=False,
-        run_id=state.get("run_id"),
-        prompt_name=f"generate_debate_{debate_id}_final",
-        prompt_metadata={
-            "debate_id": debate_id,
-            "turn": turn,
-            "has_literature": articles_with_reasoning is not None,
-            "reference_keys": list(ref_idx.sources.keys()),
-            "prompt_length_chars": len(prompt),
-        },
-    )
+    response = await _call_final_debate_turn(state, prompt, schema, debate_id,
+                                             turn, articles_with_reasoning,
+                                             ref_idx)
 
     # The schema wraps a single hypothesis in a list to keep the response
     # shape consistent with other generation paths' schemas (e.g. batch
@@ -231,6 +260,53 @@ async def _run_intermediate_debate_turn(state: WorkflowState,
     )
 
 
+@dataclass
+class _DebateContext:
+    """Per-debate values that stay constant across all turns of one debate."""
+
+    ref_idx: ReferenceIndex
+    debate_label: str
+    supervisor_guidance: Any
+    meta_review: Any
+    preferences: str | None
+    attributes: Any
+    count: int = 1  # each debate generates exactly 1 hypothesis
+
+
+def _build_debate_context(
+    state: WorkflowState,
+    debate_id: int | None,
+    total_debates: int,
+    reference_index: ReferenceIndex | None,
+) -> _DebateContext:
+    """Resolve the per-debate context shared by every turn of one debate.
+
+    Args:
+        state: current workflow state
+        debate_id: id for this debate (used for tracking and identification)
+        total_debates: total number of parallel debates in this batch
+        reference_index: citation key → source mapping for structured
+            citations; callers may omit it (e.g. the debate-only path in
+            coordinator.py), which falls back to an empty index so citation
+            resolution simply yields no citation_map entries.
+
+    Returns:
+        The resolved _DebateContext for this debate.
+    """
+    diversity_instruction = _debate_diversity_instruction(
+        debate_id, total_debates)
+    return _DebateContext(
+        ref_idx=reference_index or ReferenceIndex(text="", sources={}),
+        debate_label=(f"debate {debate_id}"
+                      if debate_id is not None else "debate"),
+        supervisor_guidance=state.get("supervisor_guidance"),
+        meta_review=state.get("meta_review"),
+        preferences=_append_diversity_instruction(state.get("preferences"),
+                                                  diversity_instruction),
+        attributes=state.get("attributes"),
+    )
+
+
 async def _run_single_debate(
     state: WorkflowState,
     debate_id: int | None = None,
@@ -252,21 +328,8 @@ async def _run_single_debate(
     Returns:
         Tuple of (single generated Hypothesis object, debate transcript string)
     """
-    # Callers may omit reference_index (e.g. the debate-only path in
-    # coordinator.py), so fall back to an empty index; citation resolution
-    # then simply yields no citation_map entries.
-    ref_idx = reference_index or ReferenceIndex(text="", sources={})
-    count = 1  # each debate generates exactly 1 hypothesis
-    debate_label = f"debate {debate_id}" if debate_id is not None else "debate"
-
-    supervisor_guidance = state.get("supervisor_guidance")
-    meta_review = state.get("meta_review")
-    diversity_instruction = _debate_diversity_instruction(
-        debate_id, total_debates)
-    preferences = _append_diversity_instruction(state.get("preferences"),
-                                                diversity_instruction)
-    attributes = state.get("attributes")
-
+    ctx = _build_debate_context(state, debate_id, total_debates,
+                                reference_index)
     transcript = ""
 
     # Earlier turns produce free-form adversarial dialogue that accumulates
@@ -278,15 +341,15 @@ async def _run_single_debate(
 
         prompt, schema = _build_debate_turn_prompt(
             state,
-            count,
+            ctx.count,
             transcript,
-            supervisor_guidance,
-            preferences,
-            attributes,
+            ctx.supervisor_guidance,
+            ctx.preferences,
+            ctx.attributes,
             is_final,
             articles_with_reasoning,
-            ref_idx,
-            meta_review,
+            ctx.ref_idx,
+            ctx.meta_review,
         )
 
         if is_final:
@@ -295,10 +358,10 @@ async def _run_single_debate(
                 prompt,
                 schema,
                 debate_id,
-                debate_label,
+                ctx.debate_label,
                 turn,
                 articles_with_reasoning,
-                ref_idx,
+                ctx.ref_idx,
             )
             return hypothesis, transcript
         else:
@@ -309,7 +372,30 @@ async def _run_single_debate(
     # Unreachable under normal DEBATE_MAX_TURNS configuration, since the
     # loop always hits is_final on its last iteration; this guards against
     # a misconfigured num_turns <= 0.
-    raise GenerationError(f"{debate_label} ended without final turn")
+    raise GenerationError(f"{ctx.debate_label} ended without final turn")
+
+
+def _unpack_debate_results(
+    debate_results: list[tuple[Hypothesis, str]],
+) -> tuple[list[Hypothesis], list[dict[str, Any]]]:
+    """Split gathered (hypothesis, transcript) pairs into parallel lists.
+
+    Args:
+        debate_results: per-debate (hypothesis, transcript) pairs, in the
+            same order they were passed to asyncio.gather.
+
+    Returns:
+        Tuple of (debate_hypotheses, debate_transcripts), where each
+        transcript entry has the shape expected in WorkflowState:
+        {debate_id, transcript, hypothesis_text}.
+    """
+    debate_hypotheses = [hyp for hyp, _ in debate_results]
+    debate_transcripts = [{
+        "debate_id": i,
+        "transcript": transcript,
+        "hypothesis_text": debate_hypotheses[i].text
+    } for i, (_, transcript) in enumerate(debate_results)]
+    return debate_hypotheses, debate_transcripts
 
 
 async def generate_with_debate(
@@ -353,15 +439,8 @@ async def generate_with_debate(
     ]
 
     debate_results = await asyncio.gather(*debate_tasks)
-
-    debate_hypotheses = [hyp for hyp, _ in debate_results]
-    # Shape matches the debate_transcripts entries expected in
-    # WorkflowState: {debate_id, transcript, hypothesis_text}.
-    debate_transcripts = [{
-        "debate_id": i,
-        "transcript": transcript,
-        "hypothesis_text": debate_hypotheses[i].text
-    } for i, (_, transcript) in enumerate(debate_results)]
+    debate_hypotheses, debate_transcripts = _unpack_debate_results(
+        debate_results)
 
     logger.info("Generated %s hypotheses from debates", len(debate_hypotheses))
     return debate_hypotheses, debate_transcripts

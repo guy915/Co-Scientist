@@ -359,6 +359,57 @@ def _find_most_similar(
     return max_similarity, most_similar_text
 
 
+def _build_evolution_variables(
+    hypothesis: Hypothesis,
+    meta_review: dict[str, Any],
+    supervisor_guidance: dict[str, Any] | None,
+    articles_with_reasoning: str | None,
+    tool_registry: Any | None,
+    run_setup_guidance: str | None,
+    run_focus_guidance: str | None,
+) -> dict[str, Any]:
+    """Builds the template variables for the "evolution" prompt.
+
+    Unlike most nodes, evolve has no dedicated get_evolution_prompt()
+    wrapper in prompts.py, so _build_evolution_prompt calls
+    load_prompt_with_schema directly and this helper pulls in these
+    normally-internal helpers itself to build the same
+    run-guidance/domain variables the wrappers assemble.
+
+    Args:
+        hypothesis: Hypothesis to evolve.
+        meta_review: Meta-review insights for strategic guidance.
+        supervisor_guidance: Optional supervisor guidance for evolution
+            phase.
+        articles_with_reasoning: Optional literature review synthesis for
+            context.
+        tool_registry: Optional ToolRegistry for dynamic tool instructions.
+        run_setup_guidance: Optional durable setup guidance.
+        run_focus_guidance: Optional selected focus guidance.
+
+    Returns:
+        Template variables for the "evolution" prompt.
+    """
+    from co_scientist.prompts import _format_run_guidance, _get_domain_variables  # pylint: disable=import-outside-toplevel
+
+    variables = {
+        "original_hypothesis":
+            hypothesis.text,
+        "review_feedback":
+            _build_review_feedback(hypothesis),
+        "meta_review_insights":
+            _build_meta_review_insights(meta_review),
+        "supervisor_guidance":
+            _build_supervisor_guidance_text(supervisor_guidance),
+        "run_guidance":
+            _format_run_guidance(run_setup_guidance, run_focus_guidance),
+        "articles_with_reasoning":
+            articles_with_reasoning or "",
+    }
+    variables.update(_get_domain_variables(tool_registry))
+    return variables
+
+
 def _build_evolution_prompt(
     hypothesis: Hypothesis,
     other_hypotheses_texts: list[str],
@@ -390,33 +441,15 @@ def _build_evolution_prompt(
         Tuple of (full prompt text with diversity instruction appended,
         JSON schema for the expected LLM response).
     """
-    review_feedback = _build_review_feedback(hypothesis)
-    meta_review_insights = _build_meta_review_insights(meta_review)
-    supervisor_guidance_text = _build_supervisor_guidance_text(
-        supervisor_guidance)
-
-    # Build context-aware evolution prompt with domain variables
-    # Unlike most nodes, evolve has no dedicated get_evolution_prompt()
-    # wrapper in prompts.py, so it calls load_prompt_with_schema directly
-    # below and must pull in these normally-internal helpers itself to
-    # build the same run-guidance/domain variables the wrappers assemble.
-    from co_scientist.prompts import _format_run_guidance, _get_domain_variables  # pylint: disable=import-outside-toplevel
-
-    variables = {
-        "original_hypothesis":
-            hypothesis.text,
-        "review_feedback":
-            review_feedback,
-        "meta_review_insights":
-            meta_review_insights,
-        "supervisor_guidance":
-            supervisor_guidance_text,
-        "run_guidance":
-            _format_run_guidance(run_setup_guidance, run_focus_guidance),
-        "articles_with_reasoning":
-            articles_with_reasoning or "",
-    }
-    variables.update(_get_domain_variables(tool_registry))
+    variables = _build_evolution_variables(
+        hypothesis=hypothesis,
+        meta_review=meta_review,
+        supervisor_guidance=supervisor_guidance,
+        articles_with_reasoning=articles_with_reasoning,
+        tool_registry=tool_registry,
+        run_setup_guidance=run_setup_guidance,
+        run_focus_guidance=run_focus_guidance,
+    )
 
     prompt, schema = load_prompt_with_schema("evolution", variables)
 
@@ -485,6 +518,83 @@ async def _call_evolution_llm(
     )
 
 
+def _extract_evolution_fields(
+        hypothesis: Hypothesis,
+        response: dict[str, Any]) -> tuple[str, str | None, str | None, str]:
+    """Extracts the refined fields from an evolution LLM response.
+
+    Args:
+        hypothesis: Hypothesis being evolved; supplies fallback values for
+            fields the response omits.
+        response: Parsed JSON response from the evolution LLM call.
+
+    Returns:
+        Tuple of (refined_text, explanation, experiment,
+        refinement_summary).
+    """
+    # Prefer the canonical "hypothesis" key; fall back to the legacy
+    # "refined_hypothesis_text" name, and finally to the pre-evolution text
+    # if the LLM response omits both (defensive against malformed output).
+    refined_text = response.get("hypothesis") or response.get(
+        "refined_hypothesis_text", hypothesis.text)
+    explanation = response.get("explanation", hypothesis.explanation)
+    experiment = response.get("experiment", hypothesis.experiment)
+    refinement_summary = response.get("refinement_summary",
+                                      "no refinement summary provided")
+    return refined_text, explanation, experiment, refinement_summary
+
+
+def _apply_refined_hypothesis(
+    hypothesis: Hypothesis,
+    refined_text: str,
+    explanation: str | None,
+    experiment: str | None,
+    refinement_summary: str,
+    max_similarity: float,
+) -> tuple[Hypothesis, dict[str, Any]]:
+    """Mutates an accepted refinement onto a hypothesis and logs/details it.
+
+    Args:
+        hypothesis: Hypothesis being evolved; mutated in place.
+        refined_text: Accepted refined hypothesis text.
+        explanation: Refined explanation.
+        experiment: Refined experiment.
+        refinement_summary: LLM's summary of what changed and why.
+        max_similarity: Max similarity to the sampled peer hypotheses, for
+            the debug log.
+
+    Returns:
+        Updated hypothesis with evolved text, and its evolution detail.
+    """
+    # Mutates the same Hypothesis object in place (its stable uuid `id` is
+    # unaffected, since it is excluded from equality) rather than
+    # constructing a new one.
+    original_text = hypothesis.text
+    hypothesis.text = refined_text
+    hypothesis.explanation = explanation
+    hypothesis.experiment = experiment
+    # Record the pre-evolution text so evolution_history accumulates the
+    # lineage of prior phrasings for this hypothesis.
+    hypothesis.evolution_history.append(original_text)
+    # The text changed materially, so any prior deep-verification probes now
+    # describe stale text. Clear them so the next deep_verification pass
+    # re-verifies the evolved hypothesis.
+    hypothesis.deep_verification_probes = []
+    hypothesis.deep_verification_verdict = None
+
+    logger.debug("evolved hypothesis (max similarity: %.2f)", max_similarity)
+
+    # evolution_detail feeds evolution_details in evolve_node's state
+    # delta below, which the UI surfaces as the rationale for each change.
+    evolution_detail = {
+        "original": original_text,
+        "evolved": refined_text,
+        "rationale": refinement_summary,
+    }
+
+    return hypothesis, evolution_detail
+
+
 def _apply_evolution_result(
     hypothesis: Hypothesis,
     response: dict[str, Any],
@@ -506,16 +616,8 @@ def _apply_evolution_result(
         Updated hypothesis with evolved text, and evolution detail (or
         None if the refinement was rejected).
     """
-    # Extract fields from response (match evolution.md prompt format)
-    # Prefer the canonical "hypothesis" key; fall back to the legacy
-    # "refined_hypothesis_text" name, and finally to the pre-evolution text
-    # if the LLM response omits both (defensive against malformed output).
-    refined_text = response.get("hypothesis") or response.get(
-        "refined_hypothesis_text", hypothesis.text)
-    explanation = response.get("explanation", hypothesis.explanation)
-    experiment = response.get("experiment", hypothesis.experiment)
-    refinement_summary = response.get("refinement_summary",
-                                      "no refinement summary provided")
+    refined_text, explanation, experiment, refinement_summary = (
+        _extract_evolution_fields(hypothesis, response))
 
     # Check if hypothesis actually changed
     # The LLM sometimes echoes the input back verbatim (e.g. it judges no
@@ -543,35 +645,9 @@ def _apply_evolution_result(
         logger.debug("similar to: %s...", most_similar_text[:100])
         return hypothesis, None  # Keep original, no evolution details
 
-    # Update hypothesis
-    # Mutates the same Hypothesis object in place (its stable uuid `id` is
-    # unaffected, since it is excluded from equality) rather than
-    # constructing a new one.
-    original_text = hypothesis.text
-    hypothesis.text = refined_text
-    hypothesis.explanation = explanation
-    hypothesis.experiment = experiment
-    # Record the pre-evolution text so evolution_history accumulates the
-    # lineage of prior phrasings for this hypothesis.
-    hypothesis.evolution_history.append(original_text)
-    # The text changed materially, so any prior deep-verification probes now
-    # describe stale text. Clear them so the next deep_verification pass
-    # re-verifies the evolved hypothesis.
-    hypothesis.deep_verification_probes = []
-    hypothesis.deep_verification_verdict = None
-
-    logger.debug("evolved hypothesis (max similarity: %.2f)", max_similarity)
-
-    # Return both hypothesis and evolution details
-    # evolution_detail feeds evolution_details in evolve_node's state
-    # delta below, which the UI surfaces as the rationale for each change.
-    evolution_detail = {
-        "original": original_text,
-        "evolved": refined_text,
-        "rationale": refinement_summary,
-    }
-
-    return hypothesis, evolution_detail
+    return _apply_refined_hypothesis(hypothesis, refined_text, explanation,
+                                     experiment, refinement_summary,
+                                     max_similarity)
 
 
 async def evolve_single_hypothesis(
@@ -670,6 +746,40 @@ def _collect_evolution_results(
     return evolved_hypotheses, evolution_details
 
 
+def _select_evolution_pool(
+    state: WorkflowState,
+    hypotheses: list[Hypothesis],
+) -> tuple[int, list[Hypothesis]]:
+    """Determines how many hypotheses to evolve and selects the top-k pool.
+
+    Args:
+        state: Current workflow state.
+        hypotheses: Hypothesis pool entering evolution; assumed already
+            sorted by descending Elo rating (set by ranking_node).
+
+    Returns:
+        Tuple of (actual number of hypotheses to evolve, top_k hypotheses
+        to evolve).
+    """
+    evolution_max_count = state.get("evolution_max_count", 10)
+
+    # Calculate actual number to evolve (may be less than max if fewer
+    # hypotheses available)
+    # evolution_max_count doubles as the size of the pool going forward
+    # (see "Keep ONLY the evolved hypotheses" in _finalize_evolve_result),
+    # so clamp it to the available count rather than evolving hypotheses
+    # that do not exist.
+    actual_count = min(len(hypotheses), evolution_max_count)
+
+    # Get top-k hypotheses
+    # hypotheses arrives already sorted by descending Elo rating (set by
+    # ranking_node's return), so a plain slice selects the top performers
+    # without needing to re-sort here.
+    top_k = hypotheses[:evolution_max_count]
+
+    return actual_count, top_k
+
+
 async def _prepare_evolution_round(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
@@ -685,15 +795,7 @@ async def _prepare_evolution_round(
         Tuple of (top_k hypotheses to evolve, flattened previously removed
         duplicate texts, supervisor guidance for the evolution phase).
     """
-    evolution_max_count = state.get("evolution_max_count", 10)
-
-    # Calculate actual number to evolve (may be less than max if fewer
-    # hypotheses available)
-    # evolution_max_count doubles as the size of the pool going forward
-    # (see "Keep ONLY the evolved hypotheses" in _finalize_evolve_result),
-    # so clamp it to the available count rather than evolving hypotheses
-    # that do not exist.
-    actual_count = min(len(hypotheses), evolution_max_count)
+    actual_count, top_k = _select_evolution_pool(state, hypotheses)
 
     logger.info("Evolving top %s hypotheses", actual_count)
 
@@ -701,12 +803,6 @@ async def _prepare_evolution_round(
     await emit_progress(state, "evolve_start",
                         f"Evolving top {actual_count} hypotheses...",
                         PROGRESS_EVOLVE_START)
-
-    # Get top-k hypotheses
-    # hypotheses arrives already sorted by descending Elo rating (set by
-    # ranking_node's return), so a plain slice selects the top performers
-    # without needing to re-sort here.
-    top_k = hypotheses[:evolution_max_count]
 
     logger.info(
         "Evolving %s hypotheses with strategic context sampling "
@@ -774,6 +870,49 @@ def _build_evolution_tasks(
     ]
 
 
+def _build_evolve_state_delta(
+    evolved_hypotheses: list[Hypothesis],
+    evolution_details: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Builds the evolve_node state delta: metrics update plus payload.
+
+    Args:
+        evolved_hypotheses: Hypotheses returned by this round's evolution.
+        evolution_details: Evolution detail entries for hypotheses that
+            actually changed.
+
+    Returns:
+        The evolve_node state delta dictionary.
+    """
+    # Update metrics (deltas only, merge_metrics will add to existing state)
+    # Both deltas count every hypothesis attempted, not just those whose
+    # evolution was accepted: evolve_single_hypothesis always calls the
+    # LLM once before deciding whether to keep the refinement.
+    metrics = create_metrics_update(
+        llm_calls_delta=len(evolved_hypotheses),
+        evolutions_count_delta=len(evolved_hypotheses))
+    logger.debug(
+        "evolve node creating metrics delta: evolutions=%s, llm_calls=%s",
+        len(evolved_hypotheses), len(evolved_hypotheses))
+
+    # deduplicate_hypotheses (state.py) recognizes this as a replacement
+    # because every returned hypothesis id already exists in state, so the
+    # pool reliably shrinks to just the evolved list even when evolution
+    # rewrote every text.
+    return {
+        "hypotheses":
+            evolved_hypotheses,
+        "evolution_details":
+            evolution_details,
+        "metrics":
+            metrics,
+        "messages":
+            phase_message("evolve",
+                          f"Evolved {len(evolved_hypotheses)} hypotheses",
+                          evolved_count=len(evolved_hypotheses)),
+    }
+
+
 async def _finalize_evolve_result(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
@@ -815,33 +954,7 @@ async def _finalize_evolve_result(
                         PROGRESS_EVOLVE_COMPLETE,
                         evolved_count=len(evolved_hypotheses))
 
-    # Update metrics (deltas only, merge_metrics will add to existing state)
-    # Both deltas count every hypothesis attempted, not just those whose
-    # evolution was accepted: evolve_single_hypothesis always calls the
-    # LLM once before deciding whether to keep the refinement.
-    metrics = create_metrics_update(
-        llm_calls_delta=len(evolved_hypotheses),
-        evolutions_count_delta=len(evolved_hypotheses))
-    logger.debug(
-        "evolve node creating metrics delta: evolutions=%s, llm_calls=%s",
-        len(evolved_hypotheses), len(evolved_hypotheses))
-
-    # deduplicate_hypotheses (state.py) recognizes this as a replacement
-    # because every returned hypothesis id already exists in state, so the
-    # pool reliably shrinks to just the evolved list even when evolution
-    # rewrote every text.
-    return {
-        "hypotheses":
-            evolved_hypotheses,
-        "evolution_details":
-            evolution_details,
-        "metrics":
-            metrics,
-        "messages":
-            phase_message("evolve",
-                          f"Evolved {len(evolved_hypotheses)} hypotheses",
-                          evolved_count=len(evolved_hypotheses)),
-    }
+    return _build_evolve_state_delta(evolved_hypotheses, evolution_details)
 
 
 async def evolve_node(state: WorkflowState) -> dict[str, Any]:
