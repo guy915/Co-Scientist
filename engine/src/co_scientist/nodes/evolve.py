@@ -103,6 +103,34 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
     return len(intersection) / len(union) if union else 0.0
 
 
+def _log_truncated_items(label: str, items: list[str]) -> None:
+    """Logs a debug header and up to 3 items, each truncated to 100 chars.
+
+    Args:
+        label: Human-readable field label (e.g. "common Strengths").
+        items: Meta-review items to log.
+    """
+    if not items:
+        return
+    logger.debug("%s (%s):", label, len(items))
+    for item in items[:3]:  # Show first 3
+        logger.debug("- %s%s", item[:100], '...' if len(item) > 100 else '')
+
+
+def _log_items(label: str, items: list[str]) -> None:
+    """Logs a debug header and up to 3 items verbatim.
+
+    Args:
+        label: Human-readable field label (e.g. "strategic Recommendations").
+        items: Meta-review items to log.
+    """
+    if not items:
+        return
+    logger.debug("%s (%s):", label, len(items))
+    for item in items[:3]:  # Show first 3
+        logger.debug("- %s", item)
+
+
 def _log_meta_review_debug(meta_review: dict[str, Any]) -> None:
     """Logs meta-review signals used during evolution, for debugging.
 
@@ -115,33 +143,13 @@ def _log_meta_review_debug(meta_review: dict[str, Any]) -> None:
     logger.debug("\n=== evolve single hypothesis ===")
     logger.debug("using meta review for evolution")
 
-    common_strengths = meta_review.get("common_strengths", [])
-    common_weaknesses = meta_review.get("common_weaknesses", [])
-    strategic_recommendations = meta_review.get("strategic_recommendations", [])
-    emerging_themes = meta_review.get("emerging_themes", [])
-
-    if common_strengths:
-        logger.debug("common Strengths (%s):", len(common_strengths))
-        for strength in common_strengths[:3]:  # Show first 3
-            logger.debug("- %s%s", strength[:100],
-                         '...' if len(strength) > 100 else '')
-
-    if common_weaknesses:
-        logger.debug("common Weaknesses (%s):", len(common_weaknesses))
-        for weakness in common_weaknesses[:3]:  # Show first 3
-            logger.debug("- %s%s", weakness[:100],
-                         '...' if len(weakness) > 100 else '')
-
-    if strategic_recommendations:
-        logger.debug("strategic Recommendations (%s):",
-                     len(strategic_recommendations))
-        for rec in strategic_recommendations[:3]:  # Show first 3
-            logger.debug("- %s", rec)
-
-    if emerging_themes:
-        logger.debug("emerging Themes (%s):", len(emerging_themes))
-        for theme in emerging_themes[:3]:  # Show first 3
-            logger.debug("- %s", theme)
+    _log_truncated_items("common Strengths",
+                         meta_review.get("common_strengths", []))
+    _log_truncated_items("common Weaknesses",
+                         meta_review.get("common_weaknesses", []))
+    _log_items("strategic Recommendations",
+               meta_review.get("strategic_recommendations", []))
+    _log_items("emerging Themes", meta_review.get("emerging_themes", []))
 
 
 def _build_review_feedback(hypothesis: Hypothesis) -> str:

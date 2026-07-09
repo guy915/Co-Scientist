@@ -72,6 +72,29 @@ def _find_search_tool(
     return None, None
 
 
+def _articles_to_paper_dict(articles: list[Any]) -> dict[str, dict[str, Any]]:
+    """Convert parsed Article objects into the paper-dict format expected
+    by analyze_paper_novelty.
+
+    Args:
+        articles: Article objects parsed from a search tool's response.
+
+    Returns:
+        {paper_id: {"title": ..., "authors": [...], "year": ...,
+        "fulltext": ...}}
+    """
+    papers: dict[str, dict[str, Any]] = {}
+    for article in articles:
+        paper_id = article.source_id or article.url or article.title
+        papers[paper_id] = {
+            "title": article.title,
+            "authors": article.authors,
+            "year": article.year,
+            "fulltext": article.content or article.abstract or "",
+        }
+    return papers
+
+
 async def _search_papers_via_tool_config(
     tool_config: "ToolConfig",
     hypothesis_text: str,
@@ -114,18 +137,7 @@ async def _search_papers_via_tool_config(
     parser = ResponseParser(tool_config)
     articles = parser.parse_to_articles(result)
 
-    # Convert List[Article] to the {paper_id: {...}} dict format
-    # analyze_paper_novelty expects (title/authors/year/fulltext).
-    papers = {}
-    for article in articles:
-        paper_id = article.source_id or article.url or article.title
-        papers[paper_id] = {
-            "title": article.title,
-            "authors": article.authors,
-            "year": article.year,
-            "fulltext": article.content or article.abstract or "",
-        }
-    return papers
+    return _articles_to_paper_dict(articles)
 
 
 async def _search_papers_for_hypothesis(
@@ -482,6 +494,51 @@ async def _run_synthesis_batches(
     return all_validated_hypotheses, failed_batches
 
 
+async def _retry_one_hypothesis(
+    batch_idx: int,
+    hyp_idx: int,
+    hyp_data: dict[str, Any],
+    accumulated_texts: list[str],
+    all_validated_hypotheses: list[dict[str, Any]],
+    call_synthesis: _SynthesisCaller,
+) -> None:
+    """Retry a single hypothesis from a failed batch, best-effort.
+
+    A hypothesis whose individual retry also fails is dropped; the run
+    continues with whatever validated. Successful results are appended to
+    ``all_validated_hypotheses`` and their texts to ``accumulated_texts`` in
+    place, so subsequent retries in the same pass see this one's context.
+
+    Args:
+        batch_idx: 0-based index of the failed batch this hypothesis came
+            from, used in the retry label and error logging.
+        hyp_idx: 0-based index of this hypothesis within its failed batch,
+            used in the retry label and error logging.
+        hyp_data: the hypothesis dict to retry.
+        accumulated_texts: hypothesis texts validated so far; extended in
+            place on success.
+        all_validated_hypotheses: validated hypothesis dicts accumulated so
+            far; extended in place on success.
+        call_synthesis: the synthesis callable to invoke per hypothesis.
+    """
+    label = f"{batch_idx + 1}_retry_{hyp_idx + 1}"
+    context = accumulated_texts if accumulated_texts else None
+    try:
+        single_result = await call_synthesis([hyp_data], label, context)
+    except Exception as e:  # pylint: disable=broad-exception-caught
+        logger.error(
+            "Individual retry failed for batch %s,"
+            " hypothesis %s: %s", batch_idx + 1, hyp_idx + 1, e)
+        return
+
+    all_validated_hypotheses.extend(single_result)
+    # Accumulate for subsequent retries within this loop
+    for h in single_result:
+        text = h.get("hypothesis", "")
+        if text:
+            accumulated_texts.append(text)
+
+
 async def _retry_failed_synthesis_batches(
     failed_batches: list[tuple[int, list[dict[str, Any]]]],
     all_validated_hypotheses: list[dict[str, Any]],
@@ -508,22 +565,10 @@ async def _retry_failed_synthesis_batches(
 
     for batch_idx, failed_batch in failed_batches:
         for hyp_idx, hyp_data in enumerate(failed_batch):
-            label = f"{batch_idx + 1}_retry_{hyp_idx + 1}"
-            context = accumulated_texts if accumulated_texts else None
-            try:
-                single_result = await call_synthesis([hyp_data], label, context)
-                all_validated_hypotheses.extend(single_result)
-                # Accumulate for subsequent retries within this loop
-                for h in single_result:
-                    text = h.get("hypothesis", "")
-                    if text:
-                        accumulated_texts.append(text)
-            except Exception as e:  # pylint: disable=broad-exception-caught
-                # A hypothesis whose individual retry also fails is
-                # dropped; the run continues with whatever validated.
-                logger.error(
-                    "Individual retry failed for batch %s,"
-                    " hypothesis %s: %s", batch_idx + 1, hyp_idx + 1, e)
+            await _retry_one_hypothesis(batch_idx, hyp_idx, hyp_data,
+                                        accumulated_texts,
+                                        all_validated_hypotheses,
+                                        call_synthesis)
 
 
 def _build_hypotheses_from_synthesis(

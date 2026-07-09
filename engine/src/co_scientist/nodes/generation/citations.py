@@ -39,6 +39,27 @@ class ReferenceIndex:
         return not self.sources
 
 
+def _paper_citation_label(authors: list[str], year: int | None,
+                          title: str) -> str:
+    """Build the short author/year (or title-fallback) label for a citation.
+
+    Args:
+        authors: article authors, "First [Middle] Last" format.
+        year: publication year, if known.
+        title: article title, used as a fallback label source.
+
+    Returns:
+        "<Surname> et al., <year>" when a year is known, else a truncated
+        title.
+    """
+    # Assumes "First [Middle] Last" author-string format; takes the last
+    # whitespace-separated token as the surname.
+    first_author = authors[0].strip().split()[-1] if authors else "Unknown"
+    # Fall back to a truncated title when no year is known, since
+    # "et al., None" would be a confusing citation label.
+    return f"{first_author} et al., {year}" if year else title[:50]
+
+
 def _paper_reference_entries(
     articles: list[Any] | None,
     start_counter: int,
@@ -68,12 +89,7 @@ def _paper_reference_entries(
         url = getattr(article, "url", "") or ""
         authors = getattr(article, "authors", []) or []
         year = getattr(article, "year", None)
-        # Assumes "First [Middle] Last" author-string format; takes the last
-        # whitespace-separated token as the surname.
-        first_author = authors[0].strip().split()[-1] if authors else "Unknown"
-        # Fall back to a truncated title when no year is known, since
-        # "et al., None" would be a confusing citation label.
-        label = f"{first_author} et al., {year}" if year else title[:50]
+        label = _paper_citation_label(authors, year, title)
         lines.append(f"[{key}] {label} — {title[:80]}")
         sources[key] = {
             "type": "paper",

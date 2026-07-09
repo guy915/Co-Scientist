@@ -86,6 +86,8 @@ def make_literature_state(
     Use this for nodes that depend on literature review (eg reflection node).
 
     Args:
+        research_goal: research goal to seed the state with.
+        model_name: LLM model name to store in the state.
         run_real_lit_review: if True, calls real lit review node
                             (requires MCP server); if False, uses
                             minimal mock data

@@ -149,6 +149,68 @@ def _normalize_entity(raw: str) -> str:
     return _ALIAS_MAP.get(upper, normalized)
 
 
+def _should_skip_entity(upper: str, seen: set[str]) -> bool:
+    """True if a normalized entity name is a known stop-word or already seen.
+    """
+    return upper in _STOP or upper in seen
+
+
+def _is_mutation_notation(raw: str) -> bool:
+    """True if raw looks like a mutation notation rather than a gene name.
+
+    Mutation notations (G12C, V600E, L858R) are a single letter followed by
+    a digit; these are filtered out of the standalone-token pass.
+    """
+    return len(raw) >= 2 and raw[0].isupper() and raw[1].isdigit()
+
+
+def _add_hyphenated_entities(hyphenated: list[str], seen: set[str],
+                             result: list[str]) -> None:
+    """Appends normalized hyphenated entity names to result (pass 1).
+
+    Hyphenated names (IL-6, YKL-40) are higher-signal than standalone
+    tokens, so they are processed first. Also marks each raw prefix as
+    seen so e.g. "YKL" doesn't re-match after "YKL-40" in pass 2.
+
+    Args:
+        hyphenated: Raw hyphenated regex matches.
+        seen: Upper-cased entity names already accepted; mutated in place.
+        result: Normalized entity names accepted so far; mutated in place.
+    """
+    for raw in hyphenated:
+        prefix = raw.split("-")[0].upper()
+        seen.add(prefix)
+        normalized = _normalize_entity(raw)
+        upper = normalized.upper()
+        if _should_skip_entity(upper, seen):
+            continue
+        seen.add(upper)
+        result.append(normalized)
+
+
+def _add_standalone_entities(standalone: list[str], seen: set[str],
+                             result: list[str], max_entities: int) -> None:
+    """Appends normalized standalone entity names to result (pass 2).
+
+    Args:
+        standalone: Raw standalone uppercase-token regex matches.
+        seen: Upper-cased entity names already accepted; mutated in place.
+        result: Normalized entity names accepted so far; mutated in place.
+        max_entities: Stop once result reaches this length.
+    """
+    for raw in standalone:
+        if len(result) >= max_entities:
+            break
+        if _is_mutation_notation(raw):
+            continue
+        normalized = _normalize_entity(raw)
+        upper = normalized.upper()
+        if _should_skip_entity(upper, seen):
+            continue
+        seen.add(upper)
+        result.append(normalized)
+
+
 def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
     """Extract likely gene/protein names from hypothesis text.
 
@@ -161,32 +223,8 @@ def extract_entity_names(text: str, max_entities: int = 3) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
 
-    # Pass 1: hyphenated names first (higher signal)
-    # also mark the prefix as seen so "YKL" doesn't re-match after "YKL-40"
-    for raw in hyphenated:
-        prefix = raw.split("-")[0].upper()
-        seen.add(prefix)
-        normalized = _normalize_entity(raw)
-        upper = normalized.upper()
-        if upper in _STOP or upper in seen:
-            continue
-        seen.add(upper)
-        result.append(normalized)
-
-    # Pass 2: standalone uppercase words
-    for raw in standalone:
-        if len(result) >= max_entities:
-            break
-        # Skip mutation notations like G12C, V600E, L858R (single letter +
-        # digit)
-        if len(raw) >= 2 and raw[0].isupper() and raw[1].isdigit():
-            continue
-        normalized = _normalize_entity(raw)
-        upper = normalized.upper()
-        if upper in _STOP or upper in seen:
-            continue
-        seen.add(upper)
-        result.append(normalized)
+    _add_hyphenated_entities(hyphenated, seen, result)
+    _add_standalone_entities(standalone, seen, result, max_entities)
 
     return result[:max_entities]
 
@@ -217,6 +255,46 @@ def get_kg_tools_for_workflow(tool_registry: Optional["ToolRegistry"],
         # Any registry lookup error degrades to "no KG tools" rather than
         # failing reflection.
         return []
+
+
+async def _fetch_evidence_result(
+    client: Any,
+    mcp_names: list[str],
+    entities: list[str],
+    max_statements: int,
+) -> dict[str, Any] | None:
+    """Resolves an available tool, queries INDRA, and formats the results.
+
+    Returns None (rather than the shared "empty" result) if no candidate
+    tool is available on the MCP server or no statements come back, so the
+    caller can decide what "nothing found" maps to.
+
+    Args:
+        client: Shared MCP client.
+        mcp_names: Candidate MCP tool names, in preference order.
+        entities: Extracted entity names to query.
+        max_statements: Cap on statements included in the result.
+
+    Returns:
+        Dict with "prompt_text" and "enrichment_items", or None.
+    """
+    tool_name = _pick_available_tool(client, mcp_names)
+    if not tool_name:
+        return None
+
+    all_stmts = await _query_entities(client, tool_name, entities,
+                                      max_statements)
+    if not all_stmts:
+        return None
+
+    # Statements from every queried entity are pooled together, then capped
+    # globally here rather than per-entity, so a prolific first entity can
+    # crowd out a second entity's statements.
+    capped = all_stmts[:max_statements]
+    return {
+        "prompt_text": _format_evidence(capped, entities),
+        "enrichment_items": _build_enrichment_items(capped, entities),
+    }
 
 
 async def fetch_indra_evidence(
@@ -258,24 +336,9 @@ async def fetch_indra_evidence(
         # cached), so this reuses the same connection across hypotheses and
         # nodes rather than opening one per call.
         client = await get_mcp_client(tool_registry=tool_registry)
-
-        tool_name = _pick_available_tool(client, mcp_names)
-        if not tool_name:
-            return empty
-
-        all_stmts = await _query_entities(client, tool_name, entities,
-                                          max_statements)
-        if not all_stmts:
-            return empty
-
-        # Statements from every queried entity are pooled together, then
-        # capped globally here rather than per-entity, so a prolific first
-        # entity can crowd out a second entity's statements.
-        capped = all_stmts[:max_statements]
-        return {
-            "prompt_text": _format_evidence(capped, entities),
-            "enrichment_items": _build_enrichment_items(capped, entities),
-        }
+        result = await _fetch_evidence_result(client, mcp_names, entities,
+                                              max_statements)
+        return result if result is not None else empty
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         # Covers MCP client/connection failures, tool-call errors, etc.

@@ -49,6 +49,7 @@ async def run_generation():
 
 
 async def _run() -> None:
+    """Run the cold/warm cache benchmark and print timing results."""
     print("=" * 70)
     print("Testing LLM Cache Performance")
     print("=" * 70)

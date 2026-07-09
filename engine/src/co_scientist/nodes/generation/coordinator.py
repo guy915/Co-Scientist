@@ -336,6 +336,23 @@ def _apply_degraded_mode_fallback(hypotheses: list[Hypothesis]) -> None:
             " verified.")
 
 
+def _log_bucket_methods(label: str, hypotheses: list[Hypothesis]) -> None:
+    """Log the generation_method of every hypothesis in one bucket.
+
+    No-op when the bucket is empty.
+
+    Args:
+        label: name of the bucket, used as the log line prefix.
+        hypotheses: hypotheses in this bucket.
+    """
+    if not hypotheses:
+        return
+    logger.debug("%s generation_methods: %s", label, [
+        h.generation_method.value if h.generation_method else None
+        for h in hypotheses
+    ])
+
+
 def _log_generation_summary(results: GenerationResults) -> None:
     """Log summary of generated hypotheses."""
     total = len(results.all_hypotheses)
@@ -345,21 +362,9 @@ def _log_generation_summary(results: GenerationResults) -> None:
         len(results.tools_hypotheses), len(results.debate_with_lit_hypotheses),
         len(results.debate_only_hypotheses))
 
-    if results.tools_hypotheses:
-        logger.debug("tool-based generation_methods: %s", [
-            h.generation_method.value if h.generation_method else None
-            for h in results.tools_hypotheses
-        ])
-    if results.debate_with_lit_hypotheses:
-        logger.debug("debate-with-Lit generation_methods: %s", [
-            h.generation_method.value if h.generation_method else None
-            for h in results.debate_with_lit_hypotheses
-        ])
-    if results.debate_only_hypotheses:
-        logger.debug("debate-only generation_methods: %s", [
-            h.generation_method.value if h.generation_method else None
-            for h in results.debate_only_hypotheses
-        ])
+    _log_bucket_methods("tool-based", results.tools_hypotheses)
+    _log_bucket_methods("debate-with-Lit", results.debate_with_lit_hypotheses)
+    _log_bucket_methods("debate-only", results.debate_only_hypotheses)
 
 
 def _build_summary_message_parts(results: GenerationResults,

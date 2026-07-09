@@ -20,6 +20,35 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _match_hypothesis_to_cluster(hypotheses: list[Hypothesis], hyp_text: str,
+                                 cluster_id: str,
+                                 similarity_degree: str) -> None:
+    """Assigns cluster id/degree to the hypothesis matching hyp_text.
+
+    Matches by the first 100 chars of text -- cheap, and robust to minor
+    whitespace or formatting drift the LLM may introduce when quoting.
+    Mutates the matching hypothesis in place.
+
+    Args:
+        hypotheses: All hypotheses being analyzed for proximity.
+        hyp_text: Hypothesis text as echoed back by the LLM.
+        cluster_id: Cluster id to assign to the matching hypothesis.
+        similarity_degree: Similarity degree to assign if not already set.
+    """
+    for hyp in hypotheses:
+        # Match by text (first 100 chars for robustness)
+        if hyp.text[:100] == hyp_text[:100]:
+            hyp.similarity_cluster_id = cluster_id
+            # Store similarity degree (only set if not already set)
+            # First match wins: if the LLM's clusters overlap and a
+            # hypothesis appears more than once, its degree is fixed by
+            # whichever cluster is processed first rather than being
+            # overwritten by later matches.
+            if hyp.similarity_degree is None:
+                hyp.similarity_degree = similarity_degree
+            break
+
+
 def _assign_cluster_ids(hypotheses: list[Hypothesis],
                         similarity_clusters: list[dict[str, Any]]) -> None:
     """Assigns similarity-cluster ids and degrees back onto hypotheses.
@@ -40,20 +69,56 @@ def _assign_cluster_ids(hypotheses: list[Hypothesis],
         for similar_hyp in similar_hypotheses:
             hyp_text = similar_hyp.get("text", "")
             similarity_degree = similar_hyp.get("similarity_degree", "low")
+            _match_hypothesis_to_cluster(hypotheses, hyp_text, cluster_id,
+                                         similarity_degree)
 
-            # Find matching hypothesis
-            for hyp in hypotheses:
-                # Match by text (first 100 chars for robustness)
-                if hyp.text[:100] == hyp_text[:100]:
-                    hyp.similarity_cluster_id = cluster_id
-                    # Store similarity degree (only set if not already set)
-                    # First match wins: if the LLM's clusters overlap and a
-                    # hypothesis appears more than once, its degree is
-                    # fixed by whichever cluster is processed first rather
-                    # than being overwritten by later matches.
-                    if hyp.similarity_degree is None:
-                        hyp.similarity_degree = similarity_degree
-                    break
+
+def _partition_by_similarity_degree(
+    cluster_hypotheses: list[Hypothesis]
+) -> tuple[list[Hypothesis], list[Hypothesis]]:
+    """Splits cluster hypotheses into "high" and non-"high" similarity groups.
+
+    Only hypotheses tagged "high" are candidates for removal; "medium"/"low"
+    degree hypotheses in the same cluster are related but distinct enough to
+    keep both.
+
+    Args:
+        cluster_hypotheses: Hypotheses assigned to one cluster.
+
+    Returns:
+        Tuple of (high_similarity, others).
+    """
+    high_similarity = [
+        h for h in cluster_hypotheses if h.similarity_degree == "high"
+    ]
+    others = [h for h in cluster_hypotheses if h.similarity_degree != "high"]
+    return high_similarity, others
+
+
+def _build_removed_duplicate_record(duplicate: Hypothesis, cluster_id: str,
+                                    kept_text: str) -> dict[str, Any]:
+    """Builds one removed-duplicate audit entry for a dropped hypothesis.
+
+    Feeds the removed_duplicates audit trail (state.py), which evolve.py
+    later reads to avoid recreating them and the UI surfaces for
+    transparency.
+
+    Args:
+        duplicate: The high-similarity hypothesis being dropped.
+        cluster_id: Identifier of the cluster it was resolved from.
+        kept_text: Text of the hypothesis kept instead of this duplicate.
+
+    Returns:
+        Removed-duplicate audit dict.
+    """
+    return {
+        "text": duplicate.text,
+        "cluster_id": cluster_id,
+        "reason": "high_similarity_duplicate",
+        "kept_instead": kept_text[:200],
+        "elo_rating": duplicate.elo_rating,
+        "score": duplicate.score,
+    }
 
 
 def _resolve_cluster_duplicates(
@@ -76,47 +141,32 @@ def _resolve_cluster_duplicates(
         # No duplicates possible
         return list(cluster_hypotheses), []
 
-    hypotheses_to_keep: list[Hypothesis] = []
-    removed_duplicates: list[dict[str, Any]] = []
-
-    # Separate by similarity degree
-    # Only hypotheses tagged "high" are candidates for removal;
-    # "medium"/"low" degree hypotheses in the same cluster are related
-    # but distinct enough to keep both.
-    high_similarity = [
-        h for h in cluster_hypotheses if h.similarity_degree == "high"
-    ]
-    others = [h for h in cluster_hypotheses if h.similarity_degree != "high"]
+    high_similarity, others = _partition_by_similarity_degree(
+        cluster_hypotheses)
 
     # Keep all non-high-similarity hypotheses
+    hypotheses_to_keep: list[Hypothesis] = []
     hypotheses_to_keep.extend(others)
 
-    if high_similarity:
-        # For high-similarity duplicates, keep only the best. Rank by Elo
-        # (primary), then score, then text as deterministic tiebreakers.
-        high_similarity[:] = rank_by_elo(high_similarity)
+    if not high_similarity:
+        return hypotheses_to_keep, []
 
-        # Keep the best
-        best = high_similarity[0]
-        hypotheses_to_keep.append(best)
+    # For high-similarity duplicates, keep only the best. Rank by Elo
+    # (primary), then score, then text as deterministic tiebreakers.
+    high_similarity = rank_by_elo(high_similarity)
 
-        # Remove the rest
-        # Every other high-similarity hypothesis in the cluster is
-        # dropped; record what was removed, why, and what was kept
-        # instead for the removed_duplicates audit trail (state.py),
-        # which evolve.py later reads to avoid recreating them and the
-        # UI surfaces for transparency.
-        for duplicate in high_similarity[1:]:
-            removed_duplicates.append({
-                "text": duplicate.text,
-                "cluster_id": cluster_id,
-                "reason": "high_similarity_duplicate",
-                "kept_instead": best.text[:200],
-                "elo_rating": duplicate.elo_rating,
-                "score": duplicate.score,
-            })
-            logger.info("Removed duplicate from cluster %s: %s... (Elo: %s)",
-                        cluster_id, duplicate.text[:100], duplicate.elo_rating)
+    # Keep the best
+    best = high_similarity[0]
+    hypotheses_to_keep.append(best)
+
+    # Remove the rest
+    # Every other high-similarity hypothesis in the cluster is dropped.
+    removed_duplicates: list[dict[str, Any]] = []
+    for duplicate in high_similarity[1:]:
+        removed_duplicates.append(
+            _build_removed_duplicate_record(duplicate, cluster_id, best.text))
+        logger.info("Removed duplicate from cluster %s: %s... (Elo: %s)",
+                    cluster_id, duplicate.text[:100], duplicate.elo_rating)
 
     return hypotheses_to_keep, removed_duplicates
 

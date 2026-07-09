@@ -231,9 +231,12 @@ def test_mock_deep_verification_and_overview_are_deterministic(
                 rid, fixed_goal, cfg, sleep_seconds=0)
         ]
 
+    def _find(events: list[Any], event_type: str) -> Any:
+        return next(e for e in events if e["type"] == event_type)
+
     def _seeded_content(events: list[Any]) -> dict[str, Any]:
-        dv = next(e for e in events if e["type"] == "deep_verification")
-        ro = next(e for e in events if e["type"] == "research_overview")
+        dv = _find(events, "deep_verification")
+        ro = _find(events, "research_overview")
         # Strip the per-row hypothesis_id; keep only seeded text content.
         probes = [{
             "verdict": entry["verdict"],

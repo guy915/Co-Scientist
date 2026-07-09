@@ -36,6 +36,51 @@ def _extract_abstract_text(soup: BeautifulSoup) -> str:
     return abstract_text
 
 
+def _direct_section_paragraphs(section: Tag) -> list[str]:
+    """Collects paragraph text found directly within a section.
+
+    Args:
+        section: A top-level ``<sec>`` tag to scan.
+
+    Returns:
+        List of non-empty paragraph text strings found as direct children
+        of the section, excluding any nested subsections.
+    """
+    body_paragraphs = []
+    for p in section.find_all('p', recursive=False):
+        text = p.get_text(strip=True)
+        if text:
+            body_paragraphs.append(text)
+    return body_paragraphs
+
+
+def _nested_container_paragraphs(section: Tag) -> list[str]:
+    """Collects paragraph text from non-section child containers.
+
+    Catches ``<p>`` tags wrapped one level deeper in a non-``<sec>``
+    container (e.g. a boxed text or supplementary block) that a direct,
+    non-recursive scan would miss, while still excluding ``sec`` children
+    (subsections, handled separately) and ``title``/``label`` (already
+    consumed as the heading).
+
+    Args:
+        section: A top-level ``<sec>`` tag whose children are scanned.
+
+    Returns:
+        List of non-empty paragraph text strings found in those children.
+    """
+    body_paragraphs = []
+    for child in section.children:
+        if not isinstance(child, Tag) or child.name in ('sec', 'title',
+                                                        'label'):
+            continue
+        for p in child.find_all('p'):
+            text = p.get_text(strip=True)
+            if text:
+                body_paragraphs.append(text)
+    return body_paragraphs
+
+
 def _extract_section_text(section: Tag) -> list[str]:
     """Collects the direct-paragraph text of one top-level ``<sec>``.
 
@@ -47,29 +92,38 @@ def _extract_section_text(section: Tag) -> list[str]:
         List of paragraph text strings found directly within the section,
         excluding any nested subsections.
     """
-    # Get direct paragraphs only (not from nested sections)
-    body_paragraphs: list[str] = []
-    for p in section.find_all('p', recursive=False):
-        text = p.get_text(strip=True)
-        if text:
-            body_paragraphs.append(text)
-
-    # Also check for paragraphs in direct children
-    # (not nested sections). Catches <p> tags wrapped one
-    # level deeper in a non-<sec> container (e.g. a boxed
-    # text or supplementary block) that the recursive=False
-    # scan above would miss, while still excluding 'sec'
-    # children (subsections, handled/skipped above) and
-    # 'title'/'label' (already consumed as the heading).
-    for child in section.children:
-        if isinstance(child,
-                      Tag) and child.name not in ['sec', 'title', 'label']:
-            for p in child.find_all('p'):
-                text = p.get_text(strip=True)
-                if text:
-                    body_paragraphs.append(text)
-
+    body_paragraphs = _direct_section_paragraphs(section)
+    body_paragraphs.extend(_nested_container_paragraphs(section))
     return body_paragraphs
+
+
+def _build_section_block(section: Tag) -> str | None:
+    """Builds a markdown "## heading" block for one top-level section.
+
+    Args:
+        section: Candidate ``<sec>`` tag; skipped (returns None) if it is
+            a nested subsection (its immediate parent is itself a
+            ``<sec>``) or has no body paragraphs.
+
+    Returns:
+        Markdown block for the section, or None if it should be skipped.
+    """
+    # Only process top-level sections: a <sec> whose immediate parent is
+    # itself a <sec> is a subsection and is skipped here, so only
+    # sections attached directly to <body> (or another non-<sec>
+    # container) become their own "## heading" block.
+    parent = section.parent
+    if parent is None or parent.name == 'sec':
+        return None
+
+    body_paragraphs = _extract_section_text(section)
+    if not body_paragraphs:
+        return None
+
+    heading = section.find(['title', 'label'])
+    heading_text = heading.get_text(strip=True) if heading else "section"
+    content = '\n\n'.join(body_paragraphs)
+    return f"## {heading_text}\n\n{content}"
 
 
 def _extract_body_sections(soup: BeautifulSoup) -> list[str]:
@@ -83,31 +137,18 @@ def _extract_body_sections(soup: BeautifulSoup) -> list[str]:
         List of markdown blocks, one per top-level section that has
         content, in document order.
     """
-    sections = []
     body = soup.find('body')
-    if body:
-        # find_all with recursive=True returns every <sec> at any depth,
-        # including nested subsections; the parent-check below filters
-        # this down to top-level sections only (see next comment).
-        for section in body.find_all('sec', recursive=True):
-            # Get section heading
-            heading = section.find(['title', 'label'])
-            heading_text = heading.get_text(
-                strip=True) if heading else "section"
+    if not body:
+        return []
 
-            # Skip nested sections (we'll get them separately)
-            # only process top-level sections: a <sec> whose immediate
-            # parent is itself a <sec> is a subsection and is filtered
-            # out here, so only sections attached directly to <body> (or
-            # another non-<sec> container) become their own "## heading"
-            # block.
-            parent = section.parent
-            if parent is not None and parent.name != 'sec':
-                body_paragraphs = _extract_section_text(section)
-                if body_paragraphs:
-                    content = '\n\n'.join(body_paragraphs)
-                    sections.append(f"## {heading_text}\n\n{content}")
-
+    sections = []
+    # find_all with recursive=True returns every <sec> at any depth,
+    # including nested subsections; _build_section_block filters this
+    # down to top-level sections only.
+    for section in body.find_all('sec', recursive=True):
+        block = _build_section_block(section)
+        if block:
+            sections.append(block)
     return sections
 
 

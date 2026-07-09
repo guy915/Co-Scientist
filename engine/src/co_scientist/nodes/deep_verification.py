@@ -66,6 +66,50 @@ async def _verify_one(
             return None
 
 
+def _select_hypotheses_to_verify(
+        hypotheses: list[Hypothesis]) -> list[Hypothesis]:
+    """Picks the current Elo leaders that still need deep verification.
+
+    Use the shared Elo ranking policy to pick the current leaders, then
+    only re-verify those without existing probes: a hypothesis keeps its
+    probes/verdict across iterations unless evolve.py rewrote its text
+    (which clears them), so this is naturally idempotent/incremental.
+
+    Args:
+        hypotheses: The full hypothesis pool.
+
+    Returns:
+        Top-k-by-Elo hypotheses that lack deep-verification probes.
+    """
+    ranked = rank_by_elo(hypotheses)
+    top_k = ranked[:DEEP_VERIFICATION_TOP_K]
+    return [h for h in top_k if not h.deep_verification_probes]
+
+
+def _apply_verification_results(to_verify: list[Hypothesis],
+                                results: list[dict[str, Any] | None]) -> int:
+    """Applies deep-verification results onto their hypotheses in place.
+
+    A None result (call failed, see _verify_one) is silently skipped,
+    leaving that hypothesis's prior probes/verdict (typically empty, since
+    it was selected for verification) unchanged rather than raising.
+
+    Args:
+        to_verify: Hypotheses that were sent for verification.
+        results: Per-hypothesis results, aligned with to_verify.
+
+    Returns:
+        Count of hypotheses whose probes/verdict were updated.
+    """
+    verified_count = 0
+    for hypothesis, result in zip(to_verify, results):
+        if result:
+            hypothesis.deep_verification_probes = result.get("probes", [])
+            hypothesis.deep_verification_verdict = result.get("verdict")
+            verified_count += 1
+    return verified_count
+
+
 async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     """Probing-question deep verification of the top-k hypotheses by Elo.
 
@@ -85,13 +129,7 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     if not hypotheses:
         return {}
 
-    # Use the shared Elo ranking policy to pick the current leaders, then
-    # only re-verify those without existing probes: a hypothesis keeps its
-    # probes/verdict across iterations unless evolve.py rewrote its text
-    # (which clears them), so this is naturally idempotent/incremental.
-    ranked = rank_by_elo(hypotheses)
-    top_k = ranked[:DEEP_VERIFICATION_TOP_K]
-    to_verify = [h for h in top_k if not h.deep_verification_probes]
+    to_verify = _select_hypotheses_to_verify(hypotheses)
 
     # Edge case: the whole top-k is already verified (no evolution touched
     # any of them since last time). Skip the LLM calls and return an empty
@@ -115,16 +153,8 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     ])
 
     # Apply results in place on the same Hypothesis objects referenced from
-    # `hypotheses`/`state["hypotheses"]`. A None result (call failed, see
-    # _verify_one) is silently skipped, leaving that hypothesis's prior
-    # probes/verdict (typically empty, since it was selected for
-    # verification) unchanged rather than raising.
-    verified_count = 0
-    for hypothesis, result in zip(to_verify, results):
-        if result:
-            hypothesis.deep_verification_probes = result.get("probes", [])
-            hypothesis.deep_verification_verdict = result.get("verdict")
-            verified_count += 1
+    # `hypotheses`/`state["hypotheses"]`.
+    verified_count = _apply_verification_results(to_verify, results)
 
     await emit_progress(state, "deep_verification_complete",
                         f"Deep-verified {verified_count} hypotheses",

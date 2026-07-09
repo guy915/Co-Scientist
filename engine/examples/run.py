@@ -32,6 +32,43 @@ async def _report_progress(phase: str, data: dict[str, Any]) -> None:
         print(f"  [{phase}] {message}")
 
 
+def _print_ranked_hypotheses(hypotheses: list[dict[str, Any]]) -> None:
+    """Print each hypothesis in descending Elo order.
+
+    Args:
+        hypotheses: hypotheses sorted by Elo rating, highest first.
+    """
+    print()
+    print("Ranked hypotheses")
+    print("=================")
+    for rank, hyp in enumerate(hypotheses, start=1):
+        elo = hyp.get("elo_rating", 1200)
+        text = hyp.get("text", "")
+        print(f"\n{rank}. [Elo {elo}] {text}")
+        explanation = hyp.get("explanation")
+        if explanation:
+            print(f"   Summary: {explanation}")
+
+
+def _print_research_overview(overview: dict[str, Any]) -> None:
+    """Print the synthesized research overview, if a summary is present.
+
+    Args:
+        overview: the ``research_overview.overview`` payload.
+    """
+    summary = overview.get("summary")
+    if not summary:
+        return
+
+    print()
+    print("Research overview")
+    print("=================")
+    print(summary)
+    for direction in overview.get("research_directions", []):
+        title = direction.get("title", "")
+        print(f"- {title}")
+
+
 async def _run() -> None:
     """Prompt for a research goal, run the workflow, and print results."""
     research_goal = input("Enter a research goal: ").strip()
@@ -61,25 +98,9 @@ async def _run() -> None:
         reverse=True,
     )
 
-    print()
-    print("Ranked hypotheses")
-    print("=================")
-    for rank, hyp in enumerate(hypotheses, start=1):
-        elo = hyp.get("elo_rating", 1200)
-        print(f"\n{rank}. [Elo {elo}] {hyp.get('text', '')}")
-        explanation = hyp.get("explanation")
-        if explanation:
-            print(f"   Summary: {explanation}")
-
-    overview = result.get("research_overview", {}).get("overview", {})
-    summary = overview.get("summary")
-    if summary:
-        print()
-        print("Research overview")
-        print("=================")
-        print(summary)
-        for direction in overview.get("research_directions", []):
-            print(f"- {direction.get('title', '')}")
+    _print_ranked_hypotheses(hypotheses)
+    _print_research_overview(
+        result.get("research_overview", {}).get("overview", {}))
 
 
 if __name__ == "__main__":

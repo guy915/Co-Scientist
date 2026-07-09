@@ -23,6 +23,28 @@ _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
 _MAX_PER_PAGE = 25  # OpenAlex /works page-size ceiling used by this tool.
 
 
+def _inverted_index_positions(
+        inverted_index: dict[str, Any]) -> list[tuple[int, str]]:
+    """Flattens an OpenAlex inverted index into (position, word) pairs.
+
+    Args:
+        inverted_index: Mapping of word to the list of positions it
+            appears at.
+
+    Returns:
+        Unsorted list of (position, word) pairs, skipping any
+        malformed/non-integer position entries.
+    """
+    positions: list[tuple[int, str]] = []
+    for word, idxs in inverted_index.items():
+        if not isinstance(idxs, list):
+            continue
+        for idx in idxs:
+            if isinstance(idx, int):
+                positions.append((idx, str(word)))
+    return positions
+
+
 def _reconstruct_abstract(inverted_index: Any) -> str:
     """Rebuild abstract text from OpenAlex's inverted-index representation.
 
@@ -31,16 +53,80 @@ def _reconstruct_abstract(inverted_index: Any) -> str:
     """
     if not isinstance(inverted_index, dict) or not inverted_index:
         return ""
-    positions: list[tuple[int, str]] = []
-    for word, idxs in inverted_index.items():
-        if not isinstance(idxs, list):
-            continue
-        for idx in idxs:
-            if isinstance(idx, int):
-                positions.append((idx, str(word)))
+    positions = _inverted_index_positions(inverted_index)
     # Sort by original word position to restore reading order.
     positions.sort(key=lambda item: item[0])
     return " ".join(word for _, word in positions)
+
+
+def _work_short_id(work: dict[str, Any]) -> str:
+    """Extracts the short OpenAlex work id (e.g. "W123") from a work record.
+
+    OpenAlex ids are full URLs like "https://openalex.org/W123"; keep only
+    the short form to use as the output dict key.
+
+    Args:
+        work: A single work record from the OpenAlex /works response.
+
+    Returns:
+        The short work id, or "" if the record has no id.
+    """
+    raw_id = str(work.get("id") or "")
+    return raw_id.rsplit("/", 1)[-1]
+
+
+def _work_authors(work: dict[str, Any]) -> list[str]:
+    """Extracts non-empty author display names from a work record.
+
+    Args:
+        work: A single work record from the OpenAlex /works response.
+
+    Returns:
+        List of author display names, dropping any empty entries.
+    """
+    authors = [(a.get("author") or {}).get("display_name", "")
+               for a in (work.get("authorships") or [])
+               if isinstance(a, dict)]
+    return [a for a in authors if a]
+
+
+def _work_url(work: dict[str, Any]) -> str:
+    """Picks the best available URL for a work record.
+
+    Prefers a human-readable landing page, then falls back to the DOI,
+    then to the raw OpenAlex id URL so a url is always present.
+
+    Args:
+        work: A single work record from the OpenAlex /works response.
+
+    Returns:
+        Best-available URL string for the work.
+    """
+    location = work.get("primary_location") or {}
+    landing_page = (location.get("landing_page_url") if isinstance(
+        location, dict) else None)
+    raw_id = str(work.get("id") or "")
+    return landing_page or work.get("doi") or raw_id
+
+
+def _build_work_metadata(work: dict[str, Any]) -> dict[str, Any]:
+    """Builds the normalized metadata dict for one OpenAlex work.
+
+    Args:
+        work: A single work record from the OpenAlex /works response.
+
+    Returns:
+        Metadata dict carrying title, authors, year, abstract, url, and
+        source, shaped for the engine's literature-review field mapping.
+    """
+    return {
+        "title": work.get("title") or work.get("display_name") or "",
+        "authors": _work_authors(work),
+        "year": work.get("publication_year"),
+        "abstract": _reconstruct_abstract(work.get("abstract_inverted_index")),
+        "url": _work_url(work),
+        "source": "openalex",
+    }
 
 
 def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
@@ -63,33 +149,10 @@ def normalize_works(data: dict[str, Any], max_papers: int) -> dict[str, Any]:
     for work in results[:max(max_papers, 0)]:
         if not isinstance(work, dict):
             continue
-        # OpenAlex ids are full URLs like "https://openalex.org/W123"; keep
-        # only the short "W123" form to use as the dict key.
-        raw_id = str(work.get("id") or "")
-        work_id = raw_id.rsplit("/", 1)[-1]
+        work_id = _work_short_id(work)
         if not work_id:
             continue
-        authors = [(a.get("author") or {}).get("display_name", "")
-                   for a in (work.get("authorships") or [])
-                   if isinstance(a, dict)]
-        location = work.get("primary_location") or {}
-        # Prefer a human-readable landing page, then fall back to the
-        # DOI, then to the raw OpenAlex URL so a url is always present.
-        url = (location.get("landing_page_url") if isinstance(location, dict)
-               else None) or work.get("doi") or raw_id
-        out[work_id] = {
-            "title":
-                work.get("title") or work.get("display_name") or "",
-            "authors": [a for a in authors if a],
-            "year":
-                work.get("publication_year"),
-            "abstract":
-                _reconstruct_abstract(work.get("abstract_inverted_index")),
-            "url":
-                url,
-            "source":
-                "openalex",
-        }
+        out[work_id] = _build_work_metadata(work)
     return out
 
 

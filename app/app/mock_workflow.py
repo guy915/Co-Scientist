@@ -736,6 +736,64 @@ def _build_tournament_pairs(
     return pairs
 
 
+def _apply_pending_steering(run_id: str, db_path: str | None, itr: int) -> None:
+    """Apply any steering messages queued for this run iteration, if any."""
+    pending = store.get_pending_steering(run_id, db_path=db_path)
+    if not pending:
+        return
+    steering_note = "; ".join(m.content for m in pending)
+    logger.info("run %s iteration %d: applying steering: %s", run_id, itr,
+                steering_note)
+    store.mark_steering_applied([m.id for m in pending], db_path=db_path)
+
+
+def _ranking_round_payload(
+        itr: int, round_matches: list[dict[str, Any]]) -> dict[str, Any]:
+    """Build the emitted payload for one ranking round."""
+    return {
+        "iteration": itr,
+        "matches": [{
+            "winner": str(m["winner_id"])
+        } for m in round_matches],
+    }
+
+
+async def _run_evolve_and_meta_review_round(
+    run_id: str,
+    research_goal: str,
+    db_path: str | None,
+    rng: random.Random,
+    hyp_ids: list[str],
+    elo_state: dict[str, int],
+    evolution_max_count: int,
+    itr: int,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Evolve the top-k hypotheses and persist the per-iteration meta-review.
+
+    Mutates `hyp_ids` and `elo_state` in place via `_run_evolve_round`.
+    """
+    # ---- 8. Evolve top-k ----
+    top_k, children = _run_evolve_round(run_id, db_path, rng, research_goal,
+                                        hyp_ids, elo_state, evolution_max_count)
+    yield await emit("evolve", {
+        "children": [hypothesis_stub(c) for c in children],
+        "iteration": itr,
+    })
+
+    # ---- 9. Meta-review (per iteration) ----
+    mr_critique = _persist_meta_review_round(run_id, db_path, itr, top_k,
+                                             hyp_ids)
+    yield await emit(
+        "meta_review",
+        {
+            "iteration": itr,
+            "critique": mr_critique,
+            "top_k_ids": [t[0] for t in top_k]
+        },
+    )
+
+
 async def _run_tournament_iterations(
     run_id: str,
     research_goal: str,
@@ -755,32 +813,18 @@ async def _run_tournament_iterations(
     Runs ``max_iterations`` rounds that each include evolve/meta, plus one
     trailing ranking-only pass over the evolved population before final
     reporting (``+2``, not ``+1``, in the range below). Mutates `elo_state`
-    and `hyp_ids` in place via `_run_ranking_round` / `_run_evolve_round`. On
-    cancellation, yields a final "cancelled" status event and returns early;
-    the caller checks `cancelled.is_set()` once this generator is exhausted
-    to distinguish that from a natural finish.
+    and `hyp_ids` in place via `_run_ranking_round` /
+    `_run_evolve_and_meta_review_round`. On cancellation, yields a final
+    "cancelled" status event and returns early; the caller checks
+    `cancelled.is_set()` once this generator is exhausted to distinguish
+    that from a natural finish.
     """
     for itr in range(1, cfg["max_iterations"] + 2):
-        pending = store.get_pending_steering(run_id, db_path=db_path)
-        if pending:
-            steering_note = "; ".join(m.content for m in pending)
-            logger.info("run %s iteration %d: applying steering: %s", run_id,
-                        itr, steering_note)
-            store.mark_steering_applied([m.id for m in pending],
-                                        db_path=db_path)
+        _apply_pending_steering(run_id, db_path, itr)
         round_matches = _run_ranking_round(run_id, db_path, itr, pairs,
                                            elo_state, title_by_id,
                                            cfg["k_factor"])
-        yield await emit(
-            "ranking",
-            {
-                "iteration":
-                    itr,
-                "matches": [{
-                    "winner": str(m["winner_id"])
-                } for m in round_matches],
-            },
-        )
+        yield await emit("ranking", _ranking_round_payload(itr, round_matches))
 
         if cancelled and cancelled.is_set():
             store.update_run_status(run_id,
@@ -792,28 +836,21 @@ async def _run_tournament_iterations(
         # Only run evolve/meta inside iterations, not after the final
         # ranking pass.
         if itr <= cfg["max_iterations"]:
-            # ---- 8. Evolve top-k ----
-            top_k, children = _run_evolve_round(run_id, db_path, rng,
-                                                research_goal, hyp_ids,
-                                                elo_state,
-                                                cfg["evolution_max_count"])
-            yield await emit(
-                "evolve", {
-                    "children": [hypothesis_stub(c) for c in children],
-                    "iteration": itr,
-                })
+            async for event in _run_evolve_and_meta_review_round(
+                    run_id, research_goal, db_path, rng, hyp_ids, elo_state,
+                    cfg["evolution_max_count"], itr, emit):
+                yield event
 
-            # ---- 9. Meta-review (per iteration) ----
-            mr_critique = _persist_meta_review_round(run_id, db_path, itr,
-                                                     top_k, hyp_ids)
-            yield await emit(
-                "meta_review",
-                {
-                    "iteration": itr,
-                    "critique": mr_critique,
-                    "top_k_ids": [t[0] for t in top_k]
-                },
-            )
+
+def _fetch_top_hypotheses(db_path: str | None, leaderboard_ids: list[str],
+                          top_n: int) -> list[dict[str, Any]]:
+    """Fetch the top `top_n` leaderboard hypotheses, dropping missing rows."""
+    with store.connect(db_path) as conn:
+        raw: list[dict[str, Any] | None] = [
+            store.get_hypothesis(hid, conn=conn)
+            for hid in leaderboard_ids[:top_n]
+        ]
+    return [h for h in raw if h]
 
 
 async def _finalize_mock_run(
@@ -851,11 +888,7 @@ async def _finalize_mock_run(
     yield await emit("citation_audit", cit_summary)
 
     # ---- 12. Final safety + report ----
-    with store.connect(db_path) as conn:
-        top_hypotheses_raw = [
-            store.get_hypothesis(hid, conn=conn) for hid in leaderboard_ids[:5]
-        ]
-    top_hypotheses = [h for h in top_hypotheses_raw if h]
+    top_hypotheses = _fetch_top_hypotheses(db_path, leaderboard_ids, 5)
 
     # ---- 13. Research overview + NIH Specific Aims ----
     research_overview = _research_overview_seed(
@@ -963,6 +996,25 @@ async def _run_seed_stages(
                      }})
 
 
+def _seed_tournament_round(
+    hyp_ids: list[str],
+    hyp_payloads: list[dict[str, Any]],
+    rng: random.Random,
+    pair_count: int,
+) -> tuple[dict[str, int], dict[str, str], list[tuple[str, str]]]:
+    """Seed Elo state, the title lookup, and the first round's pairs.
+
+    Mapping each hypothesis id to its seed-deterministic title (rather than
+    keying the judge on the row UUIDs) is what keeps the tournament outcome
+    -- and thus the leaderboard, deep-verification selection, and research
+    overview -- reproducible for a fixed (run_id, goal).
+    """
+    elo_state = {hid: INITIAL_ELO for hid in hyp_ids}
+    title_by_id = {p["id"]: p["title"] for p in hyp_payloads}
+    pairs = _build_tournament_pairs(rng, hyp_ids, pair_count)
+    return elo_state, title_by_id, pairs
+
+
 async def run_mock_workflow(
     run_id: str,
     research_goal: str,
@@ -1012,15 +1064,8 @@ async def run_mock_workflow(
         return
 
     # ---- 7. First ranking round ----
-    elo_state: dict[str, int] = {hid: INITIAL_ELO for hid in hyp_ids}
-
-    # Map each hypothesis id to its seed-deterministic title so the tournament
-    # outcome (and thus the leaderboard, deep-verification selection, and the
-    # research overview) is reproducible for a fixed (run_id, goal). Keying the
-    # judge on the row UUIDs would scramble ordering across runs.
-    title_by_id: dict[str, str] = {p["id"]: p["title"] for p in hyp_payloads}
-
-    pairs = _build_tournament_pairs(rng, hyp_ids, cfg["tournament_pairs"])
+    elo_state, title_by_id, pairs = _seed_tournament_round(
+        hyp_ids, hyp_payloads, rng, cfg["tournament_pairs"])
 
     # ---- 8-9. Ranking/evolve/meta-review iterations ----
     async for event in _run_tournament_iterations(

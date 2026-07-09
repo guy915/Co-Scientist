@@ -18,7 +18,7 @@ import os
 import sqlite3
 import sys
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from app import store
@@ -151,6 +151,60 @@ _ENGINE_PIPELINE_AGENTS: list[str] = [
 ]
 
 
+def _generate_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``generate`` node's payload keys."""
+    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
+    return {
+        "count": len(hyps),
+        "hypotheses": [hypothesis_stub(h) for h in hyps],
+    }
+
+
+def _literature_review_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``literature_review`` node's payload keys."""
+    articles: list[dict[str, Any]] = state.get("articles") or []
+    return {
+        "count": len(articles),
+        "evidence": [article_stub(a) for a in articles],
+    }
+
+
+def _ranking_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``ranking`` node's payload keys."""
+    matchups: list[dict[str, Any]] = state.get("tournament_matchups") or []
+    return {"matches": [match_stub(m) for m in matchups]}
+
+
+def _evolve_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``evolve`` node's payload keys."""
+    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
+    return {
+        "children": [
+            hypothesis_stub(h) for h in hyps if h.get("evolution_history")
+        ]
+    }
+
+
+def _supervisor_plan_payload_extra(
+        unused_state: dict[str, Any]) -> dict[str, Any]:
+    """Build the ``supervisor.plan`` node's payload keys."""
+    del unused_state
+    return {"agents": list(_ENGINE_PIPELINE_AGENTS)}
+
+
+# Per-node-type payload builders, keyed by the canonical event type. Nodes
+# with no entry (e.g. ``reflection``, ``review``) get no extra payload keys
+# beyond the common ``node``/``iteration`` pair built in
+# ``_canonical_engine_payload``.
+_PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
+    "generate": _generate_payload_extra,
+    "literature_review": _literature_review_payload_extra,
+    "ranking": _ranking_payload_extra,
+    "evolve": _evolve_payload_extra,
+    "supervisor.plan": _supervisor_plan_payload_extra,
+}
+
+
 def _canonical_engine_payload(node_name: str, node_type: str,
                               state: dict[str, Any]) -> dict[str, Any]:
     """Build a canonical event payload for a streamed engine node.
@@ -174,31 +228,13 @@ def _canonical_engine_payload(node_name: str, node_type: str,
     Returns:
         The event payload dict (JSON-serializable; only plain dicts/lists).
     """
-    hyps: list[dict[str, Any]] = state.get("hypotheses") or []
-    matchups: list[dict[str, Any]] = state.get("tournament_matchups") or []
-    articles: list[dict[str, Any]] = state.get("articles") or []
-    iteration = state.get("current_iteration", 0)
-
     payload: dict[str, Any] = {
         "node": node_name,
-        "iteration": iteration,
+        "iteration": state.get("current_iteration", 0),
     }
-
-    if node_type == "generate":
-        payload["count"] = len(hyps)
-        payload["hypotheses"] = [hypothesis_stub(h) for h in hyps]
-    elif node_type == "literature_review":
-        payload["count"] = len(articles)
-        payload["evidence"] = [article_stub(a) for a in articles]
-    elif node_type == "ranking":
-        payload["matches"] = [match_stub(m) for m in matchups]
-    elif node_type == "evolve":
-        payload["children"] = [
-            hypothesis_stub(h) for h in hyps if h.get("evolution_history")
-        ]
-    elif node_type == "supervisor.plan":
-        payload["agents"] = list(_ENGINE_PIPELINE_AGENTS)
-
+    builder = _PAYLOAD_BUILDERS.get(node_type)
+    if builder is not None:
+        payload.update(builder(state))
     return payload
 
 
@@ -262,6 +298,38 @@ def _persist_engine_evidence(
     return ev_id_by_title, abstract_by_title
 
 
+def _derive_hypothesis_identity(
+        h: dict[str, Any]) -> tuple[str, str, int, str, str | None]:
+    """Derive an engine hypothesis's statement, title, generation, and ids.
+
+    The title is the first sentence (or first 120 chars) of the statement.
+
+    Returns:
+        A tuple of (statement text, derived title, generation number,
+        creating agent label, the engine's own id or None).
+    """
+    is_evolved = bool(h.get("evolution_history"))
+    text = h.get("text", "")
+    title = text.split(".")[0][:120] or text[:120]
+    engine_id = h.get("id") or None
+    generation = 1 if is_evolved else 0
+    agent = "evolution" if is_evolved else "generation"
+    return text, title, generation, agent, engine_id
+
+
+def _persist_hypothesis_state(hyp_id: str, h: dict[str, Any],
+                              conn: sqlite3.Connection) -> None:
+    """Persist a hypothesis's mutable state: Elo rating, wins, losses, score."""
+    store.update_hypothesis_state(
+        hyp_id,
+        elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
+        win_delta=int(h.get("win_count", 0)),
+        loss_delta=int(h.get("loss_count", 0)),
+        novelty=float(h.get("score", 0) or 0) or None,
+        conn=conn,
+    )
+
+
 def _persist_engine_hypothesis_row(
     run_id: str,
     h: dict[str, Any],
@@ -276,13 +344,7 @@ def _persist_engine_hypothesis_row(
     Returns:
         A tuple of (persisted store row id, the engine's own id or None).
     """
-    is_evolved = bool(h.get("evolution_history"))
-    generation = 1 if is_evolved else 0
-    agent = "evolution" if is_evolved else "generation"
-    # Derive a short title from the first sentence / 120 chars.
-    text = h.get("text", "")
-    title = text.split(".")[0][:120] or text[:120]
-    engine_id = h.get("id") or None
+    text, title, generation, agent, engine_id = _derive_hypothesis_identity(h)
     hyp_id = store.add_hypothesis(
         run_id=run_id,
         title=title,
@@ -296,16 +358,54 @@ def _persist_engine_hypothesis_row(
         created_by_agent=agent,
         conn=conn,
     )
-    # Update mutable state: Elo, wins, losses, scores.
-    store.update_hypothesis_state(
-        hyp_id,
-        elo_rating=int(h.get("elo_rating", INITIAL_ELO)),
-        win_delta=int(h.get("win_count", 0)),
-        loss_delta=int(h.get("loss_count", 0)),
-        novelty=float(h.get("score", 0) or 0) or None,
+    _persist_hypothesis_state(hyp_id, h, conn)
+    return hyp_id, engine_id
+
+
+def _score_or_none(value: Any) -> float | None:
+    """Coerce a raw engine score to a float, treating 0/falsy as unset."""
+    return float(value or 0) or None
+
+
+def _persist_engine_review_rows(run_id: str, hyp_id: str, h: dict[str, Any],
+                                conn: sqlite3.Connection) -> None:
+    """Persist a hypothesis's per-review rows from the engine's reviews list."""
+    for rv in h.get("reviews") or []:
+        scores = rv.get("scores", {})
+        store.add_review(
+            run_id=run_id,
+            hypothesis_id=hyp_id,
+            reviewer_agent="review",
+            summary=rv.get("review_summary", ""),
+            critique=rv.get("constructive_feedback", ""),
+            novelty=_score_or_none(scores.get("novelty", 0)),
+            plausibility=_score_or_none(scores.get("scientific_soundness", 0)),
+            testability=_score_or_none(scores.get("testability", 0)),
+            overall=_score_or_none(rv.get("overall_score", 0)),
+            conn=conn,
+        )
+
+
+def _persist_deep_verification_review(
+    run_id: str,
+    hyp_id: str,
+    h: dict[str, Any],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist deep-verification probes as a dedicated review row, if any."""
+    probes = h.get("deep_verification_probes") or []
+    if not probes:
+        return
+    summary, critique = format_deep_verification_critique(
+        probes, h.get("deep_verification_verdict"))
+    store.add_review(
+        run_id=run_id,
+        hypothesis_id=hyp_id,
+        reviewer_agent="deep_verification",
+        summary=summary,
+        critique=critique,
         conn=conn,
     )
-    return hyp_id, engine_id
 
 
 def _persist_engine_reviews(
@@ -315,36 +415,8 @@ def _persist_engine_reviews(
     conn: sqlite3.Connection,
 ) -> None:
     """Persist a hypothesis's per-review rows plus its deep-verification row."""
-    for rv in h.get("reviews") or []:
-        store.add_review(
-            run_id=run_id,
-            hypothesis_id=hyp_id,
-            reviewer_agent="review",
-            summary=rv.get("review_summary", ""),
-            critique=rv.get("constructive_feedback", ""),
-            novelty=float(rv.get("scores", {}).get("novelty", 0) or 0) or None,
-            plausibility=float(
-                rv.get("scores", {}).get("scientific_soundness", 0) or 0) or
-            None,
-            testability=float(rv.get("scores", {}).get("testability", 0) or
-                              0) or None,
-            overall=float(rv.get("overall_score", 0) or 0) or None,
-            conn=conn,
-        )
-
-    # Persist deep-verification probes as a dedicated review row.
-    probes = h.get("deep_verification_probes") or []
-    if probes:
-        summary, critique = format_deep_verification_critique(
-            probes, h.get("deep_verification_verdict"))
-        store.add_review(
-            run_id=run_id,
-            hypothesis_id=hyp_id,
-            reviewer_agent="deep_verification",
-            summary=summary,
-            critique=critique,
-            conn=conn,
-        )
+    _persist_engine_review_rows(run_id, hyp_id, h, conn)
+    _persist_deep_verification_review(run_id, hyp_id, h, conn)
 
 
 def _ensure_citation_evidence_id(
@@ -439,35 +511,45 @@ def _persist_engine_hypothesis(
                               abstract_by_title, citation_summary, conn)
 
 
+def _resolve_match_sides(
+    m: dict[str, Any],
+    store_id_by_engine_id: dict[str, str],
+) -> tuple[str, str] | None:
+    """Resolve a matchup's winner/loser store ids, or None if unresolved.
+
+    Matchups may legitimately reference hypotheses that were dropped from the
+    final set (evolve discards lower-ranked ones), so an unresolved id is
+    expected rather than an error — logged and skipped by the caller.
+    """
+    a_engine_id = m.get("hypothesis_a_id")
+    b_engine_id = m.get("hypothesis_b_id")
+    winner_engine_id = m.get("winner_id")
+    loser_engine_id = (b_engine_id
+                       if winner_engine_id == a_engine_id else a_engine_id)
+
+    winner_id = store_id_by_engine_id.get(winner_engine_id or "")
+    loser_id = store_id_by_engine_id.get(loser_engine_id or "")
+    if not winner_id or not loser_id:
+        logger.warning(
+            "skipping matchup: unresolved hypothesis id "
+            "(winner=%s, loser=%s) — likely a hypothesis dropped "
+            "during evolution", winner_engine_id, loser_engine_id)
+        return None
+    return winner_id, loser_id
+
+
 def _persist_engine_matches(
     run_id: str,
     matchups: list[dict[str, Any]],
     store_id_by_engine_id: dict[str, str],
     conn: sqlite3.Connection,
 ) -> None:
-    """Persist tournament matches, resolving each side by engine id.
-
-    Matchups may legitimately reference hypotheses that were dropped from the
-    final set (evolve discards lower-ranked ones), so an unresolved id is
-    expected rather than an error — logged and skipped.
-    """
+    """Persist tournament matches, resolving each side by engine id."""
     for m in matchups:
-        a_engine_id = m.get("hypothesis_a_id")
-        b_engine_id = m.get("hypothesis_b_id")
-        winner_engine_id = m.get("winner_id")
-
-        loser_engine_id = (b_engine_id
-                           if winner_engine_id == a_engine_id else a_engine_id)
-
-        winner_id = store_id_by_engine_id.get(winner_engine_id or "")
-        loser_id = store_id_by_engine_id.get(loser_engine_id or "")
-        if not winner_id or not loser_id:
-            logger.warning(
-                "skipping matchup: unresolved hypothesis id "
-                "(winner=%s, loser=%s) — likely a hypothesis dropped "
-                "during evolution", winner_engine_id, loser_engine_id)
+        sides = _resolve_match_sides(m, store_id_by_engine_id)
+        if sides is None:
             continue
-
+        winner_id, loser_id = sides
         store.add_match(
             run_id=run_id,
             iteration=0,
@@ -756,6 +838,69 @@ async def _stream_engine_nodes(
         yield await emit(node_type, payload)
 
 
+async def _run_engine_and_report(
+    generator: Any,
+    research_goal: str,
+    run_id: str,
+    run_mode: str,
+    initial_opts: dict[str, Any] | None,
+    *,
+    start: float,
+    cancelled: asyncio.Event | None,
+    db_path: str | None,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Stream the engine's nodes, then drain final state and emit the report.
+
+    Yields every streamed event. On cancellation, `_stream_engine_nodes` has
+    already emitted the terminal "cancelled" status event, so this returns
+    early and skips draining/reporting.
+    """
+    # Accumulate the full final state across all streamed nodes.
+    final_state: dict[str, Any] = {
+        "hypotheses": [],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "research_overview": {},
+    }
+    async for event in _stream_engine_nodes(
+            generator,
+            research_goal,
+            run_id,
+            initial_opts,
+            final_state,
+            cancelled=cancelled,
+            db_path=db_path,
+            emit=emit,
+    ):
+        yield event
+    if cancelled and cancelled.is_set():
+        return
+
+    # ---- Drain final state into the store ----
+    report_inputs = _persist_final_state(
+        run_id=run_id,
+        final_state=final_state,
+        db_path=db_path,
+    )
+
+    # Build, screen, persist, and emit the report through the shared
+    # finalize path (final safety gate included), so the engine is gated
+    # and reported on exactly the same terms as the mock.
+    async for event in finalize_report(
+        run_id=run_id,
+        research_goal=research_goal,
+        run_mode=run_mode,
+        provider="engine",
+        emit=emit,
+        execution_time=time.time() - start,
+        db_path=db_path,
+        **report_inputs,
+    ):
+        yield event
+
+
 async def _run_engine_provider(
     generator_cls: Any,
     research_goal: str,
@@ -769,10 +914,9 @@ async def _run_engine_provider(
 ) -> AsyncIterator[dict[str, Any]]:
     """Run the real engine end to end: stream nodes, drain state, report.
 
-    Persists the running status, streams the engine's per-node events, drains
-    the final state into the store, and builds/persists/emits the report
-    through the shared finalize path. On any exception, marks the run failed
-    and yields a terminal "failed" status event.
+    Persists the running status, then delegates streaming/draining/reporting
+    to `_run_engine_and_report`. On any exception, marks the run failed and
+    yields a terminal "failed" status event.
     """
     # Persist the running state, not just emit it. The mock path sets this; the
     # engine path previously only emitted the event, leaving the run row stuck
@@ -782,52 +926,19 @@ async def _run_engine_provider(
 
     initial_opts = _build_engine_opts(cfg, run_id, db_path)
     generator = _build_generator(generator_cls, cfg)
-
     start = time.time()
-    # Accumulate the full final state across all streamed nodes.
-    final_state: dict[str, Any] = {
-        "hypotheses": [],
-        "articles": [],
-        "tournament_matchups": [],
-        "meta_review": {},
-        "research_overview": {},
-    }
+
     try:
-        async for event in _stream_engine_nodes(
+        async for event in _run_engine_and_report(
                 generator,
                 research_goal,
                 run_id,
+                run_mode,
                 initial_opts if initial_opts else None,
-                final_state,
+                start=start,
                 cancelled=cancelled,
                 db_path=db_path,
                 emit=emit,
-        ):
-            yield event
-        if cancelled and cancelled.is_set():
-            # _stream_engine_nodes already emitted the "cancelled" status
-            # event; skip draining/reporting on a cancelled run.
-            return
-
-        # ---- Drain final state into the store ----
-        report_inputs = _persist_final_state(
-            run_id=run_id,
-            final_state=final_state,
-            db_path=db_path,
-        )
-
-        # Build, screen, persist, and emit the report through the shared
-        # finalize path (final safety gate included), so the engine is gated
-        # and reported on exactly the same terms as the mock.
-        async for event in finalize_report(
-            run_id=run_id,
-            research_goal=research_goal,
-            run_mode=run_mode,
-            provider="engine",
-            emit=emit,
-            execution_time=time.time() - start,
-            db_path=db_path,
-            **report_inputs,
         ):
             yield event
     except Exception as e:  # pylint: disable=broad-exception-caught
@@ -837,6 +948,62 @@ async def _run_engine_provider(
                                 error=str(e),
                                 db_path=db_path)
         yield await emit("status", {"status": "failed", "error": str(e)})
+
+
+async def _dispatch_provider(
+    provider: str,
+    research_goal: str,
+    run_id: str,
+    run_mode: str,
+    cfg: dict[str, Any],
+    *,
+    cancelled: asyncio.Event | None,
+    db_path: str | None,
+    sleep_seconds: float,
+    emit: EmitFn,
+) -> AsyncIterator[dict[str, Any]]:
+    """Dispatch to the mock or real-engine workflow after the intake gate.
+
+    Falls back to the mock workflow if the real engine cannot be imported
+    even though `provider` resolved to "engine" (e.g. a partial install).
+    """
+    if provider == "mock":
+        async for event in _stream_mock_provider(
+                run_id,
+                research_goal,
+                cfg,
+                db_path=db_path,
+                cancelled=cancelled,
+                sleep_seconds=sleep_seconds,
+        ):
+            yield event
+        return
+
+    # Real engine path — bridge engine streaming events into our event log.
+    generator_cls = _import_hypothesis_generator()
+    if generator_cls is None:
+        async for event in run_mock_workflow(
+                run_id=run_id,
+                research_goal=research_goal,
+                config=cfg,
+                db_path=db_path,
+                cancelled=cancelled,
+                sleep_seconds=sleep_seconds,
+        ):
+            yield event
+        return
+
+    async for event in _run_engine_provider(
+            generator_cls,
+            research_goal,
+            run_id,
+            run_mode,
+            cfg,
+            cancelled=cancelled,
+            db_path=db_path,
+            emit=emit,
+    ):
+        yield event
 
 
 async def run_workflow(
@@ -873,40 +1040,15 @@ async def run_workflow(
     if intake.decision == "block":
         return
 
-    if provider == "mock":
-        async for event in _stream_mock_provider(
-                run_id,
-                research_goal,
-                cfg,
-                db_path=db_path,
-                cancelled=cancelled,
-                sleep_seconds=sleep_seconds,
-        ):
-            yield event
-        return
-
-    # Real engine path — bridge engine streaming events into our event log.
-    generator_cls = _import_hypothesis_generator()
-    if generator_cls is None:
-        async for event in run_mock_workflow(
-                run_id=run_id,
-                research_goal=research_goal,
-                config=cfg,
-                db_path=db_path,
-                cancelled=cancelled,
-                sleep_seconds=sleep_seconds,
-        ):
-            yield event
-        return
-
-    async for event in _run_engine_provider(
-            generator_cls,
+    async for event in _dispatch_provider(
+            provider,
             research_goal,
             run_id,
             run_mode,
             cfg,
             cancelled=cancelled,
             db_path=db_path,
+            sleep_seconds=sleep_seconds,
             emit=emit,
     ):
         yield event

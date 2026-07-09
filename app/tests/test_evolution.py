@@ -2,6 +2,8 @@
 # pylint: disable=unused-argument
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi.testclient import TestClient
 
 from tests._client import make_client as _client
@@ -13,6 +15,26 @@ def _wait_completed(client: TestClient,
                     timeout: float = 20.0) -> None:
     assert wait_for_status(client, run_id, "completed",
                            timeout=timeout), "run did not complete in time"
+
+
+def _by_id(hyps: list[dict[str, Any]], hid: str) -> dict[str, Any]:
+    """Look up a hypothesis by id within a fetched hypothesis list."""
+    return next(h for h in hyps if h["id"] == hid)
+
+
+def _walk_to_root(hyps: list[dict[str, Any]],
+                  child: dict[str, Any]) -> dict[str, Any]:
+    """Walk a hypothesis's parent chain back to its root.
+
+    Asserts there is no cycle along the way.
+    """
+    cur = child
+    seen: set[str] = set()
+    while cur["parent_id"]:
+        assert cur["id"] not in seen, "lineage cycle"
+        seen.add(cur["id"])
+        cur = _by_id(hyps, cur["parent_id"])
+    return cur
 
 
 def test_evolution_creates_new_rows_with_parent_lineage(
@@ -39,16 +61,10 @@ def test_evolution_creates_new_rows_with_parent_lineage(
     initial_ids = {h["id"] for h in initial}
     for child in evolved:
         # Walk lineage back to an initial (gen 0).
-        cur = child
-        seen = set()
-        while cur["parent_id"]:
-            assert cur["id"] not in seen, "lineage cycle"
-            seen.add(cur["id"])
-            parent = next(h for h in hyps if h["id"] == cur["parent_id"])
-            cur = parent
-        assert cur["id"] in initial_ids
+        root = _walk_to_root(hyps, child)
+        assert root["id"] in initial_ids
         # Child's generation is parent's + 1.
-        parent_row = next(h for h in hyps if h["id"] == child["parent_id"])
+        parent_row = _by_id(hyps, child["parent_id"])
         assert child["generation"] == parent_row["generation"] + 1
 
     # Initial titles/statements are unchanged after evolution.

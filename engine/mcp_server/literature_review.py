@@ -53,6 +53,62 @@ def _parse_authors(article: dict[str, Any]) -> list[str]:
         ]))
 
 
+def _scan_shared_pool_candidates(
+        shared_dir: Path,
+        current_paper_ids_set: set[str]) -> list[tuple[str, dict[str, Any]]]:
+    """Scans the shared pool for downloaded papers not already in this run.
+
+    Args:
+        shared_dir: Shared-pool directory to scan for candidate papers.
+        current_paper_ids_set: Paper ids already selected for this run.
+
+    Returns:
+        (paper_id, metadata) tuples for shared-pool papers that have PMC
+        fulltext already downloaded and are not in the current run yet.
+    """
+    supplement_candidates = []
+    for metadata_file in shared_dir.glob("*.metadata.json"):
+        paper_id = metadata_file.stem.replace(".metadata", "")
+        if paper_id in current_paper_ids_set:
+            continue
+        try:
+            with open(metadata_file, encoding='utf-8') as f:
+                metadata = json.load(f)
+            # Only consider papers with PMC fulltext
+            if metadata.get('pmc_full_text_id'):
+                # Check if fulltext exists in shared pool. Only papers
+                # already downloaded qualify here; this supplement path
+                # deliberately avoids issuing new PMC downloads for a
+                # shortfall.
+                pmc_id = metadata['pmc_full_text_id']
+                fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
+                if fulltext_file.exists():
+                    supplement_candidates.append((paper_id, metadata))
+        # pylint: disable-next=broad-exception-caught
+        except Exception as e:
+            # Corrupt/partial metadata file: skip this candidate rather
+            # than aborting the whole scan.
+            logger.debug("Failed to read shared pool paper %s: %s", paper_id, e)
+    return supplement_candidates
+
+
+def _shared_pool_paper_year(paper_tuple: tuple[str, dict[str, Any]]) -> int:
+    """Extracts publication year from a shared-pool paper tuple.
+
+    Args:
+        paper_tuple: (paper_id, metadata) tuple.
+
+    Returns:
+        Integer year, or 0 if unavailable.
+    """
+    _, metadata = paper_tuple
+    try:
+        date_str = metadata.get('date_revised', '')
+        return int(date_str.split('/')[0])
+    except (ValueError, IndexError, AttributeError):
+        return 0
+
+
 def _extract_doi(pubmed_article: dict[str, Any]) -> str:
     """Extracts the DOI from a PubmedArticle's ArticleIdList.
 
@@ -480,77 +536,35 @@ class PubmedSource:
         logger.info("attempting to supplement %s papers from shared pool",
                     fulltext_shortfall)
 
-        # Scan shared pool for papers not in current run
         current_paper_ids_set = set(papers_to_use)
-        supplement_candidates = []
-
-        for metadata_file in shared_dir.glob("*.metadata.json"):
-            paper_id = metadata_file.stem.replace(".metadata", "")
-            if paper_id not in current_paper_ids_set:
-                try:
-                    with open(metadata_file, encoding='utf-8') as f:
-                        metadata = json.load(f)
-                    # Only consider papers with PMC fulltext
-                    if metadata.get('pmc_full_text_id'):
-                        # Check if fulltext exists in shared pool. Only
-                        # papers already downloaded qualify here; this
-                        # supplement path deliberately avoids issuing
-                        # new PMC downloads for a shortfall.
-                        pmc_id = metadata['pmc_full_text_id']
-                        fulltext_file = (shared_dir / f"{pmc_id}.fulltext.html")
-                        if fulltext_file.exists():
-                            supplement_candidates.append((paper_id, metadata))
-                # pylint: disable-next=broad-exception-caught
-                except Exception as e:
-                    # Corrupt/partial metadata file: skip this
-                    # candidate rather than aborting the whole scan.
-                    logger.debug("Failed to read shared pool paper %s: %s",
-                                 paper_id, e)
-
-        # Sort candidates by date (most recent first)
-        def get_year(paper_tuple: tuple[str, dict[str, Any]]) -> int:
-            """Extracts publication year from paper metadata tuple.
-
-            Args:
-                paper_tuple: (paper_id, metadata) tuple.
-
-            Returns:
-                Integer year, or 0 if unavailable.
-            """
-            _, metadata = paper_tuple
-            try:
-                date_str = metadata.get('date_revised', '')
-                year = int(date_str.split('/')[0])
-                return year
-            except (ValueError, IndexError, AttributeError):
-                return 0
-
-        supplement_candidates.sort(key=get_year, reverse=True)
+        supplement_candidates = _scan_shared_pool_candidates(
+            shared_dir, current_paper_ids_set)
+        supplement_candidates.sort(key=_shared_pool_paper_year, reverse=True)
 
         # Take up to shortfall papers
         papers_to_supplement = supplement_candidates[:fulltext_shortfall]
 
-        if papers_to_supplement:
-            logger.info("Found %s papers in shared pool to supplement",
-                        len(papers_to_supplement))
-
-            # Create symlinks for supplemented papers
-            for paper_id, metadata in papers_to_supplement:
-                _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
-                pmc_id = metadata['pmc_full_text_id']
-                _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
-
-                # Add to results
-                papers_to_use.append(paper_id)
-                all_details[paper_id] = metadata
-
-            logger.info(
-                "Supplemented %s papers from shared pool "
-                "(total: %s/%s)", len(papers_to_supplement), len(papers_to_use),
-                max_papers)
-        else:
+        if not papers_to_supplement:
             logger.warning("No suitable papers found in shared pool for "
                            "supplementation")
+            return
+
+        logger.info("Found %s papers in shared pool to supplement",
+                    len(papers_to_supplement))
+
+        # Create symlinks for supplemented papers
+        for paper_id, metadata in papers_to_supplement:
+            _symlink_into_run(run_dir, f"{paper_id}.metadata.json")
+            pmc_id = metadata['pmc_full_text_id']
+            _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
+
+            # Add to results
+            papers_to_use.append(paper_id)
+            all_details[paper_id] = metadata
+
+        logger.info("Supplemented %s papers from shared pool "
+                    "(total: %s/%s)", len(papers_to_supplement),
+                    len(papers_to_use), max_papers)
 
     def _save_run_manifest(self, run_id: str, run_dir: Path,
                            papers_to_use: list[str],

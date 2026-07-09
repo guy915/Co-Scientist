@@ -49,57 +49,92 @@ async def run_enrichment_analysis(
         "gene_count": len(gene_list),
     }
 
-    try:  # pylint: disable=broad-exception-caught
-        if analysis_type == "discrete":
-            # Over-representation (hypergeometric-style) test: are the
-            # given genes enriched for specific pathways/GO terms/etc.
-            # more than expected by chance?
-            raw = await _run_discrete(
-                gene_list,
-                alpha,
-                keep_insignificant,
-                minimum_evidence_count,
-                minimum_belief,
-            )
-        elif analysis_type == "signed":
-            # Requires both up- and down-regulated gene sets so INDRA can
-            # reason about which upstream regulators would explain the
-            # observed direction of change.
-            if not negative_genes:
-                return {
-                    "error": "signed analysis requires 'negative_genes'",
-                    "query": query_meta,
-                }
-            raw = await _run_signed(
-                gene_list,
-                negative_genes,
-                alpha,
-                keep_insignificant,
-                minimum_evidence_count,
-                minimum_belief,
-            )
-        elif analysis_type == "kinase":
-            # gene_list here is actually phosphosite identifiers; see the
-            # docstring for the "GENE-SITE" format.
-            raw = await _run_kinase(
-                gene_list,
-                alpha,
-                keep_insignificant,
-                minimum_evidence_count,
-                minimum_belief,
-            )
-        else:
-            valid = "discrete, signed, kinase"
-            return {
-                "error":
-                    f"invalid analysis_type '{analysis_type}', use: {valid}",
-            }
+    # Requires both up- and down-regulated gene sets so INDRA can reason
+    # about which upstream regulators would explain the observed
+    # direction of change.
+    if analysis_type == "signed" and not negative_genes:
+        return {
+            "error": "signed analysis requires 'negative_genes'",
+            "query": query_meta,
+        }
+    if analysis_type not in ("discrete", "signed", "kinase"):
+        valid = "discrete, signed, kinase"
+        return {
+            "error": f"invalid analysis_type '{analysis_type}', use: {valid}",
+        }
 
+    try:  # pylint: disable=broad-exception-caught
+        raw = await _dispatch_enrichment_analysis(
+            analysis_type,
+            gene_list,
+            negative_genes,
+            alpha,
+            keep_insignificant,
+            minimum_evidence_count,
+            minimum_belief,
+        )
         return {"results": raw, "query": query_meta}
 
     except Exception as e:  # pylint: disable=broad-exception-caught
         logger.error("run_enrichment_analysis failed: %s", e)
         return {"error": str(e), "query": query_meta}
+
+
+async def _dispatch_enrichment_analysis(
+    analysis_type: str,
+    gene_list: list[str],
+    negative_genes: list[str] | None,
+    alpha: float,
+    keep_insignificant: bool,
+    minimum_evidence_count: int,
+    minimum_belief: float,
+) -> Any:
+    """Delegates to the INDRA call matching a validated analysis_type.
+
+    Args:
+        analysis_type: One of "discrete", "signed", "kinase"; already
+            validated by the caller.
+        gene_list: Gene (or phosphosite, for kinase) identifiers.
+        negative_genes: Downregulated genes; already validated as
+            non-empty by the caller when analysis_type is "signed".
+        alpha: Significance threshold.
+        keep_insignificant: Include non-significant results.
+        minimum_evidence_count: Minimum supporting evidence count.
+        minimum_belief: Minimum belief score threshold.
+
+    Returns:
+        Raw API response from the matching INDRA enrichment endpoint.
+    """
+    if analysis_type == "discrete":
+        # Over-representation (hypergeometric-style) test: are the given
+        # genes enriched for specific pathways/GO terms/etc. more than
+        # expected by chance?
+        return await _run_discrete(
+            gene_list,
+            alpha,
+            keep_insignificant,
+            minimum_evidence_count,
+            minimum_belief,
+        )
+    if analysis_type == "signed":
+        assert negative_genes is not None  # validated by the caller
+        return await _run_signed(
+            gene_list,
+            negative_genes,
+            alpha,
+            keep_insignificant,
+            minimum_evidence_count,
+            minimum_belief,
+        )
+    # gene_list here is actually phosphosite identifiers; see the
+    # run_enrichment_analysis docstring for the "GENE-SITE" format.
+    return await _run_kinase(
+        gene_list,
+        alpha,
+        keep_insignificant,
+        minimum_evidence_count,
+        minimum_belief,
+    )
 
 
 async def _run_discrete(
