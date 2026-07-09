@@ -21,8 +21,8 @@ for this purpose.
 
 -   Python code follows the
     [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
-    Format with `yapf` (`based_on_style = google`, 80 columns) and lint with
-    `pylint` using the repository `pylintrc`.
+    Format with `ruff format` (80 columns) and lint with `ruff check`
+    (config in each project's `pyproject.toml`).
 -   Docstrings are Google style: a one-line summary on the first line, ending
     with a period, followed by `Args:`, `Returns:`, and `Raises:` sections as
     applicable.

@@ -251,8 +251,8 @@ Run from `engine/`:
 ```bash
 pip install -e '.[dev]'     # install with dev dependencies
 pytest                       # run tests
-yapf -ir src dev examples    # format (Google style, 80 cols)
-pylint --rcfile=../pylintrc src/co_scientist   # lint
+ruff format .                # format (80 cols)
+ruff check .                 # lint
 mypy .                       # typecheck
 ```
 
@@ -277,7 +277,7 @@ See `dev/README.md` for full details and available environment flags.
 - `logger.debug()` lowercase; `info` / `warning` / `error` capitalized.
 - No emojis or Unicode decoration in library code or logs.
 - `rich` only in `examples/` and `dev/`, never in core library code.
-- Line length: 80. Formatter: `yapf` (`based_on_style = google`). Linter: `pylint`.
+- Line length: 80. Formatter: `ruff format`. Linter: `ruff check`.
 
 #### Comments
 

@@ -28,7 +28,7 @@ help:
 	@echo "  make test-app     Run viewer backend pytest suite"
 	@echo "  make test-engine  Run engine pytest suite"
 	@echo "  make test-all     Run backend pytest suites (engine + app)"
-	@echo "  make lint         Lint backend (pylint)"
+	@echo "  make lint         Lint backend (ruff)"
 	@echo "  make typecheck    Typecheck backend (mypy)"
 	@echo "  make build        Build frontend (tsc + vite build)"
 	@echo "  make clean        Remove .venv, caches, frontend dist"
@@ -44,7 +44,7 @@ setup: $(VENV)/bin/activate
 	@# Skip the PyPI co-scientist-engine pin (we have it editable already from $(ENGINE))
 	@$(PIP) install -e "$(APP)" --no-deps
 	@$(PIP) install fastapi "uvicorn[standard]" python-dotenv pydantic pydantic-settings httpx
-	@$(PIP) install pytest pytest-asyncio yapf pylint mypy
+	@$(PIP) install pytest pytest-asyncio ruff mypy
 	@# Reference MCP server is optional and pins Python 3.12, so we don't install it here.
 	@echo ">> Installing frontend (bun preferred, npm fallback)"
 	@cd "$(FRONTEND)" && (command -v bun >/dev/null 2>&1 && bun install) || (echo "bun not found; using npm" && npm install --no-audit --no-fund --silent)
@@ -182,7 +182,8 @@ test-all:
 	@$(MAKE) test-app
 
 lint:
-	@cd "$(APP)" && "$(PY)" -m pylint --rcfile=../pylintrc app tests || true
+	@cd "$(APP)" && "$(PY)" -m ruff check app tests
+	@cd "$(ENGINE)" && "$(PY)" -m ruff check .
 
 typecheck:
 	@cd "$(APP)" && "$(PY)" -m mypy app/ || true

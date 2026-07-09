@@ -192,8 +192,8 @@ Interactive docs are available when the server is running:
 make install     # install with dev deps
 make dev         # hot-reload server on :8008
 make test        # pytest
-make format      # yapf -ir
-make lint        # pylint
+make format      # ruff format
+make lint        # ruff check
 make typecheck   # mypy
 ```
 

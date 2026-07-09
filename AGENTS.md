@@ -29,8 +29,8 @@ LangGraph-based multi-agent hypothesis-generation framework. Package name: `co-s
 pip install -e '.[dev]'          # install with dev deps
 python examples/run.py            # interactive CLI demo
 pytest                            # unit tests (testpaths = ["tests"])
-yapf -ir src dev examples         # format (Google style, 80 cols)
-pylint --rcfile=../pylintrc src/co_scientist   # lint
+ruff format .                     # format (80 cols)
+ruff check .                      # lint
 mypy .                            # typecheck
 ```
 
@@ -68,7 +68,7 @@ Engine-specific docs live in `engine/docs/` (`ARCHITECTURE.md`, `CONFIGURATION.m
 **Reference MCP server** lives in `mcp_server/` as a separately installable package. Install with `pip install -e mcp_server/` and run with `uvicorn mcp_server.server:app --host 0.0.0.0 --port 8888`. **Requires Python 3.12** (engine itself is 3.10+) — install into a 3.12 venv or you'll hit cryptic solver errors. Uses FastMCP + Biopython for PubMed + INDRA CoGex.
 
 **Style conventions** (from `CONTRIBUTING.md`, enforced informally):
-- Code follows the Google Python Style Guide: yapf (`based_on_style = google`, 80 columns), pylint with the repo-root `pylintrc`, Google-format docstrings (`Args:`/`Returns:`/`Raises:`).
+- Code follows the Google Python Style Guide: ruff (formatter + linter, 80 columns, config in `pyproject.toml`), Google-format docstrings (`Args:`/`Returns:`/`Raises:`).
 - Docstrings capitalized, full sentences.
 - `logger.debug()` lowercase; `info`/`warning`/`error` capitalized.
 - No emojis or unicode decoration in code or logs.
@@ -87,7 +87,7 @@ FastAPI app with settings in `app/config.py` (pydantic-settings, loads `.env`). 
 make install         # pip install -e ".[dev]"   (also: pixi install)
 make dev             # uvicorn app.main:app --reload --port 8008
 make test            # pytest (asyncio_mode = "auto", testpaths = ["tests"])
-make format / lint / typecheck   # yapf / pylint / mypy
+make format / lint / typecheck   # ruff format / ruff check / mypy
 ```
 
 Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identically.
