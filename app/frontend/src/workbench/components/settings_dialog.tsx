@@ -151,6 +151,44 @@ function ModelSection({
   );
 }
 
+// Section rail: list of nav buttons for switching between the dialog's
+// sections (see SECTIONS above), highlighting whichever is currently active.
+function SettingsNav({
+  section,
+  onSectionChange,
+}: {
+  section: SettingsSection;
+  onSectionChange: (section: SettingsSection) => void;
+}) {
+  return (
+    <nav className="ucs-settings-dialog-nav" aria-label="Settings sections">
+      {SECTIONS.map(item => {
+        const active = item.section === section;
+        return (
+          <button
+            key={item.section}
+            type="button"
+            className={
+              active
+                ? 'ucs-settings-nav-item ucs-settings-nav-item--active'
+                : 'ucs-settings-nav-item'
+            }
+            aria-current={active ? 'true' : undefined}
+            onClick={() => onSectionChange(item.section)}
+          >
+            <Icon
+              aria-hidden="true"
+              className="ucs-settings-nav-icon"
+              name={item.icon}
+            />
+            <span>{item.label}</span>
+          </button>
+        );
+      })}
+    </nav>
+  );
+}
+
 // Help section: static product blurb plus a collapsible FAQ list.
 function HelpSection() {
   return (
@@ -256,34 +294,7 @@ export function SettingsDialog({
           </button>
         </header>
         <div className="ucs-settings-dialog-body">
-          <nav
-            className="ucs-settings-dialog-nav"
-            aria-label="Settings sections"
-          >
-            {SECTIONS.map(item => {
-              const active = item.section === section;
-              return (
-                <button
-                  key={item.section}
-                  type="button"
-                  className={
-                    active
-                      ? 'ucs-settings-nav-item ucs-settings-nav-item--active'
-                      : 'ucs-settings-nav-item'
-                  }
-                  aria-current={active ? 'true' : undefined}
-                  onClick={() => onSectionChange(item.section)}
-                >
-                  <Icon
-                    aria-hidden="true"
-                    className="ucs-settings-nav-icon"
-                    name={item.icon}
-                  />
-                  <span>{item.label}</span>
-                </button>
-              );
-            })}
-          </nav>
+          <SettingsNav section={section} onSectionChange={onSectionChange} />
           <div className="ucs-settings-dialog-panel">
             {section === 'appearance' && (
               <AppearanceSection mode={mode} setMode={setMode} />

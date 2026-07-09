@@ -175,58 +175,84 @@ function ReferencesBlock({
   return (
     <section className={`${REPORT_SECTION_CLASSES} cosci-reference-list`}>
       <h3 className={REPORT_H3_CLASSES}>References</h3>
-      <label className={REFERENCE_SEARCH_CLASSES}>
-        <Icon
-          className={REFERENCE_SEARCH_ICON_CLASSES}
-          aria-hidden="true"
-          name="search"
-        />
-        <input
-          className={REFERENCE_SEARCH_INPUT_CLASSES}
-          value={query}
-          onChange={event => onQueryChange(event.currentTarget.value)}
-          placeholder="Search references"
-          aria-label="Search references"
-        />
-      </label>
-      <ol className={REFERENCE_LIST_CLASSES}>
-        {evidence.length ? (
-          evidence.map((item, index) => (
-            <li className={REFERENCE_LIST_ITEM_CLASSES} key={item.id}>
-              <span className={REFERENCE_LIST_INDEX_CLASSES}>
-                [{index + 1}]
-              </span>
-              <strong
-                className={REFERENCE_LIST_TITLE_CLASSES}
-                dangerouslySetInnerHTML={{__html: renderInlineHtml(item.title)}}
-              />
-              {item.url ? (
-                <a
-                  className={REFERENCE_LIST_LINK_CLASSES}
-                  href={item.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Icon
-                    className={REFERENCE_LIST_LINK_ICON_CLASSES}
-                    aria-hidden="true"
-                    name="open_in_new"
-                  />
-                  Open
-                </a>
-              ) : null}
-            </li>
-          ))
-        ) : (
-          <li className={REFERENCE_LIST_ITEM_CLASSES}>
-            <span className={REFERENCE_LIST_INDEX_CLASSES}>[0]</span>
-            <strong className={REFERENCE_LIST_TITLE_CLASSES}>
-              No references match the current search.
-            </strong>
-          </li>
-        )}
-      </ol>
+      <ReferenceSearchBox query={query} onQueryChange={onQueryChange} />
+      <ReferenceList evidence={evidence} />
     </section>
+  );
+}
+
+// Controlled search input above the reference list.
+function ReferenceSearchBox({
+  query,
+  onQueryChange,
+}: {
+  query: string;
+  onQueryChange: (value: string) => void;
+}) {
+  return (
+    <label className={REFERENCE_SEARCH_CLASSES}>
+      <Icon
+        className={REFERENCE_SEARCH_ICON_CLASSES}
+        aria-hidden="true"
+        name="search"
+      />
+      <input
+        className={REFERENCE_SEARCH_INPUT_CLASSES}
+        value={query}
+        onChange={event => onQueryChange(event.currentTarget.value)}
+        placeholder="Search references"
+        aria-label="Search references"
+      />
+    </label>
+  );
+}
+
+// Numbered reference list, or a single placeholder row when nothing matches
+// the current search.
+function ReferenceList({evidence}: {evidence: Evidence[]}) {
+  return (
+    <ol className={REFERENCE_LIST_CLASSES}>
+      {evidence.length ? (
+        evidence.map((item, index) => (
+          <ReferenceListItem key={item.id} item={item} index={index} />
+        ))
+      ) : (
+        <li className={REFERENCE_LIST_ITEM_CLASSES}>
+          <span className={REFERENCE_LIST_INDEX_CLASSES}>[0]</span>
+          <strong className={REFERENCE_LIST_TITLE_CLASSES}>
+            No references match the current search.
+          </strong>
+        </li>
+      )}
+    </ol>
+  );
+}
+
+// One numbered reference row: title plus an optional "Open" link.
+function ReferenceListItem({item, index}: {item: Evidence; index: number}) {
+  return (
+    <li className={REFERENCE_LIST_ITEM_CLASSES}>
+      <span className={REFERENCE_LIST_INDEX_CLASSES}>[{index + 1}]</span>
+      <strong
+        className={REFERENCE_LIST_TITLE_CLASSES}
+        dangerouslySetInnerHTML={{__html: renderInlineHtml(item.title)}}
+      />
+      {item.url ? (
+        <a
+          className={REFERENCE_LIST_LINK_CLASSES}
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Icon
+            className={REFERENCE_LIST_LINK_ICON_CLASSES}
+            aria-hidden="true"
+            name="open_in_new"
+          />
+          Open
+        </a>
+      ) : null}
+    </li>
   );
 }
 

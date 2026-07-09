@@ -11,6 +11,7 @@ import {
   type Hypothesis,
   type MatchRow,
   type Report,
+  type ResearchOverview,
   type Review,
   runGoal,
   type RunWithSummary,
@@ -289,43 +290,9 @@ export function RunDetail() {
 
   return (
     <div className={REPORT_PAGE_CLASSES}>
-      {/* Titlebar: back link plus the run's (possibly domain-overridden)
-          title. */}
-      <header className={REPORT_TITLEBAR_CLASSES}>
-        <div className={REPORT_TITLE_LEFT_CLASSES}>
-          <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
-            <Icon aria-hidden="true" name="arrow_back" />
-          </Link>
-          <h1 className={REPORT_TITLE_CLASSES}>
-            <TruncatedLabel
-              className={REPORT_TITLE_TEXT_CLASSES}
-              text={title}
-            />
-          </h1>
-        </div>
-      </header>
+      <ReportTitlebar title={title} />
 
-      {/* Tab nav: one button per TABS entry, routed via onTabChange. */}
-      <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
-        {TABS.map(tabName => (
-          <button
-            key={tabName}
-            type="button"
-            className={reportTabButtonClass(tabName === activeTab)}
-            aria-current={tabName === activeTab ? 'page' : undefined}
-            onClick={() => onTabChange(tabName)}
-          >
-            <Icon
-              className={REPORT_TAB_ICON_CLASSES}
-              aria-hidden="true"
-              name={TAB_ICON_NAMES[tabName]}
-            />
-            <span className={REPORT_TAB_LABEL_CLASSES}>
-              {TAB_LABELS[tabName]}
-            </span>
-          </button>
-        ))}
-      </nav>
+      <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
 
       {error && (
         <div role="alert" className={REPORT_ALERT_CLASSES}>
@@ -367,6 +334,54 @@ export function RunDetail() {
 
       {toast && <RunToast message={toast} />}
     </div>
+  );
+}
+
+// Titlebar: back link plus the run's (possibly domain-overridden) title.
+function ReportTitlebar({title}: {title: string}) {
+  return (
+    <header className={REPORT_TITLEBAR_CLASSES}>
+      <div className={REPORT_TITLE_LEFT_CLASSES}>
+        <Link to="/" className={REPORT_BACK_CLASSES} aria-label="Back">
+          <Icon aria-hidden="true" name="arrow_back" />
+        </Link>
+        <h1 className={REPORT_TITLE_CLASSES}>
+          <TruncatedLabel className={REPORT_TITLE_TEXT_CLASSES} text={title} />
+        </h1>
+      </div>
+    </header>
+  );
+}
+
+// Tab nav: one button per TABS entry, routed via onTabChange.
+function ReportTabNav({
+  activeTab,
+  onTabChange,
+}: {
+  activeTab: TabName;
+  onTabChange: (tab: TabName) => void;
+}) {
+  return (
+    <nav className={REPORT_TABS_CLASSES} aria-label="Goal report sections">
+      {TABS.map(tabName => (
+        <button
+          key={tabName}
+          type="button"
+          className={reportTabButtonClass(tabName === activeTab)}
+          aria-current={tabName === activeTab ? 'page' : undefined}
+          onClick={() => onTabChange(tabName)}
+        >
+          <Icon
+            className={REPORT_TAB_ICON_CLASSES}
+            aria-hidden="true"
+            name={TAB_ICON_NAMES[tabName]}
+          />
+          <span className={REPORT_TAB_LABEL_CLASSES}>
+            {TAB_LABELS[tabName]}
+          </span>
+        </button>
+      ))}
+    </nav>
   );
 }
 
@@ -460,68 +475,109 @@ function ResearchOverviewView({
       )}
 
       {overview?.overview?.research_directions?.length ? (
-        <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Research directions</h3>
-          {overview.overview.research_directions.map(direction => (
-            <div key={direction.title}>
-              <h4 className={REPORT_H4_CLASSES}>{direction.title}</h4>
-              <p>{direction.importance}</p>
-              {direction.suggested_experiments.length ? (
-                <ul className={REPORT_LIST_CLASSES}>
-                  {direction.suggested_experiments.map(experiment => (
-                    <li key={experiment}>{experiment}</li>
-                  ))}
-                </ul>
-              ) : null}
-            </div>
-          ))}
-        </section>
+        <ResearchDirectionsSection
+          directions={overview.overview.research_directions}
+        />
       ) : null}
 
       {overview?.nih_specific_aims?.aims?.length ? (
-        <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Specific aims</h3>
-          {overview.nih_specific_aims.introduction ? (
-            <p>{overview.nih_specific_aims.introduction}</p>
-          ) : null}
-          {overview.nih_specific_aims.aims.map(aim => (
-            <div key={aim.aim}>
-              <h4 className={REPORT_H4_CLASSES}>{aim.aim}</h4>
-              <p>{aim.rationale}</p>
-              <p>{aim.approach}</p>
-            </div>
-          ))}
-          {overview.nih_specific_aims.impact ? (
-            <p>{overview.nih_specific_aims.impact}</p>
-          ) : null}
-        </section>
+        <SpecificAimsSection aims={overview.nih_specific_aims} />
       ) : null}
 
       {winningIdeas.length ? (
-        <section className={REPORT_SECTION_CLASSES}>
-          <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
-          <ol className={REPORT_LIST_CLASSES}>
-            {winningIdeas.map(item => (
-              <li className={REPORT_SECTION_LIST_ITEM_CLASSES} key={item.id}>
-                <strong>{item.title}</strong>
-                <span className={REPORT_SECTION_LIST_META_CLASSES}>
-                  Elo rating: {item.elo}
-                </span>
-              </li>
-            ))}
-          </ol>
-        </section>
+        <WinningIdeasSection items={winningIdeas} />
       ) : null}
 
-      <section className={REPORT_SECTION_CLASSES}>
-        <h3 className={REPORT_H3_CLASSES}>Tournament summary</h3>
-        <p>
-          {matches.length
-            ? `${matches.length} tournament matches have been recorded for this run.`
-            : 'Tournament matches appear here once ranking begins.'}
-        </p>
-      </section>
+      <TournamentSummarySection matches={matches} />
     </ReportDocument>
+  );
+}
+
+// "Research directions" section of the research-overview report.
+function ResearchDirectionsSection({
+  directions,
+}: {
+  directions: NonNullable<
+    NonNullable<ResearchOverview['overview']>['research_directions']
+  >;
+}) {
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Research directions</h3>
+      {directions.map(direction => (
+        <div key={direction.title}>
+          <h4 className={REPORT_H4_CLASSES}>{direction.title}</h4>
+          <p>{direction.importance}</p>
+          {direction.suggested_experiments.length ? (
+            <ul className={REPORT_LIST_CLASSES}>
+              {direction.suggested_experiments.map(experiment => (
+                <li key={experiment}>{experiment}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ))}
+    </section>
+  );
+}
+
+// "Specific aims" section of the research-overview report.
+function SpecificAimsSection({
+  aims,
+}: {
+  aims: NonNullable<ResearchOverview['nih_specific_aims']>;
+}) {
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Specific aims</h3>
+      {aims.introduction ? <p>{aims.introduction}</p> : null}
+      {aims.aims?.map(aim => (
+        <div key={aim.aim}>
+          <h4 className={REPORT_H4_CLASSES}>{aim.aim}</h4>
+          <p>{aim.rationale}</p>
+          <p>{aim.approach}</p>
+        </div>
+      ))}
+      {aims.impact ? <p>{aims.impact}</p> : null}
+    </section>
+  );
+}
+
+// "Winning ideas" section of the research-overview report: top hypotheses by
+// Elo, normalized to one shape by the caller.
+function WinningIdeasSection({
+  items,
+}: {
+  items: {id: string; title: string; elo: number}[];
+}) {
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>
+      <ol className={REPORT_LIST_CLASSES}>
+        {items.map(item => (
+          <li className={REPORT_SECTION_LIST_ITEM_CLASSES} key={item.id}>
+            <strong>{item.title}</strong>
+            <span className={REPORT_SECTION_LIST_META_CLASSES}>
+              Elo rating: {item.elo}
+            </span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+// "Tournament summary" section of the research-overview report.
+function TournamentSummarySection({matches}: {matches: MatchRow[]}) {
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Tournament summary</h3>
+      <p>
+        {matches.length
+          ? `${matches.length} tournament matches have been recorded for this run.`
+          : 'Tournament matches appear here once ranking begins.'}
+      </p>
+    </section>
   );
 }
 

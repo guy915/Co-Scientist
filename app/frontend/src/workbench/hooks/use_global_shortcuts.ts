@@ -19,6 +19,32 @@ function isTextEditingTarget(t: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
 }
 
+// Resolves an ArrowLeft/ArrowRight press on a /runs/:id(/:tab) route to the
+// path for the adjacent tab, or null when the key/route doesn't apply or the
+// current tab is already at that end of TABS (no wraparound).
+function nextTabPath(pathname: string, key: string): string | null {
+  if (key !== 'ArrowLeft' && key !== 'ArrowRight') return null;
+  const m = pathname.match(/^\/runs\/([^/]+)(?:\/(.+))?$/);
+  if (!m) return null;
+  const id = m[1];
+  if (id === 'new') return null; // legacy path, not a real run
+  // Unknown or missing tab segments count as the default 'details'.
+  const current = (
+    m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : 'details'
+  ) as (typeof TABS)[number];
+  const idx = TABS.indexOf(current);
+  // Clamp at the ends rather than wrapping around.
+  const next =
+    key === 'ArrowRight'
+      ? Math.min(TABS.length - 1, idx + 1)
+      : Math.max(0, idx - 1);
+  if (next === idx) return null;
+  const nextTab = TABS[next];
+  // 'details' navigates to the bare id, which the router redirects to
+  // /runs/:id/details (the canonical default-tab URL).
+  return `/runs/${id}/${nextTab === 'details' ? '' : nextTab}`;
+}
+
 /**
  * Registers the app-wide keyboard shortcuts for the lifetime of the calling
  * component.
@@ -59,27 +85,10 @@ export function useGlobalShortcuts() {
       }
 
       // Tab nav while on a run page.
-      const m = location.pathname.match(/^\/runs\/([^/]+)(?:\/(.+))?$/);
-      if (m && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
-        const id = m[1];
-        if (id === 'new') return; // legacy path, not a real run
-        // Unknown or missing tab segments count as the default 'details'.
-        const current = (
-          m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : 'details'
-        ) as (typeof TABS)[number];
-        const idx = TABS.indexOf(current);
-        // Clamp at the ends rather than wrapping around.
-        const next =
-          e.key === 'ArrowRight'
-            ? Math.min(TABS.length - 1, idx + 1)
-            : Math.max(0, idx - 1);
-        if (next !== idx) {
-          e.preventDefault();
-          const nextTab = TABS[next];
-          // 'details' navigates to the bare id, which the router redirects
-          // to /runs/:id/details (the canonical default-tab URL).
-          void navigate(`/runs/${id}/${nextTab === 'details' ? '' : nextTab}`);
-        }
+      const path = nextTabPath(location.pathname, e.key);
+      if (path) {
+        e.preventDefault();
+        void navigate(path);
       }
     }
 

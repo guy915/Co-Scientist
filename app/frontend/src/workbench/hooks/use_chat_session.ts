@@ -40,6 +40,85 @@ interface ChatSessionDeps {
 }
 
 /**
+ * Runs the create+start API round trip for a confirmed draft spec and
+ * applies the resulting state transitions and diagnostic events. Pulled out
+ * of the hook so it takes every value and setter it needs as an argument
+ * instead of closing over hook state (it calls no hooks itself).
+ */
+async function startDraftRun({
+  specToStart,
+  specCreatedAt,
+  pubmedEnabled,
+  reloadHistory,
+  setConfirmedSpec,
+  setConfirmedSpecCreatedAt,
+  setDraftSpec,
+  setDraftSpecCreatedAt,
+  setStartedSession,
+  setError,
+}: {
+  specToStart: InferredRunSpec;
+  specCreatedAt: number;
+  pubmedEnabled: boolean;
+  reloadHistory: () => Promise<void>;
+  setConfirmedSpec: (spec: InferredRunSpec) => void;
+  setConfirmedSpecCreatedAt: (createdAt: number) => void;
+  setDraftSpec: (spec: InferredRunSpec | null) => void;
+  setDraftSpecCreatedAt: (createdAt: number | null) => void;
+  setStartedSession: (session: StartedSession) => void;
+  setError: (message: string) => void;
+}): Promise<void> {
+  emitDiagnosticEvent({
+    stage: 'LIFECYCLE',
+    run: referenceSetupTitle(specToStart.goal),
+    payload: {event: 'start_requested'},
+  });
+  try {
+    const created = await createRun({
+      research_goal: specToStart.goal,
+      requirements: specToStart.requirements,
+      attributes: specToStart.attributes,
+      criteria: specToStart.criteria,
+      focus: specToStart.focus,
+      tier: specToStart.tier,
+      enable_literature_review: pubmedEnabled,
+    });
+    const session: StartedSession = {
+      id: created.id,
+      title: referenceSetupTitle(specToStart.goal),
+      at: Date.now() / 1000,
+    };
+    setConfirmedSpec(specToStart);
+    setConfirmedSpecCreatedAt(specCreatedAt);
+    setDraftSpec(null);
+    setDraftSpecCreatedAt(null);
+    await startRun(created.id);
+    setStartedSession(session);
+    await reloadHistory();
+    // Tell the shell sidebar (which owns a separate history copy) that a new
+    // run exists, so it appears immediately instead of only after a reload.
+    window.dispatchEvent(new Event('cosci-runs-changed'));
+    emitDiagnosticEvent({
+      stage: 'LIFECYCLE',
+      run: session.title,
+      level: 'success',
+      payload: {event: 'start_queued', run_id: created.id},
+    });
+  } catch (err) {
+    setError(err instanceof Error ? err.message : String(err));
+    emitDiagnosticEvent({
+      stage: 'LIFECYCLE',
+      run: referenceSetupTitle(specToStart.goal),
+      level: 'error',
+      payload: {
+        event: 'start_failed',
+        message: err instanceof Error ? err.message : String(err),
+      },
+    });
+  }
+}
+
+/**
  * Owns the chat workspace's session state machine: the composer input, the
  * message log, the draft/confirmed run specs, and the started session, plus
  * every handler that transitions between them. View concerns (history reload,
@@ -264,52 +343,18 @@ export function useChatSession({
     setIsStarting(true);
     setError(null);
     setToast(null);
-    emitDiagnosticEvent({
-      stage: 'LIFECYCLE',
-      run: referenceSetupTitle(specToStart.goal),
-      payload: {event: 'start_requested'},
-    });
     try {
-      const created = await createRun({
-        research_goal: specToStart.goal,
-        requirements: specToStart.requirements,
-        attributes: specToStart.attributes,
-        criteria: specToStart.criteria,
-        focus: specToStart.focus,
-        tier: specToStart.tier,
-        enable_literature_review: pubmedEnabled,
-      });
-      const session: StartedSession = {
-        id: created.id,
-        title: referenceSetupTitle(specToStart.goal),
-        at: Date.now() / 1000,
-      };
-      setConfirmedSpec(specToStart);
-      setConfirmedSpecCreatedAt(specCreatedAt);
-      setDraftSpec(null);
-      setDraftSpecCreatedAt(null);
-      await startRun(created.id);
-      setStartedSession(session);
-      await reloadHistory();
-      // Tell the shell sidebar (which owns a separate history copy) that a new
-      // run exists, so it appears immediately instead of only after a reload.
-      window.dispatchEvent(new Event('cosci-runs-changed'));
-      emitDiagnosticEvent({
-        stage: 'LIFECYCLE',
-        run: session.title,
-        level: 'success',
-        payload: {event: 'start_queued', run_id: created.id},
-      });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      emitDiagnosticEvent({
-        stage: 'LIFECYCLE',
-        run: referenceSetupTitle(specToStart.goal),
-        level: 'error',
-        payload: {
-          event: 'start_failed',
-          message: err instanceof Error ? err.message : String(err),
-        },
+      await startDraftRun({
+        specToStart,
+        specCreatedAt,
+        pubmedEnabled,
+        reloadHistory,
+        setConfirmedSpec,
+        setConfirmedSpecCreatedAt,
+        setDraftSpec,
+        setDraftSpecCreatedAt,
+        setStartedSession,
+        setError,
       });
     } finally {
       setIsStarting(false);

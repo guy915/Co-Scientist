@@ -126,6 +126,41 @@ function formatDiagnosticTime(date = new Date()): string {
   return DIAGNOSTIC_TIME_FMT.format(date);
 }
 
+// Header "Logs" trigger button: shows the running entry count as a badge
+// and toggles the popover open/closed. Purely presentational — all state
+// lives in DiagnosticsControl.
+function LogsTriggerButton({
+  open,
+  count,
+  onToggle,
+}: {
+  open: boolean;
+  count: number;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({
+        className: LOGS_BUTTON_CLASSES,
+        placement: 'left',
+      })}
+      aria-label={`Logs ${count}`}
+      data-tooltip="Logs"
+      aria-expanded={open}
+      onClick={onToggle}
+    >
+      <Icon
+        aria-hidden="true"
+        className={LOGS_BUTTON_ICON_CLASSES}
+        name="expand_more"
+      />
+      <span>Logs</span>
+      <span className={LOGS_COUNT_CLASSES}>{count}</span>
+    </button>
+  );
+}
+
 /**
  * Header "Logs" button plus its diagnostics popover. Accumulates
  * `cosci-diagnostic-event` CustomEvents dispatched anywhere in the app into
@@ -196,25 +231,11 @@ export function DiagnosticsControl({
 
   return (
     <>
-      <button
-        type="button"
-        className={tooltipClassNames({
-          className: LOGS_BUTTON_CLASSES,
-          placement: 'left',
-        })}
-        aria-label={`Logs ${entries.length}`}
-        data-tooltip="Logs"
-        aria-expanded={open}
-        onClick={onToggle}
-      >
-        <Icon
-          aria-hidden="true"
-          className={LOGS_BUTTON_ICON_CLASSES}
-          name="expand_more"
-        />
-        <span>Logs</span>
-        <span className={LOGS_COUNT_CLASSES}>{entries.length}</span>
-      </button>
+      <LogsTriggerButton
+        open={open}
+        count={entries.length}
+        onToggle={onToggle}
+      />
       {open &&
         renderPopover(
           <DiagnosticLogsPanel
@@ -230,6 +251,33 @@ export function DiagnosticsControl({
           LOGS_POPOVER_CLASSES,
         )}
     </>
+  );
+}
+
+// Scrolling list of log entries (each entry's id/time/run/stage meta row plus
+// its JSON payload), or an empty-state message when there are none.
+function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
+  return (
+    <div className={DIAGNOSTIC_LIST_CLASSES} aria-label="Log events">
+      {entries.map(entry => (
+        <article key={entry.id} className={DIAGNOSTIC_ENTRY_CLASSES}>
+          <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
+            <span>#{entry.id}</span>
+            <span>[{entry.time}]</span>
+            <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>{entry.run}</span>
+            <strong className={DIAGNOSTIC_ENTRY_STAGE_CLASSES}>
+              {entry.stage}:
+            </strong>
+          </div>
+          <pre className={DIAGNOSTIC_CODE_CLASSES}>
+            {JSON.stringify(entry.payload, null, 2)}
+          </pre>
+        </article>
+      ))}
+      {entries.length === 0 && (
+        <p className={DIAGNOSTIC_EMPTY_CLASSES}>No diagnostic events loaded.</p>
+      )}
+    </div>
   );
 }
 
@@ -307,28 +355,7 @@ function DiagnosticLogsPanel({
           ))}
         </div>
       </div>
-      <div className={DIAGNOSTIC_LIST_CLASSES} aria-label="Log events">
-        {entries.map(entry => (
-          <article key={entry.id} className={DIAGNOSTIC_ENTRY_CLASSES}>
-            <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
-              <span>#{entry.id}</span>
-              <span>[{entry.time}]</span>
-              <span className={DIAGNOSTIC_ENTRY_RUN_CLASSES}>{entry.run}</span>
-              <strong className={DIAGNOSTIC_ENTRY_STAGE_CLASSES}>
-                {entry.stage}:
-              </strong>
-            </div>
-            <pre className={DIAGNOSTIC_CODE_CLASSES}>
-              {JSON.stringify(entry.payload, null, 2)}
-            </pre>
-          </article>
-        ))}
-        {entries.length === 0 && (
-          <p className={DIAGNOSTIC_EMPTY_CLASSES}>
-            No diagnostic events loaded.
-          </p>
-        )}
-      </div>
+      <DiagnosticLogList entries={entries} />
     </>
   );
 }

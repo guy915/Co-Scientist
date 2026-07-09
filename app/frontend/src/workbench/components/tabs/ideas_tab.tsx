@@ -145,37 +145,86 @@ export function IdeasTab({
   }
 
   if (isMobile) {
-    // Master-detail: the list swaps to a single idea on tap. There is no back
-    // affordance here — the user returns to the list by tapping the "All Ideas"
-    // tab, which remounts this view (see RunDetail's tab handler).
     return (
-      <div className={IDEA_MOBILE_VIEW_CLASSES}>
-        {selected ? (
-          <HypothesisDetail
-            hypothesis={selected}
-            reviews={reviews}
-            matches={matches}
-          />
-        ) : (
-          <ol
-            className={IDEA_MOBILE_LIST_CLASSES}
-            aria-label="Ranked hypothesis list"
-          >
-            {sorted.map((h, index) => (
-              <IdeaListItem
-                key={h.id}
-                rank={index + 1}
-                hypothesis={h}
-                selected={false}
-                onSelect={() => setSelectedId(h.id)}
-              />
-            ))}
-          </ol>
-        )}
-      </div>
+      <MobileIdeaView
+        sorted={sorted}
+        selected={selected}
+        reviews={reviews}
+        matches={matches}
+        onSelect={setSelectedId}
+      />
     );
   }
 
+  return (
+    <DesktopIdeaSplit
+      sorted={sorted}
+      selected={selected}
+      reviews={reviews}
+      matches={matches}
+      onSelect={setSelectedId}
+    />
+  );
+}
+
+// Master-detail: the list swaps to a single idea on tap. There is no back
+// affordance here — the user returns to the list by tapping the "All Ideas"
+// tab, which remounts this view (see RunDetail's tab handler).
+function MobileIdeaView({
+  sorted,
+  selected,
+  reviews,
+  matches,
+  onSelect,
+}: {
+  sorted: Hypothesis[];
+  selected: Hypothesis | null;
+  reviews: Review[];
+  matches: MatchRow[];
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <div className={IDEA_MOBILE_VIEW_CLASSES}>
+      {selected ? (
+        <HypothesisDetail
+          hypothesis={selected}
+          reviews={reviews}
+          matches={matches}
+        />
+      ) : (
+        <ol
+          className={IDEA_MOBILE_LIST_CLASSES}
+          aria-label="Ranked hypothesis list"
+        >
+          {sorted.map((h, index) => (
+            <IdeaListItem
+              key={h.id}
+              rank={index + 1}
+              hypothesis={h}
+              selected={false}
+              onSelect={() => onSelect(h.id)}
+            />
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+}
+
+// Desktop split view: ranked list, detail pane, and the jump-to-section rail.
+function DesktopIdeaSplit({
+  sorted,
+  selected,
+  reviews,
+  matches,
+  onSelect,
+}: {
+  sorted: Hypothesis[];
+  selected: Hypothesis | null;
+  reviews: Review[];
+  matches: MatchRow[];
+  onSelect: (id: string) => void;
+}) {
   return (
     <div className={IDEA_SPLIT_SHELL_CLASSES}>
       <div className={IDEA_SPLIT_GRID_CLASSES}>
@@ -189,7 +238,7 @@ export function IdeasTab({
               rank={index + 1}
               hypothesis={h}
               selected={h.id === selected?.id}
-              onSelect={() => setSelectedId(h.id)}
+              onSelect={() => onSelect(h.id)}
             />
           ))}
         </ol>

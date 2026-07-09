@@ -1,17 +1,25 @@
 import {
   Fragment,
+  type Dispatch,
   type ReactNode,
+  type SetStateAction,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from 'react';
 import {createPortal} from 'react-dom';
-import {useLocation, useNavigate} from 'react-router-dom';
+import {
+  type NavigateFunction,
+  useLocation,
+  useNavigate,
+} from 'react-router-dom';
+import {type RunFocus, type RunTier} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {useToast} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
 import {useChatSession} from '../hooks/use_chat_session';
+import {type InferredRunSpec} from '../run_spec';
 import {
   HOME_TOAST_ACTION_CLASSES,
   HOME_TOAST_CLASSES,
@@ -26,8 +34,10 @@ import {
 import {Composer} from './chat_composer';
 import {HomeStage} from './chat_home_stage';
 import {
+  type ChatEntry,
   ChatBubble,
   RunSpecCard,
+  type StartedSession,
   StartedSessionCard,
 } from './chat_timeline_cards';
 
@@ -58,20 +68,14 @@ type ChatWorkspaceLocationState = {
  * session-home stage (HomeStage) or the in-conversation timeline + composer.
  */
 export function ChatWorkspace() {
-  const location = useLocation();
   const navigate = useNavigate();
   // Recents list on the home stage is capped by default; this expands it.
   const [showAllRecents, setShowAllRecents] = useState(false);
   // PubMed connector toggle, shared between the home and in-chat composer.
   const [pubmedEnabled, setPubmedEnabled] = useState(true);
-  // Scrollable timeline container; scrollTop is driven imperatively below.
-  const scrollRef = useRef<HTMLDivElement>(null);
   // Wraps the overlaid composer; its measured height feeds the timeline's
   // bottom padding via a CSS custom property (see the ResizeObserver effect).
   const composerRef = useRef<HTMLDivElement>(null);
-  // Last timeline signature we auto-scrolled for, so the scroll effect only
-  // fires when the timeline actually changed shape/order.
-  const previousTimelineSignature = useRef('');
 
   const {toast, setToast} = useToast();
   const {history, homeScores, reloadHistory} = useRunHistory();
@@ -131,33 +135,10 @@ export function ChatWorkspace() {
     void reloadHistory();
   }, [reloadHistory, resetSession, setToast]);
 
-  // Listens for the nav rail's global "new chat" / "focus composer" custom
-  // events, which fire outside React's tree (e.g. from the app shell header).
-  useEffect(() => {
-    window.addEventListener('cosci-new-chat', resetWorkspace);
-    window.addEventListener('cosci-focus-composer', focusComposer);
-    return () => {
-      window.removeEventListener('cosci-new-chat', resetWorkspace);
-      window.removeEventListener('cosci-focus-composer', focusComposer);
-    };
-  }, [focusComposer, resetWorkspace]);
-
-  // Handles the same two actions when they arrive as router navigation state
-  // instead (see ChatWorkspaceLocationState), then clears the state so it
-  // doesn't re-fire on a later re-render or back/forward navigation.
-  useEffect(() => {
-    const state = location.state as ChatWorkspaceLocationState | null;
-    if (!state?.cosciAction) return;
-    if (state.cosciAction === 'new-chat') resetWorkspace();
-    if (state.cosciAction === 'focus-composer') focusComposer();
-    void navigate(location.pathname, {replace: true, state: null});
-  }, [
-    focusComposer,
-    location.pathname,
-    location.state,
-    navigate,
-    resetWorkspace,
-  ]);
+  // Wires the nav rail's global "new chat" / "focus composer" actions,
+  // whether they arrive as window custom events or react-router navigation
+  // state, into the handlers above.
+  useChatWorkspaceGlobalEvents({resetWorkspace, focusComposer});
 
   // Publishes the current draft goal (or started session title) as the app
   // shell's header title via a custom event, since the header lives outside
@@ -177,152 +158,33 @@ export function ChatWorkspace() {
   }, [draftSpec, startedSession]);
 
   // Merge every timeline-worthy piece of session state (messages, draft spec,
-  // confirmed spec, started session) into one list of TimelineItems, each
-  // carrying the rendered card/bubble node plus enough metadata to sort them.
-  const timelineItems: TimelineItem[] = [];
-  // Each chat message becomes a ChatBubble; `order` preserves message array
-  // order as a tiebreaker when timestamps collide.
-  for (const [index, message] of messages.entries()) {
-    timelineItems.push({
-      id: `local-message-${message.id}`,
-      at: message.created_at,
-      order: index,
-      node: (
-        <ChatBubble
-          message={message}
-          onEdit={() => handleEditMessage(message)}
-          onCopyRequest={() => void handleCopyRequest(message)}
-          onRetry={() => handleRetryMessage(message)}
-        />
-      ),
-    });
-  }
-  // Editable draft run spec awaiting confirmation: focus/tier edits write
-  // straight back into draftSpec, and cancel/edit/retry/start delegate to the
-  // session hook's handlers.
-  if (draftSpec && draftSpecCreatedAt !== null) {
-    timelineItems.push({
-      id: 'draft-spec',
-      at: draftSpecCreatedAt,
-      order: 50,
-      node: (
-        <RunSpecCard
-          spec={draftSpec}
-          isStarting={isStarting}
-          onFocusChange={focus =>
-            setDraftSpec(current => (current ? {...current, focus} : current))
-          }
-          onTierChange={tier =>
-            setDraftSpec(current => (current ? {...current, tier} : current))
-          }
-          onCancel={handleCancelDraftSpec}
-          onEdit={() => handleEditPlan(draftSpec)}
-          onRetry={() => handleRetryDraftSpec()}
-          onStart={() => void handleStartRun()}
-        />
-      ),
-    });
-  }
-  // Read-only confirmed spec once the plan has been locked in (e.g. after an
-  // edit round-trip): all mutation handlers are no-ops and `locked` disables
-  // the option cards; retrying re-stages it as an editable draft again.
-  if (confirmedSpec && confirmedSpecCreatedAt !== null) {
-    timelineItems.push({
-      id: 'confirmed-spec',
-      at: confirmedSpecCreatedAt,
-      order: 50,
-      node: (
-        <RunSpecCard
-          spec={confirmedSpec}
-          isStarting={false}
-          locked
-          onFocusChange={() => undefined}
-          onTierChange={() => undefined}
-          onCancel={() => undefined}
-          onEdit={() => handleEditPlan(confirmedSpec)}
-          onRetry={() => {
-            stageDraftSpec(confirmedSpec);
-          }}
-          onStart={() => undefined}
-        />
-      ),
-    });
-  }
-  // Terminal timeline entry once the backend run has actually started;
-  // opening it navigates to the run detail page, "retry" just bumps its
-  // timestamp so it re-sorts to the current time.
-  if (startedSession) {
-    timelineItems.push({
-      id: `started-session-${startedSession.id}`,
-      at: startedSession.at,
-      order: 60,
-      node: (
-        <StartedSessionCard
-          session={startedSession}
-          onOpen={() => void navigate(`/runs/${startedSession.id}/details`)}
-          onRetry={() =>
-            setStartedSession(current =>
-              current ? {...current, at: Date.now() / 1000} : current,
-            )
-          }
-          onNewTopic={() => {
-            resetWorkspace();
-            focusComposer();
-          }}
-        />
-      ),
-    });
-  }
-  // Chronological order, with `order` breaking ties between items created in
-  // the same tick (e.g. a message and a spec card stamped at the same time).
-  timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
-  // Cheap fingerprint of the timeline's identity/order used below to decide
-  // whether an auto-scroll is warranted, without deep-comparing React nodes.
-  const timelineSignature = timelineItems
-    .map(item => `${item.id}:${item.at}`)
-    .join('|');
-  const latestTimelineItemId =
-    timelineItems.length > 0 ? timelineItems[timelineItems.length - 1].id : '';
-  // Once a run has started, always anchor to the bottom. Otherwise, a newly
-  // arrived spec card (which is tall) anchors to the top so its heading is
-  // visible; anything else (chat bubbles) anchors to the bottom as usual.
-  const timelineAnchorMode = startedSession
-    ? 'bottom'
-    : latestTimelineItemId === 'draft-spec' ||
-        latestTimelineItemId === 'confirmed-spec'
-      ? 'top'
-      : 'bottom';
+  // confirmed spec, started session) into one sorted list of TimelineItems.
+  const timelineItems = buildTimelineItems({
+    messages,
+    handleEditMessage,
+    handleCopyRequest,
+    handleRetryMessage,
+    draftSpec,
+    draftSpecCreatedAt,
+    setDraftSpec,
+    isStarting,
+    handleCancelDraftSpec,
+    handleEditPlan,
+    handleRetryDraftSpec,
+    handleStartRun,
+    confirmedSpec,
+    confirmedSpecCreatedAt,
+    stageDraftSpec,
+    startedSession,
+    setStartedSession,
+    navigate,
+    resetWorkspace,
+    focusComposer,
+  });
 
-  // Auto-scrolls the timeline whenever its signature changes (new item, or an
-  // item's timestamp changed), skipping the very first render's signature and
-  // any re-render that doesn't actually change the timeline. The zero-delay
-  // timeout defers until after layout so scrollHeight reflects the new DOM.
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!scroller || previousTimelineSignature.current === timelineSignature) {
-      return;
-    }
-    previousTimelineSignature.current = timelineSignature;
-    const timeout = window.setTimeout(() => {
-      scroller.scrollTop =
-        timelineAnchorMode === 'top' ? 0 : scroller.scrollHeight;
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [timelineAnchorMode, timelineSignature]);
-
-  // Belt-and-suspenders scroll-to-bottom specifically when a session starts,
-  // independent of the signature-based effect above, since the started-card
-  // arriving can coincide with other timeline changes.
-  useEffect(() => {
-    const scroller = scrollRef.current;
-    if (!startedSession || !scroller) {
-      return;
-    }
-    const timeout = window.setTimeout(() => {
-      scroller.scrollTop = scroller.scrollHeight;
-    }, 0);
-    return () => window.clearTimeout(timeout);
-  }, [startedSession]);
+  // Auto-scrolls the timeline as it changes shape/order; see the hook for
+  // the anchor-mode (top vs bottom) logic.
+  const scrollRef = useChatTimelineScroll(timelineItems, startedSession);
 
   // The composer overlays the timeline, so reserve exactly its height as the
   // timeline's bottom padding — otherwise the last item is trapped under the
@@ -342,7 +204,7 @@ export function ChatWorkspace() {
     const observer = new ResizeObserver(sync);
     observer.observe(composer);
     return () => observer.disconnect();
-  }, [hasConversation]);
+  }, [hasConversation, scrollRef]);
 
   return (
     <div className={HOME_WORKSPACE_CLASSES}>
@@ -425,4 +287,267 @@ export function ChatWorkspace() {
       </main>
     </div>
   );
+}
+
+// Listens for the nav rail's global "new chat" / "focus composer" custom
+// events, which fire outside React's tree (e.g. from the app shell header),
+// and handles the same two actions when they arrive as router navigation
+// state instead (see ChatWorkspaceLocationState), clearing that state so it
+// doesn't re-fire on a later re-render or back/forward navigation.
+function useChatWorkspaceGlobalEvents({
+  resetWorkspace,
+  focusComposer,
+}: {
+  resetWorkspace: () => void;
+  focusComposer: () => void;
+}) {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    window.addEventListener('cosci-new-chat', resetWorkspace);
+    window.addEventListener('cosci-focus-composer', focusComposer);
+    return () => {
+      window.removeEventListener('cosci-new-chat', resetWorkspace);
+      window.removeEventListener('cosci-focus-composer', focusComposer);
+    };
+  }, [focusComposer, resetWorkspace]);
+
+  useEffect(() => {
+    const state = location.state as ChatWorkspaceLocationState | null;
+    if (!state?.cosciAction) return;
+    if (state.cosciAction === 'new-chat') resetWorkspace();
+    if (state.cosciAction === 'focus-composer') focusComposer();
+    void navigate(location.pathname, {replace: true, state: null});
+  }, [
+    focusComposer,
+    location.pathname,
+    location.state,
+    navigate,
+    resetWorkspace,
+  ]);
+}
+
+// Dependencies buildTimelineItems needs to render each kind of timeline
+// entry; see ChatWorkspace's destructured `session` for where these come
+// from.
+interface BuildTimelineItemsArgs {
+  messages: ChatEntry[];
+  handleEditMessage: (message: ChatEntry) => void;
+  handleCopyRequest: (message: ChatEntry) => Promise<void>;
+  handleRetryMessage: (message: ChatEntry) => void;
+  draftSpec: InferredRunSpec | null;
+  draftSpecCreatedAt: number | null;
+  setDraftSpec: Dispatch<SetStateAction<InferredRunSpec | null>>;
+  isStarting: boolean;
+  handleCancelDraftSpec: () => void;
+  handleEditPlan: (spec: InferredRunSpec) => void;
+  handleRetryDraftSpec: () => void;
+  handleStartRun: () => Promise<void>;
+  confirmedSpec: InferredRunSpec | null;
+  confirmedSpecCreatedAt: number | null;
+  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
+  startedSession: StartedSession | null;
+  setStartedSession: Dispatch<SetStateAction<StartedSession | null>>;
+  navigate: NavigateFunction;
+  resetWorkspace: () => void;
+  focusComposer: () => void;
+}
+
+// Merges every timeline-worthy piece of session state (messages, draft spec,
+// confirmed spec, started session) into one list of TimelineItems, each
+// carrying the rendered card/bubble node plus enough metadata to sort them,
+// and returns them in chronological order.
+function buildTimelineItems({
+  messages,
+  handleEditMessage,
+  handleCopyRequest,
+  handleRetryMessage,
+  draftSpec,
+  draftSpecCreatedAt,
+  setDraftSpec,
+  isStarting,
+  handleCancelDraftSpec,
+  handleEditPlan,
+  handleRetryDraftSpec,
+  handleStartRun,
+  confirmedSpec,
+  confirmedSpecCreatedAt,
+  stageDraftSpec,
+  startedSession,
+  setStartedSession,
+  navigate,
+  resetWorkspace,
+  focusComposer,
+}: BuildTimelineItemsArgs): TimelineItem[] {
+  const timelineItems: TimelineItem[] = [];
+  // Each chat message becomes a ChatBubble; `order` preserves message array
+  // order as a tiebreaker when timestamps collide.
+  for (const [index, message] of messages.entries()) {
+    timelineItems.push({
+      id: `local-message-${message.id}`,
+      at: message.created_at,
+      order: index,
+      node: (
+        <ChatBubble
+          message={message}
+          onEdit={() => handleEditMessage(message)}
+          onCopyRequest={() => void handleCopyRequest(message)}
+          onRetry={() => handleRetryMessage(message)}
+        />
+      ),
+    });
+  }
+  // Editable draft run spec awaiting confirmation: focus/tier edits write
+  // straight back into draftSpec, and cancel/edit/retry/start delegate to the
+  // session hook's handlers.
+  if (draftSpec && draftSpecCreatedAt !== null) {
+    timelineItems.push({
+      id: 'draft-spec',
+      at: draftSpecCreatedAt,
+      order: 50,
+      node: (
+        <RunSpecCard
+          spec={draftSpec}
+          isStarting={isStarting}
+          onFocusChange={(focus: RunFocus) =>
+            setDraftSpec(current => (current ? {...current, focus} : current))
+          }
+          onTierChange={(tier: RunTier) =>
+            setDraftSpec(current => (current ? {...current, tier} : current))
+          }
+          onCancel={handleCancelDraftSpec}
+          onEdit={() => handleEditPlan(draftSpec)}
+          onRetry={() => handleRetryDraftSpec()}
+          onStart={() => void handleStartRun()}
+        />
+      ),
+    });
+  }
+  // Read-only confirmed spec once the plan has been locked in (e.g. after an
+  // edit round-trip): all mutation handlers are no-ops and `locked` disables
+  // the option cards; retrying re-stages it as an editable draft again.
+  if (confirmedSpec && confirmedSpecCreatedAt !== null) {
+    timelineItems.push({
+      id: 'confirmed-spec',
+      at: confirmedSpecCreatedAt,
+      order: 50,
+      node: (
+        <RunSpecCard
+          spec={confirmedSpec}
+          isStarting={false}
+          locked
+          onFocusChange={() => undefined}
+          onTierChange={() => undefined}
+          onCancel={() => undefined}
+          onEdit={() => handleEditPlan(confirmedSpec)}
+          onRetry={() => {
+            stageDraftSpec(confirmedSpec);
+          }}
+          onStart={() => undefined}
+        />
+      ),
+    });
+  }
+  // Terminal timeline entry once the backend run has actually started;
+  // opening it navigates to the run detail page, "retry" just bumps its
+  // timestamp so it re-sorts to the current time.
+  if (startedSession) {
+    timelineItems.push({
+      id: `started-session-${startedSession.id}`,
+      at: startedSession.at,
+      order: 60,
+      node: (
+        <StartedSessionCard
+          session={startedSession}
+          onOpen={() => void navigate(`/runs/${startedSession.id}/details`)}
+          onRetry={() =>
+            setStartedSession(current =>
+              current ? {...current, at: Date.now() / 1000} : current,
+            )
+          }
+          onNewTopic={() => {
+            resetWorkspace();
+            focusComposer();
+          }}
+        />
+      ),
+    });
+  }
+  // Chronological order, with `order` breaking ties between items created in
+  // the same tick (e.g. a message and a spec card stamped at the same time).
+  timelineItems.sort((a, b) => a.at - b.at || a.order - b.order);
+  return timelineItems;
+}
+
+/**
+ * Owns the timeline's auto-scroll behavior: computes a cheap signature from
+ * the current items to detect when the timeline actually changed shape/
+ * order, decides whether to anchor to the top (a newly arrived, tall spec
+ * card) or bottom (everything else, and always once a session has started),
+ * and scrolls the returned ref accordingly.
+ *
+ * @param timelineItems The current, already-sorted timeline items.
+ * @param startedSession The started session, if any (always anchors bottom).
+ * @returns The ref to attach to the scrollable timeline container.
+ */
+function useChatTimelineScroll(
+  timelineItems: TimelineItem[],
+  startedSession: StartedSession | null,
+) {
+  // Scrollable timeline container; scrollTop is driven imperatively below.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  // Last timeline signature we auto-scrolled for, so the effect below only
+  // fires when the timeline actually changed shape/order.
+  const previousTimelineSignature = useRef('');
+
+  // Cheap fingerprint of the timeline's identity/order used below to decide
+  // whether an auto-scroll is warranted, without deep-comparing React nodes.
+  const timelineSignature = timelineItems
+    .map(item => `${item.id}:${item.at}`)
+    .join('|');
+  const latestTimelineItemId =
+    timelineItems.length > 0 ? timelineItems[timelineItems.length - 1].id : '';
+  // Once a run has started, always anchor to the bottom. Otherwise, a newly
+  // arrived spec card (which is tall) anchors to the top so its heading is
+  // visible; anything else (chat bubbles) anchors to the bottom as usual.
+  const timelineAnchorMode = startedSession
+    ? 'bottom'
+    : latestTimelineItemId === 'draft-spec' ||
+        latestTimelineItemId === 'confirmed-spec'
+      ? 'top'
+      : 'bottom';
+
+  // Auto-scrolls the timeline whenever its signature changes (new item, or an
+  // item's timestamp changed), skipping the very first render's signature and
+  // any re-render that doesn't actually change the timeline. The zero-delay
+  // timeout defers until after layout so scrollHeight reflects the new DOM.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || previousTimelineSignature.current === timelineSignature) {
+      return;
+    }
+    previousTimelineSignature.current = timelineSignature;
+    const timeout = window.setTimeout(() => {
+      scroller.scrollTop =
+        timelineAnchorMode === 'top' ? 0 : scroller.scrollHeight;
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [timelineAnchorMode, timelineSignature]);
+
+  // Belt-and-suspenders scroll-to-bottom specifically when a session starts,
+  // independent of the signature-based effect above, since the started-card
+  // arriving can coincide with other timeline changes.
+  useEffect(() => {
+    const scroller = scrollRef.current;
+    if (!startedSession || !scroller) {
+      return;
+    }
+    const timeout = window.setTimeout(() => {
+      scroller.scrollTop = scroller.scrollHeight;
+    }, 0);
+    return () => window.clearTimeout(timeout);
+  }, [startedSession]);
+
+  return scrollRef;
 }

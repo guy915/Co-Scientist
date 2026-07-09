@@ -238,29 +238,16 @@ function prefersReducedMotion() {
 }
 
 /**
- * Renders one chat-timeline message: a user request bubble (right-aligned,
- * filled, collapsible past four lines with an edit/copy action row) or an
- * assistant response (left-aligned, unstyled, with a retry/copy/download
- * action row). Used as the per-message node inside ChatWorkspace's timeline.
+ * Owns a user bubble's collapse/expand-past-four-lines behavior: measures
+ * the collapsed and full heights, tracks expanded/clamped/settled state, and
+ * derives the text span's className/style for the animated max-height
+ * transition. A no-op for assistant bubbles (`isUser` false).
  *
- * @param message The message to render.
- * @param onEdit Handler to re-open a user message for editing.
- * @param onCopyRequest Handler to copy a user message's text.
- * @param onRetry Handler to regenerate an assistant response, or re-submit a
- *   user message.
+ * @param isUser Whether this bubble is a user (collapsible) or assistant
+ *   (never collapsible) message.
+ * @param content The bubble's text content, re-measured whenever it changes.
  */
-export function ChatBubble({
-  message,
-  onEdit,
-  onCopyRequest,
-  onRetry,
-}: {
-  message: ChatEntry;
-  onEdit: () => void;
-  onCopyRequest: () => void;
-  onRetry: () => void;
-}) {
-  const isUser = message.role === 'user';
+function useCollapsibleBubbleText(isUser: boolean, content: string) {
   const textRef = useRef<HTMLSpanElement>(null);
   // Whether this bubble's content is long enough to need the collapse/expand
   // affordance at all (only ever true for user bubbles).
@@ -290,7 +277,7 @@ export function ChatBubble({
     setExpanded(false);
     setSettled(false);
     setClamped(exceeds);
-  }, [isUser, message.content]);
+  }, [isUser, content]);
 
   // Flips the collapsed/expanded state, re-measuring first in case content
   // metrics (e.g. a font load) shifted since the last measurement.
@@ -334,7 +321,6 @@ export function ChatBubble({
     }
   }
 
-  const bubbleClassName = isUser ? USER_BUBBLE_CLASSES : MODEL_BUBBLE_CLASSES;
   const collapsible = isUser && canCollapse;
   // Collapsible bubbles pick the clamp/ellipsis classes while clamped and not
   // expanded, otherwise the open (pre-wrap, no clamp) classes.
@@ -357,6 +343,53 @@ export function ChatBubble({
           : `${heights.collapsed}px`,
       }
     : undefined;
+
+  return {
+    textRef,
+    collapsible,
+    expanded,
+    bubbleTextClassName,
+    bubbleTextStyle,
+    toggleExpanded,
+    handleBubbleTransitionEnd,
+  };
+}
+
+/**
+ * Renders one chat-timeline message: a user request bubble (right-aligned,
+ * filled, collapsible past four lines with an edit/copy action row) or an
+ * assistant response (left-aligned, unstyled, with a retry/copy/download
+ * action row). Used as the per-message node inside ChatWorkspace's timeline.
+ *
+ * @param message The message to render.
+ * @param onEdit Handler to re-open a user message for editing.
+ * @param onCopyRequest Handler to copy a user message's text.
+ * @param onRetry Handler to regenerate an assistant response, or re-submit a
+ *   user message.
+ */
+export function ChatBubble({
+  message,
+  onEdit,
+  onCopyRequest,
+  onRetry,
+}: {
+  message: ChatEntry;
+  onEdit: () => void;
+  onCopyRequest: () => void;
+  onRetry: () => void;
+}) {
+  const isUser = message.role === 'user';
+  const {
+    textRef,
+    collapsible,
+    expanded,
+    bubbleTextClassName,
+    bubbleTextStyle,
+    toggleExpanded,
+    handleBubbleTransitionEnd,
+  } = useCollapsibleBubbleText(isUser, message.content);
+
+  const bubbleClassName = isUser ? USER_BUBBLE_CLASSES : MODEL_BUBBLE_CLASSES;
 
   return (
     <div
@@ -502,53 +535,15 @@ export function RunSpecCard({
       <p className={PLAN_SUBHEADING_CLASSES}>
         Here's my plan to tackle the topic:
       </p>
-      <div className={SETUP_DOCUMENT_CLASSES}>
-        <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
-          {referenceSetupTitle(spec.goal)}
-        </h3>
-        <dl className={SPEC_GRID_CLASSES}>
-          <SpecRow label="Goal">{spec.goal}</SpecRow>
-          <SpecList label="Requirements" values={spec.requirements} />
-          <SpecList label="Attributes" values={spec.attributes} />
-          <SpecList label="Criteria" values={spec.criteria} />
-        </dl>
-        <RunOptionGroup
-          label="Focus"
-          name="focus"
-          value={spec.focus}
-          options={FOCUS_OPTIONS}
-          disabled={locked}
-          onChange={value => onFocusChange(value as RunFocus)}
-        />
-        <RunOptionGroup
-          label="Tier"
-          name="tier"
-          value={spec.tier}
-          options={TIER_OPTIONS}
-          disabled={locked}
-          onChange={value => onTierChange(value as RunTier)}
-        />
-        <div className={SETUP_ACTIONS_CLASSES}>
-          {!locked && (
-            <button
-              type="button"
-              className={SETUP_SECONDARY_BUTTON_CLASSES}
-              onClick={onCancel}
-              disabled={isStarting}
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            type="button"
-            className={SETUP_PRIMARY_BUTTON_CLASSES}
-            onClick={onStart}
-            disabled={isStarting || locked}
-          >
-            {isStarting ? 'Starting...' : 'Start research'}
-          </button>
-        </div>
-      </div>
+      <RunSpecDocument
+        spec={spec}
+        locked={locked}
+        isStarting={isStarting}
+        onFocusChange={onFocusChange}
+        onTierChange={onTierChange}
+        onCancel={onCancel}
+        onStart={onStart}
+      />
       <MessageActionRow
         actions={responseActions(
           onRetry,
@@ -557,6 +552,77 @@ export function RunSpecCard({
         )}
       />
     </section>
+  );
+}
+
+// Renders RunSpecCard's document body: the goal/requirements/attributes/
+// criteria breakdown, the editable (or, when `locked`, disabled) Focus/Tier
+// option groups, and the cancel/start actions.
+function RunSpecDocument({
+  spec,
+  locked,
+  isStarting,
+  onFocusChange,
+  onTierChange,
+  onCancel,
+  onStart,
+}: {
+  spec: InferredRunSpec;
+  locked: boolean;
+  isStarting: boolean;
+  onFocusChange: (focus: RunFocus) => void;
+  onTierChange: (tier: RunTier) => void;
+  onCancel: () => void;
+  onStart: () => void;
+}) {
+  return (
+    <div className={SETUP_DOCUMENT_CLASSES}>
+      <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
+        {referenceSetupTitle(spec.goal)}
+      </h3>
+      <dl className={SPEC_GRID_CLASSES}>
+        <SpecRow label="Goal">{spec.goal}</SpecRow>
+        <SpecList label="Requirements" values={spec.requirements} />
+        <SpecList label="Attributes" values={spec.attributes} />
+        <SpecList label="Criteria" values={spec.criteria} />
+      </dl>
+      <RunOptionGroup
+        label="Focus"
+        name="focus"
+        value={spec.focus}
+        options={FOCUS_OPTIONS}
+        disabled={locked}
+        onChange={value => onFocusChange(value as RunFocus)}
+      />
+      <RunOptionGroup
+        label="Tier"
+        name="tier"
+        value={spec.tier}
+        options={TIER_OPTIONS}
+        disabled={locked}
+        onChange={value => onTierChange(value as RunTier)}
+      />
+      <div className={SETUP_ACTIONS_CLASSES}>
+        {!locked && (
+          <button
+            type="button"
+            className={SETUP_SECONDARY_BUTTON_CLASSES}
+            onClick={onCancel}
+            disabled={isStarting}
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          className={SETUP_PRIMARY_BUTTON_CLASSES}
+          onClick={onStart}
+          disabled={isStarting || locked}
+        >
+          {isStarting ? 'Starting...' : 'Start research'}
+        </button>
+      </div>
+    </div>
   );
 }
 

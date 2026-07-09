@@ -2,6 +2,7 @@ import {
   type ChangeEvent,
   type FormEvent,
   type KeyboardEvent,
+  type RefObject,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -165,14 +166,6 @@ export function Composer({
     el.style.height = `${Math.min(el.scrollHeight, maxHeight)}px`;
   }, [input, large]);
 
-  // Enter submits (Shift+Enter still inserts a newline via default behavior).
-  function onKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      e.currentTarget.form?.requestSubmit();
-    }
-  }
-
   // Appends newly picked files as attachments and resets the file input so
   // selecting the same file again still fires a change event.
   function onFilesChanged(e: ChangeEvent<HTMLInputElement>) {
@@ -245,20 +238,7 @@ export function Composer({
         .filter(Boolean)
         .join(' ')}
     >
-      {/* Two attachment-card variants: an image card with a cropped preview,
-          or a file card with name + kind badge. Both share the hover-reveal
-          remove button (Escape/click elsewhere doesn't affect this). */}
-      {attachments.length > 0 ? (
-        <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
-          {attachments.map(attachment => (
-            <AttachmentCard
-              key={attachment.id}
-              attachment={attachment}
-              onRemove={removeAttachment}
-            />
-          ))}
-        </div>
-      ) : null}
+      <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
       {/* Floating label + lock icon, hidden once the user has typed
           anything (input.trim() truthy) so it doesn't overlap the text. */}
       <label className={COMPOSER_LABEL_CLASSES}>
@@ -292,98 +272,20 @@ export function Composer({
             .filter(Boolean)
             .join(' ')}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
+          onKeyDown={handleComposerKeyDown}
         />
       </label>
       <div className={COMPOSER_ACTIONS_CLASSES}>
-        <div
-          className={COMPOSER_SOURCE_CONTROLS_CLASSES}
-          ref={sourceControlsRef}
-        >
-          <input
-            ref={fileInputRef}
-            className={COMPOSER_FILE_INPUT_CLASSES}
-            type="file"
-            multiple
-            aria-label="Upload files"
-            onChange={onFilesChanged}
-            tabIndex={-1}
-          />
-          <button
-            type="button"
-            className={tooltipClassNames({
-              className: COMPOSER_SOURCE_BUTTON_CLASSES,
-              placement: 'top',
-            })}
-            aria-label="Files"
-            data-tooltip="Files"
-            disabled={disabled}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Icon
-              aria-hidden="true"
-              className={COMPOSER_SOURCE_ICON_CLASSES}
-              name="add"
-            />
-          </button>
-          <button
-            type="button"
-            className={tooltipClassNames({
-              className: COMPOSER_SOURCE_BUTTON_CLASSES,
-              placement: 'top',
-            })}
-            aria-label="Connectors"
-            aria-expanded={connectorsOpen}
-            data-tooltip="Connectors"
-            disabled={disabled}
-            onClick={() => setConnectorsOpen(open => !open)}
-          >
-            <Icon
-              aria-hidden="true"
-              className={COMPOSER_SOURCE_ICON_CLASSES}
-              name="database"
-            />
-          </button>
-          {/* Connectors menu: currently a single PubMed toggle row, closed by
-              the outside-mousedown effect above. */}
-          {connectorsOpen ? (
-            <div
-              className={CONNECTORS_MENU_CLASSES}
-              role="menu"
-              aria-label="Connectors"
-            >
-              <div className={CONNECTORS_MENU_HEADER_CLASSES}>
-                <span>Connectors</span>
-              </div>
-              {COMPOSER_CONNECTORS.map(name => (
-                <button
-                  type="button"
-                  role="menuitemcheckbox"
-                  aria-checked={pubmedEnabled}
-                  className={CONNECTORS_MENU_ROW_CLASSES}
-                  key={name}
-                  onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
-                >
-                  <Icon
-                    className={CONNECTOR_ICON_CLASSES}
-                    aria-hidden="true"
-                    name="article"
-                  />
-                  <span>{name}</span>
-                  <span
-                    className={[
-                      CONNECTOR_TOGGLE_BASE_CLASSES,
-                      pubmedEnabled
-                        ? CONNECTOR_TOGGLE_ON_CLASSES
-                        : CONNECTOR_TOGGLE_OFF_CLASSES,
-                    ].join(' ')}
-                    aria-hidden="true"
-                  />
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <SourceControls
+          disabled={disabled}
+          connectorsOpen={connectorsOpen}
+          onToggleConnectors={() => setConnectorsOpen(open => !open)}
+          sourceControlsRef={sourceControlsRef}
+          fileInputRef={fileInputRef}
+          onFilesChanged={onFilesChanged}
+          pubmedEnabled={pubmedEnabled}
+          onPubmedEnabledChange={onPubmedEnabledChange}
+        />
         <button
           type="submit"
           className={tooltipClassNames({
@@ -398,6 +300,150 @@ export function Composer({
         </button>
       </div>
     </form>
+  );
+}
+
+// Enter submits (Shift+Enter still inserts a newline via default behavior).
+function handleComposerKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    e.currentTarget.form?.requestSubmit();
+  }
+}
+
+// Renders the staged-attachments strip above the textarea, or nothing when
+// there are none. Two attachment-card variants render inside: an image card
+// with a cropped preview, or a file card with name + kind badge; both share
+// the hover-reveal remove button (see AttachmentCard).
+function AttachmentStrip({
+  attachments,
+  onRemove,
+}: {
+  attachments: ComposerAttachment[];
+  onRemove: (id: string) => void;
+}) {
+  if (attachments.length === 0) return null;
+  return (
+    <div className={ATTACHMENT_STRIP_CLASSES} aria-label="Attachments">
+      {attachments.map(attachment => (
+        <AttachmentCard
+          key={attachment.id}
+          attachment={attachment}
+          onRemove={onRemove}
+        />
+      ))}
+    </div>
+  );
+}
+
+// Renders the composer's file/connector toolbar row: the hidden file input
+// and its trigger button, the Connectors button, and (while open) the
+// connectors menu with its PubMed toggle row.
+function SourceControls({
+  disabled,
+  connectorsOpen,
+  onToggleConnectors,
+  sourceControlsRef,
+  fileInputRef,
+  onFilesChanged,
+  pubmedEnabled,
+  onPubmedEnabledChange,
+}: {
+  disabled: boolean;
+  connectorsOpen: boolean;
+  onToggleConnectors: () => void;
+  sourceControlsRef: RefObject<HTMLDivElement | null>;
+  fileInputRef: RefObject<HTMLInputElement | null>;
+  onFilesChanged: (e: ChangeEvent<HTMLInputElement>) => void;
+  pubmedEnabled: boolean;
+  onPubmedEnabledChange?: (value: boolean) => void;
+}) {
+  return (
+    <div className={COMPOSER_SOURCE_CONTROLS_CLASSES} ref={sourceControlsRef}>
+      <input
+        ref={fileInputRef}
+        className={COMPOSER_FILE_INPUT_CLASSES}
+        type="file"
+        multiple
+        aria-label="Upload files"
+        onChange={onFilesChanged}
+        tabIndex={-1}
+      />
+      <button
+        type="button"
+        className={tooltipClassNames({
+          className: COMPOSER_SOURCE_BUTTON_CLASSES,
+          placement: 'top',
+        })}
+        aria-label="Files"
+        data-tooltip="Files"
+        disabled={disabled}
+        onClick={() => fileInputRef.current?.click()}
+      >
+        <Icon
+          aria-hidden="true"
+          className={COMPOSER_SOURCE_ICON_CLASSES}
+          name="add"
+        />
+      </button>
+      <button
+        type="button"
+        className={tooltipClassNames({
+          className: COMPOSER_SOURCE_BUTTON_CLASSES,
+          placement: 'top',
+        })}
+        aria-label="Connectors"
+        aria-expanded={connectorsOpen}
+        data-tooltip="Connectors"
+        disabled={disabled}
+        onClick={onToggleConnectors}
+      >
+        <Icon
+          aria-hidden="true"
+          className={COMPOSER_SOURCE_ICON_CLASSES}
+          name="database"
+        />
+      </button>
+      {/* Connectors menu: currently a single PubMed toggle row, closed by
+          the outside-mousedown effect in the parent composer. */}
+      {connectorsOpen ? (
+        <div
+          className={CONNECTORS_MENU_CLASSES}
+          role="menu"
+          aria-label="Connectors"
+        >
+          <div className={CONNECTORS_MENU_HEADER_CLASSES}>
+            <span>Connectors</span>
+          </div>
+          {COMPOSER_CONNECTORS.map(name => (
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={pubmedEnabled}
+              className={CONNECTORS_MENU_ROW_CLASSES}
+              key={name}
+              onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
+            >
+              <Icon
+                className={CONNECTOR_ICON_CLASSES}
+                aria-hidden="true"
+                name="article"
+              />
+              <span>{name}</span>
+              <span
+                className={[
+                  CONNECTOR_TOGGLE_BASE_CLASSES,
+                  pubmedEnabled
+                    ? CONNECTOR_TOGGLE_ON_CLASSES
+                    : CONNECTOR_TOGGLE_OFF_CLASSES,
+                ].join(' ')}
+                aria-hidden="true"
+              />
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

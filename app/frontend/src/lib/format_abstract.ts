@@ -89,14 +89,14 @@ const LABEL_RE = new RegExp(
 );
 
 /**
- * Splits a possibly-structured abstract into labeled sections with sanitized
- * bodies. An unstructured abstract returns a single section with a null label.
+ * Finds every section-label occurrence in `text`, in document order.
  *
- * @param raw The untrusted abstract text (may contain inline HTML).
- * @returns One section per detected label, in document order.
+ * @param text The abstract text to scan for labels.
+ * @returns One mark per detected label, with its match bounds.
  */
-export function splitAbstractSections(raw: string): AbstractSection[] {
-  const text = raw ?? '';
+function findLabelMarks(
+  text: string,
+): Array<{start: number; end: number; label: string}> {
   const marks: Array<{start: number; end: number; label: string}> = [];
   LABEL_RE.lastIndex = 0;
   let match: RegExpExecArray | null;
@@ -110,6 +110,19 @@ export function splitAbstractSections(raw: string): AbstractSection[] {
     // otherwise never advance).
     if (LABEL_RE.lastIndex === match.index) LABEL_RE.lastIndex++;
   }
+  return marks;
+}
+
+/**
+ * Splits a possibly-structured abstract into labeled sections with sanitized
+ * bodies. An unstructured abstract returns a single section with a null label.
+ *
+ * @param raw The untrusted abstract text (may contain inline HTML).
+ * @returns One section per detected label, in document order.
+ */
+export function splitAbstractSections(raw: string): AbstractSection[] {
+  const text = raw ?? '';
+  const marks = findLabelMarks(text);
 
   const sections: AbstractSection[] = [];
   // Skips empty sections, e.g. a detected label with no body text before the

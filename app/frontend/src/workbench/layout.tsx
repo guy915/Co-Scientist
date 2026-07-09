@@ -1,4 +1,11 @@
-import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type RefObject,
+} from 'react';
 import {Link, useLocation, useNavigate} from 'react-router-dom';
 import {loadRunHistory, type Run} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
@@ -140,12 +147,6 @@ export function Layout({children}: {children: ReactNode}) {
   // active conversation in the sidebar chat list.
   const activeRunId = isRunRoute ? location.pathname.split('/')[2] : undefined;
   const headerTitle = overrideTitle || '';
-  const visibleHistory = showAllChats ? history : history.slice(0, 10);
-  const hasExtraChats = history.length > 10;
-  const sideContentClasses = [
-    SIDE_CONTENT_CLASSES,
-    navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
-  ].join(' ');
   const workspaceClasses = isRunRoute
     ? REPORT_WORKSPACE_CLASSES
     : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
@@ -166,27 +167,6 @@ export function Layout({children}: {children: ReactNode}) {
     isRunRoute ? 'report-shell' : 'home-shell',
     navOpen ? SHELL_OPEN_GRID_CLASSES : SHELL_COLLAPSED_GRID_CLASSES,
   ].join(' ');
-  // The remaining nav* variants below all key off the same navOpen flag to
-  // swap each rail sub-region between its expanded (label + icon) and
-  // collapsed (icon-only) presentation.
-  const navPanelClasses = navOpen
-    ? NAV_PANEL_OPEN_CLASSES
-    : NAV_PANEL_COLLAPSED_CLASSES;
-  const navGroupClasses = navOpen
-    ? NAV_GROUP_OPEN_CLASSES
-    : NAV_GROUP_COLLAPSED_CLASSES;
-  const navItemsClasses = navOpen
-    ? NAV_ITEMS_OPEN_CLASSES
-    : NAV_ITEMS_COLLAPSED_CLASSES;
-  const navBottomClasses = navOpen
-    ? NAV_BOTTOM_CLASSES
-    : NAV_BOTTOM_COLLAPSED_CLASSES;
-  const navItemClasses = navOpen
-    ? NAV_ITEM_OPEN_CLASSES
-    : NAV_ITEM_COLLAPSED_CLASSES;
-  const navLabelClasses = navOpen
-    ? NAV_LABEL_OPEN_CLASSES
-    : NAV_LABEL_COLLAPSED_CLASSES;
 
   function startNewChat() {
     // Only dismiss the mobile drawer; on desktop the expanded rail is a user
@@ -304,107 +284,19 @@ export function Layout({children}: {children: ReactNode}) {
 
   return (
     <div className={shellClass}>
-      <aside className={navPanelClasses} aria-label="Primary navigation">
-        <div className={navGroupClasses}>
-          <NavActionButton
-            label="Menu"
-            icon="menu"
-            className={navItemClasses}
-            labelClassName={navLabelClasses}
-            expanded={navOpen}
-            controls="primary-navigation"
-            onClick={toggleNav}
-          />
-          <nav id="primary-navigation" className={navItemsClasses}>
-            <NavActionButton
-              label="New chat"
-              icon="edit_square"
-              className={navItemClasses}
-              labelClassName={navLabelClasses}
-              onClick={startNewChat}
-            />
-          </nav>
-          <div className={sideContentClasses}>
-            <p className={SIDE_HEADING_CLASSES}>Chats</p>
-            <div className={CHAT_LIST_CLASSES}>
-              {visibleHistory.map(run => {
-                const isActive = run.id === activeRunId;
-                return (
-                  <Link
-                    key={run.id}
-                    to={`/runs/${run.id}/details`}
-                    className={tooltipClassNames({
-                      className: isActive
-                        ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
-                        : CHAT_HISTORY_LINK_CLASSES,
-                      placement: 'right',
-                      wrap: true,
-                    })}
-                    aria-current={isActive ? 'page' : undefined}
-                    data-tooltip={run.research_goal}
-                  >
-                    <TruncatedLabel
-                      className={CHAT_HISTORY_LABEL_CLASSES}
-                      text={conciseTitle(run.research_goal)}
-                    />
-                  </Link>
-                );
-              })}
-              {hasExtraChats && (
-                <button
-                  type="button"
-                  className={CHAT_HISTORY_MORE_CLASSES}
-                  onClick={() => setShowAllChats(current => !current)}
-                >
-                  {showAllChats ? 'Show less' : 'Show more'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-        <div className={navBottomClasses}>
-          <div
-            ref={settingsControlRef}
-            className={`${SETTINGS_CONTROL_CLASSES} ${
-              navOpen
-                ? 'ucs-settings-control--open'
-                : 'ucs-settings-control--collapsed'
-            }`}
-          >
-            <NavActionButton
-              label="Settings"
-              icon="settings"
-              className={navItemClasses}
-              labelClassName={navLabelClasses}
-              expanded={activePanel === 'settings'}
-              onClick={() => togglePanel('settings')}
-            />
-            {activePanel === 'settings' && (
-              <ShellPopover
-                className={`${RAIL_POPOVER_CLASSES} ucs-popover--menu`}
-              >
-                <div className={SETTINGS_MENU_CLASSES} role="menu">
-                  <SettingsMenuButton
-                    label="Appearance"
-                    icon="palette"
-                    onClick={() => openSettings('appearance')}
-                  />
-                  <SettingsMenuButton
-                    label="Model"
-                    icon="neurology"
-                    onClick={() => openSettings('model')}
-                  />
-                  <SettingsMenuButton
-                    label="Help"
-                    icon="help"
-                    onClick={() => openSettings('help')}
-                  />
-                </div>
-              </ShellPopover>
-            )}
-          </div>
-        </div>
-      </aside>
+      <NavRail
+        navOpen={navOpen}
+        toggleNav={toggleNav}
+        startNewChat={startNewChat}
+        history={history}
+        activeRunId={activeRunId}
+        showAllChats={showAllChats}
+        onToggleShowAllChats={() => setShowAllChats(current => !current)}
+        activePanel={activePanel}
+        onTogglePanel={togglePanel}
+        onOpenSettings={openSettings}
+        settingsControlRef={settingsControlRef}
+      />
       {/* Backdrop behind the off-canvas drawer on mobile; only rendered while
           the drawer is open, and a tap on it dismisses it. On desktop the
           rail never overlaps content, so this has no visible effect there. */}
@@ -416,48 +308,15 @@ export function Layout({children}: {children: ReactNode}) {
         />
       )}
       <section className={workspaceClasses}>
-        <header className={HEADER_CLASSES}>
-          <button
-            type="button"
-            className="ucs-nav-hamburger"
-            aria-label="Open navigation"
-            aria-expanded={navOpen}
-            aria-controls="primary-navigation"
-            onClick={toggleNav}
-          >
-            <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name="menu" />
-          </button>
-          <button
-            type="button"
-            className={tooltipClassNames({
-              className: PRODUCT_LOCKUP_CLASSES,
-              placement: 'right',
-            })}
-            aria-label="Go to Co-Scientist home"
-            data-tooltip="Home"
-            onClick={startNewChat}
-          >
-            <GoogleLabsIcon aria-hidden="true" />
-            <span>Co-Scientist</span>
-          </button>
-          <div className={HEADER_TITLE_CLASSES}>
-            {headerTitle && (
-              <TruncatedLabel
-                className="block min-w-0 overflow-hidden whitespace-nowrap"
-                text={headerTitle}
-              />
-            )}
-          </div>
-          <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
-            <DiagnosticsControl
-              open={activePanel === 'logs'}
-              onToggle={() => togglePanel('logs')}
-              renderPopover={(children, className) => (
-                <ShellPopover className={className}>{children}</ShellPopover>
-              )}
-            />
-          </div>
-        </header>
+        <ShellHeader
+          navOpen={navOpen}
+          toggleNav={toggleNav}
+          startNewChat={startNewChat}
+          headerTitle={headerTitle}
+          activePanel={activePanel}
+          onTogglePanel={togglePanel}
+          logsControlRef={logsControlRef}
+        />
         <main className={pageClasses}>{children}</main>
       </section>
       {settingsSection && (
@@ -466,6 +325,291 @@ export function Layout({children}: {children: ReactNode}) {
           onSectionChange={setSettingsSection}
           onClose={() => setSettingsSection(null)}
         />
+      )}
+    </div>
+  );
+}
+
+// The header action bar: hamburger (mobile drawer / desktop rail toggle),
+// product lockup (doubles as "go home"), the page's dispatched title, and
+// the Logs/diagnostics control.
+function ShellHeader({
+  navOpen,
+  toggleNav,
+  startNewChat,
+  headerTitle,
+  activePanel,
+  onTogglePanel,
+  logsControlRef,
+}: {
+  navOpen: boolean;
+  toggleNav: () => void;
+  startNewChat: () => void;
+  headerTitle: string;
+  activePanel: ShellPanel | null;
+  onTogglePanel: (panel: ShellPanel) => void;
+  logsControlRef: RefObject<HTMLDivElement | null>;
+}) {
+  return (
+    <header className={HEADER_CLASSES}>
+      <button
+        type="button"
+        className="ucs-nav-hamburger"
+        aria-label="Open navigation"
+        aria-expanded={navOpen}
+        aria-controls="primary-navigation"
+        onClick={toggleNav}
+      >
+        <Icon aria-hidden="true" className={NAV_ICON_CLASSES} name="menu" />
+      </button>
+      <button
+        type="button"
+        className={tooltipClassNames({
+          className: PRODUCT_LOCKUP_CLASSES,
+          placement: 'right',
+        })}
+        aria-label="Go to Co-Scientist home"
+        data-tooltip="Home"
+        onClick={startNewChat}
+      >
+        <GoogleLabsIcon aria-hidden="true" />
+        <span>Co-Scientist</span>
+      </button>
+      <div className={HEADER_TITLE_CLASSES}>
+        {headerTitle && (
+          <TruncatedLabel
+            className="block min-w-0 overflow-hidden whitespace-nowrap"
+            text={headerTitle}
+          />
+        )}
+      </div>
+      <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
+        <DiagnosticsControl
+          open={activePanel === 'logs'}
+          onToggle={() => onTogglePanel('logs')}
+          renderPopover={(children, className) => (
+            <ShellPopover className={className}>{children}</ShellPopover>
+          )}
+        />
+      </div>
+    </header>
+  );
+}
+
+// The icon rail: Menu toggle, New chat, the chat-history sidebar, and the
+// bottom Settings control. All open/collapsed presentation is derived here
+// (and in the sub-components below) from the single `navOpen` flag.
+function NavRail({
+  navOpen,
+  toggleNav,
+  startNewChat,
+  history,
+  activeRunId,
+  showAllChats,
+  onToggleShowAllChats,
+  activePanel,
+  onTogglePanel,
+  onOpenSettings,
+  settingsControlRef,
+}: {
+  navOpen: boolean;
+  toggleNav: () => void;
+  startNewChat: () => void;
+  history: Run[];
+  activeRunId: string | undefined;
+  showAllChats: boolean;
+  onToggleShowAllChats: () => void;
+  activePanel: ShellPanel | null;
+  onTogglePanel: (panel: ShellPanel) => void;
+  onOpenSettings: (section: SettingsSection) => void;
+  settingsControlRef: RefObject<HTMLDivElement | null>;
+}) {
+  // These nav* variants all key off the same navOpen flag to swap each rail
+  // sub-region between its expanded (label + icon) and collapsed (icon-only)
+  // presentation.
+  const navPanelClasses = navOpen
+    ? NAV_PANEL_OPEN_CLASSES
+    : NAV_PANEL_COLLAPSED_CLASSES;
+  const navGroupClasses = navOpen
+    ? NAV_GROUP_OPEN_CLASSES
+    : NAV_GROUP_COLLAPSED_CLASSES;
+  const navItemsClasses = navOpen
+    ? NAV_ITEMS_OPEN_CLASSES
+    : NAV_ITEMS_COLLAPSED_CLASSES;
+  const navBottomClasses = navOpen
+    ? NAV_BOTTOM_CLASSES
+    : NAV_BOTTOM_COLLAPSED_CLASSES;
+  const navItemClasses = navOpen
+    ? NAV_ITEM_OPEN_CLASSES
+    : NAV_ITEM_COLLAPSED_CLASSES;
+  const navLabelClasses = navOpen
+    ? NAV_LABEL_OPEN_CLASSES
+    : NAV_LABEL_COLLAPSED_CLASSES;
+
+  return (
+    <aside className={navPanelClasses} aria-label="Primary navigation">
+      <div className={navGroupClasses}>
+        <NavActionButton
+          label="Menu"
+          icon="menu"
+          className={navItemClasses}
+          labelClassName={navLabelClasses}
+          expanded={navOpen}
+          controls="primary-navigation"
+          onClick={toggleNav}
+        />
+        <nav id="primary-navigation" className={navItemsClasses}>
+          <NavActionButton
+            label="New chat"
+            icon="edit_square"
+            className={navItemClasses}
+            labelClassName={navLabelClasses}
+            onClick={startNewChat}
+          />
+        </nav>
+        <ChatHistorySidebar
+          navOpen={navOpen}
+          history={history}
+          activeRunId={activeRunId}
+          showAllChats={showAllChats}
+          onToggleShowAllChats={onToggleShowAllChats}
+        />
+      </div>
+      <div className={navBottomClasses}>
+        <RailSettingsControl
+          navOpen={navOpen}
+          activePanel={activePanel}
+          onTogglePanel={onTogglePanel}
+          onOpenSettings={onOpenSettings}
+          settingsControlRef={settingsControlRef}
+        />
+      </div>
+    </aside>
+  );
+}
+
+// The "Chats" section of the rail: the recent-run list (capped to 10 until
+// expanded) with the active run highlighted.
+function ChatHistorySidebar({
+  navOpen,
+  history,
+  activeRunId,
+  showAllChats,
+  onToggleShowAllChats,
+}: {
+  navOpen: boolean;
+  history: Run[];
+  activeRunId: string | undefined;
+  showAllChats: boolean;
+  onToggleShowAllChats: () => void;
+}) {
+  const sideContentClasses = [
+    SIDE_CONTENT_CLASSES,
+    navOpen ? SIDE_CONTENT_OPEN_CLASSES : SIDE_CONTENT_COLLAPSED_CLASSES,
+  ].join(' ');
+  const visibleHistory = showAllChats ? history : history.slice(0, 10);
+  const hasExtraChats = history.length > 10;
+
+  return (
+    <div className={sideContentClasses}>
+      <p className={SIDE_HEADING_CLASSES}>Chats</p>
+      <div className={CHAT_LIST_CLASSES}>
+        {visibleHistory.map(run => {
+          const isActive = run.id === activeRunId;
+          return (
+            <Link
+              key={run.id}
+              to={`/runs/${run.id}/details`}
+              className={tooltipClassNames({
+                className: isActive
+                  ? `${CHAT_HISTORY_LINK_CLASSES} ${CHAT_HISTORY_LINK_ACTIVE_CLASSES}`
+                  : CHAT_HISTORY_LINK_CLASSES,
+                placement: 'right',
+                wrap: true,
+              })}
+              aria-current={isActive ? 'page' : undefined}
+              data-tooltip={run.research_goal}
+            >
+              <TruncatedLabel
+                className={CHAT_HISTORY_LABEL_CLASSES}
+                text={conciseTitle(run.research_goal)}
+              />
+            </Link>
+          );
+        })}
+        {hasExtraChats && (
+          <button
+            type="button"
+            className={CHAT_HISTORY_MORE_CLASSES}
+            onClick={onToggleShowAllChats}
+          >
+            {showAllChats ? 'Show less' : 'Show more'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// The Settings control at the bottom of the rail: the trigger button plus
+// its popover menu (Appearance/Model/Help).
+function RailSettingsControl({
+  navOpen,
+  activePanel,
+  onTogglePanel,
+  onOpenSettings,
+  settingsControlRef,
+}: {
+  navOpen: boolean;
+  activePanel: ShellPanel | null;
+  onTogglePanel: (panel: ShellPanel) => void;
+  onOpenSettings: (section: SettingsSection) => void;
+  settingsControlRef: RefObject<HTMLDivElement | null>;
+}) {
+  const navItemClasses = navOpen
+    ? NAV_ITEM_OPEN_CLASSES
+    : NAV_ITEM_COLLAPSED_CLASSES;
+  const navLabelClasses = navOpen
+    ? NAV_LABEL_OPEN_CLASSES
+    : NAV_LABEL_COLLAPSED_CLASSES;
+
+  return (
+    <div
+      ref={settingsControlRef}
+      className={`${SETTINGS_CONTROL_CLASSES} ${
+        navOpen
+          ? 'ucs-settings-control--open'
+          : 'ucs-settings-control--collapsed'
+      }`}
+    >
+      <NavActionButton
+        label="Settings"
+        icon="settings"
+        className={navItemClasses}
+        labelClassName={navLabelClasses}
+        expanded={activePanel === 'settings'}
+        onClick={() => onTogglePanel('settings')}
+      />
+      {activePanel === 'settings' && (
+        <ShellPopover className={`${RAIL_POPOVER_CLASSES} ucs-popover--menu`}>
+          <div className={SETTINGS_MENU_CLASSES} role="menu">
+            <SettingsMenuButton
+              label="Appearance"
+              icon="palette"
+              onClick={() => onOpenSettings('appearance')}
+            />
+            <SettingsMenuButton
+              label="Model"
+              icon="neurology"
+              onClick={() => onOpenSettings('model')}
+            />
+            <SettingsMenuButton
+              label="Help"
+              icon="help"
+              onClick={() => onOpenSettings('help')}
+            />
+          </div>
+        </ShellPopover>
       )}
     </div>
   );
