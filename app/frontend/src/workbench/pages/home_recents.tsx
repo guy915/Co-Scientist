@@ -121,17 +121,7 @@ export function HomeRecentsPanel({
             />
           ))
         ) : (
-          <li className={EMPTY_RECENTS_ITEM_CLASSES}>
-            <div className={EMPTY_RECENTS_CLASSES}>
-              <GoogleLabsIcon
-                aria-hidden="true"
-                className={EMPTY_RECENTS_ICON_CLASSES}
-              />
-              <strong className={EMPTY_RECENTS_COPY_CLASSES}>
-                You have not started any sessions yet.
-              </strong>
-            </div>
-          </li>
+          <EmptyRecentsState />
         )}
         {hasExtraRuns && (
           <li className={HOME_LOAD_MORE_ITEM_CLASSES}>
@@ -146,6 +136,24 @@ export function HomeRecentsPanel({
         )}
       </ol>
     </aside>
+  );
+}
+
+// Static "no runs yet" list item shown in place of the recents list when
+// there are no runs to show.
+function EmptyRecentsState() {
+  return (
+    <li className={EMPTY_RECENTS_ITEM_CLASSES}>
+      <div className={EMPTY_RECENTS_CLASSES}>
+        <GoogleLabsIcon
+          aria-hidden="true"
+          className={EMPTY_RECENTS_ICON_CLASSES}
+        />
+        <strong className={EMPTY_RECENTS_COPY_CLASSES}>
+          You have not started any sessions yet.
+        </strong>
+      </div>
+    </li>
   );
 }
 
@@ -192,39 +200,59 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         {isActiveRun ? (
           <RunStepFlow activeIndex={homeRunStepIndex(run)} />
         ) : (
-          <>
-            <span className={RECENT_CHIPS_CLASSES}>
-              <span className={RECENT_CHIP_CLASSES}>
-                <Icon
-                  aria-hidden="true"
-                  className={RECENT_CHIP_ICON_CLASSES}
-                  name="emoji_events"
-                />
-                Winning ideas
-              </span>
-              {topScore !== null && (
-                <span className={RECENT_CHIP_CLASSES}>
-                  <Icon
-                    aria-hidden="true"
-                    className={RECENT_CHIP_ICON_CLASSES}
-                    name="stars"
-                  />
-                  Top score: {topScore}
-                </span>
-              )}
-            </span>
-            <ol className={WINNER_LIST_CLASSES}>
-              {topIdeas.map((idea, index) => (
-                <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
-                  <span>{index + 1}.</span>
-                  <span>{idea}</span>
-                </li>
-              ))}
-            </ol>
-          </>
+          <RecentRunResults topIdeas={topIdeas} topScore={topScore} />
         )}
       </Link>
     </li>
+  );
+}
+
+/**
+ * Renders a completed run's summary within its recents card: the "Winning
+ * ideas" chip pair (with an optional top-score chip) and the ranked list of
+ * placeholder idea titles.
+ *
+ * @param topIdeas The idea titles to list, in rank order.
+ * @param topScore The run's top Elo score, or null if unknown.
+ */
+function RecentRunResults({
+  topIdeas,
+  topScore,
+}: {
+  topIdeas: string[];
+  topScore: number | null;
+}) {
+  return (
+    <>
+      <span className={RECENT_CHIPS_CLASSES}>
+        <span className={RECENT_CHIP_CLASSES}>
+          <Icon
+            aria-hidden="true"
+            className={RECENT_CHIP_ICON_CLASSES}
+            name="emoji_events"
+          />
+          Winning ideas
+        </span>
+        {topScore !== null && (
+          <span className={RECENT_CHIP_CLASSES}>
+            <Icon
+              aria-hidden="true"
+              className={RECENT_CHIP_ICON_CLASSES}
+              name="stars"
+            />
+            Top score: {topScore}
+          </span>
+        )}
+      </span>
+      <ol className={WINNER_LIST_CLASSES}>
+        {topIdeas.map((idea, index) => (
+          <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
+            <span>{index + 1}.</span>
+            <span>{idea}</span>
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
 
