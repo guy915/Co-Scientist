@@ -111,6 +111,47 @@ const CHAT_HISTORY_LABEL_CLASSES = 'ucs-chat-label';
 
 const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 
+// The <main> class variant for a route: report layout on run routes, the
+// home variant on '/', and the plain page otherwise.
+function pageClassesFor(pathname: string, isRunRoute: boolean): string {
+  if (isRunRoute) return REPORT_PAGE_CLASSES;
+  return pathname === '/' ? HOME_PAGE_CLASSES : PAGE_CLASSES;
+}
+
+// Derives the route-dependent shell presentation: which workspace/page class
+// variant to render and the sidebar/title keys that follow the active run.
+// Isolated from Layout so the component itself stays a thin render/wiring
+// function; see Layout's shellClass for the remaining (navOpen-dependent)
+// piece, which stays inline since it is just two ternaries.
+function deriveRoutePresentation(pathname: string): {
+  isRunRoute: boolean;
+  activeRunId: string | undefined;
+  titleContextKey: string;
+  workspaceClasses: string;
+  pageClasses: string;
+} {
+  const isRunRoute = pathname.startsWith('/runs/');
+  // The run id embedded in /runs/:id[/:tab], used to persistently highlight the
+  // active conversation in the sidebar chat list.
+  const activeRunId = isRunRoute ? pathname.split('/')[2] : undefined;
+  // Clear the shell title only when the title-owning context changes: the run
+  // id for run routes, else the pathname. Switching tabs within one run keeps
+  // the same id, so the run's dispatched title survives (RunDetail stays
+  // mounted across tabs and does not re-dispatch on a tab change).
+  const titleContextKey = isRunRoute ? `run:${activeRunId}` : pathname;
+  const workspaceClasses = isRunRoute
+    ? REPORT_WORKSPACE_CLASSES
+    : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
+
+  return {
+    isRunRoute,
+    activeRunId,
+    titleContextKey,
+    workspaceClasses,
+    pageClasses: pageClassesFor(pathname, isRunRoute),
+  };
+}
+
 /**
  * Renders the app shell with header navigation, main content, and footer.
  *
@@ -119,15 +160,13 @@ const CHAT_HISTORY_MORE_CLASSES = 'ucs-chat-more';
 export function Layout({children}: {children: ReactNode}) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isRunRoute = location.pathname.startsWith('/runs/');
-  // The run id embedded in /runs/:id[/:tab], used to persistently highlight the
-  // active conversation in the sidebar chat list.
-  const activeRunId = isRunRoute ? location.pathname.split('/')[2] : undefined;
-  // Clear the shell title only when the title-owning context changes: the run
-  // id for run routes, else the pathname. Switching tabs within one run keeps
-  // the same id, so the run's dispatched title survives (RunDetail stays
-  // mounted across tabs and does not re-dispatch on a tab change).
-  const titleContextKey = isRunRoute ? `run:${activeRunId}` : location.pathname;
+  const {
+    isRunRoute,
+    activeRunId,
+    titleContextKey,
+    workspaceClasses,
+    pageClasses,
+  } = deriveRoutePresentation(location.pathname);
   const headerTitle = useHeaderTitle(titleContextKey);
   const {history, showAllChats, toggleShowAllChats} = useChatHistory(
     location.pathname,
@@ -145,15 +184,6 @@ export function Layout({children}: {children: ReactNode}) {
     openSettings,
   } = useLayoutChrome(location.pathname);
 
-  const workspaceClasses = isRunRoute
-    ? REPORT_WORKSPACE_CLASSES
-    : `${WORKSPACE_CLASSES} ${WORKSPACE_RESPONSIVE_CLASSES}`;
-  const isHomeRoute = location.pathname === '/';
-  const pageClasses = isRunRoute
-    ? REPORT_PAGE_CLASSES
-    : isHomeRoute
-      ? HOME_PAGE_CLASSES
-      : PAGE_CLASSES;
   // `nav-open`/`nav-collapsed` is the class shell_surface.css keys its
   // responsive rules off: on desktop (>700px) it toggles the rail's grid
   // column width; on mobile (<=700px) both variants collapse to a single
@@ -453,6 +483,28 @@ function ShellHeader({
   );
 }
 
+// Per-region class bundles for the rail's expanded vs collapsed presentation,
+// keyed by the single `navOpen` flag (see NavRail below). Replaces what would
+// otherwise be six parallel `navOpen ? ... : ...` ternaries with one lookup.
+const NAV_RAIL_VARIANTS = {
+  open: {
+    panel: NAV_PANEL_OPEN_CLASSES,
+    group: NAV_GROUP_OPEN_CLASSES,
+    items: NAV_ITEMS_OPEN_CLASSES,
+    bottom: NAV_BOTTOM_CLASSES,
+    item: NAV_ITEM_OPEN_CLASSES,
+    label: NAV_LABEL_OPEN_CLASSES,
+  },
+  collapsed: {
+    panel: NAV_PANEL_COLLAPSED_CLASSES,
+    group: NAV_GROUP_COLLAPSED_CLASSES,
+    items: NAV_ITEMS_COLLAPSED_CLASSES,
+    bottom: NAV_BOTTOM_COLLAPSED_CLASSES,
+    item: NAV_ITEM_COLLAPSED_CLASSES,
+    label: NAV_LABEL_COLLAPSED_CLASSES,
+  },
+} as const;
+
 // The icon rail: Menu toggle, New chat, the chat-history sidebar, and the
 // bottom Settings control. All open/collapsed presentation is derived here
 // (and in the sub-components below) from the single `navOpen` flag.
@@ -481,46 +533,26 @@ function NavRail({
   onOpenSettings: (section: SettingsSection) => void;
   settingsControlRef: RefObject<HTMLDivElement | null>;
 }) {
-  // These nav* variants all key off the same navOpen flag to swap each rail
-  // sub-region between its expanded (label + icon) and collapsed (icon-only)
-  // presentation.
-  const navPanelClasses = navOpen
-    ? NAV_PANEL_OPEN_CLASSES
-    : NAV_PANEL_COLLAPSED_CLASSES;
-  const navGroupClasses = navOpen
-    ? NAV_GROUP_OPEN_CLASSES
-    : NAV_GROUP_COLLAPSED_CLASSES;
-  const navItemsClasses = navOpen
-    ? NAV_ITEMS_OPEN_CLASSES
-    : NAV_ITEMS_COLLAPSED_CLASSES;
-  const navBottomClasses = navOpen
-    ? NAV_BOTTOM_CLASSES
-    : NAV_BOTTOM_COLLAPSED_CLASSES;
-  const navItemClasses = navOpen
-    ? NAV_ITEM_OPEN_CLASSES
-    : NAV_ITEM_COLLAPSED_CLASSES;
-  const navLabelClasses = navOpen
-    ? NAV_LABEL_OPEN_CLASSES
-    : NAV_LABEL_COLLAPSED_CLASSES;
+  const nav = navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed;
 
   return (
-    <aside className={navPanelClasses} aria-label="Primary navigation">
-      <div className={navGroupClasses}>
+    <aside className={nav.panel} aria-label="Primary navigation">
+      <div className={nav.group}>
         <NavActionButton
           label="Menu"
           icon="menu"
-          className={navItemClasses}
-          labelClassName={navLabelClasses}
+          className={nav.item}
+          labelClassName={nav.label}
           expanded={navOpen}
           controls="primary-navigation"
           onClick={toggleNav}
         />
-        <nav id="primary-navigation" className={navItemsClasses}>
+        <nav id="primary-navigation" className={nav.items}>
           <NavActionButton
             label="New chat"
             icon="edit_square"
-            className={navItemClasses}
-            labelClassName={navLabelClasses}
+            className={nav.item}
+            labelClassName={nav.label}
             onClick={startNewChat}
           />
         </nav>
@@ -532,7 +564,7 @@ function NavRail({
           onToggleShowAllChats={onToggleShowAllChats}
         />
       </div>
-      <div className={navBottomClasses}>
+      <div className={nav.bottom}>
         <RailSettingsControl
           navOpen={navOpen}
           activePanel={activePanel}

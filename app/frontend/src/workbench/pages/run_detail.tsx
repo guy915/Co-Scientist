@@ -11,6 +11,7 @@ import {
   type Hypothesis,
   type MatchRow,
   type Report,
+  type ReportPayload,
   type ResearchOverview,
   type Review,
   runGoal,
@@ -206,6 +207,32 @@ export function RunDetail() {
   );
 }
 
+// Fetches the run row plus whichever collections `keys` selects (every
+// collection when `keys` is omitted), in parallel.
+async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
+  const fetchIfWanted = <T,>(
+    key: RunDataKey,
+    fetcher: (id: string) => Promise<T>,
+  ): Promise<T> | undefined =>
+    !keys || keys.has(key) ? fetcher(id) : undefined;
+  const [run, hypotheses, evidence, matches, reviews, report] =
+    await Promise.all([
+      getRun(id),
+      fetchIfWanted('hypotheses', getHypotheses),
+      fetchIfWanted('evidence', getEvidence),
+      fetchIfWanted('matches', getMatches),
+      fetchIfWanted('reviews', getReviews),
+      fetchIfWanted('report', getReport),
+    ]);
+  return {run, hypotheses, evidence, matches, reviews, report};
+}
+
+// Calls `setState` only when `value` was actually fetched (a selective
+// refresh leaves the collections it did not request `undefined`).
+function applyIfFetched<T>(value: T | undefined, setState: (value: T) => void) {
+  if (value !== undefined) setState(value);
+}
+
 // Fetches and keeps in sync the run row plus its hypotheses/evidence/
 // matches/reviews/report collections. `scheduleRefresh` is a debounced
 // partial refetch keyed by collection (used by the SSE event stream below),
@@ -228,22 +255,14 @@ function useRunFetch(id: string | undefined) {
   const refresh = useCallback(
     async (keys?: ReadonlySet<RunDataKey>) => {
       if (!id) return;
-      const want = (key: RunDataKey) => !keys || keys.has(key);
       try {
-        const [r, h, e, m, rv, rep] = await Promise.all([
-          getRun(id),
-          want('hypotheses') ? getHypotheses(id) : undefined,
-          want('evidence') ? getEvidence(id) : undefined,
-          want('matches') ? getMatches(id) : undefined,
-          want('reviews') ? getReviews(id) : undefined,
-          want('report') ? getReport(id) : undefined,
-        ]);
-        setRun(r);
-        if (h !== undefined) setHypotheses(h);
-        if (e !== undefined) setEvidence(e);
-        if (m !== undefined) setMatches(m);
-        if (rv !== undefined) setReviews(rv);
-        if (rep !== undefined) setReport(rep);
+        const data = await fetchRunData(id, keys);
+        setRun(data.run);
+        applyIfFetched(data.hypotheses, setHypotheses);
+        applyIfFetched(data.evidence, setEvidence);
+        applyIfFetched(data.matches, setMatches);
+        applyIfFetched(data.reviews, setReviews);
+        applyIfFetched(data.report, setReport);
         setLoaded(true);
         setError(null);
       } catch (err) {
@@ -521,11 +540,28 @@ function reportTabButtonClass(selected: boolean): string {
   }`;
 }
 
+// Requirements/attributes/criteria captured in a run's durable setup config,
+// each defaulted to an empty list when the run has no setup yet.
+function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
+  requirements: string[];
+  attributes: string[];
+  criteria: string[];
+} {
+  if (!setup) return {requirements: [], attributes: [], criteria: []};
+  return {
+    requirements: setup.requirements,
+    attributes: setup.attributes,
+    criteria: setup.criteria,
+  };
+}
+
 // "Goal Details" tab: the raw research goal plus the requirements,
 // attributes, and criteria captured in the run's setup config.
 function GoalDetailsView({run}: {run: RunWithSummary | null}) {
-  const setup = run?.config.setup;
   const goal = runGoal(run) || 'Loading...';
+  const {requirements, attributes, criteria} = goalDetailsLists(
+    run?.config.setup,
+  );
 
   return (
     <ReportDocument
@@ -536,11 +572,56 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
       <p>
         <strong>Goal:</strong> {goal}
       </p>
-      <ReportList title="Requirements" values={setup?.requirements ?? []} />
-      <ReportList title="Attributes" values={setup?.attributes ?? []} />
-      <ReportList title="Criteria" values={setup?.criteria ?? []} />
+      <ReportList title="Requirements" values={requirements} />
+      <ReportList title="Attributes" values={attributes} />
+      <ReportList title="Criteria" values={criteria} />
     </ReportDocument>
   );
+}
+
+// Report-backed overview stats, falling back to the live rows while a run is
+// still in flight and has no persisted report yet.
+function overviewReportStats(
+  report: Report | null,
+  hypotheses: Hypothesis[],
+  matches: MatchRow[],
+): {
+  overview: ResearchOverview | undefined;
+  leaderboard: ReportPayload['leaderboard'];
+  ideaCount: number;
+  matchCount: number;
+} {
+  if (!report) {
+    return {
+      overview: undefined,
+      leaderboard: [],
+      ideaCount: hypotheses.length,
+      matchCount: matches.length,
+    };
+  }
+  const {payload} = report;
+  return {
+    overview: payload.research_overview,
+    leaderboard: payload.leaderboard,
+    ideaCount: payload.hypothesis_count ?? hypotheses.length,
+    matchCount: payload.match_count ?? matches.length,
+  };
+}
+
+// Top ideas by Elo, normalized to one shape from whichever source is
+// available: the persisted report leaderboard, else the live hypotheses.
+function winningIdeasItems(
+  leaderboard: ReportPayload['leaderboard'],
+  hypotheses: Hypothesis[],
+): {id: string; title: string; elo: number}[] {
+  if (leaderboard.length) {
+    return leaderboard
+      .slice(0, 5)
+      .map(item => ({id: item.id, title: item.title, elo: item.elo}));
+  }
+  return sortByEloDesc(hypotheses)
+    .slice(0, 5)
+    .map(h => ({id: h.id, title: h.title, elo: h.elo_rating}));
 }
 
 // "Research Overview" tab: the synthesized report (summary, research
@@ -558,12 +639,11 @@ function ResearchOverviewView({
   hypotheses: Hypothesis[];
   matches: MatchRow[];
 }) {
-  const overview = report?.payload.research_overview;
-  const leaderboard = report?.payload.leaderboard ?? [];
-  // Prefer the report's canonical counts; fall back to the live rows while a
-  // run is still in flight and has no persisted report yet.
-  const ideaCount = report?.payload.hypothesis_count ?? hypotheses.length;
-  const matchCount = report?.payload.match_count ?? matches.length;
+  const {overview, leaderboard, ideaCount, matchCount} = overviewReportStats(
+    report,
+    hypotheses,
+    matches,
+  );
   const leadStat = useMemo(
     () =>
       researchOverviewLeadStat({
@@ -576,60 +656,44 @@ function ResearchOverviewView({
     [run, leaderboard, hypotheses, ideaCount, matchCount],
   );
 
-  // Top ideas by Elo, normalized to one shape from whichever source is
-  // available: the persisted report leaderboard, else the live hypotheses.
-  const winningIdeas: {id: string; title: string; elo: number}[] = useMemo(
-    () =>
-      leaderboard.length
-        ? leaderboard
-            .slice(0, 5)
-            .map(item => ({id: item.id, title: item.title, elo: item.elo}))
-        : sortByEloDesc(hypotheses)
-            .slice(0, 5)
-            .map(h => ({id: h.id, title: h.title, elo: h.elo_rating})),
+  const winningIdeas = useMemo(
+    () => winningIdeasItems(leaderboard, hypotheses),
     [leaderboard, hypotheses],
   );
 
   return (
     <ReportDocument title="Research overview">
       {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
-
-      {overview?.overview?.summary ? (
-        <p>{overview.overview.summary}</p>
-      ) : (
-        <p>
-          The research overview appears after Co-Scientist finishes the final
-          synthesis step.
-        </p>
-      )}
-
-      {overview?.overview?.research_directions?.length ? (
-        <ResearchDirectionsSection
-          directions={overview.overview.research_directions}
-        />
-      ) : null}
-
-      {overview?.nih_specific_aims?.aims?.length ? (
-        <SpecificAimsSection aims={overview.nih_specific_aims} />
-      ) : null}
-
-      {winningIdeas.length ? (
-        <WinningIdeasSection items={winningIdeas} />
-      ) : null}
-
+      <OverviewSummary overview={overview} />
+      <ResearchDirectionsSection overview={overview} />
+      <SpecificAimsSection overview={overview} />
+      <WinningIdeasSection items={winningIdeas} />
       <TournamentSummarySection matches={matches} />
     </ReportDocument>
   );
 }
 
-// "Research directions" section of the research-overview report.
+// Overview summary sentence, or the pre-synthesis placeholder.
+function OverviewSummary({overview}: {overview: ResearchOverview | undefined}) {
+  const summary = overview?.overview?.summary;
+  if (summary) return <p>{summary}</p>;
+  return (
+    <p>
+      The research overview appears after Co-Scientist finishes the final
+      synthesis step.
+    </p>
+  );
+}
+
+// "Research directions" section of the research-overview report; renders
+// nothing until the report has research directions.
 function ResearchDirectionsSection({
-  directions,
+  overview,
 }: {
-  directions: NonNullable<
-    NonNullable<ResearchOverview['overview']>['research_directions']
-  >;
+  overview: ResearchOverview | undefined;
 }) {
+  const directions = overview?.overview?.research_directions;
+  if (!directions?.length) return null;
   return (
     <section className={REPORT_SECTION_CLASSES}>
       <h3 className={REPORT_H3_CLASSES}>Research directions</h3>
@@ -650,35 +714,39 @@ function ResearchDirectionsSection({
   );
 }
 
-// "Specific aims" section of the research-overview report.
+// "Specific aims" section of the research-overview report; renders nothing
+// until the report has specific aims.
 function SpecificAimsSection({
-  aims,
+  overview,
 }: {
-  aims: NonNullable<ResearchOverview['nih_specific_aims']>;
+  overview: ResearchOverview | undefined;
 }) {
+  const specificAims = overview?.nih_specific_aims;
+  if (!specificAims?.aims?.length) return null;
   return (
     <section className={REPORT_SECTION_CLASSES}>
       <h3 className={REPORT_H3_CLASSES}>Specific aims</h3>
-      {aims.introduction ? <p>{aims.introduction}</p> : null}
-      {aims.aims?.map(aim => (
+      {specificAims.introduction ? <p>{specificAims.introduction}</p> : null}
+      {specificAims.aims.map(aim => (
         <div key={aim.aim}>
           <h4 className={REPORT_H4_CLASSES}>{aim.aim}</h4>
           <p>{aim.rationale}</p>
           <p>{aim.approach}</p>
         </div>
       ))}
-      {aims.impact ? <p>{aims.impact}</p> : null}
+      {specificAims.impact ? <p>{specificAims.impact}</p> : null}
     </section>
   );
 }
 
 // "Winning ideas" section of the research-overview report: top hypotheses by
-// Elo, normalized to one shape by the caller.
+// Elo, normalized to one shape by the caller; renders nothing when empty.
 function WinningIdeasSection({
   items,
 }: {
   items: {id: string; title: string; elo: number}[];
 }) {
+  if (!items.length) return null;
   return (
     <section className={REPORT_SECTION_CLASSES}>
       <h3 className={REPORT_H3_CLASSES}>Winning ideas</h3>

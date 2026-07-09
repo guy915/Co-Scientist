@@ -66,6 +66,56 @@ def _rank_cited_evidence(
     return cited_order, cited_state
 
 
+def _resolve_entry_state(row: dict[str, Any], entry_state: str | None) -> str:
+    """Resolve a manifest entry's state, defaulting uncited rows.
+
+    Args:
+        row: The evidence row.
+        entry_state: The strongest citation state seen for this row, or None
+            when the row was never cited.
+
+    Returns:
+        The citation state, or one derived from the row's availability flag
+        when it was never cited.
+    """
+    if entry_state is not None:
+        return entry_state
+    return "available" if row.get("available", True) else "unavailable"
+
+
+def _build_manifest_entries(
+    ordered_ids: list[str],
+    by_id: dict[str, dict[str, Any]],
+    cited_state: dict[str, str],
+    cap: int,
+) -> list[dict[str, Any]]:
+    """Materialize the capped, 1-based manifest entries for ``ordered_ids``.
+
+    Args:
+        ordered_ids: Evidence ids, cited items first, in manifest order.
+        by_id: Evidence rows for the run, keyed by string id.
+        cited_state: Strongest citation state seen for each cited id.
+        cap: Maximum number of sources to include.
+
+    Returns:
+        A list of ``{n, evidence_id, title, url, source, year, state}`` dicts.
+    """
+    manifest: list[dict[str, Any]] = []
+    # 1-based numbering matches the [n] citation markers in the prompt.
+    for n, eid in enumerate(ordered_ids[:cap], start=1):
+        row = by_id[eid]
+        manifest.append({
+            "n": n,
+            "evidence_id": eid,
+            "title": row.get("title") or "Untitled source",
+            "url": row.get("url"),
+            "source": row.get("source"),
+            "year": row.get("year"),
+            "state": _resolve_entry_state(row, cited_state.get(eid)),
+        })
+    return manifest
+
+
 def build_evidence_manifest(
     evidence: list[dict[str, Any]],
     citations: list[dict[str, Any]],
@@ -92,25 +142,7 @@ def build_evidence_manifest(
     cited_order, cited_state = _rank_cited_evidence(citations, by_id)
     # Uncited evidence trails the cited items, in retrieval (dict) order.
     ordered_ids = cited_order + [eid for eid in by_id if eid not in cited_state]
-    manifest: list[dict[str, Any]] = []
-    # 1-based numbering matches the [n] citation markers in the prompt.
-    for n, eid in enumerate(ordered_ids[:cap], start=1):
-        row = by_id[eid]
-        entry_state = cited_state.get(eid)
-        if entry_state is None:
-            # Uncited items get a state from their availability flag.
-            entry_state = ("available"
-                           if row.get("available", True) else "unavailable")
-        manifest.append({
-            "n": n,
-            "evidence_id": eid,
-            "title": row.get("title") or "Untitled source",
-            "url": row.get("url"),
-            "source": row.get("source"),
-            "year": row.get("year"),
-            "state": entry_state,
-        })
-    return manifest
+    return _build_manifest_entries(ordered_ids, by_id, cited_state, cap)
 
 
 def _format_manifest_for_prompt(manifest: list[dict[str, Any]]) -> str:

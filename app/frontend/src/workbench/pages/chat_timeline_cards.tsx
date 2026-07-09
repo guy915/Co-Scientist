@@ -418,14 +418,11 @@ export function ChatBubble({
     handleBubbleTransitionEnd,
   } = useCollapsibleBubbleText(isUser, message.content);
 
-  const bubbleClassName = isUser ? USER_BUBBLE_CLASSES : MODEL_BUBBLE_CLASSES;
+  const {row: rowClassName, bubble: bubbleClassName} =
+    chatBubbleClassNames(isUser);
 
   return (
-    <div
-      className={
-        isUser ? CHAT_BUBBLE_USER_ROW_CLASSES : CHAT_BUBBLE_ROW_CLASSES
-      }
-    >
+    <div className={rowClassName}>
       <div className={bubbleClassName}>
         <span
           ref={isUser ? textRef : undefined}
@@ -436,56 +433,108 @@ export function ChatBubble({
           {message.content}
         </span>
         {collapsible && (
-          <button
-            type="button"
-            className={tooltipClassNames({
-              className: USER_COLLAPSE_BUTTON_CLASSES,
-              placement: 'right',
-            })}
-            aria-label={expanded ? 'Collapse' : 'Expand'}
-            data-tooltip={expanded ? 'Collapse' : 'Expand'}
-            onClick={event => {
-              toggleExpanded();
-              // Drop focus after a pointer click so the hover-revealed action
-              // row (edit/copy, shown via group-focus-within) doesn't stay up
-              // once the pointer leaves. Keyboard activation (detail 0) keeps
-              // focus so those users can still reach the actions.
-              if (event.detail > 0) event.currentTarget.blur();
-            }}
-          >
-            <Icon
-              aria-hidden="true"
-              name={expanded ? 'expand_less' : 'expand_more'}
-            />
-          </button>
+          <CollapseToggleButton expanded={expanded} onToggle={toggleExpanded} />
         )}
       </div>
-      {isUser ? (
-        <MessageActionRow
-          align="end"
-          actions={[
-            {
-              icon: 'edit',
-              label: 'Edit prompt',
-              onClick: onEdit,
-            },
-            {
-              icon: 'content_copy',
-              label: 'Copy prompt',
-              onClick: onCopyRequest,
-            },
-          ]}
-        />
-      ) : (
-        <MessageActionRow
-          actions={responseActions(
-            onRetry,
-            message.content,
-            'co-scientist-response.md',
-          )}
-        />
-      )}
+      <ChatBubbleActions
+        isUser={isUser}
+        message={message}
+        onEdit={onEdit}
+        onCopyRequest={onCopyRequest}
+        onRetry={onRetry}
+      />
     </div>
+  );
+}
+
+// The row wrapper and bubble className pair for a message, keyed off whether
+// it's the user's (right-aligned, filled) or the assistant's (left-aligned,
+// unstyled).
+function chatBubbleClassNames(isUser: boolean): {
+  row: string;
+  bubble: string;
+} {
+  return isUser
+    ? {row: CHAT_BUBBLE_USER_ROW_CLASSES, bubble: USER_BUBBLE_CLASSES}
+    : {row: CHAT_BUBBLE_ROW_CLASSES, bubble: MODEL_BUBBLE_CLASSES};
+}
+
+// The collapse/expand-past-four-lines toggle shown under a collapsible user
+// bubble's text. A pointer click drops focus afterward so the hover-revealed
+// action row (edit/copy, shown via group-focus-within) doesn't stay up once
+// the pointer leaves; keyboard activation (detail 0) keeps focus so those
+// users can still reach the actions.
+function CollapseToggleButton({
+  expanded,
+  onToggle,
+}: {
+  expanded: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={tooltipClassNames({
+        className: USER_COLLAPSE_BUTTON_CLASSES,
+        placement: 'right',
+      })}
+      aria-label={expanded ? 'Collapse' : 'Expand'}
+      data-tooltip={expanded ? 'Collapse' : 'Expand'}
+      onClick={event => {
+        onToggle();
+        if (event.detail > 0) event.currentTarget.blur();
+      }}
+    >
+      <Icon
+        aria-hidden="true"
+        name={expanded ? 'expand_less' : 'expand_more'}
+      />
+    </button>
+  );
+}
+
+// The message action row under a chat bubble: the floating edit/copy row for
+// a user request, or the retry/copy/download row for an assistant response.
+function ChatBubbleActions({
+  isUser,
+  message,
+  onEdit,
+  onCopyRequest,
+  onRetry,
+}: {
+  isUser: boolean;
+  message: ChatEntry;
+  onEdit: () => void;
+  onCopyRequest: () => void;
+  onRetry: () => void;
+}) {
+  if (isUser) {
+    return (
+      <MessageActionRow
+        align="end"
+        actions={[
+          {
+            icon: 'edit',
+            label: 'Edit prompt',
+            onClick: onEdit,
+          },
+          {
+            icon: 'content_copy',
+            label: 'Copy prompt',
+            onClick: onCopyRequest,
+          },
+        ]}
+      />
+    );
+  }
+  return (
+    <MessageActionRow
+      actions={responseActions(
+        onRetry,
+        message.content,
+        'co-scientist-response.md',
+      )}
+    />
   );
 }
 

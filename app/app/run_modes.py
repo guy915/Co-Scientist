@@ -158,6 +158,26 @@ def focus_guidance(focus: str | None) -> str:
             "testability evenly.")
 
 
+def _setup_field_lines(title: str, raw_values: Any) -> list[str]:
+    """Render one setup list field as bullet lines, or nothing if empty.
+
+    Args:
+        title: Human-readable label for the field, e.g. 'Requirements'.
+        raw_values: The raw JSON value for the field; coerced to a cleaned
+            list of strings before rendering.
+
+    Returns:
+        Bullet-point lines for the field, or an empty list once cleaned
+        values are empty.
+    """
+    values = clean_string_list([str(v) for v in raw_values or []])
+    if not values:
+        return []
+    lines = [f"- {title}:"]
+    lines.extend(f"  - {value}" for value in values)
+    return lines
+
+
 def setup_guidance(setup: dict[str, Any] | None) -> str:
     """Render durable setup fields as prompt-ready run guidance."""
     # Setup blocks come from persisted config JSON, so shape is not
@@ -176,12 +196,30 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
         ("Attributes", "attributes"),
         ("Criteria", "criteria"),
     ):
-        values = clean_string_list(
-            [str(value) for value in setup.get(key) or []])
-        if values:
-            lines.append(f"- {title}:")
-            lines.extend(f"  - {value}" for value in values)
+        lines.extend(_setup_field_lines(title, setup.get(key)))
     return "\n".join(lines)
+
+
+def _apply_numeric_override(base: dict[str, Any], key: str,
+                            raw_value: Any) -> None:
+    """Coerce and merge a numeric knob override into `base`, in place.
+
+    Non-coercible values are dropped rather than failing run creation.
+    Overrides may only raise a tier baseline, never lower it, so picking a
+    bigger tier is never undone by a small knob.
+
+    Args:
+        base: The run config being assembled; mutated with the resolved key.
+        key: The numeric knob's key, e.g. 'max_iterations'.
+        raw_value: The raw override value, as received from the caller.
+    """
+    if raw_value is None:
+        return
+    try:
+        value = int(raw_value)
+    except (ValueError, TypeError):
+        return
+    base[key] = max(base[key], value) if key in base else value
 
 
 def _apply_run_config_override(base: dict[str, Any], key: str,
@@ -208,49 +246,51 @@ def _apply_run_config_override(base: dict[str, Any], key: str,
     if key == "enable_literature_review":
         base[key] = bool(raw_value)
         return
-    if raw_value is None:
-        return
-    # Remaining keys are numeric knobs; non-coercible values are dropped
-    # rather than failing run creation.
-    try:
-        value = int(raw_value)
-    except (ValueError, TypeError):
-        return
-    if key in base:
-        # Overrides may only raise a tier baseline, never lower it, so
-        # picking a bigger tier is never undone by a small knob.
-        base[key] = max(base[key], value)
-    else:
-        base[key] = value
+    _apply_numeric_override(base, key, raw_value)
 
 
-def resolved_run_config(
-        overrides: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Resolve run config defaults plus user-provided numeric overrides."""
-    # Resolve the tier first since it selects the numeric baseline. A
-    # top-level 'tier' key wins; otherwise fall back to the tier recorded
-    # in the durable setup block, then to the default.
+def _resolve_tier_override(overrides: dict[str, Any] | None) -> str:
+    """Resolve the run tier from an explicit override or the setup block.
+
+    A top-level 'tier' key wins; otherwise fall back to the tier recorded
+    in the durable setup block, then to the default.
+    """
     tier = None
     if overrides:
         tier = overrides.get("tier")
         setup = overrides.get("setup")
         if tier is None and isinstance(setup, dict):
             tier = setup.get("tier")
-    tier = normalize_run_tier(tier if isinstance(tier, str) else None)
+    return normalize_run_tier(tier if isinstance(tier, str) else None)
+
+
+def _ensure_focus_default(base: dict[str, Any]) -> None:
+    """Guarantee a focus key in `base`, in place.
+
+    Prefers the explicit override (already applied by the caller), then the
+    setup block's focus, then the global default.
+    """
+    if "focus" in base:
+        return
+    setup = base.get("setup")
+    if isinstance(setup, dict):
+        base["focus"] = normalize_run_focus(setup.get("focus"))
+    else:
+        base["focus"] = DEFAULT_RUN_FOCUS
+
+
+def resolved_run_config(
+        overrides: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Resolve run config defaults plus user-provided numeric overrides."""
+    # Resolve the tier first since it selects the numeric baseline.
+    tier = _resolve_tier_override(overrides)
     # Copy so tier defaults are never mutated across runs.
     base: dict[str, Any] = dict(RUN_TIER_DEFAULTS[tier])
     if overrides:
         for key, raw_value in overrides.items():
             _apply_run_config_override(base, key, raw_value)
     base["tier"] = tier
-    # Guarantee a focus key: prefer the explicit override (handled above),
-    # then the setup block's focus, then the global default.
-    if "focus" not in base:
-        setup = base.get("setup")
-        if isinstance(setup, dict):
-            base["focus"] = normalize_run_focus(setup.get("focus"))
-        else:
-            base["focus"] = DEFAULT_RUN_FOCUS
+    _ensure_focus_default(base)
     # Elo K-factor and literature review are always present in the final
     # config so downstream consumers need no fallbacks of their own.
     base.setdefault("k_factor", DEFAULT_K_FACTOR)

@@ -10,6 +10,9 @@ import {useLocation, useNavigate} from 'react-router-dom';
 // Arrow-key cycling order; must match the tab routes RunDetail renders.
 const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
 
+// Keys that cycle tabs; any other key is left alone by nextTabPath.
+const TAB_CYCLE_KEYS: readonly string[] = ['ArrowLeft', 'ArrowRight'];
+
 // True when the key event originated in an editable control (input,
 // textarea, contenteditable), in which case shortcuts must not fire.
 function isTextEditingTarget(t: EventTarget | null): boolean {
@@ -19,30 +22,56 @@ function isTextEditingTarget(t: EventTarget | null): boolean {
   return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
 }
 
-// Resolves an ArrowLeft/ArrowRight press on a /runs/:id(/:tab) route to the
-// path for the adjacent tab, or null when the key/route doesn't apply or the
-// current tab is already at that end of TABS (no wraparound).
-function nextTabPath(pathname: string, key: string): string | null {
-  if (key !== 'ArrowLeft' && key !== 'ArrowRight') return null;
+// True when the shortcuts must not fire at all: typing in an editable
+// control, or a modifier held (leaving browser/OS shortcuts alone).
+function shouldIgnoreShortcut(e: KeyboardEvent): boolean {
+  return isTextEditingTarget(e.target) || e.metaKey || e.ctrlKey || e.altKey;
+}
+
+// True when this keydown is the "n" completing a "g n" sequence, i.e. it
+// arrives within 800ms of the last "g" press.
+function isHomeShortcut(key: string, lastG: number, now: number): boolean {
+  return now - lastG < 800 && key === 'n';
+}
+
+// Parses a /runs/:id(/:tab) route into the run id and current tab, or null
+// when the pathname isn't a run route or is the legacy '/runs/new' path.
+// Unknown or missing tab segments count as the default 'details'.
+function parseRunTabRoute(
+  pathname: string,
+): {id: string; current: (typeof TABS)[number]} | null {
   const m = pathname.match(/^\/runs\/([^/]+)(?:\/(.+))?$/);
   if (!m) return null;
   const id = m[1];
   if (id === 'new') return null; // legacy path, not a real run
-  // Unknown or missing tab segments count as the default 'details'.
   const current = (
     m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : 'details'
   ) as (typeof TABS)[number];
-  const idx = TABS.indexOf(current);
-  // Clamp at the ends rather than wrapping around.
-  const next =
-    key === 'ArrowRight'
-      ? Math.min(TABS.length - 1, idx + 1)
-      : Math.max(0, idx - 1);
+  return {id, current};
+}
+
+// Index of the tab adjacent to `currentIdx` in the given arrow direction,
+// clamped at the ends of TABS rather than wrapping around.
+function adjacentTabIndex(currentIdx: number, key: string): number {
+  return key === 'ArrowRight'
+    ? Math.min(TABS.length - 1, currentIdx + 1)
+    : Math.max(0, currentIdx - 1);
+}
+
+// Resolves an ArrowLeft/ArrowRight press on a /runs/:id(/:tab) route to the
+// path for the adjacent tab, or null when the key/route doesn't apply or the
+// current tab is already at that end of TABS (no wraparound).
+function nextTabPath(pathname: string, key: string): string | null {
+  if (!TAB_CYCLE_KEYS.includes(key)) return null;
+  const route = parseRunTabRoute(pathname);
+  if (!route) return null;
+  const idx = TABS.indexOf(route.current);
+  const next = adjacentTabIndex(idx, key);
   if (next === idx) return null;
   const nextTab = TABS[next];
   // 'details' navigates to the bare id, which the router redirects to
   // /runs/:id/details (the canonical default-tab URL).
-  return `/runs/${id}/${nextTab === 'details' ? '' : nextTab}`;
+  return `/runs/${route.id}/${nextTab === 'details' ? '' : nextTab}`;
 }
 
 /**
@@ -63,9 +92,7 @@ export function useGlobalShortcuts() {
     let lastG = 0;
 
     function onKeyDown(e: KeyboardEvent) {
-      if (isTextEditingTarget(e.target)) return;
-      // Leave modifier combos (browser/OS shortcuts) alone.
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (shouldIgnoreShortcut(e)) return;
 
       const now = Date.now();
       // Two-key "g n" sequence (Vim-style).
@@ -75,10 +102,10 @@ export function useGlobalShortcuts() {
       }
       // The prefix is only honored within 800ms, and any non-"g" key
       // consumes it so a stale "g" can't pair with a much later "n".
-      const wasG = now - lastG < 800;
+      const wasG = isHomeShortcut(e.key, lastG, now);
       lastG = 0;
 
-      if (wasG && e.key === 'n') {
+      if (wasG) {
         e.preventDefault();
         void navigate('/');
         return;

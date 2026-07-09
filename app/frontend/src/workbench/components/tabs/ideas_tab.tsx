@@ -344,13 +344,12 @@ function HypothesisDetail({
   }
 
   // At most one review per hypothesis is expected; find() is fine here.
-  const review = reviews.find(r => r.hypothesis_id === hypothesis.id) ?? null;
+  const review = reviews.find(r => r.hypothesis_id === hypothesis.id);
   // Most recent match involving this hypothesis on either side, used for the
   // "Match summary" section's outcome/rationale.
   const latestMatch = matches
     .filter(m => m.winner_id === hypothesis.id || m.loser_id === hypothesis.id)
     .sort((a, b) => b.created_at - a.created_at)[0];
-  const totalMatches = hypothesis.win_count + hypothesis.loss_count;
 
   return (
     <section
@@ -362,53 +361,90 @@ function HypothesisDetail({
       </DetailSection>
 
       <DetailSection title={SECTIONS.description} level={2}>
-        <h3>{hypothesis.title}</h3>
-        {hypothesis.mechanism && (
-          <p>
-            <strong>Proposed mechanism of action:</strong>{' '}
-            {hypothesis.mechanism}
-          </p>
-        )}
-        {hypothesis.expected_effect && (
-          <p>
-            <strong>Expected effect:</strong> {hypothesis.expected_effect}
-          </p>
-        )}
+        <HypothesisDescriptionContent hypothesis={hypothesis} />
       </DetailSection>
 
       <DetailSection title={SECTIONS.reviewSummary} level={2}>
-        <p>
-          {review?.summary ||
-            'Reviewer notes will appear after the review node completes.'}
-        </p>
+        <p>{reviewSummaryText(review)}</p>
       </DetailSection>
 
       <DetailSection title={SECTIONS.fullReview} level={2}>
-        <p>{review?.critique || 'No full review has been recorded yet.'}</p>
+        <p>{reviewCritiqueText(review)}</p>
       </DetailSection>
 
       <DetailSection title={SECTIONS.tournament} level={2}>
-        <p>
-          {totalMatches
-            ? `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches (${Math.round(
-                (hypothesis.win_count / totalMatches) * 100,
-              )}% win rate).`
-            : 'No tournament matches have been recorded yet.'}
-        </p>
+        <p>{tournamentSummaryText(hypothesis)}</p>
       </DetailSection>
 
       <DetailSection title={SECTIONS.matchSummary} level={2}>
-        {latestMatch?.tier && (
-          <p>
-            <strong>Outcome:</strong>{' '}
-            <span className="capitalize">{latestMatch.tier}</span>
-          </p>
-        )}
-        <p>
-          {latestMatch?.rationale || 'No match rationale is available yet.'}
-        </p>
+        <MatchSummaryContent latestMatch={latestMatch} />
       </DetailSection>
     </section>
+  );
+}
+
+// "Description" section body: title plus the optional mechanism/expected-
+// effect paragraphs. Props-only (no hooks), so it is safe to render outside
+// HypothesisDetail's own scope.
+function HypothesisDescriptionContent({hypothesis}: {hypothesis: Hypothesis}) {
+  return (
+    <>
+      <h3>{hypothesis.title}</h3>
+      {hypothesis.mechanism && (
+        <p>
+          <strong>Proposed mechanism of action:</strong> {hypothesis.mechanism}
+        </p>
+      )}
+      {hypothesis.expected_effect && (
+        <p>
+          <strong>Expected effect:</strong> {hypothesis.expected_effect}
+        </p>
+      )}
+    </>
+  );
+}
+
+// "Review summary" section text, falling back to a placeholder until the
+// review node has run.
+function reviewSummaryText(review: Review | undefined): string {
+  return (
+    review?.summary ||
+    'Reviewer notes will appear after the review node completes.'
+  );
+}
+
+// "Full review" section text, falling back to a placeholder until the review
+// node has run.
+function reviewCritiqueText(review: Review | undefined): string {
+  return review?.critique || 'No full review has been recorded yet.';
+}
+
+// "Tournament performance" section text: the win/loss record and win rate,
+// or a placeholder when no matches have been recorded yet.
+function tournamentSummaryText(hypothesis: Hypothesis): string {
+  const totalMatches = hypothesis.win_count + hypothesis.loss_count;
+  if (!totalMatches) return 'No tournament matches have been recorded yet.';
+  const winRate = Math.round((hypothesis.win_count / totalMatches) * 100);
+  return `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches (${winRate}% win rate).`;
+}
+
+// "Match summary" section body: the optional outcome line plus the
+// rationale (or its placeholder). Props-only (no hooks).
+function MatchSummaryContent({
+  latestMatch,
+}: {
+  latestMatch: MatchRow | undefined;
+}) {
+  return (
+    <>
+      {latestMatch?.tier && (
+        <p>
+          <strong>Outcome:</strong>{' '}
+          <span className="capitalize">{latestMatch.tier}</span>
+        </p>
+      )}
+      <p>{latestMatch?.rationale || 'No match rationale is available yet.'}</p>
+    </>
   );
 }
 

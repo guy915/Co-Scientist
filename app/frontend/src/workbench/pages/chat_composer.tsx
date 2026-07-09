@@ -155,22 +155,13 @@ export function Composer({
     removeAttachment,
   } = useComposerState(input, large);
 
-  const referenceLabel = setupDraftMode
-    ? 'Type to edit session details'
-    : 'Start a new research goal to begin';
+  const referenceLabel = composerReferenceLabel(setupDraftMode);
   const submitLabel = 'Send';
 
   return (
     <form
       onSubmit={onSubmit}
-      className={[
-        COMPOSER_BASE_CLASSES,
-        input.trim() ? 'has-input' : '',
-        large ? HOME_COMPOSER_CLASSES : '',
-        attachments.length ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
+      className={composerFormClassName(input, large, attachments.length > 0)}
     >
       <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
       <ComposerTextareaField
@@ -195,6 +186,32 @@ export function Composer({
       />
     </form>
   );
+}
+
+// The composer form's className: the base classes plus has-input/large/
+// has-attachments modifiers, each applied independently of the others.
+function composerFormClassName(
+  input: string,
+  large: boolean,
+  hasAttachments: boolean,
+) {
+  return [
+    COMPOSER_BASE_CLASSES,
+    input.trim() ? 'has-input' : '',
+    large ? HOME_COMPOSER_CLASSES : '',
+    hasAttachments ? REFERENCE_COMPOSER_ATTACHED_CLASSES : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+// The floating-label copy shown above the textarea: "edit session details"
+// wording while a draft/confirmed run spec or started session is showing,
+// otherwise the initial call-to-action.
+function composerReferenceLabel(setupDraftMode: boolean) {
+  return setupDraftMode
+    ? 'Type to edit session details'
+    : 'Start a new research goal to begin';
 }
 
 // Owns the composer's non-controlled state: the staged attachments, the

@@ -21,10 +21,16 @@ export function conciseTitle(goal: string, maxChars = 52): string {
     sentenceEnd >= 0 ? trimmed.slice(0, sentenceEnd) : trimmed
   ).trim();
   if (firstClause.length <= maxChars) return firstClause;
-  // Truncate on a word boundary and always end in a bare ellipsis ("word…"):
-  // drop the partial trailing word and any dangling very short word, and never
-  // leave a trailing space or separator before the ellipsis.
-  const cut = firstClause.slice(0, maxChars);
+  return truncateOnWordBoundary(firstClause, maxChars);
+}
+
+/**
+ * Truncates `text` on a word boundary and always ends in a bare ellipsis
+ * ("word…"): drops the partial trailing word and any dangling very short
+ * word, and never leaves a trailing space or separator before the ellipsis.
+ */
+function truncateOnWordBoundary(text: string, maxChars: number): string {
+  const cut = text.slice(0, maxChars);
   const lastSpace = cut.lastIndexOf(' ');
   const onBoundary = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
   const base = onBoundary.replace(/[\s,;:]+$/, '');

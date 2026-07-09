@@ -113,62 +113,68 @@ def format_deep_verification_critique(probes: list[dict[str, Any]],
     return summary, critique
 
 
+def _render_research_direction(direction: dict[str, Any]) -> list[str]:
+    """Render one research-direction entry, or nothing when not a dict."""
+    if not isinstance(direction, dict):
+        return []
+    lines = [f"### {direction.get('title', '')}\n"]
+    importance = direction.get("importance", "")
+    if importance:
+        lines.append(f"{importance}\n")
+    experiments = direction.get("suggested_experiments") or []
+    if experiments:
+        lines.append("Suggested experiments:\n")
+        lines.extend(f"- {experiment}" for experiment in experiments)
+        lines.append("")
+    return lines
+
+
 def _render_overview_section(ov: dict[str, Any]) -> list[str]:
     """Render the 'Research Overview' section, or nothing when data absent."""
-    lines: list[str] = []
     if not isinstance(ov, dict):
-        return lines
+        return []
     summary = ov.get("summary")
     directions = ov.get("research_directions") or []
     if not (summary or directions):
-        return lines
-    lines.append("\n## Research Overview\n")
+        return []
+    lines = ["\n## Research Overview\n"]
     if summary:
         lines.append(f"{summary}\n")
     for direction in directions:
-        if not isinstance(direction, dict):
-            continue
-        title = direction.get("title", "")
-        importance = direction.get("importance", "")
-        experiments = direction.get("suggested_experiments") or []
-        lines.append(f"### {title}\n")
-        if importance:
-            lines.append(f"{importance}\n")
-        if experiments:
-            lines.append("Suggested experiments:\n")
-            for experiment in experiments:
-                lines.append(f"- {experiment}")
-            lines.append("")
+        lines += _render_research_direction(direction)
+    return lines
+
+
+def _render_nih_aim(aim: dict[str, Any]) -> list[str]:
+    """Render one NIH aim entry, or nothing when not a dict."""
+    if not isinstance(aim, dict):
+        return []
+    lines = [f"### {aim.get('aim', '')}\n"]
+    rationale = aim.get("rationale", "")
+    if rationale:
+        lines.append(f"**Rationale:** {rationale}\n")
+    approach = aim.get("approach", "")
+    if approach:
+        lines.append(f"**Approach:** {approach}\n")
     return lines
 
 
 def _render_nih_aims_section(aims_section: dict[str, Any]) -> list[str]:
     """Render the 'NIH Specific Aims' section, or nothing when data absent."""
-    lines: list[str] = []
     if not isinstance(aims_section, dict):
-        return lines
+        return []
     introduction = aims_section.get("introduction")
     aims = aims_section.get("aims") or []
     impact = aims_section.get("impact")
     if not (introduction or aims or impact):
-        return lines
-    lines.append("\n## NIH Specific Aims\n")
+        return []
+    lines = ["\n## NIH Specific Aims\n"]
     if introduction:
         lines.append(f"{introduction}\n")
     for aim in aims:
-        if not isinstance(aim, dict):
-            continue
-        aim_text = aim.get("aim", "")
-        rationale = aim.get("rationale", "")
-        approach = aim.get("approach", "")
-        lines.append(f"### {aim_text}\n")
-        if rationale:
-            lines.append(f"**Rationale:** {rationale}\n")
-        if approach:
-            lines.append(f"**Approach:** {approach}\n")
+        lines += _render_nih_aim(aim)
     if impact:
-        lines.append("### Impact\n")
-        lines.append(f"{impact}\n")
+        lines += ["### Impact\n", f"{impact}\n"]
     return lines
 
 
@@ -249,6 +255,30 @@ def build_report_payload(
     return payload
 
 
+def _render_recommendation(rec: dict[str, Any] | str) -> list[str]:
+    """Render one strategic recommendation entry.
+
+    Structured (dict) recommendations render with a rationale; a bare string
+    falls back to a plain bullet.
+    """
+    if isinstance(rec, dict):
+        area = rec.get("focus_area", "")
+        recommendation = rec.get("recommendation", "")
+        lines = [f"**{area}**: {recommendation}"]
+        justification = rec.get("justification", "")
+        if justification:
+            lines.append(f"  *{justification}*")
+        return lines
+    return [f"- {rec}"]
+
+
+def _render_bullet_list(heading: str, items: list[Any]) -> list[str]:
+    """Render a heading and its bullet items, or nothing when empty."""
+    if not items:
+        return []
+    return [f"\n{heading}\n"] + [f"- {item}" for item in items]
+
+
 def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     """Render the meta-review insights section, or nothing when absent."""
     if not meta_review:
@@ -261,25 +291,13 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
         ("common_weaknesses", "### Common weaknesses"),
         ("emerging_themes", "### Emerging themes"),
     ):
-        items = meta_review.get(section_key) or []
-        if items:
-            lines.append(f"\n{heading}\n")
-            lines.extend(f"- {item}" for item in items)
+        lines += _render_bullet_list(heading,
+                                     meta_review.get(section_key) or [])
     recs = meta_review.get("strategic_recommendations") or []
     if recs:
         lines.append("\n### Strategic recommendations\n")
         for rec in recs:
-            # Structured (dict) recommendations render with a rationale;
-            # a bare string falls back to a plain bullet.
-            if isinstance(rec, dict):
-                area = rec.get("focus_area", "")
-                recommendation = rec.get("recommendation", "")
-                justification = rec.get("justification", "")
-                lines.append(f"**{area}**: {recommendation}")
-                if justification:
-                    lines.append(f"  *{justification}*")
-            else:
-                lines.append(f"- {rec}")
+            lines += _render_recommendation(rec)
     return lines
 
 

@@ -395,6 +395,78 @@ def _terminal_frame(status: str, seq: int) -> str:
     })
 
 
+async def _should_skip_tick(handle: _RunHandle | None, tick: int) -> bool:
+    """Wait out one poll tick and report whether to skip the store query.
+
+    Wakes early on the producer's pulse; the event is cleared before
+    returning so a set that races this wait is caught next iteration. With
+    an in-process producer, every appended event sets `new_event`, so a
+    timed-out wait means nothing was written -- skip the query, except on
+    the every-10th-tick terminal-status safety net.
+
+    Args:
+        handle: In-process run handle, or None when this process is not the
+            producer (falls back to plain fixed-interval polling and never
+            skips).
+        tick: The current tick index within the streaming loop.
+
+    Returns:
+        True if this tick's event query should be skipped.
+    """
+    if handle is None:
+        await asyncio.sleep(0.5)
+        return False
+    try:
+        await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
+        handle.new_event.clear()
+        return False
+    except asyncio.TimeoutError:
+        return tick % 10 != 9
+
+
+def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
+    """Return the terminal run status carried by a status event, if any."""
+    if ev["type"] != "status":
+        return None
+    payload = ev.get("payload") or {}
+    status = payload.get("status")
+    if isinstance(status, str) and status in TERMINAL_STATUSES:
+        return status
+    return None
+
+
+def _terminal_status_from_run(run_id: str) -> str | None:
+    """Return the run's current status if it has reached a terminal state."""
+    current = store.get_run(run_id)
+    if current and current.status in TERMINAL_STATUSES:
+        return current.status
+    return None
+
+
+def _resolve_tick_terminal(terminal_status: str | None, run_id: str,
+                           tick: int) -> str | None:
+    """Resolve this tick's terminal status, falling back to the safety net.
+
+    A terminal transition normally rides on a new event (all workflow paths
+    append a `status` event), so ticks without one skip the run-row query;
+    the every-10th tick check covers terminal writes that append no event.
+
+    Args:
+        terminal_status: Terminal status already found among this tick's
+            events, if any.
+        run_id: Identifier of the run being streamed.
+        tick: The current tick index within the streaming loop.
+
+    Returns:
+        The terminal status to end the stream on, or None to keep polling.
+    """
+    if terminal_status is not None:
+        return terminal_status
+    if tick % 10 == 9:
+        return _terminal_status_from_run(run_id)
+    return None
+
+
 async def _stream_live_tail(
     run_id: str,
     request: Request,
@@ -422,24 +494,7 @@ async def _stream_live_tail(
         if await request.is_disconnected():
             return
 
-        signaled = True
-        if handle is not None:
-            # Wake early on the producer's pulse; clear before querying
-            # so a set that races the query is caught next iteration.
-            try:
-                await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
-                handle.new_event.clear()
-            except asyncio.TimeoutError:
-                signaled = False
-        else:
-            # No in-process producer: plain fixed-interval polling.
-            await asyncio.sleep(0.5)
-
-        # With an in-process producer, every appended event sets
-        # `new_event`.
-        # A timed-out wait therefore means nothing was written, so skip the
-        # query -- except on the every-10th-tick terminal-status safety net.
-        if handle is not None and not signaled and tick % 10 != 9:
+        if await _should_skip_tick(handle, tick):
             continue
 
         new_events = store.list_events(run_id, after_seq=last_seq)
@@ -447,19 +502,9 @@ async def _stream_live_tail(
         for ev in new_events:
             last_seq = ev["seq"]
             yield qa.sse_frame(ev)
-            if ev["type"] == "status":
-                status = (ev.get("payload") or {}).get("status")
-                if status in TERMINAL_STATUSES:
-                    terminal_status = status
+            terminal_status = _terminal_status_from_event(ev) or terminal_status
 
-        # Exit on terminal. A terminal transition normally rides on a new
-        # event (all workflow paths append a `status` event), so ticks
-        # without one skip the run-row query; the every-10th tick check
-        # covers terminal writes that append no event.
-        if terminal_status is None and tick % 10 == 9:
-            current = store.get_run(run_id)
-            if current and current.status in TERMINAL_STATUSES:
-                terminal_status = current.status
+        terminal_status = _resolve_tick_terminal(terminal_status, run_id, tick)
         if terminal_status is not None:
             yield _terminal_frame(terminal_status, last_seq)
             return

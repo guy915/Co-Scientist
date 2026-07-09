@@ -259,6 +259,15 @@ function HomeRecentsRegion({
   );
 }
 
+// The preview bubble's anchor class for a suggestion card's column position
+// (first/middle/last), so it stays roughly centered over the row rather than
+// overflowing past the viewport edge for the first/last card.
+function suggestionPreviewPositionClass(index: number) {
+  if (index === 0) return HOME_SUGGESTION_PREVIEW_START_CLASSES;
+  if (index === 1) return HOME_SUGGESTION_PREVIEW_CENTER_CLASSES;
+  return HOME_SUGGESTION_PREVIEW_END_CLASSES;
+}
+
 // Renders one suggestion card in the home-stage suggestion row: the
 // hover/focus-revealed full-text preview bubble, and the button that fills
 // the composer with the suggestion's text when selected.
@@ -280,12 +289,7 @@ function SuggestionCard({
   // The preview bubble anchors differently per column (start/center/end) so
   // it stays roughly centered over the row rather than overflowing past the
   // viewport edge for the first/last card.
-  const previewPositionClass =
-    index === 0
-      ? HOME_SUGGESTION_PREVIEW_START_CLASSES
-      : index === 1
-        ? HOME_SUGGESTION_PREVIEW_CENTER_CLASSES
-        : HOME_SUGGESTION_PREVIEW_END_CLASSES;
+  const previewPositionClass = suggestionPreviewPositionClass(index);
 
   return (
     <div className={HOME_SUGGESTION_SLOT_CLASSES}>
