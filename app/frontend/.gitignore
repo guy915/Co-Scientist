@@ -26,3 +26,6 @@ dist-ssr
 *storybook.log
 storybook-static
 .vercel
+
+# Test coverage output
+coverage/

@@ -2,14 +2,21 @@ import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest';
 import {
   createRun,
   listRuns,
+  listDemoRuns,
+  loadRunHistory,
   getRun,
   startRun,
   getHypotheses,
+  getEvidence,
+  getMatches,
+  getReviews,
   getReport,
   isActiveStatus,
+  runGoal,
   eventsStreamUrl,
   type RunStatus,
 } from './runs';
+import type {Run} from './run_types';
 
 // The api client reads VITE_API_BASE_URL at module load; in the test env it is
 // unset, so all request URLs are relative (no host prefix).
@@ -205,6 +212,121 @@ describe('getHypotheses', () => {
   });
 });
 
+describe('getEvidence', () => {
+  it('GETs /api/runs/:id/evidence and unwraps .evidence', async () => {
+    const evidence = [{id: 'e1'}];
+    fetchMock().mockResolvedValue(jsonResponse({evidence}));
+
+    const result = await getEvidence('r1');
+
+    const [url] = firstCall();
+    expect(url).toBe('/api/runs/r1/evidence');
+    expect(result).toEqual(evidence);
+  });
+});
+
+describe('getMatches', () => {
+  it('GETs /api/runs/:id/matches and unwraps .matches', async () => {
+    const matches = [{id: 1}];
+    fetchMock().mockResolvedValue(jsonResponse({matches}));
+
+    const result = await getMatches('r1');
+
+    const [url] = firstCall();
+    expect(url).toBe('/api/runs/r1/matches');
+    expect(result).toEqual(matches);
+  });
+});
+
+describe('getReviews', () => {
+  it('GETs /api/runs/:id/reviews and unwraps .reviews', async () => {
+    const reviews = [{id: 1}];
+    fetchMock().mockResolvedValue(jsonResponse({reviews}));
+
+    const result = await getReviews('r1');
+
+    const [url] = firstCall();
+    expect(url).toBe('/api/runs/r1/reviews');
+    expect(result).toEqual(reviews);
+  });
+});
+
+describe('listDemoRuns', () => {
+  it('GETs /api/runs/demo without a client-id header and unwraps .runs', async () => {
+    const runs = [{id: 'demo-1'}];
+    fetchMock().mockResolvedValue(jsonResponse({runs}));
+
+    const result = await listDemoRuns();
+
+    const [url, opts] = firstCall();
+    expect(url).toBe('/api/runs/demo');
+    expect(opts).toBeUndefined();
+    expect(result).toEqual(runs);
+  });
+
+  it('throws on a non-OK response', async () => {
+    fetchMock().mockResolvedValue(errorResponse(500, 'fail'));
+    await expect(listDemoRuns()).rejects.toThrow('500 fail');
+  });
+});
+
+describe('loadRunHistory', () => {
+  it('merges owned and demo runs, de-duplicated by id and sorted newest first', async () => {
+    fetchMock().mockImplementation((url: string) => {
+      if (url.includes('/demo')) {
+        // Demo runs are appended after owned runs, so a shared id here wins
+        // the de-dup (later entries win ties in mergeByIdNewestFirst).
+        return Promise.resolve(
+          jsonResponse({
+            runs: [
+              {id: 'shared', updated_at: 99},
+              {id: 'other', updated_at: 50},
+            ],
+          }),
+        );
+      }
+      return Promise.resolve(
+        jsonResponse({runs: [{id: 'shared', updated_at: 1}]}),
+      );
+    });
+
+    const result = await loadRunHistory();
+
+    expect(result.map(run => run.id)).toEqual(['shared', 'other']);
+    expect(result.find(run => run.id === 'shared')?.updated_at).toBe(99);
+  });
+
+  it('degrades a failing demo source to an empty list without blocking owned runs', async () => {
+    fetchMock().mockImplementation((url: string) => {
+      if (url.includes('/demo')) {
+        return Promise.reject(new TypeError('Failed to fetch'));
+      }
+      return Promise.resolve(
+        jsonResponse({runs: [{id: 'owned', updated_at: 10}]}),
+      );
+    });
+
+    const result = await loadRunHistory();
+
+    expect(result).toEqual([{id: 'owned', updated_at: 10}]);
+  });
+
+  it('degrades a failing owned-runs source to an empty list without blocking demo runs', async () => {
+    fetchMock().mockImplementation((url: string) => {
+      if (url.includes('/demo')) {
+        return Promise.resolve(
+          jsonResponse({runs: [{id: 'demo-1', updated_at: 10}]}),
+        );
+      }
+      return Promise.reject(new TypeError('Failed to fetch'));
+    });
+
+    const result = await loadRunHistory();
+
+    expect(result).toEqual([{id: 'demo-1', updated_at: 10}]);
+  });
+});
+
 describe('getReport', () => {
   it('GETs /api/runs/:id/report and returns the parsed report', async () => {
     const report = {id: 'rep1', run_id: 'r1'};
@@ -226,6 +348,48 @@ describe('getReport', () => {
   it('throws on a non-404 error response', async () => {
     fetchMock().mockResolvedValue(errorResponse(500, 'boom'));
     await expect(getReport('r1')).rejects.toThrow('500 boom');
+  });
+});
+
+describe('runGoal', () => {
+  it('prefers the durable setup goal over the top-level research goal', () => {
+    const run = {
+      config: {setup: {goal: 'Setup goal'}},
+      research_goal: 'Top-level goal',
+    } as unknown as Run;
+    expect(runGoal(run)).toBe('Setup goal');
+  });
+
+  it('falls back to the top-level research goal when no setup goal is set', () => {
+    const run = {
+      config: {},
+      research_goal: 'Top-level goal',
+    } as unknown as Run;
+    expect(runGoal(run)).toBe('Top-level goal');
+  });
+
+  it('returns an empty string when the run is not yet loaded', () => {
+    expect(runGoal(null)).toBe('');
+    expect(runGoal(undefined)).toBe('');
+  });
+});
+
+describe('error message formatting', () => {
+  it('reports "API unavailable" for an empty-bodied 500 response', async () => {
+    fetchMock().mockResolvedValue(errorResponse(500, ''));
+    await expect(getRun('r1')).rejects.toThrow('API unavailable');
+  });
+
+  it('falls back to statusText when reading the error body itself fails', async () => {
+    const response = {
+      ok: false,
+      status: 502,
+      statusText: 'Bad Gateway',
+      json: async () => ({}),
+      text: () => Promise.reject(new Error('stream closed')),
+    } as unknown as Response;
+    fetchMock().mockResolvedValue(response);
+    await expect(getRun('r1')).rejects.toThrow('502 Bad Gateway');
   });
 });
 
