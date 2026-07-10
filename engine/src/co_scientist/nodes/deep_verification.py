@@ -20,8 +20,15 @@ from co_scientist.models import (
     rank_by_elo,
 )
 from co_scientist.nodes.progress import emit_progress
+from co_scientist.nodes.review_types import ReviewType, prompt_name_for
 from co_scientist.prompts import get_deep_verification_prompt
+from co_scientist.prompts.loading import load_prompt_with_schema
 from co_scientist.state import WorkflowState
+
+# The extra Reflection review modes (SSR §4) run on the single top hypothesis
+# after deep verification, so a real run exercises them without paying for a
+# full/simulation review on every hypothesis.
+_EXTRA_REVIEW_TYPES = (ReviewType.FULL, ReviewType.SIMULATION)
 
 logger = logging.getLogger(__name__)
 
@@ -116,6 +123,51 @@ def _apply_verification_results(
     return verified_count
 
 
+async def _apply_extra_review_types(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> int:
+    """Run the full-review and simulation-review modes on one hypothesis.
+
+    Stores each result in the hypothesis's ``enrichments`` bag under the review
+    type's value (so it serializes with the hypothesis). A failed call is
+    logged and skipped. Returns the number of successful LLM calls.
+
+    Args:
+        state: Current workflow state (research goal + model).
+        hypothesis: The hypothesis to review (the current top-ranked one).
+
+    Returns:
+        The count of review calls that succeeded.
+    """
+    calls = 0
+    for review_type in _EXTRA_REVIEW_TYPES:
+        prompt, schema = load_prompt_with_schema(
+            prompt_name_for(review_type),
+            {
+                "research_goal": state["research_goal"],
+                "hypothesis_text": hypothesis.text,
+                "domain_context": "",
+                "tool_instructions": "",
+            },
+        )
+        try:
+            result = await call_llm_json(
+                prompt=prompt,
+                model_name=state["model_name"],
+                max_tokens=EXTENDED_MAX_TOKENS,
+                temperature=LOW_TEMPERATURE,
+                json_schema=schema,
+                run_id=state.get("run_id"),
+                prompt_name=prompt_name_for(review_type),
+            )
+        except Exception as e:
+            logger.error("%s review failed: %s", review_type.value, e)
+            continue
+        hypothesis.enrichments[review_type.value] = result
+        calls += 1
+    return calls
+
+
 async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     """Probing-question deep verification of the top-k hypotheses by Elo.
 
@@ -149,8 +201,15 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
 
     verified_count = await _run_verification_batch(state, to_verify)
 
+    # Additionally apply the full-review and simulation-review Reflection modes
+    # (SSR §4) to the single top hypothesis, so every one of the six review
+    # types is exercised by a real run rather than only being dispatchable.
+    extra_calls = await _apply_extra_review_types(state, to_verify[0])
+
     logger.info("Deep verification complete: %s hypotheses", verified_count)
-    metrics = create_metrics_update(llm_calls_delta=verified_count)
+    metrics = create_metrics_update(
+        llm_calls_delta=verified_count + extra_calls
+    )
     return {
         "hypotheses": hypotheses,
         "metrics": metrics,

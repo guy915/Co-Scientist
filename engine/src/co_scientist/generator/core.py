@@ -38,6 +38,7 @@ from co_scientist.generator.streaming import (
     _build_stream_state_dict,
     _initial_cumulative_stream_state,
     _merge_node_state_into_cumulative,
+    cumulative_stream_state_from,
 )
 from co_scientist.state import WorkflowState
 
@@ -73,6 +74,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
         cache_dir: str | None = None,
         tools_config: str | None = None,
         disable_tools: list[str] | None = None,
+        budget: dict[str, Any] | None = None,
     ):
         """Initialize the hypothesis generator.
 
@@ -92,6 +94,11 @@ class HypothesisGenerator(McpAvailabilityMixin):
                 (None = use defaults)
             disable_tools: List of tool IDs to disable
                 (None = use all enabled tools)
+            budget: Optional serialized ``scheduling.Budget`` (keys
+                ``max_iterations``/``max_llm_calls``/``max_tasks``/
+                ``max_wall_clock_s``) giving the adaptive scheduler hard
+                termination ceilings beyond ``max_iterations``. None derives a
+                budget from ``max_iterations`` alone.
         """
         # Constructor arguments become per-instance defaults that seed the
         # initial workflow state on every generate_hypotheses() call below.
@@ -102,6 +109,9 @@ class HypothesisGenerator(McpAvailabilityMixin):
         self.evolution_max_count = evolution_max_count
         self.tournament_pairs = tournament_pairs
         self.literature_review_papers_count = literature_review_papers_count
+        # The scheduler always sees max_iterations; merge it into an explicit
+        # budget so a run configured with only max_iterations still terminates.
+        self.budget = {"max_iterations": max_iterations, **(budget or {})}
 
         # Configure cache if specified
         _configure_cache_env(enable_cache, cache_dir)
@@ -231,6 +241,8 @@ class HypothesisGenerator(McpAvailabilityMixin):
             "literature_review_papers_count": (
                 self.literature_review_papers_count
             ),
+            # Adaptive-scheduler compute budget (Milestone 2).
+            "budget": self.budget,
             # Tool registry for config-driven tool selection
             "tool_registry": self._tool_registry,
         }
@@ -404,11 +416,14 @@ class HypothesisGenerator(McpAvailabilityMixin):
     async def _handle_streaming(
         self,
         initial_state: WorkflowState,
+        cumulative_seed: dict[str, Any] | None = None,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         """Internal method to handle streaming generation.
 
         Args:
             initial_state: Prepared workflow state
+            cumulative_seed: Optional pre-seeded cumulative state (used on
+                resume so streamed snapshots reflect the restored pool).
 
         Yields:
             Tuple of (node_name, state_dict) after each node completes
@@ -416,7 +431,11 @@ class HypothesisGenerator(McpAvailabilityMixin):
         assert self._graph is not None  # built by _prepare_generation
         try:
             # Maintain cumulative state across nodes
-            cumulative_state = _initial_cumulative_stream_state()
+            cumulative_state = (
+                cumulative_seed
+                if cumulative_seed is not None
+                else _initial_cumulative_stream_state()
+            )
 
             # Stream the workflow execution
             async for chunk in self._graph.astream(
@@ -442,3 +461,45 @@ class HypothesisGenerator(McpAvailabilityMixin):
                 "Hypothesis generation streaming failed: %s", e, exc_info=True
             )
             raise
+
+    async def resume_hypotheses(
+        self,
+        restored_state: dict[str, Any],
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+    ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+        """Resume a checkpoint-restored run, streaming remaining node outputs.
+
+        The restored state carries ``resume=True`` (from
+        ``checkpoint.restore_workflow_state``), so the graph re-enters at the
+        orchestrator loop point and continues without re-running completed
+        nodes. The streamed cumulative state is seeded from the restored pool
+        so snapshots reflect work already done (Milestone 4).
+
+        Args:
+            restored_state: A ``WorkflowState`` restored from a checkpoint.
+            progress_callback: Live progress callback to re-inject.
+            opts: Generation options (used to resolve the graph shape, e.g.
+                literature-review availability).
+
+        Yields:
+            Tuple of (node_name, state_dict) after each remaining node.
+        """
+        opts = opts or {}
+        (
+            _mcp_available,
+            _pubmed_available,
+            enable_literature_review_node,
+        ) = await self._resolve_literature_review_settings(opts)
+        self._ensure_graph_built(enable_literature_review_node)
+
+        restored_state["progress_callback"] = progress_callback
+        restored_state["tool_registry"] = self._tool_registry
+        restored_state["resume"] = True
+
+        cumulative_seed = cumulative_stream_state_from(restored_state)
+        async for node_name, state_dict in self._handle_streaming(
+            cast(WorkflowState, restored_state), cumulative_seed
+        ):
+            yield node_name, state_dict

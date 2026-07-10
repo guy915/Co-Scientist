@@ -23,10 +23,19 @@ def _initial_runtime_fields() -> dict[str, Any]:
     return {
         "hypotheses": [],
         "current_iteration": 0,
+        # Adaptive orchestration (Milestone 2): the task ledger and the
+        # scheduler's routing/bookkeeping start empty; the orchestrator seeds
+        # its bookkeeping on the first loop-point decision.
+        "task_history": [],
+        "next_task": None,
+        "termination_reason": None,
+        # "budget" is supplied by the generator config fields, not here.
+        "orchestrator_state": {},
         "supervisor_guidance": {},
         "meta_review": {},
         "research_overview": None,
         "removed_duplicates": [],
+        "proximity_graph": {},
         "tournament_matchups": [],
         "evolution_details": [],
         "metrics": ExecutionMetrics(),
@@ -96,6 +105,9 @@ def _initial_user_and_literature_fields(
     return {
         # Optional user preferences and inputs
         "preferences": opts.get("preferences"),
+        # High-priority durable steering waiting at run start (SSR §5); the
+        # orchestrator consumes it at the next safe boundary and clears it.
+        "pending_steering": bool(opts.get("pending_steering")),
         "attributes": opts.get("attributes"),
         "constraints": opts.get("constraints"),
         "criteria": opts.get("criteria"),

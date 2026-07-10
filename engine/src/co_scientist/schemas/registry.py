@@ -24,9 +24,11 @@ from co_scientist.schemas.ranking import (
 )
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_SCHEMA,
+    FULL_REVIEW_SCHEMA,
     REFLECTION_SCHEMA,
     REVIEW_BATCH_SCHEMA,
     REVIEW_SCHEMA,
+    SIMULATION_REVIEW_SCHEMA,
 )
 from co_scientist.schemas.synthesis import (
     EVOLUTION_SCHEMA,
@@ -41,10 +43,13 @@ from co_scientist.schemas.synthesis import (
 # prompts.py yields a schema-less call.
 _PROMPT_SCHEMA_MAP: dict[str, dict[str, Any]] = {
     "generation_draft_with_tools": GENERATION_DRAFT_SCHEMA,
+    "generation_assumptions": GENERATION_SCHEMA,
     "generation_debate_and_literature": GENERATION_SCHEMA,
     "generation_after_debate": GENERATION_SCHEMA,
     "review": REVIEW_SCHEMA,
     "review_batch": REVIEW_BATCH_SCHEMA,
+    "full_review": FULL_REVIEW_SCHEMA,
+    "simulation_review": SIMULATION_REVIEW_SCHEMA,
     "evolution": EVOLUTION_SCHEMA,
     "meta_review": META_REVIEW_SCHEMA,
     "ranking": RANKING_SCHEMA,

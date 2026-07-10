@@ -7,7 +7,7 @@ plus the generation-complete progress emission.
 
 import logging
 from collections.abc import Coroutine
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from co_scientist.constants import PROGRESS_GENERATE_COMPLETE
@@ -29,6 +29,9 @@ class GenerationResults:
     # One entry per debate run (both debate_with_lit and debate_only feed
     # this); tool-based generation has no transcript equivalent.
     debate_transcripts: list[dict[str, Any]]
+    # Hypotheses from the iterative-assumptions technique (SSR §4); a plain
+    # list like the tools path, with no transcript.
+    assumptions_hypotheses: list[Hypothesis] = field(default_factory=list)
 
     @property
     def all_hypotheses(self) -> list[Hypothesis]:
@@ -37,6 +40,7 @@ class GenerationResults:
             self.tools_hypotheses
             + self.debate_with_lit_hypotheses
             + self.debate_only_hypotheses
+            + self.assumptions_hypotheses
         )
 
 
@@ -60,6 +64,7 @@ def _unpack_generation_results(
     tools_hypotheses: list[Hypothesis] = []
     debate_with_lit_hypotheses: list[Hypothesis] = []
     debate_only_hypotheses: list[Hypothesis] = []
+    assumptions_hypotheses: list[Hypothesis] = []
     debate_transcripts: list[dict[str, Any]] = []
 
     for i, (task_type, _) in enumerate(tasks):
@@ -71,12 +76,15 @@ def _unpack_generation_results(
         elif task_type == "debate_only":
             debate_only_hypotheses, transcripts = results[i]
             debate_transcripts.extend(transcripts)
+        elif task_type == "assumptions":
+            assumptions_hypotheses = results[i]
 
     return GenerationResults(
         tools_hypotheses=tools_hypotheses,
         debate_with_lit_hypotheses=debate_with_lit_hypotheses,
         debate_only_hypotheses=debate_only_hypotheses,
         debate_transcripts=debate_transcripts,
+        assumptions_hypotheses=assumptions_hypotheses,
     )
 
 
@@ -150,6 +158,8 @@ def _build_summary_message_parts(
         )
     if counts.debate_only_count > 0:
         parts.append(f"{len(results.debate_only_hypotheses)} debate-only")
+    if counts.assumptions_count > 0:
+        parts.append(f"{len(results.assumptions_hypotheses)} assumptions")
     return parts
 
 

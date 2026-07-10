@@ -18,6 +18,7 @@ from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.exceptions import GenerationError
+from co_scientist.nodes.generation.assumptions import generate_with_assumptions
 from co_scientist.nodes.generation.citations import (
     ReferenceIndex,
     build_reference_index,
@@ -81,7 +82,7 @@ from co_scientist.nodes.generation.coordinator_strategy import (
 )
 from co_scientist.nodes.generation.debate import generate_with_debate
 from co_scientist.nodes.generation.literature_tools import generate_with_tools
-from co_scientist.state import WorkflowState
+from co_scientist.state import AppendHypotheses, WorkflowState
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +157,18 @@ def _build_generation_tasks(
                     articles_with_reasoning=None,  # explicitly no literature
                     reference_index=ReferenceIndex(text="", sources={}),
                 ),
+            )
+        )
+
+    if counts.assumptions_count > 0:
+        logger.info(
+            "Running assumptions generation for %s hypotheses",
+            counts.assumptions_count,
+        )
+        tasks.append(
+            (
+                "assumptions",
+                generate_with_assumptions(state, counts.assumptions_count),
             )
         )
 
@@ -284,17 +297,30 @@ async def _finalize_generation(
     # construction.
     if counts.is_degraded_mode:
         _apply_degraded_mode_fallback(results.debate_only_hypotheses)
+        # Assumptions generation runs in the same no-literature path, so its
+        # hypotheses need the same "no literature review available" grounding.
+        _apply_degraded_mode_fallback(results.assumptions_hypotheses)
 
     _log_generation_summary(results)
     message_content = await _emit_complete_progress(state, results, counts)
 
     all_hypotheses = results.all_hypotheses
 
+    # Stamp generation-0 lineage: which workflow iteration produced these.
+    # origin/generation keep their construction defaults (GENERATION, 0); the
+    # Generation agent produces roots, so parent_id stays None. Later
+    # research-expansion cycles reuse this node with a higher iteration.
+    creation_iteration = state.get("current_iteration", 0)
+    for hyp in all_hypotheses:
+        hyp.creation_iteration = creation_iteration
+
     # Run post-generation enrichments (e.g., NVD CVE lookup)
     await _enrich_hypotheses(all_hypotheses, state)
 
+    # Append to the pool rather than replace it (explicit reducer op): a later
+    # generation cycle adds to the existing hypotheses instead of wiping them.
     return {
-        "hypotheses": all_hypotheses,
+        "hypotheses": AppendHypotheses(all_hypotheses),
         "debate_transcripts": results.debate_transcripts,
         "hypothesis_count": len(all_hypotheses),
         "message": message_content,

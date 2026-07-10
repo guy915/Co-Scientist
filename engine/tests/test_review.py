@@ -12,6 +12,10 @@ Both call ``call_llm_json``; these tests stub that out and assert on the real
 review-attachment and score-parsing logic. ``overall_score`` is computed as the
 mean of the per-criterion ``scores`` dict (not taken from the LLM response),
 and the node sets ``hypothesis.score`` to that value.
+
+Reviews are incremental: only hypotheses without an existing review are sent
+to the LLM, so re-invoking the node on a grown pool costs LLM calls only for
+the new hypotheses.
 """
 
 from typing import Any
@@ -195,16 +199,56 @@ async def test_individual_missing_scores_defaults_to_overall_score(
 async def test_empty_hypotheses_returns_empty_without_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Zero hypotheses route through the comparative branch and attach nothing.
+    """Zero hypotheses skip review entirely (nothing is unreviewed).
 
-    The empty count still satisfies ``<= threshold``, so a single batch call is
-    made (stubbed to return no reviews). The node returns an empty hypothesis
-    list without raising.
+    With no unreviewed hypotheses there is no LLM work to do; the node
+    returns an empty hypothesis list without calling the LLM or raising.
     """
-    _stub_llm(monkeypatch, {"reviews": []})
+
+    async def fail(**_: Any) -> dict[str, Any]:
+        raise AssertionError("no LLM call expected for an empty pool")
+
+    monkeypatch.setattr(review, "call_llm_json", fail)
 
     result = await review_node(state=make_state(hypotheses=[]))
 
     assert result["hypotheses"] == []
-    assert result["messages"][0]["metadata"]["strategy"] == "comparative batch"
-    assert result["metrics"].reviews_count == 0
+    assert result["messages"][0]["metadata"]["strategy"] == "skipped"
+
+
+async def test_second_invocation_reviews_only_new_hypotheses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Re-invoking review on a grown pool only calls the LLM for new items.
+
+    Evolution appends immutable children without shrinking the pool, so the
+    node must review incrementally: a second invocation with one new
+    unreviewed hypothesis issues exactly one review call (not one per pool
+    member), and the previously reviewed hypotheses keep their single review.
+    """
+    calls: list[dict[str, Any]] = []
+
+    async def counting_stub(**kwargs: Any) -> dict[str, Any]:
+        calls.append(kwargs)
+        count = kwargs["prompt_metadata"]["hypotheses_count"]
+        return {
+            "reviews": [_batch_entry({"soundness": 6}) for _ in range(count)]
+        }
+
+    monkeypatch.setattr(review, "call_llm_json", counting_stub)
+
+    hyps = [make_hypothesis(text=f"h{i}") for i in range(3)]
+    first = await review_node(state=make_state(hypotheses=hyps))
+    assert len(calls) == 1
+    assert first["metrics"].reviews_count == 3
+
+    # The pool grows by one unreviewed hypothesis (e.g. an evolved child).
+    hyps.append(make_hypothesis(text="child"))
+    second = await review_node(state=make_state(hypotheses=hyps))
+
+    # One comparative-batch call covering only the single new hypothesis.
+    assert len(calls) == 2
+    assert calls[1]["prompt_metadata"]["hypotheses_count"] == 1
+    assert second["metrics"].reviews_count == 1
+    # Previously reviewed hypotheses were not re-reviewed; the new one was.
+    assert [len(h.reviews) for h in second["hypotheses"]] == [1, 1, 1, 1]

@@ -11,14 +11,15 @@ import logging
 from typing import Any
 
 from co_scientist.models import ExecutionMetrics, merge_metrics
-from co_scientist.state import WorkflowState
+from co_scientist.state import WorkflowState, deduplicate_hypotheses
 
 logger = logging.getLogger(__name__)
 
-# State fields streamed to callers as plain last-write-wins copies. Two
-# streamed fields are handled separately in
-# HypothesisGenerator._handle_streaming: metrics (merged across nodes) and
-# supervisor_guidance (renamed to research_plan).
+# State fields streamed to callers as plain last-write-wins copies. Three
+# streamed fields are handled separately in _merge_node_state_into_cumulative:
+# hypotheses (combined via the deduplicate_hypotheses reducer, matching the
+# compiled graph), metrics (merged across nodes), and supervisor_guidance
+# (renamed to research_plan).
 _STREAMED_STATE_KEYS = (
     "hypotheses",
     "meta_review",
@@ -26,10 +27,24 @@ _STREAMED_STATE_KEYS = (
     "tournament_matchups",
     "evolution_details",
     "current_iteration",
+    # Persisted weighted proximity graph (Milestone 3).
+    "proximity_graph",
+    # Adaptive orchestration (Milestone 2): the task ledger and the current
+    # routing/termination decision, streamed so clients can show the schedule.
+    "task_history",
+    "next_task",
+    "termination_reason",
     "articles_with_reasoning",
     "literature_review_queries",
     "articles",
     "debate_transcripts",
+)
+
+# Streamed keys copied last-write-wins; "hypotheses" is excluded because it
+# must go through the same reducer the compiled graph uses, or an explicit
+# AppendHypotheses op would leak into the streamed snapshot as-is.
+_PLAIN_COPY_STATE_KEYS = tuple(
+    key for key in _STREAMED_STATE_KEYS if key != "hypotheses"
 )
 
 
@@ -50,10 +65,17 @@ def _merge_node_state_into_cumulative(
             updated in place.
         node_state: The incremental state returned by the node that just ran.
     """
-    for key in _STREAMED_STATE_KEYS:
+    for key in _PLAIN_COPY_STATE_KEYS:
         if key in node_state:
             cumulative_state[key] = node_state[key]
             logger.debug("updated %s", key)
+    # hypotheses go through the same reducer the compiled graph uses, so an
+    # AppendHypotheses op is applied (append) rather than stored verbatim.
+    if "hypotheses" in node_state:
+        cumulative_state["hypotheses"] = deduplicate_hypotheses(
+            cumulative_state["hypotheses"], node_state["hypotheses"]
+        )
+        logger.debug("updated hypotheses")
     if "supervisor_guidance" in node_state:
         cumulative_state["research_plan"] = node_state["supervisor_guidance"]
         logger.debug("updated research_plan")
@@ -69,6 +91,25 @@ def _merge_node_state_into_cumulative(
             cumulative_state["metrics"].evolutions_count,
             cumulative_state["metrics"].llm_calls,
         )
+
+
+def cumulative_stream_state_from(state: dict[str, Any]) -> dict[str, Any]:
+    """Seed the cumulative streaming state from a restored workflow state.
+
+    On resume (Milestone 4) the run continues mid-flight, so the streamed
+    snapshots must already reflect the restored pool/ledger rather than start
+    empty. Begins from the fresh seed and overlays the restored values for
+    every streamed key (plus metrics and the derived research_plan).
+    """
+    cumulative = _initial_cumulative_stream_state()
+    for key in _STREAMED_STATE_KEYS:
+        if key in state and state[key] is not None:
+            cumulative[key] = state[key]
+    if isinstance(state.get("metrics"), ExecutionMetrics):
+        cumulative["metrics"] = state["metrics"]
+    if state.get("supervisor_guidance"):
+        cumulative["research_plan"] = state["supervisor_guidance"]
+    return cumulative
 
 
 def _initial_cumulative_stream_state() -> dict[str, Any]:
@@ -92,6 +133,10 @@ def _initial_cumulative_stream_state() -> dict[str, Any]:
         "tournament_matchups": [],
         "evolution_details": [],
         "current_iteration": 0,
+        "proximity_graph": {},
+        "task_history": [],
+        "next_task": None,
+        "termination_reason": None,
         "metrics": ExecutionMetrics(),
         "articles_with_reasoning": None,
         "literature_review_queries": [],
@@ -153,6 +198,11 @@ def _build_generation_result(
         "tournament_matchups": final_state.get("tournament_matchups", []),
         "evolution_details": final_state.get("evolution_details", []),
         "debate_transcripts": final_state.get("debate_transcripts"),
+        # Persisted weighted proximity graph (Milestone 3).
+        "proximity_graph": final_state.get("proximity_graph", {}),
+        # Adaptive-orchestration ledger and final stop (Milestone 2).
+        "task_history": final_state.get("task_history", []),
+        "termination_reason": final_state.get("termination_reason"),
         "execution_time": execution_time,
         "metrics": {
             "total_time": execution_time,

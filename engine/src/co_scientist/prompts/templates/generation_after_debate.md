@@ -11,6 +11,7 @@ Criteria for a high-quality hypothesis:
 
 Instructions:
 {{supervisor_guidance}}
+{{meta_review_context}}
 
 {{run_guidance}}
 

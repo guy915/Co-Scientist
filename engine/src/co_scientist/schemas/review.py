@@ -7,13 +7,61 @@ batch review, literature-grounded reflection, and deep verification.
 
 from typing import Any
 
+# The eight scored criteria: the paper's five default output criteria
+# (SSR §1) -- relevance, plausibility, novelty, testability, safety --
+# plus scientific_soundness, clarity, and potential_impact.
+_SCORE_CRITERIA: tuple[str, ...] = (
+    "scientific_soundness",
+    "plausibility",
+    "novelty",
+    "relevance",
+    "testability",
+    "safety",
+    "clarity",
+    "potential_impact",
+)
+
+# Sub-schemas shared by REVIEW_SCHEMA and REVIEW_BATCH_SCHEMA, referenced
+# by identity from both (nothing mutates schema dicts at runtime; sharing
+# schema objects across registry entries is the established pattern -- see
+# GENERATION_SCHEMA's reuse in schemas/registry.py).
+_SCORES_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {name: {"type": "integer"} for name in _SCORE_CRITERIA},
+    "required": list(_SCORE_CRITERIA),
+    "additionalProperties": False,
+}
+
+_FEEDBACK_DESCRIPTIONS: dict[str, str] = {
+    "scientific_soundness": (
+        "Specific feedback on theoretical foundation and logical consistency"
+    ),
+    "novelty": ("Specific feedback on originality and unique contribution"),
+    "relevance": "Specific feedback on alignment with research goal",
+    "testability": "Specific feedback on feasibility of testing",
+    "clarity": ("Specific feedback on precision and clarity of formulation"),
+    "potential_impact": "Specific feedback on potential significance",
+}
+
+_DETAILED_FEEDBACK_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        name: {"type": "string", "description": description}
+        for name, description in _FEEDBACK_DESCRIPTIONS.items()
+    },
+    "required": list(_FEEDBACK_DESCRIPTIONS),
+    "additionalProperties": False,
+}
+
 # Review schema
 # Shapes the "review" prompt output, consumed by the single-hypothesis
-# review path in nodes/review.py. Six fixed criteria (scientific_soundness,
-# novelty, relevance, testability, clarity, potential_impact) appear twice,
-# once as an integer score and once as prose feedback under the matching
-# key in detailed_feedback. overall_score is expected to be the average of
-# the six scores in "scores"; nodes/review.py stores it as
+# review path in nodes/review.py. The scored criteria cover the paper's five
+# default output criteria (SSR §1) -- relevance (alignment with the goal),
+# plausibility, novelty, testability, and safety -- plus scientific_soundness,
+# clarity, and potential_impact. Each scored criterion also appears as prose
+# feedback under the matching key in detailed_feedback (safety additionally
+# has the free-text safety_ethical_concerns field). overall_score is the
+# average of the scores in "scores"; nodes/review.py stores it as
 # hypothesis.score, and it is later surfaced as prompt context for ranking,
 # evolution, and meta-review (it does not feed the Elo rating math itself,
 # which is driven solely by tournament win/loss outcomes).
@@ -31,91 +79,8 @@ REVIEW_SCHEMA: dict[str, Any] = {
                 "type": "string",
                 "description": "Overall assessment (2-3 sentences)",
             },
-            "scores": {
-                "type": "object",
-                "properties": {
-                    "scientific_soundness": {
-                        "type": "integer",
-                    },
-                    "novelty": {
-                        "type": "integer",
-                    },
-                    "relevance": {
-                        "type": "integer",
-                    },
-                    "testability": {
-                        "type": "integer",
-                    },
-                    "clarity": {
-                        "type": "integer",
-                    },
-                    "potential_impact": {
-                        "type": "integer",
-                    },
-                },
-                "required": [
-                    "scientific_soundness",
-                    "novelty",
-                    "relevance",
-                    "testability",
-                    "clarity",
-                    "potential_impact",
-                ],
-                "additionalProperties": False,
-            },
-            "detailed_feedback": {
-                "type": "object",
-                "properties": {
-                    "scientific_soundness": {
-                        "type": "string",
-                        "description": (
-                            "Specific feedback on theoretical foundation"
-                            " and logical consistency"
-                        ),
-                    },
-                    "novelty": {
-                        "type": "string",
-                        "description": (
-                            "Specific feedback on originality and unique"
-                            " contribution"
-                        ),
-                    },
-                    "relevance": {
-                        "type": "string",
-                        "description": (
-                            "Specific feedback on alignment with research goal"
-                        ),
-                    },
-                    "testability": {
-                        "type": "string",
-                        "description": (
-                            "Specific feedback on feasibility of testing"
-                        ),
-                    },
-                    "clarity": {
-                        "type": "string",
-                        "description": (
-                            "Specific feedback on precision and clarity"
-                            " of formulation"
-                        ),
-                    },
-                    "potential_impact": {
-                        "type": "string",
-                        "description": (
-                            "Specific feedback on potential significance"
-                        ),
-                    },
-                },
-                "required": [
-                    "scientific_soundness",
-                    "novelty",
-                    "relevance",
-                    "testability",
-                    "clarity",
-                    "potential_impact",
-                ],
-                "additionalProperties": False,
-            },
+            "scores": _SCORES_SCHEMA,
+            "detailed_feedback": _DETAILED_FEEDBACK_SCHEMA,
             "constructive_feedback": {
                 "type": "string",
                 "description": (
@@ -146,7 +111,8 @@ REVIEW_SCHEMA: dict[str, Any] = {
 # Batch review schema - for reviewing multiple hypotheses together
 # Shapes the "review_batch" prompt output, consumed by the comparative
 # batch review path in nodes/review.py. Per-item structure mirrors
-# REVIEW_SCHEMA above (same six criteria) plus a comparative_notes field.
+# REVIEW_SCHEMA above (same shared scores/detailed_feedback sub-schemas)
+# plus a comparative_notes field.
 # Note: hypothesis_index is informational only; nodes/review.py matches
 # each response entry back to its source hypothesis by array position
 # (reviews_data[i]), not by reading this field, so a wrong index value from
@@ -178,95 +144,8 @@ REVIEW_BATCH_SCHEMA: dict[str, Any] = {
                             "type": "string",
                             "description": "Overall assessment (2-3 sentences)",
                         },
-                        "scores": {
-                            "type": "object",
-                            "properties": {
-                                "scientific_soundness": {
-                                    "type": "integer",
-                                },
-                                "novelty": {
-                                    "type": "integer",
-                                },
-                                "relevance": {
-                                    "type": "integer",
-                                },
-                                "testability": {
-                                    "type": "integer",
-                                },
-                                "clarity": {
-                                    "type": "integer",
-                                },
-                                "potential_impact": {
-                                    "type": "integer",
-                                },
-                            },
-                            "required": [
-                                "scientific_soundness",
-                                "novelty",
-                                "relevance",
-                                "testability",
-                                "clarity",
-                                "potential_impact",
-                            ],
-                            "additionalProperties": False,
-                        },
-                        "detailed_feedback": {
-                            "type": "object",
-                            "properties": {
-                                "scientific_soundness": {
-                                    "type": "string",
-                                    "description": (
-                                        "Specific feedback on theoretical"
-                                        " foundation and logical"
-                                        " consistency"
-                                    ),
-                                },
-                                "novelty": {
-                                    "type": "string",
-                                    "description": (
-                                        "Specific feedback on originality"
-                                        " and unique contribution"
-                                    ),
-                                },
-                                "relevance": {
-                                    "type": "string",
-                                    "description": (
-                                        "Specific feedback on alignment"
-                                        " with research goal"
-                                    ),
-                                },
-                                "testability": {
-                                    "type": "string",
-                                    "description": (
-                                        "Specific feedback on feasibility"
-                                        " of testing"
-                                    ),
-                                },
-                                "clarity": {
-                                    "type": "string",
-                                    "description": (
-                                        "Specific feedback on precision"
-                                        " and clarity of formulation"
-                                    ),
-                                },
-                                "potential_impact": {
-                                    "type": "string",
-                                    "description": (
-                                        "Specific feedback on potential"
-                                        " significance"
-                                    ),
-                                },
-                            },
-                            "required": [
-                                "scientific_soundness",
-                                "novelty",
-                                "relevance",
-                                "testability",
-                                "clarity",
-                                "potential_impact",
-                            ],
-                            "additionalProperties": False,
-                        },
+                        "scores": _SCORES_SCHEMA,
+                        "detailed_feedback": _DETAILED_FEEDBACK_SCHEMA,
                         "constructive_feedback": {
                             "type": "string",
                             "description": (
@@ -381,5 +260,83 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
             "overall_assessment": {"type": "string"},
         },
         "required": ["probes", "verdict", "overall_assessment"],
+    },
+}
+
+
+# Full review (SSR §4): an in-depth correctness/quality/novelty review that
+# also surfaces the hypothesis's key assumptions, distinct from the quick
+# initial screen (REVIEW_SCHEMA).
+FULL_REVIEW_SCHEMA: dict[str, Any] = {
+    "name": "full_review",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "correctness": {"type": "string"},
+            "assumptions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "assumption": {"type": "string"},
+                        "support": {
+                            "type": "string",
+                            "enum": ["supported", "uncertain", "likely_false"],
+                        },
+                    },
+                    "required": ["assumption", "support"],
+                },
+            },
+            "quality_and_novelty": {"type": "string"},
+            "verdict": {
+                "type": "string",
+                "enum": ["sound", "needs_revision", "rejected"],
+            },
+            "justification": {"type": "string"},
+        },
+        "required": [
+            "correctness",
+            "assumptions",
+            "quality_and_novelty",
+            "verdict",
+            "justification",
+        ],
+    },
+}
+
+
+# Simulation review (SSR §4): a step-through mental simulation of the proposed
+# mechanism (or its test), surfacing the step where it would most likely fail.
+SIMULATION_REVIEW_SCHEMA: dict[str, Any] = {
+    "name": "simulation_review",
+    "schema": {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "model": {"type": "string"},
+            "steps": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "step": {"type": "string"},
+                        "plausible": {"type": "boolean"},
+                    },
+                    "required": ["step", "plausible"],
+                },
+            },
+            "failure_points": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "verdict": {
+                "type": "string",
+                "enum": ["holds", "partially_holds", "breaks_down"],
+            },
+        },
+        "required": ["model", "steps", "failure_points", "verdict"],
     },
 }

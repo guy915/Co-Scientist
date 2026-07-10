@@ -3,6 +3,7 @@
 The state is passed through all nodes and tracks the complete workflow.
 """
 
+import dataclasses
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Annotated, Any
@@ -20,126 +21,128 @@ from co_scientist.models import (
 logger = logging.getLogger(__name__)
 
 
-def _hypothesis_ids(hypotheses: list[Hypothesis]) -> set[str]:
-    """Return the set of ids for hypotheses."""
-    return {hyp.id for hyp in hypotheses}
+def _normalized_text(hyp: Hypothesis) -> str:
+    """Return a hypothesis's stripped, lowercased text (the exact-dup key)."""
+    return hyp.text.strip().lower()
 
 
-def _normalized_texts(hypotheses: list[Hypothesis]) -> set[str]:
-    """Return the set of stripped, lowercased texts for hypotheses."""
-    return {hyp.text.strip().lower() for hyp in hypotheses}
+@dataclasses.dataclass(frozen=True)
+class AppendHypotheses:
+    """Explicit reducer op: append these hypotheses to the pool.
+
+    Producing nodes (Generation, Evolution) return this instead of a bare list
+    so the reducer *appends* their output to the existing pool rather than
+    replacing it. Items are dropped only when they collide by id or exact
+    normalized text with a hypothesis already in the pool (or an earlier item
+    in the same batch); this is a deterministic identity check, not the former
+    text-overlap heuristic.
+
+    This is what makes an evolved child coexist with its parent: the child has
+    a distinct id and (post-refinement) distinct text, so it is appended while
+    the parent is left byte-for-byte unchanged (paper invariant SSR §4, §12).
+    """
+
+    items: list[Hypothesis]
 
 
-def _resolve_hypothesis_pool(
-    existing: list[Hypothesis], new: list[Hypothesis]
-) -> list[Hypothesis]:
-    """Decide whether `new` replaces or extends the existing hypothesis pool.
+# Explicit reducer op payloads a node may return for the "hypotheses" channel.
+# A bare ``list[Hypothesis]`` means REPLACE (set the pool to exactly this list).
+HypothesisUpdate = list[Hypothesis] | AppendHypotheses
 
-    Nodes use the reducer for two different purposes:
-     - Updating nodes (ranking.py, proximity.py, evolve.py) return
-       already-known hypotheses -- possibly re-scored, pruned to a subset,
-       or rewritten by evolution -- and mean "this is the pool now".
-     - Producing nodes (generate.py) return genuinely new hypotheses that
-       should be appended to the existing pool.
-    The primary discriminator is identity: if every incoming hypothesis id
-    already exists in state, the update targets known hypotheses and is a
-    replacement. Text overlap is kept as a secondary signal for callers
-    (and tests) that rebuild equivalent hypotheses as fresh objects.
-    Without the id check, evolve.py's rewritten texts would fail the
-    overlap test and be merged as additions, resurrecting the lower-ranked
-    hypotheses evolution had intentionally discarded.
+
+def _dedup_by_id(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
+    """Return hypotheses with later same-id entries dropped (first wins).
+
+    Identity is the stable ``id``. Curating nodes (ranking, proximity, review)
+    return an authoritative pool; this only guards against a node accidentally
+    listing the same id twice, without the old text-overlap collapsing.
 
     Args:
-        existing: Existing hypotheses in state.
-        new: New hypotheses being added or replacing existing.
+        hypotheses: The pool to deduplicate by id.
 
     Returns:
-        `new` alone for a replacement, or `existing + new` for an addition
-        (neither deduplicated yet).
+        The pool with duplicate ids removed, order preserved.
     """
-    existing_ids = _hypothesis_ids(existing)
-    new_ids = _hypothesis_ids(new)
-    overlap = _normalized_texts(existing) & _normalized_texts(new)
-
-    if new_ids <= existing_ids or len(overlap) > len(new) * 0.5:
-        # Replacement operation - use new list as-is but deduplicate within it
-        return new
-    # Addition operation - merge and deduplicate
-    return existing + new
+    seen: set[str] = set()
+    result: list[Hypothesis] = []
+    for hyp in hypotheses:
+        if hyp.id not in seen:
+            seen.add(hyp.id)
+            result.append(hyp)
+    return result
 
 
-def _dedupe_by_text(
-    all_hyps: list[Hypothesis], new_count: int
+def _append_hypotheses(
+    existing: list[Hypothesis], incoming: list[Hypothesis]
 ) -> list[Hypothesis]:
-    """Drop hypotheses whose normalized text already appeared earlier.
+    """Append `incoming` to `existing`, dropping id/exact-text collisions.
 
-    Identity here is by normalized text, not id: within `all_hyps`, the first
-    hypothesis with a given text wins. For a replacement, that is always the
-    incoming (re-scored) version, since `all_hyps` is exactly the new list;
-    for an addition, it is whichever of existing/new was appended first, so
-    a genuinely duplicate new hypothesis is dropped in favor of the one
-    already in state.
+    An incoming hypothesis is dropped when its id, or its exact normalized
+    text, already appears in the existing pool or earlier in the same batch.
+    This preserves the anti-duplicate safety net at the one place genuinely
+    new content enters the pool (Generation/Evolution) while leaving the
+    dedup of near-duplicates to the Proximity agent.
 
     Args:
-        all_hyps: The candidate pool to deduplicate (existing+new, or just
-            new for a replacement).
-        new_count: Length of the reducer's original `new` argument, used
-            only to decide whether a dropped duplicate is worth a warning
-            (see the comment below).
+        existing: The current hypothesis pool (left unchanged).
+        incoming: Hypotheses a producing node wants to append.
 
     Returns:
-        `all_hyps` with later duplicates by normalized text removed.
+        `existing` followed by the accepted `incoming` items.
     """
-    seen = set()
-    deduplicated = []
-
-    for hyp in all_hyps:
-        # Use text hash for exact duplicate detection
-        text_key = hyp.text.strip().lower()
-        if text_key not in seen:
-            seen.add(text_key)
-            deduplicated.append(hyp)
-        else:
-            # Only log if this is truly a duplicate (not from replacement)
-            # For a pure replacement, all_hyps is new itself, so this is
-            # always false there; it only fires for real existing+new
-            # duplicates found during an addition.
-            if len(all_hyps) > new_count:
-                logger.warning(
-                    "Automatic dedup: Removed duplicate hypothesis: %s...",
-                    hyp.text[:80],
-                )
-
-    return deduplicated
+    seen_ids = {hyp.id for hyp in existing}
+    seen_texts = {_normalized_text(hyp) for hyp in existing}
+    result = list(existing)
+    for hyp in incoming:
+        text_key = _normalized_text(hyp)
+        if hyp.id in seen_ids or text_key in seen_texts:
+            logger.debug(
+                "append: skipped duplicate hypothesis (id/text): %s...",
+                hyp.text[:80],
+            )
+            continue
+        seen_ids.add(hyp.id)
+        seen_texts.add(text_key)
+        result.append(hyp)
+    return result
 
 
 # This is the LangGraph reducer wired to WorkflowState.hypotheses (see
 # `Annotated[list[Hypothesis], deduplicate_hypotheses]` below): every node
-# that returns a "hypotheses" key in its state update triggers this
-# function, with `existing` the current cumulative pool and `new` the value
-# just returned by that node.
+# that returns a "hypotheses" key in its state update triggers this function,
+# with `existing` the current cumulative pool and `new` the value just
+# returned by that node. `new` is either a bare list (REPLACE the pool with
+# exactly that list) or an AppendHypotheses op (APPEND to the pool).
 def deduplicate_hypotheses(
-    existing: list[Hypothesis], new: list[Hypothesis]
+    existing: list[Hypothesis], new: HypothesisUpdate
 ) -> list[Hypothesis]:
-    """State reducer that automatically deduplicates hypotheses on state update.
+    """State reducer combining a node's hypotheses update with the pool.
 
-    This is a LangGraph anti-duplicate strategy: duplicates are automatically
-    removed every time the state is updated, preventing them from propagating.
+    Explicit, deterministic operations replace the former identity/text
+    heuristic (PLAN.md M1.3):
+
+    - ``AppendHypotheses(items)`` — append items, dropping id/exact-text
+      collisions. Used by Generation and Evolution so an evolved child cannot
+      replace its parent.
+    - a bare ``list[Hypothesis]`` — REPLACE: the pool becomes exactly this
+      list (deduplicated by id). Used by every curating node (ranking,
+      proximity, review, reflection, deep_verification), which already return
+      the full or intentionally pruned pool. An empty bare list is treated as
+      "no change" so a node that reports nothing cannot wipe the pool.
 
     Args:
-        existing: Existing hypotheses in state
-        new: New hypotheses being added or replacing existing
+        existing: Existing hypotheses in state.
+        new: The node's update — an append op or a replacement list.
 
     Returns:
-        Deduplicated list of hypotheses
+        The combined hypothesis pool.
     """
-    # If new list is provided, use it (this is a replacement operation)
-    # Only merge if new contains different hypotheses
+    if isinstance(new, AppendHypotheses):
+        return _append_hypotheses(existing, new.items)
+    # Bare list => REPLACE. An empty list means "no update" (never a wipe).
     if not new:
         return existing
-
-    all_hyps = _resolve_hypothesis_pool(existing, new)
-    return _dedupe_by_text(all_hyps, len(new))
+    return _dedup_by_id(new)
 
 
 # Fields wrapped in Annotated[T, reducer] use `reducer` to combine a node's
@@ -188,6 +191,50 @@ class WorkflowState(TypedDict):
     current_iteration: int
     """Current iteration number (0-indexed)."""
 
+    resume: bool | None
+    """Set by checkpoint restore (Milestone 4): when True, the graph's
+    conditional entry routes to the orchestrator to continue the run rather
+    than re-running from the supervisor. Absent/None for a fresh run.
+    """
+
+    # --- Adaptive orchestration (Milestone 2) ---
+    task_history: list[dict[str, Any]]
+    """Append-only ledger of scheduled tasks: each entry is a serialized
+    ``scheduling.TaskRecord`` (task_type, status, reason, iteration). The
+    Supervisor records a reason for every scheduled task and the final stop.
+    """
+
+    next_task: str | None
+    """The scheduler's chosen next task at the loop point (a ``TaskType``
+    value), consumed by the graph's conditional edge. None before the first
+    orchestrator decision.
+    """
+
+    termination_reason: str | None
+    """Why the workflow stopped (a ``TerminationReason`` value), set by the
+    orchestrator when it decides to terminate.
+    """
+
+    budget: dict[str, Any] | None
+    """Serialized ``scheduling.Budget``: the compute budget and its
+    termination limits (calls/tasks/time/iterations). None uses the default
+    derived from ``max_iterations``.
+    """
+
+    orchestrator_state: dict[str, Any]
+    """Orchestrator bookkeeping carried across loop-point decisions (previous
+    top Elo, rank-stability counter, pool sizes at the last proximity/decision,
+    last work task). Internal to the scheduler; not part of the public API.
+    """
+
+    pending_steering: bool | None
+    """True when durable high-priority user steering is waiting to be
+    incorporated (SSR §5). The orchestrator treats it as a high-priority
+    request to GENERATE anew (see ``scheduling.policy``) and clears it once
+    seen, so a steering message is consumed at the next safe boundary rather
+    than only folded into the initial context.
+    """
+
     supervisor_guidance: dict[str, Any]
     """Supervisor's research plan and workflow guidance."""
 
@@ -199,6 +246,13 @@ class WorkflowState(TypedDict):
 
     removed_duplicates: list[dict[str, Any]]
     """Tracking removed duplicate hypotheses."""
+
+    proximity_graph: dict[str, Any]
+    """Persisted weighted proximity graph (Milestone 3): edges between
+    similar hypotheses with a similarity score plus method/model/version/goal/
+    update-time provenance. Refreshed by the proximity node as the pool grows;
+    consumed by the tournament matchmaker, reports, and API/UI.
+    """
 
     tournament_matchups: list[dict[str, Any]]
     """List of tournament matchups with reasoning."""

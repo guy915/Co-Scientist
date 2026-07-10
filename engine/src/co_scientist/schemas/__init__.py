@@ -34,9 +34,11 @@ from co_scientist.schemas.ranking import (
 from co_scientist.schemas.registry import get_schema_for_prompt
 from co_scientist.schemas.review import (
     DEEP_VERIFICATION_SCHEMA,
+    FULL_REVIEW_SCHEMA,
     REFLECTION_SCHEMA,
     REVIEW_BATCH_SCHEMA,
     REVIEW_SCHEMA,
+    SIMULATION_REVIEW_SCHEMA,
 )
 from co_scientist.schemas.synthesis import (
     EVOLUTION_SCHEMA,
@@ -46,6 +48,7 @@ from co_scientist.schemas.synthesis import (
 __all__ = [
     "DEEP_VERIFICATION_SCHEMA",
     "EVOLUTION_SCHEMA",
+    "FULL_REVIEW_SCHEMA",
     "GENERATION_DRAFT_SCHEMA",
     "GENERATION_SCHEMA",
     "HYPOTHESIS_NOVELTY_ANALYSIS_SCHEMA",
@@ -59,6 +62,7 @@ __all__ = [
     "RESEARCH_OVERVIEW_SCHEMA",
     "REVIEW_BATCH_SCHEMA",
     "REVIEW_SCHEMA",
+    "SIMULATION_REVIEW_SCHEMA",
     "SUPERVISOR_SCHEMA",
     "get_schema_for_prompt",
 ]

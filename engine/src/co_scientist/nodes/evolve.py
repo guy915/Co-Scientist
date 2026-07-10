@@ -164,15 +164,16 @@ async def evolve_single_hypothesis(
     tool_registry: Any | None = None,
     run_setup_guidance: str | None = None,
     run_focus_guidance: str | None = None,
-) -> tuple[Hypothesis, dict[str, Any] | None]:
-    """Evolve a single hypothesis with strategically sampled context.
+    creation_iteration: int | None = None,
+) -> tuple[Hypothesis | None, dict[str, Any] | None]:
+    """Evolve a single hypothesis into a new child with sampled context.
 
     This is the CRITICAL anti-duplicate strategy: we pass a subset of other
     hypotheses (top 5 by Elo + random samples) so the LLM knows what to
     avoid while keeping token budget manageable for large hypothesis pools.
 
     Args:
-        hypothesis: Hypothesis to evolve
+        hypothesis: Parent hypothesis to evolve (never mutated)
         other_hypotheses_texts: Strategically sampled subset of other
             hypotheses (max 15)
         meta_review: Meta-review insights for strategic guidance
@@ -186,9 +187,11 @@ async def evolve_single_hypothesis(
         tool_registry: Optional ToolRegistry for dynamic tool instructions
         run_setup_guidance: Optional durable setup guidance
         run_focus_guidance: Optional selected focus guidance
+        creation_iteration: Workflow iteration producing any child
 
     Returns:
-        Updated hypothesis with evolved text
+        A ``(child, detail)`` pair on acceptance, or ``(None, None)`` when the
+        refinement is rejected (no child created).
     """
     # The following call only logs meta-review signals (common
     # strengths/weaknesses, strategic recommendations, emerging themes)
@@ -217,7 +220,12 @@ async def evolve_single_hypothesis(
         hypothesis_index=hypothesis_index,
     )
 
-    return _apply_evolution_result(hypothesis, response, other_hypotheses_texts)
+    return _apply_evolution_result(
+        hypothesis,
+        response,
+        other_hypotheses_texts,
+        creation_iteration,
+    )
 
 
 def _select_evolution_pool(
@@ -306,7 +314,7 @@ def _build_evolution_tasks(
     top_k: list[Hypothesis],
     removed_duplicates: list[str],
     supervisor_guidance: dict[str, Any] | None,
-) -> list[Coroutine[Any, Any, tuple[Hypothesis, dict[str, Any] | None]]]:
+) -> list[Coroutine[Any, Any, tuple[Hypothesis | None, dict[str, Any] | None]]]:
     """Builds the per-hypothesis evolution coroutines for this round.
 
     Evolve each hypothesis with strategically sampled context (PARALLEL):
@@ -323,13 +331,13 @@ def _build_evolution_tasks(
         List of evolve_single_hypothesis coroutines, one per hypothesis in
         top_k, ready to be awaited via asyncio.gather.
     """
+    creation_iteration = state.get("current_iteration", 0)
     return [
         evolve_single_hypothesis(
             hypothesis=hyp,
             # Context is sampled from top_k (the peers also being evolved
             # this round), not the full hypothesis pool, so the diversity
-            # check is scoped to hypotheses that could end up adjacent in
-            # the final kept-only-evolved pool.
+            # check is scoped to the leaders a new child could resemble.
             other_hypotheses_texts=sample_context_hypotheses(
                 all_hypotheses=top_k,
                 exclude_hypothesis=hyp,
@@ -345,6 +353,7 @@ def _build_evolution_tasks(
             tool_registry=state.get("tool_registry"),
             run_setup_guidance=state.get("run_setup_guidance"),
             run_focus_guidance=state.get("run_focus_guidance"),
+            creation_iteration=creation_iteration,
         )
         for i, hyp in enumerate(top_k)
     ]
@@ -352,54 +361,42 @@ def _build_evolution_tasks(
 
 async def _finalize_evolve_result(
     state: WorkflowState,
-    hypotheses: list[Hypothesis],
-    evolved_hypotheses: list[Hypothesis],
+    children: list[Hypothesis],
     evolution_details: list[dict[str, Any]],
+    attempt_count: int,
 ) -> dict[str, Any]:
-    """Applies the evolved pool and builds the evolve_node state delta.
+    """Appends the evolution children and builds the evolve_node state delta.
 
     Also emits the completion progress event for the evolution phase.
 
     Args:
         state: Current workflow state.
-        hypotheses: Hypothesis pool before evolution (for the
-            discarded-count log).
-        evolved_hypotheses: Hypotheses returned by this round's evolution.
-        evolution_details: Evolution detail entries for hypotheses that
-            actually changed.
+        children: New immutable children produced by this round's evolution.
+        evolution_details: Evolution detail entries, one per created child.
+        attempt_count: Number of parents evolution attempted this round.
 
     Returns:
         The evolve_node state delta dictionary.
     """
-    # Keep ONLY the evolved hypotheses (discard lower-ranked ones)
-    # This makes evolution_max_count the final pool size
-    # Hypotheses ranked below top_k are not carried forward here; this is
-    # how the pool shrinks across iterations rather than growing without
-    # bound.
-    original_count = len(hypotheses)
-    discarded_count = original_count - len(evolved_hypotheses)
+    # Children are ADDED to the pool; parents and every other hypothesis stay
+    # active so both compete in the next tournament (paper invariant). The
+    # pool no longer shrinks to the evolved subset.
     logger.info(
-        "Keeping only %s evolved hypotheses (discarded %s lower-ranked)",
-        len(evolved_hypotheses),
-        discarded_count,
-    )
-
-    logger.info(
-        "Evolved %s hypotheses, %s with changes",
-        len(evolved_hypotheses),
-        len(evolution_details),
+        "Evolution produced %s new children from %s attempts",
+        len(children),
+        attempt_count,
     )
 
     # Emit progress
     await emit_progress(
         state,
         "evolve_complete",
-        f"Evolved {len(evolved_hypotheses)} hypotheses",
+        f"Evolved {len(children)} new child hypotheses",
         PROGRESS_EVOLVE_COMPLETE,
-        evolved_count=len(evolved_hypotheses),
+        evolved_count=len(children),
     )
 
-    return _build_evolve_state_delta(evolved_hypotheses, evolution_details)
+    return _build_evolve_state_delta(children, evolution_details, attempt_count)
 
 
 async def evolve_node(state: WorkflowState) -> dict[str, Any]:
@@ -428,9 +425,10 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     )
     results = await asyncio.gather(*evolution_tasks)
 
-    # Unpack results: (hypothesis, evolution_detail or None)
-    evolved_hypotheses, evolution_details = _collect_evolution_results(results)
+    # Unpack results: (child or None, evolution_detail or None). One attempt
+    # per selected parent; rejected refinements contribute no child.
+    children, evolution_details = _collect_evolution_results(results)
 
     return await _finalize_evolve_result(
-        state, hypotheses, evolved_hypotheses, evolution_details
+        state, children, evolution_details, attempt_count=len(top_k)
     )

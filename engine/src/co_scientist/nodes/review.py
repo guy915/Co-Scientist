@@ -1,5 +1,8 @@
 """Review node - adaptive peer review strategy based on hypothesis count.
 
+Reviews are incremental: only hypotheses without an existing review are sent
+to the LLM (the pool only ever grows, so re-reviewing it would be quadratic).
+
 - Small batches (≤5): Comparative batch review for differentiated scores
 - Large batches (>5): Parallel individual reviews for scalability
 """
@@ -329,9 +332,14 @@ async def _run_review_strategy(
 
 
 async def review_node(state: WorkflowState) -> dict[str, Any]:
-    """Reviews all hypotheses using adaptive strategy.
+    """Reviews unreviewed hypotheses using adaptive strategy.
 
-    Strategy selection:
+    Only hypotheses without an existing review are sent to the LLM: evolution
+    appends immutable children to an ever-growing pool, so re-reviewing the
+    whole pool on every pass would cost O(n^2) LLM calls across a run. The
+    already-reviewed hypotheses keep their reviews and are returned unchanged.
+
+    Strategy selection (by unreviewed count):
     - Small batches (≤5): Comparative batch review for differentiated scores
     - Large batches (>5): Parallel individual reviews for scalability
 
@@ -344,25 +352,40 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
     logger.info("Starting review node")
 
     hypotheses = state["hypotheses"]
-    num_hypotheses = len(hypotheses)
+    unreviewed = [hyp for hyp in hypotheses if not hyp.reviews]
+    num_unreviewed = len(unreviewed)
 
-    logger.info("Reviewing %s hypotheses", num_hypotheses)
+    logger.info(
+        "Reviewing %s unreviewed of %s hypotheses",
+        num_unreviewed,
+        len(hypotheses),
+    )
 
-    use_comparative, strategy_name = _select_review_strategy(num_hypotheses)
+    if not unreviewed:
+        return {
+            "hypotheses": hypotheses,
+            "messages": phase_message(
+                "review",
+                "No unreviewed hypotheses; review skipped",
+                strategy="skipped",
+            ),
+        }
+
+    use_comparative, strategy_name = _select_review_strategy(num_unreviewed)
 
     await emit_progress(
         state,
         "review_start",
-        f"Reviewing {num_hypotheses} hypotheses...",
+        f"Reviewing {num_unreviewed} hypotheses...",
         PROGRESS_REVIEW_START,
     )
 
     reviews, llm_calls = await _run_review_strategy(
-        state, hypotheses, use_comparative
+        state, unreviewed, use_comparative
     )
 
     _validate_reviews(reviews)
-    _attach_reviews_to_hypotheses(hypotheses, reviews)
+    _attach_reviews_to_hypotheses(unreviewed, reviews)
 
     logger.info(
         "Completed %s reviews using %s strategy", len(reviews), strategy_name

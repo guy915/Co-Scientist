@@ -29,6 +29,7 @@ class GenerationCounts:
     tools_count: int  # hypotheses via tool-based draft/validate flow
     debate_with_lit_count: int  # hypotheses via debate, with lit context
     debate_only_count: int  # hypotheses via debate, no literature at all
+    assumptions_count: int = 0  # hypotheses via iterative-assumptions technique
     is_dev_isolation: bool = False  # dev/test: force tools-only allocation
     is_degraded_mode: bool = False  # no literature review was available
 
@@ -141,11 +142,16 @@ def _determine_generation_counts(
         )
 
     # strategy == "no_lit". Flagged so callers can attach an explicit "no
-    # literature" warning to every hypothesis.
+    # literature" warning to every hypothesis. With enough hypotheses to
+    # split, reserve a quarter for the iterative-assumptions technique so the
+    # LLM-only path uses more than one generation technique (SSR §4); a small
+    # batch (<4) stays all-debate to avoid single-hypothesis fragmentation.
+    assumptions_count = max(1, total_count // 4) if total_count >= 4 else 0
     return GenerationCounts(
         tools_count=0,
         debate_with_lit_count=0,
-        debate_only_count=total_count,
+        debate_only_count=total_count - assumptions_count,
+        assumptions_count=assumptions_count,
         is_degraded_mode=True,
     )
 
