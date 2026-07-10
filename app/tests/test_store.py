@@ -105,6 +105,35 @@ def test_evolved_hypothesis_has_parent_and_higher_generation(db: str) -> None:
     assert by_id[parent]["generation"] == 0
 
 
+def test_redact_hypothesis_fields_overwrites_detail_columns(db: str) -> None:
+    run = store.create_run("redact", "standard", "mock", {})
+    hid = store.add_hypothesis(
+        run.id,
+        title="H",
+        statement="keep me",
+        mechanism="secret mechanism",
+        experimental_context="secret protocol",
+    )
+    store.redact_hypothesis_fields(
+        hid, {"mechanism": "[X]", "experimental_context": "[X]"}
+    )
+    row = store.get_hypothesis(hid)
+    assert row is not None
+    assert row["mechanism"] == "[X]"
+    assert row["experimental_context"] == "[X]"
+    # The statement (not a redactable detail column) is untouched.
+    assert row["statement"] == "keep me"
+
+
+def test_redact_hypothesis_fields_rejects_non_redactable_column(
+    db: str,
+) -> None:
+    run = store.create_run("redact", "standard", "mock", {})
+    hid = store.add_hypothesis(run.id, title="H", statement="s")
+    with pytest.raises(ValueError, match="non-redactable"):
+        store.redact_hypothesis_fields(hid, {"statement": "wiped"})
+
+
 def test_reports_round_trip_markdown_to_disk(db: str) -> None:
     run = store.create_run("report rt", "standard", "mock", {})
     saved = store.save_report(run.id, {"k": "v"}, "# Hello\nbody", db_path=db)
@@ -133,3 +162,15 @@ def test_match_log_preserves_pre_post_elo(db: str) -> None:
     assert rows[0]["winner_elo_after"] == 1212
     assert rows[0]["loser_elo_before"] == 1200
     assert rows[0]["loser_elo_after"] == 1188
+
+
+def test_match_log_records_debate_turns(db: str) -> None:
+    run = store.create_run("matches", "standard", "mock", {})
+    # A single-turn comparison (default) and a multi-turn scientific debate.
+    store.add_match(run.id, 1, "w", "l", 1200, 1212, 1200, 1188, "single")
+    store.add_match(
+        run.id, 1, "w", "l", 1212, 1230, 1188, 1170, "multi", debate_turns=3
+    )
+    rows = store.list_matches(run.id)
+    assert rows[0]["debate_turns"] == 1
+    assert rows[1]["debate_turns"] == 3

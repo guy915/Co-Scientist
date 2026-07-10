@@ -23,17 +23,23 @@ store`` / ``from app.store import ...`` unchanged.
 
 from __future__ import annotations
 
+from app.store.checkpoints import (
+    get_latest_checkpoint,
+    has_checkpoint,
+    save_checkpoint,
+)
 from app.store.db import (
     checkpoint_wal,
     connect,
     default_db_path,
     transaction,
 )
-from app.store.events import append_event, list_events
+from app.store.events import append_event, latest_event_seq, list_events
 from app.store.hypotheses import (
     add_hypothesis,
     get_hypothesis,
     list_hypotheses,
+    redact_hypothesis_fields,
     update_hypothesis_state,
 )
 from app.store.messages import (
@@ -51,11 +57,13 @@ from app.store.models import (
 )
 from app.store.records import (
     add_citation,
+    add_claim_evidence,
     add_evidence,
     add_match,
     add_review,
     add_safety_decision,
     list_citations,
+    list_claim_evidence,
     list_evidence,
     list_matches,
     list_reviews,
@@ -67,6 +75,7 @@ from app.store.reports import (
     save_report,
 )
 from app.store.runs import (
+    clear_run_derived_data,
     create_run,
     get_run,
     list_runs,
@@ -83,6 +92,7 @@ __all__ = [
     "RunRow",
     "RunStatus",
     "add_citation",
+    "add_claim_evidence",
     "add_evidence",
     "add_hypothesis",
     "add_match",
@@ -91,14 +101,19 @@ __all__ = [
     "append_event",
     "append_message",
     "checkpoint_wal",
+    "clear_run_derived_data",
     "connect",
     "create_run",
     "default_db_path",
     "get_hypothesis",
+    "get_latest_checkpoint",
     "get_latest_report",
     "get_pending_steering",
     "get_run",
+    "has_checkpoint",
+    "latest_event_seq",
     "list_citations",
+    "list_claim_evidence",
     "list_events",
     "list_evidence",
     "list_hypotheses",
@@ -110,7 +125,9 @@ __all__ = [
     "mark_steering_applied",
     "read_report_markdown",
     "reconcile_interrupted_runs",
+    "redact_hypothesis_fields",
     "run_exists",
+    "save_checkpoint",
     "save_report",
     "summary_counts",
     "transaction",

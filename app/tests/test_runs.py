@@ -156,6 +156,9 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
     citations = client.get(f"/api/runs/{run_id}/citations").json()["citations"]
     safety = client.get(f"/api/runs/{run_id}/safety").json()["safety"]
+    claim_evidence = client.get(f"/api/runs/{run_id}/claim-evidence").json()[
+        "claim_evidence"
+    ]
     report = client.get(f"/api/runs/{run_id}/report").json()
 
     assert len(hyps) >= 5  # initial 5 + evolved
@@ -168,6 +171,15 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
     assert len(matches) >= 6
     assert len(citations) >= 4
     assert {s["stage"] for s in safety} >= {"intake", "final"}
+    # The pre-tournament safety screen ran: every hypothesis carries a real
+    # safety_status (benign hypotheses are 'allow', never left 'pending').
+    assert all(h["safety_status"] == "allow" for h in hyps)
+    # The pre-tournament claim grounding persisted the entailment graph.
+    assert len(claim_evidence) >= 1
+    assert all(
+        e["label"] in {"supports", "contradicts", "insufficient"}
+        for e in claim_evidence
+    )
     assert report["payload"]["leaderboard"]
 
 

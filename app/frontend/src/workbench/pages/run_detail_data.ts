@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {
+  type ClaimEvidenceRow,
   type Evidence,
+  getClaimEvidence,
   getEvidence,
   getHypotheses,
   getMatches,
@@ -18,7 +20,13 @@ import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
 import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 
-type RunDataKey = 'hypotheses' | 'evidence' | 'matches' | 'reviews' | 'report';
+type RunDataKey =
+  | 'hypotheses'
+  | 'evidence'
+  | 'matches'
+  | 'reviews'
+  | 'claimEvidence'
+  | 'report';
 
 // Which fetched collections each canonical event type can change mid-run.
 // Event types not listed (supervisor.plan, research_overview, safety.*, ...)
@@ -31,9 +39,10 @@ const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   review: ['reviews'],
   meta_review: ['reviews'],
   deep_verification: ['reviews'],
+  'citation.grounding': ['claimEvidence'],
   proximity: ['hypotheses'],
   ranking: ['hypotheses', 'matches'],
-  evolve: ['hypotheses'],
+  evolve: ['hypotheses', 'claimEvidence'],
   report: ['report'],
 };
 
@@ -55,16 +64,17 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
     fetcher: (id: string) => Promise<T>,
   ): Promise<T> | undefined =>
     !keys || keys.has(key) ? fetcher(id) : undefined;
-  const [run, hypotheses, evidence, matches, reviews, report] =
+  const [run, hypotheses, evidence, matches, reviews, claimEvidence, report] =
     await Promise.all([
       getRun(id),
       fetchIfWanted('hypotheses', getHypotheses),
       fetchIfWanted('evidence', getEvidence),
       fetchIfWanted('matches', getMatches),
       fetchIfWanted('reviews', getReviews),
+      fetchIfWanted('claimEvidence', getClaimEvidence),
       fetchIfWanted('report', getReport),
     ]);
-  return {run, hypotheses, evidence, matches, reviews, report};
+  return {run, hypotheses, evidence, matches, reviews, claimEvidence, report};
 }
 
 // Calls `setState` only when `value` was actually fetched (a selective
@@ -124,6 +134,7 @@ function useRunFetch(id: string | undefined) {
   const [evidence, setEvidence] = useState<Evidence[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [claimEvidence, setClaimEvidence] = useState<ClaimEvidenceRow[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -141,6 +152,7 @@ function useRunFetch(id: string | undefined) {
         applyIfFetched(data.evidence, setEvidence);
         applyIfFetched(data.matches, setMatches);
         applyIfFetched(data.reviews, setReviews);
+        applyIfFetched(data.claimEvidence, setClaimEvidence);
         applyIfFetched(data.report, setReport);
         setLoaded(true);
         setError(null);
@@ -172,6 +184,7 @@ function useRunFetch(id: string | undefined) {
     evidence,
     matches,
     reviews,
+    claimEvidence,
     report,
     error,
     loaded,
@@ -279,6 +292,7 @@ export function useRunDetailData(id: string | undefined) {
     evidence: data.evidence,
     matches: data.matches,
     reviews: data.reviews,
+    claimEvidence: data.claimEvidence,
     report: data.report,
     error: data.error,
     loaded: data.loaded,

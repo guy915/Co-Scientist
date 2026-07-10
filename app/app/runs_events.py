@@ -18,7 +18,16 @@ from fastapi import Request
 
 from app import qa, store
 from app.runs_registry import _active, _active_lock, _RunHandle
-from app.store import TERMINAL_STATUSES, RunRow
+from app.store import TERMINAL_STATUSES, RunRow, RunStatus
+
+# Statuses that end an SSE stream. PAUSED is not a terminal *run* status (a
+# paused run is resumable), but a paused run produces no further events until
+# resumed, so the stream closes instead of polling out its wall-clock cap;
+# clients reconnect with ?after= once the run is resumed.
+_STREAM_END_STATUSES: tuple[RunStatus, ...] = (
+    *TERMINAL_STATUSES,
+    RunStatus.PAUSED,
+)
 
 
 def _terminal_frame(status: str, seq: int) -> str:
@@ -61,20 +70,20 @@ async def _should_skip_tick(handle: _RunHandle | None, tick: int) -> bool:
 
 
 def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
-    """Return the terminal run status carried by a status event, if any."""
+    """Return the stream-ending run status carried by a status event, if any."""
     if ev["type"] != "status":
         return None
     payload = ev.get("payload") or {}
     status = payload.get("status")
-    if isinstance(status, str) and status in TERMINAL_STATUSES:
+    if isinstance(status, str) and status in _STREAM_END_STATUSES:
         return status
     return None
 
 
 def _terminal_status_from_run(run_id: str) -> str | None:
-    """Return the run's current status if it has reached a terminal state."""
+    """Return the run's current status if it should end the stream."""
     current = store.get_run(run_id)
-    if current and current.status in TERMINAL_STATUSES:
+    if current and current.status in _STREAM_END_STATUSES:
         return current.status
     return None
 
@@ -192,8 +201,8 @@ async def _event_stream(
         last_seq = ev["seq"]
         yield qa.sse_frame(ev)
 
-    # If terminal already, send a final marker and return.
-    if run.status in TERMINAL_STATUSES:
+    # If terminal (or paused) already, send a final marker and return.
+    if run.status in _STREAM_END_STATUSES:
         yield _terminal_frame(run.status, last_seq)
         return
 

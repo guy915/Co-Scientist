@@ -1,5 +1,6 @@
 import {useParams} from 'react-router-dom';
 import {
+  type ClaimEvidenceRow,
   type Evidence,
   type Hypothesis,
   type MatchRow,
@@ -52,6 +53,7 @@ export function RunDetail() {
     evidence,
     matches,
     reviews,
+    claimEvidence,
     report,
     error,
     loaded,
@@ -80,6 +82,7 @@ export function RunDetail() {
           hypotheses={hypotheses}
           matches={matches}
           reviews={reviews}
+          claimEvidence={claimEvidence}
           ideasViewKey={ideasViewKey}
         />
       )}
@@ -100,6 +103,7 @@ function RunDetailTabContent({
   hypotheses,
   matches,
   reviews,
+  claimEvidence,
   ideasViewKey,
 }: {
   activeTab: TabName;
@@ -109,6 +113,7 @@ function RunDetailTabContent({
   hypotheses: Hypothesis[];
   matches: MatchRow[];
   reviews: Review[];
+  claimEvidence: ClaimEvidenceRow[];
   ideasViewKey: number;
 }) {
   return (
@@ -132,6 +137,7 @@ function RunDetailTabContent({
             hypotheses={hypotheses}
             reviews={reviews}
             matches={matches}
+            claimEvidence={claimEvidence}
           />
         </section>
       )}

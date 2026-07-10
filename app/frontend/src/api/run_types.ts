@@ -112,6 +112,8 @@ export interface Hypothesis {
   experimental_context: string | null;
   // node/agent name that produced it, e.g. "generate", "evolve"
   created_by_agent: string;
+  // authorship provenance for a scientist-contributed hypothesis (Milestone 7)
+  author?: string | null;
   created_at: number;
   elo_rating: number; // current tournament rating; see app/elo.py
   win_count: number;
@@ -151,7 +153,25 @@ export interface MatchRow {
   loser_elo_after: number;
   rationale: string;
   tier: string | null; // tournament bracket this match was played in, if tiered
+  // Debate depth: 1 = single-turn comparison, >1 = multi-turn scientific
+  // debate (top-ranked matchups). Older rows default to 1.
+  debate_turns: number;
   created_at: number;
+}
+
+/**
+ * One edge of the claim-level entailment graph: an atomic claim of a
+ * hypothesis assessed against the retrieved evidence (Milestone 5).
+ */
+export interface ClaimEvidenceRow {
+  id: number;
+  hypothesis_id: string;
+  claim: string;
+  // supports | contradicts | insufficient
+  label: string;
+  supporting: string[];
+  contradicting: string[];
+  assessor: string;
 }
 
 /** A reviewer agent's critique and per-axis scores for a hypothesis. */

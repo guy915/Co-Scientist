@@ -124,6 +124,12 @@ def _build_engine_opts(
     not replay the same message.
     """
     initial_opts = _setup_opts_from_cfg(cfg.get("setup"))
+    # Flag queued steering as a durable high-priority task BEFORE folding it
+    # (folding marks it applied): the engine's orchestrator then schedules a
+    # high-priority GENERATE to incorporate it at the next safe boundary,
+    # rather than the steering only appearing as initial preference text.
+    if store.get_pending_steering(run_id, db_path=db_path):
+        initial_opts["pending_steering"] = True
     preferences = _fold_steering_preferences(
         run_id, db_path, str(initial_opts.get("run_setup_guidance") or "")
     )

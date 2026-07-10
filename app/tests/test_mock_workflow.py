@@ -141,6 +141,45 @@ def test_legacy_standard_profile_uses_default_depth(isolated_db: str) -> None:
     assert len(store.list_matches(run.id)) >= 12
 
 
+def test_pair_debate_turns_splits_on_median() -> None:
+    """The median split assigns multi-turn to top-ranked pairs, single to low.
+
+    Mirrors the engine's median-Elo debate allocation (SSR §4, §12): a pair
+    with at least one hypothesis at/above the median gets the 3-turn debate; a
+    pair entirely below the median gets a 1-turn comparison.
+    """
+    from app.mock_workflow_phases import _median_elo, _pair_debate_turns
+
+    elo_state = {"a": 1300, "b": 1200, "c": 1100, "d": 1000}
+    median = _median_elo(elo_state)  # (1200 + 1100) / 2 = 1150
+    assert median == 1150.0
+    # Pair touching the top half -> multi-turn (3).
+    assert _pair_debate_turns("a", "d", elo_state, median) == 3
+    assert _pair_debate_turns("b", "c", elo_state, median) == 3
+    # Pair entirely below the median -> single-turn (1).
+    assert _pair_debate_turns("c", "d", elo_state, median) == 1
+
+
+def test_mock_tournament_records_multi_turn_debates(
+    isolated_db: str,
+) -> None:
+    """A completed mock run records multi-turn scientific debates.
+
+    The first ranking round pairs an all-equal-Elo pool, so every pair is
+    top-ranked and gets the 3-turn debate; the per-pair split itself is unit
+    tested in ``test_pair_debate_turns_splits_on_median``.
+    """
+    run = store.create_run("Debate depth test", "standard", "mock", {})
+    _drain(
+        engine_adapter.run_workflow(
+            run.id, run.research_goal, run.config, sleep_seconds=0
+        )
+    )
+    depths = {m["debate_turns"] for m in store.list_matches(run.id)}
+    assert 3 in depths  # multi-turn scientific debates were recorded
+    assert depths <= {1, 3}  # only the two valid depths appear
+
+
 def test_mock_workflow_emits_canonical_event_sequence(isolated_db: str) -> None:
     run = store.create_run("Sequence test", "standard", "mock", {})
     events = _drain(

@@ -1,5 +1,5 @@
 import {useMemo, useState} from 'react';
-import type {Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {sortByEloDesc} from '@/lib/hypotheses';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
@@ -100,16 +100,18 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
 /**
  * Renders generated hypotheses in the Google-style split-pane pattern.
  *
- * @param props The hypotheses, reviews, and matches.
+ * @param props The hypotheses, reviews, matches, and claim-evidence graph.
  */
 export function IdeasTab({
   hypotheses,
   reviews,
   matches = [],
+  claimEvidence = [],
 }: {
   hypotheses: Hypothesis[];
   reviews: Review[];
   matches?: MatchRow[];
+  claimEvidence?: ClaimEvidenceRow[];
 }) {
   const isMobile = useIsMobile();
   const {sorted, selected, onSelect} = useIdeaSelection(hypotheses, isMobile);
@@ -131,6 +133,7 @@ export function IdeasTab({
       selected={selected}
       reviews={reviews}
       matches={matches}
+      claimEvidence={claimEvidence}
       onSelect={onSelect}
     />
   );
@@ -144,12 +147,14 @@ function MobileIdeaView({
   selected,
   reviews,
   matches,
+  claimEvidence,
   onSelect,
 }: {
   sorted: Hypothesis[];
   selected: Hypothesis | null;
   reviews: Review[];
   matches: MatchRow[];
+  claimEvidence: ClaimEvidenceRow[];
   onSelect: (id: string) => void;
 }) {
   return (
@@ -159,6 +164,7 @@ function MobileIdeaView({
           hypothesis={selected}
           reviews={reviews}
           matches={matches}
+          claimEvidence={claimEvidence}
         />
       ) : (
         <ol
@@ -186,12 +192,14 @@ function DesktopIdeaSplit({
   selected,
   reviews,
   matches,
+  claimEvidence,
   onSelect,
 }: {
   sorted: Hypothesis[];
   selected: Hypothesis | null;
   reviews: Review[];
   matches: MatchRow[];
+  claimEvidence: ClaimEvidenceRow[];
   onSelect: (id: string) => void;
 }) {
   return (
@@ -215,6 +223,7 @@ function DesktopIdeaSplit({
           hypothesis={selected}
           reviews={reviews}
           matches={matches}
+          claimEvidence={claimEvidence}
         />
         <SectionsRail />
       </div>

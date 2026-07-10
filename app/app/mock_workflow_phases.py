@@ -37,6 +37,13 @@ from app.report_render import format_deep_verification_critique
 
 logger = logging.getLogger(__name__)
 
+# Debate depth for a tournament matchup, mirroring the engine's allocation:
+# top-ranked pairs run a multi-turn scientific debate; lower-ranked pairs run
+# a single-turn comparison (SSR §4, §12). Kept local so the mock workflow
+# stays engine-independent.
+MULTI_TURN_DEBATE_TURNS = 3
+SINGLE_TURN_DEBATE_TURNS = 1
+
 
 def _persist_literature_review(
     run_id: str,
@@ -159,10 +166,14 @@ def _judge_and_persist_match(
     elo_state: dict[str, int],
     title_by_id: dict[str, str],
     k_factor: int,
+    debate_turns: int = 1,
 ) -> dict[str, Any]:
     """Judge one pair, update Elo state, and persist the resulting match.
 
-    Mutates `elo_state` in place with the post-match ratings.
+    Mutates `elo_state` in place with the post-match ratings. `debate_turns`
+    is the matchup's debate depth (1 = single-turn comparison, >1 = multi-turn
+    scientific debate), mirroring the engine's median-Elo allocation
+    (SSR §4, §12).
 
     Returns:
         The match record for the ranking round's emitted payload.
@@ -187,6 +198,7 @@ def _judge_and_persist_match(
         loser_after=la,
         rationale=rationale,
         tier=tier,
+        debate_turns=debate_turns,
         conn=conn,
     )
     return {
@@ -198,6 +210,7 @@ def _judge_and_persist_match(
         "loser_elo_after": la,
         "rationale": rationale,
         "tier": tier,
+        "debate_turns": debate_turns,
     }
 
 
@@ -217,15 +230,51 @@ def _run_ranking_round(
     Returns:
         The round's match records, in judged order.
     """
+    median_elo = _median_elo(elo_state)
     round_matches: list[dict[str, Any]] = []
     with store.transaction(db_path) as conn:
         for a, b in pairs:
+            turns = _pair_debate_turns(a, b, elo_state, median_elo)
             round_matches.append(
                 _judge_and_persist_match(
-                    run_id, conn, itr, a, b, elo_state, title_by_id, k_factor
+                    run_id,
+                    conn,
+                    itr,
+                    a,
+                    b,
+                    elo_state,
+                    title_by_id,
+                    k_factor,
+                    debate_turns=turns,
                 )
             )
     return round_matches
+
+
+def _median_elo(elo_state: dict[str, int]) -> float:
+    """Return the median Elo rating across the current pool (0.0 if empty)."""
+    ratings = sorted(elo_state.values())
+    if not ratings:
+        return 0.0
+    mid = len(ratings) // 2
+    if len(ratings) % 2:
+        return float(ratings[mid])
+    return (ratings[mid - 1] + ratings[mid]) / 2.0
+
+
+def _pair_debate_turns(
+    a: str, b: str, elo_state: dict[str, int], median_elo: float
+) -> int:
+    """Debate depth for a mock matchup, mirroring the engine's median split.
+
+    Top-ranked comparisons (at least one side at or above the pool median)
+    run a multi-turn scientific debate; all-lower-ranked comparisons run a
+    single-turn comparison (SSR §4, §12).
+    """
+    top_ranked = (
+        elo_state.get(a, 0) >= median_elo or elo_state.get(b, 0) >= median_elo
+    )
+    return MULTI_TURN_DEBATE_TURNS if top_ranked else SINGLE_TURN_DEBATE_TURNS
 
 
 def _persist_evolved_child(
