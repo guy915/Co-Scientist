@@ -22,7 +22,6 @@ survive client reconnects and full backend restarts. Request models and SSE
 streaming helpers live in ``runs_models`` and ``runs_events`` respectively, and
 are re-exported here so the ``app.runs.<name>`` import paths stay stable.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -210,7 +209,7 @@ async def _run_workflow_task(
             force_provider=force_provider,
         ):
             handle.new_event.set()
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         _mark_workflow_failed(run_id, handle, e)
     finally:
         # Always release the active-run slot so the run can be restarted.

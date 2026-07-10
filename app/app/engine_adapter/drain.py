@@ -5,7 +5,6 @@ hypotheses (with reviews, deep-verification reviews, and citations), and
 tournament matches — into the SQLite store in one transaction, and returns
 the provider-specific report inputs the shared finalize path needs.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

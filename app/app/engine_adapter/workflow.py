@@ -4,7 +4,6 @@
 runs the intake safety gate, then dispatches to the mock workflow stream or
 the real-engine stream for the resolved provider.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

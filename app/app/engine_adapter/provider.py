@@ -4,7 +4,6 @@ Decides between the real engine and the mock workflow (`select_provider`),
 reports provider diagnostics for the /status route (`system_status`), and
 performs the lazy engine import used by the real-engine path.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -49,10 +48,10 @@ def _has_provider_key() -> bool:
 # import-time side effects (e.g. LangGraph module setup).
 def _engine_importable() -> bool:
     try:
-        import importlib.util  # pylint: disable=import-outside-toplevel
+        import importlib.util
 
         return importlib.util.find_spec("co_scientist") is not None
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         return False
 
 
@@ -91,11 +90,10 @@ def _import_hypothesis_generator() -> Any | None:
     """Import the engine's `HypothesisGenerator`, or None if unavailable."""
     try:
         from co_scientist import (
-            HypothesisGenerator,  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
+            HypothesisGenerator,  # type: ignore[import-not-found, unused-ignore]
         )
 
         return HypothesisGenerator
-    # pylint: disable-next=broad-exception-caught
     except Exception as e:  # pragma: no cover (defensive)
         logger.error("engine import failed: %s — falling back to mock", e)
         return None

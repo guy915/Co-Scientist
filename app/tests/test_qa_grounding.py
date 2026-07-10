@@ -5,7 +5,6 @@ directly. Message ``meta`` persistence is exercised through the store with an
 isolated per-test database.
 """
 
-# pylint: disable=unused-argument
 from __future__ import annotations
 
 from typing import Any

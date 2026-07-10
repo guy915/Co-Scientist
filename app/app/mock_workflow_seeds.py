@@ -5,7 +5,6 @@ research goal and indices) into the plausible-sounding hypotheses, evidence,
 probes, clusters, and payloads the mock workflow emits. They never touch the
 persistence layer, so the same seed always yields the same content.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

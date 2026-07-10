@@ -4,7 +4,6 @@ Covers the append-only event log, evidence/citation linkage, and report
 survival.
 """
 
-# pylint: disable=unused-argument,redefined-outer-name
 from __future__ import annotations
 
 import os

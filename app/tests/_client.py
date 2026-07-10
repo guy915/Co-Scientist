@@ -14,7 +14,7 @@ def make_client() -> TestClient:
     A fresh instance per call, so tests that need to simulate a restart can
     build a second client against the same (isolated) database.
     """
-    from app.main import app  # pylint: disable=import-outside-toplevel
+    from app.main import app
 
     return TestClient(app)
 

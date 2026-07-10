@@ -4,7 +4,6 @@ Streams the engine's per-node events in the canonical vocabulary, tracks
 the cumulative final state, and — once the stream finishes — drains that
 state into the store and emits the report through the shared finalize path.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -266,7 +265,7 @@ async def _run_engine_provider(
             emit=emit,
         ):
             yield event
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         yield await _emit_engine_failure(run_id, e, db_path, emit)
 
 

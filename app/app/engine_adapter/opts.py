@@ -4,7 +4,6 @@ Folds a run's durable config (composer setup, queued user steering, the
 literature-review toggle) into the engine's `opts` vocabulary, drains the
 pre-run steering queue, and constructs the per-run `HypothesisGenerator`.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

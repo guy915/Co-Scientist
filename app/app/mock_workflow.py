@@ -34,7 +34,6 @@ The implementation is split across focused modules, all re-exported here so
 - ``mock_workflow_phases`` — sync persistence helpers for each numbered phase.
 - ``mock_workflow_stages`` — async stage generators that emit the events.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

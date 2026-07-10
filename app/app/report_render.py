@@ -11,7 +11,6 @@ The report content builders live in ``report_markdown`` and the event-payload
 helpers in ``report_events``; both are re-exported here so callers keep a single
 ``app.report_render`` import surface.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

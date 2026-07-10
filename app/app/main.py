@@ -18,16 +18,16 @@ from pydantic import BaseModel, Field
 # import below), so .env must be loaded into os.environ before that import.
 load_dotenv()
 
-from app import engine_adapter, store  # pylint: disable=wrong-import-position
-from app.config import settings  # pylint: disable=wrong-import-position
-from app.run_modes import (  # pylint: disable=wrong-import-position
+from app import engine_adapter, store
+from app.config import settings
+from app.run_modes import (
     DEFAULT_RUN_TIER,
     RUN_TIER_DEFAULTS,
 )
 from app.runs import (
-    router as runs_router,  # pylint: disable=wrong-import-position
+    router as runs_router,
 )
-from app.seed import seed_demo_runs  # pylint: disable=wrong-import-position
+from app.seed import seed_demo_runs
 
 # Configure logging
 # Set root logger to INFO to suppress DEBUG logs from dependencies (httpx, etc.)
@@ -67,7 +67,7 @@ else:
 
 @asynccontextmanager
 async def lifespan(
-    app: FastAPI,  # pylint: disable=redefined-outer-name,unused-argument
+    app: FastAPI,
 ) -> AsyncGenerator[None, None]:
     """Manages FastAPI application startup and shutdown."""
     # Startup
@@ -229,7 +229,7 @@ async def get_system_status() -> dict[str, Any]:
     mcp_available = False
     pubmed_available = False
     try:
-        from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]  # pylint: disable=import-outside-toplevel
+        from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]
             check_mcp_available,
             check_pubmed_available_via_mcp,
         )
@@ -238,7 +238,6 @@ async def get_system_status() -> dict[str, Any]:
         mcp_available, pubmed_available = await asyncio.gather(
             check_mcp_available(), check_pubmed_available_via_mcp()
         )
-    # pylint: disable-next=broad-exception-caught
     except Exception:  # pragma: no cover - engine optional in mock mode
         pass  # both probes default to False (set above)
 

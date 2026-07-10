@@ -150,7 +150,6 @@ def test_engine_adapter_emits_canonical_event_types(
     CI only exercises the mock path, so this fake-driven test is the sole guard
     on the node→type mapping and the frontend-facing payload shape.
     """
-    # pylint: disable=unused-argument  # isolated_db is a side-effect fixture.
     _, events = _run_fake_engine(monkeypatch, "Canonical vocab goal")
 
     types_emitted = [e["type"] for e in events]

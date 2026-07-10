@@ -22,8 +22,8 @@ def isolated_db(
     monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", "1")
     # Wipe any cached default-path init flags from previous tests.
     from app.store import (
-        db as _store_db,  # pylint: disable=import-outside-toplevel
+        db as _store_db,
     )
 
-    _store_db._initialized.discard(db_path)  # pylint: disable=protected-access
+    _store_db._initialized.discard(db_path)
     yield db_path

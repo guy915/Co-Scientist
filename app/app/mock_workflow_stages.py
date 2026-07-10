@@ -7,7 +7,6 @@ top-level ``run_mock_workflow`` entry point (in ``mock_workflow``) composes them
 into the full run, and each generator propagates cancellation so a cancelled run
 stops emitting after its terminal ``"cancelled"`` status event.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

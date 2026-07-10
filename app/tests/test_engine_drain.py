@@ -148,7 +148,7 @@ def _persist_and_finalize(
     returns the report inputs, and ``finalize_report`` builds/screens/saves the
     report. Uses a plain-dict emitter, so no event log is needed.
     """
-    report_inputs = engine_adapter._persist_final_state(  # pylint: disable=protected-access
+    report_inputs = engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=final_state,
         db_path=db_path,
@@ -195,7 +195,7 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     """Hypotheses with probes get a deep_verification review row."""
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+    engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
@@ -220,7 +220,7 @@ def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
 def test_persist_passes_engine_ids_through_to_store(isolated_db: str) -> None:
     """Hypothesis rows carry the engine's stable id (id pass-through)."""
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+    engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_features(),
         db_path=isolated_db,
@@ -244,7 +244,7 @@ def test_persist_matches_resolve_by_engine_id(isolated_db: str) -> None:
     state["tournament_matchups"][0]["hypothesis_a"] = "drifted text A"
     state["tournament_matchups"][0]["hypothesis_b"] = "drifted text B"
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+    engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=state,
         db_path=isolated_db,
@@ -272,7 +272,7 @@ def test_persist_skips_matchup_with_unresolved_id(isolated_db: str) -> None:
     state["tournament_matchups"][0]["hypothesis_b_id"] = "eng-hyp-gone"
     state["tournament_matchups"][0]["winner_id"] = "eng-hyp-gone"
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+    engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=state,
         db_path=isolated_db,
@@ -372,7 +372,7 @@ def test_persist_classifies_citations_via_shared_classifier(
     resolve to the state its content warrants.
     """
     run = store.create_run("CSC goal", "standard", "engine", {})
-    engine_adapter._persist_final_state(  # pylint: disable=protected-access
+    engine_adapter._persist_final_state(
         run_id=run.id,
         final_state=_final_state_with_citations(),
         db_path=isolated_db,

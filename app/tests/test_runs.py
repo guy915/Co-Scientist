@@ -1,6 +1,5 @@
 """Run lifecycle: create, start, persistence, reopen."""
 
-# pylint: disable=unused-argument
 from __future__ import annotations
 
 import asyncio
@@ -51,7 +50,7 @@ def test_list_runs_honors_limit_query(isolated_db: str) -> None:
 def test_legacy_profile_and_tiny_overrides_run_as_default(
     isolated_db: str,
 ) -> None:
-    from app.runs import (  # pylint: disable=import-outside-toplevel
+    from app.runs import (
         CreateRunRequest,
         create_run,
     )
@@ -112,7 +111,7 @@ def test_create_run_without_spec_gets_baseline_planning(
     isolated_db: str,
 ) -> None:
     """A goal-only run (no UI-inferred spec) still gets baseline guidance."""
-    from app.run_modes import (  # pylint: disable=import-outside-toplevel
+    from app.run_modes import (
         DEFAULT_ATTRIBUTES,
         DEFAULT_CRITERIA,
         DEFAULT_REQUIREMENTS,
@@ -186,12 +185,12 @@ def test_run_reopens_after_restart(isolated_db: str) -> None:
     assert _wait_status(client, run_id, "completed", timeout=20.0)
 
     # Discard the client and re-import the app, simulating a fresh process.
-    import importlib  # pylint: disable=import-outside-toplevel
+    import importlib
 
-    import app.main  # pylint: disable=import-outside-toplevel
+    import app.main
 
     importlib.reload(app.main)
-    from fastapi.testclient import (  # pylint: disable=import-outside-toplevel
+    from fastapi.testclient import (
         TestClient,
     )
 

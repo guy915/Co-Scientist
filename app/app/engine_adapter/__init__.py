@@ -18,7 +18,6 @@ module re-exports the full former ``app.engine_adapter`` namespace —
 including the private helpers exercised by tests — so callers keep using
 ``from app import engine_adapter`` unchanged.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

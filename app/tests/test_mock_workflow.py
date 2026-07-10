@@ -1,6 +1,5 @@
 """Deterministic mock workflow: seed → identical artefacts."""
 
-# pylint: disable=unused-argument
 from __future__ import annotations
 
 import asyncio
@@ -33,7 +32,7 @@ async def _drain_mock_workflow(
         The list of events emitted by the drained workflow.
     """
     from app.mock_workflow import (
-        run_mock_workflow,  # pylint: disable=import-outside-toplevel
+        run_mock_workflow,
     )
 
     return [e async for e in run_mock_workflow(rid, goal, cfg, sleep_seconds=0)]
@@ -84,7 +83,7 @@ def test_replaying_same_run_id_is_byte_identical(isolated_db: str) -> None:
     It yields identical title sequences.
     """
     from app.run_modes import (
-        resolved_run_config,  # pylint: disable=import-outside-toplevel
+        resolved_run_config,
     )
 
     cfg = resolved_run_config({})
@@ -273,7 +272,7 @@ def test_mock_deep_verification_and_overview_are_deterministic(
     never DB row IDs.
     """
     from app.run_modes import (
-        resolved_run_config,  # pylint: disable=import-outside-toplevel
+        resolved_run_config,
     )
 
     cfg = resolved_run_config({})

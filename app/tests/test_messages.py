@@ -1,6 +1,5 @@
 """Tests for the messages store layer."""
 
-# pylint: disable=unused-argument
 from __future__ import annotations
 
 from typing import cast

@@ -29,7 +29,7 @@ def test_status_supervisor_model_falls_back_to_worker(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """With SUPERVISOR_MODEL_NAME unset, /status mirrors the engine fallback."""
-    from app.config import settings  # pylint: disable=import-outside-toplevel
+    from app.config import settings
 
     monkeypatch.setattr(settings, "model_name", "worker/model")
     monkeypatch.setattr(settings, "supervisor_model_name", None)
@@ -41,7 +41,7 @@ def test_status_reports_configured_supervisor_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A configured supervisor model is surfaced distinctly from the worker."""
-    from app.config import settings  # pylint: disable=import-outside-toplevel
+    from app.config import settings
 
     monkeypatch.setattr(settings, "model_name", "worker/model")
     monkeypatch.setattr(settings, "supervisor_model_name", "strategic/model")

@@ -1,6 +1,5 @@
 """Tests for append-only evolution and hypothesis lineage."""
 
-# pylint: disable=unused-argument
 from __future__ import annotations
 
 from typing import Any

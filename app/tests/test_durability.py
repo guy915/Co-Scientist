@@ -4,7 +4,6 @@ These harness fixes ensure a long research run does not get stuck "running"
 forever when the server is restarted mid-run.
 """
 
-# pylint: disable=unused-argument
 from __future__ import annotations
 
 from app import store
@@ -106,6 +105,6 @@ def test_headerless_run_survives_restart(isolated_db: str) -> None:
     )
     # Simulate a server restart re-running migrations on the existing DB.
     with store.connect(isolated_db) as conn:
-        store_db._run_migrations(conn)  # pylint: disable=protected-access
+        store_db._run_migrations(conn)
     rows = store.list_runs(client_id="", db_path=isolated_db)
     assert any(r.id == run.id for r in rows)

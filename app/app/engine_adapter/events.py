@@ -4,7 +4,6 @@ Maps streamed engine node names to canonical event types, projects each
 node's state snapshot into a mock-shaped event payload, and formats the
 user-facing milestone messages surfaced for key events.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

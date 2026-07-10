@@ -101,7 +101,7 @@ async def _seed_or_reseed_demo_run(
         )
     try:
         await _seed_demo_run(goal, run, db_path)
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         logger.exception("Failed to seed demo run for goal: %.60s", goal)
 
 

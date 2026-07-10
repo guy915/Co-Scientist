@@ -8,7 +8,6 @@ while each phase's persistence logic stays independently nameable. These helpers
 write through ``app.store`` and draw their content from the pure generators in
 ``mock_workflow_seeds``.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

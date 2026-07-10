@@ -7,7 +7,6 @@ they survive client reconnects and full backend restarts; the in-process
 Every name is re-exported from ``app.runs`` so the ``app.runs.<name>`` import
 paths stay stable.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 

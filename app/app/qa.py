@@ -6,7 +6,6 @@ evidence manifest (using the four-state citation model in ``citations.py``),
 assembling the system prompt from the run's hypotheses/reviews/matches, and
 streaming the LLM answer while persisting the exchange.
 """
-# pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
@@ -265,7 +264,7 @@ async def _stream_llm_deltas(
     Yields:
         Non-empty text deltas from the streaming completion.
     """
-    import litellm  # pylint: disable=import-outside-toplevel
+    import litellm
 
     response = await litellm.acompletion(
         model=model,
@@ -387,6 +386,6 @@ async def stream_answer(
 
         _persist_qa_answer(run_id, full, manifest)
         yield sse_frame({"type": "done", "question_id": question_id})
-    except Exception as exc:  # pylint: disable=broad-exception-caught
+    except Exception as exc:
         fallback = _handle_qa_stream_error(run_id, exc)
         yield sse_frame({"type": "error", "message": fallback})
