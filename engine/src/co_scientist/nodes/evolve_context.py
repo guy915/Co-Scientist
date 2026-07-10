@@ -77,8 +77,8 @@ def sample_context_hypotheses(
 def calculate_text_similarity(text1: str, text2: str) -> float:
     """Calculates simple similarity between two texts.
 
-    This is a basic implementation using word overlap. TODO: For production,
-    consider using embeddings or more sophisticated similarity metrics.
+    This is a basic implementation using word overlap; embeddings or a more
+    sophisticated similarity metric would be a production-grade upgrade.
 
     Args:
         text1: First text
@@ -97,8 +97,8 @@ def calculate_text_similarity(text1: str, text2: str) -> float:
 
     # Jaccard similarity: size of the word-set intersection over the
     # word-set union. Cheap and order-insensitive, but purely lexical (no
-    # synonym/paraphrase awareness) -- see the TODO above about upgrading
-    # to embeddings.
+    # synonym/paraphrase awareness) -- see the docstring note about
+    # upgrading to embeddings.
     intersection = words1.intersection(words2)
     union = words1.union(words2)
 
