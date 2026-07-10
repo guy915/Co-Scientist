@@ -229,6 +229,8 @@ async def get_system_status() -> dict[str, Any]:
     mcp_available = False
     pubmed_available = False
     try:
+        # The engine is an optional runtime dependency; when absent the
+        # import fails and diagnostics report mock mode (hence the ignore).
         from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]
             check_mcp_available,
             check_pubmed_available_via_mcp,

@@ -263,6 +263,9 @@ async def _run_synthesis_batches(
             )
             failed_batches.append((i, batches[i]))
         else:
+            # gather(return_exceptions=True) types results as possibly
+            # BaseException; the isinstance branch above already filtered
+            # those out, which mypy cannot narrow across the if/else.
             all_validated_hypotheses.extend(result)  # type: ignore[arg-type]
 
     logger.info(

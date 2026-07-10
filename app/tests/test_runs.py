@@ -65,6 +65,8 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
         evolution_max_count=1,
     )
 
+    # _Request is a minimal stand-in for fastapi.Request; the handler only
+    # touches the attributes the stub provides.
     run = asyncio.run(create_run(req, _Request()))  # type: ignore[arg-type]
 
     assert run["run_mode"] == "default"

@@ -22,7 +22,11 @@ for this purpose.
 -   Python code follows the
     [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html).
     Format with `ruff format` (80 columns) and lint with `ruff check`
-    (config in each project's `pyproject.toml`).
+    (config in each project's `pyproject.toml`). Both projects are
+    mypy-strict; `Any` is reserved for genuinely dynamic data — JSON-shaped
+    LLM responses, event payloads, and YAML config fragments
+    (`dict[str, Any]`) — and should not appear on interfaces whose types
+    are known.
 -   Docstrings are Google style: a one-line summary on the first line, ending
     with a period, followed by `Args:`, `Returns:`, and `Raises:` sections as
     applicable.
