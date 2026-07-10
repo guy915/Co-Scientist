@@ -38,12 +38,12 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 
 **Architecture**
 
-`HypothesisGenerator` (`src/co_scientist/generator.py`) is the public entry point. It compiles a LangGraph `StateGraph` whose nodes live in `src/co_scientist/nodes/`:
+`HypothesisGenerator` (`src/co_scientist/generator/`) is the public entry point. It compiles a LangGraph `StateGraph` whose nodes live in `src/co_scientist/nodes/`:
 
 | Node | File |
 |---|---|
 | Supervisor (planning) | `nodes/supervisor.py` |
-| Literature Review (MCP-gated) | `nodes/literature_review.py`, `nodes/literature_review_helpers.py` |
+| Literature Review (MCP-gated) | `nodes/literature_review/` (node, helpers, search/retrieval/article support) |
 | Generate | `nodes/generate.py`, `nodes/generation/` (incl. `coordinator.py`, `debate.py`, `citations.py`, `literature_tools/`) |
 | Reflection | `nodes/reflection.py`, `nodes/reflection_helpers.py` |
 | Review | `nodes/review.py` |
@@ -99,8 +99,8 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 | `main.py` | App setup, lifespan, diagnostics endpoints (`/health`, `/config`, `/status`) |
 | `config.py` | Pydantic settings (model names, API keys, DB path, Elo tuning, safety mode) |
 | `runs.py` | Durable run-lifecycle router (`/api/runs` endpoint group) |
-| `store.py` | SQLite persistence layer (WAL mode, append-only event log) |
-| `engine_adapter.py` | Engine/mock provider selection; runs the intake safety gate at the shared `run_workflow` boundary and streams events |
+| `store/` | SQLite persistence layer (WAL mode, append-only event log) |
+| `engine_adapter/` | Engine/mock provider selection; runs the intake safety gate at the shared `run_workflow` boundary and streams events |
 | `mock_workflow.py` | Deterministic mock workflow (full agent-equivalent sequence) |
 | `report_render.py` | Shared report payload/markdown builders, the `finalize_report` path (final safety gate + report/completed emission), and event-payload stubs used by both providers |
 | `elo.py` | Elo rating utilities |
@@ -124,7 +124,7 @@ Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by t
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list.
 - `POST /api/runs/{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name` config).
 
-A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. The `engine_adapter.py` module selects between the real engine and `mock_workflow.py` based on configuration and availability.
+A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. The `engine_adapter/` package selects between the real engine and `mock_workflow.py` based on configuration and availability.
 
 ### Frontend (`frontend/`)
 

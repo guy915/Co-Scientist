@@ -9,8 +9,8 @@ app/
 ├── app/            FastAPI backend (Python)
 │   ├── main.py     App setup and diagnostics endpoints (/health, /config, /status)
 │   ├── runs.py     Durable run-lifecycle router (create / start / stream / cancel)
-│   ├── store.py    SQLite persistence layer (WAL, append-only event log)
-│   ├── engine_adapter.py  Bridges to engine or mock workflow
+│   ├── store/      SQLite persistence layer (WAL, append-only event log)
+│   ├── engine_adapter/    Bridges to engine or mock workflow
 │   ├── mock_workflow.py   Deterministic mock for dev without an LLM key
 │   ├── elo.py      Elo rating utilities
 │   ├── citations.py       Citation extraction helpers

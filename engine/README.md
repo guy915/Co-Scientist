@@ -339,7 +339,7 @@ logging.getLogger("co_scientist").setLevel(logging.DEBUG)
 
 ```
 src/co_scientist/
-├── generator.py        # HypothesisGenerator — public entry point, builds/runs LangGraph
+├── generator/          # HypothesisGenerator — public entry point, builds/runs LangGraph
 ├── state.py            # WorkflowState TypedDict + custom reducers
 ├── models.py           # Hypothesis, HypothesisReview, ExecutionMetrics dataclasses
 ├── llm.py              # LiteLLM wrapper
@@ -350,7 +350,7 @@ src/co_scientist/
 ├── config/             # ToolRegistry, YAML tool configs, domain examples
 └── nodes/
     ├── supervisor.py
-    ├── literature_review.py
+    ├── literature_review/
     ├── generate.py / generation/
     ├── reflection.py
     ├── review.py
