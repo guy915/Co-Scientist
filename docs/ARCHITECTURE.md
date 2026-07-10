@@ -7,17 +7,13 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 ```
 +--------------------- frontend (src/workbench) ---------------------+
 | BrowserRouter                                                      |
-|   /                  -> LandingPage     (public overview)          |
-|   /demos/:slug       -> DemoPage        (public demo run)          |
-|   /runs              -> Dashboard       (lists runs)               |
-|   /runs/new          -> NewRunForm      (research goal setup)      |
-|   /runs/:id          -> RunDetail       (reference + support tabs) |
-|   /runs/:id/:tab     -> active tab persisted in the URL            |
+|   /                  -> ChatWorkspace   (session home)             |
+|   /runs, /runs/new   -> redirect to /                              |
+|   /runs/:id          -> redirect to the details tab                |
+|   /runs/:id/:tab     -> RunDetail (active tab persisted in URL)    |
 |                                                                    |
-| RunStatusPill                                                      |
-| IdeaModal                                                          |
+| useChatSession (chat timeline, steering + Q&A)                     |
 | useRunStream  (EventSource on /api/runs/:id/events)                |
-| useMessages   (steering + Q&A messages for Chat tab)               |
 | src/api/runs.ts  (typed client for every backend endpoint)         |
 +------------------------------+-------------------------------------+
                                |
@@ -29,9 +25,9 @@ This document describes the current runtime shape of the Co-Scientist workspace.
 |   main.py        — composes router, CORS, lifespan                 |
 |   config.py      — pydantic-settings                               |
 |   runs.py        — /api/runs/* lifecycle, read, messages, and SSE   |
-|   engine_adapter.py — provider selection + bridge to mock/engine   |
+|   engine_adapter/ — provider selection + bridge to mock/engine     |
 |   mock_workflow.py — deterministic offline pipeline                 |
-|   store.py       — SQLite store (runs/events/hypotheses/evidence/  |
+|   store/         — SQLite store (runs/events/hypotheses/evidence/  |
 |                    citations/matches/reviews/reports/safety)       |
 |   elo.py         — pure Elo helpers (initial=1200, configurable K) |
 |   safety.py      — intake + final regex-based gate                 |
