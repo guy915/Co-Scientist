@@ -1,0 +1,77 @@
+"""Tests for provider selection in ``app.engine_adapter.provider``.
+
+Covers the ``select_provider`` branches beyond the ``COSCIENTIST_FORCE_MOCK``
+short-circuit (already exercised everywhere via the autouse ``isolated_db``
+fixture), the ``_engine_importable`` exception fallback, and the module-level
+sibling-engine sys.path bridging that runs at import time.
+"""
+
+from __future__ import annotations
+
+import importlib
+import importlib.util
+import os
+import sys
+
+import pytest
+
+from app.engine_adapter import provider
+
+
+def test_engine_importable_returns_false_on_exception(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _boom(name: str) -> None:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(importlib.util, "find_spec", _boom)
+    assert provider._engine_importable() is False
+
+
+def test_select_provider_mock_when_no_provider_key(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    monkeypatch.setattr(provider, "_has_provider_key", lambda: False)
+    assert provider.select_provider() == "mock"
+
+
+def test_select_provider_mock_when_engine_not_importable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    monkeypatch.setattr(provider, "_has_provider_key", lambda: True)
+    monkeypatch.setattr(provider, "_engine_importable", lambda: False)
+    assert provider.select_provider() == "mock"
+
+
+def test_select_provider_returns_engine_when_available(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    monkeypatch.setattr(provider, "_has_provider_key", lambda: True)
+    monkeypatch.setattr(provider, "_engine_importable", lambda: True)
+    assert provider.select_provider() == "engine"
+
+
+def test_missing_engine_src_gets_added_to_syspath_on_import(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The module-level sys.path bridge fires when the src dir is absent.
+
+    In this checkout the editable install's .pth file already puts the
+    sibling engine's src on sys.path before provider.py's own manual insert
+    runs, so that line is otherwise unreachable. Removing the entry and
+    reloading the module reproduces the "not yet on sys.path" case the
+    bridge exists for.
+    """
+    engine_src = provider._engine_src
+    assert os.path.isdir(engine_src), "test assumes a local engine checkout"
+
+    trimmed = [p for p in sys.path if p != engine_src]
+    monkeypatch.setattr(sys, "path", trimmed)
+    assert engine_src not in sys.path
+
+    importlib.reload(provider)
+
+    assert engine_src in sys.path
