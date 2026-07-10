@@ -213,9 +213,12 @@ def redact_hypothesis_fields(
         )
 
 
-# Shared hypothesis + mutable-state projection. `add_hypothesis` always inserts
-# the state row, so the joined columns are COALESCE'd to their column defaults
-# and consumers can rely on them being non-null.
+# Shared hypothesis + mutable-state projection. `add_hypothesis` always
+# inserts the state row, and the tournament counters are additionally
+# COALESCE'd to their defaults as a guard, so consumers can rely on
+# elo_rating/win_count/loss_count being non-null. The remaining state
+# columns are selected raw and stay nullable (e.g. novelty_score before
+# any review lands), so consumers must handle None for those.
 _HYP_SELECT = (
     f"SELECT h.*, COALESCE(s.elo_rating, {INITIAL_ELO}) AS elo_rating, "
     "COALESCE(s.win_count, 0) AS win_count, "
