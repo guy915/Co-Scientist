@@ -16,105 +16,52 @@ Endpoints:
 - GET    /api/runs/{id}/report            structured report payload (latest)
 - GET    /api/runs/{id}/report.md         rendered Markdown report
 
-The router maintains a per-run cancellation event in `_active`. Streams are
-backed by the persisted event log so they survive client reconnects and full
-backend restarts.
+The router maintains a per-run cancellation event in `_active` (defined in
+``runs_registry``). Streams are backed by the persisted event log so they
+survive client reconnects and full backend restarts. Request models and SSE
+streaming helpers live in ``runs_models`` and ``runs_events`` respectively, and
+are re-exported here so the ``app.runs.<name>`` import paths stay stable.
 """
 # pylint: disable=inconsistent-quotes
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import sqlite3
-from collections.abc import AsyncGenerator
 from typing import Any
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
-from pydantic import BaseModel, Field
 
 from app import engine_adapter, qa, store
-from app.run_modes import (
-    CANONICAL_RUN_MODE,
-    RUN_FOCUS_PATTERN,
-    RUN_TIER_PATTERN,
-    normalize_run_focus,
-    normalize_run_tier,
-    resolved_run_config,
-    setup_config,
+from app.run_modes import CANONICAL_RUN_MODE
+from app.runs_events import _drain_tick_frames as _drain_tick_frames
+from app.runs_events import _event_stream as _event_stream
+from app.runs_events import _resolve_tick_terminal as _resolve_tick_terminal
+from app.runs_events import _should_skip_tick as _should_skip_tick
+from app.runs_events import _stream_live_tail as _stream_live_tail
+from app.runs_events import _terminal_frame as _terminal_frame
+from app.runs_events import (
+    _terminal_status_from_event as _terminal_status_from_event,
 )
-from app.store import TERMINAL_STATUSES, RunRow, RunStatus
+from app.runs_events import (
+    _terminal_status_from_run as _terminal_status_from_run,
+)
+from app.runs_models import AskRequest as AskRequest
+from app.runs_models import CreateRunRequest as CreateRunRequest
+from app.runs_models import SendMessageRequest as SendMessageRequest
+from app.runs_models import StartRunRequest as StartRunRequest
+from app.runs_models import _build_create_run_config as _build_create_run_config
+from app.runs_models import (
+    _run_overrides_from_request as _run_overrides_from_request,
+)
+from app.runs_registry import _active as _active
+from app.runs_registry import _active_lock as _active_lock
+from app.runs_registry import _RunHandle as _RunHandle
+from app.store import RunRow, RunStatus
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/runs", tags=["runs"])
-
-# ---------------------------------------------------------------------------
-# Active run registry (cancellation + new-event signalling per process)
-# ---------------------------------------------------------------------------
-
-
-class _RunHandle:
-    """Per-run handle tracking cancellation and new-event signalling."""
-
-    def __init__(self) -> None:
-        # Set by /cancel; the workflow checks it between steps and stops.
-        self.cancelled = asyncio.Event()
-        # Pulsed by the runner after each workflow event so in-process SSE
-        # streams can wake immediately instead of waiting out a poll tick.
-        self.new_event = asyncio.Event()
-
-
-# In-memory registry of workflows running in THIS process. Presence of a
-# run_id doubles as the "already active" guard in start_run; entries are
-# removed in the runner's finally block. After a restart the map is empty,
-# which is why reconcile_interrupted_runs exists on the store side.
-_active: dict[str, _RunHandle] = {}
-_active_lock = asyncio.Lock()
-
-# ---------------------------------------------------------------------------
-# Request / response models
-# ---------------------------------------------------------------------------
-
-
-class CreateRunRequest(BaseModel):
-    """Body for POST /api/runs; everything but the goal is optional."""
-
-    research_goal: str = Field(..., min_length=1)
-    # Free-form planning guidance lists; defaults are filled by setup_config
-    # when omitted (direct API calls, seeded demos).
-    requirements: list[str] | None = None
-    attributes: list[str] | None = None
-    criteria: list[str] | None = None
-    # Regex-validated enums; invalid values are rejected with a 422 here,
-    # while None falls through to normalize_run_* defaults.
-    focus: str | None = Field(None, pattern=RUN_FOCUS_PATTERN)
-    tier: str | None = Field(None, pattern=RUN_TIER_PATTERN)
-    # Numeric knobs override the tier defaults (see resolved_run_config).
-    initial_hypotheses_count: int | None = None
-    max_iterations: int | None = None
-    evolution_max_count: int | None = None
-    k_factor: int | None = None
-    enable_literature_review: bool | None = None
-
-
-class StartRunRequest(BaseModel):
-    """Body for POST /api/runs/{id}/start; optional provider override."""
-
-    force_provider: str | None = Field(None, pattern="^(mock|engine)$")
-
-
-class SendMessageRequest(BaseModel):
-    """Body for POST /api/runs/{id}/messages (steering)."""
-
-    content: str = Field(..., min_length=1)
-
-
-class AskRequest(BaseModel):
-    """Body for POST /api/runs/{id}/messages/ask (Q&A)."""
-
-    question: str = Field(..., min_length=1)
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -151,64 +98,6 @@ def _require_run(run_id: str) -> None:
 def _client_id(request: Request) -> str:
     """Return the caller's client id from the X-Client-ID header."""
     return request.headers.get("X-Client-ID", "")
-
-
-def _run_overrides_from_request(
-    req: CreateRunRequest, *, focus: str, tier: str, setup: dict[str, Any]
-) -> dict[str, Any]:
-    """Build the ``resolved_run_config`` overrides for a create-run request.
-
-    Only explicitly-sent numeric knobs become overrides; absent fields keep
-    the tier defaults applied by ``resolved_run_config``.
-
-    Args:
-        req: The validated create-run request body.
-        focus: The normalized research focus for this run.
-        tier: The normalized run tier for this run.
-        setup: The durable planning block persisted inside config_json.
-
-    Returns:
-        The overrides dict to pass to ``resolved_run_config``.
-    """
-    overrides: dict[str, Any] = {
-        "tier": tier,
-        "focus": focus,
-        "setup": setup,
-    }
-    # Only explicitly-sent knobs become overrides; each (key, value) pair
-    # is dropped when the request left the field unset.
-    numeric_overrides: tuple[tuple[str, Any], ...] = (
-        ("initial_hypotheses_count", req.initial_hypotheses_count),
-        ("max_iterations", req.max_iterations),
-        ("evolution_max_count", req.evolution_max_count),
-        ("k_factor", req.k_factor),
-        ("enable_literature_review", req.enable_literature_review),
-    )
-    for key, value in numeric_overrides:
-        if value is not None:
-            overrides[key] = value
-    return overrides
-
-
-def _build_create_run_config(
-    req: CreateRunRequest,
-) -> tuple[dict[str, Any], str, str]:
-    """Resolve a create-run request into its (config, focus, tier) triple."""
-    focus = normalize_run_focus(req.focus)
-    tier = normalize_run_tier(req.tier)
-    # `setup` is the durable planning block persisted inside config_json.
-    setup = setup_config(
-        research_goal=req.research_goal,
-        requirements=req.requirements,
-        attributes=req.attributes,
-        criteria=req.criteria,
-        focus=focus,
-        tier=tier,
-    )
-    overrides = _run_overrides_from_request(
-        req, focus=focus, tier=tier, setup=setup
-    )
-    return resolved_run_config(overrides), focus, tier
 
 
 @router.post("")
@@ -417,191 +306,6 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # SSE events
 # ---------------------------------------------------------------------------
-
-
-def _terminal_frame(status: str, seq: int) -> str:
-    """Format the synthetic ``_terminal`` SSE frame that ends a stream.
-
-    This frame is never persisted; it only tells clients to close.
-    """
-    return qa.sse_frame(
-        {"type": "_terminal", "payload": {"status": status}, "seq": seq}
-    )
-
-
-async def _should_skip_tick(handle: _RunHandle | None, tick: int) -> bool:
-    """Wait out one poll tick and report whether to skip the store query.
-
-    Wakes early on the producer's pulse; the event is cleared before
-    returning so a set that races this wait is caught next iteration. With
-    an in-process producer, every appended event sets `new_event`, so a
-    timed-out wait means nothing was written -- skip the query, except on
-    the every-10th-tick terminal-status safety net.
-
-    Args:
-        handle: In-process run handle, or None when this process is not the
-            producer (falls back to plain fixed-interval polling and never
-            skips).
-        tick: The current tick index within the streaming loop.
-
-    Returns:
-        True if this tick's event query should be skipped.
-    """
-    if handle is None:
-        await asyncio.sleep(0.5)
-        return False
-    try:
-        await asyncio.wait_for(handle.new_event.wait(), timeout=0.5)
-        handle.new_event.clear()
-        return False
-    except asyncio.TimeoutError:
-        return tick % 10 != 9
-
-
-def _terminal_status_from_event(ev: dict[str, Any]) -> str | None:
-    """Return the terminal run status carried by a status event, if any."""
-    if ev["type"] != "status":
-        return None
-    payload = ev.get("payload") or {}
-    status = payload.get("status")
-    if isinstance(status, str) and status in TERMINAL_STATUSES:
-        return status
-    return None
-
-
-def _terminal_status_from_run(run_id: str) -> str | None:
-    """Return the run's current status if it has reached a terminal state."""
-    current = store.get_run(run_id)
-    if current and current.status in TERMINAL_STATUSES:
-        return current.status
-    return None
-
-
-def _resolve_tick_terminal(
-    terminal_status: str | None, run_id: str, tick: int
-) -> str | None:
-    """Resolve this tick's terminal status, falling back to the safety net.
-
-    A terminal transition normally rides on a new event (all workflow paths
-    append a `status` event), so ticks without one skip the run-row query;
-    the every-10th tick check covers terminal writes that append no event.
-
-    Args:
-        terminal_status: Terminal status already found among this tick's
-            events, if any.
-        run_id: Identifier of the run being streamed.
-        tick: The current tick index within the streaming loop.
-
-    Returns:
-        The terminal status to end the stream on, or None to keep polling.
-    """
-    if terminal_status is not None:
-        return terminal_status
-    if tick % 10 == 9:
-        return _terminal_status_from_run(run_id)
-    return None
-
-
-def _drain_tick_frames(
-    run_id: str,
-    last_seq: int,
-) -> tuple[int, str | None, list[str]]:
-    """Fetch and format one tick's new events for `_stream_live_tail`.
-
-    No `await` separates one event's formatting from the next in the
-    original inline loop, so collecting frames here and yielding them from
-    the caller afterward produces the same frames in the same order.
-
-    Args:
-        run_id: Identifier of the run being streamed.
-        last_seq: Highest sequence number already yielded.
-
-    Returns:
-        A ``(last_seq, terminal_status, frames)`` tuple: the updated highest
-        sequence number, the terminal run status carried by these events (if
-        any), and the SSE frames to yield in order.
-    """
-    new_events = store.list_events(run_id, after_seq=last_seq)
-    frames: list[str] = []
-    terminal_status: str | None = None
-    for ev in new_events:
-        last_seq = ev["seq"]
-        frames.append(qa.sse_frame(ev))
-        terminal_status = _terminal_status_from_event(ev) or terminal_status
-    return last_seq, terminal_status, frames
-
-
-async def _stream_live_tail(
-    run_id: str,
-    request: Request,
-    handle: _RunHandle | None,
-    last_seq: int,
-) -> AsyncGenerator[str, None]:
-    """Poll and yield live SSE frames after replay, until terminal or gone.
-
-    Polls the store; the in-process handle's `new_event` cuts latency when
-    this process is the producer. Caps with a wall-clock so a stale
-    connection doesn't hang forever.
-
-    Args:
-        run_id: Identifier of the run being streamed.
-        request: Incoming HTTP request, used to detect client disconnects.
-        handle: In-process run handle, or None when this process is not the
-            producer (falls back to plain fixed-interval polling).
-        last_seq: Highest sequence number already yielded by replay.
-
-    Yields:
-        SSE-formatted frame strings, ending with a synthetic `_terminal`
-        frame once the run reaches a terminal status.
-    """
-    for tick in range(10_000):  # 10k * 0.5s = ~83 minutes max stream
-        if await request.is_disconnected():
-            return
-
-        if await _should_skip_tick(handle, tick):
-            continue
-
-        last_seq, terminal_status, frames = _drain_tick_frames(run_id, last_seq)
-        for frame in frames:
-            yield frame
-
-        terminal_status = _resolve_tick_terminal(terminal_status, run_id, tick)
-        if terminal_status is not None:
-            yield _terminal_frame(terminal_status, last_seq)
-            return
-
-
-async def _event_stream(
-    run_id: str,
-    request: Request,
-    after: int,
-    run: RunRow,
-) -> AsyncGenerator[str, None]:
-    """Yield SSE frames: full replay from `after`, then a live tail.
-
-    Clients reconnect with ?after= set to their last seen seq, so replay is
-    idempotent and gap-free.
-    """
-    last_seq = after
-
-    # Replay historical events first.
-    history = store.list_events(run_id, after_seq=last_seq)
-    for ev in history:
-        last_seq = ev["seq"]
-        yield qa.sse_frame(ev)
-
-    # If terminal already, send a final marker and return.
-    if run.status in TERMINAL_STATUSES:
-        yield _terminal_frame(run.status, last_seq)
-        return
-
-    # Handle is present only when this process runs the workflow; other
-    # processes (or post-restart streams) fall back to pure polling.
-    async with _active_lock:
-        handle = _active.get(run_id)
-
-    async for frame in _stream_live_tail(run_id, request, handle, last_seq):
-        yield frame
 
 
 @router.get("/{run_id}/events")

@@ -10,6 +10,7 @@ Goals:
 from __future__ import annotations
 
 import enum
+import logging
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
@@ -18,6 +19,8 @@ from typing import Any
 from app import store
 from app.config import settings
 from app.store import RunStatus
+
+logger = logging.getLogger(__name__)
 
 
 class SafetyMode(str, enum.Enum):
@@ -192,6 +195,20 @@ async def apply_safety_gate(
         result.matches,
         db_path=db_path,
     )
+    if result.decision == "block":
+        logger.warning(
+            "Safety gate blocked run %s at %s stage: %s",
+            run_id,
+            result.stage,
+            result.reason,
+        )
+    else:
+        logger.info(
+            "Safety gate %s run %s at %s stage.",
+            result.decision,
+            run_id,
+            result.stage,
+        )
     yield await emit(f"safety.{result.stage}", result.to_dict())
     if result.decision == "block":
         store.update_run_status(
