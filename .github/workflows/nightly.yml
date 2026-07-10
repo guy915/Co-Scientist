@@ -1,0 +1,20 @@
+# Scheduled comprehensive pass — the continuous-build analog to the
+# presubmit in ci.yml. Reuses the CI workflow verbatim; because the event is
+# `schedule` (not `pull_request`), the affected-targets filter selects
+# everything and every job runs. See docs/CI.md.
+name: Nightly
+
+on:
+  schedule:
+    # Daily at 06:17 UTC. Off the hour on purpose: GitHub delays or drops
+    # cron jobs scheduled at high-load round times.
+    - cron: '17 6 * * *'
+  # Manual trigger for re-running the full pass on demand.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-suite:
+    uses: ./.github/workflows/ci.yml

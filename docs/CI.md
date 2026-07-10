@@ -1,0 +1,188 @@
+# CI: a Google-style presubmit/postsubmit pipeline on GitHub Actions
+
+This repo's CI (`.github/workflows/ci.yml` and `nightly.yml`) reproduces
+Google's *publicly documented* engineering-productivity practices where they
+translate to a small GitHub-hosted project, and honestly labels everything
+that is an adaptation or is not replicated at all.
+
+Sources referenced throughout:
+
+- [Software Engineering at Google, ch. 23 "Continuous Integration"](https://abseil.io/resources/swe-book/html/ch23.html)
+- [Software Engineering at Google, ch. 11 "Testing Overview"](https://abseil.io/resources/swe-book/html/ch11.html)
+- [Test Sizes (Google Testing Blog)](https://testing.googleblog.com/2010/12/test-sizes.html)
+- [Flaky Tests at Google and How We Mitigate Them (Google Testing Blog)](https://testing.googleblog.com/2016/05/flaky-tests-at-google-and-how-we-mitigate-them.html)
+- [Google Engineering Practices](https://google.github.io/eng-practices/)
+- [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)
+- Google-org OSS workflows this pipeline patterns itself on:
+  [abseil/abseil-py `test.yml`](https://github.com/abseil/abseil-py/blob/main/.github/workflows/test.yml),
+  [googleapis/google-cloud-python `lint.yml` / `unittest.yml`](https://github.com/googleapis/google-cloud-python/tree/main/.github/workflows)
+  (whose PR jobs are literally labeled "presubmit"),
+  [google/adk-python `continuous-integration.yml`](https://github.com/google/adk-python/blob/main/.github/workflows/continuous-integration.yml)
+
+## The model
+
+| Google concept | Here |
+|---|---|
+| Presubmit (blocking, fast, reliable) | `ci.yml` on `pull_request`: path-filtered jobs, superseded runs cancelled |
+| Postsubmit (comprehensive) | `ci.yml` on `push` to `main`: every job runs, no path filters, runs never cancelled |
+| Continuous build (scheduled full pass) | `nightly.yml` (cron, 06:17 UTC) calls `ci.yml` via `workflow_call`; also `workflow_dispatch` for on-demand full passes |
+
+SWE book ch. 23 defines presubmit as "fast and reliable" checks gating merge,
+with "slower or less deterministic" comprehensive testing moved to
+postsubmit. This project's full suite is small enough (~3 minutes end to end)
+that presubmit and postsubmit run the *same commands*; the split that remains
+meaningful at this scale is (a) presubmit is path-filtered and cancellable,
+(b) postsubmit runs everything on every main commit and keeps every result
+for culprit-finding, and (c) the nightly pass catches breakage that arrives
+without a commit (dependency drift, runner image changes).
+
+## Choice-by-choice mapping
+
+### Hermeticity: no external network in any blocking job
+
+Test Sizes / ch. 11: small and medium tests get no external network access —
+that is what makes them deterministic and trustworthy as merge gates.
+
+- Engine tests: pure unit/graph tests, LLM calls mocked (961 tests, ~12 s).
+- App tests: `COSCIENTIST_TEST_MODE=1` forces the deterministic mock
+  workflow provider; no model API keys exist in CI.
+- MCP server tests: fake `httpx` clients, no network (see
+  `engine/mcp_server/tests/test_openalex.py` docstring).
+- Evaluations: `evaluations.smoke` is by construction the *offline* (no-LLM,
+  no-network) subset; the expensive provider-backed suites stay opt-in and
+  are not in CI.
+- Verified locally by running the app suite with a scrubbed environment
+  (`env -i`, no `.env` file present): 231 passed.
+
+The only network CI uses is fetching the repo, actions, and packages
+(PyPI/npm registry via bun) — infrastructure, not test traffic.
+
+### Flake policy: no auto-retries; quarantine and track
+
+The flaky-tests post describes Google's mitigation as detecting, tracking,
+and *quarantining* flaky tests — not blanket re-running. Accordingly:
+
+- No `retry` wrappers, no `--reruns`, no marketplace retry actions anywhere
+  in the workflows.
+- If a test flakes: (1) open an issue, (2) quarantine it with a skip marker
+  referencing the issue (`@pytest.mark.skip(reason="flaky: #NN")` /
+  `it.skip`), (3) fix or delete. A flaky test that blocks unrelated merges
+  is worse than a missing test, but a silently retried test is worst of all:
+  it converts a real signal into noise.
+- `fail-fast: false` on the engine matrix supports this: both interpreter
+  runs always report, so a flake is attributable to a version instead of
+  being masked by a cancelled sibling.
+
+### Style enforced by tooling, not review
+
+google.github.io/eng-practices: reviewers should not argue about style;
+the style guide + autoformatter are the authority (the Python style guide
+itself defers formatting to the formatter). Here:
+
+- `format-lint` runs `ruff format --check` + `ruff check` (Google-ish config
+  already in each `pyproject.toml`: 80 columns, pydocstyle `google`
+  convention).
+- The frontend runs `gts lint` — Google TypeScript Style, literally.
+- ruff is pinned exactly (`ruff==0.15.21`) in CI so a formatter release
+  cannot flip presubmit red on an unrelated change; bump it deliberately.
+
+### Typecheck is blocking
+
+`mypy --strict` (per-project config) over `engine/`, `app/`, and
+`evaluations/` is a blocking presubmit job. The root Makefile previously ran
+the app typecheck with `|| true`; that escape hatch was removed in the same
+change that added CI, so `make typecheck` and the CI job agree.
+
+### Patterns lifted from Google-org OSS workflows
+
+| Pattern | Source example | Here |
+|---|---|---|
+| Separate lint / type / test jobs, one concern per job | googleapis `lint.yml` + `unittest.yml` | `format-lint`, `typecheck`, `test-engine`, `test-app`, `evaluations`, `frontend`, `mcp-server` |
+| `fail-fast: false` matrix over interpreter versions | abseil-py `test.yml` | `test-engine` on 3.10 + 3.12 |
+| Per-job `timeout-minutes` | adk-python `continuous-integration.yml` | every job (5–20 min) |
+| Concurrency group cancelling superseded runs | adk-python | `concurrency:` with `cancel-in-progress` only for `pull_request` |
+| Path filters as affected-targets approximation | (adaptation, see below) | `changes` job with `dorny/paths-filter` |
+
+### Interpreter versions
+
+Python 3.12 is the primary version for every job (it is what `make setup`
+prefers and what production containers run). Two floors are covered where
+they differ: the engine also runs on 3.10 (its `requires-python` floor), and
+the MCP server runs on 3.12 (its own floor — the package requires >=3.12).
+
+## Adaptations (honest divergences)
+
+- **Path filtering is a crude approximation of affected-target selection.**
+  Google computes the affected set from the Bazel build graph; we declare
+  the dependency edges by hand as path globs (`app` depends on `engine`;
+  `evaluations` depends on nearly everything because the parity ledger cites
+  evidence files across `engine/`, `app/`, and the frontend). Filtering
+  happens at the job level rather than `on.paths` so skipped jobs still
+  report a `skipped` conclusion, which branch protection counts as passing —
+  workflow-level `paths:` would leave required checks pending forever.
+- **Presubmit and postsubmit run the same commands.** At Google, postsubmit
+  runs strictly more (larger tests, more targets). This suite has no
+  slower tier yet — the split here is filters/cancellation vs. full/kept.
+  If a genuinely slow suite appears (e.g. provider-backed evaluations), it
+  belongs in `nightly.yml`, not presubmit.
+- **`bun install` and `pip install` fetch from registries.** Google builds
+  are hermetic down to vendored/pinned toolchains. We pin the lockfile
+  (`--frozen-lockfile`), the interpreter versions, bun (`1.3.14`), and ruff,
+  and cache on `bun.lock` — but the registry fetch itself is trusted.
+- **`ubuntu-latest` is a floating runner image.** A fully hermetic setup
+  would pin a container image. Accepted for simplicity; the nightly pass is
+  the canary that catches image drift.
+- **Presubmit runs on the PR merge ref** (GitHub's default `pull_request`
+  behavior), which approximates but does not guarantee testing against
+  current head of `main` at merge time. See merge queue, below.
+
+## Not replicated (internal-scale machinery)
+
+- **TAP** (Test Automation Platform): millions of tests, continuous
+  build-and-test at head, culprit finding. Nothing at this scale exists or
+  is needed; per-commit postsubmit is the miniature version.
+- **Bazel affected-target selection**: replaced by hand-written path
+  filters, above.
+- **Merge queue / submit queue**: GitHub's merge queue is the platform
+  analog (it tests PRs against the queued future state of `main`). Not
+  configured — single-digit merge volume makes "Require branches to be up
+  to date" (below) sufficient. Revisit if merge volume grows.
+- **Green-head sync** (developers sync to a known-green changelist): no
+  platform equivalent on GitHub; the postsubmit badge on `main` is the
+  informal substitute.
+- **Flake-bot automation** (automatic quarantine, flakiness scoring):
+  replaced by the manual quarantine-and-track procedure above.
+
+## Recommended branch protection (not configured by CI)
+
+For `main` (Settings → Branches → Add rule), recommend:
+
+- Require status checks to pass before merging, with these required checks:
+  - `Format and lint (ruff)`
+  - `Typecheck (mypy, strict)`
+  - `Engine tests (py3.10)` and `Engine tests (py3.12)`
+  - `App tests`
+  - `Evaluations (parity + offline smoke)`
+  - `Frontend (lint + test + build)`
+  - `MCP server tests`
+  (Jobs skipped by the path filter report `skipped`, which satisfies these.)
+- Require branches to be up to date before merging — the small-scale stand-in
+  for testing against head; at higher merge volume switch to a merge queue.
+- Require a pull request before merging (no direct pushes to `main`).
+- Optionally: require linear history, to keep postsubmit results 1:1 with
+  merges.
+
+Deliberately out of scope for CI: deployments. Railway (API/MCP) and Vercel
+(frontend) deploys stay manual.
+
+## Maintenance notes
+
+- Every command CI runs is also runnable locally (`make lint`,
+  `make typecheck`, `make test-engine`, `make test-app`, `make parity`,
+  `make eval-smoke`, `bun run lint|test|build`); CI encodes the same
+  commands directly rather than shelling to make, so a Makefile refactor
+  can't silently change the gate.
+- Version pins to bump deliberately: `ruff==0.15.21` (ci.yml), bun `1.3.14`
+  (ci.yml), action tags (`actions/checkout@v7`, `actions/setup-python@v6`,
+  `actions/cache@v6`, `oven-sh/setup-bun@v2`, `dorny/paths-filter@v4`).
+  Hardening option: pin actions to commit SHAs instead of tags.
