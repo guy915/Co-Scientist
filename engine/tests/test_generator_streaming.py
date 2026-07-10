@@ -140,6 +140,8 @@ def test_build_stream_state_dict_serializes_hypotheses_and_articles() -> None:
         tournaments_count=3,
         evolutions_count=4,
         llm_calls=5,
+        total_time=6.5,
+        phase_times={"generate": 1.25},
     )
 
     result = _build_stream_state_dict(cumulative)
@@ -153,6 +155,8 @@ def test_build_stream_state_dict_serializes_hypotheses_and_articles() -> None:
         "tournaments_count": 3,
         "evolutions_count": 4,
         "llm_calls": 5,
+        "total_time": 6.5,
+        "phase_times": {"generate": 1.25},
     }
 
 
