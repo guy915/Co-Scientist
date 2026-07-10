@@ -1,0 +1,210 @@
+<!--
+  PARITY LEDGER — machine-checkable. Format contract (do not break):
+  Each requirement is a table row with columns:
+  | ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+  Status is exactly one of: missing | partial | verified | external | undisclosed
+  A `verified` row MUST name at least one test/eval in the Test/Eval column
+  (a path, a `pytest`/`vitest` nodeid, or an evaluations/ artifact). The parity
+  checker (evaluations/parity_check.py) parses this file and fails if a
+  `verified` row has an empty/`—` Test/Eval cell, if a backtick-quoted evidence
+  path/glob/nodeid does not resolve to a file under the repo root (with the
+  named test defined, for `.py` nodeids), or if any data row's column count
+  differs from its header (a literal `|` inside a cell). See the checker for
+  the exact rules; keep the table pipes and the status vocabulary stable.
+-->
+
+# Parity Ledger — Published-Behavior Parity with Google AI Co-Scientist
+
+This ledger is the authoritative requirement-level record for the parity work
+described in `PLAN.md`. Each row traces one publicly documented behavior to its
+implementation and its automated evidence.
+
+**Source hierarchy** (per `PLAN.md`): primary Google/Nature sources win, then
+`references/core/google-co-scientist/source-system-reference.md` (the canonical
+local consolidation, cited below as *SSR*) and the reference corpus, then the
+running code, then explanatory docs.
+
+**Status vocabulary**
+
+- `verified` — behavior implemented and proven by a named automated test/eval.
+- `partial` — some of the behavior exists; a concrete gap remains (owned by a
+  milestone).
+- `missing` — not yet implemented (owned by a milestone).
+- `external` — depends on unavailable external access, private Google data,
+  expert review, or wet-lab work; cannot be closed locally. The exact blocker
+  and the command that would verify it later are recorded.
+- `undisclosed` — Google did not publish the detail; implemented as a
+  documented, configurable clone decision. Not presented as Google's design.
+
+**Invariant class**
+
+- **PAPER** — an invariant the Nature paper / SSR states explicitly. Hard
+  requirement.
+- **CLONE** — a design choice Google left unspecified; we pick a conservative,
+  configurable default and document it.
+- **PRODUCT** — a behavior documented for the current Gemini Enterprise / Labs
+  product surface.
+
+Rows are grouped by owning milestone. `M0` is the truth/ledger milestone
+itself.
+
+---
+
+## Legend of primary-source shorthands
+
+- **SSR §n** — `references/core/google-co-scientist/source-system-reference.md`, section n.
+- **TE §n** — `references/core/google-co-scientist/tournament-evolution-and-evaluation-criteria.md`.
+- **ARCH §n** — `references/core/google-co-scientist/system-architecture-and-orchestration.md`.
+- **RGV §n** — `references/core/google-co-scientist/retrieval-grounding-and-verification.md`.
+- **Nature** — Gottweis et al., *Towards an AI co-scientist* (Nature 2026 / arXiv 2502.18864).
+
+---
+
+## M0 — Truth, baseline, ledger
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| M0-LEDGER-001 | PLAN.md | A requirement-level parity ledger with stable IDs and a CI checker that fails on unproven `verified` rows | `docs/PARITY.md` (this file); `evaluations/parity_check.py` | `evaluations/tests/test_parity_check.py` | verified | — |
+| M0-BASELINE-001 | PLAN.md | A dated clean baseline (tests, coverage, mock run, real-smoke status) recorded before behavior change | `evaluations/results/baseline-2026-07-10.json` | `evaluations/results/baseline-2026-07-10.json` (self-describing artifact) | verified | — |
+| M0-DOCS-TRUTH-001 | PLAN.md | No doc describes intended or mock-only behavior as production-engine behavior | `docs/FIDELITY.md` corrected: citation-"gate" claim removed (now "audit label"), retired-tab surface fixed, supervisor marked not-yet-dynamic, evolution evidence updated; FIDELITY defers to PARITY.md; ARCHITECTURE/README verified honest | `evaluations/tests/test_docs_truth.py` | verified | ui-fidelity.md already self-documents retired tabs |
+
+---
+
+## M1 — Immutable evolution and complete lineage
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| ELO-INIT-1200 | PAPER — SSR §4 (Ranking), TE §3 | Every newly added hypothesis starts at Elo 1200 | `engine/src/co_scientist/constants.py` `INITIAL_ELO_RATING = 1200`; `models.py` `Hypothesis.elo_rating` default | `engine/tests/test_integration_pipeline.py` (asserts `INITIAL_ELO_RATING`) | verified | — |
+| EVO-IMMUTABLE-001 | PAPER — SSR §4 (Evolution), §12; TE §5 | Evolution generates NEW hypotheses; it never modifies or replaces existing ones | `nodes/evolve_results.py::_build_evolution_child` constructs an immutable child; `evolve_node` returns `AppendHypotheses(children)`, parents untouched | `engine/tests/test_evolve.py`; `engine/tests/test_integration_pipeline.py::test_evolve_path_appends_immutable_children` | verified | — |
+| EVO-LINEAGE-001 | PAPER — TE §5 (`parent_ids`); ARCH §5 (`hypotheses.parent_ids`, `origin_agent`) | Each hypothesis records parent lineage, generation, and origin | Engine `Hypothesis.parent_id/generation/origin/creation_iteration` (`models.py`); drain reads explicit lineage (`engine_adapter/drain.py::_derive_hypothesis_identity`) into store `hypotheses` | `engine/tests/test_models.py::test_hypothesis_lineage_round_trips`; `app/tests/test_engine_drain.py::test_drain_persists_explicit_lineage` | verified | — |
+| EVO-COMPETE-001 | PAPER — SSR §4, §12 | Every accepted child is reviewed before ranking and re-enters the tournament at Elo 1200 with zero matches | Children are fresh objects (Elo 1200, 0 matches, empty reviews) appended; graph edge `evolve → review → ranking` reviews them | `engine/tests/test_integration_pipeline.py::test_single_iteration_pipeline_updates_cross_node_state` (children reviewed ≥1 before ranking, both compete) | verified | — |
+| EVO-NOOP-001 | CLONE (from PAPER intent) | A rejected/no-op evolution creates no fake child | `_apply_evolution_result` returns `(None, None)` on unchanged/near-duplicate refinement | `engine/tests/test_evolve.py::test_evolution_noop_produces_no_child`, `::test_unchanged_response_records_no_child_or_detail` | verified | — |
+| EVO-REDUCER-001 | PLAN.md (M1.3) | State reducer uses explicit append/update/prune, not an identity/text heuristic, so a child cannot replace a parent or resurrect a pruned duplicate | `state.py::deduplicate_hypotheses` dispatches `AppendHypotheses` (append, dedup by id/text) vs bare list (replace, dedup by id) | `engine/tests/test_state_reducer.py` | verified | — |
+| EVO-LINEAGE-RESTART-001 | PAPER — SSR §2 (context memory restart) | Lineage survives store round-trip (persist → reopen) | Drain persists parent_id/generation; `store.list_hypotheses` reads them from disk on a fresh connection | `app/tests/test_engine_drain.py::test_drain_persists_explicit_lineage` (persist→reopen) | verified | Full process-restart workflow resume is owned by M4 (CKPT-*) |
+
+---
+
+## M2 — Continuous adaptive orchestration
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| SUP-DYNAMIC-001 | PAPER — SSR §3, §4 (Supervisor); ARCH §7 | Supervisor computes summary statistics and dynamically schedules/weights/samples agents | `nodes/orchestrator.py` computes stats + consults `scheduling/policy.py::decide_next_task`; `generator/graph.py` routes on the recorded decision (replaces fixed iteration-count edges) | `engine/tests/test_scheduling_policy.py`; `engine/tests/test_generator_graph.py`; `engine/tests/test_integration_pipeline.py::test_adaptive_orchestration_schedules_generation_and_records_reasons` | verified | — |
+| SUP-STATS-001 | PAPER — SSR §3 (suite of summary statistics incl. generation-vs-evolution effectiveness) | Observable stats drive resource allocation: pool size/diversity, unreviewed backlog, unsafe count, match coverage, rank stability, gen-vs-evo yield, budget, steering | `scheduling/models.py::SchedulerStats` computed in `nodes/orchestrator.py::_compute_stats` | `engine/tests/test_scheduling_policy.py` (all state branches) | verified | — |
+| SUP-TERMINATE-001 | PAPER — SSR §3 (terminal-state determination) | Terminate on explicit budget, convergence, cancellation, safety block, or satisfied criteria — with a recorded reason | `scheduling/policy.py` `TerminationReason` (budget/wall_clock/max_tasks/completed/converged/cancelled/safety); orchestrator records reason in `task_history` | `engine/tests/test_scheduling_policy.py`; `engine/tests/test_integration_pipeline.py::test_budget_exhaustion_terminates_the_run` | verified | Convergence predicate is a CLONE default (top-Elo stable N cycles after min work cycles) |
+| ORCH-DYNAMIC-ROUTE-001 | PAPER — SSR §4 (self-improving loop); ARCH §7 | Later cycles can generate in unexplored regions, evolve leaders, run appropriate Reflection strategies, refresh proximity, rank, meta-review — in response to state | Orchestrator fans out to generate/evolve(meta_review)/reflect(review)/rank/proximity/terminate; alternation schedules generation after the first tournament | `engine/tests/test_integration_pipeline.py::test_adaptive_orchestration_schedules_generation_and_records_reasons` | verified | — |
+| META-CRITIQUE-APPEND-001 | PAPER — SSR §4 (Meta-review), §12 | Meta-review critique is appended to every other agent's prompt next iteration, incl. Generation and Reflection | `_format_meta_review_context` threaded into generation (debate + after-debate + tools), reflection, review, review-batch, ranking, planning prompts; fixed missing `{{meta_review_context}}` in `generation_after_debate.md` | `engine/tests/test_meta_review_prompt_threading.py` | verified | — |
+| ORCH-BUDGET-001 | CLONE (PAPER: configurable task framework) | Compute budgets configurable by calls/tokens/time/tasks | `scheduling/models.py::Budget` (max_iterations/max_llm_calls/max_tasks/max_wall_clock_s); `HypothesisGenerator(budget=...)` | `engine/tests/test_scheduling_policy.py` (budget branches); `engine/tests/test_integration_pipeline.py::test_budget_exhaustion_terminates_the_run` | verified | — |
+| ORCH-WORKER-IFACE-001 | PLAN.md (M2.7); ARCH §3 | Define a worker interface before distributed infra; keep FastAPI-local viable; do not add Redis/Celery to imitate Google | Kept in-process LangGraph; scheduling policy is the seam a future worker would consult. No Redis/Celery introduced | `engine/tests/test_scheduling_policy.py` (policy is provider-agnostic) | undisclosed | Distributed worker pool deliberately out of scope; documented clone decision |
+
+---
+
+## M3 — Proximity graph and faithful tournament allocation
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| PROX-GRAPH-001 | PAPER — SSR §4 (Proximity agent) | A proximity graph over hypotheses (accounting for the research goal) enables clustering and efficient matchmaking | `nodes/proximity_graph.py::build_proximity_graph` builds a weighted graph (edges: similarity score, degree, cluster) with method/version/model/goal/update-time provenance; emitted in `proximity_graph` state and streamed | `engine/tests/test_proximity_graph.py` | verified | Store/API/UI persistence of the graph surfaced in M9; engine graph flows through streaming today |
+| RANK-PAIRING-001 | PAPER — SSR §4 (Ranking: match prioritization); TE §3 | Pairing favors (1) scientifically similar hypotheses (proximity) and (2) newer + top-ranked hypotheses | `nodes/ranking_matchmaking.py::build_weighted_pairings` (similarity/recency/rank/coverage weights); wired into `ranking.py::_build_tournament_pairings` | `engine/tests/test_ranking_matchmaking.py` (bias tests) | verified | — |
+| RANK-COVERAGE-001 | CLONE (PAPER: prevent starvation implicit) | Minimum match coverage / rating-uncertainty accounting; no starvation, no self/duplicate matches | Matchmaker covers under-played hypotheses first; forbids self and immediate-duplicate pairs | `engine/tests/test_ranking_matchmaking.py::test_minimum_coverage_reached_no_starvation`, `::test_no_self_or_immediate_duplicate_matches` | verified | — |
+| RANK-DEBATE-DEPTH-001 | PAPER — SSR §4, §12; TE §3 | Multi-turn scientific debate for top-ranked comparisons; single-turn for lower-ranked | `ranking.py::_matchup_debate_turns` (median-Elo threshold); `judge_matchup` runs N turns re-examining the transcript; depth persisted per match (`matches.debate_turns`) by both the engine drain (`engine_adapter/drain.py`) and the mock (`mock_workflow_phases.py::_pair_debate_turns`, same median split); surfaced in the idea detail's Match summary ("Multi-turn scientific debate (N turns)" vs "Single-turn comparison") | `engine/tests/test_ranking_debate.py`; `app/tests/test_store.py::test_match_log_records_debate_turns`; `app/tests/test_mock_workflow.py::test_mock_tournament_records_multi_turn_debates`, `::test_pair_debate_turns_splits_on_median`; `app/frontend/src/workbench/components/tabs/ideas_detail_pane.test.tsx` | verified | Full turn-by-turn transcript is retained in engine state but not yet persisted to the store/API (only the depth is); a per-turn transcript viewer remains a future enhancement |
+| RANK-K-FACTOR-001 | CLONE — TE §3 (K unspecified by Google) | Elo K-factor is a visible, configurable clone choice | `constants.py` `ELO_K_FACTOR = 24` | `engine/tests/test_ranking_elo.py` (elo update tests) | undisclosed | — |
+| PROX-INCREMENTAL-001 | PAPER — SSR §4 (asynchronous proximity) | Proximity recomputed/incrementally updated as pool grows; exposed to scheduler/reports/API/UI | Proximity refreshed each pass (scheduler routes it when the pool grows); graph streamed; cluster_id feeds the matchmaker | `engine/tests/test_proximity_graph.py`; `engine/tests/test_ranking_matchmaking.py::test_similar_hypotheses_are_preferred` | verified | — |
+
+---
+
+## M4 — Durable checkpoints and exact resume
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| CKPT-STATE-001 | PAPER — SSR §2 (context memory, restart after failure); ARCH §3 | Versioned checkpoint: workflow state, task queue, pool+lineage, proximity version, prompt/config versions, pending messages, budget, last event seq | `engine/src/co_scientist/checkpoint.py` serializes curated WorkflowState (incl. task_history/budget/proximity_graph/lineage) + last_event_seq + versions; `app/app/store/checkpoints.py` persists it | `engine/tests/test_checkpoint.py`; `app/tests/test_store_checkpoints.py` | verified | — |
+| CKPT-RESUME-001 | PAPER — SSR §2 | On restart, recover resumable runs from last committed checkpoint (not restart-from-zero); distinguish resume vs retry vs irrecoverable | The mock persists an envelope checkpoint at each iteration boundary (`mock_workflow_stages._save_iteration_checkpoint`) and `/pause` ensures one exists for any provider (`runs._ensure_resumable_checkpoint`); on startup `reconcile_interrupted_runs` splits resumable (has checkpoint) vs failed, and the auto-resume launcher (`runs.resume_interrupted_runs`) relaunches each resumable run — clearing its derived data (`store.clear_run_derived_data`) and re-running. Engine-internal *exact* state-preserving resume (conditional START on `resume=True`, `restore_workflow_state`) is proven at the engine level | `app/tests/test_resume.py::test_resume_reconstructs_identical_terminal_artifacts`, `::test_interrupted_run_is_resumable_and_completes_once`, `::test_ensure_resumable_checkpoint_makes_engine_run_resumable`; `engine/tests/test_resume_pipeline.py`; `app/tests/test_durability.py` | verified | App-level resume of a *mock* run is a deterministic reconstruction (identical terminal artifacts from the seed); an *engine* run is recoverable but re-runs (the LLM output is not reproducible), i.e. retry rather than exact continuation. The engine's exact no-recompute resume is proven engine-side but not yet driven from the app boundary (would persist the engine WorkflowState via `serialize_workflow_state`) |
+| CKPT-IDEMPOTENT-001 | PLAN.md (M4.2) | Idempotency keys so replay cannot duplicate hypotheses/reviews/matches/citations/report events | Resume clears **all** of the run's derived rows first (`store.clear_run_derived_data` deletes run_events/reports/safety/evidence/matches/reviews/citations/claim_evidence/hypotheses/hypothesis_state *explicitly*, since the SQLite FK-cascade pragma is per-connection and not enforced on later connections), so the re-run cannot duplicate any of them and exactly one report results; a checkpoint's event-seq high-water mark and the `finalize_report(resumed=True)` single-publish guard additionally protect a drain double-finalize | `app/tests/test_resume.py::test_resume_reconstructs_identical_terminal_artifacts` (asserts reviews/citations/claim_evidence/matches are all empty after clear), `::test_interrupted_run_is_resumable_and_completes_once` (one report, unique event seqs); `app/tests/test_engine_drain.py::test_resumed_finalize_does_not_double_publish` | verified | — |
+| CKPT-LIFECYCLE-001 | PRODUCT — ARCH §6 (pause/resume/abort) | Pause/resume/cancel lifecycle + events; final report published once, only after gates pass | Full lifecycle: `POST /api/runs/{id}/cancel` (-> CANCELLED), `/pause` (cooperative; ensures a resumable checkpoint for *every* provider so the run lands in PAUSED, not an unrecoverable cancel, even for the engine which does not checkpoint per iteration), `/resume` (clear + relaunch from checkpoint), each emitting a lifecycle/status event; exactly one report results because resume clears the prior report before re-running (plus the `finalize_report(resumed=True)` guard) | `app/tests/test_resume.py` (pause/resume guards, engine-pause resumability, resume completes once with one report); `app/tests/test_runs.py` (cancel); `app/tests/test_engine_drain.py::test_resumed_finalize_does_not_double_publish` | verified | Pause lands at the next checkpoint boundary (not instantaneous mid-node), matching the cooperative-cancel model |
+| CKPT-FAILINJECT-001 | PLAN.md (M4.5) | Failure-injection tests at every task boundary incl. two consecutive restarts produce identical terminal artifacts | App-level: `test_interrupted_run_is_resumable_and_completes_once` interrupts a mock run mid-iteration, reconciles it as resumable, resumes, and asserts one report + unique/monotonic event seqs (no duplicates); `test_double_resume_is_stable` proves two consecutive resume cycles yield identical terminal artifacts. Engine-level single + double restart preserve the pool | `app/tests/test_resume.py::test_interrupted_run_is_resumable_and_completes_once`, `::test_double_resume_is_stable`; `engine/tests/test_resume_pipeline.py::test_double_restart_preserves_pool_and_completes` | verified | Offline mock proof is deterministic; a credentialed real-engine kill/restart at every node boundary is future work (the real engine path itself is proven by the baseline run, EVAL evidence) |
+
+---
+
+## M5 — Claim-level grounding and publication gating
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| CITE-CLAIM-001 | PAPER — SSR §6, §7; RGV §5 | Atomic claims extracted from hypotheses/mechanisms/experiments/report; per-claim entailment/contradiction/insufficient assessment with model+prompt provenance | `claims.py` (`extract_atomic_claims` + `assess_claim`: SUPPORTS/CONTRADICTS/INSUFFICIENT with supporting/contradicting passages + assessor provenance) wired into the pipeline via `claim_grounding.py::ground_hypotheses`: the mock (after reflection) and the engine drain both extract each hypothesis's atomic claims, assess them against the run's retrieved evidence, and persist the results | `app/tests/test_claims.py`; `app/tests/test_claim_grounding.py`; `app/tests/test_runs.py::test_default_mock_run_completes_and_persists` (claim-evidence graph populated end-to-end) | verified | Deterministic lexical/contradiction assessor is a documented stand-in for Google's private NLI/entailment model + thresholds (undisclosed, see CITE-CLAIM NLI row) |
+| CITE-META-001 | PAPER — RGV §6 (Retraction Watch); ARCH §5 | Citation metadata/resolvability verified separately from claim support; retractions/unavailable/source-type/date handled | `claims.py::assess_resolvability` judges resolvable/unresolvable/retracted independently of claim support | `app/tests/test_claims.py::test_resolvability_is_independent_of_support` | verified | — |
+| CITE-GATE-001 | PAPER — SSR §1 (Safety default), §7; ARCH §8 (evidence gate) | Unsupported/contradicted fundamental claims feed back into Reflection/revision; a contradicted hypothesis cannot rank/publish; only clearly labeled speculation allowed under policy | `claims.py::publication_gate` wired via `claim_grounding.py::ground_hypotheses`: a contradicted fundamental claim drops the hypothesis from the tournament pool (mock) and, for both providers, from the report leaderboard/top-ideas (`report_render.py::_contradicted_hypothesis_ids`), recording a `claim_gate` audit row; merely unsupported claims are allowed as labeled speculation (fed back, not deleted) | `app/tests/test_claim_grounding.py::test_ground_persists_graph_and_blocks_contradicted`, `::test_contradicted_hypothesis_excluded_from_report`; `app/tests/test_claims.py` | verified | Speculation-labeling is policy-configurable; the entailment assessor is the documented deterministic clone (see CITE-CLAIM-001) |
+| CITE-GRAPH-001 | PAPER — RGV §4 (evidence graph) | Persist claim-evidence graph; expose audit trails through API/reports/Learning/idea detail | `claim_grounding.py` persists every claim's entailment edge (label + supporting/contradicting passages + assessor) to the `claim_evidence` table; exposed via `GET /api/runs/{id}/claim-evidence` (`store.list_claim_evidence`) and surfaced in the idea detail's Provenance pane | `app/tests/test_claim_grounding.py::test_ground_records_claim_evidence_round_trip`; `app/tests/test_runs.py` (endpoint); `app/frontend/src/workbench/components/tabs/ideas_detail_pane.test.tsx` | verified | Claim edges are exposed per hypothesis; a full interactive graph visualization is a future enhancement |
+| CITE-EVAL-001 | PLAN.md (M5.6) | Labeled citation/entailment eval set: precision, recall, contradiction recall, abstention, calibration; human-audited sample before thresholds | `evaluations/datasets/citation_entailment_v1.json` (synthetic, shareable) + `evaluations/citation_eval.py` (precision/recall per label, contradiction recall, abstention); result artifact under `evaluations/results/` | `evaluations/tests/test_citation_eval.py` | verified | Human-audited real corpus + threshold calibration is `external` (no annotator panel), recorded in the eval's `external_gap` |
+
+---
+
+## M6 — Layered hypothesis safety
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| SAFE-INTAKE-001 | PAPER — SSR §10; RGV §9 | Intake safety gate screens the research goal before the run | `app/app/safety.py` intake gate at `run_workflow` boundary | `app/tests/test_safety.py` | verified | — |
+| SAFE-FINAL-001 | PAPER — SSR §10 | Final-output safety gate before report publication | `app/app/safety.py` final gate in `report_render.finalize_report` | `app/tests/test_safety.py` | verified | — |
+| SAFE-PERHYP-001 | PAPER — SSR §4 (Reflection preliminary safety), §10; RGV §9 | Structured per-hypothesis safety review before tournament entry and after material evolution/revision | `hypothesis_safety.py::review_hypothesis_safety` (prohibited/dual_use/ethical/redact/uncertain/allow, policy-version provenance) wired via `hypothesis_screening.py::screen_hypotheses`: mock screens after reflection (before ranking) and again after each evolve round, dropping blocked hypotheses from the tournament pool and persisting `safety_status`; the real-engine drain screens every persisted hypothesis before the report is built; blocked outcomes are excluded from ranking/synthesis and audited (`safety_decisions`, stage `hypothesis`); `safety_status` surfaced in the idea detail's Provenance pane | `app/tests/test_hypothesis_screening.py`; `app/tests/test_engine_drain.py::test_drain_screens_hypotheses_before_finalize`, `::test_unsafe_hypothesis_excluded_from_synthesis`; `app/tests/test_hypothesis_safety.py` | verified | Rules-based reviewer is a documented clone of Google's private classifier + 1,200-goal adversarial set (undisclosed, see SAFE-ADVERSARIAL); a native engine Reflection-safety node (so the real engine's internal tournament also skips blocked hypotheses, not just the app's ranking/report exposure) is a future engine enhancement |
+| SAFE-REMOVE-001 | PAPER — SSR §1 (Safety), §10 | Blocked hypotheses removed from tournaments and synthesis with access-controlled audit record | `report_render._exclude_unsafe_hypotheses` drops blocked hypotheses from the report leaderboard/top ideas and records a `safety_decisions` (stage=hypothesis) audit row | `app/tests/test_hypothesis_safety.py`; `app/tests/test_engine_drain.py::test_unsafe_hypothesis_excluded_from_synthesis` | verified | Pre-tournament exclusion (before ranking) is the remaining wiring; synthesis exclusion + audit done |
+| SAFE-REDACT-001 | PLAN.md (M6.3) | `redact` actually redacts defined fields, or the decision is renamed to be truthful | `hypothesis_safety.py::redact_fields` replaces mechanism/experiment/experimental_context with a placeholder | `app/tests/test_hypothesis_safety.py::test_redact_fields_actually_redacts` | verified | — |
+| SAFE-UNCERTAIN-001 | PLAN.md (M6.4) | Uncertainty routes to safe abstention/manual review; quality score never overrides safety | UNCERTAIN is a blocking outcome (excluded from the tournament, flagged for manual review); safety is evaluated independent of any quality score | `app/tests/test_hypothesis_safety.py::test_uncertain_routes_to_abstention_and_blocks` | verified | — |
+| SAFE-ADVERSARIAL-SET-001 | PAPER — SSR §7 (1,200 adversarial goals, withheld) | Versioned adversarial regression set (benign near-miss, dual-use, obfuscation, prohibited, ethical, report leakage) with FP/FN analysis | `evaluations/datasets/hypothesis_safety_adversarial_v1.json` + `evaluations/safety_eval.py` (FP/FN rates, per-category) | `evaluations/tests/test_safety_eval.py` | verified | Google's 1,200-goal set is `external` (see SAFE-GOOGLE-SET-001); recorded in the eval's `external_gap` |
+| SAFE-GOOGLE-SET-001 | PAPER — SSR §7 | Google's 1,200-goal safety benchmark rejection result | Not available | request-only dataset | external | Google dataset withheld; cannot reproduce |
+
+---
+
+## M7 — Scientist-in-the-loop
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| HITL-ATTACH-001 | PAPER — SSR §3, §6 (private repository of publications) | Real attachment upload/extraction into run-scoped retrieval, with limits, safe handling, provenance, dedup, consent | `POST /api/runs/{id}/attachments` accepts a scientist document as plain text only (no binary/archive, so no extraction/zip-bomb/malware surface), size-capped (`MAX_ATTACHMENT_CHARS`), and consent-gated (422 without `consent`); it is stored as run-scoped evidence marked `source=attachment` and indexed into the private corpus, searchable via `GET /attachments/search` (`run_corpus.corpus_from_evidence` + `KeywordCorpusRetriever`) | `app/tests/test_human_input_endpoints.py::test_attachment_indexed_and_searchable`, `::test_attachment_requires_consent`, `::test_attachment_rejects_oversized_text`; `app/tests/test_run_corpus.py` | verified | Text-only by design; binary/PDF extraction (with its malware/parsing surface) and cross-run dedup are deliberately out of scope — a document is inert text, so the safe path is the whole path here |
+| HITL-CORPUS-001 | PAPER — SSR §6 | Private run corpus with keyword + vector/hybrid retrieval behind a provider interface | `app/app/run_corpus.py`: `CorpusRetriever` protocol + deterministic `KeywordCorpusRetriever` (BM25-style, offline) | `app/tests/test_run_corpus.py` | verified | Vector/hybrid backend is a documented follow-up behind the same interface |
+| HITL-STEERING-001 | PAPER — SSR §5 (steer in natural language) | Mid-run steering is a durable high-priority task consumed by the real engine at safe boundaries; shows when applied and how it changed the plan | Queued steering is flagged into the engine's `pending_steering` state (`engine_adapter/opts.py`), which the real engine's scheduler policy (`scheduling/policy.py`) treats as a high-priority request — the orchestrator schedules a GENERATE to incorporate it at the next safe boundary and clears the flag (one-shot), emitting an `orchestrator_decision` event that shows why the plan changed; the steering text is also folded into the preferences context | `engine/tests/test_orchestrator_steering.py` (consumes + clears at the boundary); `engine/tests/test_scheduling_policy.py::test_steered_state_generates` (high-priority precedence); `app/tests/test_messages.py::test_queued_steering_flags_engine_pending_steering`; `app/tests/test_integration_run_flow.py` (mock per-iteration drain) | verified | Steering present at an engine invocation is consumed at the orchestrator boundary (a safe mid-workflow point); injecting steering into an already-streaming graph without a new invocation would need a live LangGraph state channel — until then, steering queued during a run is consumed at the next invocation (e.g. after pause/resume) |
+| HITL-MANUAL-HYP-001 | PAPER — SSR §5 (contribute own hypotheses) | Scientists add hypotheses that use the same safety/review/proximity/tournament path with authorship provenance | `POST /api/runs/{id}/hypotheses` calls `human_input.admit_human_hypothesis` (the same per-hypothesis safety review, no bypass); an admitted hypothesis is persisted with `created_by_agent=scientist_manual` + `author` (new column) and screened by the shared `hypothesis_screening.screen_hypotheses`, so it carries a safety_status and joins the run's hypotheses; a blocked one is not persisted; the idea-detail Provenance pane shows the author | `app/tests/test_human_input_endpoints.py`; `app/tests/test_human_input.py` | verified | The manual hypothesis joins the persisted hypothesis pool (screened, ranked/reported alongside generated ones); dynamic mid-tournament re-entry for an already-running real-engine run is bounded by the engine's fixed graph and noted as a future engine enhancement |
+| HITL-MANUAL-REVIEW-001 | PAPER — SSR §4, §5 (expert reviews) | Scientists add reviews/verdicts/constraints/follow-up directions | `POST /api/runs/{id}/reviews` validates the verdict (support/oppose/revise) via `human_input.build_human_review` and persists it into the shared reviews table with `reviewer_agent=scientist` and the author attribution | `app/tests/test_human_input_endpoints.py::test_scientist_review_lands_in_reviews_table`, `::test_scientist_review_rejects_invalid_verdict`; `app/tests/test_human_input.py` | verified | — |
+| HITL-QA-001 | PRODUCT — SSR §5; product surface | Post-run conversational Q&A grounded only in persisted run artifacts/sources | `POST /api/runs/{id}/messages/ask` streams an answer built by `qa.build_system_prompt` strictly from the run's own hypotheses/reviews/matches/evidence manifest; the prompt instructs answering only from those artifacts (no outside knowledge, decline when unsupported) and citing only the numbered manifest; surfaced in the workbench chat (`chat_workspace_conversation.tsx`, `use_chat_session.ts`) | `app/tests/test_qa_grounding.py::test_system_prompt_enforces_grounding_only` (+ manifest tests) | verified | — |
+
+---
+
+## M8 — Reproducible scientific-quality evaluation
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| EVAL-PKG-001 | PLAN.md (M8.1) | `evaluations/` package: versioned datasets, runner config, seeds, raw results, summaries | `evaluations/` with parity_check, citation_eval, safety_eval, metrics, expert_review, smoke; `datasets/`, `results/`, `README.md` | `evaluations/tests/*` (24 tests) | verified | Token/cost accounting is added by the credentialed provider runs (external) |
+| EVAL-ELO-CALIB-001 | PAPER — SSR §7 (GPQA Elo concordance); TE §8 | Elo-vs-known-answer calibration on an appropriately licensed question set | Cannot run offline: needs a licensed known-answer corpus (e.g. GPQA) + provider credentials to bucket Elo vs accuracy | needs licensed corpus + credentials | external | Verify later: obtain a licensed known-answer set, run goals through the credentialed engine, bucket by Elo, compute per-bucket accuracy (offline diversity metric is in `evaluations/metrics.py`) |
+| EVAL-SCALING-001 | PAPER — SSR §7 (test-time compute scaling, 203 goals) | Test-time-compute curves for fixed goals and seeds | The test-time-compute *mechanism* is verified under `ORCH-BUDGET-001` (configurable budget/iterations); producing the *curves* requires many credentialed multi-iteration runs over Google's private 203-goal corpus | — | external | Blocked only on Google's undisclosed 203-goal corpus + the compute budget for the sweep; the configurable mechanism that would produce the curves is verified. Does not weaken safety/truthfulness |
+| EVAL-ABLATION-001 | PLAN.md (M8.2) | Ablations for search, debate, evolution, proximity, meta-review | Each component is independently toggleable (budget flags / nodes), verified structurally; the ablation *result data* requires credentialed comparative runs | — | external | Blocked only on the credentialed comparative runs; the toggles that make each ablation runnable exist. Does not weaken safety/truthfulness |
+| EVAL-DIVERSITY-001 | PLAN.md (M8.2) | Generation-vs-evolution yield and hypothesis-diversity metrics | `evaluations/metrics.py::hypothesis_diversity`, `generation_vs_evolution_yield` (pure, does not use engine Elo as ground truth) | `evaluations/tests/test_metrics.py` | verified | — |
+| EVAL-RECOVERY-001 | PLAN.md (M8.2) | Deterministic software/recovery benchmarks | Engine checkpoint/resume determinism benchmark | `engine/tests/test_resume_pipeline.py` | verified | — |
+| EVAL-EXPERT-SCHEMA-001 | PAPER — SSR §7 (expert eval) | Blinded expert-review export/import schema (novelty, plausibility, impact, preference) | `evaluations/expert_review.py` (blinded opaque-id export; fail-closed rating import) | `evaluations/tests/test_expert_review.py` | verified | Actual expert ratings are `external` (see EVAL-EXPERT-RESULTS-001) |
+| EVAL-EXPERT-RESULTS-001 | PAPER — SSR §7 | Expert-rated results comparable to Google's 7-expert study | Not available | needs recruited experts | external | No expert panel; cannot reproduce |
+| EVAL-WETLAB-001 | PAPER — SSR §8 (AML/fibrosis/AMR validations) | Wet-lab validation of proposals | Not available | needs wet lab | external | No lab; cannot reproduce |
+| EVAL-CI-SMOKE-001 | PLAN.md (M8.4) | Offline smoke subset runnable from one command; expensive/provider suites opt-in | `evaluations/smoke.py` + `make eval-smoke` (safety + citation offline evals with documented regression tolerances) | `evaluations/tests/*`; `python -m evaluations.smoke` | verified | — |
+
+---
+
+## Cross-cutting behaviors already present (verify, do not regress)
+
+| ID | Source | Required behavior | Implementation evidence | Test/Eval | Status | Residual gap / owner |
+|---|---|---|---|---|---|---|
+| GEN-TECHNIQUES-001 | PAPER — SSR §4 (four generation techniques) | Literature exploration, simulated debate, iterative assumptions, research expansion | All four enumerated in `nodes/generation/techniques.py::GenerationTechnique` and **all four fire in a run**: literature exploration (`generation_draft_with_tools`, when MCP is up), simulated debate (`nodes/generation/debate.py`, every run), iterative assumptions (`nodes/generation/assumptions.py`, wired into the coordinator's no-literature path so a slice of hypotheses carry `GenerationMethod.ASSUMPTIONS`), and research expansion (the orchestrator re-enters `generate` in a later cycle informed by the meta-review — `{{meta_review_context}}` in the generation prompts + `generator/graph.py` routing) | `engine/tests/test_generation_techniques.py`; `engine/tests/test_coordinator.py::test_no_lit_path_invokes_assumptions_technique` (a run produces an ASSUMPTIONS-tagged hypothesis); real DeepSeek: assumptions emits hypotheses + baseline run schedules "generate unexplored regions" in iteration 2 (`evaluations/results/gen_techniques_real.json`, `real_engine_baseline.json`, `engine_techniques_reviews_real.json`) | verified | The assumptions slice is reserved in the LLM-only path (≥4 hypotheses); research expansion is the meta-review-informed re-generation, not a one-shot prompt |
+| REFLECT-TYPES-001 | PAPER — SSR §4 (six review types) | initial, full, deep verification, observation, simulation, recurrent | All six are enumerated in `nodes/review_types.py::ReviewType`, mapped to a prompt + schema, and **all six fire in a run**: initial (`review` node, every hypothesis), observation (`reflection` node), deep verification (`deep_verification` node, top-K), recurrent (`meta_review`, every iteration), and — newly wired — full (`full_review`) and simulation (`simulation_review`) run on the top hypothesis inside `deep_verification_node::_apply_extra_review_types`, storing each result in the hypothesis's `enrichments` | `engine/tests/test_review_types.py` (enumeration + prompt/schema resolution); `engine/tests/test_deep_verification.py::test_verifies_only_top_k_by_elo` (asserts the top hypothesis receives a `full` and `simulation` review in a run); real DeepSeek calls emit valid full/simulation output (`evaluations/results/reflect_types_real_review.json`) | verified | full/simulation run on the single top hypothesis (not every one) to bound cost; extending them to more of the top-K is a tuning choice |
+| OUTPUT-CRITERIA-001 | PAPER — SSR §1 (default criteria) | Alignment, plausibility, novelty, testability, safety by default | All five default criteria are required integer score axes in `schemas/review.py` (`REVIEW_SCHEMA` + `REVIEW_BATCH_SCHEMA`): relevance (=alignment), plausibility, novelty, testability, safety — plus scientific_soundness/clarity/potential_impact; the review prompts (`review.md`, `review_batch.md`) instruct scoring all of them; `nodes/review_helpers.py` averages the scores into the overall | `engine/tests/test_schemas.py::test_review_scores_include_all_default_criteria`; real DeepSeek review call emits all five as integers (`evaluations/results/output_criteria_real_review.json`) | verified | plausibility/safety were added as scored axes (previously safety was free-text only); existing axes retained for backward compatibility |
+| OVERVIEW-NIH-001 | PAPER — SSR §4 (research overview, NIH Specific Aims) | Periodic research overview / roadmap, NIH Specific Aims format | `nodes/research_overview.py` extracts `nih_specific_aims` from a structured call whose schema (`schemas/synthesis.py::RESEARCH_OVERVIEW_SCHEMA`) requires the NIH Specific Aims page — introduction, an array of aims each with aim/rationale/approach, and an impact statement; the prompt (`prompts/templates/research_overview.md`) requests exactly that grant-appropriate format | `engine/tests/test_schemas.py::test_research_overview_enforces_nih_specific_aims_format`; `engine/tests/test_research_overview.py` | verified | — |
+| PROVENANCE-PATH-001 | PLAN.md (M9); PRODUCT | status/config endpoints + UI disclose whether a run used the real engine or mock | `app/app/main.py` `/status`, `/config`; run `provider` column | `app/tests/test_main_diagnostics.py` | verified | — |
+
+---
+
+## Notes on clone-defined vs Google-specified
+
+Google left these **undisclosed**; our choices are configurable and must never
+be presented as Google's implementation (SSR §12):
+
+- Elo **K-factor** and any annealing schedule (`RANK-K-FACTOR-001`).
+- Proximity **embedding model** / similarity method (`PROX-GRAPH-001`).
+- Supervisor exact **weights** and **termination predicates** (`SUP-*`).
+- Persistent **context-memory schema** (`CKPT-STATE-001`).
+- Citation NLI model and **thresholds** (`CITE-CLAIM-001`).
+
+The reference corpus (`ARCH`, `TE`, `RGV`) additionally proposes an entire
+implementation stack (Temporal, Celery/Redis, pgvector, specific NLI models).
+Per `PLAN.md` these are **not** treated as parity requirements: the clone keeps
+its FastAPI + LangGraph + SQLite deployment and adds only the behaviors the
+paper specifies.
