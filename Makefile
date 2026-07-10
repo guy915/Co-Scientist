@@ -202,7 +202,7 @@ lint:
 	@cd "$(ROOT)" && "$(PY)" -m ruff check evaluations
 
 typecheck:
-	@cd "$(APP)" && "$(PY)" -m mypy app/ || true
+	@cd "$(APP)" && "$(PY)" -m mypy app/
 	@cd "$(ROOT)/evaluations" && "$(PY)" -m mypy .
 
 build:
