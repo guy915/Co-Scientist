@@ -180,13 +180,30 @@ test-engine:
 test-all:
 	@$(MAKE) test-engine
 	@$(MAKE) test-app
+	@$(MAKE) parity
+
+# Parity ledger gate: fail if any `verified` row in docs/PARITY.md cites no
+# test/eval evidence or cites evidence files that do not exist on disk, plus
+# the checker's own unit tests. See docs/PARITY.md and
+# evaluations/parity_check.py.
+parity:
+	@cd "$(ROOT)" && "$(PY)" -m evaluations.parity_check
+	@cd "$(ROOT)" && "$(PY)" -m pytest evaluations/tests -q
+
+# Offline evaluation smoke suite (no LLM, no network): safety + citation evals
+# with documented regression tolerances. Expensive provider-backed suites stay
+# opt-in. See evaluations/README.md.
+eval-smoke:
+	@cd "$(ROOT)" && "$(PY)" -m evaluations.smoke
 
 lint:
 	@cd "$(APP)" && "$(PY)" -m ruff check app tests
 	@cd "$(ENGINE)" && "$(PY)" -m ruff check .
+	@cd "$(ROOT)" && "$(PY)" -m ruff check evaluations
 
 typecheck:
 	@cd "$(APP)" && "$(PY)" -m mypy app/ || true
+	@cd "$(ROOT)/evaluations" && "$(PY)" -m mypy .
 
 build:
 	@cd "$(FRONTEND)" && (command -v bun >/dev/null 2>&1 && bun run build) || npm run build

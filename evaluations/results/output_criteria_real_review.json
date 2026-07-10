@@ -1,0 +1,9 @@
+{
+  "requirement": "OUTPUT-CRITERIA-001",
+  "model": "deepseek/deepseek-chat",
+  "check": "A real structured review call emits all five SSR §1 default criteria as integer scores",
+  "hypothesis": "Combining osimertinib with a CDK4/6 inhibitor overcomes resistance by blocking cell-cycle re-entry in persister cells.",
+  "scored_axes": ["clarity", "novelty", "plausibility", "potential_impact", "relevance", "safety", "scientific_soundness", "testability"],
+  "default_criteria_scores": {"relevance": 9, "plausibility": 8, "novelty": 6, "testability": 8, "safety": 8},
+  "notes": "relevance is the engine's name for alignment with the research goal. plausibility and safety were newly added as scored axes; the LLM emits all five."
+}

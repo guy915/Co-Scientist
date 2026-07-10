@@ -1,0 +1,9 @@
+{
+  "requirement": "GEN-TECHNIQUES-001",
+  "model": "deepseek/deepseek-chat",
+  "check": "All four generation techniques are present; the new assumptions technique emits hypotheses and research-expansion feedback is wired",
+  "research_goal": "Overcome EGFR inhibitor resistance in lung cancer",
+  "assumptions_identification": {"drafts_generated": 2, "sample": "combination therapy targeting adaptive upregulation of AXL/TAM receptors after EGFR inhibition"},
+  "research_expansion_feedback": {"meta_review_context_in_generation_prompts": true, "orchestrator_reenters_generate": "observed in baseline run log: 'Orchestrator scheduled generate (iteration 2): generate unexplored regions'"},
+  "notes": "Literature exploration + simulated debate already present; assumptions_identification added (generation_assumptions prompt + ASSUMPTIONS method), verified via real LLM; research_expansion is the re-entrant meta-review-informed generation, feedback confirmed wired."
+}
