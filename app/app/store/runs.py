@@ -13,6 +13,7 @@ import sqlite3
 import uuid
 from typing import Any
 
+from app.store.checkpoints import has_checkpoint
 from app.store.db import _now, _use_conn, connect
 from app.store.events import _append_event
 from app.store.models import (
@@ -193,20 +194,23 @@ def _fail_interrupted_run(
     )
 
 
-def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
-    """Fail runs left non-terminal by a previous process (crash/restart).
+def reconcile_interrupted_runs(
+    db_path: str | None = None,
+) -> dict[str, list[str]]:
+    """Reconcile runs left non-terminal by a previous process (crash/restart).
 
     On startup no workflow tasks are running, so any run still marked queued,
-    running, or synthesizing was interrupted and would otherwise be stuck
-    forever -- and un-startable, since ``start_run`` rejects in-progress runs.
-    Transition each to ``failed`` with a clear reason and append a status event
-    so the event stream and UI reflect the interruption.
+    running, or synthesizing was interrupted. A run that has a durable
+    checkpoint is *resumable* (Milestone 4): it is left for the resume path
+    rather than failed, and a ``resumable`` status event is logged. A run with
+    no checkpoint cannot be resumed and is transitioned to ``failed`` with a
+    clear reason and a status event so the stream/UI reflect the interruption.
 
     Args:
         db_path: Optional override for the SQLite database path.
 
     Returns:
-        The ids of the runs that were reconciled.
+        ``{"failed": [...], "resumable": [...]}`` — the ids in each outcome.
     """
     interrupted = (
         RunStatus.QUEUED.value,
@@ -215,7 +219,8 @@ def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
     )
     now = _now()
     reason = "Run interrupted by a server restart."
-    reconciled: list[str] = []
+    failed: list[str] = []
+    resumable: list[str] = []
     with connect(db_path) as conn:
         rows = conn.execute(
             "SELECT id FROM runs WHERE status IN (?,?,?)",
@@ -223,9 +228,19 @@ def reconcile_interrupted_runs(db_path: str | None = None) -> list[str]:
         ).fetchall()
         for row in rows:
             rid = row["id"]
-            _fail_interrupted_run(conn, rid, now, reason)
-            reconciled.append(rid)
-    return reconciled
+            if has_checkpoint(rid, conn=conn):
+                _append_event(
+                    conn,
+                    rid,
+                    "status",
+                    {"status": "resumable", "detail": "checkpoint available"},
+                    now,
+                )
+                resumable.append(rid)
+            else:
+                _fail_interrupted_run(conn, rid, now, reason)
+                failed.append(rid)
+    return {"failed": failed, "resumable": resumable}
 
 
 def summary_counts(
@@ -260,3 +275,77 @@ def summary_counts(
             ).fetchone()[0]
             for field, table in tables.items()
         }
+
+
+# Human-contributed rows survive clear_run_derived_data: the deterministic
+# replay only re-derives *agent* artifacts, so deleting these would silently
+# discard the scientist's input on every resume. The store is the bottom
+# layer, so the values are pinned here rather than imported from the modules
+# that own them; test_resume asserts they stay in sync with
+# human_input.SCIENTIST_MANUAL_ORIGIN, runs.add_human_review's reviewer, and
+# run_corpus.ATTACHMENT_SOURCE.
+_HUMAN_HYPOTHESIS_ORIGIN = "scientist_manual"
+_HUMAN_REVIEWER = "scientist"
+_HUMAN_EVIDENCE_SOURCE = "attachment"
+
+
+def clear_run_derived_data(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Delete a run's derived pipeline data for a clean deterministic resume.
+
+    Removes the run's events, report, safety decisions, evidence, matches,
+    reviews, citations, claim-evidence, and hypotheses (plus the per-hypothesis
+    state rows). The run row itself, its checkpoints, its messages
+    (steering/Q&A history), and the scientist's contributions (manual
+    hypotheses, human reviews, attachments) are kept, so a resumed run
+    reconstructs identical agent artifacts from the same seed without
+    duplicating rows or events and without discarding human input. A kept
+    human review of a deleted agent hypothesis may reference a re-derived (new)
+    hypothesis id; retaining the scientist's words beats deleting them.
+
+    Every child table is deleted explicitly rather than via ``ON DELETE
+    CASCADE``: the SQLite ``foreign_keys`` pragma is per-connection and is only
+    enabled on the one-time schema-init connection, so later connections do not
+    enforce cascades. Relying on the cascade would leave stale reviews/
+    citations/claim_evidence rows behind after a resume.
+
+    Args:
+        run_id: Identifier of the run whose derived data to clear.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    """
+    # Tables keyed by run_id whose rows are all derived, deleted wholesale.
+    run_scoped = (
+        "run_events",
+        "reports",
+        "safety_decisions",
+        "matches",
+        "citations",
+        "claim_evidence",
+    )
+    with _use_conn(conn, db_path) as conn:
+        # hypothesis_state is keyed by hypothesis_id (no run_id), so clear it
+        # via the run's hypotheses before those rows are deleted below.
+        conn.execute(
+            "DELETE FROM hypothesis_state WHERE hypothesis_id IN "
+            "(SELECT id FROM hypotheses WHERE run_id=? AND "
+            "created_by_agent != ?)",
+            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
+        )
+        conn.execute(
+            "DELETE FROM hypotheses WHERE run_id=? AND created_by_agent != ?",
+            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
+        )
+        conn.execute(
+            "DELETE FROM reviews WHERE run_id=? AND reviewer_agent != ?",
+            (run_id, _HUMAN_REVIEWER),
+        )
+        conn.execute(
+            "DELETE FROM evidence WHERE run_id=? AND source != ?",
+            (run_id, _HUMAN_EVIDENCE_SOURCE),
+        )
+        for table in run_scoped:
+            conn.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))

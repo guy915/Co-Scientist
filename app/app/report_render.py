@@ -20,6 +20,10 @@ from typing import Any
 
 from app import store
 from app.elo import live_leaderboard
+from app.hypothesis_safety import (
+    is_blocking_status,
+    review_hypothesis_safety,
+)
 from app.report_events import EmitFn as EmitFn
 from app.report_events import article_stub as article_stub
 from app.report_events import hypothesis_stub as hypothesis_stub
@@ -86,6 +90,93 @@ from app.store import RunStatus
 logger = logging.getLogger(__name__)
 
 
+def _contradicted_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
+    """Ids of hypotheses with a contradicted claim (publication-gate block).
+
+    The pre-tournament claim grounding (``claim_grounding``) persisted the
+    claim-evidence graph; a hypothesis with any ``contradicts`` edge failed the
+    publication gate (SSR §7) and must not rank or publish.
+    """
+    return {
+        str(edge["hypothesis_id"])
+        for edge in store.list_claim_evidence(run_id, db_path=db_path)
+        if edge.get("label") == "contradicts"
+    }
+
+
+def _exclude_unsafe_hypotheses(
+    run_id: str,
+    hyps: list[dict[str, Any]],
+    db_path: str | None,
+) -> list[dict[str, Any]]:
+    """Drop hypotheses a safety review or the publication gate blocks.
+
+    Milestone 5/6/M9 wiring: a hypothesis whose safety review is prohibited/
+    ethical/uncertain (SSR §1, §10) or whose claims are contradicted by the
+    evidence (the publication gate, SSR §7) must not appear in the final
+    report's leaderboard or top ideas. The pre-tournament screen and claim
+    grounding already persisted each hypothesis's ``safety_status`` and
+    claim-evidence graph and recorded their audit rows, so the common path just
+    honors those. A legacy row with no persisted safety status (older runs) is
+    re-reviewed and audited here as a fallback. Benign hypotheses pass through
+    unchanged.
+
+    Args:
+        run_id: The run whose report is being built.
+        hyps: The run's hypotheses (store rows with a ``statement`` and,
+            normally, a persisted ``safety_status``).
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        The hypotheses safe to synthesize, in the original order.
+    """
+    contradicted = _contradicted_hypothesis_ids(run_id, db_path)
+    safe: list[dict[str, Any]] = []
+    for hyp in hyps:
+        # Publication gate: a contradicted claim blocks synthesis.
+        if str(hyp.get("id")) in contradicted:
+            logger.warning(
+                "Excluding hypothesis %s from synthesis: contradicted claim",
+                hyp.get("id"),
+            )
+            continue
+        status = hyp.get("safety_status")
+        # Common path: the screen already decided; honor the persisted status
+        # without re-reviewing or double-recording the audit row.
+        if status and status != "pending":
+            if is_blocking_status(str(status)):
+                logger.warning(
+                    "Excluding hypothesis %s from synthesis: %s",
+                    hyp.get("id"),
+                    status,
+                )
+                continue
+            safe.append(hyp)
+            continue
+        # Fallback for a row the screen never touched (legacy run).
+        review = review_hypothesis_safety(str(hyp.get("statement") or ""))
+        if review.blocks_tournament:
+            store.add_safety_decision(
+                run_id,
+                stage="hypothesis",
+                decision="block",
+                reason=(
+                    f"hypothesis {hyp.get('id')}: {review.outcome.value} "
+                    f"({review.reason})"
+                ),
+                matches=list(review.matches),
+                db_path=db_path,
+            )
+            logger.warning(
+                "Excluding hypothesis %s from synthesis: %s",
+                hyp.get("id"),
+                review.outcome.value,
+            )
+            continue
+        safe.append(hyp)
+    return safe
+
+
 def _build_report_content(
     *,
     run_id: str,
@@ -120,7 +211,10 @@ def _build_report_content(
     Returns:
         A tuple of (report payload, rendered markdown).
     """
-    hyps = store.list_hypotheses(run_id, db_path=db_path)
+    all_hyps = store.list_hypotheses(run_id, db_path=db_path)
+    # Exclude any hypothesis a per-hypothesis safety review blocks (recorded as
+    # an audit decision) before it can appear in the leaderboard or top ideas.
+    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path)
     counts = store.summary_counts(run_id, db_path=db_path)
     leaderboard = live_leaderboard(hyps)
     payload = build_report_payload(
@@ -162,6 +256,7 @@ async def finalize_report(
     emit: EmitFn,
     execution_time: float | None = None,
     summary: str | None = None,
+    resumed: bool = False,
     db_path: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
     """Build, screen, persist, and emit a run's final report.
@@ -188,12 +283,25 @@ async def finalize_report(
         emit: The provider's event emitter, called as ``emit(type, payload)``.
         execution_time: Wall-clock seconds, when the provider tracks it.
         summary: Optional lead paragraph for the markdown ``## Summary``.
+        resumed: When True, apply the single-publish idempotency guard so a
+            resumed run reaching the end twice does not re-publish.
         db_path: Optional override for the SQLite database path.
 
     Yields:
         Event dicts to forward on the workflow's event stream.
     """
     logger.info("Finalizing report for run %s (provider=%s).", run_id, provider)
+    # Single-publish guard (Milestone 4 idempotency): a *resumed* run that
+    # reaches the end a second time must not publish a second report or emit a
+    # second completion. Gated on ``resumed`` so a fresh run (and the
+    # determinism replay tests) always finalize; only a resume checks whether
+    # the report was already published before this restart.
+    if resumed and store.get_latest_report(run_id, db_path=db_path) is not None:
+        logger.info(
+            "Report already published for run %s; skipping duplicate finalize.",
+            run_id,
+        )
+        return
     payload, markdown = _build_report_content(
         run_id=run_id,
         research_goal=research_goal,

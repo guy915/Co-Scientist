@@ -1,6 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react';
 import {describe, expect, it, vi} from 'vitest';
-import type {MatchRow, Review} from '@/api/runs';
+import type {ClaimEvidenceRow, MatchRow, Review} from '@/api/runs';
 import {makeHypothesis} from '@/test-fixtures';
 import {HypothesisDetail, SectionsRail} from './ideas_detail_pane';
 
@@ -27,6 +27,11 @@ describe('HypothesisDetail', () => {
       expected_effect: 'A measurable effect.',
       win_count: 3,
       loss_count: 1,
+      parent_id: 'parent-1',
+      generation: 1,
+      created_by_agent: 'evolution',
+      cluster_id: 'cluster-7',
+      safety_status: 'allow',
     });
     const reviews: Review[] = [
       {
@@ -68,6 +73,7 @@ describe('HypothesisDetail', () => {
         loser_id: 'h1',
         created_at: 200,
         tier: 'close',
+        debate_turns: 3,
         rationale: 'The latest match rationale.',
       } as unknown as MatchRow,
       // A match not involving this hypothesis must be filtered out.
@@ -81,11 +87,43 @@ describe('HypothesisDetail', () => {
       } as unknown as MatchRow,
     ];
 
+    const claimEvidence: ClaimEvidenceRow[] = [
+      {
+        id: 1,
+        hypothesis_id: 'h1',
+        claim: 'A supported claim.',
+        label: 'supports',
+        supporting: ['A supporting passage.'],
+        contradicting: [],
+        assessor: 'deterministic-v1',
+      },
+      {
+        id: 2,
+        hypothesis_id: 'h1',
+        claim: 'An unsupported claim.',
+        label: 'insufficient',
+        supporting: [],
+        contradicting: [],
+        assessor: 'deterministic-v1',
+      },
+      // A claim for a different hypothesis must be filtered out.
+      {
+        id: 3,
+        hypothesis_id: 'other',
+        claim: 'Unrelated claim.',
+        label: 'contradicts',
+        supporting: [],
+        contradicting: ['A contradicting passage.'],
+        assessor: 'deterministic-v1',
+      },
+    ];
+
     render(
       <HypothesisDetail
         hypothesis={hypothesis}
         reviews={reviews}
         matches={matches}
+        claimEvidence={claimEvidence}
       />,
     );
 
@@ -98,6 +136,24 @@ describe('HypothesisDetail', () => {
     expect(screen.getByText(/Expected effect:/)).toBeInTheDocument();
     expect(screen.getByText('A measurable effect.')).toBeInTheDocument();
 
+    // Provenance & lineage section surfaces origin, generation, cluster, safety.
+    expect(
+      screen.getByText(/Evolution agent \(refined from a parent\)/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Generation 1 — evolved from an earlier hypothesis/),
+    ).toBeInTheDocument();
+    expect(screen.getByText('cluster-7')).toBeInTheDocument();
+    expect(screen.getByText('allow')).toBeInTheDocument();
+
+    // Claim-evidence summary counts only this hypothesis's claims (2 of 3),
+    // labelled by verdict.
+    expect(
+      screen.getByText(
+        /2 claim\(s\) assessed, 1 supported, 1 unsupported \(speculative\)/,
+      ),
+    ).toBeInTheDocument();
+
     expect(screen.getByText('Reasonable and testable.')).toBeInTheDocument();
     expect(screen.getByText('Needs a control arm.')).toBeInTheDocument();
 
@@ -109,6 +165,9 @@ describe('HypothesisDetail', () => {
 
     // The most recent of the two matching matches (by created_at) wins.
     expect(screen.getByText('close')).toBeInTheDocument();
+    expect(
+      screen.getByText('Multi-turn scientific debate (3 turns)'),
+    ).toBeInTheDocument();
     expect(screen.getByText('The latest match rationale.')).toBeInTheDocument();
     expect(
       screen.queryByText('An earlier match rationale.'),
@@ -155,6 +214,7 @@ describe('SectionsRail', () => {
     for (const label of [
       'Hypothesis overview',
       'Description',
+      'Provenance & lineage',
       'Review summary',
       'Full review',
       'Tournament performance',

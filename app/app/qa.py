@@ -241,8 +241,11 @@ def build_system_prompt(
         f"numbered list; never invent a citation):\n"
         f"{evidence_lines or '(no evidence retrieved)'}\n\n"
         f"Conversation history:\n{conv_lines or '(none)'}\n\n"
-        f"Answer concisely and accurately. Do not repeat the question. When a "
-        f"statement is supported by a listed source, cite it inline as [n]."
+        f"Answer ONLY from this run's hypotheses, reviews, matches, and "
+        f"evidence above -- do not draw on outside knowledge. If the run's "
+        f"artifacts do not contain the answer, say so plainly rather than "
+        f"speculating. Do not repeat the question. When a statement is "
+        f"supported by a listed source, cite it inline as [n]."
     )
 
 

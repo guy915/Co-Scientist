@@ -14,7 +14,7 @@ from collections.abc import Iterable
 from typing import Any
 
 from app.citations import CitationState
-from app.store.db import _now, _use_conn, connect
+from app.store.db import _now, _use_conn
 
 # ---------------------------------------------------------------------------
 # Evidence / citations
@@ -139,6 +139,63 @@ def list_citations(
     return _list_by_run("citations", run_id, db_path, conn)
 
 
+def add_claim_evidence(
+    run_id: str,
+    hypothesis_id: str,
+    claim: str,
+    label: str,
+    supporting: Iterable[str],
+    contradicting: Iterable[str],
+    assessor: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Insert one claim-level entailment edge for the claim-evidence graph.
+
+    Args:
+        run_id: Identifier of the run the claim belongs to.
+        hypothesis_id: Identifier of the hypothesis the claim was extracted
+            from.
+        claim: The atomic claim text.
+        label: Entailment verdict ('supports' | 'contradicts' | 'insufficient').
+        supporting: Passages that support the claim.
+        contradicting: Passages that contradict the claim.
+        assessor: Provenance id of the entailment assessor.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+    """
+    with _use_conn(conn, db_path) as conn:
+        conn.execute(
+            "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
+            "supporting_json, contradicting_json, assessor, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (
+                run_id,
+                hypothesis_id,
+                claim,
+                label,
+                json.dumps(list(supporting)),
+                json.dumps(list(contradicting)),
+                assessor,
+                _now(),
+            ),
+        )
+
+
+def list_claim_evidence(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    """Return a run's claim-evidence edges with passage lists decoded."""
+    out = []
+    for d in _list_by_run("claim_evidence", run_id, db_path, conn):
+        d["supporting"] = json.loads(d.pop("supporting_json") or "[]")
+        d["contradicting"] = json.loads(d.pop("contradicting_json") or "[]")
+        out.append(d)
+    return out
+
+
 # ---------------------------------------------------------------------------
 # Reviews
 # ---------------------------------------------------------------------------
@@ -219,6 +276,7 @@ def add_match(
     loser_after: int,
     rationale: str,
     tier: str | None = None,
+    debate_turns: int = 1,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
@@ -235,6 +293,8 @@ def add_match(
         loser_after: Loser's Elo rating after the match.
         rationale: Explanation of why the winner prevailed.
         tier: Decisiveness class of the match (upset|decisive|clear|narrow).
+        debate_turns: Debate depth (1 = single-turn comparison, >1 = multi-
+            turn scientific debate).
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
@@ -242,8 +302,8 @@ def add_match(
         conn.execute(
             "INSERT INTO matches (run_id, iteration, winner_id, loser_id, "
             "winner_elo_before, winner_elo_after, loser_elo_before, "
-            "loser_elo_after, rationale, tier, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "loser_elo_after, rationale, tier, debate_turns, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 iteration,
@@ -255,6 +315,7 @@ def add_match(
                 loser_after,
                 rationale,
                 tier,
+                debate_turns,
                 _now(),
             ),
         )
@@ -281,9 +342,10 @@ def add_safety_decision(
     reason: str,
     matches: list[str],
     db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
 ) -> None:
-    """Record a safety-gate decision ('intake' or 'final') for a run."""
-    with connect(db_path) as conn:
+    """Record a safety-gate decision ('intake', 'hypothesis', or 'final')."""
+    with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO safety_decisions (run_id, stage, decision, reason, "
             "matches_json, created_at) "

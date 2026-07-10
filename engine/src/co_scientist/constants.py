@@ -29,6 +29,17 @@ INITIAL_ELO_RATING: Final = 1200
 ELO_K_FACTOR: Final = 24
 """K-factor for Elo rating updates (higher = more volatile ratings)."""
 
+# Debate depth for a tournament matchup (paper invariant SSR §4, §12): top-
+# ranked comparisons use a multi-turn scientific debate, lower-ranked ones a
+# single-turn comparison. A matchup is "top-ranked" when at least one
+# hypothesis is at or above the pool's median Elo. The 3-turn depth is a
+# documented clone choice (Google specifies "multi-turn" but not the count).
+MULTI_TURN_DEBATE_TURNS: Final = 3
+"""Number of debate turns for a top-ranked matchup (clone-defined)."""
+
+SINGLE_TURN_DEBATE_TURNS: Final = 1
+"""Number of turns for a lower-ranked (single-turn) matchup."""
+
 ELO_UPSET_MARGIN: Final = 100
 """Pre-match Elo lead by which the loser must have exceeded the winner for a
 judged matchup to be classified an "upset" (see ``ranking.match_tier``)."""

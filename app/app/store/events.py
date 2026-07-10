@@ -11,7 +11,7 @@ import json
 import sqlite3
 from typing import Any
 
-from app.store.db import _now, connect
+from app.store.db import _now, _use_conn, connect
 
 
 def _append_event(
@@ -23,15 +23,21 @@ def _append_event(
 ) -> int:
     """Insert an event row on an open connection and return its seq.
 
-    Assigns the next per-run sequence number and inserts in a single statement
-    (a scalar subquery computes ``MAX(seq)+1``), so the run's hottest write
-    path makes one round-trip instead of a separate SELECT then INSERT.
+    Assigns the next per-run sequence number and inserts in a single statement,
+    so the run's hottest write path makes one round-trip instead of a separate
+    SELECT then INSERT. The sequence floor also covers the checkpoints table's
+    ``last_event_seq`` high-water mark: a resume clears ``run_events``, so
+    without it a resumed run would restart at seq 1 and break clients
+    reconnecting with ``?after=`` (both indexed lookups; the scalar ``MAX(a,
+    b)`` picks the higher floor).
     """
     row = conn.execute(
         "INSERT INTO run_events (run_id, seq, type, payload_json, created_at) "
-        "VALUES (?, (SELECT COALESCE(MAX(seq), 0) + 1 FROM run_events "
-        "WHERE run_id=?), ?, ?, ?) RETURNING seq",
-        (run_id, run_id, type_, json.dumps(payload), created_at),
+        "VALUES (?, 1 + MAX("
+        "(SELECT COALESCE(MAX(seq), 0) FROM run_events WHERE run_id=?), "
+        "(SELECT COALESCE(MAX(last_event_seq), 0) FROM checkpoints "
+        "WHERE run_id=?)), ?, ?, ?) RETURNING seq",
+        (run_id, run_id, run_id, type_, json.dumps(payload), created_at),
     ).fetchone()
     return int(row["seq"])
 
@@ -55,6 +61,24 @@ def append_event(
     """
     with connect(db_path) as conn:
         return _append_event(conn, run_id, type_, payload, _now())
+
+
+def latest_event_seq(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> int:
+    """Return the highest event sequence for a run, or 0 if it has none.
+
+    Used as the ``last_event_seq`` high-water mark when checkpointing a run,
+    so a resumed run assigns new event seqs strictly above it.
+    """
+    with _use_conn(conn, db_path) as conn:
+        row = conn.execute(
+            "SELECT COALESCE(MAX(seq), 0) FROM run_events WHERE run_id=?",
+            (run_id,),
+        ).fetchone()
+    return int(row[0])
 
 
 def list_events(

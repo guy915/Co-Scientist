@@ -1,9 +1,14 @@
-"""Tests for evolve_node: context-aware refinement of the top hypotheses.
+"""Tests for evolve_node: immutable-child refinement of the top hypotheses.
 
 The node's only external dependency is a per-hypothesis ``call_llm_json`` call
 that returns the refined hypothesis. These tests stub that out and assert on the
-deterministic top-k selection, the construction of evolved Hypothesis objects
-from the canned response, and the recorded ``evolution_details``.
+deterministic top-k selection, the construction of immutable child Hypothesis
+objects (new id, parent link, Elo 1200, zero matches) from the canned response,
+and the recorded ``evolution_details``.
+
+evolve_node returns ``{"hypotheses": AppendHypotheses(children), ...}``: the
+children are APPENDED to the pool by the reducer, and the parents are left
+unchanged (paper invariant SSR §4, §12). Use ``_children`` to unwrap them.
 
 To keep the stub's evolved text below the 0.95 near-duplicate guard
 (``DUPLICATE_SIMILARITY_THRESHOLD``) and distinct from each original, the input
@@ -15,9 +20,16 @@ from typing import Any
 
 import pytest
 
+from co_scientist.constants import INITIAL_ELO_RATING
+from co_scientist.models import Hypothesis, HypothesisOrigin
 from co_scientist.nodes import evolve
 from co_scientist.nodes.evolve import evolve_node
 from tests._state import make_hypothesis, make_state
+
+
+def _children(result: dict[str, Any]) -> list[Hypothesis]:
+    """Return the evolution children an evolve_node result would append."""
+    return list(result["hypotheses"].items)
 
 
 def _stub_llm(
@@ -82,16 +94,29 @@ async def test_evolution_produces_evolved_hypotheses(
 
     result = await evolve_node(state)
 
-    assert len(result["hypotheses"]) == 1
-    evolved = result["hypotheses"][0]
-    assert evolved.text == "rapamycin suppresses mtor signaling downstream"
-    assert evolved.explanation == "fresh layman walkthrough"
-    assert evolved.experiment == "knock down the kinase and measure growth"
-    # The pre-evolution text is preserved in the hypothesis history.
-    assert "quercetin inhibits aldolase activity" in evolved.evolution_history
+    children = _children(result)
+    assert len(children) == 1
+    child = children[0]
+    assert child.text == "rapamycin suppresses mtor signaling downstream"
+    assert child.explanation == "fresh layman walkthrough"
+    assert child.experiment == "knock down the kinase and measure growth"
+    # The child is a fresh, immutable entrant linked to its parent.
+    assert child.id != original.id
+    assert child.parent_id == original.id
+    assert child.generation == 1
+    assert child.origin is HypothesisOrigin.EVOLUTION
+    assert child.elo_rating == INITIAL_ELO_RATING
+    assert child.win_count == 0 and child.loss_count == 0
+    assert child.reviews == []
+    # The child's history records the parent's text; the parent is untouched.
+    assert "quercetin inhibits aldolase activity" in child.evolution_history
+    assert original.text == "quercetin inhibits aldolase activity"
+    assert original.elo_rating == INITIAL_ELO_RATING
 
     details = result["evolution_details"]
     assert len(details) == 1
+    assert details[0]["parent_id"] == original.id
+    assert details[0]["child_id"] == child.id
     assert details[0]["original"] == "quercetin inhibits aldolase activity"
     assert details[0]["evolved"] == (
         "rapamycin suppresses mtor signaling downstream"
@@ -99,14 +124,13 @@ async def test_evolution_produces_evolved_hypotheses(
     assert details[0]["rationale"] == "pivoted to a kinase mechanism"
 
 
-async def test_evolution_clears_deep_verification_when_text_changes(
+async def test_evolution_child_starts_without_deep_verification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Evolving a hypothesis clears its now-stale deep-verification probes.
+    """An evolution child is a fresh entrant with no deep-verification state.
 
-    The probes and verdict describe the pre-evolution text; once the text is
-    rewritten they are stale, so they are cleared and the next
-    deep_verification pass re-verifies the evolved hypothesis.
+    The child describes new text, so it starts with no probes/verdict and must
+    be verified afresh. The parent keeps its own probes, untouched.
     """
     original = make_hypothesis(
         text="quercetin inhibits aldolase activity",
@@ -133,19 +157,29 @@ async def test_evolution_clears_deep_verification_when_text_changes(
 
     result = await evolve_node(state)
 
-    evolved = result["hypotheses"][0]
-    assert evolved.text == "rapamycin suppresses mtor signaling downstream"
-    assert evolved.deep_verification_probes == []
-    assert evolved.deep_verification_verdict is None
+    child = _children(result)[0]
+    assert child.text == "rapamycin suppresses mtor signaling downstream"
+    assert child.deep_verification_probes == []
+    assert child.deep_verification_verdict is None
+    # The parent's own probes are untouched.
+    assert original.deep_verification_probes == [
+        {
+            "question": "stale q",
+            "answer": "stale a",
+            "reasoning": "stale r",
+            "assumption_is_fundamental": True,
+        }
+    ]
+    assert original.deep_verification_verdict == "holds"
 
 
-async def test_evolution_keeps_deep_verification_when_text_unchanged(
+async def test_evolution_noop_produces_no_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An unchanged hypothesis keeps its still-valid deep-verification probes.
+    """An unchanged refinement creates NO child and leaves the parent intact.
 
-    When the LLM returns no change, evolve_single_hypothesis returns the
-    original hypothesis untouched, so its probes remain valid and preserved.
+    When the LLM returns no change, evolve_single_hypothesis rejects it: no
+    child is minted, and the parent (with its probes) is untouched.
     """
     probes = [
         {
@@ -161,13 +195,14 @@ async def test_evolution_keeps_deep_verification_when_text_unchanged(
         deep_verification_verdict="holds",
     )
     state = make_state(hypotheses=[original], evolution_max_count=1)
-    _stub_llm(monkeypatch, {})  # empty -> unchanged -> original kept
+    _stub_llm(monkeypatch, {})  # empty -> unchanged -> no child
 
     result = await evolve_node(state)
 
-    kept = result["hypotheses"][0]
-    assert kept.deep_verification_probes == probes
-    assert kept.deep_verification_verdict == "holds"
+    assert _children(result) == []  # no fake child minted
+    # The parent is untouched, probes intact.
+    assert original.deep_verification_probes == probes
+    assert original.deep_verification_verdict == "holds"
 
 
 async def test_respects_evolution_max_count(
@@ -216,21 +251,25 @@ async def test_respects_evolution_max_count(
 
     result = await evolve_node(state)
 
-    assert len(result["hypotheses"]) == 2
+    children = _children(result)
+    assert len(children) == 2
     assert len(result["evolution_details"]) == 2
-    evolved_texts = {h.text for h in result["hypotheses"]}
+    evolved_texts = {h.text for h in children}
     assert evolved_texts == {
         "foxtrot scaffold stabilizes microtubule assembly",
         "golf ligand quenches reactive oxygen species",
     }
-    # None of the discarded lower-ranked originals survive.
+    # Only the top-2 were evolved; the children are new-text entrants and each
+    # links back to one of the top-2 parents.
     assert not (evolved_texts & set(texts))
+    top_two_ids = {hypotheses[0].id, hypotheses[1].id}
+    assert {c.parent_id for c in children} == top_two_ids
 
 
-async def test_empty_hypotheses_returns_empty(
+async def test_empty_hypotheses_returns_no_children(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """With no hypotheses, node returns empty results without calling LLM."""
+    """With no hypotheses, node returns no children without calling LLM."""
 
     async def never(**_: Any) -> dict[str, Any]:
         raise AssertionError("call_llm_json must not run with no hypotheses")
@@ -240,18 +279,18 @@ async def test_empty_hypotheses_returns_empty(
 
     result = await evolve_node(state)
 
-    assert result["hypotheses"] == []
+    assert _children(result) == []
     assert result["evolution_details"] == []
 
 
-async def test_unchanged_response_records_no_evolution_detail(
+async def test_unchanged_response_records_no_child_or_detail(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An LLM response echoing the original text records no evolution detail.
+    """An LLM response echoing the original text creates no child or detail.
 
-    The hypothesis is still kept (top-k survivor), but because the refined text
-    equals the original, ``evolve_single_hypothesis`` returns ``None`` for the
-    detail, so ``evolution_details`` is empty.
+    Because the refined text equals the original, ``evolve_single_hypothesis``
+    rejects it: no child is appended and ``evolution_details`` is empty. The
+    parent stays in the pool untouched.
     """
     original = make_hypothesis(text="osmotic gradient drives water flux")
     state = make_state(hypotheses=[original], evolution_max_count=1)
@@ -261,6 +300,6 @@ async def test_unchanged_response_records_no_evolution_detail(
 
     result = await evolve_node(state)
 
-    assert len(result["hypotheses"]) == 1
-    assert result["hypotheses"][0].text == "osmotic gradient drives water flux"
+    assert _children(result) == []
     assert result["evolution_details"] == []
+    assert original.text == "osmotic gradient drives water flux"

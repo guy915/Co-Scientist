@@ -13,6 +13,13 @@ Endpoints:
 - GET    /api/runs/{id}/reviews           reviewer/meta-review notes
 - GET    /api/runs/{id}/safety            safety decisions
 - GET    /api/runs/{id}/citations         citation rows w/ classification states
+- GET    /api/runs/{id}/claim-evidence     claim-level entailment graph
+- POST   /api/runs/{id}/hypotheses        scientist-contributed hypothesis
+- POST   /api/runs/{id}/reviews           scientist-contributed review
+- POST   /api/runs/{id}/attachments       attach a text document to the corpus
+- GET    /api/runs/{id}/attachments/search keyword search the run's corpus
+- POST   /api/runs/{id}/pause             cooperative pause (-> resumable)
+- POST   /api/runs/{id}/resume            resume from the last checkpoint
 - GET    /api/runs/{id}/report            structured report payload (latest)
 - GET    /api/runs/{id}/report.md         rendered Markdown report
 
@@ -25,6 +32,7 @@ are re-exported here so the ``app.runs.<name>`` import paths stay stable.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sqlite3
 from typing import Any
@@ -32,7 +40,8 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
-from app import engine_adapter, qa, store
+from app import engine_adapter, human_input, qa, run_corpus, store
+from app.hypothesis_screening import screen_hypotheses
 from app.run_modes import CANONICAL_RUN_MODE
 from app.runs_events import _drain_tick_frames as _drain_tick_frames
 from app.runs_events import _event_stream as _event_stream
@@ -48,6 +57,9 @@ from app.runs_events import (
 )
 from app.runs_models import AskRequest as AskRequest
 from app.runs_models import CreateRunRequest as CreateRunRequest
+from app.runs_models import HumanAttachmentRequest as HumanAttachmentRequest
+from app.runs_models import HumanHypothesisRequest as HumanHypothesisRequest
+from app.runs_models import HumanReviewRequest as HumanReviewRequest
 from app.runs_models import SendMessageRequest as SendMessageRequest
 from app.runs_models import StartRunRequest as StartRunRequest
 from app.runs_models import _build_create_run_config as _build_create_run_config
@@ -60,6 +72,10 @@ from app.runs_registry import _RunHandle as _RunHandle
 from app.store import RunRow, RunStatus
 
 logger = logging.getLogger(__name__)
+
+# Strong references to detached resume tasks so they are not garbage-collected
+# mid-run; each removes itself on completion (see _launch_resume).
+_resume_tasks: set[asyncio.Task[None]] = set()
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
 # ---------------------------------------------------------------------------
@@ -209,6 +225,18 @@ async def _run_workflow_task(
             force_provider=force_provider,
         ):
             handle.new_event.set()
+        # A cooperative pause stopped the workflow at a checkpoint boundary.
+        # The workflow normally persists/emits `paused` itself (it consults
+        # the registry's pause flag); this fallback covers a provider that
+        # stopped on the shared cancel signal without emitting a status, so
+        # the run still reads as resumable rather than cancelled.
+        if handle.paused and store.has_checkpoint(run_id):
+            run = store.get_run(run_id)
+            if run and run.status != RunStatus.PAUSED.value:
+                store.update_run_status(run_id, RunStatus.PAUSED)
+                store.append_event(
+                    run_id, "status", {"status": "paused", "detail": "paused"}
+                )
     except Exception as e:
         _mark_workflow_failed(run_id, handle, e)
     finally:
@@ -302,6 +330,110 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
     return {"id": run_id, "status": "cancelling"}
 
 
+@router.post("/{run_id}/pause")
+async def pause_run(run_id: str) -> dict[str, Any]:
+    """Cooperatively pause an active run at its next checkpoint (Milestone 4).
+
+    Like cancel, this only signals the in-flight workflow; it stops at the next
+    iteration boundary. A resumable checkpoint is ensured here so the run lands
+    in the PAUSED state rather than CANCELLED for every provider — the mock
+    also checkpoints per iteration, but the engine provider does not, so
+    without this a paused engine run would be an unrecoverable cancel.
+    """
+    run = _run_or_404(run_id)
+    async with _active_lock:
+        handle = _active.get(run_id)
+    if not handle:
+        raise HTTPException(status_code=404, detail="run is not active")
+    _ensure_resumable_checkpoint(run_id, run.provider)
+    handle.paused = True
+    handle.cancelled.set()
+    store.append_event(run_id, "lifecycle", {"event": "pause_requested"})
+    return {"id": run_id, "status": "pausing"}
+
+
+def _ensure_resumable_checkpoint(run_id: str, provider: str) -> None:
+    """Persist a minimal envelope checkpoint if the run has none yet.
+
+    Relaunch reads the goal/config from the run row, not the checkpoint, so the
+    checkpoint's only job is to mark the run resumable (``has_checkpoint``).
+    """
+    if store.has_checkpoint(run_id):
+        return
+    store.save_checkpoint(
+        run_id,
+        stage="pause",
+        schema_version=1,
+        last_event_seq=store.latest_event_seq(run_id),
+        state={"provider": provider, "reason": "pause"},
+    )
+
+
+@router.post("/{run_id}/resume")
+async def resume_run(run_id: str) -> dict[str, Any]:
+    """Resume a paused or interrupted run from its last checkpoint.
+
+    Requires a durable checkpoint (else there is nothing to resume from). The
+    run's derived artifacts are cleared and the workflow is relaunched, which
+    for the deterministic mock reconstructs identical artifacts from the same
+    seed. A completed or actively-running run cannot be resumed.
+    """
+    run = _run_or_404(run_id)
+    if run.status == RunStatus.COMPLETED.value:
+        raise HTTPException(status_code=409, detail="run already completed")
+    if run.status in (RunStatus.RUNNING.value, RunStatus.SYNTHESIZING.value):
+        raise HTTPException(status_code=409, detail="run already in progress")
+    if not store.has_checkpoint(run_id):
+        raise HTTPException(status_code=409, detail="run has no checkpoint")
+    await _launch_resume(run_id)
+    return {"id": run_id, "status": "queued"}
+
+
+async def _launch_resume(run_id: str) -> None:
+    """Clear a run's derived data and relaunch its workflow from a checkpoint.
+
+    Shared by the resume endpoint and the startup auto-resume launcher. Clears
+    the prior (partial) artifacts so the deterministic re-run reconstructs the
+    run without duplicating rows or events, then drives the workflow on a
+    detached task. A completed run is never relaunched by callers.
+    """
+    run = _run_or_404(run_id)
+    handle = await _reserve_active_slot(run_id)
+    store.clear_run_derived_data(run_id)
+    store.update_run_status(run_id, RunStatus.QUEUED)
+    store.append_event(
+        run_id, "status", {"status": "resuming", "detail": "from checkpoint"}
+    )
+    # Resume runs outside a request scope (also used at startup), so drive it
+    # on a detached asyncio task rather than FastAPI BackgroundTasks. Keep a
+    # strong reference until it finishes so it is not garbage-collected.
+    task = asyncio.create_task(
+        _run_workflow_task(run_id, run.research_goal, run.config, None, handle)
+    )
+    _resume_tasks.add(task)
+    task.add_done_callback(_resume_tasks.discard)
+
+
+async def resume_interrupted_runs(run_ids: list[str]) -> None:
+    """Relaunch each resumable interrupted run at startup (Milestone 4).
+
+    Called from the app lifespan after ``reconcile_interrupted_runs`` finds
+    runs left non-terminal by a restart that still hold a checkpoint. Skips any
+    run that has since completed or is already active.
+    """
+    for run_id in run_ids:
+        run = store.get_run(run_id)
+        if run is None or run.status == RunStatus.COMPLETED.value:
+            continue
+        async with _active_lock:
+            if run_id in _active:
+                continue
+        try:
+            await _launch_resume(run_id)
+        except HTTPException:
+            logger.warning("Could not auto-resume run %s", run_id)
+
+
 # ---------------------------------------------------------------------------
 # SSE events
 # ---------------------------------------------------------------------------
@@ -382,6 +514,143 @@ async def get_citations(run_id: str) -> dict[str, Any]:
     """Return the run's citation rows with classification states."""
     _require_run(run_id)
     return {"citations": store.list_citations(run_id)}
+
+
+@router.get("/{run_id}/claim-evidence")
+async def get_claim_evidence(run_id: str) -> dict[str, Any]:
+    """Return the run's claim-level entailment graph (Milestone 5).
+
+    Each edge is one atomic claim of a hypothesis with its assessed label
+    (supports/contradicts/insufficient) and the exact supporting/contradicting
+    passages that drove the verdict.
+    """
+    _require_run(run_id)
+    return {"claim_evidence": store.list_claim_evidence(run_id)}
+
+
+@router.post("/{run_id}/hypotheses")
+async def add_human_hypothesis(
+    run_id: str, req: HumanHypothesisRequest
+) -> dict[str, Any]:
+    """Admit a scientist-contributed hypothesis (Milestone 7).
+
+    The hypothesis passes the *same* per-hypothesis safety review every
+    generated hypothesis does (no bypass for human authorship). If admitted,
+    it is persisted with `origin=scientist_manual` and its author, screened by
+    the shared safety path (so its `safety_status` is set like any other), and
+    thereafter appears in the run's hypotheses. A blocked hypothesis returns
+    the admission decision and is not persisted (HTTP 200 with admitted=false).
+    """
+    _require_run(run_id)
+    admission = human_input.admit_human_hypothesis(
+        text=req.statement, author=req.author, title=req.title
+    )
+    if not admission.admitted or admission.hypothesis is None:
+        return {"admitted": False, "safety": admission.safety_review.to_dict()}
+
+    hyp = admission.hypothesis
+    hyp_id = store.add_hypothesis(
+        run_id,
+        title=str(hyp["title"]),
+        statement=str(hyp["statement"]),
+        created_by_agent=human_input.SCIENTIST_MANUAL_ORIGIN,
+        author=req.author,
+    )
+    # Same safety screen as the pipeline, so the manual hypothesis carries a
+    # persisted safety_status and any blocking outcome is audited identically.
+    screen_hypotheses(run_id, store.list_hypotheses(run_id))
+    return {
+        "admitted": True,
+        "id": hyp_id,
+        "author": req.author,
+        "safety": admission.safety_review.to_dict(),
+    }
+
+
+@router.post("/{run_id}/reviews")
+async def add_human_review(
+    run_id: str, req: HumanReviewRequest
+) -> dict[str, Any]:
+    """Persist a scientist-contributed review (Milestone 7).
+
+    The review enters the same reviews table as an agent review, attributed to
+    its author with `reviewer_agent=scientist`. The verdict must be one of
+    support/oppose/revise, and the reviewed hypothesis must belong to the run
+    in the URL (no cross-run or dangling review rows).
+    """
+    _require_run(run_id)
+    hyp = store.get_hypothesis(req.hypothesis_id)
+    if hyp is None or hyp.get("run_id") != run_id:
+        raise HTTPException(
+            status_code=404, detail="hypothesis not found in this run"
+        )
+    try:
+        review = human_input.build_human_review(
+            hypothesis_id=req.hypothesis_id,
+            author=req.author,
+            verdict=req.verdict,
+            critique=req.critique,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    store.add_review(
+        run_id,
+        hypothesis_id=review.hypothesis_id,
+        reviewer_agent="scientist",
+        summary=f"Scientist verdict: {review.verdict} (by {review.author})",
+        critique=review.critique,
+    )
+    return {"recorded": True, **review.to_dict()}
+
+
+@router.post("/{run_id}/attachments")
+async def add_attachment(
+    run_id: str, req: HumanAttachmentRequest
+) -> dict[str, Any]:
+    """Attach a scientist-provided text document to a run's corpus (M7).
+
+    Text-only and consent-gated: no binary or archive is accepted (so there is
+    no extraction/malware surface), the text is size-capped by the request
+    model, and ``consent`` must be true. The document is stored as run-scoped
+    evidence marked as an attachment and indexed into the private retrieval
+    corpus (``run_corpus``).
+    """
+    _require_run(run_id)
+    if not req.consent:
+        raise HTTPException(
+            status_code=422, detail="consent is required to index a document"
+        )
+    ev_id = store.add_evidence(
+        run_id,
+        req.title,
+        source=run_corpus.ATTACHMENT_SOURCE,
+        abstract=req.text,
+    )
+    return {"id": ev_id, "indexed": True}
+
+
+@router.get("/{run_id}/attachments/search")
+async def search_attachments(run_id: str, q: str) -> dict[str, Any]:
+    """Retrieve a run's attachment corpus by keyword (Milestone 7).
+
+    Proves the attachment path is a live retrieval corpus, not a dead
+    connector: the scientist's uploaded documents are searchable via the
+    run-scoped keyword retriever.
+    """
+    _require_run(run_id)
+    documents = run_corpus.corpus_from_evidence(store.list_evidence(run_id))
+    retriever = run_corpus.KeywordCorpusRetriever(documents)
+    hits = retriever.retrieve(q)
+    return {
+        "results": [
+            {
+                "id": h.document.doc_id,
+                "title": h.document.title,
+                "score": h.score,
+            }
+            for h in hits
+        ]
+    }
 
 
 @router.get("/{run_id}/report")

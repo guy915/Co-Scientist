@@ -13,6 +13,7 @@ from co_scientist.models import (
     ExecutionMetrics,
     GenerationMethod,
     Hypothesis,
+    HypothesisOrigin,
     HypothesisReview,
 )
 
@@ -59,29 +60,40 @@ def test_hypothesis_mutable_defaults_not_shared() -> None:
 
 
 def test_gen_zero_hypothesis_has_no_lineage() -> None:
-    """A fresh (gen-0) hypothesis carries no parent / evolution lineage.
+    """A fresh (gen-0) hypothesis carries no parent lineage.
 
-    ``models.py`` has no ``parent_id``/``generation`` field; lineage is tracked
-    via ``evolution_history`` (empty), ``debate_id`` (None), and
-    ``generation_method`` (None). These are the real defaults.
+    The explicit lineage fields default to a root: ``parent_id`` None,
+    ``generation`` 0, ``origin`` GENERATION. ``evolution_history`` (empty),
+    ``debate_id`` (None), and ``generation_method`` (None) are also root
+    defaults.
     """
     hyp = Hypothesis(text="origin")
+    assert hyp.parent_id is None
+    assert hyp.generation == 0
+    assert hyp.origin is HypothesisOrigin.GENERATION
+    assert hyp.creation_iteration is None
     assert hyp.evolution_history == []
     assert hyp.debate_id is None
     assert hyp.generation_method is None
 
 
 def test_evolved_hypothesis_records_lineage() -> None:
-    """An evolved hypothesis references its origin via ``evolution_history``."""
+    """An evolved child references its parent via explicit lineage fields."""
+    parent = Hypothesis(text="origin")
     evolved = Hypothesis(
         text="refined",
-        evolution_history=["Evolved from: origin hypothesis"],
-        generation_method=GenerationMethod.DEBATE,
-        debate_id=3,
+        parent_id=parent.id,
+        generation=1,
+        origin=HypothesisOrigin.EVOLUTION,
+        creation_iteration=2,
+        evolution_history=["origin"],
     )
-    assert evolved.evolution_history == ["Evolved from: origin hypothesis"]
-    assert evolved.generation_method == "debate"
-    assert evolved.debate_id == 3
+    assert evolved.parent_id == parent.id
+    assert evolved.generation == 1
+    assert evolved.origin is HypothesisOrigin.EVOLUTION
+    assert evolved.creation_iteration == 2
+    # The child has a distinct id from its parent.
+    assert evolved.id != parent.id
 
 
 # --- Hypothesis: computed properties ----------------------------------------
@@ -125,6 +137,10 @@ def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
     # Exact key set is part of the contract this regression net pins.
     expected_keys = {
         "id",
+        "parent_id",
+        "generation",
+        "origin",
+        "creation_iteration",
         "text",
         "category",
         "explanation",
@@ -232,6 +248,43 @@ def test_hypothesis_category_round_trips() -> None:
     assert d["category"] == "Metabolic reprogramming"
     restored = Hypothesis.from_dict(d)
     assert restored.category == "Metabolic reprogramming"
+
+
+def test_hypothesis_lineage_round_trips() -> None:
+    """Lineage fields serialize and reconstruct, with origin as its enum."""
+    child = Hypothesis(
+        text="child",
+        parent_id="parent-123",
+        generation=2,
+        origin=HypothesisOrigin.EVOLUTION,
+        creation_iteration=3,
+    )
+    d = child.to_dict()
+    assert d["parent_id"] == "parent-123"
+    assert d["generation"] == 2
+    assert d["origin"] == "evolution"  # serialized as the enum value
+    assert d["creation_iteration"] == 3
+    restored = Hypothesis.from_dict(d)
+    assert restored.parent_id == "parent-123"
+    assert restored.generation == 2
+    assert restored.origin is HypothesisOrigin.EVOLUTION
+    assert restored.creation_iteration == 3
+
+
+def test_hypothesis_from_dict_pre_lineage_payload_defaults() -> None:
+    """A legacy cached payload without lineage keys deserializes to a root.
+
+    Backward-compatibility guard: older caches predate the lineage fields, so
+    ``from_dict`` must fill the generation-0 defaults rather than raising.
+    """
+    payload = Hypothesis(text="legacy").to_dict()
+    for key in ("parent_id", "generation", "origin", "creation_iteration"):
+        del payload[key]
+    restored = Hypothesis.from_dict(payload)
+    assert restored.parent_id is None
+    assert restored.generation == 0
+    assert restored.origin is HypothesisOrigin.GENERATION
+    assert restored.creation_iteration is None
 
 
 def test_hypothesis_from_dict_generates_id_when_absent() -> None:

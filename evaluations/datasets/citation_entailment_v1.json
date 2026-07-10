@@ -1,0 +1,20 @@
+{
+  "name": "citation-entailment-v1",
+  "version": 1,
+  "license": "synthetic, CC0 — hand-written examples, no external corpus",
+  "description": "Small labeled claim/evidence set for the M5 entailment assessor. Each item is a claim, a list of evidence passages, and the expected structured label (supports/contradicts/insufficient). Synthetic and legally shareable; NOT Google's private set. Human audit and threshold selection are an external gap (no annotator panel).",
+  "items": [
+    {"claim": "Kinase X inhibition reduces AML tumor growth.", "passages": ["Kinase X inhibition reduces AML tumor growth in multiple cell lines."], "label": "supports"},
+    {"claim": "Blocking receptor Y restores immune surveillance.", "passages": ["Receptor Y blockade restores immune surveillance in murine models."], "label": "supports"},
+    {"claim": "Metabolic reprogramming via Z sensitizes cells to therapy.", "passages": ["Z-driven metabolic reprogramming sensitizes cells to therapy."], "label": "supports"},
+    {"claim": "Kinase X inhibition reduces AML tumor growth.", "passages": ["Kinase X inhibition did not reduce AML tumor growth in this cohort."], "label": "contradicts"},
+    {"claim": "Drug A improves survival in glioblastoma.", "passages": ["Drug A showed no significant survival benefit in glioblastoma."], "label": "contradicts"},
+    {"claim": "Gene G is associated with disease D.", "passages": ["We found no association between gene G and disease D."], "label": "contradicts"},
+    {"claim": "Compound C is effective against pathogen P.", "passages": ["Compound C was ineffective against pathogen P at all doses."], "label": "contradicts"},
+    {"claim": "Inhibiting kinase X reduces tumor growth in AML cells.", "passages": ["This review discusses cardiac tissue development in zebrafish."], "label": "insufficient"},
+    {"claim": "Pathway W drives fibrosis progression.", "passages": ["An unrelated study of soil microbiome diversity."], "label": "insufficient"},
+    {"claim": "Target T is druggable in solid tumors.", "passages": ["A general commentary on the history of oncology funding."], "label": "insufficient"},
+    {"claim": "Protein Q folds via a two-state mechanism.", "passages": ["Protein Q folding proceeds through a two-state mechanism without intermediates."], "label": "supports"},
+    {"claim": "Vaccine V elicits durable antibody responses.", "passages": ["Vaccine V did not elicit durable antibody responses beyond six months."], "label": "contradicts"}
+  ]
+}

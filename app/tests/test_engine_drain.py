@@ -192,6 +192,265 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     assert "Could yield a combination therapy for TNBC." in markdown
 
 
+def _final_state_with_lineage() -> dict[str, Any]:
+    """A final state with an explicit parent and an evolution child.
+
+    The child carries explicit lineage (parent_id/generation/origin) and an
+    empty evolution_history, so the drain must read the explicit fields rather
+    than inferring lineage from evolution_history.
+    """
+    return {
+        "hypotheses": [
+            {
+                "id": "parent-1",
+                "text": "Parent hypothesis about kinase X.",
+                "parent_id": None,
+                "generation": 0,
+                "origin": "generation",
+                "elo_rating": 1200,
+                "win_count": 0,
+                "loss_count": 0,
+                "reviews": [],
+                "citation_map": {},
+                "evolution_history": [],
+                "deep_verification_probes": [],
+                "deep_verification_verdict": None,
+            },
+            {
+                "id": "child-1",
+                "text": "Child hypothesis: kinase X plus cofactor W.",
+                "parent_id": "parent-1",
+                "generation": 1,
+                "origin": "evolution",
+                # Explicitly empty: lineage must come from the fields above.
+                "evolution_history": [],
+                "elo_rating": 1200,
+                "win_count": 0,
+                "loss_count": 0,
+                "reviews": [],
+                "citation_map": {},
+                "deep_verification_probes": [],
+                "deep_verification_verdict": None,
+            },
+        ],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "evolution_details": [],
+        "research_overview": {},
+    }
+
+
+def test_drain_persists_explicit_lineage(isolated_db: str) -> None:
+    """The drain carries parent_id/generation/origin from the engine fields.
+
+    Both parent and child survive (append semantics, no discard), the child
+    links to its parent, and generation/created_by_agent reflect the explicit
+    lineage rather than an evolution_history inference.
+    """
+    run = store.create_run("kinase goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_final_state_with_lineage(),
+        db_path=isolated_db,
+    )
+
+    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    by_id = {h["id"]: h for h in hyps}
+    assert set(by_id) == {"parent-1", "child-1"}  # both kept
+
+    parent = by_id["parent-1"]
+    child = by_id["child-1"]
+    assert parent["parent_id"] is None
+    assert parent["generation"] == 0
+    assert parent["created_by_agent"] == "generation"
+    assert child["parent_id"] == "parent-1"
+    assert child["generation"] == 1
+    assert child["created_by_agent"] == "evolution"
+
+
+def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
+    """A child whose parent is not persisted is stored as a root (FK-safe).
+
+    Guards the hypotheses.parent_id foreign key: a dangling reference (e.g. a
+    parent pruned by proximity) must not abort the drain transaction.
+    """
+    state = _final_state_with_lineage()
+    # Drop the parent from the persisted set, leaving the child dangling.
+    state["hypotheses"] = [
+        h for h in state["hypotheses"] if h["id"] != "parent-1"
+    ]
+    run = store.create_run("kinase goal", "standard", "engine", {})
+    engine_adapter._persist_final_state(
+        run_id=run.id, final_state=state, db_path=isolated_db
+    )
+
+    hyps = store.list_hypotheses(run.id, db_path=isolated_db)
+    assert len(hyps) == 1
+    # The orphaned child is stored with parent_id cleared, generation intact.
+    assert hyps[0]["id"] == "child-1"
+    assert hyps[0]["parent_id"] is None
+    assert hyps[0]["generation"] == 1
+
+
+def test_unsafe_hypothesis_excluded_from_synthesis(isolated_db: str) -> None:
+    """A hypothesis a per-hypothesis review blocks never reaches the report.
+
+    Milestone 6/M9: the report synthesis excludes prohibited/ethical/uncertain
+    hypotheses from the leaderboard and top ideas, recording an audit decision.
+    """
+    run = store.create_run("safety goal", "standard", "engine", {})
+    safe_id = store.add_hypothesis(
+        run.id,
+        title="Safe idea",
+        statement="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
+        db_path=isolated_db,
+    )
+    store.add_hypothesis(
+        run.id,
+        title="Unsafe idea",
+        statement=(
+            "Weaponize the pathogen to enhance transmissibility in humans."
+        ),
+        db_path=isolated_db,
+    )
+
+    payload, markdown = report_render._build_report_content(
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        provider="engine",
+        citation_summary=None,
+        meta_review=None,
+        research_overview=None,
+        execution_time=1.0,
+        summary=None,
+        db_path=isolated_db,
+    )
+
+    # Only the safe hypothesis is synthesized.
+    assert payload["hypothesis_count"] == 1
+    leaderboard_ids = {row["id"] for row in payload["leaderboard"]}
+    assert leaderboard_ids == {safe_id}
+    assert "Weaponize" not in markdown
+
+    # The exclusion is recorded as a per-hypothesis safety audit decision.
+    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    assert any(
+        d["stage"] == "hypothesis" and d["decision"] == "block"
+        for d in decisions
+    )
+
+
+def test_drain_screens_hypotheses_before_finalize(isolated_db: str) -> None:
+    """The drain persists each hypothesis's safety_status and blocks unsafe.
+
+    Milestone 6/M9: the per-hypothesis safety screen runs inside the drain
+    (before the report is built), so an unsafe hypothesis is marked and audited
+    at persistence time -- not only filtered out later at report synthesis.
+    """
+    run = store.create_run("safety goal", "standard", "engine", {})
+    state: dict[str, Any] = {
+        "hypotheses": [
+            {
+                "id": "safe-1",
+                "text": "Inhibiting kinase X reduces AML growth via apoptosis.",
+                "parent_id": None,
+                "generation": 0,
+                "origin": "generation",
+                "elo_rating": 1200,
+                "win_count": 0,
+                "loss_count": 0,
+                "reviews": [],
+                "citation_map": {},
+                "evolution_history": [],
+                "deep_verification_probes": [],
+                "deep_verification_verdict": None,
+            },
+            {
+                "id": "unsafe-1",
+                "text": "Weaponize the pathogen to enhance transmissibility.",
+                "parent_id": None,
+                "generation": 0,
+                "origin": "generation",
+                "elo_rating": 1200,
+                "win_count": 0,
+                "loss_count": 0,
+                "reviews": [],
+                "citation_map": {},
+                "evolution_history": [],
+                "deep_verification_probes": [],
+                "deep_verification_verdict": None,
+            },
+        ],
+        "articles": [],
+        "tournament_matchups": [],
+        "meta_review": {},
+        "evolution_details": [],
+        "research_overview": {},
+    }
+
+    engine_adapter._persist_final_state(
+        run_id=run.id, final_state=state, db_path=isolated_db
+    )
+
+    # safety_status is persisted for every hypothesis by the drain itself.
+    by_text = {h["statement"][:8]: h for h in store.list_hypotheses(run.id)}
+    assert by_text["Inhibiti"]["safety_status"] == "allow"
+    assert by_text["Weaponiz"]["safety_status"] == "prohibited"
+
+    # A blocking audit row was recorded during the drain (pre-finalize).
+    decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
+    assert any(
+        d["stage"] == "hypothesis" and d["decision"] == "block"
+        for d in decisions
+    )
+
+
+def test_resumed_finalize_does_not_double_publish(isolated_db: str) -> None:
+    """A resumed run that finalizes twice publishes exactly one report.
+
+    Milestone 4 idempotency: the single-publish guard (gated on ``resumed``)
+    makes a second finalize a no-op once a report exists.
+    """
+    run = store.create_run("CSC goal", "standard", "engine", {})
+    inputs = engine_adapter._persist_final_state(
+        run_id=run.id,
+        final_state=_final_state_with_features(),
+        db_path=isolated_db,
+    )
+
+    async def _emit(type_: str, payload: dict[str, Any]) -> dict[str, Any]:
+        return {"type": type_, "payload": payload}
+
+    def _finalize(resumed: bool) -> list[Any]:
+        return _drain(
+            report_render.finalize_report(
+                run_id=run.id,
+                research_goal=run.research_goal,
+                run_mode="standard",
+                provider="engine",
+                emit=_emit,
+                execution_time=1.0,
+                resumed=resumed,
+                db_path=isolated_db,
+                **inputs,
+            )
+        )
+
+    first = _finalize(resumed=False)
+    # A resumed second finalize is a no-op: no new events, one report only.
+    second = _finalize(resumed=True)
+
+    assert any(e["type"] == "report" for e in first)
+    assert second == []
+    with store.connect(isolated_db) as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM reports WHERE run_id=?", (run.id,)
+        ).fetchone()[0]
+    assert count == 1
+
+
 def test_persist_writes_deep_verification_reviews(isolated_db: str) -> None:
     """Hypotheses with probes get a deep_verification review row."""
     run = store.create_run("CSC goal", "standard", "engine", {})

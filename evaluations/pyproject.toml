@@ -1,0 +1,51 @@
+# Tooling configuration only — evaluations/ is not an installable package.
+# It runs from the repo root as a plain package (see pytest.ini). The ruff
+# and mypy settings mirror engine/ and app/ (Google style, 80 columns,
+# strict typing) so `make lint` / `make typecheck` cover this directory.
+
+[tool.ruff]
+line-length = 80
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "RUF", # ruff-specific
+    "D",   # pydocstyle
+]
+ignore = [
+    # Google-style docstrings use descriptive-mood summaries ("Returns the
+    # ...", "Fetches rows ..."), which the imperative-mood check rejects.
+    "D401",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["evaluations"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests are not public API; their names are self-describing, so
+# docstrings are not required.
+"tests/**" = ["D1"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+# The evals import the viewer backend via a sys.path insert (see the
+# module docstrings); app/ is typechecked by its own `make typecheck` run.
+[[tool.mypy.overrides]]
+module = ["app", "app.*"]
+ignore_missing_imports = true
+follow_imports = "skip"

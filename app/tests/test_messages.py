@@ -83,6 +83,36 @@ def test_mark_steering_applied(isolated_db: str) -> None:
     assert all(m.applied is True for m in all_msgs)
 
 
+def test_queued_steering_flags_engine_pending_steering(
+    isolated_db: str,
+) -> None:
+    """Queued steering makes the engine opts carry a high-priority flag (M7).
+
+    The real engine's orchestrator treats ``pending_steering`` as a
+    high-priority request to generate anew; the adapter must set it when
+    steering is queued (in addition to folding the text into preferences).
+    """
+    from app.engine_adapter import _build_engine_opts
+
+    run = store.create_run("rg", "standard", "engine", {}, db_path=isolated_db)
+    store.append_message(
+        run.id, "user", "focus on kinase X", "steering", db_path=isolated_db
+    )
+
+    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    assert opts.get("pending_steering") is True
+    # The steering text is also folded into the preferences context.
+    assert "kinase X" in str(opts.get("preferences") or "")
+
+
+def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
+    from app.engine_adapter import _build_engine_opts
+
+    run = store.create_run("rg", "standard", "engine", {}, db_path=isolated_db)
+    opts = _build_engine_opts(run.config, run.id, isolated_db)
+    assert "pending_steering" not in opts
+
+
 def test_message_to_dict(isolated_db: str) -> None:
     store.create_run(
         "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db

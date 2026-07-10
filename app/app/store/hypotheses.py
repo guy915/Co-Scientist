@@ -29,6 +29,7 @@ def add_hypothesis(
     expected_effect: str = "",
     experimental_context: str = "",
     created_by_agent: str = "generation",
+    author: str = "",
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> str:
@@ -49,6 +50,8 @@ def add_hypothesis(
         expected_effect: Expected effect or outcome of the hypothesis.
         experimental_context: Context describing how to test the hypothesis.
         created_by_agent: Agent that created the row, e.g. 'generation'.
+        author: Authorship provenance for a scientist-contributed hypothesis;
+            empty for agent-generated ones.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
 
@@ -61,8 +64,8 @@ def add_hypothesis(
         conn.execute(
             "INSERT INTO hypotheses (id, run_id, parent_id, generation, "
             "category, title, statement, mechanism, expected_effect, "
-            "experimental_context, created_by_agent, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "experimental_context, created_by_agent, author, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 hyp_id,
                 run_id,
@@ -75,6 +78,7 @@ def add_hypothesis(
                 expected_effect,
                 experimental_context,
                 created_by_agent,
+                author,
                 now,
             ),
         )
@@ -93,6 +97,7 @@ def _hypothesis_state_updates(
     loss_delta: int,
     novelty: float | None,
     cluster_id: str | None,
+    safety_status: str | None,
 ) -> list[tuple[str, Any]]:
     """Return the (SQL fragment, value) pairs for the provided fields.
 
@@ -107,6 +112,7 @@ def _hypothesis_state_updates(
         (bool(loss_delta), "loss_count=loss_count+?", loss_delta),
         (novelty is not None, "novelty_score=?", novelty),
         (cluster_id is not None, "cluster_id=?", cluster_id),
+        (safety_status is not None, "safety_status=?", safety_status),
     )
     return [
         (fragment, value) for active, fragment, value in candidates if active
@@ -121,6 +127,7 @@ def update_hypothesis_state(
     loss_delta: int = 0,
     novelty: float | None = None,
     cluster_id: str | None = None,
+    safety_status: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
@@ -136,6 +143,8 @@ def update_hypothesis_state(
         loss_delta: Amount to add to the loss count.
         novelty: New novelty score to set.
         cluster_id: New proximity cluster identifier to set.
+        safety_status: New per-hypothesis safety status (e.g. 'allow',
+            'redact', 'blocked') from the pre-tournament safety review.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
@@ -147,6 +156,7 @@ def update_hypothesis_state(
         loss_delta=loss_delta,
         novelty=novelty,
         cluster_id=cluster_id,
+        safety_status=safety_status,
     )
     sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
     params: list[Any] = [value for _, value in updates] + [
@@ -158,6 +168,48 @@ def update_hypothesis_state(
         conn.execute(
             f"UPDATE hypothesis_state SET {set_clause} WHERE hypothesis_id=?",
             params,
+        )
+
+
+# Text columns the safety review may redact in place. The hypotheses table is
+# otherwise append-only; redaction is the one sanctioned mutation (safety
+# overrides immutability -- see hypothesis_safety.redact_fields).
+_REDACTABLE_COLUMNS = frozenset({"mechanism", "experimental_context"})
+
+
+def redact_hypothesis_fields(
+    hypothesis_id: str,
+    fields: dict[str, str],
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Overwrite a hypothesis's sensitive text columns with redacted values.
+
+    Args:
+        hypothesis_id: Identifier of the hypothesis to redact.
+        fields: Mapping of column name to redacted replacement text. Only
+            the redactable detail columns are accepted.
+        db_path: Optional override for the SQLite database path.
+        conn: Optional open connection to reuse (e.g. from ``transaction``).
+
+    Raises:
+        ValueError: If ``fields`` names a column that is not redactable.
+    """
+    unknown = set(fields) - _REDACTABLE_COLUMNS
+    if unknown:
+        raise ValueError(
+            f"non-redactable hypothesis columns: {sorted(unknown)}"
+        )
+    if not fields:
+        return
+    # Column names are validated against the literal allowlist above; user
+    # data only ever flows through the bound values.
+    set_clause = ", ".join(f"{column}=?" for column in sorted(fields))
+    params = [fields[column] for column in sorted(fields)]
+    with _use_conn(conn, db_path) as conn:
+        conn.execute(
+            f"UPDATE hypotheses SET {set_clause} WHERE id=?",
+            (*params, hypothesis_id),
         )
 
 

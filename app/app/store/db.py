@@ -137,7 +137,15 @@ def _init_schema(conn: sqlite3.Connection) -> None:
     # run against an already-populated database on every process start.
     conn.executescript(_SCHEMA)
     conn.execute("PRAGMA journal_mode=WAL")  # Readers do not block writers.
-    conn.execute("PRAGMA foreign_keys=ON")  # Enforce ON DELETE CASCADE, etc.
+    # NOTE: foreign_keys is a PER-CONNECTION pragma (unlike WAL, which is
+    # sticky in the file). It is enabled here only on the one-time schema-init
+    # connection, so the schema's `ON DELETE CASCADE` clauses are NOT enforced
+    # on the ordinary connections `connect()` hands out afterwards. Any delete
+    # of a parent row on a normal connection must remove its children
+    # explicitly (see store/runs.py::clear_run_derived_data). Migrations that
+    # delete parent rows run here, on this connection, so their cascades do
+    # fire.
+    conn.execute("PRAGMA foreign_keys=ON")
     _run_migrations(conn)
 
 
@@ -183,8 +191,16 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "messages", "meta_json", "TEXT")
     # Short classification label surfaced as a breadcrumb in the viewer.
     _add_column_if_missing(conn, "hypotheses", "category", "TEXT")
+    # Authorship provenance for scientist-contributed hypotheses (Milestone 7);
+    # empty for agent-generated ones.
+    _add_column_if_missing(conn, "hypotheses", "author", "TEXT")
     # Decisiveness class (upset|decisive|clear|narrow) for a tournament match.
     _add_column_if_missing(conn, "matches", "tier", "TEXT")
+    # Debate depth for a match: 1 = single-turn comparison, >1 = multi-turn
+    # scientific debate (Milestone 3). Default 1 keeps older rows single-turn.
+    _add_column_if_missing(
+        conn, "matches", "debate_turns", "INTEGER NOT NULL DEFAULT 1"
+    )
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:
@@ -403,4 +419,43 @@ CREATE TABLE IF NOT EXISTS messages (
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_messages_run ON messages(run_id, id);
+
+-- Durable workflow checkpoints (Milestone 4). One row per saved checkpoint;
+-- get_latest_checkpoint reads the newest by seq. `state_json` is the versioned
+-- checkpoint envelope (curated workflow state + provider-specific resume data),
+-- `last_event_seq` is the high-water mark a resumed run assigns new event seqs
+-- above (idempotent replay), and `schema_version` gates fail-closed restore.
+CREATE TABLE IF NOT EXISTS checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    seq INTEGER NOT NULL,            -- per-run monotonic checkpoint sequence
+    stage TEXT NOT NULL,             -- provider stage/boundary label
+    schema_version INTEGER NOT NULL,
+    last_event_seq INTEGER NOT NULL,
+    state_json TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_ckpt_run_seq ON checkpoints(run_id, seq DESC);
+
+-- Claim-level entailment graph (Milestone 5). One row per atomic claim of a
+-- hypothesis, with its assessed entailment label against retrieved evidence and
+-- the exact supporting/contradicting passages that drove the verdict. This is
+-- the claim-evidence graph the publication gate reads; it is distinct from the
+-- document-level four-state `citations` table.
+CREATE TABLE IF NOT EXISTS claim_evidence (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    hypothesis_id TEXT NOT NULL,
+    claim TEXT NOT NULL,
+    -- supports | contradicts | insufficient
+    label TEXT NOT NULL,
+    supporting_json TEXT,            -- JSON list of supporting passages
+    contradicting_json TEXT,         -- JSON list of contradicting passages
+    assessor TEXT NOT NULL,          -- provenance id of the entailment assessor
+    created_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+    FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_claim_ev_hyp ON claim_evidence(hypothesis_id);
 """

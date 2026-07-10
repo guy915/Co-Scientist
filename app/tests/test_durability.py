@@ -36,7 +36,9 @@ def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
 
     reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
 
-    assert set(reconciled) == {running, queued, synth}
+    # None of these have a checkpoint, so all fail (none resumable).
+    assert set(reconciled["failed"]) == {running, queued, synth}
+    assert reconciled["resumable"] == []
     for rid in (running, queued, synth):
         row = store.get_run(rid, db_path=isolated_db)
         assert row is not None
@@ -46,6 +48,35 @@ def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
     done_row = store.get_run(done, db_path=isolated_db)
     assert done_row is not None
     assert done_row.status == store.RunStatus.COMPLETED.value
+
+
+def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
+    """An interrupted run with a checkpoint is resumable, not failed (M4)."""
+    rid = _make_run("g", isolated_db)
+    store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
+    store.save_checkpoint(
+        rid,
+        stage="post_ranking",
+        schema_version=1,
+        last_event_seq=7,
+        state={"round": 1},
+        db_path=isolated_db,
+    )
+
+    reconciled = store.reconcile_interrupted_runs(db_path=isolated_db)
+
+    assert reconciled["resumable"] == [rid]
+    assert reconciled["failed"] == []
+    # A resumable run is NOT marked failed.
+    row = store.get_run(rid, db_path=isolated_db)
+    assert row is not None
+    assert row.status != store.RunStatus.FAILED.value
+    # A 'resumable' status event is logged for the stream/UI.
+    events = store.list_events(rid, db_path=isolated_db)
+    assert any(
+        e["type"] == "status" and e["payload"].get("status") == "resumable"
+        for e in events
+    )
 
 
 def test_reconcile_appends_status_event(isolated_db: str) -> None:
@@ -64,8 +95,10 @@ def test_reconcile_is_idempotent(isolated_db: str) -> None:
     """A second pass finds nothing to reconcile (all runs already terminal)."""
     rid = _make_run("g", isolated_db)
     store.update_run_status(rid, store.RunStatus.RUNNING, db_path=isolated_db)
-    assert store.reconcile_interrupted_runs(db_path=isolated_db) == [rid]
-    assert not store.reconcile_interrupted_runs(db_path=isolated_db)
+    assert store.reconcile_interrupted_runs(db_path=isolated_db)["failed"] == [
+        rid
+    ]
+    assert not store.reconcile_interrupted_runs(db_path=isolated_db)["failed"]
 
 
 def test_reconciled_run_is_restartable(isolated_db: str) -> None:

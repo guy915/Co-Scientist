@@ -31,6 +31,7 @@ _LIT_NODES = {
     "review",
     "ranking",
     "deep_verification",
+    "orchestrator",
     "meta_review",
     "evolve",
     "proximity",

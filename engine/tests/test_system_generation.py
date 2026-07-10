@@ -25,23 +25,26 @@ from co_scientist.generator import HypothesisGenerator
 from tests._llm_fake import install_fake_llm
 
 # The node execution order for one max_iterations=1 run in LLM-only mode
-# (literature_review/reflection are absent -- see
-# tests/test_generator.py's _SIMPLE_NODES): one full pass through
-# generate/review/ranking/deep_verification, then one iterate cycle
-# (meta_review -> evolve -> re-review -> re-rank -> re-verify -> proximity)
-# before the terminal research_overview.
+# (literature_review/reflection are absent -- see tests/test_generator.py's
+# _SIMPLE_NODES). One full pass through generate/review/ranking/
+# deep_verification reaches the orchestrator, which schedules one evolve cycle,
+# then a proximity refresh, then terminates (converged) into research_overview.
+# The orchestrator is the loop point that appears before each routed phase.
 _EXPECTED_NODE_SEQUENCE = [
     "supervisor",
     "generate",
     "review",
     "ranking",
     "deep_verification",
+    "orchestrator",
     "meta_review",
     "evolve",
     "review",
     "ranking",
     "deep_verification",
+    "orchestrator",
     "proximity",
+    "orchestrator",
     "research_overview",
 ]
 
@@ -73,14 +76,21 @@ async def test_generate_hypotheses_non_streaming_result_shape(
 
     hypotheses = result["hypotheses"]
     assert isinstance(hypotheses, list)
-    assert len(hypotheses) == 2
+    # 2 generation-0 parents plus 2 appended evolution children.
+    assert len(hypotheses) == 4
+    assert sorted(h["generation"] for h in hypotheses) == [0, 0, 1, 1]
     for hyp in hypotheses:
         # Public shape: plain dicts (Hypothesis.to_dict()), not objects.
         assert isinstance(hyp, dict)
         assert hyp["text"]
         assert isinstance(hyp["reviews"], list) and hyp["reviews"]
         assert hyp["elo_rating"] != 0
-        assert hyp["deep_verification_verdict"] == "holds"
+        # Lineage fields are part of the public serialized shape.
+        assert "parent_id" in hyp and "origin" in hyp
+    # Deep verification runs on the top-k by Elo, so at least the top-ranked
+    # hypotheses carry a verdict.
+    verdicts = [h["deep_verification_verdict"] for h in hypotheses]
+    assert verdicts.count("holds") >= 1
 
     assert result["meta_review"]["summary"]
     assert result["research_overview"]["overview"]
@@ -139,10 +149,13 @@ async def test_generate_hypotheses_streaming_event_progression(
     assert iterations[-1] == 1
 
     # Final yielded state (after research_overview) matches the shape and
-    # content invariants of the non-streaming result.
+    # content invariants of the non-streaming result. The pool grew to 4:
+    # 2 generation-0 parents plus 2 appended evolution children.
     node_name, final_state = events[-1]
     assert node_name == "research_overview"
-    assert len(final_state["hypotheses"]) == 2
+    assert len(final_state["hypotheses"]) == 4
+    generations = [h["generation"] for h in final_state["hypotheses"]]
+    assert sorted(generations) == [0, 0, 1, 1]
     assert final_state["research_overview"]["overview"]
     assert final_state["research_overview"]["nih_specific_aims"]
     assert final_state["evolution_details"]

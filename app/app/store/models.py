@@ -27,6 +27,9 @@ class RunStatus(str, enum.Enum):
     CANCELLED = "cancelled"
     FAILED = "failed"
     BLOCKED = "blocked"
+    # Cooperatively paused mid-run (Milestone 4); resumable from its last
+    # checkpoint. Not terminal — a paused run can be resumed or cancelled.
+    PAUSED = "paused"
 
 
 # Statuses that mark a run as finished; reaching one sets `completed_at`.

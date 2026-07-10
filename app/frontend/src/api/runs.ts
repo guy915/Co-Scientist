@@ -3,6 +3,7 @@
 import {getClientId} from '@/lib/client_id';
 import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {
+  ClaimEvidenceRow,
   Evidence,
   Hypothesis,
   MatchRow,
@@ -18,6 +19,7 @@ import type {
 // '@/api/runs'` alongside the API functions below, without a second import
 // from './run_types'.
 export type {
+  ClaimEvidenceRow,
   Evidence,
   Hypothesis,
   JsonPrimitive,
@@ -305,6 +307,22 @@ export function getMatches(id: string): Promise<MatchRow[]> {
  */
 export function getReviews(id: string): Promise<Review[]> {
   return getRunList<Review>(id, 'reviews');
+}
+
+/**
+ * Fetches the claim-level entailment graph for a run's hypotheses.
+ *
+ * The endpoint path (`claim-evidence`) differs from the response key
+ * (`claim_evidence`), so this cannot use the `getRunList` shorthand.
+ *
+ * @param id Run identifier.
+ * @returns The run's claim-evidence edges.
+ */
+export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
+  return fetchField<'claim_evidence', ClaimEvidenceRow[]>(
+    `/api/runs/${id}/claim-evidence`,
+    'claim_evidence',
+  );
 }
 
 /**

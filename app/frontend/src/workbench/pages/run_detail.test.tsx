@@ -47,6 +47,7 @@ vi.mock('@/api/runs', async importActual => {
     getEvidence: vi.fn().mockResolvedValue([]),
     getMatches: vi.fn().mockResolvedValue([]),
     getReviews: vi.fn().mockResolvedValue([]),
+    getClaimEvidence: vi.fn().mockResolvedValue([]),
     getCitations: vi.fn().mockResolvedValue([]),
     getReport: vi.fn().mockResolvedValue(null),
   };

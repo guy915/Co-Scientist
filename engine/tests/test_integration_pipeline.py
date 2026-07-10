@@ -26,6 +26,7 @@ import pytest
 
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.generator import HypothesisGenerator
+from co_scientist.models import HypothesisOrigin
 from co_scientist.state import WorkflowState
 from tests._llm_fake import install_fake_llm
 
@@ -77,21 +78,31 @@ async def test_single_iteration_pipeline_updates_cross_node_state(
     final_state = await _run_graph(gen, "Explain how protein X folds")
 
     hypotheses = final_state["hypotheses"]
-    assert len(hypotheses) == 2
+    # The pool grew: 2 generation-0 parents plus the appended evolution
+    # children (the fake LLM mints a unique leaf per call, so both evolutions
+    # are accepted and neither the reducer nor proximity collapses them).
+    parents = [h for h in hypotheses if h.generation == 0]
+    children = [h for h in hypotheses if h.generation >= 1]
+    assert len(parents) == 2
+    assert len(children) == 2
+    assert len(hypotheses) == 4
 
-    # Every survivor has distinct text. Note this does not exercise an
-    # actual collapse: the fake LLM mints a unique "stub-N" leaf per call,
-    # so neither the deduplicate_hypotheses reducer nor proximity's
-    # high-similarity removal ever has a real duplicate to collapse here
-    # (that path is covered directly by tests/test_state_reducer.py and
-    # tests/test_proximity.py); this only confirms the pipeline does not
-    # itself introduce a collision.
+    # Every hypothesis has distinct text.
     texts = [h.text for h in hypotheses]
     assert len(texts) == len(set(texts))
 
-    # Every hypothesis was reviewed twice: once before evolution, once
-    # after evolve rewrote its text.
-    assert all(len(h.reviews) == 2 for h in hypotheses)
+    # Reviews are incremental: each parent is reviewed once and is not
+    # re-reviewed on the post-evolve pass (that pass only reviews the new,
+    # unreviewed children). Each child is a fresh entrant reviewed before
+    # ranking (EVO-COMPETE-001) and linked to a real parent at Elo 1200.
+    assert all(len(p.reviews) == 1 for p in parents)
+    parent_ids = {p.id for p in parents}
+    for child in children:
+        assert child.origin is HypothesisOrigin.EVOLUTION
+        assert child.parent_id in parent_ids
+        assert child.generation == 1
+        assert len(child.reviews) >= 1  # reviewed before ranking
+        assert child.evolution_history
 
     # The tournament judged matchups and moved Elo off the initial rating.
     assert final_state["tournament_matchups"]
@@ -103,13 +114,13 @@ async def test_single_iteration_pipeline_updates_cross_node_state(
     assert "common_strengths" in meta_review
     assert "strategic_recommendations" in meta_review
 
-    # Evolution ran and left an audit trail on every hypothesis.
+    # Evolution ran and left an audit trail.
     assert final_state["evolution_details"]
-    assert all(h.evolution_history for h in hypotheses)
 
-    # Deep verification probed the (post-evolution) top hypotheses.
-    assert all(h.deep_verification_verdict for h in hypotheses)
-    assert all(h.deep_verification_probes for h in hypotheses)
+    # Deep verification probed the top hypotheses by Elo (top-k, not all).
+    ranked = sorted(hypotheses, key=lambda h: h.elo_rating, reverse=True)
+    assert ranked[0].deep_verification_verdict
+    assert ranked[0].deep_verification_probes
 
     # Research overview was synthesized as the terminal step.
     overview = final_state["research_overview"]
@@ -120,7 +131,6 @@ async def test_single_iteration_pipeline_updates_cross_node_state(
     # Execution metrics were populated across nodes, not just one.
     metrics = final_state["metrics"]
     assert metrics.llm_calls > 0
-    assert metrics.hypothesis_count == 2
     assert metrics.reviews_count >= 2
     assert metrics.tournaments_count >= 2
     assert metrics.evolutions_count == 2
@@ -130,14 +140,15 @@ async def test_single_iteration_pipeline_updates_cross_node_state(
     assert final_state["current_iteration"] == 1
 
 
-async def test_evolve_path_shrinks_pool_to_evolution_max_count(
+async def test_evolve_path_appends_immutable_children(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Evolution keeps only its top-k pool, discarding lower-ranked ones.
+    """Evolution appends immutable children; parents stay and both compete.
 
-    Generates 3 hypotheses but caps evolution at 2: the final pool should
-    be exactly the 2 evolved hypotheses, and each should carry a genuine
-    (non-identical) refinement.
+    Generates 3 hypotheses, caps evolution at 2: the 3 parents remain in the
+    pool unchanged and up to 2 evolution children are appended, each linking
+    back to a parent with a fresh generation. The pool grows rather than
+    shrinking (paper invariant SSR §4, §12).
     """
     install_fake_llm(monkeypatch)
     gen = HypothesisGenerator(
@@ -151,20 +162,104 @@ async def test_evolve_path_shrinks_pool_to_evolution_max_count(
 
     final_state = await _run_graph(gen, "Identify a synthetic-lethal target")
 
-    # Generation produced 3, but evolve_node keeps ONLY the evolved
-    # top-evolution_max_count pool going forward.
     hypotheses = final_state["hypotheses"]
-    assert len(hypotheses) == 2
+    # The pool grew beyond the 3 originals: children were appended, not
+    # substituted for their parents.
+    assert len(hypotheses) > 3
 
-    # Every survivor was accepted-refined by evolve (the fake LLM never
-    # echoes text back verbatim) and carries the resulting audit trail.
-    assert len(final_state["evolution_details"]) == 2
-    for hyp in hypotheses:
-        assert hyp.evolution_history
-        assert hyp.text not in hyp.evolution_history
+    children = [h for h in hypotheses if h.generation >= 1]
+    parents = [h for h in hypotheses if h.generation == 0]
+    assert len(parents) == 3  # every parent survived
+    assert children, "evolution should append at least one child"
+
+    parent_ids = {h.id for h in parents}
+    for child in children:
+        # Each child is a fresh, immutable entrant linked to a real parent.
+        assert child.parent_id in parent_ids
+        assert child.origin is HypothesisOrigin.EVOLUTION
+        assert child.evolution_history
+        assert child.text not in [p.text for p in parents]
+
+    # Evolution details record the parent->child edges.
+    assert final_state["evolution_details"]
     for detail in final_state["evolution_details"]:
+        assert detail["parent_id"] in parent_ids
         assert detail["original"] != detail["evolved"]
         assert detail["rationale"]
+
+
+async def test_adaptive_orchestration_schedules_generation_and_records_reasons(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The Supervisor loop generates after the first tournament, with reasons.
+
+    M2 acceptance: over multiple iterations the orchestrator schedules new
+    Generation work after the first tournament (not only Evolution), every
+    scheduled task and the final stop carry a recorded reason, and the run
+    terminates with an explicit termination reason.
+    """
+    install_fake_llm(monkeypatch)
+    gen = HypothesisGenerator(
+        model_name="fake/model",
+        max_iterations=3,
+        initial_hypotheses_count=2,
+        evolution_max_count=2,
+        tournament_pairs=2,
+        enable_cache=False,
+    )
+
+    final_state = await _run_graph(gen, "Explain how protein X folds")
+
+    history = final_state["task_history"]
+    assert history, "the orchestrator should record scheduled tasks"
+    # Every scheduled task carries a non-empty recorded reason.
+    for record in history:
+        assert record["reason"], record
+
+    tasks = [r["task_type"] for r in history]
+    # Both evolution and new generation happen across the run; the first work
+    # cycle evolves the leaders and a later cycle generates new regions.
+    assert "evolve" in tasks
+    assert "generate" in tasks
+    # Generation is scheduled after the first evolve (a later cycle), not only
+    # in the initial pass.
+    assert tasks.index("generate") > tasks.index("evolve")
+
+    # The run terminates with an explicit, recorded reason.
+    assert tasks[-1] == "terminate"
+    assert history[-1]["termination_reason"]
+    assert final_state["termination_reason"]
+
+
+async def test_budget_exhaustion_terminates_the_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hard LLM-call budget stops the run with a budget termination reason.
+
+    Proves the budget is a real termination predicate, not just
+    max_iterations (PLAN.md M2.6).
+    """
+    install_fake_llm(monkeypatch)
+    gen = HypothesisGenerator(
+        model_name="fake/model",
+        max_iterations=50,  # would run for many cycles without a budget
+        initial_hypotheses_count=2,
+        evolution_max_count=2,
+        tournament_pairs=2,
+        enable_cache=False,
+        budget={"max_llm_calls": 12},
+    )
+
+    final_state = await _run_graph(gen, "Explain how protein X folds")
+
+    # The run stopped on the budget, well before 50 iterations.
+    assert final_state["termination_reason"] == "budget"
+    assert final_state["current_iteration"] < 50
+    terminate_records = [
+        r for r in final_state["task_history"] if r["task_type"] == "terminate"
+    ]
+    assert terminate_records
+    assert terminate_records[-1]["termination_reason"] == "budget"
 
 
 async def test_zero_iteration_pipeline_deep_verifies_and_skips_iterate(

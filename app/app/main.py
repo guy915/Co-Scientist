@@ -86,13 +86,24 @@ async def lifespan(
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
     # interrupted by a crash or restart and would otherwise be stuck forever.
-    interrupted = store.reconcile_interrupted_runs()
-    if interrupted:
+    reconciled = store.reconcile_interrupted_runs()
+    if reconciled["failed"]:
         logger.info(
             "Reconciled %s interrupted run(s) to failed: %s",
-            len(interrupted),
-            ", ".join(r[:8] for r in interrupted),
+            len(reconciled["failed"]),
+            ", ".join(r[:8] for r in reconciled["failed"]),
         )
+    if reconciled["resumable"]:
+        logger.info(
+            "Found %s resumable interrupted run(s) with a checkpoint: %s",
+            len(reconciled["resumable"]),
+            ", ".join(r[:8] for r in reconciled["resumable"]),
+        )
+        # Auto-resume launcher: relaunch each resumable run from its last
+        # checkpoint so an interrupted run finishes rather than staying stuck.
+        from app.runs import resume_interrupted_runs
+
+        await resume_interrupted_runs(reconciled["resumable"])
 
     # No-op after the first successful startup; see seed.py for the
     # per-goal skip/re-seed logic.

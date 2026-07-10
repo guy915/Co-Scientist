@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app import store
-from app.qa import build_evidence_manifest
+from app.qa import build_evidence_manifest, build_system_prompt
 
 
 def _evidence(eid: str, **over: Any) -> dict[str, Any]:
@@ -41,6 +41,39 @@ def test_manifest_lists_cited_evidence_first() -> None:
     assert [m["n"] for m in manifest] == [1, 2, 3]
     assert manifest[0]["state"] == "verified"
     assert manifest[1]["state"] == "partial"
+
+
+def test_system_prompt_enforces_grounding_only() -> None:
+    """The Q&A prompt instructs answering only from the run's own artifacts.
+
+    Grounding is the M7 invariant: the assistant must answer from the run's
+    hypotheses/reviews/matches/evidence, cite only the numbered manifest, and
+    decline rather than draw on outside knowledge.
+    """
+    prompt = build_system_prompt(
+        research_goal="A goal",
+        hypotheses=[
+            {
+                "title": "H1",
+                "elo_rating": 1200,
+                "win_count": 1,
+                "loss_count": 0,
+            }
+        ],
+        reviews=[],
+        matches=[],
+        history=[],
+        manifest=build_evidence_manifest([_evidence("e1")], []),
+    )
+    lowered = prompt.lower()
+    assert "only from this run" in lowered
+    assert "do not draw on outside knowledge" in lowered
+    assert "do not contain the answer" in lowered
+    # It grounds citations to the numbered manifest, never invented ones.
+    assert "never invent a citation" in lowered
+    # The run's own goal and hypothesis are in the grounding context.
+    assert "A goal" in prompt
+    assert "H1" in prompt
 
 
 def test_manifest_keeps_strongest_state_per_evidence() -> None:

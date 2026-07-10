@@ -61,6 +61,43 @@ class AskRequest(BaseModel):
     question: str = Field(..., min_length=1)
 
 
+class HumanHypothesisRequest(BaseModel):
+    """Body for POST /api/runs/{id}/hypotheses (scientist-contributed)."""
+
+    statement: str = Field(..., min_length=1)
+    author: str = Field(..., min_length=1)
+    title: str = ""
+
+
+class HumanReviewRequest(BaseModel):
+    """Body for POST /api/runs/{id}/reviews (scientist-contributed)."""
+
+    hypothesis_id: str = Field(..., min_length=1)
+    author: str = Field(..., min_length=1)
+    verdict: str = Field(..., min_length=1)  # support | oppose | revise
+    critique: str = ""
+
+
+# Cap on attachment text size (characters). Attachments are inert text stored
+# in SQLite (no binary, no archive extraction, so no zip-bomb/malware surface);
+# the cap bounds storage and prompt-context growth.
+MAX_ATTACHMENT_CHARS = 200_000
+
+
+class HumanAttachmentRequest(BaseModel):
+    """Body for POST /api/runs/{id}/attachments (scientist-provided corpus).
+
+    Text-only by design: the endpoint accepts a document's plain text, never a
+    binary or archive, so there is no extraction/malware surface. ``consent``
+    must be true — the scientist explicitly consents to indexing the document
+    into the run's private retrieval corpus.
+    """
+
+    title: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1, max_length=MAX_ATTACHMENT_CHARS)
+    consent: bool = False
+
+
 def _run_overrides_from_request(
     req: CreateRunRequest, *, focus: str, tier: str, setup: dict[str, Any]
 ) -> dict[str, Any]:

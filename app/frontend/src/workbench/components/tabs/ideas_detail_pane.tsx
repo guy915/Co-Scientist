@@ -1,5 +1,5 @@
 import type {MouseEvent, ReactNode} from 'react';
-import type {Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
@@ -45,6 +45,7 @@ const IDEA_SECTION_LINK_CLASSES =
 const SECTIONS = {
   overview: 'Hypothesis overview',
   description: 'Description',
+  provenance: 'Provenance & lineage',
   reviewSummary: 'Review summary',
   fullReview: 'Full review',
   tournament: 'Tournament performance',
@@ -55,6 +56,7 @@ const SECTIONS = {
 const RAIL_SECTIONS: readonly string[] = [
   SECTIONS.overview,
   SECTIONS.description,
+  SECTIONS.provenance,
   SECTIONS.reviewSummary,
   SECTIONS.fullReview,
   SECTIONS.tournament,
@@ -90,12 +92,14 @@ export function HypothesisDetail({
   hypothesis,
   reviews,
   matches,
+  claimEvidence = [],
 }: {
   hypothesis: Hypothesis | null;
-  // The run's full review/match sets; the detail filters them down to the
-  // hypothesis itself, so call sites just forward what they have.
+  // The run's full review/match/claim sets; the detail filters them down to
+  // the hypothesis itself, so call sites just forward what they have.
   reviews: Review[];
   matches: MatchRow[];
+  claimEvidence?: ClaimEvidenceRow[];
 }) {
   if (!hypothesis) {
     return (
@@ -108,6 +112,7 @@ export function HypothesisDetail({
 
   const review = findHypothesisReview(hypothesis, reviews);
   const latestMatch = findLatestMatch(hypothesis, matches);
+  const claims = claimEvidence.filter(c => c.hypothesis_id === hypothesis.id);
 
   return (
     <section
@@ -120,6 +125,10 @@ export function HypothesisDetail({
 
       <DetailSection title={SECTIONS.description} level={2}>
         <HypothesisDescriptionContent hypothesis={hypothesis} />
+      </DetailSection>
+
+      <DetailSection title={SECTIONS.provenance} level={2}>
+        <HypothesisProvenanceContent hypothesis={hypothesis} claims={claims} />
       </DetailSection>
 
       <DetailSection title={SECTIONS.reviewSummary} level={2}>
@@ -162,6 +171,84 @@ function HypothesisDescriptionContent({hypothesis}: {hypothesis: Hypothesis}) {
   );
 }
 
+// Human-readable origin label for the agent/source that produced a hypothesis.
+function originLabel(createdByAgent: string): string {
+  switch (createdByAgent) {
+    case 'evolution':
+      return 'Evolution agent (refined from a parent)';
+    case 'generation':
+      return 'Generation agent';
+    case 'scientist_manual':
+      return 'Scientist (human-authored)';
+    default:
+      return createdByAgent || 'Unknown';
+  }
+}
+
+// Summarizes a hypothesis's claim-evidence edges as a one-line count by label
+// (the claim-level grounding graph, Milestone 5), or null when none exist.
+function claimEvidenceSummary(claims: ClaimEvidenceRow[]): string | null {
+  if (!claims.length) return null;
+  const counts = {supports: 0, contradicts: 0, insufficient: 0};
+  for (const c of claims) {
+    if (c.label === 'supports') counts.supports++;
+    else if (c.label === 'contradicts') counts.contradicts++;
+    else counts.insufficient++;
+  }
+  const parts = [`${claims.length} claim(s) assessed`];
+  if (counts.supports) parts.push(`${counts.supports} supported`);
+  if (counts.contradicts) parts.push(`${counts.contradicts} contradicted`);
+  if (counts.insufficient) {
+    parts.push(`${counts.insufficient} unsupported (speculative)`);
+  }
+  return parts.join(', ');
+}
+
+// "Provenance & lineage" section body: where the hypothesis came from
+// (Milestone 1 immutable-evolution lineage), its proximity cluster
+// (Milestone 3), its safety status (Milestone 6), and a summary of its
+// claim-evidence grounding (Milestone 5).
+function HypothesisProvenanceContent({
+  hypothesis,
+  claims,
+}: {
+  hypothesis: Hypothesis;
+  claims: ClaimEvidenceRow[];
+}) {
+  const claimSummary = claimEvidenceSummary(claims);
+  return (
+    <>
+      <p>
+        <strong>Origin:</strong> {originLabel(hypothesis.created_by_agent)}
+        {hypothesis.author ? ` — ${hypothesis.author}` : ''}
+      </p>
+      <p>
+        <strong>Generation:</strong>{' '}
+        {hypothesis.generation === 0
+          ? 'Generation 0 (initial hypothesis)'
+          : `Generation ${hypothesis.generation}`}
+        {hypothesis.parent_id && ' — evolved from an earlier hypothesis'}
+      </p>
+      {hypothesis.cluster_id && (
+        <p>
+          <strong>Proximity cluster:</strong> {hypothesis.cluster_id}
+        </p>
+      )}
+      <p>
+        <strong>Safety status:</strong>{' '}
+        <span className="capitalize">
+          {hypothesis.safety_status || 'not screened'}
+        </span>
+      </p>
+      {claimSummary && (
+        <p>
+          <strong>Claim evidence:</strong> {claimSummary}
+        </p>
+      )}
+    </>
+  );
+}
+
 // "Review summary" section text, falling back to a placeholder until the
 // review node has run.
 function reviewSummaryText(review: Review | undefined): string {
@@ -186,8 +273,18 @@ function tournamentSummaryText(hypothesis: Hypothesis): string {
   return `${hypothesis.win_count} wins and ${hypothesis.loss_count} losses across ${totalMatches} pairwise matches (${winRate}% win rate).`;
 }
 
-// "Match summary" section body: the optional outcome line plus the
-// rationale (or its placeholder). Props-only (no hooks).
+// Human-readable debate-depth label. 1 = single-turn comparison; anything
+// greater is a multi-turn scientific debate (top-ranked matchups) — the
+// median-Elo allocation from the Google system (SSR §4, §12).
+function debateDepthLabel(turns: number | undefined): string {
+  if (turns && turns > 1) {
+    return `Multi-turn scientific debate (${turns} turns)`;
+  }
+  return 'Single-turn comparison';
+}
+
+// "Match summary" section body: the optional outcome line, the debate depth,
+// plus the rationale (or its placeholder). Props-only (no hooks).
 function MatchSummaryContent({
   latestMatch,
 }: {
@@ -199,6 +296,12 @@ function MatchSummaryContent({
         <p>
           <strong>Outcome:</strong>{' '}
           <span className="capitalize">{latestMatch.tier}</span>
+        </p>
+      )}
+      {latestMatch && (
+        <p>
+          <strong>Debate depth:</strong>{' '}
+          {debateDepthLabel(latestMatch.debate_turns)}
         </p>
       )}
       <p>{latestMatch?.rationale || 'No match rationale is available yet.'}</p>

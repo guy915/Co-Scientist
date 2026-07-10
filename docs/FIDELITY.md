@@ -1,5 +1,11 @@
 # Fidelity to Google's AI Co-Scientist
 
+> **The authoritative, requirement-level parity record is
+> [PARITY.md](PARITY.md)** — it tracks every published behavior with a stable
+> ID, implementation evidence, an automated test/eval, and a status
+> (`verified`/`partial`/`missing`/`external`/`undisclosed`). This document is
+> the narrative companion; where the two differ, PARITY.md and the tests win.
+
 The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the public demos, and the product captures in `media/`) describe the system at the level of agent roles, behavioural invariants, and final-product UX. They do **not** publish numeric hyperparameters, ranking constants, prompt details, or persistence schemas. This document catalogues which invariants this implementation preserves, which are **implementation-defined** (chosen to satisfy the spirit of the published behaviour without overspecifying), and which are explicitly out of scope.
 
 ## Invariants preserved exactly
@@ -11,14 +17,21 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 | Tournament uses **pairwise** comparison (not absolute scalar scoring) | `mock_workflow._judge`, `engine.nodes.ranking` | published |
 | Initial Elo is **1200** | `app/elo.py` `INITIAL_ELO`; mirrors engine `INITIAL_ELO_RATING` | published |
 | Standard Elo formula | `app/elo.py` `update_pair` mirrors `engine.nodes.ranking.calculate_elo_update` | textbook Elo |
-| Evolution generates **new** offspring hypotheses with lineage | `store.add_hypothesis(parent_id=…)`; verified by `tests/test_evolution.py` | published — explicit invariant in product docs |
+| Evolution generates **new** offspring hypotheses with lineage (never mutates the parent) | Engine builds an immutable child (`nodes/evolve_results.py::_build_evolution_child`: new id, Elo 1200, zero matches, `parent_id`/`generation`); real-engine drain persists the explicit lineage (`engine_adapter/drain.py`); `store.hypotheses` is append-only. Tests: engine `test_evolve.py`, `test_integration_pipeline.py::test_evolve_path_appends_immutable_children`; app `test_engine_drain.py::test_drain_persists_explicit_lineage`, `test_evolution.py` | published — explicit invariant in product docs (SSR §4, §12) |
 | Meta-review feedback synthesized and appended to every agent's prompt in later iterations | `nodes/meta_review.py`; `_format_meta_review_context` threaded into the generation, reflection, ranking, review, and evolve prompts (no-op when empty); `store.reviews` row per iteration | "Towards an AI co-scientist" §3.3 — feedback without back-propagation |
 | Deep-verification review (probing questions challenging a hypothesis's fundamental assumptions) | `nodes/deep_verification.py` runs on the top-k by Elo after ranking; verdict feeds the ranking prompt; surfaced as `reviewer_agent="deep_verification"` reviews | "Towards an AI co-scientist" §3.3 + Fig A.15 |
 | Research overview + NIH Specific Aims synthesized from the top hypotheses | `nodes/research_overview.py` terminal node; surfaced in the report payload + markdown (`## Research Overview` / `## NIH Specific Aims`) | "Towards an AI co-scientist" §3.3 — research overview |
-| Citation verification is a gate, not decoration | `store.citations.state` ∈ {verified, partial, unsupported, unavailable}; UI shows them prominently | published |
 | Safety screening before **and** after generation | `safety.screen_intake` + `safety.screen_final`; both persisted | published |
 | Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_mode`; legacy `standard`/`advanced` inputs resolve to `default` | implementation policy after removing the obsolete profile split |
-| UI exposes agents, queue, progress, evidence, tournament, reports, run specs, and scientist-in-the-loop interaction | Workbench Ideas / Knowledge Base / Summary / Run Specifications plus supporting Progress / Tournament / Chat views | published UX |
+| UI exposes hypotheses (ideas), evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench chat workspace + run detail (`workbench_app.tsx`); the only live tab component is `ideas_tab.tsx`; `run_detail.tsx` renders details / learning / research-overview inline | published UX (see the note below on retired tabs) |
+
+> **Not yet a claim-level verification gate.** Citation classification
+> (`store.citations.state` ∈ {verified, partial, unsupported, unavailable}) is a
+> post-hoc **audit label** computed from document-level lexical overlap
+> (`app/citations.py`, Jaccard thresholds), surfaced in the UI and report. It is
+> **not** a claim-level entailment check and does **not** gate ranking or
+> publication. Claim-level grounding and a publication gate are tracked as
+> `CITE-*` rows in [PARITY.md](PARITY.md) (Milestone 5).
 
 ## Implementation-defined values
 
@@ -42,8 +55,9 @@ These features are described in the published material but are not implemented h
     is generated deterministically; the real engine path retains the MCP-based
     retrieval the upstream `co_scientist` engine provides, but no live retrieval
     is wired into the FastAPI runs adapter beyond what the engine already does.
--   **Distributed worker queue.** A Celery+Redis backend is sketched in
-    `plan.md` but not implemented; runs execute in a FastAPI background task.
+-   **Distributed worker queue.** Runs execute in a FastAPI background task;
+    no Celery/Redis worker pool. Per PLAN.md the local FastAPI path is kept
+    viable deliberately rather than adopting an undisclosed Google stack.
 -   **Multi-user collaboration, authentication, and project ownership.**
     Local-first only.
 -   **Full Computational Discovery and Literature Insights surfaces from the
@@ -62,11 +76,19 @@ The mock workflow is **deterministic**: same goal + same run mode + same `run_id
 
 The "Towards an AI co-scientist" paper is the primary fidelity reference. The implementation matches its described behaviour on:
 
--   The "generate → debate → evolve" core loop, under a persistent supervisor.
+-   The "generate → debate → evolve" core loop, under a supervisor that
+    conditions each iteration's prompts. The supervisor does **not** yet
+    dynamically schedule/weight agents from summary statistics — that adaptive
+    orchestration is Milestone 2 (`SUP-*` in [PARITY.md](PARITY.md)); today the
+    LangGraph iteration order is a fixed bounded sequence.
 -   Hypotheses receive deeper review when they rank highly (top-k evolution).
 -   Proximity clustering guides deduplication and pairing.
 -   The final report distinguishes verified, partially supported, and
-    unsupported claims.
--   Safety as a fail-closed gate on hazardous biomedical / chemical content.
+    unsupported claims **by the audit label above** (not a claim-level
+    verification gate; see Milestone 5).
+-   Safety as a fail-closed gate on hazardous biomedical / chemical content
+    **at the run level** (intake + final). Per-hypothesis safety review that
+    removes individual unsafe hypotheses before ranking is Milestone 6
+    (`SAFE-PERHYP-001`).
 
 Where the paper is silent (specific Elo K, exact pool sizes, prompt templates, regex patterns), this implementation makes pragmatic choices and documents them here.

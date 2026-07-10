@@ -136,6 +136,12 @@ def _build_matchup_detail(
             outcome.loser_elo_before,
             response.get("confidence_level", ""),
         ),
+        # Debate provenance (Milestone 3): depth (1 = single-turn comparison,
+        # >1 = multi-turn scientific debate), the turn-by-turn transcript, and
+        # the judge model.
+        "debate_turns": response.get("debate_turns", 1),
+        "debate_transcript": response.get("debate_transcript", []),
+        "judge_model": response.get("judge_model"),
         "winner_elo_before": outcome.winner_elo_before,
         "winner_elo_after": outcome.winner_elo_after,
         "loser_elo_before": outcome.loser_elo_before,
@@ -179,6 +185,7 @@ def _build_ranking_delta(
     hypotheses: list[Hypothesis],
     matchup_details: list[dict[str, Any]],
     tournament_rounds: int,
+    total_llm_calls: int | None = None,
 ) -> dict[str, Any]:
     """Builds the ranking_node state delta after Elo updates are applied.
 
@@ -186,6 +193,8 @@ def _build_ranking_delta(
         hypotheses: Hypotheses sorted by Elo rating (highest first).
         matchup_details: Per-round matchup detail dicts.
         tournament_rounds: Number of tournament rounds run.
+        total_llm_calls: Total judge LLM calls (summed over debate turns);
+            defaults to one call per round when omitted.
 
     Returns:
         The ranking_node state delta dictionary. Merged back into
@@ -195,8 +204,12 @@ def _build_ranking_delta(
         other ideas" view, and metrics/messages accumulate via their
         respective reducers rather than overwriting prior state.
     """
-    # Update metrics (deltas only, merge_metrics will add to existing state)
-    llm_calls = tournament_rounds
+    # Update metrics (deltas only, merge_metrics will add to existing state).
+    # A multi-turn debate makes several judge calls per round, so llm_calls is
+    # the summed turn count, not the round count.
+    llm_calls = (
+        total_llm_calls if total_llm_calls is not None else tournament_rounds
+    )
     metrics = create_metrics_update(
         llm_calls_delta=llm_calls, tournaments_count_delta=tournament_rounds
     )

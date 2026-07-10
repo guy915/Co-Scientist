@@ -16,6 +16,8 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from app import store
+from app.claim_grounding import evidence_passages, ground_hypotheses
+from app.hypothesis_screening import screen_hypotheses
 from app.mock_workflow_phases import (
     _apply_pending_steering,
     _fetch_top_hypotheses,
@@ -42,6 +44,8 @@ from app.report_render import (
     finalize_report,
     hypothesis_stub,
 )
+from app.run_modes import CANONICAL_RUN_MODE
+from app.runs_registry import is_pause_requested
 from app.store import RunStatus
 
 
@@ -69,6 +73,12 @@ async def _run_evolve_and_meta_review_round(
         hyp_ids,
         elo_state,
         evolution_max_count,
+    )
+    # Safety review after material evolution (SSR §4): screen each new child
+    # and drop any blocked one from the tournament pool before it re-ranks.
+    result = screen_hypotheses(run_id, children, db_path=db_path)
+    children = _drop_blocked_children(
+        children, hyp_ids, elo_state, result.blocked_ids
     )
     yield await emit(
         "evolve",
@@ -103,13 +113,19 @@ async def _emit_cancelled_if_set(
     cancelled: asyncio.Event | None,
     emit: EmitFn,
 ) -> dict[str, Any] | None:
-    """If cancellation is set, persist and emit the terminal event.
+    """If the stop signal is set, persist and emit the closing status event.
 
-    Returns the emitted "status": "cancelled" event, or None if cancellation
-    has not been requested.
+    The pause endpoint reuses the cancel signal to stop the workflow, so this
+    checks the registry's pause flag to persist/emit ``paused`` (resumable)
+    instead of a wrong terminal ``cancelled`` landing in the event log.
+
+    Returns the emitted status event, or None if no stop was requested.
     """
     if not _is_cancelled(cancelled):
         return None
+    if is_pause_requested(run_id):
+        store.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
+        return await emit("status", {"status": "paused"})
     store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
     return await emit("status", {"status": "cancelled"})
 
@@ -147,6 +163,35 @@ async def _maybe_evolve_and_meta_review_round(
         yield event
 
 
+# Version of the app-level (envelope) checkpoint the mock writes at iteration
+# boundaries. Bumped only if the envelope shape below changes.
+APP_CHECKPOINT_SCHEMA_VERSION = 1
+
+
+def _save_iteration_checkpoint(
+    run_id: str, db_path: str | None, cfg: dict[str, Any], iteration: int
+) -> None:
+    """Persist an envelope checkpoint at a mock iteration boundary.
+
+    The envelope carries just enough to relaunch a deterministic reconstruction
+    (config + run mode + iteration reached); the mock re-derives all artifacts
+    from the run's stable seed, so no engine state is captured here.
+    """
+    store.save_checkpoint(
+        run_id,
+        stage=f"iteration_{iteration}",
+        schema_version=APP_CHECKPOINT_SCHEMA_VERSION,
+        last_event_seq=store.latest_event_seq(run_id, db_path=db_path),
+        state={
+            "provider": "mock",
+            "run_mode": CANONICAL_RUN_MODE,
+            "iteration": iteration,
+            "config": cfg,
+        },
+        db_path=db_path,
+    )
+
+
 async def _run_tournament_iterations(
     run_id: str,
     research_goal: str,
@@ -178,6 +223,10 @@ async def _run_tournament_iterations(
             run_id, db_path, itr, pairs, elo_state, title_by_id, cfg["k_factor"]
         )
         yield await emit("ranking", _ranking_round_payload(itr, round_matches))
+
+        # Durable checkpoint at the iteration boundary (Milestone 4): a run
+        # interrupted or paused after this point is resumable from here.
+        _save_iteration_checkpoint(run_id, db_path, cfg, itr)
 
         cancelled_event = await _emit_cancelled_if_set(
             run_id, db_path, cancelled, emit
@@ -351,9 +400,12 @@ async def _run_reflection_and_proximity(
     hyp_ids: list[str],
     hyp_payloads: list[dict[str, Any]],
 ) -> AsyncIterator[dict[str, Any]]:
-    """Seed and emit the per-hypothesis reflection and proximity clusters.
+    """Seed and emit reflection, safety, claim grounding, and proximity.
 
-    Covers stages 5-6.
+    Covers stages 5-6, with the pre-tournament reviews between them:
+    reflection's preliminary safety screen (SSR §4, §10) and claim-level
+    grounding + the publication gate (SSR §6, §7) both run before ranking, so a
+    blocked or contradicted hypothesis never enters ranking or synthesis.
     """
     # ---- 5. Reflection ----
     _persist_reflection(
@@ -361,11 +413,72 @@ async def _run_reflection_and_proximity(
     )
     yield await emit("reflection", {"reviewed": len(hyp_ids)})
 
+    # ---- 5b. Per-hypothesis safety screen (before tournament entry) ----
+    result = screen_hypotheses(run_id, hyp_payloads, db_path=db_path)
+    _drop_blocked_hypotheses(hyp_ids, hyp_payloads, result.blocked_ids)
+    yield await emit(
+        "safety.hypothesis",
+        {
+            "screened": result.screened_count,
+            "blocked": result.blocked_count,
+            "eligible": len(hyp_ids),
+        },
+    )
+
+    # ---- 5c. Claim grounding + publication gate (before tournament entry) --
+    passages = evidence_passages(run_id, db_path=db_path)
+    grounding = ground_hypotheses(
+        run_id, hyp_payloads, passages, db_path=db_path
+    )
+    _drop_blocked_hypotheses(hyp_ids, hyp_payloads, grounding.blocked_ids)
+    yield await emit(
+        "citation.grounding",
+        {
+            "grounded": len(grounding.reason_by_id),
+            "blocked": grounding.blocked_count,
+            "eligible": len(hyp_ids),
+        },
+    )
+
     # ---- 6. Proximity / clustering ----
     clusters = _persist_proximity(db_path, hyp_ids)
     yield await emit(
         "proximity", {"clusters": {k: len(v) for k, v in clusters.items()}}
     )
+
+
+def _drop_blocked_hypotheses(
+    hyp_ids: list[str],
+    hyp_payloads: list[dict[str, Any]],
+    blocked_ids: frozenset[str],
+) -> None:
+    """Remove safety-blocked hypotheses from the tournament pool in place."""
+    if not blocked_ids:
+        return
+    hyp_ids[:] = [hid for hid in hyp_ids if hid not in blocked_ids]
+    hyp_payloads[:] = [
+        h for h in hyp_payloads if str(h.get("id") or "") not in blocked_ids
+    ]
+
+
+def _drop_blocked_children(
+    children: list[dict[str, Any]],
+    hyp_ids: list[str],
+    elo_state: dict[str, int],
+    blocked_ids: frozenset[str],
+) -> list[dict[str, Any]]:
+    """Remove safety-blocked evolved children from the pool and Elo state.
+
+    The child rows stay persisted (with their blocked ``safety_status``) so the
+    UI can show them as blocked; they are only removed from the tournament pool
+    (`hyp_ids`, `elo_state`). Returns the eligible children for the event.
+    """
+    if not blocked_ids:
+        return children
+    hyp_ids[:] = [hid for hid in hyp_ids if hid not in blocked_ids]
+    for blocked_id in blocked_ids:
+        elo_state.pop(blocked_id, None)
+    return [c for c in children if str(c.get("id") or "") not in blocked_ids]
 
 
 async def _run_seed_stages(

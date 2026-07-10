@@ -8,7 +8,7 @@ routing decisions that drive the iteration cycle.
 import logging
 from typing import Any
 
-from langgraph.graph import END, StateGraph
+from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
 from co_scientist.nodes.deep_verification import deep_verification_node
@@ -19,6 +19,7 @@ from co_scientist.nodes.evolve import evolve_node
 from co_scientist.nodes.generate import generate_node
 from co_scientist.nodes.literature_review import literature_review_node
 from co_scientist.nodes.meta_review import meta_review_node
+from co_scientist.nodes.orchestrator import orchestrator_node
 from co_scientist.nodes.proximity import proximity_node
 from co_scientist.nodes.ranking import ranking_node
 from co_scientist.nodes.reflection import reflection_node
@@ -38,49 +39,43 @@ CompiledWorkflow = CompiledStateGraph[Any, Any, Any, Any]
 _WorkflowBuilder = StateGraph[Any, Any, Any, Any]
 
 
-def _after_ranking(state: WorkflowState) -> str:
-    """Decide what to do after ranking based on workflow state."""
-    current_iteration = state.get("current_iteration", 0)
-    max_iterations = state.get("max_iterations", 0)
-    # Check if we've already run meta_review (indicates we're in
-    # iteration cycle)
-    has_meta_review = bool(state.get("meta_review", {}))
-
-    if not has_meta_review:
-        # First ranking - check if we should start iterating
-        if current_iteration < max_iterations:
-            logger.info(
-                "Starting iteration %s/%s",
-                current_iteration + 1,
-                max_iterations,
-            )
-            return "iterate"
-        else:
-            logger.info("No iterations needed, ending workflow")
-            return "end"
-    else:
-        # We're in an iteration cycle - go through proximity for
-        # deduplication
-        logger.info("Going through proximity check")
-        return "proximity"
+# Maps the scheduler's chosen TaskType value (recorded by orchestrator_node in
+# state["next_task"]) to the graph node that begins that task. EVOLVE enters at
+# meta_review (its critique feeds evolve); TERMINATE enters the terminal
+# synthesis. Keep in sync with scheduling.policy.ALLOWED_LOOP_TASKS.
+_TASK_ROUTES: dict[str, str] = {
+    "generate": "generate",
+    "reflect": "review",
+    "rank": "ranking",
+    "evolve": "meta_review",
+    "proximity": "proximity",
+    "terminate": "research_overview",
+}
 
 
-def _after_proximity(state: WorkflowState) -> str:
-    """Check if should continue after proximity deduplication."""
-    # Note: proximity node increments current_iteration
-    current_iteration = state.get("current_iteration", 0)
-    max_iterations = state.get("max_iterations", 0)
+def _resume_router(state: WorkflowState) -> str:
+    """Route the graph entry: resume at the orchestrator, else fresh start.
 
-    if current_iteration < max_iterations:
-        logger.info(
-            "Continuing to iteration %s/%s",
-            current_iteration + 1,
-            max_iterations,
-        )
-        return "iterate"
-    else:
-        logger.info("All iterations complete after deduplication")
-        return "end"
+    A checkpoint-restored state carries ``resume=True`` (Milestone 4), so the
+    graph re-enters at the orchestrator loop point — every completed node's
+    output is already in the restored pool/ledger, so the orchestrator reads
+    state and picks the next task without re-running anything. A fresh run
+    starts at the supervisor.
+    """
+    return "orchestrator" if state.get("resume") else "supervisor"
+
+
+def _route_next_task(state: WorkflowState) -> str:
+    """Route to the node that starts the orchestrator's chosen next task.
+
+    Reads ``next_task`` (set by ``orchestrator_node``) and maps it to a node.
+    Falls back to terminal synthesis if the scheduler produced no decision,
+    so the graph can never dead-end.
+    """
+    next_task = state.get("next_task") or "terminate"
+    node = _TASK_ROUTES.get(next_task, "research_overview")
+    logger.info("Orchestrator routing next_task=%s -> %s", next_task, node)
+    return node
 
 
 def _add_workflow_nodes(
@@ -98,6 +93,7 @@ def _add_workflow_nodes(
     workflow.add_node("review", review_node)
     workflow.add_node("ranking", ranking_node)
     workflow.add_node("deep_verification", deep_verification_node)
+    workflow.add_node("orchestrator", orchestrator_node)
     workflow.add_node("meta_review", meta_review_node)
     workflow.add_node("evolve", evolve_node)
     workflow.add_node("proximity", proximity_node)
@@ -120,8 +116,13 @@ def _add_workflow_edges(
             reflection nodes are present, which determines the initial
             flow into "review".
     """
-    # Initial flow - conditional based on literature review availability
-    workflow.set_entry_point("supervisor")
+    # Entry: a checkpoint-restored run (resume=True) re-enters at the
+    # orchestrator loop point; a fresh run starts at the supervisor.
+    workflow.add_conditional_edges(
+        START,
+        _resume_router,
+        {"supervisor": "supervisor", "orchestrator": "orchestrator"},
+    )
 
     if enable_literature_review_node:
         # Full flow: supervisor → literature_review → generate → reflection
@@ -137,31 +138,33 @@ def _add_workflow_edges(
 
     workflow.add_edge("review", "ranking")
 
-    # Iteration cycle: meta_review → evolve → review → ranking → proximity
+    # Evolve branch: meta_review → evolve → review (children re-reviewed).
     workflow.add_edge("meta_review", "evolve")
-    workflow.add_edge("evolve", "review")  # Re-review evolved hypotheses
+    workflow.add_edge("evolve", "review")
 
-    # Note: review → ranking already defined above
+    # Note: review → ranking already defined above.
 
-    # Deep-verification runs on the top-ranked hypotheses after ranking,
-    # then the same post-ranking routing decision (_after_ranking) is
-    # made one node later.
+    # Every work phase converges on ranking → deep_verification → the
+    # orchestrator, which is the single adaptive loop point.
     workflow.add_edge("ranking", "deep_verification")
-    workflow.add_conditional_edges(
-        "deep_verification",
-        _after_ranking,
-        {
-            "iterate": "meta_review",
-            "proximity": "proximity",
-            "end": "research_overview",
-        },
-    )
+    workflow.add_edge("deep_verification", "orchestrator")
+    # Proximity is a maintenance task; it returns to the orchestrator too.
+    workflow.add_edge("proximity", "orchestrator")
 
-    # After proximity, check if we should continue iterating
+    # The orchestrator's recorded decision routes to the node that begins the
+    # next task (or to terminal synthesis). This replaces the fixed
+    # post-ranking/post-proximity iteration-count edges.
     workflow.add_conditional_edges(
-        "proximity",
-        _after_proximity,
-        {"iterate": "meta_review", "end": "research_overview"},
+        "orchestrator",
+        _route_next_task,
+        {
+            "generate": "generate",
+            "review": "review",
+            "ranking": "ranking",
+            "meta_review": "meta_review",
+            "proximity": "proximity",
+            "research_overview": "research_overview",
+        },
     )
 
     # Terminal synthesis: every completion path flows through the

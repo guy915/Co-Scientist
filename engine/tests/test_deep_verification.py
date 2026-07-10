@@ -51,7 +51,11 @@ async def test_verifies_only_top_k_by_elo(
     assert len(verified) == 3
     assert {h.text for h in verified} == {"h4", "h3", "h2"}
     assert verified[0].deep_verification_verdict == "weakened"
-    assert fake.await_count == 3
+    # 3 deep-verification calls + a full-review and simulation-review on the
+    # single top hypothesis (SSR §4).
+    assert fake.await_count == 5
+    top = max(out["hypotheses"], key=lambda h: h.elo_rating)
+    assert "full" in top.enrichments and "simulation" in top.enrichments
 
 
 async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -14,10 +14,26 @@ from co_scientist.constants import INITIAL_ELO_RATING
 
 
 class GenerationMethod(str, enum.Enum):
-    """How a hypothesis was generated."""
+    """How a hypothesis was generated (the four techniques of SSR §4)."""
 
-    DEBATE = "debate"
-    LITERATURE_TOOLS = "literature_tools"
+    DEBATE = "debate"  # simulated scientific debate
+    LITERATURE_TOOLS = "literature_tools"  # literature exploration
+    ASSUMPTIONS = "assumptions"  # iterative assumptions identification
+    RESEARCH_EXPANSION = "research_expansion"  # generate in unexplored areas
+
+
+class HypothesisOrigin(str, enum.Enum):
+    """Which agent created a hypothesis (its lineage origin).
+
+    Distinct from ``GenerationMethod`` (which describes *how* the Generation
+    agent produced a hypothesis). ``origin`` records *who* created it, matching
+    the paper's parent/child lineage model (SSR §4, Evolution) and the store's
+    ``hypotheses.created_by_agent`` column.
+    """
+
+    GENERATION = "generation"
+    EVOLUTION = "evolution"
+    SCIENTIST_MANUAL = "scientist_manual"
 
 
 @dataclass
@@ -96,6 +112,19 @@ class Hypothesis:
 
     text: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()), compare=False)
+    # Lineage metadata (paper invariant: Evolution creates immutable children;
+    # SSR §4, §12; TE §5). parent_id is None for generation-0 hypotheses and
+    # points to the immediate parent for evolved/derived children. generation
+    # is the lineage depth (0 = initial). origin records the creating agent.
+    # creation_iteration records which workflow iteration produced it. All
+    # default so older cached payloads without these keys still deserialize
+    # (see from_dict).
+    parent_id: str | None = field(default=None, compare=False)
+    generation: int = field(default=0, compare=False)
+    origin: HypothesisOrigin = field(
+        default=HypothesisOrigin.GENERATION, compare=False
+    )
+    creation_iteration: int | None = field(default=None, compare=False)
     category: str | None = None
     explanation: str | None = None
     literature_grounding: str | None = None
@@ -143,6 +172,10 @@ class Hypothesis:
         )
         return {
             "id": self.id,
+            "parent_id": self.parent_id,
+            "generation": self.generation,
+            "origin": self.origin.value,
+            "creation_iteration": self.creation_iteration,
             # Also referred to as "hypothesis" in other contexts.
             "text": self.text,
             "category": self.category,
@@ -199,6 +232,12 @@ class Hypothesis:
         generation_method = payload.get("generation_method")
         if generation_method is not None:
             payload["generation_method"] = GenerationMethod(generation_method)
+        # Restore the origin enum. Absent in pre-lineage payloads, where the
+        # dataclass default (GENERATION) applies; present payloads carry the
+        # string value written by to_dict.
+        origin = payload.get("origin")
+        if origin is not None:
+            payload["origin"] = HypothesisOrigin(origin)
         reviews = payload.get("reviews")
         if reviews:
             payload["reviews"] = _rebuild_reviews(reviews)
@@ -240,6 +279,20 @@ class ExecutionMetrics:
     # Keyed by workflow phase/node name (e.g. "generate", "review");
     # wall-clock seconds spent in that phase, summed across calls.
     phase_times: dict[str, float] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize for checkpoint transport (all fields are plain data)."""
+        return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ExecutionMetrics":
+        """Rebuild from a ``to_dict`` payload, ignoring unknown keys.
+
+        Ignoring unknown keys keeps older checkpoints loadable if a metric
+        field is later removed.
+        """
+        fields = {f.name for f in dataclasses.fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in fields})
 
 
 def _merge_phase_times(
@@ -402,3 +455,9 @@ class Article:
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return dataclasses.asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "Article":
+        """Rebuild from a ``to_dict`` payload, ignoring unknown keys."""
+        fields = {f.name for f in dataclasses.fields(cls)}
+        return cls(**{k: v for k, v in data.items() if k in fields})

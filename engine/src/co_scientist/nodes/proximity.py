@@ -1,6 +1,7 @@
 """Proximity node - cluster and deduplicate similar hypotheses."""
 
 import logging
+import time
 from dataclasses import dataclass
 from typing import Any
 
@@ -18,6 +19,7 @@ from co_scientist.models import (
     rank_by_elo,
 )
 from co_scientist.nodes.progress import emit_progress
+from co_scientist.nodes.proximity_graph import build_proximity_graph
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.state import WorkflowState
 
@@ -400,24 +402,21 @@ def _build_proximity_update(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
     outcome: _ClusteringOutcome,
-    next_iteration: int,
 ) -> dict[str, Any]:
     """Builds the proximity_node state update for a completed pass.
 
     Appends this pass's removed duplicates onto the running list rather
     than replacing it, so removed_duplicates accumulates the full history
     across iterations. outcome.hypotheses_to_keep is a strict subset of
-    `hypotheses` (same text, no new hypotheses introduced), so this update
-    is always >50% overlap with existing state and deduplicate_hypotheses
-    (state.py) treats it as a replacement rather than an addition -- unlike
-    evolve.py's return, there is no risk of discarded duplicates
-    resurfacing via the reducer's merge path.
+    `hypotheses` (same ids, no new hypotheses introduced), so this bare-list
+    return REPLACEs the pool via deduplicate_hypotheses (state.py), pruning
+    the removed duplicates. The iteration counter is owned by the
+    orchestrator, not advanced here.
 
     Args:
         state: Current workflow state.
         hypotheses: The hypotheses pool before this pass's deduplication.
         outcome: Result of _run_proximity_clustering.
-        next_iteration: The advanced current_iteration counter value.
 
     Returns:
         Dictionary with updated state fields (deduplicated hypotheses).
@@ -428,11 +427,25 @@ def _build_proximity_update(
         state.get("removed_duplicates", []) + outcome.removed_duplicates
     )
 
+    # Build the persisted weighted proximity graph from this pass's clusters
+    # (Milestone 3): edges over the kept hypotheses carry a similarity score
+    # and method/model/goal/update-time provenance.
+    id_by_text = {
+        h.text.strip().lower(): h.id for h in outcome.hypotheses_to_keep
+    }
+    proximity_graph = build_proximity_graph(
+        outcome.similarity_clusters,
+        id_by_text,
+        research_goal=state["research_goal"],
+        model=state["model_name"],
+        updated_at=time.time(),
+    )
+
     return {
         "hypotheses": outcome.hypotheses_to_keep,
         "removed_duplicates": all_removed_duplicates,
+        "proximity_graph": proximity_graph,
         "metrics": metrics,
-        "current_iteration": next_iteration,
         "messages": phase_message(
             "proximity",
             f"Deduplication: {len(hypotheses)}"
@@ -462,23 +475,18 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
     hypotheses = state["hypotheses"]
     logger.info("Analyzing proximity of %s hypotheses", len(hypotheses))
 
-    # proximity_node runs once per workflow iteration; advance the counter
-    # here unconditionally, regardless of whether clustering runs below.
-    current_iteration = state.get("current_iteration", 0)
-    next_iteration = current_iteration + 1
-
     # Similarity clustering needs at least two hypotheses to compare, so
     # skip the LLM call entirely for an empty or singleton pool.
     if len(hypotheses) <= 1:
         logger.info("Not enough hypotheses for proximity analysis")
-        return {"hypotheses": hypotheses, "current_iteration": next_iteration}
+        return {"hypotheses": hypotheses}
 
     # Malformed or empty LLM output: skip deduplication for this iteration
     # rather than raising, so a bad response degrades gracefully instead
     # of failing the whole run.
     outcome = await _run_proximity_clustering(state, hypotheses)
     if outcome is None:
-        return {"hypotheses": hypotheses, "current_iteration": next_iteration}
+        return {"hypotheses": hypotheses}
 
     # Emit progress
     await emit_progress(
@@ -490,4 +498,4 @@ async def proximity_node(state: WorkflowState) -> dict[str, Any]:
         remaining=len(outcome.hypotheses_to_keep),
     )
 
-    return _build_proximity_update(state, hypotheses, outcome, next_iteration)
+    return _build_proximity_update(state, hypotheses, outcome)

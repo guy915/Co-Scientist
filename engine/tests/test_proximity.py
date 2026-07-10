@@ -26,13 +26,17 @@ def _stub_clusters(
 
 
 async def test_single_hypothesis_skips_analysis() -> None:
-    """A single hypothesis returns unchanged with the iteration advanced."""
+    """A single hypothesis returns unchanged.
+
+    Proximity no longer advances the iteration counter — the orchestrator owns
+    loop bookkeeping (Milestone 2), so the counter is untouched here.
+    """
     state = make_state(
         hypotheses=[make_hypothesis(text="only one")], current_iteration=2
     )
     result = await proximity_node(state)
     assert len(result["hypotheses"]) == 1
-    assert result["current_iteration"] == 3
+    assert "current_iteration" not in result
 
 
 async def test_high_similarity_duplicate_removed_keeping_best_elo(
@@ -109,4 +113,5 @@ async def test_empty_clusters_returns_all(
     _stub_clusters(monkeypatch, {"similarity_clusters": []})
     result = await proximity_node(state)
     assert len(result["hypotheses"]) == 2
-    assert result["current_iteration"] == 1
+    # Proximity no longer touches the iteration counter (orchestrator owns it).
+    assert "current_iteration" not in result

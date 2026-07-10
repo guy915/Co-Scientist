@@ -3,12 +3,13 @@
 import asyncio
 import hashlib
 import logging
-import random
 from typing import Any
 
 from co_scientist.constants import (
     LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
+    MULTI_TURN_DEBATE_TURNS,
+    SINGLE_TURN_DEBATE_TURNS,
     THINKING_MAX_TOKENS,
 )
 from co_scientist.llm import call_llm_json
@@ -19,6 +20,10 @@ from co_scientist.nodes.ranking_elo import (
 )
 from co_scientist.nodes.ranking_elo import (
     match_tier as match_tier,
+)
+from co_scientist.nodes.ranking_matchmaking import (
+    MatchCandidate,
+    build_weighted_pairings,
 )
 from co_scientist.nodes.ranking_prompt import (
     _build_matchup_prompt as _build_matchup_prompt,
@@ -76,38 +81,42 @@ def _build_tournament_pairings(
     research_goal: str,
     current_iteration: int,
 ) -> list[tuple[Hypothesis, Hypothesis]]:
-    """Builds deterministic random pairwise matchups for one tournament.
+    """Builds deterministic weighted pairwise matchups for one tournament.
 
-    The random seed is derived from research_goal and current_iteration to
-    ensure cache consistency across runs: identical inputs produce
-    identical tournament pairings, enabling proper cache hits in
-    subsequent iterations. Uses hashlib instead of hash() so the seed is
-    deterministic across python processes.
+    Uses proximity-, recency-, and rank-aware matchmaking (Milestone 3; paper
+    invariant SSR §4): pairings favor scientifically similar hypotheses (same
+    proximity cluster), newer hypotheses needing calibration, and top-ranked
+    hypotheses needing discrimination, while guaranteeing minimum match
+    coverage and avoiding self/immediate-duplicate matches.
 
-    random.sample(hypotheses, 2) draws two distinct hypotheses without
-    replacement for each round, but rounds themselves are independent, so
-    the same hypothesis can appear in multiple pairings (or none) and this
-    is not a round-robin/Swiss-style schedule -- coverage is probabilistic.
+    The seed is derived from research_goal and current_iteration so identical
+    inputs replay identical pairings (cache consistency across iterations).
+    Uses hashlib instead of hash() so the seed is stable across processes.
 
     Args:
         hypotheses: All hypotheses eligible for pairing.
         tournament_rounds: Number of pairings to generate.
         research_goal: Research goal, used to seed the deterministic RNG.
-        current_iteration: Current workflow iteration, used to seed the
-            deterministic RNG.
+        current_iteration: Current workflow iteration, used to seed the RNG.
 
     Returns:
         List of (hypothesis_a, hypothesis_b) pairings, one per round.
     """
     seed_string = f"{research_goal}_{current_iteration}"
     seed = int(hashlib.md5(seed_string.encode()).hexdigest()[:8], 16)
-    random.seed(seed)
 
-    pairings: list[tuple[Hypothesis, Hypothesis]] = []
-    for _ in range(tournament_rounds):
-        hyp_a, hyp_b = random.sample(hypotheses, 2)
-        pairings.append((hyp_a, hyp_b))
-    return pairings
+    by_id = {h.id: h for h in hypotheses}
+    candidates = [
+        MatchCandidate(
+            id=h.id,
+            elo=h.elo_rating,
+            matches=h.total_matches,
+            cluster_id=h.similarity_cluster_id,
+        )
+        for h in hypotheses
+    ]
+    id_pairs = build_weighted_pairings(candidates, tournament_rounds, seed)
+    return [(by_id[a], by_id[b]) for a, b in id_pairs]
 
 
 async def _call_matchup_judge(
@@ -178,6 +187,28 @@ def _parse_matchup_winner(response: dict[str, Any]) -> str:
     return winner
 
 
+def _append_debate_context(
+    prompt: str, transcript: list[dict[str, Any]]
+) -> str:
+    """Append prior debate turns to the judge prompt for a follow-up turn.
+
+    Multi-turn scientific debate: each subsequent turn re-examines the prior
+    turns' reasoning before delivering a refined verdict, spending more
+    test-time compute on the top-ranked comparisons (SSR §4).
+    """
+    lines = ["\n\n## Prior Debate Turns (re-examine and refine)\n"]
+    for entry in transcript:
+        lines.append(
+            f"- Turn {entry['turn']} favored '{entry['winner']}': "
+            f"{entry['reasoning']}\n"
+        )
+    lines.append(
+        "\nWeigh the debate so far, challenge weak arguments, and deliver "
+        "your refined final judgment.\n"
+    )
+    return prompt + "".join(lines)
+
+
 async def judge_matchup(
     hypothesis_a: Hypothesis,
     hypothesis_b: Hypothesis,
@@ -190,8 +221,16 @@ async def judge_matchup(
     meta_review: dict[str, Any] | None = None,
     run_setup_guidance: str | None = None,
     run_focus_guidance: str | None = None,
+    debate_turns: int = SINGLE_TURN_DEBATE_TURNS,
 ) -> tuple[str, dict[str, Any]]:
     """Has an LLM judge which hypothesis is superior.
+
+    For ``debate_turns == 1`` (lower-ranked matchups) this is a single-turn
+    comparison. For ``debate_turns > 1`` (top-ranked matchups) it runs a
+    multi-turn scientific debate: each turn re-examines the accumulated
+    transcript before refining its verdict, and the final turn's verdict
+    stands. The complete turn-by-turn transcript, the debate depth, and the
+    model provenance are returned in the response for persistence.
 
     Args:
         hypothesis_a: First hypothesis
@@ -205,9 +244,12 @@ async def judge_matchup(
         meta_review: Optional cross-iteration meta-review feedback
         run_setup_guidance: Optional run-setup guidance for the prompt
         run_focus_guidance: Optional run-focus guidance for the prompt
+        debate_turns: Number of debate turns (1 = single-turn comparison).
 
     Returns:
-        Tuple of (winner, full_response) where winner is "a" or "b"
+        Tuple of (winner, full_response) where winner is "a" or "b". The
+        response carries ``debate_turns``, ``debate_transcript``, and
+        ``judge_model`` provenance keys.
     """
     prompt, schema, reflection_notes_a, reflection_notes_b = (
         _build_matchup_prompt(
@@ -222,19 +264,64 @@ async def judge_matchup(
         )
     )
 
-    response = await _call_matchup_judge(
-        prompt,
-        schema,
-        model_name,
-        run_id,
-        matchup_index,
-        reflection_notes_a,
-        reflection_notes_b,
-    )
+    turns = max(SINGLE_TURN_DEBATE_TURNS, debate_turns)
+    transcript: list[dict[str, Any]] = []
+    winner = "a"
+    response: dict[str, Any] = {}
+    for turn in range(turns):
+        turn_prompt = (
+            prompt if turn == 0 else _append_debate_context(prompt, transcript)
+        )
+        response = await _call_matchup_judge(
+            turn_prompt,
+            schema,
+            model_name,
+            run_id,
+            matchup_index,
+            reflection_notes_a,
+            reflection_notes_b,
+        )
+        winner = _parse_matchup_winner(response)
+        transcript.append(
+            {
+                "turn": turn + 1,
+                "winner": winner,
+                "reasoning": _extract_reasoning(response),
+            }
+        )
 
-    winner = _parse_matchup_winner(response)
-
+    # Persist debate provenance on the final response.
+    response["debate_turns"] = turns
+    response["debate_transcript"] = transcript
+    response["judge_model"] = model_name
     return winner, response
+
+
+def _median_elo(hypotheses: list[Hypothesis]) -> float:
+    """Return the median Elo of the pool (the debate-depth threshold)."""
+    elos = sorted(h.elo_rating for h in hypotheses)
+    n = len(elos)
+    if n == 0:
+        return 0.0
+    mid = n // 2
+    if n % 2:
+        return float(elos[mid])
+    return (elos[mid - 1] + elos[mid]) / 2.0
+
+
+def _matchup_debate_turns(
+    hyp_a: Hypothesis, hyp_b: Hypothesis, median_elo: float
+) -> int:
+    """Return the debate depth for a matchup.
+
+    Top-ranked comparisons (at least one hypothesis at or above the pool's
+    median Elo) use a multi-turn scientific debate; comparisons between two
+    lower-ranked hypotheses use a single-turn comparison (SSR §4, §12).
+    """
+    top_ranked = (
+        hyp_a.elo_rating >= median_elo or hyp_b.elo_rating >= median_elo
+    )
+    return MULTI_TURN_DEBATE_TURNS if top_ranked else SINGLE_TURN_DEBATE_TURNS
 
 
 async def _run_tournament_matchups(
@@ -247,9 +334,14 @@ async def _run_tournament_matchups(
     run_setup_guidance: str | None,
     run_focus_guidance: str | None,
 ) -> tuple[
-    list[tuple[Hypothesis, Hypothesis]], list[tuple[str, dict[str, Any]]]
+    list[tuple[Hypothesis, Hypothesis]],
+    list[tuple[str, dict[str, Any]]],
+    int,
 ]:
     """Builds tournament pairings and judges them concurrently.
+
+    Each pairing runs a multi-turn debate when it is top-ranked and a
+    single-turn comparison otherwise (depth from the pool's median Elo).
 
     Args:
         state: Current workflow state.
@@ -262,14 +354,17 @@ async def _run_tournament_matchups(
         run_focus_guidance: Optional run-focus guidance for the prompt.
 
     Returns:
-        Tuple of (pairings, results): the per-round hypothesis pairs and
-        their aligned judged (winner, response) outcomes.
+        Tuple of (pairings, results, total_llm_calls): the per-round
+        hypothesis pairs, their aligned judged (winner, response) outcomes,
+        and the total judge LLM calls made (summed over debate turns).
     """
     research_goal = state["research_goal"]
     current_iteration = state.get("current_iteration", 0)
     pairings = _build_tournament_pairings(
         hypotheses, tournament_rounds, research_goal, current_iteration
     )
+    median_elo = _median_elo(hypotheses)
+    depths = [_matchup_debate_turns(a, b, median_elo) for a, b in pairings]
     # Fire all matchup judgments concurrently; judge_matchup's semaphore
     # caps how many LLM calls are actually in flight at once.
     results = await asyncio.gather(
@@ -286,11 +381,12 @@ async def _run_tournament_matchups(
                 meta_review=meta_review,
                 run_setup_guidance=run_setup_guidance,
                 run_focus_guidance=run_focus_guidance,
+                debate_turns=depths[i],
             )
             for i, (a, b) in enumerate(pairings)
         ]
     )
-    return pairings, results
+    return pairings, results, sum(depths)
 
 
 def _gather_tournament_context(
@@ -395,6 +491,7 @@ async def _finalize_ranking_result(
     pairings: list[tuple[Hypothesis, Hypothesis]],
     results: list[tuple[str, dict[str, Any]]],
     tournament_rounds: int,
+    total_llm_calls: int,
 ) -> dict[str, Any]:
     """Applies matchup results and builds the ranking_node state delta.
 
@@ -407,6 +504,7 @@ async def _finalize_ranking_result(
         results: Per-round (winner, response) judgments, aligned with
             pairings.
         tournament_rounds: Number of tournament rounds run.
+        total_llm_calls: Total judge LLM calls (summed over debate turns).
 
     Returns:
         The ranking_node state delta dictionary.
@@ -429,7 +527,9 @@ async def _finalize_ranking_result(
         top_hypothesis=hypotheses[0].text[:200],
     )
 
-    return _build_ranking_delta(hypotheses, matchup_details, tournament_rounds)
+    return _build_ranking_delta(
+        hypotheses, matchup_details, tournament_rounds, total_llm_calls
+    )
 
 
 async def ranking_node(state: WorkflowState) -> dict[str, Any]:
@@ -475,8 +575,8 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         run_focus_guidance,
     ) = await _prepare_ranking_round(state, hypotheses)
 
-    # Prepare all random pairwise matchups and judge them in parallel
-    pairings, results = await _run_tournament_matchups(
+    # Prepare all weighted pairwise matchups and judge them in parallel
+    pairings, results, total_llm_calls = await _run_tournament_matchups(
         state,
         hypotheses,
         tournament_rounds,
@@ -488,5 +588,10 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     )
 
     return await _finalize_ranking_result(
-        state, hypotheses, pairings, results, tournament_rounds
+        state,
+        hypotheses,
+        pairings,
+        results,
+        tournament_rounds,
+        total_llm_calls,
     )

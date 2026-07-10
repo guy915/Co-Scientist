@@ -117,7 +117,13 @@ async def test_condition_a_splits_tools_and_debate(
     # Debate-with-literature receives the lit-review context, not None.
     assert debate.articles_with_reasoning == "some papers and reasoning"
     # Assembly: tools first, then debate; count reflects returned lengths.
-    assert [h.text for h in result["hypotheses"]] == ["t1", "t2", "d1", "d2"]
+    # generate returns an AppendHypotheses op (children appended to the pool).
+    assert [h.text for h in result["hypotheses"].items] == [
+        "t1",
+        "t2",
+        "d1",
+        "d2",
+    ]
     assert result["hypothesis_count"] == 4
     assert len(result["debate_transcripts"]) == 2
 
@@ -173,7 +179,7 @@ async def test_condition_c_debate_with_lit_only(
     assert not tools.called
     assert debate.called and debate.count == 3
     assert debate.articles_with_reasoning == "papers"
-    assert [h.text for h in result["hypotheses"]] == ["d1", "d2", "d3"]
+    assert [h.text for h in result["hypotheses"].items] == ["d1", "d2", "d3"]
     assert result["hypothesis_count"] == 3
     assert "debate-with-literature" in result["message"]
 
@@ -207,7 +213,7 @@ async def test_condition_b_degraded_mode_applies_fallback_grounding(
     # Debate-only path passes None for literature context.
     assert debate.articles_with_reasoning is None
     # Degraded-mode fallback overwrites grounding on every hypothesis.
-    for hyp in result["hypotheses"]:
+    for hyp in result["hypotheses"].items:
         assert hyp.literature_grounding is not None
         assert hyp.literature_grounding.startswith(
             "No literature review available."
@@ -237,6 +243,34 @@ async def test_failed_lit_review_marker_is_degraded(
     assert not tools.called
     assert debate.called and debate.articles_with_reasoning is None
     assert result["hypothesis_count"] == 1
+
+
+async def test_no_lit_path_invokes_assumptions_technique(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The LLM-only path uses the iterative-assumptions technique too (SSR §4).
+
+    With enough hypotheses to split, a no-literature run reserves a slice for
+    the assumptions technique, so a hypothesis flowing through a real run
+    actually carries ``GenerationMethod.ASSUMPTIONS`` (not just registered).
+    """
+    from co_scientist.models import GenerationMethod
+    from tests._llm_fake import install_fake_llm
+
+    install_fake_llm(monkeypatch)
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=8,  # >= 4 -> reserve a slice for assumptions
+        mcp_available=False,  # no literature -> the no_lit path
+        enable_tool_calling_generation=True,
+        model_name="fake-model",
+    )
+
+    result = await generate_hypotheses(state)
+
+    methods = {h.generation_method for h in result["hypotheses"].items}
+    assert GenerationMethod.ASSUMPTIONS in methods
+    assert GenerationMethod.DEBATE in methods  # debate still runs the rest
 
 
 async def test_dev_isolation_routes_all_to_tools(
