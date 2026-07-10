@@ -114,8 +114,12 @@ async function parseJson<T>(res: Response, errorPrefix?: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** Fetches `path` relative to the API base URL and parses the JSON body. */
-async function fetchJson<T>(
+/**
+ * Fetches `path` relative to the API base URL and parses the JSON body.
+ * Exported for sibling API clients (e.g. `@/api/system`) so the base-URL
+ * and error-shaping policy stays defined once.
+ */
+export async function fetchJson<T>(
   path: string,
   init?: RequestInit,
   errorPrefix?: string,
@@ -346,4 +350,27 @@ export async function getReport(id: string): Promise<Report | null> {
  */
 export function eventsStreamUrl(id: string): string {
   return `${API_BASE_URL}/api/runs/${id}/events`;
+}
+
+/** One persisted row of a run's append-only event log. */
+export interface RunEvent {
+  seq: number;
+  type: string;
+  payload: Record<string, unknown>;
+  created_at: number;
+}
+
+/**
+ * Fetches a run's persisted event log as a one-shot JSON snapshot
+ * (`stream=false`), rather than the SSE stream the run views tail.
+ *
+ * @param id Run identifier.
+ * @param after Only return events with a sequence number greater than this.
+ * @returns The persisted events, ordered by sequence number.
+ */
+export function getRunEvents(id: string, after = 0): Promise<RunEvent[]> {
+  return fetchField(
+    `/api/runs/${id}/events?stream=false&after=${after}`,
+    'events',
+  );
 }

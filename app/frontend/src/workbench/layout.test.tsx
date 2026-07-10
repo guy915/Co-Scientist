@@ -8,6 +8,7 @@ import {ThemeProvider} from './theme_context';
 const apiMock = vi.hoisted(() => {
   const listDemoRuns = vi.fn();
   const listRuns = vi.fn();
+  const getRunEvents = vi.fn();
   // Mirror the real loadRunHistory so tests keep driving history through the
   // listRuns/listDemoRuns mocks, while reusing the real merge policy.
   const loadRunHistory = vi.fn(async () => {
@@ -22,10 +23,14 @@ const apiMock = vi.hoisted(() => {
       run => run.updated_at,
     );
   });
-  return {listDemoRuns, listRuns, loadRunHistory};
+  return {listDemoRuns, listRuns, getRunEvents, loadRunHistory};
 });
 
+const systemApiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
+
 vi.mock('@/api/runs', () => apiMock);
+
+vi.mock('@/api/system', () => systemApiMock);
 
 function renderLayout(path = '/') {
   return render(
@@ -68,6 +73,16 @@ describe('Layout', () => {
         'Generate testable hypotheses for ferroptosis in pancreatic cancer cells.',
       ),
     ]);
+    apiMock.getRunEvents.mockReset();
+    apiMock.getRunEvents.mockResolvedValue([]);
+    // Engine mode by default so the header status chip stays hidden and
+    // pre-existing header assertions are unaffected.
+    systemApiMock.getSystemStatus.mockReset();
+    systemApiMock.getSystemStatus.mockResolvedValue({
+      mock_mode: false,
+      provider: 'engine',
+      model_name: 'test/model',
+    });
   });
 
   it('toggles the Co-Scientist sidebar from the menu button', async () => {
@@ -307,5 +322,65 @@ describe('Layout', () => {
     renderLayout('/runs/demo-ferroptosis/ideas');
 
     expect(screen.queryByRole('button', {name: 'More options'})).toBeNull();
+  });
+
+  it('loads the persisted run timeline into the diagnostics popover', async () => {
+    apiMock.getRunEvents.mockResolvedValue([
+      {
+        seq: 1,
+        type: 'lifecycle',
+        payload: {event: 'created'},
+        created_at: 1_700_000_000,
+      },
+      {
+        seq: 2,
+        type: 'status',
+        payload: {status: 'failed', error: 'boom'},
+        created_at: 1_700_000_100,
+      },
+    ]);
+    renderLayout('/runs/demo-ferroptosis/ideas');
+
+    fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
+
+    // The popover fetches the active run's persisted event log on open.
+    await waitFor(() =>
+      expect(apiMock.getRunEvents).toHaveBeenCalledWith('demo-ferroptosis'),
+    );
+    expect(await screen.findByText('lifecycle:')).toBeInTheDocument();
+    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+    // Terminal failures read as errors in the summary chips.
+    expect(screen.getByText('Total 2')).toBeInTheDocument();
+    expect(screen.getByText('Errors 1')).toBeInTheDocument();
+    expect(
+      await screen.findByRole('button', {name: /Logs 2/i}),
+    ).toBeInTheDocument();
+
+    // Clear drops only session entries; the persisted timeline remains.
+    fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
+    expect(screen.getByText(/"event": "created"/)).toBeInTheDocument();
+  });
+
+  it('keeps the persisted timeline out of the popover on home routes', () => {
+    renderLayout('/');
+
+    fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
+
+    expect(apiMock.getRunEvents).not.toHaveBeenCalled();
+    expect(
+      screen.getByText('No diagnostic events loaded.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows the mock-mode status chip when /status reports mock mode', async () => {
+    systemApiMock.getSystemStatus.mockResolvedValue({
+      mock_mode: true,
+      provider: 'mock',
+      model_name: 'test/model',
+    });
+
+    renderLayout();
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Mock mode');
   });
 });

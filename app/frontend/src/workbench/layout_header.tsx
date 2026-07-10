@@ -5,6 +5,7 @@ import {TruncatedLabel} from './components/truncated_label';
 import {DiagnosticsControl} from './layout_diagnostics';
 import {type ShellPanel} from './layout_hooks';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
+import {SystemStatusIndicator} from './layout_status';
 import {tooltipClassNames} from './tooltip';
 
 const HEADER_CLASSES = 'ucs-header-action-bar';
@@ -67,6 +68,8 @@ function ProductLockup({onClick}: {onClick: () => void}) {
  * @param headerTitle The page-dispatched title override, if any.
  * @param activePanel The currently open header popover, if any.
  * @param onTogglePanel Opens/closes the given popover.
+ * @param activeRunId The run id from the active /runs/:id route, if any;
+ *   lets the Logs popover load that run's persisted event timeline.
  * @param logsControlRef Anchor ref for outside-click dismissal of the Logs
  *   popover.
  */
@@ -77,6 +80,7 @@ export function ShellHeader({
   headerTitle,
   activePanel,
   onTogglePanel,
+  activeRunId,
   logsControlRef,
 }: {
   navOpen: boolean;
@@ -85,6 +89,7 @@ export function ShellHeader({
   headerTitle: string;
   activePanel: ShellPanel | null;
   onTogglePanel: (panel: ShellPanel) => void;
+  activeRunId?: string;
   logsControlRef: RefObject<HTMLDivElement | null>;
 }) {
   return (
@@ -100,9 +105,11 @@ export function ShellHeader({
         )}
       </div>
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
+        <SystemStatusIndicator />
         <DiagnosticsControl
           open={activePanel === 'logs'}
           onToggle={() => onTogglePanel('logs')}
+          runId={activeRunId}
           renderPopover={(children, className) => (
             <ShellPopover className={className}>{children}</ShellPopover>
           )}
