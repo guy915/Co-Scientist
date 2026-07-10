@@ -33,7 +33,6 @@ Create `app/frontend/.env` only when you need to override defaults:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8008
-VITE_DOMAIN=scientific
 ```
 
 `VITE_API_BASE_URL` defaults to `http://localhost:8008`.

@@ -112,11 +112,7 @@ All backend settings are read from `.env` (or environment variables). See `.env.
 | `MODEL_NAME` | `gemini/gemini-2.5-flash` | LiteLLM model ID |
 | `SUPERVISOR_MODEL_NAME` | — | Optional stronger model for supervisor and meta-review |
 | `CHAT_MODEL_NAME` | — | Optional model for Chat tab Q&A; defaults to `MODEL_NAME` |
-| `MAX_ITERATIONS` | `3` | Workflow iterations (can be overridden per run in the UI) |
-| `INITIAL_HYPOTHESES_COUNT` | `5` | Hypotheses generated per iteration |
-| `EVOLUTION_MAX_COUNT` | `3` | Hypotheses selected for evolution |
 | `MCP_SERVER_URL` | `http://localhost:8888/mcp` | MCP server for literature review tools (optional) |
-| `COSCIENTIST_LIT_REVIEW_PAPERS_COUNT` | `10` | Papers read per literature review pass |
 | `COSCIENTIST_CACHE_ENABLED` | `true` | Enable LLM response caching |
 | `COSCIENTIST_CACHE_DIR` | `./cache` | Cache directory path |
 | `TOOLS_CONFIG` | — | Path or URL to a YAML tools config (optional) |
