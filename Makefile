@@ -172,7 +172,7 @@ test:
 	@$(MAKE) test-app
 
 test-app:
-	@cd "$(APP)" && COSCIENTIST_TEST_MODE=1 "$(PY)" -m pytest -q
+	@cd "$(APP)" && "$(PY)" -m pytest -q
 
 test-engine:
 	@cd "$(ENGINE)" && "$(PY)" -m pytest -q
