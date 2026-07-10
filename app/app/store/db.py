@@ -438,6 +438,16 @@ CREATE TABLE IF NOT EXISTS checkpoints (
 );
 CREATE INDEX IF NOT EXISTS idx_ckpt_run_seq ON checkpoints(run_id, seq DESC);
 
+-- Final per-run execution metrics (LLM calls, phase timings). One row per
+-- run, upserted at finalize; a resumed run that finalizes again replaces it.
+CREATE TABLE IF NOT EXISTS run_metrics (
+    run_id TEXT PRIMARY KEY,
+    metrics_json TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+
 -- Claim-level entailment graph (Milestone 5). One row per atomic claim of a
 -- hypothesis, with its assessed entailment label against retrieved evidence and
 -- the exact supporting/contradicting passages that drove the verdict. This is

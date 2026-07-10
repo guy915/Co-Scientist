@@ -1,6 +1,5 @@
 """FastAPI application main module."""
 
-import asyncio
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -9,7 +8,7 @@ from typing import Any
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
@@ -18,8 +17,9 @@ from pydantic import BaseModel, Field
 # import below), so .env must be loaded into os.environ before that import.
 load_dotenv()
 
-from app import engine_adapter, store
+from app import diagnostics, engine_adapter, store
 from app.config import settings
+from app.logging_setup import configure_logging
 from app.run_modes import (
     DEFAULT_RUN_TIER,
     RUN_TIER_DEFAULTS,
@@ -28,13 +28,12 @@ from app.runs import (
     router as runs_router,
 )
 from app.seed import seed_demo_runs
+from app.version import API_VERSION
 
-# Configure logging
-# Set root logger to INFO to suppress DEBUG logs from dependencies (httpx, etc.)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
+# Configure logging: one stdout handler (text by default, JSON via
+# LOG_FORMAT=json) with run-id tagging; see app/logging_setup.py. Root
+# stays at INFO to suppress DEBUG logs from dependencies (httpx, etc.).
+configure_logging(settings.log_format, level=logging.INFO)
 # Set application loggers (viewer and co_scientist) to DEBUG if debug mode is
 # enabled
 logger = logging.getLogger(__name__)
@@ -120,7 +119,7 @@ async def lifespan(
 app = FastAPI(
     title="Co-Scientist API",
     description="FastAPI server for AI hypothesis generation",
-    version="0.1.0",
+    version=API_VERSION,
     lifespan=lifespan,
 )
 
@@ -147,12 +146,29 @@ app.add_middleware(
 app.include_router(runs_router)
 
 
+class HealthCheckResult(BaseModel):
+    """Outcome of one health check."""
+
+    ok: bool = Field(..., description="whether the check passed")
+    detail: str | None = Field(
+        None, description="failure detail when the check did not pass"
+    )
+
+
 class HealthResponse(BaseModel):
     """Health check response."""
 
-    status: str
+    status: str = Field(
+        ..., description="derived health: healthy | degraded | unhealthy"
+    )
     version: str
     model_name: str
+    provider: str = Field(
+        ..., description="active workflow provider: 'mock' | 'engine'"
+    )
+    checks: dict[str, HealthCheckResult] = Field(
+        ..., description="individual check outcomes: store, engine"
+    )
 
 
 class ConfigResponse(BaseModel):
@@ -161,6 +177,21 @@ class ConfigResponse(BaseModel):
     max_iterations: int
     initial_hypotheses_count: int
     evolution_max_count: int
+
+
+class ProbeStatus(BaseModel):
+    """Detailed outcome of one availability probe."""
+
+    state: str = Field(
+        ...,
+        description=(
+            "probe outcome: 'up' | 'down' (definitive answers) | 'error' "
+            "(the probe itself failed; availability unknown)"
+        ),
+    )
+    error: str | None = Field(
+        None, description="probe failure detail when state is 'error'"
+    )
 
 
 class SystemStatusResponse(BaseModel):
@@ -177,6 +208,13 @@ class SystemStatusResponse(BaseModel):
         description=(
             "whether literature review is available (requires both mcp "
             "and pubmed)"
+        ),
+    )
+    probes: dict[str, ProbeStatus] = Field(
+        ...,
+        description=(
+            "per-probe detail (mcp, pubmed), distinguishing a served "
+            "'down' from a probe error"
         ),
     )
     mcp_server_url: str = Field(..., description="configured mcp server url")
@@ -203,18 +241,38 @@ async def root() -> dict[str, str]:
     """Root endpoint."""
     return {
         "message": "Co-Scientist API",
-        "version": "0.1.0",
+        "version": API_VERSION,
         "docs": "/docs",
     }
 
 
 @app.get("/health", response_model=HealthResponse, tags=["health"])
-async def health() -> HealthResponse:
-    """Health check endpoint."""
+async def health(response: Response) -> HealthResponse:
+    """Health check: store reachability, engine importability, derived status.
+
+    Every check is local and fast (a SQLite round-trip and an import
+    lookup) because ``make dev`` polls this endpoint as its readiness
+    gate. Responds 503 when unhealthy so ``curl -f``-style probes fail
+    until the store is reachable.
+    """
+    store_check = diagnostics.check_store()
+    engine_check = diagnostics.check_engine()
+    status = diagnostics.derive_health_status(store_check, engine_check)
+    if status == diagnostics.UNHEALTHY:
+        response.status_code = 503
     return HealthResponse(
-        status="healthy",
-        version="0.1.0",
+        status=status,
+        version=API_VERSION,
         model_name=settings.model_name,
+        provider=engine_adapter.select_provider(),
+        checks={
+            "store": HealthCheckResult(
+                ok=store_check.ok, detail=store_check.detail
+            ),
+            "engine": HealthCheckResult(
+                ok=engine_check.ok, detail=engine_check.detail
+            ),
+        },
     )
 
 
@@ -235,33 +293,24 @@ async def get_system_status() -> dict[str, Any]:
 
     Returns availability status for mcp server and pubmed api, plus
     provider/mock-mode info from the engine adapter so the UI can render
-    a "Mock Mode" banner.
+    a "Mock Mode" banner. Probes run under a bounded timeout and are
+    cached for a short TTL (see app/diagnostics.py); the ``probes`` field
+    distinguishes a server that answered "down" from a probe that errored.
     """
-    mcp_available = False
-    pubmed_available = False
-    try:
-        # The engine is an optional runtime dependency; when absent the
-        # import fails and diagnostics report mock mode (hence the ignore).
-        from co_scientist.mcp_client import (  # type: ignore[import-not-found, unused-ignore]
-            check_mcp_available,
-            check_pubmed_available_via_mcp,
-        )
-
-        # The two probes are independent network round-trips; overlap them.
-        mcp_available, pubmed_available = await asyncio.gather(
-            check_mcp_available(), check_pubmed_available_via_mcp()
-        )
-    except Exception:  # pragma: no cover - engine optional in mock mode
-        pass  # both probes default to False (set above)
+    mcp, pubmed = await diagnostics.probe_literature_stack_cached()
 
     adapter_status = engine_adapter.system_status()
 
     return {
-        "mcp_available": mcp_available,
-        "pubmed_available": pubmed_available,
-        # Gated on mcp_available alone: an MCP server that is up is assumed
-        # to serve literature review even if the pubmed sub-check fails.
-        "literature_review_available": mcp_available,
+        "mcp_available": mcp.available,
+        "pubmed_available": pubmed.available,
+        # Both legs are required: the literature_review node needs the MCP
+        # server up AND its PubMed-backed tools answering.
+        "literature_review_available": mcp.available and pubmed.available,
+        "probes": {
+            "mcp": {"state": mcp.state, "error": mcp.error},
+            "pubmed": {"state": pubmed.state, "error": pubmed.error},
+        },
         # provider/mock_mode/model_name/etc. from engine_adapter.system_status
         **adapter_status,
     }

@@ -297,8 +297,9 @@ def clear_run_derived_data(
     """Delete a run's derived pipeline data for a clean deterministic resume.
 
     Removes the run's events, report, safety decisions, evidence, matches,
-    reviews, citations, claim-evidence, and hypotheses (plus the per-hypothesis
-    state rows). The run row itself, its checkpoints, its messages
+    reviews, citations, claim-evidence, execution metrics, and hypotheses
+    (plus the per-hypothesis state rows). The run row itself, its
+    checkpoints, its messages
     (steering/Q&A history), and the scientist's contributions (manual
     hypotheses, human reviews, attachments) are kept, so a resumed run
     reconstructs identical agent artifacts from the same seed without
@@ -325,6 +326,7 @@ def clear_run_derived_data(
         "matches",
         "citations",
         "claim_evidence",
+        "run_metrics",
     )
     with _use_conn(conn, db_path) as conn:
         # hypothesis_state is keyed by hypothesis_id (no run_id), so clear it

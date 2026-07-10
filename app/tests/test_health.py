@@ -4,7 +4,16 @@ from __future__ import annotations
 
 import pytest
 
+from app import diagnostics
+from app.diagnostics import HealthCheck, ProbeResult
+from app.version import API_VERSION
 from tests._client import make_client as _client
+
+
+@pytest.fixture(autouse=True)
+def _fresh_probe_cache() -> None:
+    """Isolate /status probe results between tests."""
+    diagnostics.clear_probe_cache()
 
 
 def test_health_ok() -> None:
@@ -14,6 +23,58 @@ def test_health_ok() -> None:
     data = res.json()
     assert data["status"] == "healthy"
     assert "model_name" in data
+    assert data["version"] == API_VERSION
+    assert data["provider"] == "mock"
+    assert data["checks"]["store"]["ok"] is True
+    # Engine importability is environment-dependent; the check must be
+    # present and well-formed either way.
+    assert set(data["checks"]) == {"store", "engine"}
+
+
+def test_health_unhealthy_when_store_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        diagnostics,
+        "check_store",
+        lambda db_path=None: HealthCheck(ok=False, detail="disk on fire"),
+    )
+
+    res = _client().get("/health")
+
+    assert res.status_code == 503
+    data = res.json()
+    assert data["status"] == "unhealthy"
+    assert data["checks"]["store"]["ok"] is False
+    assert data["checks"]["store"]["detail"] == "disk on fire"
+
+
+def test_health_degraded_when_key_set_but_engine_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Provider key present + engine unimportable = degraded, still 200."""
+    monkeypatch.setattr(diagnostics, "_has_provider_key", lambda: True)
+    monkeypatch.setattr(
+        diagnostics,
+        "check_engine",
+        lambda: HealthCheck(ok=False, detail="not importable"),
+    )
+
+    res = _client().get("/health")
+
+    assert res.status_code == 200
+    assert res.json()["status"] == "degraded"
+
+
+def _patch_probes(
+    monkeypatch: pytest.MonkeyPatch, mcp: ProbeResult, pubmed: ProbeResult
+) -> None:
+    """Patch the uncached probe pair; the autouse fixture cleared the cache."""
+
+    async def _stub() -> tuple[ProbeResult, ProbeResult]:
+        return mcp, pubmed
+
+    monkeypatch.setattr(diagnostics, "_probe_literature_stack", _stub)
 
 
 def test_status_reports_mock_mode() -> None:
@@ -23,6 +84,60 @@ def test_status_reports_mock_mode() -> None:
     data = res.json()
     assert data["mock_mode"] is True
     assert data["provider"] == "mock"
+    assert set(data["probes"]) == {"mcp", "pubmed"}
+
+
+def test_status_requires_both_probes_for_literature_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """MCP up with PubMed down must not report literature review available."""
+    _patch_probes(
+        monkeypatch,
+        ProbeResult(available=True, state="up"),
+        ProbeResult(available=False, state="down"),
+    )
+
+    data = _client().get("/status").json()
+
+    assert data["mcp_available"] is True
+    assert data["pubmed_available"] is False
+    assert data["literature_review_available"] is False
+    assert data["probes"]["mcp"] == {"state": "up", "error": None}
+    assert data["probes"]["pubmed"] == {"state": "down", "error": None}
+
+
+def test_status_reports_literature_review_when_both_up(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_probes(
+        monkeypatch,
+        ProbeResult(available=True, state="up"),
+        ProbeResult(available=True, state="up"),
+    )
+
+    data = _client().get("/status").json()
+
+    assert data["literature_review_available"] is True
+
+
+def test_status_distinguishes_probe_error_from_down(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_probes(
+        monkeypatch,
+        ProbeResult(
+            available=False, state="error", error="probe timed out after 3s"
+        ),
+        ProbeResult(available=False, state="down"),
+    )
+
+    data = _client().get("/status").json()
+
+    assert data["mcp_available"] is False
+    assert data["probes"]["mcp"]["state"] == "error"
+    assert data["probes"]["mcp"]["error"] == "probe timed out after 3s"
+    assert data["probes"]["pubmed"]["state"] == "down"
+    assert data["probes"]["pubmed"]["error"] is None
 
 
 def test_status_supervisor_model_falls_back_to_worker(
