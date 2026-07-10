@@ -8,7 +8,6 @@ this script enables dev isolation mode which:
 useful for debugging the two-phase tool-based generation without
 distraction from debate output or slow lit review calls.
 """
-# pylint: disable=inconsistent-quotes
 
 import asyncio
 import os

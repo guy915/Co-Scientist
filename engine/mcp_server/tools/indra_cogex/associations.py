@@ -37,7 +37,7 @@ async def query_gene_disease_network(
     Returns:
         Dict with associated entities, counts, and query metadata.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         # Convert "NAMESPACE:id" into the [namespace, id] pair CoGex
         # expects.
         curie = parse_id(identifier)
@@ -64,7 +64,7 @@ async def query_gene_disease_network(
     # Any failure (bad identifier, network error, API error) is converted
     # into a structured error payload rather than raised, since this
     # function is an MCP tool endpoint and must always return a dict.
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("query_gene_disease_network failed: %s", e)
         return {
             "error": str(e),
@@ -162,7 +162,7 @@ async def query_gene_codependents(
     Returns:
         Dict with codependent genes and counts.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         curie = parse_id(gene_id)
         # Codependency scores come from DepMap CRISPR knockout screens:
         # genes whose essentiality profiles correlate across cell lines.
@@ -176,6 +176,6 @@ async def query_gene_codependents(
             "total_codependents": total,
             "query": {"gene_id": gene_id},
         }
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("query_gene_codependents failed: %s", e)
         return {"error": str(e), "query": {"gene_id": gene_id}}

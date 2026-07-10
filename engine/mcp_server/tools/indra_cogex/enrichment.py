@@ -62,7 +62,7 @@ async def run_enrichment_analysis(
             "error": f"invalid analysis_type '{analysis_type}', use: {valid}",
         }
 
-    try:  # pylint: disable=broad-exception-caught
+    try:
         raw = await _dispatch_enrichment_analysis(
             analysis_type,
             gene_list,
@@ -74,7 +74,7 @@ async def run_enrichment_analysis(
         )
         return {"results": raw, "query": query_meta}
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("run_enrichment_analysis failed: %s", e)
         return {"error": str(e), "query": query_meta}
 

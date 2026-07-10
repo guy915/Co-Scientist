@@ -1,5 +1,4 @@
 """Tool provider wrapping MCPToolClient for LLM tool calling."""
-# pylint: disable=inconsistent-quotes
 
 import json
 import logging
@@ -69,7 +68,7 @@ class MCPToolProvider:
                 )
                 self._tool_names.update(tools_dict.keys())
                 logger.debug("added %s MCP tools", len(tools_dict))
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:
                 # Degrade gracefully: a transient MCP outage should not
                 # crash the caller, just leave it with no tools available.
                 logger.warning("Failed to get MCP tools: %s", e)
@@ -108,7 +107,7 @@ class MCPToolProvider:
             if self.mcp_client is None:
                 raise ConfigError("MCP client not configured")
             return await self.mcp_client.execute_tool_call(tool_call)
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             # Any failure (network error, malformed args, tool-side
             # exception) becomes a tool-role error message rather than a
             # raised exception, so one bad call cannot crash the multi-turn

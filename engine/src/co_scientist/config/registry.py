@@ -1,17 +1,24 @@
 """Tool registry for managing MCP tool configurations.
 
-Handles loading YAML configs, environment variable substitution,
-merging user configs with defaults, and providing access to tool definitions.
+Handles loading YAML configs, merging user configs with defaults, and
+providing access to tool definitions. Environment-variable substitution
+lives in ``env_vars`` and the raw-dict merge helpers in ``merging``; this
+module re-exports the names historically importable from
+``co_scientist.config.registry``.
 """
 
 import logging
-import os
-import re
 from pathlib import Path
 from typing import Any, cast
 
 import yaml
 
+from co_scientist.config.env_vars import parse_bool_env, substitute_env_vars
+from co_scientist.config.merging import (
+    _both_dicts,
+    _both_lists_to_extend,
+    _determine_merge_strategy,
+)
 from co_scientist.config.schema import (
     EnrichmentConfig,
     PromptsConfig,
@@ -23,6 +30,16 @@ from co_scientist.config.schema import (
 from co_scientist.exceptions import ConfigError
 
 logger = logging.getLogger(__name__)
+
+__all__ = [
+    "DEFAULT_CONFIG_PATH",
+    "USER_CONFIG_PATHS",
+    "ToolRegistry",
+    "get_tool_registry",
+    "parse_bool_env",
+    "reset_tool_registry",
+    "substitute_env_vars",
+]
 
 # Default config file location (relative to this module)
 # Ships with the package; defines every built-in tool/server/workflow so the
@@ -37,124 +54,6 @@ USER_CONFIG_PATHS = [
     Path.home() / ".coscientist" / "tools.yaml",
     Path.home() / ".config" / "coscientist" / "tools.yaml",
 ]
-
-
-def _substitute_env_vars_in_string(value: str) -> str:
-    """Replace ${VAR} / ${VAR:-default} references in a single string.
-
-    Args:
-        value: String possibly containing ${VAR} or ${VAR:-default}
-            placeholders.
-
-    Returns:
-        value with each placeholder replaced by the environment variable's
-        value, its default, or an empty string (with a warning logged) when
-        neither is available.
-    """
-    # Pattern: ${VAR} or ${VAR:-default}
-    pattern = r"\$\{([^}:]+)(?::-([^}]*))?\}"
-
-    def replacer(match: "re.Match[str]") -> str:
-        var_name = match.group(1)
-        default = match.group(2)
-        env_value = os.environ.get(var_name)
-        if env_value is not None:
-            return env_value
-        if default is not None:
-            return default
-        # Return empty string if no env var and no default
-        logger.warning(
-            "environment variable %s not set and no default provided", var_name
-        )
-        return ""
-
-    return re.sub(pattern, replacer, value)
-
-
-def _substitute_env_vars_in_dict(value: dict[str, Any]) -> dict[str, Any]:
-    """Recurse substitute_env_vars into every value of a dict."""
-    return {k: substitute_env_vars(v) for k, v in value.items()}
-
-
-def _substitute_env_vars_in_list(value: list[Any]) -> list[Any]:
-    """Recurse substitute_env_vars into every item of a list."""
-    return [substitute_env_vars(item) for item in value]
-
-
-def substitute_env_vars(value: Any) -> Any:
-    """Substitute environment variables in a value.
-
-    Supports formats:
-    - ${VAR} - required env var
-    - ${VAR:-default} - env var with default
-
-    Args:
-        value: Value to process (string, dict, list, or other)
-
-    Returns:
-        Value with environment variables substituted
-    """
-    # Recurse into nested dicts/lists so ${VAR} substitution reaches every
-    # string leaf in the merged YAML tree, not just top-level keys.
-    if isinstance(value, str):
-        return _substitute_env_vars_in_string(value)
-    if isinstance(value, dict):
-        return _substitute_env_vars_in_dict(value)
-    if isinstance(value, list):
-        return _substitute_env_vars_in_list(value)
-    return value
-
-
-def parse_bool_env(value: str) -> bool:
-    """Parse a string value as boolean."""
-    # Shared boolean-flag parser: used here for `enabled` fields that became
-    # plain strings when their YAML value was a substituted ${VAR} (see
-    # _parse_enabled_values below), and imported by cache.py, prompts.py,
-    # and literature_review.py for COSCIENTIST_* env flags. Anything not in
-    # this allowlist, including an empty string, parses as False.
-    return value.lower() in ("true", "1", "yes", "on")
-
-
-def _both_dicts(existing: Any, value: Any) -> bool:
-    """True if both existing and value are dicts (mergeable, not replaced)."""
-    return isinstance(value, dict) and isinstance(existing, dict)
-
-
-def _both_lists_to_extend(existing: Any, value: Any, strategy: str) -> bool:
-    """True if strategy is "extend" and both existing and value are lists."""
-    return (
-        strategy == "extend"
-        and isinstance(value, list)
-        and isinstance(existing, list)
-    )
-
-
-def _determine_merge_strategy(
-    user: dict[str, Any] | None, custom: dict[str, Any] | None
-) -> str:
-    """Pick the merge_strategy declared by custom or user config settings.
-
-    The overlay that actually sets settings.merge_strategy wins: custom is
-    checked first (and used if present) so a custom config's choice
-    overrides a user config's, even though custom is merged in after.
-
-    Args:
-        user: Parsed user config dict, or None if absent.
-        custom: Parsed custom config dict, or None if absent.
-
-    Returns:
-        The declared merge_strategy, or "override" if neither config
-        declares one.
-    """
-    if custom and "settings" in custom:
-        strategy: str = custom.get("settings", {}).get(
-            "merge_strategy", "override"
-        )
-        return strategy
-    if user and "settings" in user:
-        strategy = user.get("settings", {}).get("merge_strategy", "override")
-        return strategy
-    return "override"
 
 
 class ToolRegistry:
@@ -271,7 +170,7 @@ class ToolRegistry:
             if path.exists():
                 with open(path, encoding="utf-8") as f:
                     return cast(dict[str, Any] | None, yaml.safe_load(f))
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.error("failed to load %s: %s", path, e)
         return None
 

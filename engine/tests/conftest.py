@@ -2,7 +2,8 @@
 
 import pathlib
 import sys
-from typing import Any
+from collections.abc import Iterator
+from typing import Any, ClassVar
 
 import pytest
 
@@ -25,9 +26,51 @@ def _no_prompt_disk_writes(monkeypatch: pytest.MonkeyPatch) -> None:
     Args:
         monkeypatch: The pytest monkeypatch fixture.
     """
-    import co_scientist.prompts as prompts_mod  # pylint: disable=import-outside-toplevel
+    import co_scientist.prompts as prompts_mod
 
     def _noop(**_: Any) -> None:
         return None
 
     monkeypatch.setattr(prompts_mod, "save_prompt_to_disk", _noop)
+
+
+@pytest.fixture
+def _patch_mcp_seam(
+    monkeypatch: pytest.MonkeyPatch,
+) -> Iterator[type[Any]]:
+    """Patch the MCP transport class and reset per-test global state.
+
+    Replaces ``MultiServerMCPClient`` at its use-site with a fresh fake class
+    (so the construction counter and tool/error config never leak between
+    tests) and resets the module-global ``_global_client`` before and after
+    each test so caching tests are isolated.
+
+    Args:
+        monkeypatch: The pytest monkeypatch fixture.
+
+    Returns:
+        The per-test fake client class, for tests that configure it.
+    """
+    from langchain_core.tools import (
+        StructuredTool,
+    )
+
+    from co_scientist import (
+        mcp_client as mcp_mod,
+    )
+    from co_scientist.mcp_client import (
+        reset_mcp_client,
+    )
+    from tests._mcp import (
+        FakeMultiServerMCPClient,
+    )
+
+    class _Fake(FakeMultiServerMCPClient):
+        instances_created = 0
+        tools: ClassVar[list[StructuredTool]] = []
+        error: Exception | None = None
+
+    monkeypatch.setattr(mcp_mod, "MultiServerMCPClient", _Fake)
+    reset_mcp_client()
+    yield _Fake
+    reset_mcp_client()

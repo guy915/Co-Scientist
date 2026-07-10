@@ -87,7 +87,7 @@ def _patch_registry(
     """
     state = {"calls": 0}
 
-    def fake_supports(model: str) -> bool:  # pylint: disable=unused-argument
+    def fake_supports(model: str) -> bool:
         state["calls"] += 1
         return supported
 

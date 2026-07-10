@@ -372,7 +372,7 @@ def test_config_property_raises_when_uninitialized(
     files do not raise (they fall back); they only leave ``_config`` unset if it
     were never loaded, which we simulate here.
     """
-    registry._config = None  # pylint: disable=protected-access
+    registry._config = None
     with pytest.raises(ConfigError):
         _ = registry.config
 

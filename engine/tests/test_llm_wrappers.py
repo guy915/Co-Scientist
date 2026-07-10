@@ -253,7 +253,7 @@ async def test_call_llm_json_schema_mismatch_raises_validation_error(
     fails on every attempt and the wrapper re-raises a ``ValidationError``.
     """
     from jsonschema.exceptions import (
-        ValidationError,  # pylint: disable=import-outside-toplevel
+        ValidationError,
     )
 
     _disable_cache(monkeypatch)

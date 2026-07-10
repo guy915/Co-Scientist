@@ -39,7 +39,7 @@ async def _generate_queries_via_mcp(
     # Imported locally to avoid a module-level import cycle: node.py owns
     # _describe_exc and imports this module at load time.
     from co_scientist.nodes.literature_review.node import (
-        _describe_exc,  # pylint: disable=import-outside-toplevel
+        _describe_exc,
     )
 
     try:
@@ -51,7 +51,7 @@ async def _generate_queries_via_mcp(
         queries = parse_mcp_query_result(result)
         logger.info("MCP query generation returned %s queries", len(queries))
         return queries
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # An empty list here (rather than raising) is the signal that lets
         # _phase1_generate_queries fall through to the LLM-based generator.
         logger.warning(
@@ -95,7 +95,7 @@ async def _generate_queries_via_llm(
             json_schema=LITERATURE_QUERY_SCHEMA,
         )
         return cast(list[str], result.get("queries", []))
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.warning("LLM query generation failed: %s", e)
         return []
 

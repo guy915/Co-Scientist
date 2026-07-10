@@ -3,7 +3,6 @@
 Depends on supervisor node output (will run supervisor first).
 Optionally can test with literature review results.
 """
-# pylint: disable=inconsistent-quotes
 
 import asyncio
 from collections.abc import Sequence

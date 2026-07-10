@@ -1,5 +1,4 @@
 """Meta-review node - synthesize insights from all reviews."""
-# pylint: disable=inconsistent-quotes
 
 import json
 import logging

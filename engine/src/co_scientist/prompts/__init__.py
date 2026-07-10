@@ -14,7 +14,6 @@ importing from ``co_scientist.prompts``.
 # for mypy) for co_scientist.nodes.evolve, which assembles its evolution
 # prompt without a dedicated getter here and imports these from the package.
 # Not part of the public API.
-# pylint: disable=useless-import-alias
 from co_scientist.prompts._common import (
     _format_run_guidance as _format_run_guidance,
 )
@@ -62,8 +61,6 @@ from co_scientist.prompts.review import (
     get_review_batch_prompt,
     get_review_prompt,
 )
-
-# pylint: enable=useless-import-alias
 
 __all__ = [
     "build_tool_instructions",

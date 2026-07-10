@@ -1,5 +1,4 @@
 """Proximity node - cluster and deduplicate similar hypotheses."""
-# pylint: disable=inconsistent-quotes
 
 import logging
 from dataclasses import dataclass

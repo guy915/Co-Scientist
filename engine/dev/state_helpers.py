@@ -3,7 +3,6 @@
 These create the bare minimum state required to run a node without errors.
 Intentionally kept minimal to avoid mock data drift - add fields as needed.
 """
-# pylint: disable=inconsistent-quotes
 
 import time
 
@@ -62,10 +61,10 @@ def make_supervisor_state(
     Use this for nodes that depend on supervisor output (eg generate node).
     Note: this creates a REAL supervisor output by calling the supervisor node.
     """
-    import asyncio  # pylint: disable=import-outside-toplevel
+    import asyncio
 
     from co_scientist.nodes.supervisor import (
-        supervisor_node,  # pylint: disable=import-outside-toplevel
+        supervisor_node,
     )
 
     base = make_base_state(research_goal, model_name)
@@ -99,13 +98,13 @@ def make_literature_state(
                             (requires MCP server); if False, uses
                             minimal mock data
     """
-    import asyncio  # pylint: disable=import-outside-toplevel
+    import asyncio
 
     from co_scientist.models import (
-        Article,  # pylint: disable=import-outside-toplevel
+        Article,
     )
     from co_scientist.nodes.literature_review import (
-        literature_review_node,  # pylint: disable=import-outside-toplevel
+        literature_review_node,
     )
 
     base = make_base_state(research_goal, model_name)

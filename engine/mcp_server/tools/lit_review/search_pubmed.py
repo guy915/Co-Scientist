@@ -1,5 +1,4 @@
 """PubMed literature search tool using Bio.Entrez."""
-# pylint: disable=inconsistent-quotes
 
 import json
 import logging
@@ -58,7 +57,7 @@ def _pubmed_canary_query_succeeds() -> bool:
     except URLError as e:
         _log_pubmed_canary_url_error(e)
         return False
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         _log_pubmed_canary_generic_error(e)
         return False
 
@@ -86,7 +85,7 @@ def _log_pubmed_canary_http_error(e: HTTPError) -> None:
     logger.debug("Response headers: %s", dict(getattr(e, "headers", {})))
 
     # Try to read error response body
-    try:  # pylint: disable=broad-exception-caught
+    try:
         if hasattr(e, "read"):
             error_body = e.read()
             error_text = (
@@ -95,7 +94,7 @@ def _log_pubmed_canary_http_error(e: HTTPError) -> None:
                 else error_body
             )
             logger.debug("Error response body: %s", error_text[:500])
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         pass
 
     logger.debug("Full traceback:\n%s", traceback.format_exc())
@@ -164,7 +163,7 @@ def _entrez_read(handle: Any) -> dict[str, Any]:
         _log_entrez_read_url_error(e)
         handle.close()
         raise
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         _log_entrez_read_generic_error(e, handle)
         handle.close()
         raise
@@ -176,7 +175,7 @@ def _log_entrez_http_error_body(e: HTTPError) -> None:
     Args:
         e: The HTTPError whose response body should be logged.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         if hasattr(e, "read"):
             error_body = e.read()
             error_text = (
@@ -185,7 +184,7 @@ def _log_entrez_http_error_body(e: HTTPError) -> None:
                 else error_body
             )
             logger.debug("Error response body: %s", error_text[:1000])
-    except Exception as read_err:  # pylint: disable=broad-exception-caught
+    except Exception as read_err:
         logger.debug("Could not read error response body: %s", read_err)
 
 
@@ -233,7 +232,7 @@ def _log_entrez_read_generic_error(e: Exception, handle: Any) -> None:
     logger.error("Entrez read error (%s): %s", type(e).__name__, e)
 
     # Try to read raw response from handle if possible
-    try:  # pylint: disable=broad-exception-caught
+    try:
         if hasattr(handle, "read"):
             raw_response = handle.read()
             if isinstance(raw_response, bytes):
@@ -242,7 +241,7 @@ def _log_entrez_read_generic_error(e: Exception, handle: Any) -> None:
                 "Raw response from handle (first 1000 chars): %s",
                 raw_response[:1000],
             )
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         pass
 
     logger.debug("Full traceback:\n%s", traceback.format_exc())
@@ -430,7 +429,7 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
         "Searching PubMed with query: '%s' (max %s papers)", query, max_papers
     )
 
-    try:  # pylint: disable=broad-exception-caught
+    try:
         # Step 1: esearch resolves the query to a list of PubMed ids.
         results = _entrez_read(
             Entrez.esearch(db="pubmed", term=query, retmax=max_papers)
@@ -453,7 +452,7 @@ def search_pubmed(query: str, max_papers: int = 10) -> str:
         articles_json = [article.to_dict() for article in articles]
         return json.dumps({"results": articles_json, "count": len(articles)})
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("Error searching PubMed: %s", e)
         return json.dumps({"error": str(e), "results": [], "count": 0})
 
@@ -472,7 +471,7 @@ def _fetch_pubmed_articles(id_list: list[str]) -> list[Article]:
     """
     articles = []
     for paper_id in id_list:
-        try:  # pylint: disable=broad-exception-caught
+        try:
             article = _fetch_pubmed_article(paper_id)
             articles.append(article)
             logger.debug(
@@ -480,7 +479,7 @@ def _fetch_pubmed_articles(id_list: list[str]) -> list[Article]:
                 paper_id,
                 article.title[:50],
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.warning(
                 "Failed to fetch metadata for paper %s: %s", paper_id, e
             )

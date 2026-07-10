@@ -89,7 +89,7 @@ async def _phase4_synthesize(
             paper_analyses, state, background_context
         )
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Synthesis failure also degrades to the sentinel rather than
         # propagating, consistent with the empty-analyses branch above.
         logger.error("Synthesis failed: %s", e)

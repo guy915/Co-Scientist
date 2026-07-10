@@ -1,5 +1,4 @@
 """Formatting helpers shared by several prompt-builder modules."""
-# pylint: disable=inconsistent-quotes
 
 from collections.abc import Callable
 from typing import Any

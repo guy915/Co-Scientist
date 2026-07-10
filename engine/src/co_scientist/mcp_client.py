@@ -4,171 +4,52 @@ This module provides utilities for connecting to MCP servers and accessing
 their tools for use with LiteLLM agents.
 
 Supports both single-server (legacy) and multi-server configurations.
+
+The connection helpers and availability-probe helpers live in
+``mcp_client_helpers`` and ``mcp_client_availability`` respectively and are
+re-exported here so callers keep importing from ``co_scientist.mcp_client``.
 """
-# pylint: disable=inconsistent-quotes
 
 import json
 import logging
-import os
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 from langchain_core.utils.function_calling import convert_to_openai_tool
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
+from co_scientist.mcp_client_availability import (
+    _has_any_tools,
+    _log_mcp_test_start,
+    _log_mcp_unavailable,
+    _probe_literature_source_availability,
+    _resolve_availability_check_tool,
+)
+from co_scientist.mcp_client_availability import (
+    _interpret_availability_result as _interpret_availability_result,
+)
+from co_scientist.mcp_client_availability import (
+    _short_circuit_availability as _short_circuit_availability,
+)
+from co_scientist.mcp_client_helpers import (
+    DEFAULT_MCP_SERVER_URL as DEFAULT_MCP_SERVER_URL,
+)
+from co_scientist.mcp_client_helpers import (
+    _ensure_tools_initialized,
+    _filter_tools_by_whitelist,
+    _resolve_server_configs,
+    _resolve_server_url,
+    _truncate_for_log,
+    _unwrap_tool_result,
+)
+from co_scientist.mcp_client_helpers import (
+    _is_wrapped_text_result as _is_wrapped_text_result,
+)
+
 if TYPE_CHECKING:
     from co_scientist.config import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-DEFAULT_MCP_SERVER_URL = "http://localhost:8888/mcp"
-"""Fallback MCP server URL when MCP_SERVER_URL is unset."""
-
-
-def _resolve_server_url() -> str:
-    """Return the MCP server URL from the environment or the default."""
-    return os.environ.get("MCP_SERVER_URL", DEFAULT_MCP_SERVER_URL)
-
-
-def _resolve_server_configs(
-    tool_registry: Optional["ToolRegistry"],
-    server_configs: dict[str, dict[str, str]] | None,
-    server_url: str | None,
-) -> dict[str, dict[str, str]]:
-    """Resolve which MCP server configs MCPToolClient.__init__ should use.
-
-    Precedence: an explicit tool_registry wins, then explicit
-    server_configs, then a single legacy server_url (falling back to the
-    env var / default).
-
-    Args:
-        tool_registry: ToolRegistry instance for config-driven multi-server
-            mode, if provided.
-        server_configs: Dict of server configs for multi-server mode, if
-            provided.
-        server_url: URL of a single MCP server (legacy mode), if provided.
-
-    Returns:
-        Dict of {server_id: {"transport": ..., "url": ...}}.
-    """
-    if tool_registry is not None:
-        # Use registry-provided server configs
-        configs = tool_registry.get_server_configs_for_langchain()
-        logger.debug("using %s servers from tool registry", len(configs))
-        return configs
-
-    if server_configs is not None:
-        logger.debug("using %s provided server configs", len(server_configs))
-        return server_configs
-
-    # Legacy single-server mode
-    if server_url is None:
-        server_url = _resolve_server_url()
-    logger.debug("using single server: %s", server_url)
-    return {"default": {"transport": "streamable_http", "url": server_url}}
-
-
-def _ensure_tools_initialized(
-    tools_dict: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Guards that a client's tools dict has been populated by initialize().
-
-    Args:
-        tools_dict: A client's ``_tools_dict``, or None if initialize()
-            hasn't run.
-
-    Returns:
-        The non-None tools dict.
-
-    Raises:
-        RuntimeError: If tools_dict is None.
-    """
-    if tools_dict is None:
-        raise RuntimeError(
-            "mcp client not initialized. call initialize() first."
-        )
-    return tools_dict
-
-
-def _is_wrapped_text_result(result: Any) -> bool:
-    """Checks whether result is the ``[{"text": ...}]`` wrapper shape.
-
-    Some langchain versions wrap MCP tool results this way instead of
-    returning the raw string.
-
-    Args:
-        result: Raw ``ainvoke()`` return value.
-
-    Returns:
-        True if result is a non-empty list whose first item is a dict
-        containing a "text" key.
-    """
-    return (
-        isinstance(result, list)
-        and len(result) > 0
-        and isinstance(result[0], dict)
-        and "text" in result[0]
-    )
-
-
-def _unwrap_tool_result(result: Any) -> Any:
-    """Unwraps the ``[{"text": ...}]`` shape some langchain versions return.
-
-    Args:
-        result: Raw ``ainvoke()`` return value.
-
-    Returns:
-        ``result[0]["text"]`` when result matches that shape, else result
-        unchanged.
-    """
-    return result[0]["text"] if _is_wrapped_text_result(result) else result
-
-
-def _truncate_for_log(text: str, limit: int = 200) -> str:
-    """Truncates text for a debug log line, appending an ellipsis if cut.
-
-    Args:
-        text: Text to (possibly) truncate.
-        limit: Maximum length before truncation.
-
-    Returns:
-        text unchanged if within limit, else text[:limit] followed by "...".
-    """
-    return text if len(text) <= limit else text[:limit] + "..."
-
-
-def _filter_tools_by_whitelist(
-    tools_dict: dict[str, Any],
-    whitelist: list[str],
-) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    """Filters a client's tools down to a workflow's whitelist.
-
-    Args:
-        tools_dict: All available tools, keyed by name.
-        whitelist: Tool names to keep, in the order the LLM should see them.
-
-    Returns:
-        Tuple of (filtered_tools_dict, filtered_openai_tools). The latter
-        follows whitelist order (not tools_dict's order) so the OpenAI-format
-        tool list is presented to the LLM in the order the workflow config
-        declared it, e.g. preferred tools first.
-    """
-    filtered_tools_dict = {
-        k: v for k, v in tools_dict.items() if k in whitelist
-    }
-    filtered_openai_tools = [
-        convert_to_openai_tool(filtered_tools_dict[k])
-        for k in whitelist
-        if k in filtered_tools_dict
-    ]
-
-    logger.debug(
-        "filtered to %s tools: %s",
-        len(filtered_tools_dict),
-        list(filtered_tools_dict.keys()),
-    )
-
-    return filtered_tools_dict, filtered_openai_tools
 
 
 class MCPToolClient:
@@ -428,161 +309,6 @@ class MCPToolClient:
 _global_client: MCPToolClient | None = None
 
 
-def _resolve_availability_check_tool(
-    tool_registry: Optional["ToolRegistry"],
-) -> tuple[str | None, bool]:
-    """Determine which MCP tool (if any) to use for an availability probe.
-
-    Args:
-        tool_registry: Optional ToolRegistry for config-driven tool lookup.
-
-    Returns:
-        A (check_tool_name, skip_availability_check) pair. When
-        skip_availability_check is True, the caller should treat the source
-        as available once the MCP server itself responds, without invoking
-        any tool. check_tool_name defaults to "check_pubmed_available" for
-        backwards compatibility when no registry is supplied.
-    """
-    if tool_registry is None:
-        # Default for backwards compat when no registry is supplied.
-        return "check_pubmed_available", False
-
-    workflow = tool_registry.get_workflow("literature_review")
-    if not workflow:
-        return None, False
-
-    if not workflow.availability_check:
-        # availability_check is null/None - skip the check
-        logger.debug(
-            "availability check disabled in config (availability_check: null)"
-        )
-        return None, True
-
-    # Explicit check tool configured.
-    tool_config = tool_registry.get_tool(workflow.availability_check)
-    check_tool_name = tool_config.mcp_tool_name if tool_config else None
-    return check_tool_name, False
-
-
-def _interpret_availability_result(result: Any, check_tool_name: str) -> bool:
-    """Coerce an availability-check tool's raw result to a bool.
-
-    Args:
-        result: Raw MCP tool result. The tool contract is a bool or a
-            "true"/"false" string; anything else is unexpected.
-        check_tool_name: Name of the tool that produced the result, used
-            only for the unexpected-shape warning.
-
-    Returns:
-        True/False per the tool's answer; False if the shape is unexpected.
-    """
-    if isinstance(result, bool):
-        return result
-    if isinstance(result, str):
-        return result.lower() == "true"
-    logger.warning("unexpected result from %s: %s", check_tool_name, result)
-    return False
-
-
-def _short_circuit_availability(
-    all_tools_dict: dict[str, Any],
-    check_tool_name: str | None,
-    skip_availability_check: bool,
-) -> bool | None:
-    """Resolves availability without calling any tool, when possible.
-
-    Checks, in order: whether the MCP server returned any tools at all,
-    whether the workflow config opts out of a source-specific check, and
-    whether no check tool is configured. Returns None when none of these
-    apply, meaning the caller must actually invoke check_tool_name.
-
-    Args:
-        all_tools_dict: Tools available on the already-initialized client.
-        check_tool_name: Name of the availability-check tool to call, or
-            None if no such tool is configured.
-        skip_availability_check: When True, the source is treated as
-            available once the MCP server itself responds, without calling
-            a tool.
-
-    Returns:
-        True/False if availability is already decided, else None.
-    """
-    # An empty tool list means the MCP server is not usable, so the
-    # literature source is unavailable.
-    if not all_tools_dict:
-        logger.warning(
-            "MCP server responded but provided no tools,"
-            " literature source unavailable"
-        )
-        return False
-
-    # If no availability check configured, assume available since MCP is up
-    if skip_availability_check:
-        logger.info(
-            "MCP server available, skipping source-specific availability check"
-        )
-        return True
-
-    # If no check tool configured but we have a registry, assume available
-    if check_tool_name is None:
-        logger.info(
-            "no availability check tool configured, assuming source available"
-        )
-        return True
-
-    return None
-
-
-async def _probe_literature_source_availability(
-    mcp_client: "MCPToolClient",
-    check_tool_name: str | None,
-    skip_availability_check: bool,
-) -> bool:
-    """Determine availability from an already-initialized MCP client.
-
-    Args:
-        mcp_client: An initialized MCPToolClient to query for tools and, if
-            needed, to call the availability check tool on.
-        check_tool_name: Name of the availability-check tool to call, or
-            None if no such tool is configured.
-        skip_availability_check: When True, the source is treated as
-            available once the MCP server itself responds, without calling
-            a tool.
-
-    Returns:
-        True if the literature source is available via MCP server, False
-        otherwise.
-    """
-    all_tools_dict, _ = mcp_client.get_tools()
-
-    shortcut = _short_circuit_availability(
-        all_tools_dict, check_tool_name, skip_availability_check
-    )
-    if shortcut is not None:
-        return shortcut
-
-    logger.debug(
-        "checking literature source availability (tool: %s)", check_tool_name
-    )
-    logger.debug("available mcp tools: %s", list(all_tools_dict.keys()))
-
-    if check_tool_name not in all_tools_dict:
-        logger.warning(
-            "availability check tool '%s' not found. available tools: %s",
-            check_tool_name,
-            list(all_tools_dict.keys()),
-        )
-        return False
-
-    logger.debug("%s tool found, executing", check_tool_name)
-
-    # Call tool directly
-    result = await mcp_client.call_tool(check_tool_name)
-
-    # Result should be a boolean or "true"/"false" string
-    return _interpret_availability_result(result, check_tool_name)
-
-
 async def check_literature_source_available(
     server_url: str | None = None,
     tool_registry: Optional["ToolRegistry"] = None,
@@ -625,7 +351,7 @@ async def check_literature_source_available(
             mcp_client, check_tool_name, skip_availability_check
         )
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Deliberately broad: any MCP hiccup (connection refused, timeout,
         # malformed tool schema) degrades to "unavailable" here rather than
         # raising, so callers (e.g. HypothesisGenerator._prepare_generation)
@@ -649,59 +375,6 @@ async def check_pubmed_available_via_mcp(
 ) -> bool:
     """Deprecated: use check_literature_source_available instead."""
     return await check_literature_source_available(server_url, tool_registry)
-
-
-def _log_mcp_test_start(
-    tool_registry: Optional["ToolRegistry"], server_url: str | None
-) -> None:
-    """Logs which MCP target check_mcp_available is about to probe.
-
-    Args:
-        tool_registry: ToolRegistry driving multi-server mode, if any.
-        server_url: Single legacy server URL, used when tool_registry isn't.
-    """
-    if tool_registry:
-        logger.debug(
-            "testing mcp availability for %s server(s)",
-            len(tool_registry.get_enabled_servers()),
-        )
-    else:
-        logger.debug("testing mcp server availability at %s", server_url)
-
-
-def _has_any_tools(tools_dict: dict[str, Any] | None) -> bool:
-    """Checks whether an initialized client actually reports any tools.
-
-    Args:
-        tools_dict: The probe client's populated tools dict.
-
-    Returns:
-        True (and logs success) if non-empty; False (and logs a warning)
-        otherwise.
-    """
-    if tools_dict and len(tools_dict) > 0:
-        logger.info("MCP server available with %s tools", len(tools_dict))
-        return True
-    logger.warning("MCP server responded but provided no tools")
-    return False
-
-
-def _log_mcp_unavailable(
-    tool_registry: Optional["ToolRegistry"],
-    server_url: str | None,
-    error: Exception,
-) -> None:
-    """Logs the check_mcp_available exception-fallback-to-False path.
-
-    Args:
-        tool_registry: ToolRegistry driving multi-server mode, if any.
-        server_url: Single legacy server URL, used when tool_registry isn't.
-        error: The exception that triggered the fallback.
-    """
-    if tool_registry:
-        logger.warning("MCP servers unavailable: %s", error)
-    else:
-        logger.warning("MCP server unavailable at %s", server_url)
 
 
 async def check_mcp_available(
@@ -729,10 +402,10 @@ async def check_mcp_available(
         await test_client.initialize()
 
         # Check if we got any tools
-        tools_dict = test_client._tools_dict  # pylint: disable=protected-access
+        tools_dict = test_client._tools_dict
         return _has_any_tools(tools_dict)
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Same broad-catch-to-False fallback as
         # check_literature_source_available: an unreachable server here must
         # not raise, since this result gates whether the literature_review

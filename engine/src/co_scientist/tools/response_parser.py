@@ -10,6 +10,7 @@ from typing import Any
 
 from co_scientist.config.schema import ToolConfig
 from co_scientist.models import Article
+from co_scientist.tools.response_parser_transforms import apply_transform
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +184,7 @@ class ResponseParser:
                 article = self._map_item_to_article(item, dict_key=key)
                 if article:
                     articles.append(article)
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:
                 logger.error("failed to map item %s: %s", key, e)
 
         return articles
@@ -209,7 +210,7 @@ class ResponseParser:
                 article = self._map_item_to_article(item)
                 if article:
                     articles.append(article)
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:
                 logger.error("failed to map item %s: %s", i, e)
 
         return articles
@@ -342,7 +343,7 @@ class ResponseParser:
                 kwargs[article_field] = self._evaluate_expression(
                     expr, item, dict_key
                 )
-            except Exception as e:  # pylint: disable=broad-exception-caught
+            except Exception as e:
                 logger.debug(
                     "failed to evaluate %s=%s: %s", article_field, expr, e
                 )
@@ -423,6 +424,23 @@ class ResponseParser:
 
         return value
 
+    def _apply_transform(self, transform: str, value: Any) -> Any:
+        """Apply a transform to a value.
+
+        Thin method wrapper delegating to the shared transform vocabulary in
+        response_parser_transforms; kept as a method so callers (and tests)
+        can invoke it on a ResponseParser instance.
+
+        Args:
+            transform: Transform specification
+                (e.g., "split:/", "index:0", "int")
+            value: Value to transform
+
+        Returns:
+            Transformed value
+        """
+        return apply_transform(transform, value)
+
     def _get_field_value(
         self, field_expr: str, item: dict[str, Any], dict_key: str | None = None
     ) -> Any:
@@ -437,111 +455,6 @@ class ResponseParser:
             return self._navigate_path(item, field_expr)
 
         return item.get(field_expr)
-
-    def _apply_transform(self, transform: str, value: Any) -> Any:
-        """Apply a transform to a value.
-
-        Args:
-            transform: Transform specification
-                (e.g., "split:/", "index:0", "int")
-            value: Value to transform
-
-        Returns:
-            Transformed value
-        """
-        # Default transform - applies only when value is None; non-None
-        # values pass through unchanged. Checked before the None guard
-        # below since it is the one transform meant to handle None input.
-        if transform.startswith("default:"):
-            return self._transform_default(transform, value)
-
-        if value is None:
-            return None
-
-        return self._apply_value_transform(transform, value)
-
-    def _apply_value_transform(self, transform: str, value: Any) -> Any:
-        """Dispatch a non-default transform against a non-None value.
-
-        Args:
-            transform: Transform specification (e.g., "split:/", "int").
-            value: Non-None value to transform.
-
-        Returns:
-            Transformed value, or the original value if the transform is
-            unknown.
-        """
-        if transform.startswith("split:"):
-            return self._transform_split(transform, value)
-        if transform.startswith("index:"):
-            return self._transform_index(transform, value)
-
-        handlers = {
-            "int": self._transform_int,
-            "float": self._transform_float,
-            "wrap_list": self._transform_wrap_list,
-        }
-        handler = handlers.get(transform)
-        if handler:
-            return handler(value)
-
-        logger.warning("unknown transform: %s", transform)
-        return value
-
-    def _transform_default(self, transform: str, value: Any) -> Any:
-        """Apply the "default:VALUE" transform.
-
-        Args:
-            transform: Transform specification, e.g. "default:0".
-            value: Value to transform.
-
-        Returns:
-            value unchanged if not None; otherwise VALUE, parsed as an int
-            when possible and left as a string otherwise.
-        """
-        if value is not None:
-            return value
-        default_value = transform[8:]
-        try:
-            return int(default_value)
-        except ValueError:
-            return default_value
-
-    def _transform_split(self, transform: str, value: Any) -> Any:
-        """Apply the "split:DELIM" transform."""
-        delimiter = transform[6:]
-        if isinstance(value, str):
-            return value.split(delimiter)
-        return value
-
-    def _transform_index(self, transform: str, value: Any) -> Any:
-        """Apply the "index:N" transform."""
-        index = int(transform[6:])
-        if isinstance(value, (list, tuple)) and len(value) > index:
-            return value[index]
-        return None
-
-    def _transform_int(self, value: Any) -> Any:
-        """Apply the "int" transform."""
-        try:
-            return int(value)
-        except (ValueError, TypeError):
-            return None
-
-    def _transform_float(self, value: Any) -> Any:
-        """Apply the "float" transform."""
-        try:
-            return float(value)
-        except (ValueError, TypeError):
-            return None
-
-    def _transform_wrap_list(self, value: Any) -> Any:
-        """Apply the "wrap_list" transform - wrap a single value in a list."""
-        if value is None:
-            return []
-        if isinstance(value, list):
-            return value
-        return [value]
 
 
 def parse_mcp_result(result: Any) -> Any:

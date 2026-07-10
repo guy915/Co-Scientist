@@ -38,7 +38,7 @@ async def _call_enrichment_tool_for_entity(
     """Call one enrichment tool for one entity; returns raw result or None."""
     try:
         return await mcp_client.call_tool(tool_name, **mapped_params)
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Enrichment is best-effort background context, not a required
         # input, so a failed call for one entity/tool just yields no
         # evidence for it rather than aborting the whole node.
@@ -234,7 +234,7 @@ def _resolve_enrichment_tool_configs(
     for tool_id in workflow.context_enrichment_tools:
         tc = tool_registry.get_tool(tool_id)
         if tc and tc.enabled and mcp_client.has_tool(tc.mcp_tool_name):
-            tc._yaml_tool_id = tool_id  # pylint: disable=protected-access
+            tc._yaml_tool_id = tool_id
             tool_configs.append(tc)
         else:
             logger.debug(

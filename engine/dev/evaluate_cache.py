@@ -2,7 +2,6 @@
 
 This script runs the same workflow twice to demonstrate cache speedup.
 """
-# pylint: disable=inconsistent-quotes
 
 import os
 import sys
@@ -14,7 +13,6 @@ sys.path.insert(
     os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")),
 )
 
-# pylint: disable=wrong-import-position
 import asyncio
 from collections.abc import Sequence
 
@@ -23,7 +21,6 @@ from absl import app
 from co_scientist import HypothesisGenerator, clear_cache, get_cache_stats
 
 
-# pylint: enable=wrong-import-position
 async def run_generation():
     """Run a simple generation to test caching."""
     generator = HypothesisGenerator(

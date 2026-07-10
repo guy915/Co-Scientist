@@ -1,0 +1,219 @@
+"""Applying judged matchup results: Elo updates, details, and state delta."""
+
+import logging
+from typing import Any, NamedTuple
+
+from co_scientist.constants import truncate
+from co_scientist.models import (
+    Hypothesis,
+    create_metrics_update,
+    phase_message,
+)
+from co_scientist.nodes.ranking_elo import calculate_elo_update, match_tier
+
+logger = logging.getLogger(__name__)
+
+
+def _format_judgment_explanation(judgment: dict[str, Any]) -> str:
+    """Combine a judgment_explanation dict's truthy values into one line."""
+    return " | ".join(f"{k}: {v}" for k, v in judgment.items() if v)
+
+
+def _extract_reasoning(response: dict[str, Any]) -> str:
+    """Extracts the judge's reasoning text from a matchup response.
+
+    Args:
+        response: Full LLM response from judge_matchup.
+
+    Returns:
+        Reasoning text: decision_summary if present, otherwise a
+        judgment_explanation fallback, otherwise a placeholder.
+    """
+    reasoning: str = response.get("decision_summary", "")
+    if not reasoning and "judgment_explanation" in response:
+        # Fallback: combine judgment details if decision_summary is missing
+        reasoning = _format_judgment_explanation(
+            response["judgment_explanation"]
+        )
+    if not reasoning:
+        reasoning = "No reasoning provided"
+    return reasoning
+
+
+class _MatchupOutcome(NamedTuple):
+    """Pre/post Elo ratings for one judged matchup's winner and loser."""
+
+    winner_hyp: Hypothesis
+    loser_hyp: Hypothesis
+    winner_elo_before: int
+    winner_elo_after: int
+    loser_elo_before: int
+    loser_elo_after: int
+
+
+def _apply_matchup_elo(
+    hyp_a: Hypothesis, hyp_b: Hypothesis, winner: str
+) -> _MatchupOutcome:
+    """Resolves the winner/loser of one matchup and applies its Elo update.
+
+    Mutates winner_hyp and loser_hyp in place (elo_rating and win/loss
+    counters), so these updates are visible on the same objects held by the
+    caller's hypothesis list without needing to rebuild it.
+
+    Args:
+        hyp_a: First hypothesis in the pairing.
+        hyp_b: Second hypothesis in the pairing.
+        winner: Side the judge picked, "a" or "b".
+
+    Returns:
+        The pre/post Elo ratings for the winner and loser.
+    """
+    # Resolve which Hypothesis object actually won this pairing based on the
+    # "a"/"b" side the judge picked.
+    winner_hyp, loser_hyp = (hyp_a, hyp_b) if winner == "a" else (hyp_b, hyp_a)
+    old_winner_elo = winner_hyp.elo_rating
+    old_loser_elo = loser_hyp.elo_rating
+
+    new_winner_elo, new_loser_elo = calculate_elo_update(
+        winner_elo=winner_hyp.elo_rating, loser_elo=loser_hyp.elo_rating
+    )
+    logger.debug(
+        "Matchup result: Winner %s -> %s, Loser %s -> %s",
+        winner_hyp.elo_rating,
+        new_winner_elo,
+        loser_hyp.elo_rating,
+        new_loser_elo,
+    )
+
+    winner_hyp.elo_rating = new_winner_elo
+    loser_hyp.elo_rating = new_loser_elo
+    winner_hyp.win_count += 1
+    loser_hyp.loss_count += 1
+
+    return _MatchupOutcome(
+        winner_hyp,
+        loser_hyp,
+        old_winner_elo,
+        new_winner_elo,
+        old_loser_elo,
+        new_loser_elo,
+    )
+
+
+def _build_matchup_detail(
+    hyp_a: Hypothesis,
+    hyp_b: Hypothesis,
+    winner: str,
+    response: dict[str, Any],
+    outcome: _MatchupOutcome,
+) -> dict[str, Any]:
+    """Builds one matchup's detail dict for the UI's tournament view.
+
+    Args:
+        hyp_a: First hypothesis in the pairing.
+        hyp_b: Second hypothesis in the pairing.
+        winner: Side the judge picked, "a" or "b".
+        response: Full judge response for this matchup.
+        outcome: Elo outcome produced by _apply_matchup_elo.
+
+    Returns:
+        Matchup detail dict for this pairing, for the UI's "Performance
+        against other ideas" view.
+    """
+    return {
+        "hypothesis_a": truncate(hyp_a.text),
+        "hypothesis_b": truncate(hyp_b.text),
+        # Stable ids alongside the truncated text so downstream consumers
+        # can resolve identity exactly instead of by text-prefix matching.
+        "hypothesis_a_id": hyp_a.id,
+        "hypothesis_b_id": hyp_b.id,
+        "winner_id": outcome.winner_hyp.id,
+        "winner": winner,
+        "reasoning": _extract_reasoning(response),
+        "confidence": response.get("confidence_level", "Unknown"),
+        "tier": match_tier(
+            outcome.winner_elo_before,
+            outcome.loser_elo_before,
+            response.get("confidence_level", ""),
+        ),
+        "winner_elo_before": outcome.winner_elo_before,
+        "winner_elo_after": outcome.winner_elo_after,
+        "loser_elo_before": outcome.loser_elo_before,
+        "loser_elo_after": outcome.loser_elo_after,
+    }
+
+
+def _apply_matchup_results(
+    pairings: list[tuple[Hypothesis, Hypothesis]],
+    results: list[tuple[str, dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    """Applies Elo updates for judged matchups and collects their details.
+
+    Judgments are computed concurrently by the caller (independent of Elo,
+    since judge_matchup only sees text/reviews/etc.), but ratings are
+    applied here sequentially in pairing order, so a hypothesis appearing
+    in multiple pairings picks up each prior update before the next one is
+    scored.
+
+    Args:
+        pairings: Per-round (hypothesis_a, hypothesis_b) pairs.
+        results: Per-round (winner, response) judgments, aligned with
+            pairings.
+
+    Returns:
+        List of matchup detail dicts, one per round, for the UI's
+        "Performance against other ideas" view.
+    """
+    matchup_details = []
+    for (hyp_a, hyp_b), (winner, response) in zip(
+        pairings, results, strict=True
+    ):
+        outcome = _apply_matchup_elo(hyp_a, hyp_b, winner)
+        matchup_details.append(
+            _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
+        )
+    return matchup_details
+
+
+def _build_ranking_delta(
+    hypotheses: list[Hypothesis],
+    matchup_details: list[dict[str, Any]],
+    tournament_rounds: int,
+) -> dict[str, Any]:
+    """Builds the ranking_node state delta after Elo updates are applied.
+
+    Args:
+        hypotheses: Hypotheses sorted by Elo rating (highest first).
+        matchup_details: Per-round matchup detail dicts.
+        tournament_rounds: Number of tournament rounds run.
+
+    Returns:
+        The ranking_node state delta dictionary. Merged back into
+        WorkflowState by the graph runner: hypotheses carries forward with
+        updated Elo/win/loss fields for downstream nodes (e.g. meta-review,
+        evolve), tournament_matchups feeds the UI's "Performance against
+        other ideas" view, and metrics/messages accumulate via their
+        respective reducers rather than overwriting prior state.
+    """
+    # Update metrics (deltas only, merge_metrics will add to existing state)
+    llm_calls = tournament_rounds
+    metrics = create_metrics_update(
+        llm_calls_delta=llm_calls, tournaments_count_delta=tournament_rounds
+    )
+    logger.debug(
+        "ranking node creating metrics delta: tournaments=%s, llm_calls=%s",
+        tournament_rounds,
+        llm_calls,
+    )
+
+    return {
+        "hypotheses": hypotheses,  # Now sorted by Elo rating
+        "tournament_matchups": matchup_details,
+        "metrics": metrics,
+        "messages": phase_message(
+            "ranking",
+            f"Completed {tournament_rounds} tournament rounds",
+            rounds=tournament_rounds,
+            top_elo=hypotheses[0].elo_rating,
+        ),
+    }

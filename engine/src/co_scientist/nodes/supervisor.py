@@ -1,5 +1,4 @@
 """Supervisor node - create research plan and workflow guidance."""
-# pylint: disable=inconsistent-quotes
 
 import logging
 from typing import Any

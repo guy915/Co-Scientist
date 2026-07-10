@@ -54,12 +54,8 @@ _RESPONSE: dict[str, Any] = {"content": "the powerhouse of the cell"}
 def test_key_stable_for_same_inputs(tmp_path: Path) -> None:
     """The same request parameters always derive the same cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    key_a = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST
-    )
-    key_b = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST
-    )
+    key_a = cache_obj._generate_cache_key(**_REQUEST)
+    key_b = cache_obj._generate_cache_key(**_REQUEST)
     assert key_a == key_b
     # SHA256 hex digest.
     assert len(key_a) == 64
@@ -68,14 +64,10 @@ def test_key_stable_for_same_inputs(tmp_path: Path) -> None:
 def test_key_differs_for_different_inputs(tmp_path: Path) -> None:
     """Changing any request parameter changes the derived cache key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    base = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST
-    )
-    # pylint: disable-next=protected-access
+    base = cache_obj._generate_cache_key(**_REQUEST)
     other_prompt = cache_obj._generate_cache_key(
         **{**_REQUEST, "prompt": "different prompt"}
     )
-    # pylint: disable-next=protected-access
     other_temp = cache_obj._generate_cache_key(
         **{**_REQUEST, "temperature": 0.9}
     )
@@ -87,14 +79,10 @@ def test_key_differs_for_different_inputs(tmp_path: Path) -> None:
 def test_key_changes_with_optional_params(tmp_path: Path) -> None:
     """Optional params (tools/json_schema/force_json) participate in the key."""
     cache_obj = LLMCache(cache_dir=str(tmp_path), enabled=True)
-    base = cache_obj._generate_cache_key(  # pylint: disable=protected-access
-        **_REQUEST
-    )
-    # pylint: disable-next=protected-access
+    base = cache_obj._generate_cache_key(**_REQUEST)
     with_tools = cache_obj._generate_cache_key(
         **_REQUEST, tools=[{"name": "search"}]
     )
-    # pylint: disable-next=protected-access
     with_force_json = cache_obj._generate_cache_key(**_REQUEST, force_json=True)
     assert base != with_tools
     assert base != with_force_json

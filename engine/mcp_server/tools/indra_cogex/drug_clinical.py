@@ -45,7 +45,7 @@ async def query_drug_info(
     Returns:
         Dict with query results and metadata.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         curie = parse_id(identifier)
         result: dict[str, Any] = {
             "query": {"identifier": identifier, "query_type": query_type},
@@ -65,7 +65,7 @@ async def query_drug_info(
         result[f"total_{result_key}"] = total
         return result
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("query_drug_info failed: %s", e)
         return {
             "error": str(e),
@@ -92,7 +92,7 @@ async def query_clinical_trials(
     Returns:
         Dict with clinical trials and metadata.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         curie = parse_id(identifier)
 
         if entity_type == "disease":
@@ -118,7 +118,7 @@ async def query_clinical_trials(
             "query": {"identifier": identifier, "entity_type": entity_type},
         }
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("query_clinical_trials failed: %s", e)
         return {
             "error": str(e),

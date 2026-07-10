@@ -2,7 +2,6 @@
 
 Covers the supervisor, meta-review, and research-overview nodes.
 """
-# pylint: disable=inconsistent-quotes
 
 from typing import Any
 

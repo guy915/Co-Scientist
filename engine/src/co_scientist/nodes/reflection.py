@@ -1,5 +1,4 @@
 """Reflection node - analyzes hypotheses against literature observations."""
-# pylint: disable=inconsistent-quotes
 
 import asyncio
 import logging
@@ -72,7 +71,7 @@ async def analyze_single_hypothesis(
             prompt, schema, model_name, run_id, hypothesis_index, total_count
         )
         return _format_reflection_result(response, indra_data, hypothesis_index)
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Isolate this hypothesis's failure: return None instead of
         # raising, so the asyncio.gather in reflection_node still
         # completes for every other hypothesis in the batch.
@@ -407,7 +406,7 @@ async def _fetch_indra_for_hypothesis(
         # try/except is what handles a broken/missing optional dependency,
         # rather than failing at reflection.py import time.
         from co_scientist.nodes.reflection_helpers import (
-            fetch_indra_evidence,  # pylint: disable=import-outside-toplevel
+            fetch_indra_evidence,
         )
 
         result = await fetch_indra_evidence(
@@ -424,7 +423,7 @@ async def _fetch_indra_for_hypothesis(
                 len(result.get("enrichment_items", [])),
             )
         return result
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.debug(
             "hypothesis %s: INDRA fetch skipped: %s", hypothesis_index, e
         )

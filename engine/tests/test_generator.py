@@ -111,7 +111,7 @@ def test_enable_cache_true_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """``enable_cache=True`` exports the cache-enabled env var as 'true'."""
     monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
     HypothesisGenerator(enable_cache=True)
-    import os  # pylint: disable=import-outside-toplevel
+    import os
 
     assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "true"
 
@@ -120,7 +120,7 @@ def test_enable_cache_false_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """``enable_cache=False`` exports the cache-enabled env var as 'false'."""
     monkeypatch.setenv("COSCIENTIST_CACHE_ENABLED", "true")
     HypothesisGenerator(enable_cache=False)
-    import os  # pylint: disable=import-outside-toplevel
+    import os
 
     assert os.environ["COSCIENTIST_CACHE_ENABLED"] == "false"
 
@@ -129,7 +129,7 @@ def test_cache_dir_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """``cache_dir`` exports the cache-directory env var."""
     monkeypatch.delenv("COSCIENTIST_CACHE_DIR", raising=False)
     HypothesisGenerator(cache_dir="/tmp/coscientist-test-cache")
-    import os  # pylint: disable=import-outside-toplevel
+    import os
 
     assert os.environ["COSCIENTIST_CACHE_DIR"] == "/tmp/coscientist-test-cache"
 
@@ -141,7 +141,7 @@ def test_cache_unset_leaves_env_untouched(
     monkeypatch.delenv("COSCIENTIST_CACHE_ENABLED", raising=False)
     monkeypatch.delenv("COSCIENTIST_CACHE_DIR", raising=False)
     HypothesisGenerator()
-    import os  # pylint: disable=import-outside-toplevel
+    import os
 
     assert "COSCIENTIST_CACHE_ENABLED" not in os.environ
     assert "COSCIENTIST_CACHE_DIR" not in os.environ
@@ -408,9 +408,7 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
 def test_graph_includes_deep_verification_node() -> None:
     """The graph registers a deep_verification node after ranking."""
     gen = HypothesisGenerator(model_name="test/model")
-    graph = gen._build_graph(  # pylint: disable=protected-access
-        enable_literature_review_node=False
-    )
+    graph = gen._build_graph(enable_literature_review_node=False)
     assert "deep_verification" in graph.nodes
 
 
@@ -419,7 +417,5 @@ def test_graph_includes_research_overview_node_and_terminates_through_it() -> (
 ):
     """The graph registers a terminal research_overview node."""
     gen = HypothesisGenerator(model_name="test/model")
-    graph = gen._build_graph(  # pylint: disable=protected-access
-        enable_literature_review_node=False
-    )
+    graph = gen._build_graph(enable_literature_review_node=False)
     assert "research_overview" in graph.nodes

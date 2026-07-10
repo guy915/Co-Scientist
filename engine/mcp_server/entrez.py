@@ -1,5 +1,4 @@
 """Shared NCBI Entrez credential and SSL initialization."""
-# pylint: disable=inconsistent-quotes
 
 import logging
 import os
@@ -24,7 +23,7 @@ def initialize_entrez() -> None:
     with HTTP 400 while accepting one that omits it, so an unset key is left
     unassigned rather than blanked.
     """
-    global _entrez_initialized  # pylint: disable=global-statement
+    global _entrez_initialized
 
     if _entrez_initialized:
         return
@@ -84,8 +83,6 @@ def _disable_ssl_verification() -> None:
     """Monkeypatches the default HTTPS context to skip cert verification."""
     # Deliberate runtime monkeypatch to disable cert verification; the two
     # SSL context factory signatures are interchangeable at call sites here.
-    # pylint: disable=protected-access
     ssl._create_default_https_context = (
         ssl._create_unverified_context  # type: ignore[assignment]
     )
-    # pylint: enable=protected-access

@@ -30,7 +30,7 @@ async def query_pathways(
     Returns:
         Dict with pathways and metadata.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         curies = [parse_id(gid) for gid in gene_ids]
         mode = "shared" if len(curies) > 1 else "single"
 
@@ -55,7 +55,7 @@ async def query_pathways(
             "query": {"gene_ids": gene_ids, "mode": mode},
         }
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("query_pathways failed: %s", e)
         return {"error": str(e), "query": {"gene_ids": gene_ids}}
 
@@ -82,7 +82,7 @@ async def query_causal_subnetwork(
     Returns:
         Dict with subnetwork relations and metadata.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         curies = [parse_id(nid) for nid in node_ids]
 
         if find_mediators:
@@ -113,6 +113,6 @@ async def query_causal_subnetwork(
             "query": {"node_ids": node_ids, "find_mediators": find_mediators},
         }
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("query_causal_subnetwork failed: %s", e)
         return {"error": str(e), "query": {"node_ids": node_ids}}

@@ -1,5 +1,4 @@
 """Configuration loader for the MCP server."""
-# pylint: disable=inconsistent-quotes
 
 import logging
 import os

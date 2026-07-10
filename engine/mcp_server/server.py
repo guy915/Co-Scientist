@@ -3,7 +3,6 @@
 Reference implementation using FastMCP for PubMed literature review tools.
 PubMed-only implementation for biomedical research.
 """
-# pylint: disable=inconsistent-quotes,wrong-import-position
 
 import logging
 import os

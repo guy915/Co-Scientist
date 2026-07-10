@@ -63,7 +63,7 @@ async def query_mechanistic_statements(
         "relation_types": relation_types,
     }
 
-    try:  # pylint: disable=broad-exception-caught
+    try:
         if mesh_term:
             # MeSH-anchored query takes precedence over agent-based
             # lookup when both happen to be supplied.
@@ -88,7 +88,7 @@ async def query_mechanistic_statements(
             "query": query_meta,
         }
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("query_mechanistic_statements failed: %s", e)
         return {"error": str(e), "query": query_meta}
 

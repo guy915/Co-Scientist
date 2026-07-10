@@ -67,7 +67,7 @@ async def _analyze_single_paper(
             "analysis": analysis,
         }
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Returning None (not raising) lets _phase3_analyze_papers filter
         # this paper out and continue synthesizing from the rest.
         logger.error("Failed to analyze paper %s: %s", paper_id, e)

@@ -91,7 +91,7 @@ async def _search_source_for_query(
     # Imported locally to avoid a module-level import cycle: node.py owns
     # _describe_exc and imports this module at load time.
     from co_scientist.nodes.literature_review.node import (
-        _describe_exc,  # pylint: disable=import-outside-toplevel
+        _describe_exc,
     )
 
     try:
@@ -105,7 +105,7 @@ async def _search_source_for_query(
         normalized = normalize_search_response(result_data, tool_config)
         return _tag_source_name(normalized, src_name)
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # A failed query for this source is swallowed here (not raised) so
         # other queries/sources still complete; the caller aggregates
         # errors to distinguish "zero results" from "search broke".
@@ -180,7 +180,7 @@ async def _search_single_query(
     # Imported locally to avoid a module-level import cycle: node.py owns
     # _describe_exc and imports this module at load time.
     from co_scientist.nodes.literature_review.node import (
-        _describe_exc,  # pylint: disable=import-outside-toplevel
+        _describe_exc,
     )
 
     logger.debug(
@@ -198,7 +198,7 @@ async def _search_single_query(
         logger.debug("Query %s: found %s papers", index, len(normalized))
         return (index, normalized)
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Errors are recorded per-query index (not raised) so
         # asyncio.gather in the caller still completes for the other
         # queries; the aggregated errors list drives the "search broke" vs

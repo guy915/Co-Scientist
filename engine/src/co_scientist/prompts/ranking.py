@@ -1,5 +1,4 @@
 """Prompt builders for the ranking/tournament and proximity nodes."""
-# pylint: disable=inconsistent-quotes
 
 from typing import Any
 
@@ -123,7 +122,7 @@ def get_proximity_prompt(
     hypotheses: list[Any], supervisor_guidance: dict[str, Any] | None = None
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the proximity/similarity analysis prompt and schema."""
-    import json  # pylint: disable=import-outside-toplevel
+    import json
 
     return _build_prompt(
         "proximity",

@@ -75,12 +75,12 @@ def _setup_draft_tool_provider(
     if tool_registry is None:
         try:
             from co_scientist.config import (
-                get_tool_registry,  # pylint: disable=import-outside-toplevel
+                get_tool_registry,
             )
 
             tool_registry = get_tool_registry()
             logger.info("Using global tool registry")
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             logger.warning("Failed to get tool registry: %s", e)
 
     provider = MCPToolProvider(mcp_client=mcp_client)

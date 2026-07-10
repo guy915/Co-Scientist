@@ -181,7 +181,7 @@ def test_unknown_keys_are_ignored() -> None:
 def test_yaml_tool_id_is_not_read_from_yaml() -> None:
     """The internal _yaml_tool_id field is never populated from YAML data."""
     config = ToolConfig.from_dict({"_yaml_tool_id": "sneaky"}, tool_id="t1")
-    assert config._yaml_tool_id is None  # pylint: disable=protected-access
+    assert config._yaml_tool_id is None
 
 
 def test_explicit_null_overrides_default_when_key_present() -> None:

@@ -8,7 +8,6 @@ the co-scientist can ground hypotheses outside biomedicine too.
 The tool returns a ``{work_id: metadata}`` dict shaped for the engine's
 literature-review field mapping (title / authors / year / abstract / url).
 """
-# pylint: disable=inconsistent-quotes
 
 import logging
 import os
@@ -248,7 +247,7 @@ async def search_openalex(
     query: str,
     max_papers: int = 10,
     recency_years: int = 0,
-    run_id: str | None = None,  # pylint: disable=unused-argument
+    run_id: str | None = None,
 ) -> dict[str, Any]:
     """Search OpenAlex works and return ``{work_id: metadata}``.
 

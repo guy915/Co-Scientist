@@ -1,654 +1,71 @@
 """Schema definitions for tool configuration.
 
 Uses dataclasses to match existing codebase patterns.
-"""
-# pylint: disable=inconsistent-quotes
 
-import datetime
-import re
-from dataclasses import dataclass, field, fields
+Overview: this package section defines the typed, validated shape of
+tools.yaml (and any domain-specific overrides layered on top of it by
+registry.py's merge logic). Each dataclass mirrors one YAML section
+(servers, tools, workflows, prompts, enrichments) and exposes a
+from_dict() classmethod that turns a raw parsed-YAML dict into the
+dataclass, filling in defaults for absent keys and silently dropping
+unrecognized ones. The implementation is split across sibling modules by
+responsibility: the shared from_dict kwargs helper (``schema_fields``),
+content-param placeholder substitution (``content_params``),
+server/tool dataclasses (``tool_schema``), and
+workflow/enrichment/prompts dataclasses (``workflow_schema``). This
+module hosts the root ToolsConfig -- registry.py assembles a single
+merged dict from the default/user/custom YAML files, substitutes
+environment variables, and calls ToolsConfig.from_dict() once to produce
+the final object the rest of the engine (nodes, prompt builders)
+consumes -- and re-exports every name historically importable from
+``co_scientist.config.schema``.
+"""
+
+from dataclasses import dataclass, field
 from typing import Any
 
-
-# Overview: this module defines the typed, validated shape of tools.yaml
-# (and any domain-specific overrides layered on top of it by registry.py's
-# merge logic). Each dataclass below mirrors one YAML section (servers,
-# tools, workflows, prompts, enrichments) and exposes a from_dict()
-# classmethod that turns a raw parsed-YAML dict into the dataclass,
-# filling in defaults for absent keys and silently dropping unrecognized
-# ones. ToolsConfig is the root: registry.py assembles a single merged
-# dict from the default/user/custom YAML files, substitutes environment
-# variables, and calls ToolsConfig.from_dict() once to produce the final
-# object the rest of the engine (nodes, prompt builders) consumes.
-#
-# Shared by every dataclass's from_dict() below so YAML keys that don't map
-# to a declared field (typos, deprecated keys) are silently dropped instead
-# of raising, and fields the caller fills in specially are not double-set.
-def _declared_field_kwargs(
-    cls: type[Any],
-    data: dict[str, Any],
-    *,
-    exclude: tuple[str, ...] = (),
-) -> dict[str, Any]:
-    """Build constructor kwargs from keys in data that are declared fields.
-
-    Keys absent from ``data`` are omitted so the dataclass declaration
-    remains the single source of truth for defaults. Keys not matching a
-    declared field are ignored (unknown YAML keys are tolerated). A key
-    present with an explicit ``null`` value is forwarded as ``None``,
-    matching the legacy ``data.get(key, default)`` semantics where presence
-    wins over the default.
-
-    Args:
-        cls: Dataclass whose declared fields define the accepted keys.
-        data: Raw configuration dictionary (typically parsed YAML).
-        exclude: Field names the caller handles explicitly (nested
-            parsing, renamed keys, or defaults that differ from the
-            dataclass declaration).
-
-    Returns:
-        Mapping of field name to raw value, suitable for ``cls(**kwargs)``.
-    """
-    # Field names declared on the dataclass, minus the ones the caller
-    # handles itself; only keys matching this set are forwarded.
-    names = {f.name for f in fields(cls)} - set(exclude)
-    return {key: value for key, value in data.items() if key in names}
-
-
-def _apply_placeholder_match(
-    resolved_value: Any,
-    match: str,
-    value: str,
-    context: dict[str, Any],
-    *,
-    preserve_type: bool,
-) -> Any:
-    """Fold one matched placeholder's substitution into resolved_value.
-
-    Args:
-        resolved_value: Substitution result accumulated from earlier
-            matches (or the original value, for the first match).
-        match: Placeholder name found in value.
-        value: The original (pre-substitution) string; used to test
-            whether it consists of exactly this one placeholder.
-        context: Runtime values keyed by placeholder name.
-        preserve_type: See _substitute_placeholders.
-
-    Returns:
-        resolved_value unchanged if match is absent from context;
-        otherwise resolved_value with this placeholder substituted.
-    """
-    if match not in context:
-        return resolved_value
-    context_val = context[match]
-    # A value that is *only* "{placeholder}" preserves the context value's
-    # original type (e.g. a list stays a list); a placeholder embedded in a
-    # larger string is necessarily stringified via str.replace.
-    if preserve_type and value == f"{{{match}}}":
-        return context_val
-    return resolved_value.replace(
-        f"{{{match}}}",
-        str(context_val) if not isinstance(context_val, str) else context_val,
-    )
-
-
-def _substitute_placeholders(
-    value: str,
-    context: dict[str, Any],
-    placeholder_pattern: "re.Pattern[str]",
-    *,
-    preserve_type: bool,
-) -> Any:
-    """Replace every known {placeholder} in value with its context value.
-
-    Args:
-        value: String value, possibly containing one or more {name}
-            placeholders.
-        context: Runtime values keyed by placeholder name.
-        placeholder_pattern: Compiled pattern matching a bare placeholder.
-        preserve_type: When True and value is *exactly* one placeholder
-            (e.g. "{research_goal}"), returns the context value verbatim,
-            preserving its original type (e.g. a list stays a list).
-            Otherwise substitution always goes through str.replace, so the
-            result is a string.
-
-    Returns:
-        value with its known placeholders substituted; unknown
-        placeholders (absent from context) are left untouched.
-    """
-    matches = placeholder_pattern.findall(value)
-    if not matches:
-        return value
-
-    resolved_value: Any = value
-    for match in matches:
-        resolved_value = _apply_placeholder_match(
-            resolved_value, match, value, context, preserve_type=preserve_type
-        )
-
-    return resolved_value
-
-
-def _resolve_content_param_value(
-    value: Any, context: dict[str, Any], placeholder_pattern: "re.Pattern[str]"
-) -> Any:
-    """Resolve one content_params value: a string, a list, or passthrough.
-
-    Args:
-        value: A single content_params value (string, list, or other).
-        context: Runtime context containing values to substitute.
-        placeholder_pattern: Compiled pattern matching a bare placeholder.
-
-    Returns:
-        The value with placeholders substituted; unchanged for non-string,
-        non-list values (numbers, bools, dicts -- dicts are not recursed
-        into).
-    """
-    if isinstance(value, str):
-        return _substitute_placeholders(
-            value, context, placeholder_pattern, preserve_type=True
-        )
-    if not isinstance(value, list):
-        return value
-    # Resolve each item in the list. Note: unlike the string case above,
-    # list items never preserve_type, since a list of placeholders is
-    # inherently a list of strings.
-    return [
-        _substitute_placeholders(
-            item, context, placeholder_pattern, preserve_type=False
-        )
-        if isinstance(item, str)
-        else item
-        for item in value
-    ]
-
-
-def resolve_content_params(
-    params: dict[str, Any], context: dict[str, Any]
-) -> dict[str, Any]:
-    """Resolve content params by substituting {placeholders} with context.
-
-    Supports:
-        - {research_goal} - the current research goal
-        - {focus_areas} - list of focus areas (from hypothesis categories,
-          etc.)
-        - Any other context key
-
-    Args:
-        params: Content params dict with potential {placeholder} values
-        context: Runtime context containing values to substitute
-
-    Returns:
-        Resolved params dict with placeholders replaced
-    """
-    if not params:
-        return {}
-
-    resolved: dict[str, Any] = {}
-    placeholder_pattern = re.compile(r"\{(\w+)\}")
-
-    for key, value in params.items():
-        resolved[key] = _resolve_content_param_value(
-            value, context, placeholder_pattern
-        )
-
-    return resolved
-
-
-@dataclass
-class ServerConfig:
-    """Configuration for an MCP server connection."""
-
-    url: str
-    transport: str = "streamable_http"
-    enabled: bool = True
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ServerConfig":
-        """Create ServerConfig from dictionary."""
-        # url is required on the dataclass but tolerated as missing in YAML.
-        return cls(
-            url=data.get("url", ""),
-            **_declared_field_kwargs(cls, data, exclude=("url",)),
-        )
-
-
-# Consumed by tools/response_parser.py's ResponseParser: type/results_path/
-# is_dict locate the results in a raw MCP response, and field_mapping's
-# expression language (see response_parser.py) builds Article objects.
-@dataclass
-class ResponseFormat:
-    """Configuration for parsing tool responses.
-
-    Attributes:
-        type: Response type (json, boolean_string, etc.)
-        results_path: JSONPath-like path to results (e.g., "." for root,
-            "results" for nested)
-        is_dict: Whether results are a dict (True) or list (False)
-        field_mapping: Maps Article fields to response fields with optional
-            transforms
-    """
-
-    type: str = "json"
-    results_path: str = "."
-    is_dict: bool = False
-    field_mapping: dict[str, str] = field(default_factory=dict)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ResponseFormat":
-        """Create ResponseFormat from dictionary."""
-        if not data:
-            return cls()
-        return cls(**_declared_field_kwargs(cls, data))
-
-
-@dataclass
-class ParameterConfig:
-    """Configuration for a tool parameter."""
-
-    # Per-parameter metadata attached to a ToolConfig.parameters entry.
-    # type/required/description document the parameter's contract in YAML;
-    # default is the value ToolConfig.from_dict() applies when a YAML
-    # parameter entry is a bare scalar rather than a nested mapping.
-    type: str = "string"
-    default: Any | None = None
-    required: bool = False
-    description: str = ""
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "ParameterConfig":
-        """Create ParameterConfig from dictionary."""
-        if not data:
-            return cls()
-        return cls(**_declared_field_kwargs(cls, data))
-
-
-# Used only by ToolConfig.map_parameters below, for tools whose parameter
-# schema expects an absolute starting year rather than a lookback window.
-def _recency_years_to_starting_year(value: int) -> int | None:
-    """Convert a recency_years lookback window to an absolute starting year.
-
-    Args:
-        value: Number of years to look back (e.g., 7).
-
-    Returns:
-        The starting year (e.g., 2019 for a 7-year lookback in 2026), or
-        None when value is not a positive lookback window.
-    """
-    current_year = datetime.datetime.now().year
-    return current_year - value if value > 0 else None
-
-
-@dataclass
-class ToolConfig:
-    """Configuration for an MCP tool.
-
-    Attributes:
-        server: Server ID this tool belongs to
-        mcp_tool_name: Actual tool name on the MCP server
-        display_name: Human-readable name for prompts
-        description: Tool description for prompts
-        category: Tool category (search, search_with_content, read, utility)
-        source_type: Source type for articles (academic, preprint, etc.)
-        enabled: Whether this tool is enabled
-        response_format: Configuration for parsing responses
-        prompt_snippet: Prompt text to include when this tool is available
-        parameters: Tool parameter configurations
-        parameter_mapping: Maps canonical parameter names to tool-specific
-            names
-        applies_to: Which sources this tool applies to (for generic tools)
-    """
-
-    server: str
-    mcp_tool_name: str
-    display_name: str = ""
-    description: str = ""
-    category: str = "utility"
-    source_type: str = "academic"
-    enabled: bool = True
-    response_format: ResponseFormat = field(default_factory=ResponseFormat)
-    prompt_snippet: str = ""
-    parameters: dict[str, ParameterConfig] = field(default_factory=dict)
-    parameter_mapping: dict[str, str | None] = field(default_factory=dict)
-    applies_to: str = "all"
-    # Internal: yaml tool_id stashed for downstream citation building.
-    _yaml_tool_id: str | None = None
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any], tool_id: str = "") -> "ToolConfig":
-        """Create ToolConfig from dictionary."""
-        # Parse parameters
-        params_data = data.get("parameters", {})
-        parameters = {}
-        for param_name, param_data in params_data.items():
-            if isinstance(param_data, dict):
-                parameters[param_name] = ParameterConfig.from_dict(param_data)
-            else:
-                # Simple value (just a default)
-                parameters[param_name] = ParameterConfig(default=param_data)
-
-        # Explicitly handled fields: server is required on the dataclass but
-        # defaults to "default" in YAML; mcp_tool_name and display_name fall
-        # back to the YAML tool id (not the dataclass default); parameters and
-        # response_format are parsed into nested dataclasses; _yaml_tool_id is
-        # internal and never read from YAML.
-        kwargs = _declared_field_kwargs(
-            cls,
-            data,
-            exclude=(
-                "server",
-                "mcp_tool_name",
-                "display_name",
-                "response_format",
-                "parameters",
-                "_yaml_tool_id",
-            ),
-        )
-        return cls(
-            server=data.get("server", "default"),
-            mcp_tool_name=data.get("mcp_tool_name", tool_id),
-            display_name=data.get("display_name", tool_id),
-            response_format=ResponseFormat.from_dict(
-                data.get("response_format", {})
-            ),
-            parameters=parameters,
-            **kwargs,
-        )
-
-    # Called by literature_review.py and validate.py just before invoking an
-    # MCP tool, so nodes can build requests in canonical terms while each
-    # tool config supplies the translation to that server's actual
-    # parameter names.
-    def map_parameters(
-        self, canonical_params: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Map canonical parameter names to tool-specific parameter names.
-
-        Args:
-            canonical_params: Parameters using canonical names (e.g.,
-                max_papers, recency_years)
-
-        Returns:
-            Parameters using tool-specific names (e.g., max_results,
-            starting_year)
-        """
-        if not self.parameter_mapping:
-            # No mapping configured, return as-is
-            return canonical_params
-
-        mapped = {}
-        for canonical_name, value in canonical_params.items():
-            tool_param_name, mapped_value = self._map_single_parameter(
-                canonical_name, value
-            )
-            if tool_param_name is not None:
-                mapped[tool_param_name] = mapped_value
-
-        return mapped
-
-    def _map_single_parameter(
-        self, canonical_name: str, value: Any
-    ) -> tuple[str | None, Any]:
-        """Map one canonical parameter to its tool-specific name and value.
-
-        Args:
-            canonical_name: Canonical parameter name (e.g., recency_years).
-            value: Value supplied under the canonical name.
-
-        Returns:
-            (tool_param_name, mapped_value), or (None, None) when the
-            parameter is explicitly ignored (mapped to null in YAML).
-        """
-        if canonical_name not in self.parameter_mapping:
-            # No mapping, use canonical name
-            return canonical_name, value
-
-        tool_param_name = self.parameter_mapping[canonical_name]
-        if tool_param_name is None:
-            # Explicitly ignore this parameter (null in YAML)
-            return None, None
-
-        if (
-            canonical_name == "recency_years"
-            and tool_param_name == "starting_year"
-        ):
-            return tool_param_name, _recency_years_to_starting_year(value)
-
-        return tool_param_name, value
-
-
-@dataclass
-class SearchSourceConfig:
-    """Configuration for a single search source in multi-source lit review.
-
-    Attributes:
-        tool: Tool ID for this search source (e.g., "pubmed_fulltext",
-            "arxiv_search")
-        papers_per_query: Number of papers to fetch per query from this source
-        enabled: Whether this source is enabled
-        content_tool: Optional tool to fetch content (overrides workflow-level
-            setting)
-        content_url_field: Field containing content URL (overrides
-            workflow-level setting)
-        content_params: Extra parameters to pass to content tool (supports
-            {research_goal} substitution)
-        pdf_discovery_tool: Optional tool to discover PDF links from landing
-            page URL
-        pdf_discovery_url_field: Field containing the URL to pass to
-            pdf_discovery_tool
-    """
-
-    tool: str
-    papers_per_query: int = 3
-    enabled: bool = True
-    content_tool: str | None = None
-    content_url_field: str | None = None
-    content_params: dict[str, Any] = field(default_factory=dict)
-    # Two-step content retrieval: first discover PDF links, then fetch content
-    pdf_discovery_tool: str | None = None  # e.g., "find_pdf_links"
-    pdf_discovery_url_field: str | None = None  # e.g., "url" (landing page)
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any] | str) -> "SearchSourceConfig":
-        """Create SearchSourceConfig from a dictionary or bare tool name."""
-        if isinstance(data, str):
-            # Simple format: just tool name
-            return cls(tool=data)
-        # tool is required on the dataclass but tolerated as missing in YAML.
-        return cls(
-            tool=data.get("tool", ""),
-            **_declared_field_kwargs(cls, data, exclude=("tool",)),
-        )
-
-
-def _search_source_tool_ids(sources: list["SearchSourceConfig"]) -> list[str]:
-    """Collect the search and content tool IDs referenced by sources.
-
-    Args:
-        sources: A workflow's configured multi-source search_sources.
-
-    Returns:
-        Each source's tool id, followed by its content_tool id when set.
-    """
-    tool_ids = []
-    for source in sources:
-        tool_ids.append(source.tool)
-        if source.content_tool:
-            tool_ids.append(source.content_tool)
-    return tool_ids
-
-
-@dataclass
-class WorkflowConfig:
-    """Configuration for a workflow phase.
-
-    Defines which tools are available in each phase of hypothesis generation.
-
-    For literature review, supports both single-source (primary_search) and
-    multi-source (search_sources) configurations.
-    """
-
-    # is_multi_source() below is the branch point literature_review.py uses
-    # to pick which of the two field groups (this one or search_sources) to
-    # read; only one mode is active per workflow, chosen by whether
-    # search_sources is non-empty.
-    # Single-source mode (legacy/simple)
-    primary_search: str | None = None
-    fallback_search: str | None = None
-    availability_check: str | None = None
-
-    # Multi-source mode
-    search_sources: list[SearchSourceConfig] = field(default_factory=list)
-    deduplicate_across_sources: bool = True
-
-    # General tool lists
-    search_tools: list[str] = field(default_factory=list)
-    read_tools: list[str] = field(default_factory=list)
-    utility_tools: list[str] = field(default_factory=list)
-
-    # Knowledge-graph / external context tools called once per workflow phase.
-    # Results are injected as background context into the phase's synthesis
-    # prompt. Domain-agnostic: any workflow can list tools here; the node checks
-    # this field and skips enrichment when the list is empty.
-    context_enrichment_tools: list[str] = field(default_factory=list)
-
-    # Query generation via MCP tool (replaces hardcoded prompts)
-    query_generation_tool: str | None = None
-    # "boolean" for PubMed, "natural_language" for arXiv/Scholar
-    query_format: str = "boolean"
-
-    # Content retrieval for sources that don't return fulltext (e.g., arXiv)
-    # Can be overridden per-source in search_sources
-    content_tool: str | None = None
-    content_url_field: str = "pdf_url"
-    content_params: dict[str, Any] = field(default_factory=dict)
-
-    # Two-step content retrieval: first discover PDF links from landing page
-    # Used for sources like Google Scholar that return landing page URLs, not
-    # direct PDFs
-    pdf_discovery_tool: str | None = None  # e.g., "find_pdf_links"
-    pdf_discovery_url_field: str = "url"  # field containing landing page URL
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "WorkflowConfig":
-        """Create WorkflowConfig from dictionary."""
-        if not data:
-            return cls()
-
-        # Parse search_sources into nested SearchSourceConfig objects.
-        search_sources = [
-            SearchSourceConfig.from_dict(source_data)
-            for source_data in data.get("search_sources", [])
-        ]
-
-        return cls(
-            search_sources=search_sources,
-            **_declared_field_kwargs(cls, data, exclude=("search_sources",)),
-        )
-
-    def get_enabled_search_sources(self) -> list[SearchSourceConfig]:
-        """Get list of enabled search sources."""
-        return [s for s in self.search_sources if s.enabled]
-
-    def is_multi_source(self) -> bool:
-        """Check if this workflow uses multi-source configuration."""
-        return len(self.search_sources) > 0
-
-    def get_all_tools(self) -> list[str]:
-        """Get all tool IDs referenced in this workflow."""
-        single_tool_fields = (
-            self.primary_search,
-            self.fallback_search,
-            self.availability_check,
-            self.query_generation_tool,
-            self.content_tool,
-        )
-        tools = [tool_id for tool_id in single_tool_fields if tool_id]
-        tools.extend(_search_source_tool_ids(self.search_sources))
-        tools.extend(self.search_tools)
-        tools.extend(self.read_tools)
-        tools.extend(self.utility_tools)
-        tools.extend(self.context_enrichment_tools)
-        return tools
-
-
-@dataclass
-class EnrichmentConfig:
-    """Configuration for a post-generation enrichment step.
-
-    Each enrichment maps a tool to a hypothesis field, running the tool
-    with the hypothesis field value as input and storing results in
-    hypothesis.enrichments[output_key].
-
-    Attributes:
-        tool: Tool ID from tools section (e.g., "nvd_cve_search")
-        input_field: Hypothesis field to use as input (text, explanation,
-            etc.)
-        output_key: Key in hypothesis.enrichments dict (e.g., "related_cves")
-        enabled: Whether this enrichment is enabled
-        max_results: Max results to request from the tool
-        results_path: Dot-path to extract from response (e.g., "results" to
-            unwrap a response wrapper). Empty string means use the full
-            response as-is.
-        workflow: Which pipeline phase runs this enrichment.
-            "generation" (default) = called by the generation coordinator per
-            hypothesis. "reflection" = called by the reflection node using
-            entity-level lookups; these are skipped by the coordinator's
-            general enrichment loop.
-    """
-
-    tool: str
-    input_field: str = "text"
-    output_key: str = ""
-    enabled: bool = True
-    max_results: int = 10
-    results_path: str = ""
-    workflow: str = "generation"
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "EnrichmentConfig":
-        """Create EnrichmentConfig from dictionary."""
-        # tool is required on the dataclass but tolerated as missing in YAML.
-        return cls(
-            tool=data.get("tool", ""),
-            **_declared_field_kwargs(cls, data, exclude=("tool",)),
-        )
-
-
-# Read by prompts.py's _get_domain_variables() via
-# ToolRegistry.get_prompts_config() and merged into most node prompt
-# variables as the domain_* placeholders referenced below.
-@dataclass
-class PromptsConfig:
-    """Domain-specific prompt customizations via {{domain_*}} placeholders.
-
-    All fields are optional. When absent, placeholders resolve to empty strings
-    and prompts behave identically to the defaults.
-
-    Attributes:
-        domain_context: Injected at the top of all prompts. Use for role
-            framing, terminology mappings, and domain description.
-        generation_guidance: Injected into generation prompts. Use for
-            domain-specific categories, hypothesis format requirements, and
-            output expectations.
-        review_guidance: Injected into review and ranking prompts. Use for
-            domain-specific evaluation criteria.
-        evolution_guidance: Injected into evolution and meta-review prompts.
-            Use for domain-specific refinement priorities.
-    """
-
-    domain_context: str = ""
-    generation_guidance: str = ""
-    review_guidance: str = ""
-    evolution_guidance: str = ""
-    reflection_guidance: str = ""
-
-    @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "PromptsConfig":
-        """Create PromptsConfig from dictionary."""
-        if not data:
-            return cls()
-        return cls(**_declared_field_kwargs(cls, data))
+from co_scientist.config.content_params import (
+    _apply_placeholder_match as _apply_placeholder_match,
+)
+from co_scientist.config.content_params import (
+    _resolve_content_param_value as _resolve_content_param_value,
+)
+from co_scientist.config.content_params import (
+    _substitute_placeholders as _substitute_placeholders,
+)
+from co_scientist.config.content_params import resolve_content_params
+from co_scientist.config.schema_fields import _declared_field_kwargs
+from co_scientist.config.tool_schema import (
+    ParameterConfig,
+    ResponseFormat,
+    ServerConfig,
+    ToolConfig,
+)
+from co_scientist.config.tool_schema import (
+    _recency_years_to_starting_year as _recency_years_to_starting_year,
+)
+from co_scientist.config.workflow_schema import (
+    EnrichmentConfig,
+    PromptsConfig,
+    SearchSourceConfig,
+    WorkflowConfig,
+)
+from co_scientist.config.workflow_schema import (
+    _search_source_tool_ids as _search_source_tool_ids,
+)
+
+__all__ = [
+    "EnrichmentConfig",
+    "ParameterConfig",
+    "PromptsConfig",
+    "ResponseFormat",
+    "SearchSourceConfig",
+    "ServerConfig",
+    "ToolConfig",
+    "ToolsConfig",
+    "WorkflowConfig",
+    "resolve_content_params",
+]
 
 
 # Each parses one top-level tools.yaml section into its nested dataclasses;

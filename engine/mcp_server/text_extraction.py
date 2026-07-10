@@ -3,7 +3,6 @@
 Converts PMC XML/HTML to markdown format, preserving structure while
 removing clutter like references, figure captions, and metadata.
 """
-# pylint: disable=inconsistent-quotes
 
 import logging
 
@@ -211,13 +210,12 @@ def _fallback_extract_text(html_content: str, max_chars: int) -> str:
         Plain text extracted from the document, or an error placeholder
         string if even this fallback parse fails.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         soup = BeautifulSoup(html_content, "lxml-xml")
         text = soup.get_text(separator="\n", strip=True)
         if len(text) > max_chars:
             text = text[:max_chars] + "\n\n[... truncated for length ...]"
         return text
-    # pylint: disable-next=broad-exception-caught
     except Exception as fallback_error:
         logger.error("Fallback text extraction also failed: %s", fallback_error)
         return "[error: could not extract text from HTML]"
@@ -247,7 +245,7 @@ def extract_text_from_pmc_html(
     Returns:
         Markdown-formatted text ready for LLM consumption.
     """
-    try:  # pylint: disable=broad-exception-caught
+    try:
         # PMC fulltext is JATS XML (a specific article-tag vocabulary), so
         # parse with the lxml-xml parser rather than an HTML parser.
         soup = BeautifulSoup(html_content, "lxml-xml")
@@ -276,7 +274,7 @@ def extract_text_from_pmc_html(
 
         return _truncate_markdown(markdown, max_chars)
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Structured extraction above assumes well-formed JATS XML; if the
         # document deviates (malformed XML, unexpected schema) fall back to
         # a plain-text dump below rather than failing the whole request.

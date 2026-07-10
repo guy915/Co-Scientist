@@ -3,7 +3,6 @@
 All prompt templates are stored as markdown files in the templates/
 subdirectory of this package.
 """
-# pylint: disable=inconsistent-quotes
 
 import functools
 import logging
@@ -93,7 +92,7 @@ def save_prompt_to_disk(
         logger.debug("Saved prompt to: %s", path)
         return True
 
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.warning("Failed to save prompt to disk: %s", e)
         return False
 
@@ -226,11 +225,11 @@ def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
     if tool_registry is None:
         try:
             from co_scientist.config import (
-                get_tool_registry,  # pylint: disable=import-outside-toplevel
+                get_tool_registry,
             )
 
             tool_registry = get_tool_registry()
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:
             return empty
 
     if tool_registry is None:
@@ -238,7 +237,7 @@ def _get_domain_variables(tool_registry: Any | None = None) -> dict[str, str]:
 
     try:
         prompts_config = tool_registry.get_prompts_config()
-    except Exception:  # pylint: disable=broad-exception-caught
+    except Exception:
         return empty
 
     return {

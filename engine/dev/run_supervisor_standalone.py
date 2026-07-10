@@ -2,7 +2,6 @@
 
 Simplest node to test - no dependencies, just creates research plan.
 """
-# pylint: disable=inconsistent-quotes
 
 import asyncio
 import json

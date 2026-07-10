@@ -45,7 +45,7 @@ async def _discover_pdf_link(
         if pdf_url:
             logger.debug("Found PDF link for %s: %s", paper_id, pdf_url)
         return (paper_id, pdf_url)
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Failure just leaves this paper without a pdf_url; Phase 2.5 will
         # then have nothing to fetch content from for it, and it may still
         # be usable for analysis via its abstract.
@@ -155,7 +155,7 @@ async def _fetch_paper_content(
     # Imported locally to avoid a module-level import cycle between
     # config.schema and the nodes package.
     from co_scientist.config.schema import (
-        resolve_content_params,  # pylint: disable=import-outside-toplevel
+        resolve_content_params,
     )
 
     content_url = metadata.get(content_cfg.url_field)
@@ -192,7 +192,7 @@ async def _fetch_paper_content(
                 "Retrieved %s chars for paper %s", len(content), paper_id
             )
         return (paper_id, content)
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         # Leaves the paper without fulltext; it may still be analyzable via
         # its abstract (see get_papers_with_content in the helpers module).
         logger.warning("Failed to fetch content for %s: %s", paper_id, e)

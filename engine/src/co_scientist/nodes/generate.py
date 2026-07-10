@@ -3,7 +3,6 @@
 Main entry point for the LangGraph workflow. All generation logic
 has been moved to the generation/ package for better organization.
 """
-# pylint: disable=inconsistent-quotes
 
 import logging
 from typing import Any

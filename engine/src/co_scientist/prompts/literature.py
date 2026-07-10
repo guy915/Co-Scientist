@@ -1,5 +1,4 @@
 """Prompt builders for the literature-review node."""
-# pylint: disable=inconsistent-quotes
 
 from typing import Any
 

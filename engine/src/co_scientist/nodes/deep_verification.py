@@ -61,7 +61,7 @@ async def _verify_one(
                 temperature=LOW_TEMPERATURE,
                 json_schema=schema,
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception as e:
             # Deliberately broad: one hypothesis's verification failing
             # (timeout, malformed response, provider error, etc.) should
             # not abort the whole batch. The caller treats None as "leave

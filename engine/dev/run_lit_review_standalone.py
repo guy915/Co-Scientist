@@ -10,7 +10,6 @@ Create a .env file in this directory (dev/) with your API keys:
   GEMINI_API_KEY=your_key
   MCP_SERVER_URL=http://localhost:8888/mcp  (or your MCP server URL)
 """
-# pylint: disable=inconsistent-quotes
 
 import asyncio
 import os
@@ -44,7 +43,6 @@ except ImportError:
         " using system environment variables only[/dim]"
     )
 
-# pylint: disable=wrong-import-position
 from state_helpers import (
     DEFAULT_MODEL_NAME,
     DEFAULT_RESEARCH_GOAL,
@@ -60,7 +58,6 @@ from co_scientist.models import Article
 from co_scientist.nodes.literature_review import literature_review_node
 
 
-# pylint: enable=wrong-import-position
 async def _gather_prereqs() -> tuple[list[str], list[str], bool, bool]:
     """Check API key, MCP server, and PubMed availability.
 

@@ -3,7 +3,6 @@
 Wraps PubmedSource.pubmed_search() from literature_review.py to provide
 search + fulltext download + text extraction as a single MCP tool.
 """
-# pylint: disable=inconsistent-quotes
 
 import asyncio
 import logging
@@ -58,7 +57,7 @@ async def _extract_fulltext(
         metadata["fulltext"] = text
         logger.debug("extracted %s chars from %s", len(text), pmc_id)
         return True
-    except Exception as e:  # pylint: disable=broad-exception-caught
+    except Exception as e:
         logger.error("Failed to extract text from %s: %s", pmc_id, e)
         return False
 
