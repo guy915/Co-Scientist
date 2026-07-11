@@ -101,20 +101,20 @@ export const HOME_TOAST_ACTION_CLASSES =
   'cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] ' +
   'font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline';
 
-// Composer shell: the bordered pill container itself. A flex column so the
-// action row always sits BELOW the textarea, and overflow-hidden so nothing
-// (text or the action row) can ever spill outside the rounded box — if a short
-// viewport squeezes the pill, the textarea gives way, not the buttons.
+// The composer is a bordered pill laid out as a flex column: the textarea
+// region on top and the action row beneath it. Stacking them (rather than
+// floating the action row over the textarea) is what keeps text off the
+// buttons, and overflow-hidden clips to the rounded shape so nothing escapes
+// the box when a short viewport squeezes it.
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 flex min-h-[7.9rem] flex-col ' +
   'overflow-hidden rounded-[2rem] border border-cosci-composer-border ' +
   'bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem]';
 
-// Wraps the textarea and takes all the pill space above the action row
-// (flex-1). min-h-0 lets it shrink below the textarea's auto-grown height when
-// a short viewport squeezes the pill, so the textarea (capped to this via
-// max-h-full and scrolling) yields the space instead of shoving the buttons
-// out of the box.
+// The textarea region. flex-1 makes it fill the space above the action row
+// (so a click anywhere in it focuses the input and the row stays at the
+// bottom); min-h-0 lets it shrink when the pill is height-constrained, so the
+// input — not the action row — is what yields.
 export const COMPOSER_LABEL_CLASSES = 'relative block min-h-0 flex-1';
 
 export const COMPOSER_LABEL_TEXT_CLASSES =
@@ -125,22 +125,19 @@ export const COMPOSER_LABEL_TEXT_HIDDEN_CLASSES = 'hidden';
 
 export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 
-// Height is driven imperatively by the composer's auto-grow effect (min-height
-// floor here, JS caps the max at COMPOSER_MAX_HEIGHT and toggles scrolling), so
-// no fixed height and no max-height cap — the box grows with the textarea to
-// its full height and the action row follows below it, kept clear by the
-// action row's own top gap.
+// The auto-grow effect (chat_composer.tsx) sets the height imperatively up to
+// COMPOSER_MAX_HEIGHT, then the textarea scrolls; min-h is the empty-state
+// floor. max-h-full bounds that height to the region above the action row, so
+// a squeezed pill shrinks and scrolls the input rather than pushing the row
+// out of the box.
 export const COMPOSER_TEXTAREA_CLASSES =
   'relative z-[2] block min-h-[2.85rem] max-h-full w-full ' +
   'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
   'leading-6 text-cosci-composer-text outline-none';
 
-// Bottom action row (source controls + submit): a flow sibling below the
-// textarea (shrink-0 so it keeps its height), with a small top gap. mt-auto
-// pushes it to the pill's bottom while the textarea is short; once the box has
-// grown it just sits below the textarea. Being in flow rather than absolutely
-// positioned is what guarantees the textarea's last line can never slide under
-// it.
+// The action row (source controls + submit) is a flow sibling below the
+// textarea; shrink-0 keeps its height, and pt-4 is the gap separating it from
+// the last line of text at any scroll position.
 export const COMPOSER_ACTIONS_CLASSES =
   'reference-composer-actions flex shrink-0 items-end ' +
   'justify-between gap-3 pt-4';
