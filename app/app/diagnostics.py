@@ -2,7 +2,7 @@
 
 Backs ``/health`` and ``/status`` in ``main.py``. Health checks are
 local and fast (a SQLite round-trip and an importability lookup), so the
-``make dev`` readiness gate can poll them cheaply. The MCP/PubMed probes
+``make start`` readiness gate can poll them cheaply. The MCP/PubMed probes
 are network round-trips against an external server, so each one runs
 under a bounded timeout and the pair of results is cached for a short
 TTL to keep repeated ``/status`` calls from hammering the server.

@@ -251,7 +251,7 @@ async def health(response: Response) -> HealthResponse:
     """Health check: store reachability, engine importability, derived status.
 
     Every check is local and fast (a SQLite round-trip and an import
-    lookup) because ``make dev`` polls this endpoint as its readiness
+    lookup) because ``make start`` polls this endpoint as its readiness
     gate. Responds 503 when unhealthy so ``curl -f``-style probes fail
     until the store is reachable.
     """

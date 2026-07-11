@@ -87,7 +87,7 @@ tracing to gen-0.</sub>
 
 ```bash
 make setup          # Python venv + frontend deps
-make dev            # API on :8008, UI on :5173
+make start          # API on :8008, UI on :5173
 open http://localhost:5173
 ```
 

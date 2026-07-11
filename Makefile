@@ -1,4 +1,4 @@
-.PHONY: help setup dev dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all e2e lint typecheck build clean stop reset-db
+.PHONY: help setup start dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all e2e lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/engine
@@ -11,7 +11,7 @@ PIP   := $(VENV)/bin/pip
 # PEP 668 externally-managed, so it gets its own venv.
 MCP_VENV := $(ROOT)/.venv-mcp
 
-# Default URLs printed by `make dev`
+# Default URLs printed by `make start`
 API_URL := http://localhost:8008
 UI_URL  := http://localhost:5173
 DOCS_URL := http://localhost:8008/docs
@@ -19,7 +19,7 @@ DOCS_URL := http://localhost:8008/docs
 help:
 	@echo "Co-Scientist — root commands"
 	@echo "  make setup        Create .venv, install engine (editable) + app (editable), install frontend"
-	@echo "  make dev          One command: install missing deps, free ports, run MCP + API + UI, open browser"
+	@echo "  make start        One command: install missing deps, free ports, run MCP + API + UI, open browser"
 	@echo "  make stop         Stop anything listening on the dev ports (8008/5173/8888)"
 	@echo "  make dev-api      Run FastAPI dev server   ($(API_URL))"
 	@echo "  make dev-ui       Run Vite dev server      ($(UI_URL))"
@@ -65,10 +65,10 @@ $(VENV)/bin/activate:
 # ---------------------------------------------------------------------------
 # Dev servers
 # ---------------------------------------------------------------------------
-# `make dev` is the single entry point: it installs anything missing, frees
+# `make start` is the single entry point: it installs anything missing, frees
 # the dev ports, starts MCP + API + UI together, and opens the app in the
 # browser once both the API and the UI answer. Ctrl-C stops everything.
-dev: preflight
+start: preflight
 	@echo ""
 	@echo "Co-Scientist — dev URLs"
 	@echo "  API   : $(API_URL)"
@@ -186,7 +186,7 @@ test-all:
 # Browser-level end-to-end suite (Playwright). Self-contained: it installs the
 # harness deps and the Chromium browser if missing, then Playwright launches
 # its own isolated stack (FastAPI on 8108 + Vite on 5273, both non-default so
-# they never collide with `make dev`) against a fresh temp SQLite store and
+# they never collide with `make start`) against a fresh temp SQLite store and
 # runs headless. Requires `make setup` first (the backend venv + frontend
 # node_modules the launched servers depend on).
 E2E := $(ROOT)/e2e

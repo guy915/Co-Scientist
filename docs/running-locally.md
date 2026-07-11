@@ -1,17 +1,17 @@
 # Running the app locally
 
-**TL;DR — from the repo root: `make dev`.** It starts everything (API + UI + MCP)
+**TL;DR — from the repo root: `make start`.** It starts everything (API + UI + MCP)
 and is fully configured. Everything below is context for when you're *not* in a
 clean main checkout (e.g. a git worktree) or need to run a piece by hand.
 
 ## The one command
 
 ```bash
-make dev          # API :8008 + UI :5173 + MCP :8888, all wired
+make start        # API :8008 + UI :5173 + MCP :8888, all wired
 make stop         # stop them
 ```
 
-`make dev` runs `dev-all`, which launches:
+`make start` runs `dev-all`, which launches:
 
 | Service | Port | Notes |
 |---|---|---|
@@ -27,7 +27,7 @@ Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.
   `COSCIENTIST_DB_PATH` (`./coscientist.db`, relative), `ALLOWED_ORIGINS`
   (CORS allowlist for the UI origin), `MCP_SERVER_URL`
   (`http://localhost:8888/mcp`). The API loads `.env` **relative to its cwd**
-  (`app/`), which `make dev` handles.
+  (`app/`), which `make start` handles.
 - **Demo data:** seeded on API startup; no LLM/keys needed to view it. Demo
   runs are **not** in `/api/runs` (that's owned runs, empty for a fresh
   client) — they come from `/api/runs/demo`, which the home page uses.
@@ -42,10 +42,10 @@ Individual pieces: `make dev-api`, `make dev-ui`, `make dev-mcp`.
 ## Running from a git worktree (the gotcha)
 
 Worktrees under `.claude/worktrees/*` **do not carry gitignored files** — no
-`.env`, no `.venv`, no `node_modules`. That is why `make dev` won't "just work"
+`.env`, no `.venv`, no `node_modules`. That is why `make start` won't "just work"
 there. Options, cheapest first:
 
-1. **Run `make dev` from the main checkout** (`~/Code/Co-Scientist`). The
+1. **Run `make start` from the main checkout** (`~/Code/Co-Scientist`). The
    backend code is identical across branches; only the frontend differs, and
    `bun run dev` in the worktree serves the worktree's frontend. This is almost
    always what you want for a UI change.
@@ -68,7 +68,7 @@ there. Options, cheapest first:
 
 ## Don't repeat these mistakes
 
-- Reach for **`make dev`** before hand-rolling `uvicorn`/`vite` commands.
+- Reach for **`make start`** before hand-rolling `uvicorn`/`vite` commands.
 - The empty top-level `mcp_server/` is a stray dir — the real package is
   `engine/mcp_server/`.
 - A worktree's missing `.env`/`.venv` is expected, not a broken setup.

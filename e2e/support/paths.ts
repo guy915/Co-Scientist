@@ -21,7 +21,7 @@ export const FRONTEND_DIR = join(APP_DIR, 'frontend');
 export const VENV_PYTHON = join(REPO_ROOT, '.venv', 'bin', 'python');
 
 // Non-default ports so the harness never collides with a developer's running
-// `make dev` (which binds API 8008 / UI 5173 / MCP 8888).
+// `make start` (which binds API 8008 / UI 5173 / MCP 8888).
 export const API_PORT = 8108;
 export const UI_PORT = 5273;
 
