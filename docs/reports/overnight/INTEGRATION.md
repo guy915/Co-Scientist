@@ -277,16 +277,18 @@ These were done in the same session, once the user authorized push and cleanup:
   so `git branch -d` succeeded). Only `main` and the pre-existing
   `goolge-ai-co-scientist-parity` branch remain.
 
+- **CI hardening done.** The `e2e` job now installs Chromium with
+  `playwright install --with-deps chromium` in a dedicated step (`0a9638ff`),
+  hardening against runner-image updates that drop a shared library. Placed in
+  CI rather than `make e2e` so local runs never invoke sudo. Verified green on
+  GitHub (the step ran and the suite passed behind it).
+
 ## Remaining follow-ups for the user
 
 1. **Branch protection.** `docs/CI.md` recommends (does not configure) marking
    the CI jobs — now including `e2e` — as required status checks on `main`.
    The workflow has now run green on GitHub, so this can be configured.
-2. **Optional CI hardening.** The `e2e` job's `bunx playwright install chromium`
-   worked without `--with-deps` on the current `ubuntu-latest` image, but
-   adding `--with-deps` would make it robust against future runner-image
-   changes that drop a Chromium system library.
-3. **Superseded archived report.** `docs/reports/overnight/feat-operator-cli.md`
+2. **Superseded archived report.** `docs/reports/overnight/feat-operator-cli.md`
    (branch 5's snapshot) still describes the pre-integration offline `ask`
    behavior ("the endpoint returns HTTP 200 and emits a graceful error frame").
    That is superseded by branch 2: offline `ask` now returns a grounded answer.
