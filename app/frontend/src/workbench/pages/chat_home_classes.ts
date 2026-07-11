@@ -109,8 +109,12 @@ export const COMPOSER_BASE_CLASSES =
 
 // pb reserves room for the absolutely-positioned action row (send + source
 // buttons) below the textarea, so the textarea can grow without its last lines
-// sliding under the actions.
-export const COMPOSER_LABEL_CLASSES = 'relative block min-h-[3.6rem] pb-[3rem]';
+// sliding under the actions. It must exceed the action row's own footprint
+// (~41px tall send button at bottom-3) with margin to spare — the textarea's
+// min-height is shrunk by the matching amount below so the resting box keeps
+// its height.
+export const COMPOSER_LABEL_CLASSES =
+  'relative block min-h-[3.6rem] pb-[3.5rem]';
 
 export const COMPOSER_LABEL_TEXT_CLASSES =
   'absolute top-0 left-0 z-[1] flex h-6 items-center gap-[0.45rem] ' +
@@ -126,7 +130,7 @@ export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 // it, see COMPOSER_LABEL_CLASSES) lands at the composer's resting height rather
 // than stacking on top of it and making the empty box too tall.
 export const COMPOSER_TEXTAREA_CLASSES =
-  'relative z-[2] block min-h-[2.85rem] w-full ' +
+  'relative z-[2] block min-h-[2.35rem] w-full ' +
   'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
   'leading-6 text-cosci-composer-text outline-none';
 
