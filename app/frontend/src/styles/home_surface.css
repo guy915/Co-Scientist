@@ -648,9 +648,40 @@
     justify-self: center;
     max-height: calc(100vh - 4.5rem);
     max-height: calc(100dvh - 4.5rem);
-    grid-template-rows: auto auto minmax(2rem, 1fr) auto;
-    padding-top: clamp(4.85rem, 8.8vh, 6.4rem);
+    /* A leading shrinkable track (row 1) holds the top offset that used to be
+       a fixed padding-top, so the title + stepper can slide up when a long
+       prompt grows the composer instead of staying pinned. At rest it fills
+       to its cap (the old padding-top clamp), so the resting layout is
+       unchanged. Under vertical pressure the 1fr suggestion row (row 4) gives
+       up space first, down to a floor >= the suggestion-card height so cards
+       never clip or overflow up into the stepper; only once that floor is
+       reached does this top track shrink, carrying title + stepper up with
+       the suggestions. */
+    grid-template-rows:
+      minmax(0.5rem, clamp(4.85rem, 8.8vh, 6.4rem)) auto auto
+      minmax(4.75rem, 1fr) auto;
+    padding-top: 0;
     padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
+  }
+
+  /* Pin each greeting/suggestion/composer child to its row: the greeting
+     renders title then stepper as bare grid children, so without explicit
+     placement auto-flow would fill the leading spacer track and shift the
+     whole column up by one row. */
+  .reference-home-main > .reference-home-title {
+    grid-row: 2;
+  }
+
+  .reference-home-main > .reference-step-timeline {
+    grid-row: 3;
+  }
+
+  .reference-home-main > .reference-suggestion-row {
+    grid-row: 4;
+  }
+
+  .reference-home-main > .reference-home-composer {
+    grid-row: 5;
   }
 
   .reference-home-title {
