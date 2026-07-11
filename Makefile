@@ -1,4 +1,4 @@
-.PHONY: help setup dev dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all lint typecheck build clean stop reset-db
+.PHONY: help setup dev dev-api dev-ui dev-all dev-mcp preflight ensure-deps open-when-ready test test-app test-engine test-all e2e lint typecheck build clean stop reset-db
 
 ROOT := $(shell pwd)
 ENGINE := $(ROOT)/engine
@@ -28,6 +28,7 @@ help:
 	@echo "  make test-app     Run viewer backend pytest suite"
 	@echo "  make test-engine  Run engine pytest suite"
 	@echo "  make test-all     Run backend pytest suites (engine + app)"
+	@echo "  make e2e          Run the browser end-to-end suite (headless, isolated stack)"
 	@echo "  make lint         Lint backend (ruff)"
 	@echo "  make typecheck    Typecheck backend (mypy)"
 	@echo "  make build        Build frontend (tsc + vite build)"
@@ -181,6 +182,27 @@ test-all:
 	@$(MAKE) test-engine
 	@$(MAKE) test-app
 	@$(MAKE) parity
+
+# Browser-level end-to-end suite (Playwright). Self-contained: it installs the
+# harness deps and the Chromium browser if missing, then Playwright launches
+# its own isolated stack (FastAPI on 8108 + Vite on 5273, both non-default so
+# they never collide with `make dev`) against a fresh temp SQLite store and
+# runs headless. Requires `make setup` first (the backend venv + frontend
+# node_modules the launched servers depend on).
+E2E := $(ROOT)/e2e
+e2e:
+	@test -x "$(PY)" || { echo ">> Backend venv missing — run 'make setup' first"; exit 1; }
+	@test -d "$(FRONTEND)/node_modules" || { echo ">> Frontend deps missing — run 'make setup' first"; exit 1; }
+	@echo ">> Running browser e2e suite (headless)"
+	@cd "$(E2E)" && if command -v bun >/dev/null 2>&1; then \
+		test -d node_modules || bun install; \
+		bunx playwright install chromium; \
+		bunx playwright test; \
+	else \
+		test -d node_modules || npm install; \
+		npx playwright install chromium; \
+		npx playwright test; \
+	fi
 
 # Parity ledger gate: fail if any `verified` row in docs/PARITY.md cites no
 # test/eval evidence or cites evidence files that do not exist on disk, plus
