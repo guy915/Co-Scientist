@@ -463,20 +463,23 @@ def test_steer_queues_message(
     assert any(m["content"] == "Prioritize testability" for m in msgs)
 
 
-def test_ask_offline_degrades_to_fallback(
+def test_ask_offline_returns_grounded_answer(
     completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
 ) -> None:
     base, run_id, client_id = completed_run
     code = _invoke(
         base, "runs", "ask", run_id, "Which idea won?", client_id=client_id
     )
-    assert code == 1
+    # Offline (mock provider) the endpoint streams a grounded answer built
+    # from the run's own artifacts, not an API-key error frame, so the CLI
+    # writes the answer to stdout and exits zero.
+    assert code == 0
     captured = capsys.readouterr()
-    assert "requires a language model API key" in captured.err
-    assert captured.out.strip() == ""
+    assert "offline mode" in captured.out
+    assert captured.err.strip() == ""
 
 
-def test_ask_json_emits_error_frame(
+def test_ask_json_streams_answer_frames(
     completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
 ) -> None:
     base, run_id, client_id = completed_run
@@ -489,13 +492,18 @@ def test_ask_json_emits_error_frame(
         "--json",
         client_id=client_id,
     )
-    assert code == 1
+    assert code == 0
     frames = [
         json.loads(line)
         for line in capsys.readouterr().out.splitlines()
         if line.strip()
     ]
-    assert any(frame["type"] == "error" for frame in frames)
+    types = {frame["type"] for frame in frames}
+    # The offline grounded answer streams chunk(s) then done, with no error
+    # frame; the CLI echoes each SSE frame verbatim in --json mode.
+    assert "chunk" in types
+    assert "done" in types
+    assert "error" not in types
 
 
 # ---------------------------------------------------------------------------
@@ -542,8 +550,10 @@ def test_cancel_terminal_run_errors(
     completed_run: tuple[str, str, str], capsys: pytest.CaptureFixture[str]
 ) -> None:
     base, run_id, client_id = completed_run
+    # A finished run has no active handle and is terminal, so the API rejects
+    # the cancel with 409; the CLI relays that as a non-zero exit.
     assert _invoke(base, "runs", "cancel", run_id, client_id=client_id) == 1
-    assert "not active" in capsys.readouterr().err
+    assert "already finished" in capsys.readouterr().err
 
 
 def test_resume_completed_run_errors(
