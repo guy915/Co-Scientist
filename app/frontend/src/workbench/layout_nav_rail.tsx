@@ -177,9 +177,9 @@ export function NavRail({
   );
 }
 
-// One row in the "Chats" list: the run's title linked to its details tab,
-// with a tooltip showing the full research goal and the active run
-// highlighted.
+// One row in the "Chats" list: the run's generated session title (falling
+// back to a concise clause of the goal) linked to its details tab, with a
+// tooltip showing the full research goal and the active run highlighted.
 function ChatHistoryLink({run, isActive}: {run: Run; isActive: boolean}) {
   return (
     <Link
@@ -196,7 +196,7 @@ function ChatHistoryLink({run, isActive}: {run: Run; isActive: boolean}) {
     >
       <TruncatedLabel
         className={CHAT_HISTORY_LABEL_CLASSES}
-        text={conciseTitle(run.research_goal)}
+        text={run.title?.trim() || conciseTitle(run.research_goal)}
       />
     </Link>
   );

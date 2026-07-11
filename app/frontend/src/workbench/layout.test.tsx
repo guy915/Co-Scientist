@@ -147,6 +147,32 @@ describe('Layout', () => {
     expect(chat).toHaveClass('ucs-tooltip-wrap');
   });
 
+  it('shows the generated session title in sidebar chats', async () => {
+    apiMock.listDemoRuns.mockResolvedValue([]);
+    apiMock.listRuns.mockResolvedValue([
+      {
+        ...runFixture(
+          'run-titled',
+          'Generate testable hypotheses for ferroptosis in pancreatic cancer cells.',
+        ),
+        title: 'Ferroptosis in pancreatic cancer',
+      },
+    ]);
+
+    renderLayout();
+
+    // The sidebar link renders the model-generated title, not a clause of the
+    // raw research goal, matching the recents cards.
+    const chat = await screen.findByRole('link', {
+      name: 'Ferroptosis in pancreatic cancer',
+    });
+    expect(chat).toHaveAttribute('href', '/runs/run-titled/details');
+    // The full research goal still rides along as the hover tooltip.
+    expect(chat.getAttribute('data-tooltip')).toMatch(
+      /Generate testable hypotheses for ferroptosis/i,
+    );
+  });
+
   it('shows ten sidebar chats before expanding the rest', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue(
