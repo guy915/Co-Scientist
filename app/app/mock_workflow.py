@@ -27,12 +27,14 @@ here. Stages emitted (in order):
 The output is fully deterministic given (research_goal, run mode, config). This
 matters: tests assert against the workflow's behaviour, not flaky LLM output.
 
-The implementation is split across focused modules, all re-exported here so
-``app.mock_workflow`` stays the single import path:
+The implementation is split across focused modules:
 
 - ``mock_workflow_seeds`` — pure, deterministic content generators.
 - ``mock_workflow_phases`` — sync persistence helpers for each numbered phase.
 - ``mock_workflow_stages`` — async stage generators that emit the events.
+
+This module keeps only the ``run_mock_workflow`` entry point both providers
+and the tests consume.
 """
 
 from __future__ import annotations
@@ -41,123 +43,15 @@ import asyncio
 from collections.abc import AsyncIterator
 from typing import Any
 
-from app.mock_workflow_phases import (
-    _apply_pending_steering,
-    _fetch_top_hypotheses,
-    _judge_and_persist_match,
-    _persist_citation_audit,
-    _persist_deep_verification,
-    _persist_evolved_child,
-    _persist_generation,
-    _persist_literature_review,
-    _persist_meta_review_round,
-    _persist_mock_metrics,
-    _persist_proximity,
-    _persist_reflection,
-    _run_evolve_round,
-    _run_ranking_round,
-    _seed_tournament_round,
-)
-from app.mock_workflow_seeds import (
-    _CLEAR,
-    _DECISIVE,
-    _DEEP_VERIFICATION_PROBE_TEMPLATES,
-    _HYPOTHESIS_ANGLES,
-    _HYPOTHESIS_CATEGORIES,
-    _HYPOTHESIS_TARGETS,
-    _MOCK_SUMMARY,
-    _NARROW,
-    _UPSET,
-    DEEP_VERIFICATION_TOP_K,
-    _build_evolved_child,
-    _build_supervisor_plan,
-    _build_tournament_pairs,
-    _cluster_id,
-    _deep_verification_seed,
-    _evidence_seed,
-    _hypothesis_seed,
-    _judge_pair,
-    _mock_match_tier,
-    _nih_specific_aims_from_directions,
-    _ranking_round_payload,
-    _research_overview_seed,
-    _seeded_rng,
-    _shuffled_research_directions,
-)
+from app.mock_workflow_phases import _seed_tournament_round
+from app.mock_workflow_seeds import _seeded_rng
 from app.mock_workflow_stages import (
-    _emit_cancelled_if_set,
-    _finalize_mock_run,
     _is_cancelled,
-    _maybe_evolve_and_meta_review_round,
-    _run_evolve_and_meta_review_round,
-    _run_intake_stage,
-    _run_literature_and_generation,
-    _run_reflection_and_proximity,
     _run_seed_stages,
     _run_tournament_and_finalize,
-    _run_tournament_iterations,
 )
 from app.report_render import make_emitter
 from app.run_modes import CANONICAL_RUN_MODE
-
-# The workflow's implementation was split across ``mock_workflow_seeds``,
-# ``mock_workflow_phases``, and ``mock_workflow_stages``. These names are
-# re-exported so every helper and constant stays importable from
-# ``app.mock_workflow`` exactly as before the split. Listing them in
-# ``__all__`` marks the imports as explicit re-exports for both ruff and mypy.
-__all__ = [
-    "DEEP_VERIFICATION_TOP_K",
-    "_CLEAR",
-    "_DECISIVE",
-    "_DEEP_VERIFICATION_PROBE_TEMPLATES",
-    "_HYPOTHESIS_ANGLES",
-    "_HYPOTHESIS_CATEGORIES",
-    "_HYPOTHESIS_TARGETS",
-    "_MOCK_SUMMARY",
-    "_NARROW",
-    "_UPSET",
-    "_apply_pending_steering",
-    "_build_evolved_child",
-    "_build_supervisor_plan",
-    "_build_tournament_pairs",
-    "_cluster_id",
-    "_deep_verification_seed",
-    "_emit_cancelled_if_set",
-    "_evidence_seed",
-    "_fetch_top_hypotheses",
-    "_finalize_mock_run",
-    "_hypothesis_seed",
-    "_is_cancelled",
-    "_judge_and_persist_match",
-    "_judge_pair",
-    "_maybe_evolve_and_meta_review_round",
-    "_mock_match_tier",
-    "_nih_specific_aims_from_directions",
-    "_persist_citation_audit",
-    "_persist_deep_verification",
-    "_persist_evolved_child",
-    "_persist_generation",
-    "_persist_literature_review",
-    "_persist_meta_review_round",
-    "_persist_mock_metrics",
-    "_persist_proximity",
-    "_persist_reflection",
-    "_ranking_round_payload",
-    "_research_overview_seed",
-    "_run_evolve_and_meta_review_round",
-    "_run_evolve_round",
-    "_run_intake_stage",
-    "_run_literature_and_generation",
-    "_run_ranking_round",
-    "_run_reflection_and_proximity",
-    "_run_seed_stages",
-    "_run_tournament_and_finalize",
-    "_run_tournament_iterations",
-    "_seed_tournament_round",
-    "_seeded_rng",
-    "_shuffled_research_directions",
-    "run_mock_workflow",
-]
 
 
 async def run_mock_workflow(

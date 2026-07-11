@@ -8,8 +8,8 @@ report, the final-gate policy, and the streamed event shapes identical across
 providers.
 
 The report content builders live in ``report_markdown`` and the event-payload
-helpers in ``report_events``; both are re-exported here so callers keep a single
-``app.report_render`` import surface.
+helpers in ``report_events``; the names both providers consume are re-exported
+here so callers keep a single ``app.report_render`` import surface.
 """
 
 from __future__ import annotations
@@ -29,60 +29,9 @@ from app.report_events import article_stub as article_stub
 from app.report_events import hypothesis_stub as hypothesis_stub
 from app.report_events import make_emitter as make_emitter
 from app.report_events import match_stub as match_stub
-from app.report_markdown import (
-    _META_REVIEW_BULLET_SECTIONS as _META_REVIEW_BULLET_SECTIONS,
-)
-
-# Private render helpers moved to report_markdown are re-exported so their
-# original ``app.report_render.<name>`` import paths stay stable.
-from app.report_markdown import _append_if as _append_if
-from app.report_markdown import _first as _first
-from app.report_markdown import _has_aims_content as _has_aims_content
-from app.report_markdown import _has_overview_content as _has_overview_content
-from app.report_markdown import _render_aims_list as _render_aims_list
-from app.report_markdown import _render_bullet_list as _render_bullet_list
-from app.report_markdown import _render_citation_audit as _render_citation_audit
-from app.report_markdown import (
-    _render_directions_list as _render_directions_list,
-)
-from app.report_markdown import (
-    _render_experiments_list as _render_experiments_list,
-)
-from app.report_markdown import (
-    _render_hypothesis_entry as _render_hypothesis_entry,
-)
-from app.report_markdown import _render_impact as _render_impact
-from app.report_markdown import (
-    _render_meta_review_markdown as _render_meta_review_markdown,
-)
-from app.report_markdown import _render_nih_aim as _render_nih_aim
-from app.report_markdown import (
-    _render_nih_aims_section as _render_nih_aims_section,
-)
-from app.report_markdown import (
-    _render_optional_paragraph as _render_optional_paragraph,
-)
-from app.report_markdown import (
-    _render_overview_section as _render_overview_section,
-)
-from app.report_markdown import _render_probe as _render_probe
-from app.report_markdown import _render_recommendation as _render_recommendation
-from app.report_markdown import (
-    _render_research_direction as _render_research_direction,
-)
-from app.report_markdown import (
-    _render_strategic_recommendations as _render_strategic_recommendations,
-)
-from app.report_markdown import (
-    _render_top_hypotheses_markdown as _render_top_hypotheses_markdown,
-)
-from app.report_markdown import build_report_payload as build_report_payload
+from app.report_markdown import build_report_payload, render_report_markdown
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
-)
-from app.report_markdown import render_report_markdown as render_report_markdown
-from app.report_markdown import (
-    render_research_overview_markdown as render_research_overview_markdown,
 )
 from app.safety import apply_safety_gate, screen_final
 from app.store import RunStatus

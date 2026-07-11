@@ -8,7 +8,6 @@ React + Vite + TypeScript workbench for the Co-Scientist API server.
 - Vite 7
 - TypeScript
 - Tailwind CSS v4
-- Material Web wrappers in `src/md3/`
 - Material Design 3 theme generation in `src/lib/theme.ts`
 - Bun for package management
 - gts for linting and formatting
@@ -33,7 +32,6 @@ Create `app/frontend/.env` only when you need to override defaults:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8008
-VITE_DOMAIN=scientific
 ```
 
 `VITE_API_BASE_URL` defaults to `http://localhost:8008`.
@@ -43,25 +41,22 @@ VITE_DOMAIN=scientific
 | Path | Purpose |
 | --- | --- |
 | `src/main.tsx` | Mounts `BrowserRouter` and `WorkbenchApp` |
-| `src/workbench/workbench_app.tsx` | Route table for public pages and run views |
-| `src/workbench/pages/` | Dashboard, new run, and run detail pages |
-| `src/workbench/components/tabs/` | Overview, Ideas, Evidence, Tournament, Report, and Chat tabs |
+| `src/workbench/workbench_app.tsx` | Route table for the chat workspace and run views |
+| `src/workbench/pages/` | Chat workspace (session home) and run detail pages |
+| `src/workbench/components/tabs/` | Ideas tab (other run views render inline in `run_detail.tsx`) |
+| `src/workbench/hooks/` | Chat session, shortcuts, toast, and run-history hooks |
 | `src/api/runs.ts` | Typed REST, SSE URL, and streaming message helpers |
 | `src/hooks/use_run_stream.ts` | Live run event stream hook |
-| `src/hooks/use_messages.ts` | Steering and Q&A message hook |
-| `src/md3/` | Thin wrappers around Material Web components |
-| `src/components/ui/` | Local shadcn-style primitives |
-| `src/public/` | Landing page, demo page, SEO, and 404 page |
+| `src/components/` | Shared primitives (error boundary, icon) |
+| `src/public/` | Residual helpers: 404 page, no-index/SEO, link button |
 
 ## Routing
 
 | Route | Page |
 | --- | --- |
-| `/` | Public landing page |
-| `/demos/:slug` | Public demo page |
-| `/runs` | Workbench dashboard |
-| `/runs/new` | New research run |
-| `/runs/:id` | Run overview |
+| `/` | Chat workspace (session home) |
+| `/runs`, `/runs/new` | Redirect to `/` |
+| `/runs/:id` | Redirect to the details tab |
 | `/runs/:id/:tab` | Run detail tab |
 
 ## API Integration

@@ -9,9 +9,9 @@ engine/
 ├── src/
 │   └── co_scientist/
 │       ├── __init__.py
-│       ├── generator.py        # HypothesisGenerator class, LangGraph setup
+│       ├── generator/          # HypothesisGenerator package (core, graph, streaming)
 │       ├── state.py            # WorkflowState TypedDict
-│       ├── schemas.py          # JSON schemas for LLM responses
+│       ├── schemas/            # JSON schemas for LLM responses
 │       ├── models.py           # Hypothesis, Article dataclasses (among others)
 │       ├── llm.py              # LLM calling utilities
 │       ├── cache.py            # LLM response caching
@@ -24,8 +24,8 @@ engine/
 │       │   └── examples/       # Domain-specific example configs
 │       ├── nodes/              # Individual node implementations
 │       │   ├── supervisor.py
-│       │   ├── literature_review.py
-│       │   ├── literature_review_helpers.py
+│       │   ├── orchestrator.py
+│       │   ├── literature_review/  # Literature review node + helpers
 │       │   ├── reflection.py
 │       │   ├── reflection_helpers.py
 │       │   ├── review.py
@@ -36,7 +36,6 @@ engine/
 │       │   └── generation/     # Generate node submodule
 │       │       ├── coordinator.py      # Orchestrates generation strategies
 │       │       ├── debate.py           # Multi-perspective debate generation
-│       │       ├── papers.py           # Literature-informed generation
 │       │       ├── citations.py        # [C*] citation index and resolution
 │       │       └── literature_tools/   # Tool-calling generation (Mode 3)
 │       └── prompts/            # Prompt builders grouped by consumer node
@@ -134,13 +133,14 @@ Your prompt instructions here.
 
 ### 3. Add to Workflow Graph
 
-Update `src/co_scientist/generator.py`:
+Update `src/co_scientist/generator/graph.py` (node registration and edges):
 
 ```python
-from .nodes.my_node import my_node
+from co_scientist.nodes.my_node import my_node
 
-# In HypothesisGenerator.__init__:
+# In _add_workflow_nodes:
 workflow.add_node("my_node", my_node)
+# In _add_workflow_edges:
 workflow.add_edge("previous_node", "my_node")
 workflow.add_edge("my_node", "next_node")
 ```

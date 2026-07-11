@@ -31,7 +31,6 @@ from app.store.checkpoints import (
 from app.store.db import (
     checkpoint_wal,
     connect,
-    default_db_path,
     transaction,
 )
 from app.store.events import append_event, latest_event_seq, list_events
@@ -108,7 +107,6 @@ __all__ = [
     "clear_run_derived_data",
     "connect",
     "create_run",
-    "default_db_path",
     "get_hypothesis",
     "get_latest_checkpoint",
     "get_latest_report",

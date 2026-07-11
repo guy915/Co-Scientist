@@ -14,7 +14,7 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 | --- | --- | --- |
 | Multi-agent, supervised co-scientist (not a single prompt chain) | `engine_adapter`, `mock_workflow` | "Towards an AI co-scientist" §3 |
 | Hypotheses are persistent, versioned, auditable | `store.hypotheses` is append-only; `hypothesis_state` separates mutable fields | published behavioural invariant |
-| Tournament uses **pairwise** comparison (not absolute scalar scoring) | `mock_workflow._judge`, `engine.nodes.ranking` | published |
+| Tournament uses **pairwise** comparison (not absolute scalar scoring) | `mock_workflow_seeds._judge_pair`, `engine.nodes.ranking` | published |
 | Initial Elo is **1200** | `app/elo.py` `INITIAL_ELO`; mirrors engine `INITIAL_ELO_RATING` | published |
 | Standard Elo formula | `app/elo.py` `update_pair` mirrors `engine.nodes.ranking.calculate_elo_update` | textbook Elo |
 | Evolution generates **new** offspring hypotheses with lineage (never mutates the parent) | Engine builds an immutable child (`nodes/evolve_results.py::_build_evolution_child`: new id, Elo 1200, zero matches, `parent_id`/`generation`); real-engine drain persists the explicit lineage (`engine_adapter/drain.py`); `store.hypotheses` is append-only. Tests: engine `test_evolve.py`, `test_integration_pipeline.py::test_evolve_path_appends_immutable_children`; app `test_engine_drain.py::test_drain_persists_explicit_lineage`, `test_evolution.py` | published — explicit invariant in product docs (SSR §4, §12) |

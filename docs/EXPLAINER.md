@@ -10,7 +10,7 @@ A walk through the whole product, focused on the multi-agent engine. For enginee
 
 Co-Scientist is a multi-agent system that takes a research goal and returns a ranked set of literature-grounded hypotheses plus a research overview. The engine is a single compiled LangGraph `StateGraph` whose nodes are async functions over a shared `WorkflowState` typed dict. Around it sit a FastAPI app that streams node events over SSE, a React workbench that renders them, and an optional MCP server that supplies PubMed/INDRA tools.
 
-The public entry point is `HypothesisGenerator` (`engine/src/co_scientist/generator.py:43`).
+The public entry point is `HypothesisGenerator` (`engine/src/co_scientist/generator/core.py:48`).
 
 ---
 
@@ -29,7 +29,7 @@ The layered stack: React workbench talks to FastAPI over HTTP + SSE; FastAPI per
 | Engine | `engine/src/co_scientist/` | LangGraph `StateGraph` of 9–11 nodes. Selected by `engine_adapter.select_provider()`. |
 | MCP server | `mcp_server/` | FastMCP + Biopython. PubMed search/fulltext + INDRA CoGex. Python 3.12 only. |
 
-Provider selection (`app/app/engine_adapter.py`): returns `"engine"` iff `COSCIENTIST_FORCE_MOCK` is unset, a provider key is present, and `co_scientist` imports. Otherwise `"mock"`. The mock emits the identical event sequence so the UI and tests work with zero external dependencies.
+Provider selection (`app/app/engine_adapter/provider.py`): returns `"engine"` iff `COSCIENTIST_FORCE_MOCK` is unset, a provider key is present, and `co_scientist` imports. Otherwise `"mock"`. The mock emits the identical event sequence so the UI and tests work with zero external dependencies.
 
 ---
 
@@ -41,7 +41,7 @@ This is the core of the system. A linear **first pass** feeds a conditional **it
   <img src="assets/pipeline.svg" alt="Multi-agent hypothesis pipeline (linear overview)" width="780">
 </p>
 
-> The active diagram above is the linear pipeline overview. A loop-aware variant (showing the iteration cycle, the MCP-gated branch, and the two routers) is drafted at [`assets/pipeline_loop_tofix.svg`](assets/pipeline_loop_tofix.svg) but is **pending a visual fix** and not referenced yet. The prose below describes the true loop-aware flow.
+> The active diagram above is the linear pipeline overview. A loop-aware variant (showing the iteration cycle, the MCP-gated branch, and the loop-point routing) is drafted at [`assets/pipeline_loop_tofix.svg`](assets/pipeline_loop_tofix.svg) but is **pending a visual fix** and not referenced yet. The prose below describes the true loop-aware flow.
 
 ### First pass (always runs)
 
@@ -56,12 +56,12 @@ supervisor → literature_review → generate → reflection → review → rank
 ### Iteration cycle (runs up to `max_iterations` times)
 
 ```
-meta_review → evolve → review → ranking → deep_verification → proximity → (meta_review | research_overview)
+meta_review → evolve → review → ranking → deep_verification → orchestrator → (next task | research_overview)
 ```
 
 - **Meta-Review** synthesizes all reviews into strategic insights; uses `supervisor_model_name` (`nodes/meta_review.py:22`).
 - **Evolve** refines the top-`evolution_max_count` hypotheses in parallel, then **discards the lower-ranked pool** — the hypothesis set shrinks to the evolved subset (`nodes/evolve.py:371`). Flow then loops back up to **Review** (the teal `re-review → re-rank` arrow) so evolved hypotheses are re-reviewed and re-ranked.
-- **Proximity** is where `current_iteration` is incremented (`nodes/proximity.py:40,218`), and it is the dedup gate for the cycle.
+- **Proximity** is the dedup gate for the cycle (`nodes/proximity.py`). `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve) — see §4.
 - **Research Overview** is the single terminal node, synthesizing the top-10 by Elo into an overview + NIH Specific Aims (`nodes/research_overview.py:19`).
 
 Note the AGENTS.md ordering lists "Ranking → Tournament → Meta-Review", but **Tournament is inside the Ranking node** (Elo pairwise, `nodes/ranking.py`), not a separate node, and **Deep Verification runs after Ranking**, before the routing decision.
@@ -70,39 +70,41 @@ Note the AGENTS.md ordering lists "Ranking → Tournament → Meta-Review", but 
 
 ## 4. Control flow & routing
 
-Two conditional routers decide loop continuation. Both are functions passed to `add_conditional_edges` in `generator.py:198-249`.
+Loop continuation is decided by a dedicated **orchestrator node** (`nodes/orchestrator.py`) — the single adaptive loop point the graph re-enters after each work phase. It computes observable statistics from state (pool growth, Elo stability, match coverage, proximity backlog), consults the deterministic scheduling policy (`scheduling/policy.py::decide_next_task`, gated by `validate_decision`), records the decision and its reason in the task-history ledger, and sets `next_task` for the conditional edge (`generator/graph.py::_route_next_task`) to route on.
 
 ```mermaid
 flowchart TD
-  DV["deep_verification"]
-  DV --> AR{"after_ranking<br/><i>generator.py:198</i>"}
-  AR -->|"no meta_review<br/>AND iter &lt; max"| MR["meta_review"]
-  AR -->|"no meta_review<br/>AND iter = max (i.e. 0)"| RO["research_overview"]
-  AR -->|"meta_review present"| PROX["proximity"]
+  SUP["supervisor"] --> LR["literature_review"] --> GEN["generate"] --> REF["reflection"] --> REV["review"]
+  REV --> RK["ranking"]
+  RK --> DV["deep_verification"]
+  DV --> ORCH{"orchestrator<br/><i>nodes/orchestrator.py</i>"}
+  PROX["proximity"] --> ORCH
+
+  ORCH -->|generate| GEN
+  ORCH -->|review| REV
+  ORCH -->|ranking| RK
+  ORCH -->|meta_review| MR["meta_review"]
+  ORCH -->|proximity| PROX
+  ORCH -->|research_overview| RO["research_overview"]
 
   MR --> EV["evolve"]
-  EV --> REV["review (re-review)"]
-  REV --> RK["ranking (re-rank)"]
-  RK --> DV2["deep_verification"]
-  DV2 --> AR
-
-  PROX -->|"iter++ (proximity.py:218)"| AP{"after_proximity<br/><i>generator.py:232</i>"}
-  AP -->|"iter &lt; max"| MR
-  AP -->|"iter ≥ max"| RO
+  EV --> REV
   RO --> END((END))
 
   classDef router fill:#FFF8E1,stroke:#F59E0B,color:#7C4700;
   classDef term fill:#00696C,stroke:#00696C,color:#fff;
-  class AR,AP router;
+  class ORCH router;
   class RO,END term;
 ```
 
 Key facts:
 
-- `after_ranking` has **three** outcomes. The `meta_review present` branch is what makes the cycle a cycle: after the first Meta-Review, every subsequent `deep_verification` routes to `proximity` (not back to `meta_review`).
-- `current_iteration` is incremented **only in `proximity`**, so the `after_ranking` check reads the pre-increment value.
-- `max_iterations` defaults to `1` (`constants.py:63`). Setting it to `0` skips the loop entirely — `after_ranking` goes straight to `research_overview`.
-- The graph is built once per `HypothesisGenerator` instance (`generator.py:129-255`) and invoked with `recursion_limit=100` (`generator.py:580`).
+- Wiring lives in `generator/graph.py`: every work phase converges on `ranking → deep_verification → orchestrator`, and `proximity` returns to the orchestrator too. The orchestrator's decision routes to `generate`, `review`, `ranking`, `meta_review` (the head of the `meta_review → evolve → review` re-review branch), `proximity`, or the terminal `research_overview`.
+- The policy is a pure function of `SchedulerStats` and a `Budget` (`scheduling/policy.py`). An LLM supervisor may only *recommend* a next task; `validate_decision` enforces the allowed transitions and budget — the code decides, the model only advises.
+- `current_iteration` is incremented by the orchestrator when it schedules a work task (generate/evolve); maintenance tasks (proximity/rank/reflect) and termination do not advance it (`nodes/orchestrator.py`).
+- `max_iterations` defaults to `1` (`constants.py::DEFAULT_MAX_ITERATIONS`) and acts as the budget's satisfied-completion cap; runs can also terminate early on convergence (top Elo stable across cycles) or an exhausted budget (`scheduling/policy.py`).
+- A checkpoint-restored run re-enters at the orchestrator loop point via the START router (`generator/graph.py::_resume_router`); a fresh run starts at the supervisor.
+- The graph is built once per `HypothesisGenerator` instance (`generator/core.py::_build_graph`, edges in `generator/graph.py`) and invoked with `recursion_limit=100` (`generator/core.py:376`).
 
 ---
 
@@ -122,7 +124,7 @@ State is a `TypedDict` (`state.py:118`) flowing through every node. Each node re
 | `metrics` | `merge_metrics` (`state.py:78-115`) | Every node emits only deltas via `create_metrics_update()` (`models.py:151`). The reducer builds a fresh `ExecutionMetrics` (never mutates inputs): `hypothesis_count = max`, count deltas additively merged, `phase_times` dict-merged, `total_time = max(a,b)`. |
 | all others | (overwrite) | `supervisor_guidance`, `articles_with_reasoning`, `meta_review`, `research_overview`, `removed_duplicates`, `tournament_matchups`, `evolution_details`, `current_iteration`, etc. |
 
-Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator.py:649-820` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator.py:731-734`).
+Streaming caveat: `astream` yields only per-node deltas, so the streaming wrapper in `generator/streaming.py` manually accumulates a cumulative state dict and merges metrics via `merge_metrics` (`generator/streaming.py:83`, defined in `models.py:324`).
 
 ---
 
@@ -138,13 +140,13 @@ All nodes are `async (state) -> dict[str, Any]` in `engine/src/co_scientist/node
 | `reflection` | `reflection.py:109` | `articles_with_reasoning`, `hypotheses` | `hypotheses` (+ `reflection_notes`, INDRA `enrichments`) | review |
 | `review` | `review.py:305` | `hypotheses`, `research_goal`, `supervisor_guidance` | `hypotheses` (+ `reviews`, `score`) | ranking |
 | `ranking` | `ranking.py:203` | `hypotheses`, `tournament_pairs`, `current_iteration` | `hypotheses` (sorted by Elo, + `win/loss_count`), `tournament_matchups` | deep_verification |
-| `deep_verification` | `deep_verification.py:60` | `hypotheses` (top-3 by Elo) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`) | after_ranking router |
+| `deep_verification` | `deep_verification.py:60` | `hypotheses` (top-3 by Elo) | `hypotheses` (+ `deep_verification_probes`, `deep_verification_verdict`) | orchestrator |
 | `meta_review` | `meta_review.py:22` | `hypotheses` (reviews, Elo, verdicts) | `meta_review` | evolve |
 | `evolve` | `evolve.py:371` | `hypotheses`, `evolution_max_count`, `meta_review` | `hypotheses` (evolved subset), `evolution_details` | review (re-review) |
-| `proximity` | `proximity.py:21` | `hypotheses`, `current_iteration` | `hypotheses` (deduped), `removed_duplicates`, `similarity_clusters`, `current_iteration++` | after_proximity router |
+| `proximity` | `proximity.py:21` | `hypotheses`, `current_iteration` | `hypotheses` (deduped), `removed_duplicates`, `similarity_clusters` | orchestrator |
 | `research_overview` | `research_overview.py:19` | `hypotheses` (top-10 by Elo), `meta_review` | `research_overview` ({overview, nih_specific_aims}) | END |
 
-Helper-only files (not graph nodes): `literature_review_helpers.py`, `reflection_helpers.py`, and the `generation/` subpackage.
+Helper-only files (not graph nodes): the `literature_review/` subpackage's support modules (e.g. `helpers.py`), `reflection_helpers.py`, and the `generation/` subpackage.
 
 ---
 
@@ -218,8 +220,8 @@ flowchart TD
   class MTC,HTP mcp;
 ```
 
-- **Detection** is lazy and cached per instance: `_prepare_generation` calls `check_mcp_available()` / `check_pubmed_available_via_mcp()` (`generator.py:301-306`) and stores the result in state as `mcp_available`/`pubmed_available`.
-- **Conditional graph**: if MCP is unavailable, the graph is built *without* `literature_review`/`reflection` (`generator.py:170-188`).
+- **Detection** is lazy and cached per instance: `_prepare_generation` calls `check_mcp_available()` / `check_pubmed_available_via_mcp()` (`generator/availability.py:35-46`) and stores the result in state as `mcp_available`/`pubmed_available`.
+- **Conditional graph**: if MCP is unavailable, the graph is built *without* `literature_review`/`reflection` (`generator/graph.py`, `enable_literature_review_node`).
 - **Tool-calling generation** requires MCP + lit review. When `enable_tool_calling_generation=True`, the generate node's `generate_with_tools` path gives the LLM direct MCP tool access via `HybridToolProvider` for the draft + validate phases.
 - **Fallbacks**: query generation falls back MCP → LLM → research-goal (`literature_review.py:191-233`). If no papers/fulltext, the node returns a `LITERATURE_REVIEW_FAILED` marker; `generate` detects it (`coordinator.py:60-65`) and switches to degraded debate-only mode. Individual tool-call failures are caught and logged without aborting.
 - **Context enrichment (KG)**: `literature_review.py:727-811` calls `context_enrichment_tools` (e.g. INDRA CoGex) per extracted entity in parallel, appends results to the synthesis with `[C*]` keys aligned to the reference index.
@@ -320,7 +322,7 @@ Temperatures: `LOW=0.3`, `MEDIUM=0.5`, `HIGH=0.7` (`constants.py:41-50`). Token 
 
 | To understand | Read |
 | --- | --- |
-| Graph assembly, edges, routers | `engine/src/co_scientist/generator.py:129-255` |
+| Graph assembly, edges, routers | `engine/src/co_scientist/generator/graph.py` (built via `generator/core.py::_build_graph`) |
 | State definition + both reducers | `engine/src/co_scientist/state.py:18-274` |
 | Data models (`Hypothesis`, `ExecutionMetrics`, `Article`) | `engine/src/co_scientist/models.py` |
 | LLM dispatch, JSON repair, tool-calling loop | `engine/src/co_scientist/llm.py` |
