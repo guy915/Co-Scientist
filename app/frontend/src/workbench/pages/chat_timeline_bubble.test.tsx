@@ -83,7 +83,7 @@ describe('ChatBubble', () => {
       const {container} = renderBubble({content: longContent});
 
       const textSpan = container.querySelector('span')!;
-      expect(textSpan.className).toContain('line-clamp-4');
+      expect(textSpan.className).toContain('whitespace-normal');
 
       const expandButton = screen.getByLabelText('Expand');
       // The toggle button persists across expand/collapse (same DOM node),
@@ -103,7 +103,7 @@ describe('ChatBubble', () => {
       fireEvent.click(collapseButton, {detail: 0});
       expect(blurSpy).toHaveBeenCalledOnce();
       expect(screen.getByLabelText('Expand')).toBeInTheDocument();
-      expect(textSpan.className).toContain('line-clamp-4');
+      expect(textSpan.className).toContain('whitespace-normal');
     });
 
     it('animates expand/collapse via requestAnimationFrame otherwise, settling on transition end', () => {
@@ -132,7 +132,7 @@ describe('ChatBubble', () => {
       fireEvent.click(screen.getByLabelText('Collapse'), {detail: 1});
       expect(screen.getByLabelText('Expand')).toBeInTheDocument();
       fireEvent.transitionEnd(textSpan, {propertyName: 'max-height'});
-      expect(textSpan.className).toContain('line-clamp-4');
+      expect(textSpan.className).toContain('whitespace-normal');
     });
   });
 });

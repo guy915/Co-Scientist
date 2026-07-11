@@ -70,17 +70,18 @@ const USER_BUBBLE_TEXT_BASE_CLASSES =
 export const USER_BUBBLE_TEXT_CLASSES = `${USER_BUBBLE_TEXT_BASE_CLASSES} whitespace-pre-wrap`;
 
 // A long request collapses to four lines and animates open/closed through an
-// inline max-height that React drives. The clamp adds the trailing ellipsis
-// (via -webkit-box) only while collapsed at rest; every other state uses
-// `block` so the max-height transition applies. Whitespace is set per state,
-// not on the base: the clamp collapses it so the ellipsis hugs the last word
-// (pre-wrap would leave a stray space before it), while the open state keeps
-// pre-wrap so the sender's line breaks survive.
+// inline max-height that React drives. The collapsed state clips at the
+// four-line max-height with `overflow: hidden`, so the last visible line ends
+// on a whole word (letter-level `-webkit-line-clamp` would cut it mid-word);
+// the expand chevron signals the hidden remainder. Whitespace is set per
+// state, not on the base: the collapsed state collapses it so wrapping is
+// compact, while the open state keeps pre-wrap so the sender's line breaks
+// survive.
 export const USER_BUBBLE_TEXT_COLLAPSIBLE_CLASSES =
   `${USER_BUBBLE_TEXT_BASE_CLASSES} overflow-hidden ` +
   'transition-[max-height] duration-300 ease-out motion-reduce:transition-none';
 
-export const USER_BUBBLE_TEXT_CLAMP_CLASSES = 'line-clamp-4 whitespace-normal';
+export const USER_BUBBLE_TEXT_CLAMP_CLASSES = 'block whitespace-normal';
 
 export const USER_BUBBLE_TEXT_OPEN_CLASSES = 'block whitespace-pre-wrap';
 

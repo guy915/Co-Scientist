@@ -216,15 +216,16 @@
   position: absolute;
   bottom: calc(100% + 0.5rem);
   z-index: 5;
-  display: -webkit-box;
+  display: block;
   visibility: hidden;
   width: max-content;
   /* Wide enough for the longest suggestion to sit on a single line; it only
-     wraps when the viewport itself is narrower. text-wrap: pretty then keeps
-     the last line from collapsing to a lonely orphan word. */
+     wraps (on whole words) when the viewport itself is narrower. text-wrap:
+     pretty then keeps the last line from collapsing to a lonely orphan word.
+     The bubble reveals the full teaser, so it is not clamped — a line clamp
+     here would cut the last visible line mid-word (letter-level). */
   max-width: min(46rem, calc(100vw - 7rem));
   margin: 0;
-  overflow: hidden;
   color: var(--cosci-shell-icon);
   font-size: 0.84rem;
   font-weight: 400;
@@ -233,8 +234,6 @@
   opacity: 0;
   pointer-events: none;
   transform: translateY(0.2rem);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
 }
 
 .reference-suggestion-preview.visible {
