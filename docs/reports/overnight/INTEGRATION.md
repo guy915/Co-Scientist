@@ -254,25 +254,39 @@ system `ruff` (0.15.15) against the same three targets (`app`, `engine`,
 so CI lint is unaffected. This is a pre-existing local-tooling quirk, not an
 integration change.
 
-## Follow-ups for the user
+## Post-integration actions (completed after the report was first written)
 
-1. **Push.** `main` now carries the integration but was not pushed. Push when
-   ready (`git push origin main`). The seven source branches were left intact
-   and unpushed.
-2. **Branch cleanup.** The seven renamed local branches and their worktrees
-   under `.claude/worktrees/` are still present. Delete them once you are
-   satisfied (`git worktree remove <path>` then `git branch -d <name>` per
-   branch). They were deliberately not removed.
-3. **Watch the e2e CI job on its first pushed run.** The `e2e` job runs
-   `bunx playwright install chromium` **without** `--with-deps`. GitHub's
-   `ubuntu-latest` may lack some Chromium system libraries; if the first run
-   fails at browser launch, change the `make e2e` install line (or the CI step)
-   to `playwright install --with-deps chromium`. Validated locally and with
-   `actionlint`, but Actions execution itself is only provable on GitHub.
-4. **Branch protection.** `docs/CI.md` recommends (does not configure) marking
-   the CI jobs — now including `e2e` — as required status checks on `main` once
-   the workflow has run at least once on GitHub.
-5. **Superseded archived report.** `docs/reports/overnight/feat-operator-cli.md`
+These were done in the same session, once the user authorized push and cleanup:
+
+- **Pushed.** `main` was fast-forwarded on the remote (`480a3489..e64d88c5`,
+  then `..a5f40b19` with the format fix below). `main` == `origin/main`.
+- **First CI run surfaced one real gap, now fixed.** The push triggered the
+  new pipeline (the first CI run this repo has ever had). Nine of ten jobs
+  passed on the first run — including **`Browser e2e (Playwright)`, which
+  succeeded on `ubuntu-latest` without `--with-deps`**, so the anticipated
+  Chromium-system-deps risk did not materialize. The one failure was
+  `Format and lint (ruff)`: no local verification (branch 5's, or this
+  integration's) had run `ruff format --check`, only `ruff check`. The pinned
+  `ruff==0.15.21` reformatted one branch-5 file
+  (`app/tests/test_cli_render.py`, collapsing a call that fits in 80 cols).
+  Fixed in `a5f40b19` (`style(cli): ...`, formatting only, no behavior change),
+  and the re-run is **fully green — all ten jobs pass**.
+- **Branch cleanup done.** The seven renamed branches, the
+  `chore/overnight-integration` staging branch, and all seven worktrees under
+  `.claude/worktrees/` were removed (every branch tip is an ancestor of `main`,
+  so `git branch -d` succeeded). Only `main` and the pre-existing
+  `goolge-ai-co-scientist-parity` branch remain.
+
+## Remaining follow-ups for the user
+
+1. **Branch protection.** `docs/CI.md` recommends (does not configure) marking
+   the CI jobs — now including `e2e` — as required status checks on `main`.
+   The workflow has now run green on GitHub, so this can be configured.
+2. **Optional CI hardening.** The `e2e` job's `bunx playwright install chromium`
+   worked without `--with-deps` on the current `ubuntu-latest` image, but
+   adding `--with-deps` would make it robust against future runner-image
+   changes that drop a Chromium system library.
+3. **Superseded archived report.** `docs/reports/overnight/feat-operator-cli.md`
    (branch 5's snapshot) still describes the pre-integration offline `ask`
    behavior ("the endpoint returns HTTP 200 and emits a graceful error frame").
    That is superseded by branch 2: offline `ask` now returns a grounded answer.
