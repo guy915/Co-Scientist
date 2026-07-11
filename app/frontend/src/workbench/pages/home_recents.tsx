@@ -63,6 +63,8 @@ const WINNER_LIST_CLASSES = 'reference-winner-list';
 
 const WINNER_LIST_ITEM_CLASSES = 'reference-winner-list-item';
 
+const WINNER_LIST_TEXT_CLASSES = 'reference-winner-list-text';
+
 // Panel/list class pair: the empty state swaps in a distinct pair (reference
 // styling) rather than conditionally omitting classes.
 function recentsPanelClassNames(hasVisibleRuns: boolean): {
@@ -222,7 +224,7 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         <TruncatedLabel
           className={RECENT_DESCRIPTION_CLASSES}
           text={run.research_goal}
-          lines={4}
+          lines={3}
         />
         {isActiveRun ? (
           <RunStepFlow activeIndex={homeRunStepIndex(run)} />
@@ -277,7 +279,11 @@ function RecentRunResults({
           {topIdeas.map((idea, index) => (
             <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
               <span>{index + 1}.</span>
-              <span>{idea}</span>
+              <TruncatedLabel
+                className={WINNER_LIST_TEXT_CLASSES}
+                text={idea}
+                lines={2}
+              />
             </li>
           ))}
         </ol>

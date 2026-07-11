@@ -452,7 +452,7 @@
   font-size: 0.9rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
-  -webkit-line-clamp: 4;
+  -webkit-line-clamp: 3;
 }
 
 .reference-recent-chips {
@@ -490,6 +490,25 @@
   letter-spacing: 0.1px;
   line-height: 1.33;
   list-style: none;
+}
+
+/* Rank number in a fixed first column, the idea text in a shrinkable second
+   column so it can clamp (min-width: 0 lets it narrow below content size). */
+.reference-winner-list-item {
+  display: grid;
+  grid-template-columns: 1.4rem minmax(0, 1fr);
+  gap: 0.2rem;
+}
+
+/* Idea title: word-truncated to two lines via TruncatedLabel (the JS fitter
+   drops whole trailing words and appends an ellipsis; this clamp bounds the
+   measured height it fits against). */
+.reference-winner-list-text {
+  display: -webkit-box;
+  overflow: hidden;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* Live-run "session loading" flow (reference: Step X of N + the four
@@ -755,12 +774,6 @@
     font-size: 0.75rem;
     letter-spacing: 0.1px;
     line-height: 1.33;
-  }
-
-  .reference-winner-list-item {
-    display: grid;
-    grid-template-columns: 1.4rem minmax(0, 1fr);
-    gap: 0.2rem;
   }
 }
 
