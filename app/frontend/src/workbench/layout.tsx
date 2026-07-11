@@ -136,9 +136,7 @@ export function Layout({children}: {children: ReactNode}) {
     pageClasses,
   } = deriveRoutePresentation(location.pathname);
   const headerTitle = useHeaderTitle(titleContextKey);
-  const {history, showAllChats, toggleShowAllChats} = useChatHistory(
-    location.pathname,
-  );
+  const {history, showAllChats, toggleShowAllChats} = useChatHistory();
   const {
     navOpen,
     setNavOpen,

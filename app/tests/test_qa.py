@@ -3,8 +3,8 @@
 ``build_evidence_manifest``'s cited-first ordering is covered in
 ``test_qa_grounding.py``; this file covers the remaining pure helpers
 (``build_system_prompt``, ``_format_manifest_for_prompt``,
-``_resolve_qa_model``, ``_citation_meta``) plus the streaming path, which is
-exercised end to end against a fake ``litellm`` module swapped into
+``settings.effective_chat_model``, ``_citation_meta``) plus the streaming path,
+which is exercised end to end against a fake ``litellm`` module swapped into
 ``sys.modules`` so no network call is ever made.
 """
 
@@ -13,15 +13,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import sys
-import types
 from collections.abc import AsyncIterator
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
 from app import qa, store
 from app.config import settings
+from tests._client import fake_litellm as _fake_litellm
 
 
 def _drain(gen: AsyncIterator[str]) -> list[str]:
@@ -29,37 +28,6 @@ def _drain(gen: AsyncIterator[str]) -> list[str]:
         return [frame async for frame in gen]
 
     return asyncio.run(_run())
-
-
-def _fake_litellm(
-    chunks: list[str], *, raise_exc: Exception | None = None
-) -> types.SimpleNamespace:
-    """Build a fake ``litellm`` module streaming ``chunks`` as deltas.
-
-    Args:
-        chunks: Plain-text deltas to stream back, one per fake chunk.
-        raise_exc: If set, ``acompletion`` raises this instead of streaming.
-
-    Returns:
-        A module-like object exposing an ``acompletion`` matching the shape
-        ``qa._stream_llm_deltas`` expects: an async function returning an
-        object that supports ``async for``.
-    """
-
-    async def _chunk_stream() -> AsyncIterator[Any]:
-        for content in chunks:
-            yield SimpleNamespace(
-                choices=[
-                    SimpleNamespace(delta=SimpleNamespace(content=content))
-                ]
-            )
-
-    async def _acompletion(**_kwargs: Any) -> AsyncIterator[Any]:
-        if raise_exc is not None:
-            raise raise_exc
-        return _chunk_stream()
-
-    return types.SimpleNamespace(acompletion=_acompletion)
 
 
 # ---------------------------------------------------------------------------
@@ -153,24 +121,24 @@ def test_build_system_prompt_falls_back_when_sections_are_empty() -> None:
 
 
 # ---------------------------------------------------------------------------
-# _resolve_qa_model
+# settings.effective_chat_model (the model Q&A and titling resolve)
 # ---------------------------------------------------------------------------
 
 
-def test_resolve_qa_model_prefers_chat_model(
+def test_effective_chat_model_prefers_chat_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "chat_model_name", "chat/model")
     monkeypatch.setattr(settings, "model_name", "worker/model")
-    assert qa._resolve_qa_model() == "chat/model"
+    assert settings.effective_chat_model == "chat/model"
 
 
-def test_resolve_qa_model_falls_back_to_worker_model(
+def test_effective_chat_model_falls_back_to_worker_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(settings, "chat_model_name", None)
     monkeypatch.setattr(settings, "model_name", "worker/model")
-    assert qa._resolve_qa_model() == "worker/model"
+    assert settings.effective_chat_model == "worker/model"
 
 
 # ---------------------------------------------------------------------------

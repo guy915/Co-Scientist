@@ -91,6 +91,25 @@ describe('useGlobalShortcuts', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
+  it('resolves an aliased tab segment before cycling (hypotheses -> ideas)', () => {
+    renderHook(() => useGlobalShortcuts(), {
+      wrapper: wrapperAt('/runs/abc/hypotheses'),
+    });
+    // 'hypotheses' is an alias for 'ideas' (the last tab), so ArrowLeft steps
+    // back to 'overview' rather than mistaking the route for the 'details'
+    // default and stepping forward.
+    keyDown('ArrowLeft');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/overview');
+  });
+
+  it('does not cycle past ideas from its aliased segment on ArrowRight', () => {
+    renderHook(() => useGlobalShortcuts(), {
+      wrapper: wrapperAt('/runs/abc/hypotheses'),
+    });
+    keyDown('ArrowRight');
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
   it('ignores arrow keys when not on a run page', () => {
     renderHook(() => useGlobalShortcuts(), {wrapper: wrapperAt('/runs')});
     keyDown('ArrowRight');

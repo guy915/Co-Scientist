@@ -19,8 +19,8 @@ export function useChatSession(deps: ChatSessionDeps) {
   // Anything at all in the session? Drives the empty-state vs timeline view.
   const hasConversation =
     composer.messages.length > 0 ||
-    Boolean(lifecycle.draftSpec) ||
-    Boolean(lifecycle.confirmedSpec) ||
+    Boolean(lifecycle.draft) ||
+    Boolean(lifecycle.confirmed) ||
     Boolean(lifecycle.startedSession);
 
   const handlers = buildChatHandlers(toHandlerDeps(lifecycle, composer, deps));
@@ -30,11 +30,9 @@ export function useChatSession(deps: ChatSessionDeps) {
   return {
     input: composer.input,
     setInput: composer.setInput,
-    draftSpec: lifecycle.draftSpec,
-    setDraftSpec: lifecycle.setDraftSpec,
-    draftSpecCreatedAt: lifecycle.draftSpecCreatedAt,
-    confirmedSpec: lifecycle.confirmedSpec,
-    confirmedSpecCreatedAt: lifecycle.confirmedSpecCreatedAt,
+    draft: lifecycle.draft,
+    setDraft: lifecycle.setDraft,
+    confirmed: lifecycle.confirmed,
     startedSession: lifecycle.startedSession,
     setStartedSession: lifecycle.setStartedSession,
     isStarting: composer.isStarting,

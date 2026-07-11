@@ -1,5 +1,4 @@
 import type {RunFocus, RunTier} from '@/api/runs';
-import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 
 /** Chat-inferred setup shown before a run is created. */
 export interface InferredRunSpec {
@@ -91,9 +90,9 @@ export const FOCUS_OPTIONS: RunFocusOption[] = [
   },
 ];
 
-// Baseline requirements/attributes/criteria applied to every goal that isn't
-// the curated liver-fibrosis demo domain. domainPhrases() appends any
-// keyword-triggered extras from DOMAIN_RULES on top of these.
+// Baseline requirements/attributes/criteria applied to every goal.
+// domainPhrases() appends any keyword-triggered extras from DOMAIN_RULES on
+// top of these.
 const DEFAULT_REQUIREMENTS = [
   'Prioritize mechanistic novelty, plausibility, and direct testability.',
   'Retrieve broader literature evidence and preserve competing mechanisms.',
@@ -113,39 +112,6 @@ const DEFAULT_CRITERIA = [
   'Translational feasibility',
 ];
 
-// Curated, hand-authored setup for the liver-fibrosis demo domain (see
-// isLiverFibrosisGoal), used verbatim instead of the generic defaults +
-// domain-rule extras below.
-const LIVER_FIBROSIS_REQUIREMENTS = [
-  'The hypothesis must propose a specific, mechanistic pathway for reversing established liver fibrosis.',
-  'The hypothesis must include a specific, actionable intervention based on the proposed mechanism.',
-  'The intervention must specifically target one or more of the following: epigenetic regulators, hepatic stellate cell biology, or stromal-immune interactions.',
-  'The hypothesis must be truly novel and not a reiteration of existing well-known theories.',
-  'The hypothesis must be formulated in a clearly testable manner, allowing for experimental verification or falsification.',
-  'The idea must include concrete, detailed experimental validation strategies to test the hypothesis.',
-  'Experimental validation strategies must utilize human-relevant models (e.g., organoids, precision-cut liver slices, humanized mouse models, patient-derived primary cells).',
-  'The idea must include a comprehensive assessment of potential scientific, technical, and translational pitfalls and challenges associated with the proposed hypothesis and intervention.',
-  'The focus must be exclusively on MASLD/MASH (Metabolic Dysfunction-Associated Steatotic Liver Disease / Metabolic Dysfunction-Associated Steatohepatitis) liver fibrosis.',
-  'The intervention must aim to reverse *established* fibrosis, not merely prevent its progression or onset.',
-];
-
-const LIVER_FIBROSIS_ATTRIBUTES = [
-  "Primary Target: Identify the primary biological target pathway: 'Epigenetic Regulators,' 'Hepatic Stellate Cell Biology,' or 'Stromal-Immune Interactions'.",
-  'Novelty Score: Rate the novelty of the hypothesis on a scale from 1 to 5 (1: incremental, 3: reasonably novel, 5: groundbreaking).',
-  'Testability Score: Rate the testability of the hypothesis on a scale from 1 to 5 (1: extremely difficult/impractical to test, 3: testable with significant effort, 5: highly feasible with standard methods).',
-  'Human-Relevance of Models: Rate the human-relevance of the proposed experimental models on a scale from 1 to 5 (1: exclusively animal/non-human models, 3: mix of human-relevant and less relevant, 5: predominantly human-relevant models).',
-  'Feasibility of Intervention: Rate the overall feasibility and specificity of the proposed intervention on a scale from 1 to 5.',
-];
-
-const LIVER_FIBROSIS_CRITERIA = [
-  'Mechanistic specificity',
-  'Novelty against known fibrosis pathways',
-  'Direct experimental testability',
-  'Human-relevant validation strategy',
-  'Feasible translational path',
-  'Potential pitfalls and mitigation strategy',
-];
-
 /**
  * Infers the run setup from a research goal using the canonical run path.
  *
@@ -154,18 +120,6 @@ const LIVER_FIBROSIS_CRITERIA = [
  */
 export function inferRunSpec(rawGoal: string): InferredRunSpec {
   const goal = normalizeWhitespace(rawGoal);
-  // The demo domain gets its curated setup verbatim, bypassing the generic
-  // defaults + keyword-triggered domain phrases used for everything else.
-  if (isLiverFibrosisGoal(goal)) {
-    return {
-      goal,
-      requirements: LIVER_FIBROSIS_REQUIREMENTS,
-      attributes: LIVER_FIBROSIS_ATTRIBUTES,
-      criteria: LIVER_FIBROSIS_CRITERIA,
-      focus: 'balance',
-      tier: 'standard',
-    };
-  }
   return {
     goal,
     requirements: [

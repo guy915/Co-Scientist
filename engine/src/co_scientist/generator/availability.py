@@ -5,6 +5,7 @@ are reachable, caches the answers per generator instance, and decides
 whether the literature review node should be part of a generation call.
 """
 
+import asyncio
 import logging
 from typing import Any
 
@@ -31,21 +32,28 @@ class McpAvailabilityMixin:
         Returns:
             Tuple of (mcp_available, pubmed_available).
         """
+        # The two flags are set together and never independently, so once
+        # either is known both are.
+        if (
+            self._mcp_available is not None
+            and self._pubmed_available is not None
+        ):
+            return self._mcp_available, self._pubmed_available
+
         from co_scientist.mcp_client import (
             check_mcp_available,
             check_pubmed_available_via_mcp,
         )
 
-        if self._mcp_available is None:
-            self._mcp_available = await check_mcp_available(
-                tool_registry=self._tool_registry
-            )
-        if self._pubmed_available is None:
-            self._pubmed_available = await check_pubmed_available_via_mcp(
-                tool_registry=self._tool_registry
-            )
-
-        return self._mcp_available, self._pubmed_available
+        # Probe concurrently: the checks are independent and each opens its own
+        # MCP round trip.
+        mcp_available, pubmed_available = await asyncio.gather(
+            check_mcp_available(tool_registry=self._tool_registry),
+            check_pubmed_available_via_mcp(tool_registry=self._tool_registry),
+        )
+        self._mcp_available = mcp_available
+        self._pubmed_available = pubmed_available
+        return mcp_available, pubmed_available
 
     async def _resolve_literature_review_settings(
         self,

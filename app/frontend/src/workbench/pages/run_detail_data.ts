@@ -18,7 +18,6 @@ import {
 } from '@/api/runs';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
-import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 
 type RunDataKey =
   | 'hypotheses'
@@ -249,12 +248,12 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
     if (toastMessage) setToast(toastMessage);
   }, [terminal, run]);
 
-  // Full display title. Shared by the shell-header dispatch and the
-  // titlebar; each host truncates to its own available width via
+  // Full display title (the run's goal). Shared by the shell-header dispatch
+  // and the titlebar; each host truncates to its own available width via
   // TruncatedLabel rather than being pre-shortened.
   const title = useMemo(() => {
     if (!run) return 'Goal report';
-    return domainTitleOverride(run.research_goal) ?? runGoal(run);
+    return runGoal(run);
   }, [run]);
 
   useEffect(() => {
@@ -299,15 +298,4 @@ export function useRunDetailData(id: string | undefined) {
     toast,
     title,
   };
-}
-
-/**
- * Curated display title for known domains, or null to fall back to the
- * goal.
- */
-export function domainTitleOverride(goal: string): string | null {
-  if (isLiverFibrosisGoal(goal)) {
-    return 'Epigenetic and stromal reversal strategies for MASH-associated liver fibrosis';
-  }
-  return null;
 }

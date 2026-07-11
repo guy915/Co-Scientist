@@ -6,6 +6,16 @@ import {
 } from '../pages/chat_timeline_cards';
 import {type ToastState} from './use_toast';
 
+/**
+ * A staged run spec paired with the timeline timestamp it was created at.
+ * Draft and confirmed specs each carry their own stamp, always set and
+ * cleared together, so they live as one value rather than two parallel fields.
+ */
+export interface SpecStage {
+  spec: InferredRunSpec;
+  createdAt: number;
+}
+
 /** View-layer collaborators the session needs but does not own. */
 export interface ChatSessionDeps {
   reloadHistory: () => Promise<void>;
@@ -20,10 +30,8 @@ export interface ExecuteStartDeps {
   specCreatedAt: number;
   pubmedEnabled: boolean;
   reloadHistory: () => Promise<void>;
-  setConfirmedSpec: (spec: InferredRunSpec) => void;
-  setConfirmedSpecCreatedAt: (createdAt: number) => void;
-  setDraftSpec: (spec: InferredRunSpec | null) => void;
-  setDraftSpecCreatedAt: (createdAt: number | null) => void;
+  setConfirmed: (stage: SpecStage | null) => void;
+  setDraft: (stage: SpecStage | null) => void;
   setStartedSession: (session: StartedSession) => void;
 }
 
@@ -35,12 +43,9 @@ export interface ExecuteStartDeps {
 export interface HandlerDeps {
   input: string;
   setInput: (value: string) => void;
-  draftSpec: InferredRunSpec | null;
-  draftSpecCreatedAt: number | null;
-  setDraftSpec: (spec: InferredRunSpec | null) => void;
-  setDraftSpecCreatedAt: (createdAt: number | null) => void;
-  setConfirmedSpec: (spec: InferredRunSpec) => void;
-  setConfirmedSpecCreatedAt: (createdAt: number) => void;
+  draft: SpecStage | null;
+  setDraft: (stage: SpecStage | null) => void;
+  setConfirmed: (stage: SpecStage | null) => void;
   setStartedSession: (session: StartedSession) => void;
   setIsStarting: (value: boolean) => void;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;

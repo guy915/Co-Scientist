@@ -5,7 +5,7 @@ import {conciseTitle} from '@/lib/text';
 import {useToast, type ToastState} from '../hooks/use_toast';
 import {useRunHistory} from '../hooks/use_run_history';
 import {useChatSession} from '../hooks/use_chat_session';
-import {type InferredRunSpec} from '../run_spec';
+import {type SpecStage} from '../hooks/chat_session_types';
 import {
   HOME_TOAST_ACTION_CLASSES,
   HOME_TOAST_CLASSES,
@@ -52,14 +52,14 @@ export function ChatWorkspace() {
 
   // The session state machine lives entirely in this hook; fields used once
   // below are read straight off `session`, and the three read more than once
-  // (draftSpec/startedSession/hasConversation) are destructured for brevity.
+  // (draft/startedSession/hasConversation) are destructured for brevity.
   const session = useChatSession({
     reloadHistory,
     focusComposer,
     setToast,
     pubmedEnabled,
   });
-  const {draftSpec, startedSession, hasConversation} = session;
+  const {draft, startedSession, hasConversation} = session;
 
   // Clears the session back to the empty home stage and refreshes recents,
   // so "New chat" also picks up any run that just finished elsewhere.
@@ -76,8 +76,8 @@ export function ChatWorkspace() {
   // Publishes the current draft/started title as the app shell's header via
   // a custom event, since the header lives outside this subtree.
   useEffect(
-    () => syncHeaderTitle(draftSpec, startedSession),
-    [draftSpec, startedSession],
+    () => syncHeaderTitle(draft, startedSession),
+    [draft, startedSession],
   );
 
   // Timeline items, its auto-scroll ref, and the composer ref whose measured
@@ -112,7 +112,7 @@ export function ChatWorkspace() {
             timelineItems={timelineItems}
             composerRef={composerRef}
             session={session}
-            setupDraftMode={Boolean(draftSpec || startedSession)}
+            setupDraftMode={Boolean(draft || startedSession)}
             pubmedEnabled={pubmedEnabled}
             onPubmedEnabledChange={setPubmedEnabled}
           />
@@ -138,11 +138,11 @@ function focusComposerTextarea() {
 // started title to the app shell header; the returned cleanup clears it back
 // to empty on unmount or before the next run.
 function syncHeaderTitle(
-  draftSpec: InferredRunSpec | null,
+  draft: SpecStage | null,
   startedSession: StartedSession | null,
 ) {
-  const title = draftSpec
-    ? conciseTitle(draftSpec.goal)
+  const title = draft
+    ? conciseTitle(draft.spec.goal)
     : startedSession
       ? startedSession.title
       : '';

@@ -8,6 +8,7 @@ import {
 } from './chat_workspace_timeline';
 import type {ChatEntry, StartedSession} from './chat_timeline_cards';
 import type {InferredRunSpec} from '../run_spec';
+import type {SpecStage} from '../hooks/chat_session_types';
 
 function makeSpec(overrides: Partial<InferredRunSpec> = {}): InferredRunSpec {
   return {
@@ -39,16 +40,14 @@ function baseArgs(
     handleEditMessage: vi.fn(),
     handleCopyRequest: vi.fn().mockResolvedValue(undefined),
     handleRetryMessage: vi.fn(),
-    draftSpec: null,
-    draftSpecCreatedAt: null,
-    setDraftSpec: vi.fn(),
+    draft: null,
+    setDraft: vi.fn(),
     isStarting: false,
     handleCancelDraftSpec: vi.fn(),
     handleEditPlan: vi.fn(),
     handleRetryDraftSpec: vi.fn(),
     handleStartRun: vi.fn().mockResolvedValue(undefined),
-    confirmedSpec: null,
-    confirmedSpecCreatedAt: null,
+    confirmed: null,
     stageDraftSpec: vi.fn(),
     startedSession: null,
     setStartedSession: vi.fn(),
@@ -100,36 +99,37 @@ describe('messageTimelineItems', () => {
 
 describe('draftTimelineItems', () => {
   it('wires the focus/tier/edit/retry/cancel/start actions to the session handlers', async () => {
-    const draftSpec = makeSpec();
-    const args = baseArgs({
-      draftSpec,
-      draftSpecCreatedAt: 5,
-    });
+    const spec = makeSpec();
+    const draft: SpecStage = {spec, createdAt: 5};
+    const args = baseArgs({draft});
     const items = buildTimelineItems(args);
     expect(items).toHaveLength(1);
     renderItems(items);
 
     fireEvent.click(screen.getByLabelText(/Prefer novelty/i));
-    expect(args.setDraftSpec).toHaveBeenCalled();
-    const focusUpdater = vi.mocked(args.setDraftSpec).mock
+    expect(args.setDraft).toHaveBeenCalled();
+    const focusUpdater = vi.mocked(args.setDraft).mock
       .calls[0][0] as unknown as (
-      current: InferredRunSpec | null,
-    ) => InferredRunSpec | null;
-    expect(focusUpdater(draftSpec)).toEqual({
-      ...draftSpec,
-      focus: 'prefer_novelty',
+      current: SpecStage | null,
+    ) => SpecStage | null;
+    expect(focusUpdater(draft)).toEqual({
+      ...draft,
+      spec: {...spec, focus: 'prefer_novelty'},
     });
     expect(focusUpdater(null)).toBeNull();
 
     fireEvent.click(screen.getByLabelText(/Extended/i));
-    const tierUpdater = vi.mocked(args.setDraftSpec).mock
+    const tierUpdater = vi.mocked(args.setDraft).mock
       .calls[1][0] as unknown as (
-      current: InferredRunSpec | null,
-    ) => InferredRunSpec | null;
-    expect(tierUpdater(draftSpec)).toEqual({...draftSpec, tier: 'extended'});
+      current: SpecStage | null,
+    ) => SpecStage | null;
+    expect(tierUpdater(draft)).toEqual({
+      ...draft,
+      spec: {...spec, tier: 'extended'},
+    });
 
     fireEvent.click(screen.getByLabelText('Edit research plan'));
-    expect(args.handleEditPlan).toHaveBeenCalledWith(draftSpec);
+    expect(args.handleEditPlan).toHaveBeenCalledWith(spec);
 
     fireEvent.click(screen.getByLabelText('Retry response'));
     expect(args.handleRetryDraftSpec).toHaveBeenCalledOnce();
@@ -142,20 +142,15 @@ describe('draftTimelineItems', () => {
   });
 
   it('renders nothing when there is no staged draft', () => {
-    const items = buildTimelineItems(
-      baseArgs({draftSpec: null, draftSpecCreatedAt: null}),
-    );
+    const items = buildTimelineItems(baseArgs({draft: null}));
     expect(items).toHaveLength(0);
   });
 });
 
 describe('confirmedSpecTimelineItems', () => {
   it('renders read-only with edit/retry wired, and inert focus/tier/cancel/start no-ops', () => {
-    const confirmedSpec = makeSpec({goal: 'Confirmed goal'});
-    const args = baseArgs({
-      confirmedSpec,
-      confirmedSpecCreatedAt: 9,
-    });
+    const spec = makeSpec({goal: 'Confirmed goal'});
+    const args = baseArgs({confirmed: {spec, createdAt: 9}});
     const items = buildTimelineItems(args);
     expect(items).toHaveLength(1);
     renderItems(items);
@@ -165,10 +160,10 @@ describe('confirmedSpecTimelineItems', () => {
     expect(screen.getByText('Start research')).toBeDisabled();
 
     fireEvent.click(screen.getByLabelText('Edit research plan'));
-    expect(args.handleEditPlan).toHaveBeenCalledWith(confirmedSpec);
+    expect(args.handleEditPlan).toHaveBeenCalledWith(spec);
 
     fireEvent.click(screen.getByLabelText('Retry response'));
-    expect(args.stageDraftSpec).toHaveBeenCalledWith(confirmedSpec);
+    expect(args.stageDraftSpec).toHaveBeenCalledWith(spec);
 
     // The locked card's focus/tier/cancel handlers are inert no-ops that
     // can't be reached through disabled UI controls; invoke them directly
@@ -186,9 +181,7 @@ describe('confirmedSpecTimelineItems', () => {
   });
 
   it('renders nothing when there is no confirmed spec', () => {
-    const items = buildTimelineItems(
-      baseArgs({confirmedSpec: null, confirmedSpecCreatedAt: null}),
-    );
+    const items = buildTimelineItems(baseArgs({confirmed: null}));
     expect(items).toHaveLength(0);
   });
 });
@@ -237,8 +230,7 @@ describe('buildTimelineItems ordering', () => {
   it('sorts chronologically, breaking ties on the `order` field', () => {
     const args = baseArgs({
       messages: [makeMessage({id: 'u1', created_at: 5})],
-      draftSpec: makeSpec(),
-      draftSpecCreatedAt: 5,
+      draft: {spec: makeSpec(), createdAt: 5},
     });
     const items = buildTimelineItems(args);
     expect(items.map(item => item.id)).toEqual([

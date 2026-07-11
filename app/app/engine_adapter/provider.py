@@ -77,11 +77,10 @@ def system_status() -> dict[str, Any]:
         "has_provider_key": has_key,
         "engine_importable": engine,
         "model_name": settings.model_name,
-        # Report the effective supervisor model: the generator falls back to
-        # model_name when supervisor_model_name is unset, so mirror that here.
-        "supervisor_model_name": (
-            settings.supervisor_model_name or settings.model_name
-        ),
+        # The generator falls back to model_name when supervisor_model_name is
+        # unset; effective_supervisor_model mirrors that so /status reports the
+        # model actually used for planning/meta-review.
+        "supervisor_model_name": settings.effective_supervisor_model,
         "mcp_server_url": settings.mcp_server_url,
     }
 

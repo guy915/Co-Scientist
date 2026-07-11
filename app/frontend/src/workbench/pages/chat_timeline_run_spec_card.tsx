@@ -1,7 +1,6 @@
 import {type ReactNode} from 'react';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
-import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 import {conciseTitle} from '@/lib/text';
 import {FOCUS_OPTIONS, type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
@@ -39,14 +38,10 @@ import {
 } from './chat_timeline_message_actions';
 
 /**
- * Derives the display title shown atop a run-spec/plan card for a given
- * research goal, special-casing the liver-fibrosis demo goal to a fixed
- * title and otherwise falling back to a generic concise title.
+ * Derives the concise display title shown atop a run-spec/plan card for a
+ * given research goal.
  */
 export function referenceSetupTitle(goal: string): string {
-  if (isLiverFibrosisGoal(goal)) {
-    return 'Reversing MASLD/MASH Fibrosis Hypothesis';
-  }
   return conciseTitle(goal);
 }
 

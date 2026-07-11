@@ -3,6 +3,7 @@ import {ErrorBoundary} from '@/components/error_boundary';
 import {NoIndex} from '@/public/no_index';
 import {NotFoundPage} from '@/public/not_found_page';
 import {useGlobalShortcuts} from './hooks/use_global_shortcuts';
+import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
 import {RunDetail} from './pages/run_detail';
@@ -26,49 +27,51 @@ export function WorkbenchApp() {
   return (
     <ErrorBoundary>
       <ThemeProvider>
-        <Layout>
-          <ShortcutsBridge />
-          <Routes>
-            {/* "/" is the chat workspace: the session home where new runs are
+        <RunHistoryProvider>
+          <Layout>
+            <ShortcutsBridge />
+            <Routes>
+              {/* "/" is the chat workspace: the session home where new runs are
                 drafted and started. */}
-            <Route
-              path="/"
-              element={
-                <>
-                  <NoIndex title="Workspace" />
-                  <ChatWorkspace />
-                </>
-              }
-            />
-            {/* Legacy entry points from the retired public surface (the /runs
+              <Route
+                path="/"
+                element={
+                  <>
+                    <NoIndex title="Workspace" />
+                    <ChatWorkspace />
+                  </>
+                }
+              />
+              {/* Legacy entry points from the retired public surface (the /runs
                 dashboard and /runs/new form); both now land on the chat
                 workspace, which owns run creation. */}
-            <Route path="/runs" element={<Navigate to="/" replace />} />
-            <Route path="/runs/new" element={<Navigate to="/" replace />} />
-            {/* Redirect the bare id to the default tab so every tab shares one
+              <Route path="/runs" element={<Navigate to="/" replace />} />
+              <Route path="/runs/new" element={<Navigate to="/" replace />} />
+              {/* Redirect the bare id to the default tab so every tab shares one
                 required-param route. Switching tabs is then a param change, not
                 a remount — otherwise RunDetail refetches and its header-title
                 effect flaps, blanking the shell header. */}
-            <Route
-              path="/runs/:id"
-              element={<Navigate to="details" replace />}
-            />
-            {/* Run detail with its active tab in the URL (details, learning,
+              <Route
+                path="/runs/:id"
+                element={<Navigate to="details" replace />}
+              />
+              {/* Run detail with its active tab in the URL (details, learning,
                 overview, ideas); RunDetail reads :id and :tab via
                 useParams. */}
-            <Route
-              path="/runs/:id/:tab"
-              element={
-                <>
-                  <NoIndex title="Goal Report" />
-                  <RunDetail />
-                </>
-              }
-            />
-            {/* Catch-all 404 for anything outside the routes above. */}
-            <Route path="*" element={<NotFoundPage />} />
-          </Routes>
-        </Layout>
+              <Route
+                path="/runs/:id/:tab"
+                element={
+                  <>
+                    <NoIndex title="Goal Report" />
+                    <RunDetail />
+                  </>
+                }
+              />
+              {/* Catch-all 404 for anything outside the routes above. */}
+              <Route path="*" element={<NotFoundPage />} />
+            </Routes>
+          </Layout>
+        </RunHistoryProvider>
       </ThemeProvider>
     </ErrorBoundary>
   );

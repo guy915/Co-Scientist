@@ -8,14 +8,11 @@ streams a model answer through the unchanged litellm path.
 from __future__ import annotations
 
 import sys
-import types
-from collections.abc import AsyncIterator
-from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
 from app import engine_adapter, store
+from tests._client import fake_litellm as _fake_litellm
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -30,23 +27,6 @@ def _completed_run_id() -> str:
     c.post(f"/api/runs/{rid}/start", json={})
     assert _wait_status(c, rid, "completed", timeout=20.0)
     return str(rid)
-
-
-def _fake_litellm(chunks: list[str]) -> types.SimpleNamespace:
-    """Build a fake ``litellm`` module streaming ``chunks`` as deltas."""
-
-    async def _chunk_stream() -> AsyncIterator[Any]:
-        for content in chunks:
-            yield SimpleNamespace(
-                choices=[
-                    SimpleNamespace(delta=SimpleNamespace(content=content))
-                ]
-            )
-
-    async def _acompletion(**_kwargs: Any) -> AsyncIterator[Any]:
-        return _chunk_stream()
-
-    return types.SimpleNamespace(acompletion=_acompletion)
 
 
 def test_ask_offline_returns_grounded_answer_not_error() -> None:

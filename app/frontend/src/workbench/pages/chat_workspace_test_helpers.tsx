@@ -2,6 +2,7 @@ import {render} from '@testing-library/react';
 import {MemoryRouter, useLocation} from 'react-router-dom';
 import {vi} from 'vitest';
 import type {Run} from '@/api/runs';
+import {RunHistoryProvider} from '../hooks/run_history_context';
 import {ChatWorkspace} from './chat_workspace';
 
 /**
@@ -55,8 +56,10 @@ export {apiMock};
 export function renderWorkspace() {
   return render(
     <MemoryRouter>
-      <ChatWorkspace />
-      <LocationProbe />
+      <RunHistoryProvider>
+        <ChatWorkspace />
+        <LocationProbe />
+      </RunHistoryProvider>
     </MemoryRouter>,
   );
 }

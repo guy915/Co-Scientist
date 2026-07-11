@@ -1,5 +1,4 @@
 import {
-  useCallback,
   useEffect,
   useRef,
   useState,
@@ -7,8 +6,8 @@ import {
   type RefObject,
   type SetStateAction,
 } from 'react';
-import {loadRunHistory, type Run} from '@/api/runs';
 import {type SettingsSection} from './components/settings_dialog';
+import {useRunHistoryContext} from './hooks/run_history_context';
 import {isMobileViewport} from './hooks/use_is_mobile';
 
 /**
@@ -19,34 +18,14 @@ import {isMobileViewport} from './hooks/use_is_mobile';
 export type ShellPanel = 'settings' | 'logs';
 
 /**
- * Sidebar chat history: the recent-run list state, kept as local state
- * (rather than derived from a hook) so it can be refreshed imperatively from
- * multiple triggers, plus the "show more" expansion flag.
- *
- * @param pathname The current route path; drives the reload-on-navigation
- *   effect below.
+ * Sidebar chat history: the recent-run list (from the shared
+ * {@link useRunHistoryContext}, so it is fetched once and shared with the home
+ * recents) plus the local "show more" expansion flag.
  */
-export function useChatHistory(pathname: string) {
-  const [history, setHistory] = useState<Run[]>([]);
+export function useChatHistory() {
+  const {history} = useRunHistoryContext();
   // Sidebar chat list is capped to the 10 most recent entries until expanded.
   const [showAllChats, setShowAllChats] = useState(false);
-
-  // Stable identity via useCallback (no deps) so it can safely be both an
-  // effect dependency and an event listener reference below.
-  const loadHistory = useCallback(async () => {
-    setHistory(await loadRunHistory());
-  }, []);
-
-  // Reload the sidebar history on mount, whenever a run is created/started
-  // (cosci-runs-changed), and on every navigation so status changes (e.g. a
-  // run finishing) are reflected without a full page reload.
-  useEffect(() => {
-    void loadHistory();
-    window.addEventListener('cosci-runs-changed', loadHistory);
-    return () => {
-      window.removeEventListener('cosci-runs-changed', loadHistory);
-    };
-  }, [loadHistory, pathname]);
 
   return {
     history,

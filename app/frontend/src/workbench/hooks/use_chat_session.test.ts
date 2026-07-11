@@ -35,7 +35,7 @@ describe('useChatSession', () => {
   it('starts empty with no conversation', () => {
     const {result} = renderSession();
     expect(result.current.hasConversation).toBe(false);
-    expect(result.current.draftSpec).toBeNull();
+    expect(result.current.draft).toBeNull();
     expect(result.current.messages).toHaveLength(0);
   });
 
@@ -47,7 +47,7 @@ describe('useChatSession', () => {
       await result.current.handleSubmit(submitEvent());
     });
 
-    expect(result.current.draftSpec).not.toBeNull();
+    expect(result.current.draft).not.toBeNull();
     expect(result.current.hasConversation).toBe(true);
     expect(result.current.messages.filter(m => m.role === 'user')).toHaveLength(
       1,
@@ -62,7 +62,7 @@ describe('useChatSession', () => {
     await act(async () => {
       await result.current.handleSubmit(submitEvent());
     });
-    expect(result.current.draftSpec).toBeNull();
+    expect(result.current.draft).toBeNull();
     expect(result.current.messages).toHaveLength(0);
   });
 
@@ -80,7 +80,7 @@ describe('useChatSession', () => {
       await result.current.handleSubmit(submitEvent());
     });
 
-    expect(result.current.draftSpec).not.toBeNull();
+    expect(result.current.draft).not.toBeNull();
     // A user message plus an assistant acknowledgement were appended.
     expect(result.current.messages.length).toBe(afterFirst + 2);
     expect(result.current.messages.some(m => m.role === 'assistant')).toBe(
@@ -98,7 +98,7 @@ describe('useChatSession', () => {
 
     act(() => result.current.handleCancelDraftSpec());
 
-    expect(result.current.draftSpec).toBeNull();
+    expect(result.current.draft).toBeNull();
     expect(result.current.messages).toHaveLength(0);
     expect(result.current.hasConversation).toBe(false);
     expect(deps.setToast).toHaveBeenCalledWith('The session was canceled');
@@ -154,7 +154,7 @@ describe('useChatSession', () => {
     expect(runsApi.createRun).toHaveBeenCalledOnce();
     expect(runsApi.startRun).toHaveBeenCalledWith('run-xyz');
     expect(result.current.startedSession?.id).toBe('run-xyz');
-    expect(result.current.draftSpec).toBeNull();
+    expect(result.current.draft).toBeNull();
     expect(deps.reloadHistory).toHaveBeenCalled();
   });
 });

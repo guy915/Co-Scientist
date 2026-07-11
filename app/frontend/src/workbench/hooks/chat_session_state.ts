@@ -4,6 +4,7 @@ import {
   type ChatEntry,
   type StartedSession,
 } from '../pages/chat_timeline_cards';
+import {type SpecStage} from './chat_session_types';
 
 /**
  * Sub-hook owning the spec lifecycle state machine: draftSpec (inferred from
@@ -14,16 +15,8 @@ import {
  * renders.
  */
 export function useRunSpecLifecycle() {
-  const [draftSpec, setDraftSpec] = useState<InferredRunSpec | null>(null);
-  const [draftSpecCreatedAt, setDraftSpecCreatedAt] = useState<number | null>(
-    null,
-  );
-  const [confirmedSpec, setConfirmedSpec] = useState<InferredRunSpec | null>(
-    null,
-  );
-  const [confirmedSpecCreatedAt, setConfirmedSpecCreatedAt] = useState<
-    number | null
-  >(null);
+  const [draft, setDraft] = useState<SpecStage | null>(null);
+  const [confirmed, setConfirmed] = useState<SpecStage | null>(null);
   const [startedSession, setStartedSession] = useState<StartedSession | null>(
     null,
   );
@@ -31,10 +24,8 @@ export function useRunSpecLifecycle() {
   // Drops all spec/session stages but keeps the message log; useCallback so
   // resetSession (which depends on it) also stays referentially stable.
   const clearSessionState = useCallback(() => {
-    setDraftSpec(null);
-    setDraftSpecCreatedAt(null);
-    setConfirmedSpec(null);
-    setConfirmedSpecCreatedAt(null);
+    setDraft(null);
+    setConfirmed(null);
     setStartedSession(null);
   }, []);
 
@@ -44,22 +35,16 @@ export function useRunSpecLifecycle() {
     spec: InferredRunSpec,
     createdAt = Date.now() / 1000,
   ) {
-    setDraftSpec(spec);
-    setDraftSpecCreatedAt(createdAt);
-    setConfirmedSpec(null);
-    setConfirmedSpecCreatedAt(null);
+    setDraft({spec, createdAt});
+    setConfirmed(null);
     setStartedSession(null);
   }
 
   return {
-    draftSpec,
-    setDraftSpec,
-    draftSpecCreatedAt,
-    setDraftSpecCreatedAt,
-    confirmedSpec,
-    setConfirmedSpec,
-    confirmedSpecCreatedAt,
-    setConfirmedSpecCreatedAt,
+    draft,
+    setDraft,
+    confirmed,
+    setConfirmed,
     startedSession,
     setStartedSession,
     clearSessionState,

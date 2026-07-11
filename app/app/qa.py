@@ -397,15 +397,6 @@ async def _stream_llm_deltas(
             yield delta
 
 
-def _resolve_qa_model() -> str:
-    """Return the configured Q&A model, falling back to the app default.
-
-    Q&A uses the dedicated chat model when configured (typically a fast/
-    cheap one), falling back to the app-wide default model.
-    """
-    return settings.chat_model_name or settings.model_name
-
-
 def _citation_meta(manifest: list[dict[str, Any]]) -> dict[str, Any] | None:
     """Build the persisted-message meta dict carrying sources, if any."""
     return {"sources": manifest} if manifest else None
@@ -486,7 +477,7 @@ async def stream_answer(
     Yields:
         SSE ``data:`` frames.
     """
-    model = _resolve_qa_model()
+    model = settings.effective_chat_model
     try:
         # Sources frame goes out before any text so the UI can resolve [n]
         # citation markers while the answer is still streaming.

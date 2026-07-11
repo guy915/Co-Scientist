@@ -70,5 +70,23 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
+    @property
+    def effective_chat_model(self) -> str:
+        """Model for Q&A and titling: the chat model, else the worker default.
+
+        ``chat_model_name`` is optional (typically a fast/cheap model); when
+        unset, callers fall back to the app-wide ``model_name``.
+        """
+        return self.chat_model_name or self.model_name
+
+    @property
+    def effective_supervisor_model(self) -> str:
+        """Strategic model: the supervisor model, else the worker default.
+
+        Mirrors the engine generator's own fallback, so ``/status`` reports the
+        model the generator will actually use for planning/meta-review.
+        """
+        return self.supervisor_model_name or self.model_name
+
 
 settings = Settings()

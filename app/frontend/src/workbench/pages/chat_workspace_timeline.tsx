@@ -2,6 +2,7 @@ import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
+import {type SpecStage} from '../hooks/chat_session_types';
 import {
   type ChatEntry,
   ChatBubble,
@@ -36,16 +37,14 @@ export interface BuildTimelineItemsArgs {
   handleEditMessage: (message: ChatEntry) => void;
   handleCopyRequest: (message: ChatEntry) => Promise<void>;
   handleRetryMessage: (message: ChatEntry) => void;
-  draftSpec: InferredRunSpec | null;
-  draftSpecCreatedAt: number | null;
-  setDraftSpec: Dispatch<SetStateAction<InferredRunSpec | null>>;
+  draft: SpecStage | null;
+  setDraft: Dispatch<SetStateAction<SpecStage | null>>;
   isStarting: boolean;
   handleCancelDraftSpec: () => void;
   handleEditPlan: (spec: InferredRunSpec) => void;
   handleRetryDraftSpec: () => void;
   handleStartRun: () => Promise<void>;
-  confirmedSpec: InferredRunSpec | null;
-  confirmedSpecCreatedAt: number | null;
+  confirmed: SpecStage | null;
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
   startedSession: StartedSession | null;
   setStartedSession: Dispatch<SetStateAction<StartedSession | null>>;
@@ -84,43 +83,45 @@ function messageTimelineItems({
 // straight back into draftSpec, and cancel/edit/retry/start delegate to the
 // session hook's handlers.
 function draftTimelineItems({
-  draftSpec,
-  draftSpecCreatedAt,
+  draft,
   isStarting,
-  setDraftSpec,
+  setDraft,
   handleCancelDraftSpec,
   handleEditPlan,
   handleRetryDraftSpec,
   handleStartRun,
 }: Pick<
   BuildTimelineItemsArgs,
-  | 'draftSpec'
-  | 'draftSpecCreatedAt'
+  | 'draft'
   | 'isStarting'
-  | 'setDraftSpec'
+  | 'setDraft'
   | 'handleCancelDraftSpec'
   | 'handleEditPlan'
   | 'handleRetryDraftSpec'
   | 'handleStartRun'
 >): TimelineItem[] {
-  if (!draftSpec || draftSpecCreatedAt === null) return [];
+  if (!draft) return [];
   return [
     {
       id: 'draft-spec',
-      at: draftSpecCreatedAt,
+      at: draft.createdAt,
       order: 50,
       node: (
         <RunSpecCard
-          spec={draftSpec}
+          spec={draft.spec}
           isStarting={isStarting}
           onFocusChange={(focus: RunFocus) =>
-            setDraftSpec(current => (current ? {...current, focus} : current))
+            setDraft(current =>
+              current ? {...current, spec: {...current.spec, focus}} : current,
+            )
           }
           onTierChange={(tier: RunTier) =>
-            setDraftSpec(current => (current ? {...current, tier} : current))
+            setDraft(current =>
+              current ? {...current, spec: {...current.spec, tier}} : current,
+            )
           }
           onCancel={handleCancelDraftSpec}
-          onEdit={() => handleEditPlan(draftSpec)}
+          onEdit={() => handleEditPlan(draft.spec)}
           onRetry={() => handleRetryDraftSpec()}
           onStart={() => void handleStartRun()}
         />
@@ -133,34 +134,30 @@ function draftTimelineItems({
 // edit round-trip): all mutation handlers are no-ops and `locked` disables
 // the option cards; retrying re-stages it as an editable draft again.
 function confirmedSpecTimelineItems({
-  confirmedSpec,
-  confirmedSpecCreatedAt,
+  confirmed,
   handleEditPlan,
   stageDraftSpec,
 }: Pick<
   BuildTimelineItemsArgs,
-  | 'confirmedSpec'
-  | 'confirmedSpecCreatedAt'
-  | 'handleEditPlan'
-  | 'stageDraftSpec'
+  'confirmed' | 'handleEditPlan' | 'stageDraftSpec'
 >): TimelineItem[] {
-  if (!confirmedSpec || confirmedSpecCreatedAt === null) return [];
+  if (!confirmed) return [];
   return [
     {
       id: 'confirmed-spec',
-      at: confirmedSpecCreatedAt,
+      at: confirmed.createdAt,
       order: 50,
       node: (
         <RunSpecCard
-          spec={confirmedSpec}
+          spec={confirmed.spec}
           isStarting={false}
           locked
           onFocusChange={() => undefined}
           onTierChange={() => undefined}
           onCancel={() => undefined}
-          onEdit={() => handleEditPlan(confirmedSpec)}
+          onEdit={() => handleEditPlan(confirmed.spec)}
           onRetry={() => {
-            stageDraftSpec(confirmedSpec);
+            stageDraftSpec(confirmed.spec);
           }}
           onStart={() => undefined}
         />

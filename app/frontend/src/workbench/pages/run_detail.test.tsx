@@ -191,7 +191,7 @@ describe('RunDetail', () => {
     );
   });
 
-  it('applies the domain-specific title override', async () => {
+  it('shows the run goal as the report heading', async () => {
     vi.mocked(runsApi.getRun).mockResolvedValue(
       makeRun('Reversing MASLD liver fibrosis'),
     );
@@ -199,7 +199,7 @@ describe('RunDetail', () => {
     expect(
       await screen.findByRole('heading', {
         level: 1,
-        name: /MASH-associated liver fibrosis/i,
+        name: /Reversing MASLD liver fibrosis/i,
       }),
     ).toBeInTheDocument();
   });

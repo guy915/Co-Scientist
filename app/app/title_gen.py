@@ -33,11 +33,6 @@ _SYSTEM_PROMPT = (
 )
 
 
-def _resolve_title_model() -> str:
-    """Return the model used for titling: the chat model, else the default."""
-    return settings.chat_model_name or settings.model_name
-
-
 def _clean_title(raw: str) -> str | None:
     """Normalize a model reply into a usable title, or None if unusable.
 
@@ -75,7 +70,7 @@ async def generate_run_title(goal: str) -> str | None:
 
         response = await asyncio.wait_for(
             litellm.acompletion(
-                model=_resolve_title_model(),
+                model=settings.effective_chat_model,
                 messages=[
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": goal},

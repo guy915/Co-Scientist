@@ -15,10 +15,8 @@ async function executeStart({
   specCreatedAt,
   pubmedEnabled,
   reloadHistory,
-  setConfirmedSpec,
-  setConfirmedSpecCreatedAt,
-  setDraftSpec,
-  setDraftSpecCreatedAt,
+  setConfirmed,
+  setDraft,
   setStartedSession,
 }: ExecuteStartDeps): Promise<StartedSession> {
   const created = await createRun({
@@ -35,10 +33,8 @@ async function executeStart({
     title: referenceSetupTitle(specToStart.goal),
     at: Date.now() / 1000,
   };
-  setConfirmedSpec(specToStart);
-  setConfirmedSpecCreatedAt(specCreatedAt);
-  setDraftSpec(null);
-  setDraftSpecCreatedAt(null);
+  setConfirmed({spec: specToStart, createdAt: specCreatedAt});
+  setDraft(null);
   await startRun(created.id);
   setStartedSession(session);
   await reloadHistory();
@@ -91,24 +87,21 @@ async function startDraftRun(
  * dependencies as a single argument instead of closing over hook state.
  */
 export async function promoteDraftToRun({
-  draftSpec,
-  draftSpecCreatedAt,
+  draft,
   pubmedEnabled,
   reloadHistory,
   setIsStarting,
   setError,
   setToast,
-  setConfirmedSpec,
-  setConfirmedSpecCreatedAt,
-  setDraftSpec,
-  setDraftSpecCreatedAt,
+  setConfirmed,
+  setDraft,
   setStartedSession,
 }: HandlerDeps): Promise<void> {
-  if (!draftSpec) return;
+  if (!draft) return;
   // Snapshot the draft up front so state changes during the awaits below
   // can't swap the spec out from under this start attempt.
-  const specToStart = draftSpec;
-  const specCreatedAt = draftSpecCreatedAt ?? Date.now() / 1000;
+  const specToStart = draft.spec;
+  const specCreatedAt = draft.createdAt;
   setIsStarting(true);
   setError(null);
   setToast(null);
@@ -118,10 +111,8 @@ export async function promoteDraftToRun({
       specCreatedAt,
       pubmedEnabled,
       reloadHistory,
-      setConfirmedSpec,
-      setConfirmedSpecCreatedAt,
-      setDraftSpec,
-      setDraftSpecCreatedAt,
+      setConfirmed,
+      setDraft,
       setStartedSession,
       setError,
     });

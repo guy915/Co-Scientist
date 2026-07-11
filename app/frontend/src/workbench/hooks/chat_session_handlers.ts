@@ -8,7 +8,11 @@ import {
 import {type ToastState} from './use_toast';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {promoteDraftToRun} from './chat_session_start_run';
-import {type ChatSessionDeps, type HandlerDeps} from './chat_session_types';
+import {
+  type ChatSessionDeps,
+  type HandlerDeps,
+  type SpecStage,
+} from './chat_session_types';
 import {type ComposerLog, type RunSpecLifecycle} from './chat_session_state';
 
 // Revises the staged draft against a follow-up message and acknowledges it
@@ -72,7 +76,7 @@ function createDraftFromMessage({
 async function submitComposerMessage({
   e,
   input,
-  draftSpec,
+  draft,
   setInput,
   setError,
   setToast,
@@ -81,7 +85,7 @@ async function submitComposerMessage({
 }: {
   e: FormEvent<HTMLFormElement>;
   input: string;
-  draftSpec: InferredRunSpec | null;
+  draft: SpecStage | null;
   setInput: (value: string) => void;
   setError: (message: string | null) => void;
   setToast: (value: string | ToastState | null) => void;
@@ -96,9 +100,9 @@ async function submitComposerMessage({
   setToast(null);
 
   const sentAt = appendChatMessage(setMessages, 'user', text);
-  if (draftSpec) {
+  if (draft) {
     reviseDraftFromMessage({
-      draftSpec,
+      draftSpec: draft.spec,
       text,
       sentAt,
       setMessages,
@@ -113,21 +117,21 @@ async function submitComposerMessage({
 // returning the workspace to its empty state. Takes its dependencies as
 // arguments instead of closing over hook state.
 function cancelDraftSpec({
-  draftSpec,
+  draft,
   setInput,
   clearSessionState,
   setMessages,
   setError,
   setToast,
 }: {
-  draftSpec: InferredRunSpec | null;
+  draft: SpecStage | null;
   setInput: (value: string) => void;
   clearSessionState: () => void;
   setMessages: (value: ChatEntry[]) => void;
   setError: (message: string | null) => void;
   setToast: (value: string | ToastState | null) => void;
 }) {
-  const title = draftSpec ? referenceSetupTitle(draftSpec.goal) : undefined;
+  const title = draft ? referenceSetupTitle(draft.spec.goal) : undefined;
   setInput('');
   clearSessionState();
   setMessages([]);
@@ -227,11 +231,11 @@ function loadMessageIntoComposer(
 
 // Re-runs spec inference from the draft's goal, discarding any revisions.
 function retryDraftSpec(
-  draftSpec: InferredRunSpec | null,
+  draft: SpecStage | null,
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void,
 ): void {
-  if (!draftSpec) return;
-  stageDraftSpec(inferRunSpec(draftSpec.goal));
+  if (!draft) return;
+  stageDraftSpec(inferRunSpec(draft.spec.goal));
 }
 
 /**
@@ -242,7 +246,7 @@ function retryDraftSpec(
  * in useChatSession's body.
  */
 export function buildChatHandlers(handlerDeps: HandlerDeps) {
-  const {setInput, setMessages, focusComposer, draftSpec, stageDraftSpec} =
+  const {setInput, setMessages, focusComposer, draft, stageDraftSpec} =
     handlerDeps;
 
   return {
@@ -252,7 +256,7 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
       loadMessageIntoComposer(message, setInput, focusComposer),
     handleCopyRequest: (message: ChatEntry) =>
       copyMessagePrompt({message, ...handlerDeps}),
-    handleRetryDraftSpec: () => retryDraftSpec(draftSpec, stageDraftSpec),
+    handleRetryDraftSpec: () => retryDraftSpec(draft, stageDraftSpec),
     handleCancelDraftSpec: () => cancelDraftSpec(handlerDeps),
     handleEditPlan: (spec: InferredRunSpec) => editPlan({spec, ...handlerDeps}),
     handleSubmit: (e: FormEvent<HTMLFormElement>) =>
@@ -275,12 +279,9 @@ export function toHandlerDeps(
   return {
     input: composer.input,
     setInput: composer.setInput,
-    draftSpec: lifecycle.draftSpec,
-    draftSpecCreatedAt: lifecycle.draftSpecCreatedAt,
-    setDraftSpec: lifecycle.setDraftSpec,
-    setDraftSpecCreatedAt: lifecycle.setDraftSpecCreatedAt,
-    setConfirmedSpec: lifecycle.setConfirmedSpec,
-    setConfirmedSpecCreatedAt: lifecycle.setConfirmedSpecCreatedAt,
+    draft: lifecycle.draft,
+    setDraft: lifecycle.setDraft,
+    setConfirmed: lifecycle.setConfirmed,
     setStartedSession: lifecycle.setStartedSession,
     setIsStarting: composer.setIsStarting,
     setMessages: composer.setMessages,

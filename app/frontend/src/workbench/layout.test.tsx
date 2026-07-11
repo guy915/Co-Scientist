@@ -2,6 +2,7 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {beforeEach, describe, expect, it, vi} from 'vitest';
 import type {Run} from '@/api/runs';
+import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ThemeProvider} from './theme_context';
 
@@ -36,9 +37,11 @@ function renderLayout(path = '/') {
   return render(
     <ThemeProvider>
       <MemoryRouter initialEntries={[path]}>
-        <Layout>
-          <main>Workspace content</main>
-        </Layout>
+        <RunHistoryProvider>
+          <Layout>
+            <main>Workspace content</main>
+          </Layout>
+        </RunHistoryProvider>
       </MemoryRouter>
     </ThemeProvider>,
   );

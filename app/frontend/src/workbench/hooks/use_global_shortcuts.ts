@@ -4,6 +4,7 @@ import {
   useLocation,
   useNavigate,
 } from 'react-router-dom';
+import {TABS, normalizeTab, type TabName} from '../run_tabs';
 
 /**
  * Global keyboard shortcuts:
@@ -11,9 +12,6 @@ import {
  *   ←/→  -> cycle tabs on /runs/:id
  * Inputs and textareas are ignored so typing doesn't trigger the bindings.
  */
-// Arrow-key cycling order; must match the tab routes RunDetail renders.
-const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
-
 // Keys that cycle tabs; any other key is left alone by nextTabPath.
 const TAB_CYCLE_KEYS: readonly string[] = ['ArrowLeft', 'ArrowRight'];
 
@@ -46,18 +44,17 @@ function matchRunRoute(pathname: string): RegExpMatchArray | null {
 
 // Parses a /runs/:id(/:tab) route into the run id and current tab, or null
 // when the pathname isn't a run route or is the legacy '/runs/new' path.
-// Unknown or missing tab segments count as the default 'details'.
+// The tab segment is resolved through the shared normalizeTab, so aliases
+// (e.g. 'hypotheses' -> 'ideas') and unknown/missing segments land on the same
+// tab RunDetail actually renders.
 function parseRunTabRoute(
   pathname: string,
-): {id: string; current: (typeof TABS)[number]} | null {
+): {id: string; current: TabName} | null {
   const m = matchRunRoute(pathname);
   if (!m) return null;
   const id = m[1];
   if (id === 'new') return null; // legacy path, not a real run
-  const current = (
-    m[2] && (TABS as readonly string[]).includes(m[2]) ? m[2] : 'details'
-  ) as (typeof TABS)[number];
-  return {id, current};
+  return {id, current: normalizeTab(m[2])};
 }
 
 // Index of the tab adjacent to `currentIdx` in the given arrow direction,

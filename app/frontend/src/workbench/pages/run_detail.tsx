@@ -10,7 +10,7 @@ import {
   type RunWithSummary,
 } from '@/api/runs';
 import {IdeasTab} from '../components/tabs/ideas_tab';
-import {domainTitleOverride, useRunDetailData} from './run_detail_data';
+import {useRunDetailData} from './run_detail_data';
 import {
   REPORT_H3_CLASSES,
   ReportDocument,
@@ -19,15 +19,14 @@ import {
 import {LearningView} from './run_detail_learning';
 import {ResearchOverviewView} from './run_detail_overview';
 import {
-  normalizeTab,
   ReportErrorAlert,
   ReportTabNav,
   ReportTitlebar,
   RunDetailSkeleton,
   RunToast,
-  type TabName,
   useTabNavigation,
 } from './run_detail_shell';
+import {normalizeTab, type TabName} from '../run_tabs';
 
 const REPORT_PAGE_CLASSES =
   'cosci-report-page grid h-full min-h-0 ' +
@@ -173,7 +172,7 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
       title="Research goal details"
       className="cosci-goal-details"
     >
-      <h3 className={REPORT_H3_CLASSES}>{domainTitleOverride(goal) ?? goal}</h3>
+      <h3 className={REPORT_H3_CLASSES}>{goal}</h3>
       <p>
         <strong>Goal:</strong> {goal}
       </p>

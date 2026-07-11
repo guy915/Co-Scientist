@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+import types
+from collections.abc import AsyncIterator, Callable
+from types import SimpleNamespace
+from typing import Any
 
 from fastapi.testclient import TestClient
 
@@ -51,3 +54,34 @@ def wait_for_status(
         )
 
     return wait_for(_reached, timeout=timeout, interval=interval)
+
+
+def fake_litellm(
+    chunks: list[str], *, raise_exc: Exception | None = None
+) -> types.SimpleNamespace:
+    """Build a fake ``litellm`` module streaming ``chunks`` as deltas.
+
+    Args:
+        chunks: Plain-text deltas to stream back, one per fake chunk.
+        raise_exc: If set, ``acompletion`` raises this instead of streaming.
+
+    Returns:
+        A module-like object exposing an ``acompletion`` matching the shape
+        ``qa._stream_llm_deltas`` expects: an async function returning an
+        object that supports ``async for``.
+    """
+
+    async def _chunk_stream() -> AsyncIterator[Any]:
+        for content in chunks:
+            yield SimpleNamespace(
+                choices=[
+                    SimpleNamespace(delta=SimpleNamespace(content=content))
+                ]
+            )
+
+    async def _acompletion(**_kwargs: Any) -> AsyncIterator[Any]:
+        if raise_exc is not None:
+            raise raise_exc
+        return _chunk_stream()
+
+    return types.SimpleNamespace(acompletion=_acompletion)

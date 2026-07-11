@@ -30,12 +30,9 @@ function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
   return {
     input: '',
     setInput: vi.fn(),
-    draftSpec: null,
-    draftSpecCreatedAt: null,
-    setDraftSpec: vi.fn(),
-    setDraftSpecCreatedAt: vi.fn(),
-    setConfirmedSpec: vi.fn(),
-    setConfirmedSpecCreatedAt: vi.fn(),
+    draft: null,
+    setDraft: vi.fn(),
+    setConfirmed: vi.fn(),
     setStartedSession: vi.fn(),
     setIsStarting: vi.fn(),
     setMessages: vi.fn(),
@@ -80,8 +77,8 @@ describe('buildChatHandlers', () => {
   });
 
   it('handleRetryDraftSpec re-infers the draft from its goal when a draft exists', () => {
-    const draftSpec = makeSpec({goal: 'Study X', focus: 'prefer_novelty'});
-    const deps = makeDeps({draftSpec});
+    const spec = makeSpec({goal: 'Study X', focus: 'prefer_novelty'});
+    const deps = makeDeps({draft: {spec, createdAt: 1}});
     const handlers = buildChatHandlers(deps);
 
     handlers.handleRetryDraftSpec();
@@ -92,7 +89,7 @@ describe('buildChatHandlers', () => {
   });
 
   it('handleRetryDraftSpec is a no-op without a staged draft', () => {
-    const deps = makeDeps({draftSpec: null});
+    const deps = makeDeps({draft: null});
     const handlers = buildChatHandlers(deps);
 
     handlers.handleRetryDraftSpec();
@@ -101,7 +98,7 @@ describe('buildChatHandlers', () => {
   });
 
   it('handleCancelDraftSpec resets state and shows a cancellation toast', () => {
-    const deps = makeDeps({draftSpec: makeSpec()});
+    const deps = makeDeps({draft: {spec: makeSpec(), createdAt: 1}});
     const handlers = buildChatHandlers(deps);
 
     handlers.handleCancelDraftSpec();

@@ -195,8 +195,14 @@ async def _event_stream(
     """
     last_seq = after
 
-    # Replay historical events first.
-    history = store.list_events(run_id, after_seq=last_seq)
+    # Replay historical events first. This reads the whole persisted log from
+    # the client's last-seen seq, which can be large, so offload the blocking
+    # read to a worker thread rather than stalling the event loop on connect.
+    # (The live poll loop below stays inline: _should_skip_tick gates it on a
+    # real new-event signal, so its per-tick reads don't fire on idle ticks.)
+    history = await asyncio.to_thread(
+        store.list_events, run_id, after_seq=last_seq
+    )
     for ev in history:
         last_seq = ev["seq"]
         yield qa.sse_frame(ev)

@@ -2,12 +2,7 @@ import {useCallback, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
 import {TruncatedLabel} from '../components/truncated_label';
-
-// Canonical tab route segments, in the order the nav bar renders them.
-const TABS = ['details', 'learning', 'overview', 'ideas'] as const;
-
-/** Canonical tab names for the goal-report surface's tab routes. */
-export type TabName = (typeof TABS)[number];
+import {TABS, type TabName} from '../run_tabs';
 
 // Material icon shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank icon).
@@ -78,29 +73,6 @@ const REPORT_SKELETON_CLASSES =
   'cosci-report-skeleton mx-auto my-9 grid w-[min(100%_-_3rem,58rem)] gap-4 ' +
   'max-[720px]:mt-5 max-[720px]:mb-12 ' +
   'max-[720px]:w-[min(100%_-_1.2rem,100%)] max-[720px]:max-w-none';
-
-// Legacy/alternate route segments that resolve to a canonical TabName, so old
-// links (or a stray typo) still land on a real tab instead of 404-ing.
-const TAB_ALIASES: Record<string, TabName> = {
-  specifications: 'details',
-  specs: 'details',
-  knowledge: 'learning',
-  evidence: 'learning',
-  summary: 'overview',
-  report: 'overview',
-  hypotheses: 'ideas',
-};
-
-/**
- * Resolves the ":tab" route param to a canonical TabName: passes through a
- * recognized tab, maps a known alias, and otherwise falls back to 'details'
- * (covers both a missing param and an unrecognized value).
- */
-export function normalizeTab(tab: string | undefined): TabName {
-  if (!tab) return 'details';
-  if ((TABS as readonly string[]).includes(tab)) return tab as TabName;
-  return TAB_ALIASES[tab] ?? 'details';
-}
 
 /**
  * Tab-switch handling: navigates to the new tab route, and (special case)

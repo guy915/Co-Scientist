@@ -1,5 +1,6 @@
 import {
   type APIRequestContext,
+  type APIResponse,
   request,
   test as base,
 } from '@playwright/test';
@@ -30,31 +31,36 @@ export interface BackendApi {
 }
 
 function makeBackendApi(ctx: APIRequestContext): BackendApi {
+  // Runs one backend call, throwing a labelled error on any non-2xx so a
+  // failed setup call surfaces the status + body here instead of as a cryptic
+  // downstream assertion.
+  async function send(
+    label: string,
+    call: () => Promise<APIResponse>,
+  ): Promise<APIResponse> {
+    const res = await call();
+    if (!res.ok()) {
+      throw new Error(`${label} failed: ${res.status()} ${await res.text()}`);
+    }
+    return res;
+  }
   return {
     async createRun(body) {
-      const res = await ctx.post('/api/runs', {data: body});
-      if (!res.ok()) {
-        throw new Error(`createRun failed: ${res.status()} ${await res.text()}`);
-      }
+      const res = await send('createRun', () =>
+        ctx.post('/api/runs', {data: body}),
+      );
       return (await res.json()) as {id: string};
     },
     async startRun(id) {
-      const res = await ctx.post(`/api/runs/${id}/start`, {data: {}});
-      if (!res.ok()) {
-        throw new Error(`startRun failed: ${res.status()} ${await res.text()}`);
-      }
+      await send('startRun', () => ctx.post(`/api/runs/${id}/start`, {data: {}}));
     },
     async cancelRun(id) {
-      const res = await ctx.post(`/api/runs/${id}/cancel`, {data: {}});
-      if (!res.ok()) {
-        throw new Error(`cancelRun failed: ${res.status()} ${await res.text()}`);
-      }
+      await send('cancelRun', () =>
+        ctx.post(`/api/runs/${id}/cancel`, {data: {}}),
+      );
     },
     async getRun(id) {
-      const res = await ctx.get(`/api/runs/${id}`);
-      if (!res.ok()) {
-        throw new Error(`getRun failed: ${res.status()} ${await res.text()}`);
-      }
+      const res = await send('getRun', () => ctx.get(`/api/runs/${id}`));
       return (await res.json()) as {status: string};
     },
   };
