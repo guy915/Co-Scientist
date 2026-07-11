@@ -436,13 +436,13 @@
 }
 
 .reference-recent-title {
-  display: block;
-  min-width: 0;
+  display: -webkit-box;
   overflow: hidden;
   font-size: 1rem;
   font-weight: 500;
   line-height: 1.5;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .reference-recent-description {
