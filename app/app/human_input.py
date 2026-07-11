@@ -22,6 +22,7 @@ from app.hypothesis_safety import (
     HypothesisSafetyReview,
     review_hypothesis_safety,
 )
+from app.text_utils import first_sentence
 
 # Origin marker matching the engine's HypothesisOrigin.SCIENTIST_MANUAL, so a
 # human hypothesis is attributed distinctly from generation/evolution.
@@ -78,7 +79,7 @@ def admit_human_hypothesis(
             hypothesis=None,
         )
 
-    derived_title = title or (text.split(".")[0][:120] or text[:120])
+    derived_title = title or first_sentence(text)
     hypothesis = {
         "title": derived_title,
         "statement": text,

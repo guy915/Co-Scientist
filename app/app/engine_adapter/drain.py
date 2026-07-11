@@ -22,6 +22,7 @@ from app.claim_grounding import evidence_passages, ground_hypotheses
 from app.elo import INITIAL_ELO
 from app.hypothesis_screening import screen_hypotheses
 from app.report_render import format_deep_verification_critique
+from app.text_utils import first_sentence
 
 logger = logging.getLogger(__name__)
 
@@ -97,13 +98,13 @@ def _derive_hypothesis_identity(h: dict[str, Any]) -> _HypIdentity:
     ``origin``) rather than reconstructing lineage from ``evolution_history``
     (PLAN.md M1.4). Pre-lineage cached payloads (which lack these keys) fall
     back to the old ``evolution_history`` inference so old runs still drain.
-    The title is the first sentence (or first 120 chars) of the statement.
+    The title is the first sentence of the statement (see ``first_sentence``).
 
     Returns:
         The hypothesis's persistence identity and lineage.
     """
     text = h.get("text", "")
-    title = text.split(".")[0][:120] or text[:120]
+    title = first_sentence(text)
     engine_id = h.get("id") or None
 
     if "generation" in h or "parent_id" in h or "origin" in h:
