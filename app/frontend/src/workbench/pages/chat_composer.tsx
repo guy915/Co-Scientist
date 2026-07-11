@@ -15,6 +15,7 @@ import {
   COMPOSER_LABEL_ICON_CLASSES,
   COMPOSER_LABEL_TEXT_CLASSES,
   COMPOSER_LABEL_TEXT_HIDDEN_CLASSES,
+  COMPOSER_SOURCE_ICON_CLASSES,
   COMPOSER_SUBMIT_BUTTON_CLASSES,
   COMPOSER_TEXTAREA_CLASSES,
   HOME_COMPOSER_CLASSES,
@@ -283,7 +284,11 @@ function ComposerFooter({
         data-tooltip="Submit"
         disabled={submitDisabled}
       >
-        <Icon aria-hidden="true" name="send" />
+        <Icon
+          aria-hidden="true"
+          className={COMPOSER_SOURCE_ICON_CLASSES}
+          name="send"
+        />
       </button>
     </div>
   );

@@ -171,11 +171,15 @@ export const COMPOSER_SOURCE_BUTTON_CLASSES =
 
 export const COMPOSER_SOURCE_ICON_CLASSES = 'text-xl';
 
-// Round send button; dims via a distinct disabled-text color while the
-// composer has no input or is otherwise disabled.
+// Round send button; matches the source-control buttons (same size, color, and
+// hover) so the action row reads as one consistent set of controls rather than
+// the send sitting apart. Still dims via a distinct disabled-text color while
+// the composer has no input or is otherwise disabled.
 export const COMPOSER_SUBMIT_BUTTON_CLASSES =
   ICON_BUTTON_CLASSES +
-  ' size-10 text-cosci-composer-submit ' +
+  ' size-8 text-cosci-source-button ' +
+  'enabled:hover:text-cosci-source-button-hover ' +
+  'enabled:focus-visible:text-cosci-source-button-hover ' +
   'disabled:text-cosci-composer-submit-disabled';
 
 // Connectors dropdown: the floating menu panel, its header row, and each
