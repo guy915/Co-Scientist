@@ -101,20 +101,20 @@ export const HOME_TOAST_ACTION_CLASSES =
   'cursor-pointer border-0 bg-transparent p-0 font-[inherit] text-[0.92rem] ' +
   'font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline';
 
-// Composer shell: the bordered pill container itself.
+// Composer shell: the bordered pill container itself. A flex column so the
+// action row always sits BELOW the textarea (never overlapping it) at any
+// font size or width, rather than floating over a reserved gap.
 export const COMPOSER_BASE_CLASSES =
-  'reference-composer relative mt-4 min-h-[7.9rem] rounded-[2rem] border ' +
-  'border-cosci-composer-border bg-cosci-composer-bg ' +
-  'p-[1.25rem_1.5rem_0.8rem]';
+  'reference-composer relative mt-4 flex min-h-[7.9rem] flex-col ' +
+  'rounded-[2rem] border border-cosci-composer-border ' +
+  'bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem]';
 
-// pb reserves room for the absolutely-positioned action row (send + source
-// buttons) below the textarea, so the textarea can grow without its last lines
-// sliding under the actions. It must exceed the action row's own footprint
-// (~41px tall send button at bottom-3) with margin to spare — the textarea's
-// min-height is shrunk by the matching amount below so the resting box keeps
-// its height.
-export const COMPOSER_LABEL_CLASSES =
-  'relative block min-h-[3.6rem] pb-[3.5rem]';
+// The textarea region grows to fill the pill (flex-1) so the action row below
+// it is pushed to the bottom, and clicking the empty area still focuses the
+// textarea. No bottom padding: the action row is a real flow sibling now, not
+// an overlay, so nothing can slide under it. min-h-0 lets it shrink (rather
+// than overflow the footer) when a small viewport squeezes the pill.
+export const COMPOSER_LABEL_CLASSES = 'relative block min-h-0 flex-1';
 
 export const COMPOSER_LABEL_TEXT_CLASSES =
   'absolute top-0 left-0 z-[1] flex h-6 items-center gap-[0.45rem] ' +
@@ -129,17 +129,21 @@ export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 // floor is sized so that (empty textarea + the reserved action-row space below
 // it, see COMPOSER_LABEL_CLASSES) lands at the composer's resting height rather
 // than stacking on top of it and making the empty box too tall.
+// max-h-full caps the JS-driven auto-grow height to the label's actual height,
+// so a squeezed pill shrinks (and scrolls) the textarea instead of letting its
+// fixed pixel height overflow onto the action row below.
 export const COMPOSER_TEXTAREA_CLASSES =
-  'relative z-[2] block min-h-[2.35rem] w-full ' +
+  'relative z-[2] block min-h-[2.85rem] max-h-full w-full ' +
   'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
   'leading-6 text-cosci-composer-text outline-none';
 
-// Bottom action row (source controls + submit), absolutely positioned over
-// the textarea; pointer-events-none on the row itself so it doesn't block
-// clicks into the textarea outside its children, which opt back in.
+// Bottom action row (source controls + submit): a flow sibling below the
+// textarea (shrink-0 so it keeps its height), with a small top gap. Being in
+// flow rather than absolutely positioned is what guarantees the textarea's
+// last line can never slide under it.
 export const COMPOSER_ACTIONS_CLASSES =
-  'reference-composer-actions pointer-events-none absolute right-5 bottom-3 ' +
-  'left-5 flex items-end justify-between gap-3';
+  'reference-composer-actions flex shrink-0 items-end justify-between gap-3 ' +
+  'pt-2';
 
 // File-upload and connectors buttons, plus the connectors dropdown anchor.
 export const COMPOSER_SOURCE_CONTROLS_CLASSES =
