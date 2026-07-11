@@ -98,6 +98,9 @@ from app.engine_adapter.engine_stream import (
     _persist_and_report as _persist_and_report,
 )
 from app.engine_adapter.engine_stream import (
+    _persist_run_metrics as _persist_run_metrics,
+)
+from app.engine_adapter.engine_stream import (
     _real_engine_stream as _real_engine_stream,
 )
 from app.engine_adapter.engine_stream import (

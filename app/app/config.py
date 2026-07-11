@@ -48,6 +48,16 @@ class Settings(BaseSettings):
     # this into its SafetyMode enum, defaulting to standard on any other value.
     safety_mode: str = "standard"
 
+    # Log record format: "text" (human-readable, default) or "json"
+    # (one structured object per line). Both go to stdout; see
+    # app/logging_setup.py. Any other value falls back to text.
+    log_format: str = "text"
+
+    # /status availability probes: per-probe network timeout and how long
+    # a probe pair's result is reused before re-probing the MCP server.
+    status_probe_timeout_seconds: float = 3.0
+    status_probe_cache_ttl_seconds: float = 30.0
+
     # Tools Configuration (optional)
     # Path to a YAML tools config file, or an HTTP(S) URL.
     # Relative paths resolve from the server working directory.

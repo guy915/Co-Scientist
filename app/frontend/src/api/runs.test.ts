@@ -11,6 +11,7 @@ import {
   getMatches,
   getReviews,
   getReport,
+  getRunEvents,
   isActiveStatus,
   runGoal,
   eventsStreamUrl,
@@ -398,5 +399,25 @@ describe('url builders', () => {
     const url = eventsStreamUrl('run-42');
     expect(url).toContain('run-42');
     expect(url).toBe('/api/runs/run-42/events');
+  });
+
+  it('getRunEvents fetches the persisted JSON snapshot', async () => {
+    const events = [
+      {seq: 1, type: 'lifecycle', payload: {event: 'created'}, created_at: 1},
+    ];
+    fetchMock().mockResolvedValue(jsonResponse({events}));
+
+    const result = await getRunEvents('run-42');
+
+    expect(firstCall()[0]).toBe('/api/runs/run-42/events?stream=false&after=0');
+    expect(result).toEqual(events);
+  });
+
+  it('getRunEvents forwards the after cursor', async () => {
+    fetchMock().mockResolvedValue(jsonResponse({events: []}));
+
+    await getRunEvents('run-42', 7);
+
+    expect(firstCall()[0]).toBe('/api/runs/run-42/events?stream=false&after=7');
   });
 });

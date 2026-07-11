@@ -19,6 +19,7 @@ from fastapi.testclient import TestClient
 from app import store
 from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS
 from app.store import DEMO_CLIENT_ID
+from app.version import API_VERSION
 from tests._client import make_client as _client
 
 
@@ -28,9 +29,19 @@ def test_root_endpoint_returns_api_metadata() -> None:
     data = res.json()
     assert data == {
         "message": "Co-Scientist API",
-        "version": "0.1.0",
+        "version": API_VERSION,
         "docs": "/docs",
     }
+
+
+def test_version_is_single_sourced_across_surfaces() -> None:
+    """Root, /health, and the OpenAPI app all report the same version."""
+    import app.main as main_module
+
+    client = _client()
+    assert main_module.app.version == API_VERSION
+    assert client.get("/").json()["version"] == API_VERSION
+    assert client.get("/health").json()["version"] == API_VERSION
 
 
 def test_config_endpoint_returns_standard_tier_defaults() -> None:

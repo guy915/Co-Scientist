@@ -378,3 +378,34 @@ def test_event_stream_falls_through_to_live_tail_for_active_run(
     frames = asyncio.run(_run())
     assert any('"type": "_terminal"' in f for f in frames)
     assert any('"status": "cancelled"' in f for f in frames)
+
+
+def test_events_endpoint_serves_json_snapshot_when_stream_false(
+    isolated_db: str,
+) -> None:
+    """``stream=false`` returns the persisted log as one JSON response.
+
+    The default SSE behavior is covered by the round-trip tests in
+    ``test_integration_run_flow``; this covers the one-shot snapshot the
+    workbench diagnostics popover consumes.
+    """
+    from tests._client import make_client
+
+    run = store.create_run(
+        "JSON events goal", "default", "mock", {}, db_path=isolated_db
+    )
+    store.append_event(run.id, "lifecycle", {"event": "created"})
+    store.append_event(run.id, "status", {"status": "running"})
+
+    client = make_client()
+    res = client.get(f"/api/runs/{run.id}/events?stream=false")
+
+    assert res.status_code == 200
+    assert res.headers["content-type"].startswith("application/json")
+    events = res.json()["events"]
+    assert [e["type"] for e in events] == ["lifecycle", "status"]
+    assert events[0]["seq"] == 1
+    assert events[1]["payload"] == {"status": "running"}
+
+    after = client.get(f"/api/runs/{run.id}/events?stream=false&after=1")
+    assert [e["seq"] for e in after.json()["events"]] == [2]

@@ -44,6 +44,9 @@ def _merge_engine_state(
         "tournament_matchups",
         "meta_review",
         "research_overview",
+        # Cumulative ExecutionMetrics dict; each snapshot's copy is already
+        # merged across nodes by the engine, so last-write-wins is correct.
+        "metrics",
     ):
         if state.get(key) is not None:
             final_state[key] = state[key]
@@ -132,7 +135,33 @@ def _new_engine_final_state() -> dict[str, Any]:
         "tournament_matchups": [],
         "meta_review": {},
         "research_overview": {},
+        "metrics": {},
     }
+
+
+def _persist_run_metrics(
+    run_id: str,
+    metrics: dict[str, Any] | None,
+    execution_time: float,
+    db_path: str | None,
+) -> None:
+    """Persist the run's final ExecutionMetrics dict from streamed state.
+
+    The engine's streamed metrics carry per-node deltas already merged by
+    the engine; ``total_time`` is filled from the adapter's own wall clock
+    when the stream did not measure one (it only does on the non-streaming
+    path).
+
+    Args:
+        run_id: Identifier of the run the metrics belong to.
+        metrics: The last streamed cumulative metrics dict, if any.
+        execution_time: Wall-clock seconds the adapter measured.
+        db_path: Optional override for the SQLite database path.
+    """
+    persisted = dict(metrics or {})
+    if not persisted.get("total_time"):
+        persisted["total_time"] = round(execution_time, 3)
+    store.save_run_metrics(run_id, persisted, db_path=db_path)
 
 
 async def _persist_and_report(
@@ -154,6 +183,12 @@ async def _persist_and_report(
     report_inputs = _persist_final_state(
         run_id=run_id,
         final_state=final_state,
+        db_path=db_path,
+    )
+    _persist_run_metrics(
+        run_id,
+        final_state.get("metrics"),
+        execution_time=time.time() - start,
         db_path=db_path,
     )
     async for event in finalize_report(

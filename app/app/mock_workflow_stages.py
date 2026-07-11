@@ -26,6 +26,7 @@ from app.mock_workflow_phases import (
     _persist_generation,
     _persist_literature_review,
     _persist_meta_review_round,
+    _persist_mock_metrics,
     _persist_proximity,
     _persist_reflection,
     _run_evolve_round,
@@ -300,6 +301,10 @@ async def _finalize_mock_run(
     yield await emit(
         "research_overview", {"research_overview": research_overview}
     )
+
+    # Deterministic engine-shaped execution metrics, persisted at the same
+    # boundary where the engine adapter persists the real ones.
+    _persist_mock_metrics(run_id, db_path)
 
     # ---- 14. Final safety + report, via the shared finalize path ----
     async for event in finalize_report(

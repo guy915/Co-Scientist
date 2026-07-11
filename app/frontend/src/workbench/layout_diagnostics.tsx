@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {getRunEvents, type RunEvent} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
 import {tooltipClassNames} from './tooltip';
@@ -7,9 +8,13 @@ type DiagnosticLogLevel = 'info' | 'success' | 'error';
 
 // One rendered row in the Logs panel; assigned a local monotonic id and
 // formatted timestamp when the underlying event is received (see the
-// `cosci-diagnostic-event` listener in DiagnosticsControl below).
+// `cosci-diagnostic-event` listener in DiagnosticsControl below). Entries
+// come from two sources: ephemeral session events dispatched in-page, and
+// the active run's persisted event log fetched from the API; `source`
+// disambiguates them for stable list keys.
 interface DiagnosticLogEntry {
   id: number;
+  source: 'session' | 'run';
   time: string;
   run: string;
   stage: string;
@@ -134,12 +139,71 @@ function buildDiagnosticEntry(
 ): DiagnosticLogEntry {
   return {
     id,
+    source: 'session',
     time: formatDiagnosticTime(),
     run: detail.run || 'Current session',
     stage: detail.stage,
     level: detail.level || 'info',
     payload: detail.payload || {},
   };
+}
+
+// Level for a persisted run event: terminal failures and blocks read as
+// errors, publication/completion as success, everything else as info.
+function persistedEventLevel(event: RunEvent): DiagnosticLogLevel {
+  const status = event.payload['status'];
+  if (status === 'failed' || status === 'blocked') return 'error';
+  if (event.type === 'report' || status === 'completed') return 'success';
+  return 'info';
+}
+
+// Maps one persisted run_events row into a rendered log entry. The run
+// column shows the short run id (matching how the backend logs it).
+function buildPersistedEntry(
+  runId: string,
+  event: RunEvent,
+): DiagnosticLogEntry {
+  return {
+    id: event.seq,
+    source: 'run',
+    time: formatDiagnosticTime(new Date(event.created_at * 1000)),
+    run: `Run ${runId.slice(0, 8)}`,
+    stage: event.type,
+    level: persistedEventLevel(event),
+    payload: event.payload,
+  };
+}
+
+// Fetches the active run's persisted event log each time the popover opens,
+// so reloads (which lose the ephemeral session log) still show the run's
+// durable timeline. No run in scope (home routes) yields an empty list.
+function usePersistedRunEvents(
+  runId: string | undefined,
+  open: boolean,
+): DiagnosticLogEntry[] {
+  const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
+
+  useEffect(() => {
+    if (!runId) {
+      setEntries([]);
+      return;
+    }
+    if (!open) return;
+    let disposed = false;
+    getRunEvents(runId)
+      .then(events => {
+        if (disposed) return;
+        setEntries(events.map(event => buildPersistedEntry(runId, event)));
+      })
+      .catch(() => {
+        if (!disposed) setEntries([]);
+      });
+    return () => {
+      disposed = true;
+    };
+  }, [runId, open]);
+
+  return entries;
 }
 
 // Header "Logs" trigger button: shows the running entry count as a badge
@@ -193,8 +257,10 @@ function useDiagnosticLog() {
     setCopied(false);
   }
 
-  async function copyLogs() {
-    await copyText(JSON.stringify(entries, null, 2));
+  // Takes the full displayed list (persisted + session) so Copy captures
+  // exactly what the panel shows, not just this hook's session entries.
+  async function copyLogs(displayed: DiagnosticLogEntry[]) {
+    await copyText(JSON.stringify(displayed, null, 2));
     setCopied(true);
   }
 
@@ -242,39 +308,51 @@ function summarizeDiagnosticEntries(
 /**
  * Header "Logs" button plus its diagnostics popover.
  *
+ * The panel shows the active run's persisted event log (fetched from the
+ * API whenever the popover opens, so it survives reloads) ahead of the
+ * ephemeral session events dispatched in-page. Clear only drops the
+ * session entries; the persisted timeline is the store's, not ours.
+ *
  * @param props.open Whether the popover is shown; owned by the parent shell
  *   so it stays mutually exclusive with the Settings popover.
  * @param props.onToggle Requests the parent flip `open`.
+ * @param props.runId The active run route's id, if any; enables the
+ *   persisted-event section.
  * @param props.renderPopover Lets the parent wrap the panel content in its
  *   own positioned popover container (shared with the Settings menu).
  */
 export function DiagnosticsControl({
   open,
   onToggle,
+  runId,
   renderPopover,
 }: {
   open: boolean;
   onToggle: () => void;
+  runId?: string;
   renderPopover: (children: ReactNode, className: string) => ReactNode;
 }) {
   const {entries, copied, clearLogs, copyLogs} = useDiagnosticLog();
-  const counts = summarizeDiagnosticEntries(entries);
+  const persisted = usePersistedRunEvents(runId, open);
+  // Persisted history first (it predates this session), then live entries.
+  const combined = [...persisted, ...entries];
+  const counts = summarizeDiagnosticEntries(combined);
 
   return (
     <>
       <LogsTriggerButton
         open={open}
-        count={entries.length}
+        count={combined.length}
         onToggle={onToggle}
       />
       {open &&
         renderPopover(
           <DiagnosticLogsPanel
-            entries={entries}
+            entries={combined}
             copied={copied}
             counts={counts}
             onClear={clearLogs}
-            onCopy={copyLogs}
+            onCopy={() => void copyLogs(combined)}
           />,
           LOGS_POPOVER_CLASSES,
         )}
@@ -288,7 +366,10 @@ function DiagnosticLogList({entries}: {entries: DiagnosticLogEntry[]}) {
   return (
     <div className={DIAGNOSTIC_LIST_CLASSES} aria-label="Log events">
       {entries.map(entry => (
-        <article key={entry.id} className={DIAGNOSTIC_ENTRY_CLASSES}>
+        <article
+          key={`${entry.source}-${entry.id}`}
+          className={DIAGNOSTIC_ENTRY_CLASSES}
+        >
           <div className={DIAGNOSTIC_ENTRY_META_CLASSES}>
             <span>#{entry.id}</span>
             <span>[{entry.time}]</span>

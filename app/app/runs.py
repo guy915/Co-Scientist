@@ -37,11 +37,23 @@ import logging
 import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request
-from fastapi.responses import PlainTextResponse, StreamingResponse
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+)
+from fastapi.responses import (
+    JSONResponse,
+    PlainTextResponse,
+    StreamingResponse,
+)
 
 from app import engine_adapter, human_input, qa, run_corpus, store
 from app.hypothesis_screening import screen_hypotheses
+from app.logging_setup import run_log_context
 from app.run_modes import CANONICAL_RUN_MODE
 from app.runs_events import _drain_tick_frames as _drain_tick_frames
 from app.runs_events import _event_stream as _event_stream
@@ -220,6 +232,20 @@ async def _run_workflow_task(
         force_provider: Optional provider override ('mock' or 'engine').
         handle: The run's registry handle for cancellation/new-event signals.
     """
+    with run_log_context(run_id):
+        await _drive_workflow(
+            run_id, research_goal, config, force_provider, handle
+        )
+
+
+async def _drive_workflow(
+    run_id: str,
+    research_goal: str,
+    config: dict[str, Any],
+    force_provider: str | None,
+    handle: _RunHandle,
+) -> None:
+    """Body of ``_run_workflow_task``, run inside the run's log context."""
     try:
         # The adapter persists each event itself; this loop only pulses
         # new_event so any in-process SSE stream wakes immediately.
@@ -458,18 +484,29 @@ async def stream_events(
     run_id: str,
     request: Request,
     after: int = Query(0, ge=0),
-) -> StreamingResponse:
-    """Stream a run's events as Server-Sent Events.
+    stream: bool = Query(True),
+) -> Response:
+    """Stream a run's events as Server-Sent Events, or list them as JSON.
+
+    The default (``stream=true``) is the SSE contract the run views
+    consume: replay history, then tail live events. ``stream=false``
+    returns the persisted event log as a one-shot JSON snapshot for
+    consumers that must not hold a connection open (e.g. the workbench
+    diagnostics popover).
 
     Args:
         run_id: Path identifier of the run to stream.
         request: Incoming HTTP request, used to detect client disconnects.
-        after: Only stream events with a sequence number greater than this.
+        after: Only return events with a sequence number greater than this.
+        stream: When false, return ``{"events": [...]}`` instead of SSE.
 
     Returns:
-        A StreamingResponse that replays history then tails live events.
+        A StreamingResponse that replays history then tails live events,
+        or a JSONResponse snapshot when ``stream`` is false.
     """
     run = _run_or_404(run_id)
+    if not stream:
+        return JSONResponse({"events": store.list_events(run_id, after)})
     return StreamingResponse(
         _event_stream(run_id, request, after, run),
         media_type="text/event-stream",
@@ -528,6 +565,18 @@ async def get_citations(run_id: str) -> dict[str, Any]:
     """Return the run's citation rows with classification states."""
     _require_run(run_id)
     return {"citations": store.list_citations(run_id)}
+
+
+@router.get("/{run_id}/metrics")
+async def get_metrics(run_id: str) -> dict[str, Any]:
+    """Return the run's persisted execution metrics.
+
+    The metrics dict (LLM calls, phase timings, artifact counts) is
+    persisted when the workflow finalizes; ``metrics`` is null for runs
+    that have not completed a finalize yet.
+    """
+    _require_run(run_id)
+    return {"metrics": store.get_run_metrics(run_id)}
 
 
 @router.get("/{run_id}/claim-evidence")

@@ -48,6 +48,10 @@ from app.store.messages import (
     list_messages,
     mark_steering_applied,
 )
+from app.store.metrics import (
+    get_run_metrics,
+    save_run_metrics,
+)
 from app.store.models import (
     DEMO_CLIENT_ID,
     TERMINAL_STATUSES,
@@ -110,6 +114,7 @@ __all__ = [
     "get_latest_report",
     "get_pending_steering",
     "get_run",
+    "get_run_metrics",
     "has_checkpoint",
     "latest_event_seq",
     "list_citations",
@@ -129,6 +134,7 @@ __all__ = [
     "run_exists",
     "save_checkpoint",
     "save_report",
+    "save_run_metrics",
     "summary_counts",
     "transaction",
     "update_hypothesis_state",

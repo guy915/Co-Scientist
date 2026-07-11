@@ -169,6 +169,10 @@ def _build_stream_state_dict(
                 "tournaments_count": metrics.tournaments_count,
                 "evolutions_count": metrics.evolutions_count,
                 "llm_calls": metrics.llm_calls,
+                # Included so streaming callers see the full
+                # ExecutionMetrics, matching _build_generation_result.
+                "total_time": metrics.total_time,
+                "phase_times": metrics.phase_times,
             },
         }
     )

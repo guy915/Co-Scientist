@@ -452,6 +452,51 @@ def _apply_pending_steering(run_id: str, db_path: str | None, itr: int) -> None:
     store.mark_steering_applied([m.id for m in pending], db_path=db_path)
 
 
+def _persist_mock_metrics(run_id: str, db_path: str | None) -> None:
+    """Persist deterministic, engine-shaped execution metrics for a mock run.
+
+    Mirrors the engine's ``ExecutionMetrics`` dict so the metrics API works
+    identically offline. Counts come from the run's persisted artifacts
+    (deterministic for a fixed run seed); ``llm_calls`` and ``phase_times``
+    are synthetic but deterministic: one call per hypothesis, review, and
+    match, plus two for the supervisor plan and research overview, and
+    fixed per-artifact phase timings.
+
+    Args:
+        run_id: Identifier of the run to persist metrics for.
+        db_path: Optional override for the SQLite database path.
+    """
+    counts = store.summary_counts(run_id, db_path=db_path)
+    hypotheses = store.list_hypotheses(run_id, db_path=db_path)
+    evolutions = sum(1 for h in hypotheses if h.get("parent_id"))
+    generated = counts["hypotheses"] - evolutions
+    phase_times = {
+        "supervisor": 0.1,
+        "literature_review": round(0.05 * counts["evidence"], 3),
+        "generate": round(0.2 * generated, 3),
+        "reflection": round(0.1 * counts["reviews"], 3),
+        "ranking": round(0.05 * counts["matches"], 3),
+        "evolve": round(0.2 * evolutions, 3),
+        "meta_review": 0.3,
+    }
+    store.save_run_metrics(
+        run_id,
+        {
+            "total_time": round(sum(phase_times.values()), 3),
+            "hypothesis_count": counts["hypotheses"],
+            "reviews_count": counts["reviews"],
+            "tournaments_count": counts["matches"],
+            "evolutions_count": evolutions,
+            "llm_calls": 2
+            + counts["hypotheses"]
+            + counts["reviews"]
+            + counts["matches"],
+            "phase_times": phase_times,
+        },
+        db_path=db_path,
+    )
+
+
 def _fetch_top_hypotheses(
     db_path: str | None, leaderboard_ids: list[str], top_n: int
 ) -> list[dict[str, Any]]:

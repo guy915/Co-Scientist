@@ -194,3 +194,56 @@ def test_engine_adapter_generates_canonical_milestones(
     assert "Research plan ready" in text
     assert "2 hypotheses generated" in text
     assert "1 matches" in text  # ranking milestone counts len(matches)
+
+
+def test_engine_adapter_persists_streamed_metrics(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The last streamed cumulative metrics dict lands in the store.
+
+    ``total_time`` is absent from the snapshot, so the adapter must fill it
+    from its own wall clock.
+    """
+    streamed_metrics = {
+        "hypothesis_count": 2,
+        "reviews_count": 3,
+        "tournaments_count": 1,
+        "evolutions_count": 1,
+        "llm_calls": 9,
+        "phase_times": {"generate": 1.5, "ranking": 0.5},
+    }
+    state = _engine_streaming_state()
+    state["metrics"] = streamed_metrics
+
+    class _MetricsGenerator(_FakeGenerator):
+        async def generate_hypotheses(
+            self,
+            *,
+            research_goal: str,
+            stream: bool,
+            run_id: str,
+            opts: dict[str, Any] | None = None,
+        ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+            _ = (research_goal, stream, run_id, opts)
+            for node in _ENGINE_NODES:
+                yield node, state
+
+    fake_module = types.SimpleNamespace(HypothesisGenerator=_MetricsGenerator)
+    monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
+
+    run = store.create_run("Metrics persistence goal", "standard", "engine", {})
+    _drain(
+        engine_adapter.run_workflow(
+            run.id,
+            run.research_goal,
+            run.config,
+            force_provider="engine",
+            sleep_seconds=0,
+        )
+    )
+
+    persisted = store.get_run_metrics(run.id, db_path=isolated_db)
+    assert persisted is not None
+    for key, value in streamed_metrics.items():
+        assert persisted[key] == value
+    assert persisted["total_time"] > 0
