@@ -102,20 +102,20 @@ export const HOME_TOAST_ACTION_CLASSES =
   'font-medium text-cosci-toast-action focus-visible:outline-none focus-visible:underline';
 
 // Composer shell: the bordered pill container itself. A flex column so the
-// action row always sits BELOW the textarea (never overlapping it) at any
-// font size or width, rather than floating over a reserved gap.
+// action row always sits BELOW the textarea, and overflow-hidden so nothing
+// (text or the action row) can ever spill outside the rounded box — if a short
+// viewport squeezes the pill, the textarea gives way, not the buttons.
 export const COMPOSER_BASE_CLASSES =
   'reference-composer relative mt-4 flex min-h-[7.9rem] flex-col ' +
-  'rounded-[2rem] border border-cosci-composer-border ' +
+  'overflow-hidden rounded-[2rem] border border-cosci-composer-border ' +
   'bg-cosci-composer-bg p-[1.25rem_1.5rem_0.8rem]';
 
-// Wraps the textarea. Natural height (it's as tall as the textarea, which the
-// auto-grow effect sizes up to its cap, then scrolls). The action row below is
-// a real flow sibling — mt-auto on it pushes it to the pill's bottom when the
-// textarea is short, and it simply follows the textarea once the box has grown,
-// so nothing can ever overlap it. No flex-1/cap here: the input expands to its
-// full height exactly as before.
-export const COMPOSER_LABEL_CLASSES = 'relative block';
+// Wraps the textarea and takes all the pill space above the action row
+// (flex-1). min-h-0 lets it shrink below the textarea's auto-grown height when
+// a short viewport squeezes the pill, so the textarea (capped to this via
+// max-h-full and scrolling) yields the space instead of shoving the buttons
+// out of the box.
+export const COMPOSER_LABEL_CLASSES = 'relative block min-h-0 flex-1';
 
 export const COMPOSER_LABEL_TEXT_CLASSES =
   'absolute top-0 left-0 z-[1] flex h-6 items-center gap-[0.45rem] ' +
@@ -131,7 +131,7 @@ export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 // its full height and the action row follows below it, kept clear by the
 // action row's own top gap.
 export const COMPOSER_TEXTAREA_CLASSES =
-  'relative z-[2] block min-h-[2.85rem] w-full ' +
+  'relative z-[2] block min-h-[2.85rem] max-h-full w-full ' +
   'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
   'leading-6 text-cosci-composer-text outline-none';
 
@@ -142,7 +142,7 @@ export const COMPOSER_TEXTAREA_CLASSES =
 // positioned is what guarantees the textarea's last line can never slide under
 // it.
 export const COMPOSER_ACTIONS_CLASSES =
-  'reference-composer-actions mt-auto flex shrink-0 items-end ' +
+  'reference-composer-actions flex shrink-0 items-end ' +
   'justify-between gap-3 pt-4';
 
 // File-upload and connectors buttons, plus the connectors dropdown anchor.
