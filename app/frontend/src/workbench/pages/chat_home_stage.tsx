@@ -36,17 +36,17 @@ import {TruncatedLabel} from '../components/truncated_label';
 // (Do not add a hand-shortened variant — a pre-truncated string fed to a
 // width-aware truncator can never fill the actual card space.) Each carries a
 // leading glyph shown in the mobile list layout.
-const SUGGESTIONS: readonly {text: string; icon: IconName}[] = [
+export const SUGGESTIONS: readonly {text: string; icon: IconName}[] = [
   {
-    text: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+    text: 'Suggest an approved drug that could be repurposed to slow glioblastoma progression. Explain its molecular mechanism and affected pathways, propose a testable in-vitro assay, and favor candidates with no prior evidence in glioblastoma and low toxicity to healthy cells.',
     icon: 'search',
   },
   {
-    text: 'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
+    text: 'Develop a novel, mechanistic hypothesis linking gut-microbiome metabolites to the progression of Parkinson’s disease. Detail the pathway involved and outline a feasible experiment to test it.',
     icon: 'lightbulb',
   },
   {
-    text: 'Propose new mechanisms to explain why some patients fail to respond to checkpoint inhibitor therapy.',
+    text: 'Propose a novel strategy to resensitize multidrug-resistant Gram-negative bacteria to an existing antibiotic. Explain the mechanism, keep the approach feasible with current lab techniques, and require the idea to be experimentally testable.',
     icon: 'stars',
   },
 ];

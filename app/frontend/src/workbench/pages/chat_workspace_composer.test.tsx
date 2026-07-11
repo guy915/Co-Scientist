@@ -4,6 +4,11 @@ import {
   installChatWorkspaceMocks,
   renderWorkspace,
 } from './chat_workspace_test_helpers';
+import {SUGGESTIONS} from './chat_home_stage';
+
+// The exact suggestion copy lives in one place (SUGGESTIONS); reference it by
+// index here so re-wording a prompt never breaks these interaction tests.
+const [FIRST_SUGGESTION, SECOND_SUGGESTION] = SUGGESTIONS;
 
 beforeEach(() => {
   installChatWorkspaceMocks();
@@ -107,15 +112,14 @@ describe('ChatWorkspace composer', () => {
       ?.getBoundingClientRect().top;
 
     const suggestion = screen.getByRole('button', {
-      name: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+      name: FIRST_SUGGESTION.text,
     });
 
     fireEvent.pointerEnter(suggestion);
 
-    const preview = screen.getByText(
-      'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
-      {selector: '.reference-suggestion-preview'},
-    );
+    const preview = screen.getByText(FIRST_SUGGESTION.text, {
+      selector: '.reference-suggestion-preview',
+    });
     expect(preview).toBeInTheDocument();
     expect(preview).toHaveClass('visible');
     expect(preview.closest('.reference-suggestion-slot')).toContainElement(
@@ -133,14 +137,12 @@ describe('ChatWorkspace composer', () => {
     renderWorkspace();
 
     const suggestion = screen.getByRole('button', {
-      name: 'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
+      name: FIRST_SUGGESTION.text,
     });
 
     fireEvent.click(suggestion);
 
-    expect(screen.getByRole('textbox')).toHaveValue(
-      'Find new therapeutic targets for M.tuberculosis by combining host-pathogen interaction datasets with recent literature.',
-    );
+    expect(screen.getByRole('textbox')).toHaveValue(FIRST_SUGGESTION.text);
     expect(suggestion).not.toHaveClass('selected');
     expect(suggestion).not.toHaveClass('is-previewed');
   });
@@ -149,15 +151,14 @@ describe('ChatWorkspace composer', () => {
     renderWorkspace();
 
     const suggestion = screen.getByRole('button', {
-      name: 'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
+      name: SECOND_SUGGESTION.text,
     });
 
     fireEvent.pointerEnter(suggestion);
 
-    const preview = screen.getByText(
-      'Generate novel hypotheses for the link between synaptic pruning and treatment-resistant neuroinflammation.',
-      {selector: '.reference-suggestion-preview'},
-    );
+    const preview = screen.getByText(SECOND_SUGGESTION.text, {
+      selector: '.reference-suggestion-preview',
+    });
     expect(preview).toHaveClass('visible');
 
     fireEvent.click(suggestion);
