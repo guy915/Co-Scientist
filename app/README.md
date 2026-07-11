@@ -184,6 +184,60 @@ Interactive docs are available when the server is running:
 - Swagger UI: http://localhost:8008/docs
 - ReDoc: http://localhost:8008/redoc
 
+## `cosci` operator CLI (for coding agents)
+
+`cosci` is a terminal front end for the API above, installed with the app
+(`pip install -e app`). It lets an agent drive a run end to end without the web
+UI. Every command is a thin wrapper over one endpoint — it adds no behavior of
+its own. Output is line-oriented (tab-separated) by default so it is easy to
+grep; every read command also accepts `--json` for the raw payload.
+
+**Global options** (accepted on any subcommand):
+
+- `--api-url URL` / `COSCIENTIST_API_URL` — API base URL (default
+  `http://localhost:8008`).
+- `--client-id ID` / `COSCIENTIST_CLIENT_ID` — the `X-Client-ID` header that
+  scopes `runs list` to your runs.
+
+Commands exit non-zero with a message on stderr for any HTTP or connection
+error, so `set -e` scripts fail fast.
+
+| Command | Endpoint |
+|---|---|
+| `cosci status` | `GET /health`, `GET /status` |
+| `cosci runs list` | `GET /api/runs` |
+| `cosci runs show RUN_ID` | `GET /api/runs/{id}` |
+| `cosci runs create "GOAL" [opts]` | `POST /api/runs` |
+| `cosci runs start RUN_ID [--provider mock\|engine]` | `POST /api/runs/{id}/start` |
+| `cosci runs pause\|resume\|cancel RUN_ID` | `POST /api/runs/{id}/{action}` |
+| `cosci runs watch RUN_ID [--after SEQ]` | `GET /api/runs/{id}/events` (SSE) |
+| `cosci runs hypotheses\|evidence\|reviews\|citations\|safety RUN_ID` | `GET /api/runs/{id}/{table}` |
+| `cosci runs report RUN_ID [--md]` | `GET /api/runs/{id}/report[.md]` |
+| `cosci runs steer RUN_ID "MSG"` | `POST /api/runs/{id}/messages` |
+| `cosci runs ask RUN_ID "QUESTION"` | `POST /api/runs/{id}/messages/ask` (SSE) |
+
+`create` accepts config knobs that map to the `POST /api/runs` body:
+`--tier {express,standard,extended,ultra}`,
+`--focus {prefer_evidence,balance,prefer_novelty,breakthrough}`,
+`--requirement/--attribute/--criterion TEXT` (repeatable),
+`--initial-hypotheses/--max-iterations/--evolution-max/--k-factor N`, and
+`--literature/--no-literature`.
+
+`watch` prints one line per event (`seq  type  payload`) and exits when the run
+reaches a terminal or paused status. `ask` streams the answer to stdout; with no
+model key configured it prints the server's fallback to stderr and exits 1.
+
+End-to-end, fully offline against the mock provider (no API keys):
+
+```bash
+cosci status                                   # provider: mock
+RUN=$(cosci runs create "Explore X" --tier express | cut -f1)
+cosci runs start "$RUN"
+cosci runs watch "$RUN"                         # tails to completion
+cosci runs report "$RUN"                        # summary + Elo leaderboard
+cosci runs report "$RUN" --md                   # full Markdown report
+```
+
 ## Development commands
 
 **Backend** (from `app/`):
