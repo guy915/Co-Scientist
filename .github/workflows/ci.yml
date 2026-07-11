@@ -350,6 +350,16 @@ jobs:
         # (e2e/support/paths.ts) and installs the frontend node_modules the
         # launched Vite server needs. python3.12 from setup-python backs it.
         run: make setup
+      - name: Install Chromium with system dependencies
+        # --with-deps also installs the OS packages Chromium needs, hardening
+        # against runner-image updates that drop a shared library. Done here
+        # rather than in `make e2e` so local runs never invoke sudo. bun
+        # install first so bunx resolves the harness's pinned playwright
+        # version, and `make e2e`'s own install steps then no-op.
+        working-directory: e2e
+        run: |
+          bun install --frozen-lockfile
+          bunx playwright install --with-deps chromium
       - name: Run browser e2e suite
         # Self-contained: installs the e2e deps + Chromium if missing, then
         # runs the headless suite against an isolated offline mock stack.
