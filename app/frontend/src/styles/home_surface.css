@@ -649,9 +649,34 @@
     justify-self: center;
     max-height: calc(100vh - 4.5rem);
     max-height: calc(100dvh - 4.5rem);
-    grid-template-rows: auto auto minmax(2rem, 1fr) auto;
-    padding-top: clamp(4.85rem, 8.8vh, 6.4rem);
+    /* Two shrinkable tracks absorb a growing composer without the suggestions
+       colliding with the stepper. Row 4 (min 5.5rem) holds the free space when
+       there's room — the suggestions stay bottom-aligned above the composer,
+       the stepper near the top, as before. As a long prompt grows the composer,
+       row 4 shrinks first (never below 5.5rem, so the end-aligned suggestion
+       row can't overflow up into the stepper); once it bottoms out, the capped
+       top track (row 1) shrinks too, sliding the title+stepper block up in step
+       rather than leaving it pinned. The top track is a capped minmax, not an
+       fr, so it holds a constant top margin on tall screens instead of ballooning. */
+    grid-template-rows: minmax(0.5rem, 4.75rem) auto auto minmax(5.5rem, 1fr) auto;
+    padding-top: clamp(1.4rem, 2.4vh, 1.9rem);
     padding-bottom: clamp(1.35rem, 3.2vh, 2.25rem);
+  }
+
+  .reference-home-main > .reference-home-title {
+    grid-row: 2;
+  }
+
+  .reference-home-main > .reference-step-timeline {
+    grid-row: 3;
+  }
+
+  .reference-home-main > .reference-suggestion-row {
+    grid-row: 4;
+  }
+
+  .reference-home-main > .reference-home-composer {
+    grid-row: 5;
   }
 
   .reference-home-title {
