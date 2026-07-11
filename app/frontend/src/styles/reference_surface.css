@@ -169,12 +169,14 @@
   --cosci-menu-icon: var(--cosci-muted);
   --cosci-recents-heading: var(--cosci-text);
 
-  /* Recents card dark: surface-container fill on the #131314 canvas, hover →
-     surface-container-low, chips surface-container-highest, winning chip
-     green90's dark value #006c35 with on-surface text (all measured). */
+  /* Recents card dark: surface-container fill on the #131314 canvas; hover
+     LIGHTENS to the shared dark hover fill (#282a2c, matching the rail,
+     suggestions, and icon buttons) so the state layer reads as a highlight
+     rather than sinking darker into the canvas. Chips surface-container-highest,
+     winning chip green90's dark value #006c35 with on-surface text. */
   --cosci-recent-card-border: transparent;
   --cosci-recent-card-bg: #1e1f20;
-  --cosci-recent-card-hover-bg: #1b1b1b;
+  --cosci-recent-card-hover-bg: #282a2c;
   --cosci-recent-card-text: var(--cosci-text);
   --cosci-recent-card-copy: var(--cosci-muted);
   --cosci-recent-meta-bg: #333537;
