@@ -65,6 +65,13 @@ export interface RunConfig {
 export interface Run {
   id: string;
   research_goal: string;
+  /**
+   * Short model-generated session heading, distinct from the goal (the
+   * recents card shows it above the fuller goal). Null until generated shortly
+   * after run creation, and for runs created before titles existed; surfaces
+   * fall back to a clause of the goal via `firstSentenceClause`.
+   */
+  title?: string | null;
   run_mode?: RunMode;
   profile: LegacyRunProfile;
   status: RunStatus;

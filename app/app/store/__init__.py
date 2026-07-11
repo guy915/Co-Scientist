@@ -84,6 +84,7 @@ from app.store.runs import (
     list_runs,
     reconcile_interrupted_runs,
     run_exists,
+    set_run_title,
     summary_counts,
     update_run_status,
 )
@@ -133,6 +134,7 @@ __all__ = [
     "save_checkpoint",
     "save_report",
     "save_run_metrics",
+    "set_run_title",
     "summary_counts",
     "transaction",
     "update_hypothesis_state",

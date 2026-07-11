@@ -29,6 +29,14 @@ _DEMO_GOALS: list[str] = [
     "cells, and how might their modulation enhance chemotherapy sensitivity?",
 ]
 
+# Curated session titles for the demo runs, so they showcase the distinct-
+# heading behavior without a model call at seed time (seeding is offline/mock).
+_DEMO_TITLES: dict[str, str] = {
+    _DEMO_GOALS[0]: "Antibiotic Resistance in S. aureus Biofilms",
+    _DEMO_GOALS[1]: "Synaptic Pruning and Cognitive Flexibility",
+    _DEMO_GOALS[2]: "Ferroptosis Regulators in Pancreatic Cancer",
+}
+
 
 async def _seed_demo_run(
     goal: str,
@@ -50,6 +58,7 @@ async def _seed_demo_run(
             provider="mock",
             config=config,
             client_id=DEMO_CLIENT_ID,
+            title=_DEMO_TITLES.get(goal),
             db_path=db_path,
         )
     # force_provider="mock" pins demo seeding to the deterministic

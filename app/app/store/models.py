@@ -60,6 +60,10 @@ class RunRow:
     updated_at: float
     completed_at: float | None
     error: str | None
+    # Short model-generated session heading, distinct from research_goal.
+    # None until a background generator fills it in (surfaces fall back to a
+    # clause of the goal); also None for runs created before this existed.
+    title: str | None = None
     # Highest Elo across the run's hypotheses. Populated by ``list_runs`` (via a
     # single aggregate query) so list surfaces avoid fetching every hypothesis;
     # None on single-run reads and runs with no hypotheses yet.
@@ -79,6 +83,7 @@ class RunRow:
         return {
             "id": self.id,
             "research_goal": self.research_goal,
+            "title": self.title,
             # run_mode and profile are duplicate keys: run_mode is the newer
             # name, profile is retained for clients still reading the old key.
             "run_mode": self.profile,
@@ -130,6 +135,7 @@ def _row_to_run(row: sqlite3.Row) -> RunRow:
         updated_at=row["updated_at"],
         completed_at=row["completed_at"],
         error=row["error"],
+        title=row["title"] if "title" in keys else None,
         top_elo=row["top_elo"] if "top_elo" in keys else None,
     )
 

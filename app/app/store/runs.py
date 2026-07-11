@@ -32,6 +32,7 @@ def create_run(
     provider: str,
     config: dict[str, Any],
     client_id: str = "",
+    title: str | None = None,
     db_path: str | None = None,
 ) -> RunRow:
     """Insert a new run row in the DRAFT state and return it.
@@ -43,6 +44,9 @@ def create_run(
         provider: The execution provider, e.g. 'mock' or 'engine'.
         config: Run configuration values serialized to JSON.
         client_id: Owning client identifier used for run isolation.
+        title: Optional short session heading. Usually NULL at creation and
+            filled in shortly after by a background title generator; may be
+            supplied directly (e.g. curated demo runs).
         db_path: Optional override for the SQLite database path.
 
     Returns:
@@ -52,12 +56,13 @@ def create_run(
     now = _now()
     with connect(db_path) as conn:
         conn.execute(
-            "INSERT INTO runs (id, research_goal, profile, status, "
+            "INSERT INTO runs (id, research_goal, title, profile, status, "
             "provider, config_json, client_id, created_at, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?)",
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 research_goal,
+                title,
                 profile,
                 RunStatus.DRAFT.value,
                 provider,
@@ -77,6 +82,7 @@ def create_run(
     return RunRow(
         id=run_id,
         research_goal=research_goal,
+        title=title,
         profile=profile,
         status=RunStatus.DRAFT.value,
         provider=provider,
@@ -87,6 +93,18 @@ def create_run(
         completed_at=None,
         error=None,
     )
+
+
+def set_run_title(run_id: str, title: str, db_path: str | None = None) -> None:
+    """Set a run's short session title (idempotent; no-op if the run is gone).
+
+    Args:
+        run_id: Identifier of the run to update.
+        title: The generated short title to store.
+        db_path: Optional override for the SQLite database path.
+    """
+    with connect(db_path) as conn:
+        conn.execute("UPDATE runs SET title = ? WHERE id = ?", (title, run_id))
 
 
 def get_run(

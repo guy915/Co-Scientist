@@ -50,6 +50,8 @@ def test_list_runs_honors_limit_query(isolated_db: str) -> None:
 def test_legacy_profile_and_tiny_overrides_run_as_default(
     isolated_db: str,
 ) -> None:
+    from fastapi import BackgroundTasks
+
     from app.runs import (
         CreateRunRequest,
         create_run,
@@ -66,8 +68,11 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
     )
 
     # _Request is a minimal stand-in for fastapi.Request; the handler only
-    # touches the attributes the stub provides.
-    run = asyncio.run(create_run(req, _Request()))  # type: ignore[arg-type]
+    # touches the attributes the stub provides. No provider key is configured
+    # under test, so create_run schedules no title task on this queue.
+    run = asyncio.run(
+        create_run(req, _Request(), BackgroundTasks())  # type: ignore[arg-type]
+    )
 
     assert run["run_mode"] == "default"
     assert run["profile"] == "default"

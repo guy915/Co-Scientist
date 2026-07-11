@@ -82,6 +82,7 @@ from app.runs_registry import _active as _active
 from app.runs_registry import _active_lock as _active_lock
 from app.runs_registry import _RunHandle as _RunHandle
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus
+from app.title_gen import generate_run_title
 
 logger = logging.getLogger(__name__)
 
@@ -133,13 +134,36 @@ def _client_id(request: Request) -> str:
     return request.headers.get("X-Client-ID", "")
 
 
+async def _populate_run_title(run_id: str, goal: str) -> None:
+    """Generate a run's short session title and persist it (best-effort).
+
+    Runs after the create response as a background task, so the create call
+    isn't blocked on a model round-trip. A None result (generation
+    unavailable) leaves the title unset and surfaces fall back to a clause of
+    the goal.
+
+    Args:
+        run_id: The run to title.
+        goal: The run's research goal.
+    """
+    title = await generate_run_title(goal)
+    if title:
+        store.set_run_title(run_id, title)
+
+
 @router.post("")
-async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
+async def create_run(
+    req: CreateRunRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+) -> dict[str, Any]:
     """Create a new run for the requesting client and return it.
 
     Args:
         req: Request body with the research goal, run mode, and run config.
         request: Incoming HTTP request, used to read the client identifier.
+        background_tasks: FastAPI background queue used to generate the run's
+            session title off the request's critical path.
 
     Returns:
         The created run serialized as a dict.
@@ -169,6 +193,12 @@ async def create_run(req: CreateRunRequest, request: Request) -> dict[str, Any]:
             "tier": tier,
         },
     )
+    # Title generation needs a real model, so only when a provider is
+    # configured (mock/offline and tests keep the goal-clause fallback).
+    if provider == "engine":
+        background_tasks.add_task(
+            _populate_run_title, run.id, req.research_goal
+        )
     return run.to_dict()
 
 

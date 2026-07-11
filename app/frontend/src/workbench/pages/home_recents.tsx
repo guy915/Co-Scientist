@@ -217,7 +217,11 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
         </span>
         <TruncatedLabel
           className={RECENT_TITLE_CLASSES}
-          text={firstSentenceClause(run.research_goal) || 'Untitled session'}
+          text={
+            run.title ||
+            firstSentenceClause(run.research_goal) ||
+            'Untitled session'
+          }
           lines={2}
         />
 

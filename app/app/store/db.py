@@ -185,6 +185,8 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
         conn.execute("DELETE FROM runs WHERE client_id = ''")
         logger.info("migration: purged pre-client-isolation runs")
 
+    # Short model-generated session title, distinct from research_goal.
+    _add_column_if_missing(conn, "runs", "title", "TEXT")
     # DB-durable copy of the rendered report, independent of the on-disk file.
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
     # Structured metadata (e.g. Q&A cited sources) alongside message text.
@@ -228,6 +230,9 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id TEXT PRIMARY KEY,
     research_goal TEXT NOT NULL,
+    -- short model-generated session heading, distinct from research_goal;
+    -- NULL until generated (surfaces fall back to a clause of the goal)
+    title TEXT,
     -- canonical run mode; column name kept for legacy clients
     profile TEXT NOT NULL,
     -- draft|queued|running|synthesizing|completed|failed|blocked|cancelled
