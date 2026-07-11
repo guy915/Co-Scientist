@@ -249,6 +249,120 @@ def build_system_prompt(
     )
 
 
+def _offline_hypothesis_lines(
+    hypotheses: list[dict[str, Any]], has_sources: bool
+) -> list[str]:
+    """Render the top hypotheses as numbered lines for the offline answer.
+
+    Args:
+        hypotheses: Hypothesis rows, already ordered by Elo descending.
+        has_sources: Whether a non-empty evidence manifest accompanies the
+            answer, in which case the leading hypotheses cite it as ``[n]``.
+
+    Returns:
+        One formatted line per included hypothesis (top five at most).
+    """
+    lines: list[str] = []
+    for rank, hyp in enumerate(hypotheses[:5], start=1):
+        title = hyp.get("title") or "Untitled hypothesis"
+        elo = hyp.get("elo_rating")
+        wins = hyp.get("win_count")
+        record = f" (Elo {elo}, {wins} wins)" if elo is not None else ""
+        # Attach a citation marker to the leading hypotheses when the run has
+        # sources, so the UI resolves them against the manifest frame.
+        citation = f" [{rank}]" if has_sources and rank <= 1 else ""
+        lines.append(f"{rank}. {title}{record}{citation}")
+    return lines
+
+
+def build_offline_answer(
+    research_goal: str,
+    hypotheses: list[dict[str, Any]],
+    reviews: list[dict[str, Any]],
+    manifest: list[dict[str, Any]],
+) -> str:
+    """Compose a deterministic, grounded Q&A answer without a language model.
+
+    Used for the keyless demo posture: instead of returning an API-key error,
+    the run's own persisted artifacts (top hypotheses by Elo, the latest
+    reviewer note, and the numbered evidence manifest) are synthesized into a
+    plain grounded summary. The synthesis is a function of the run state only;
+    it deliberately does not interpret or key off the question text, so it
+    never fabricates a question-specific claim.
+
+    Args:
+        research_goal: The run's research goal.
+        hypotheses: Hypothesis rows, already ordered by Elo descending.
+        reviews: Reviewer/meta-review rows for the run.
+        manifest: The numbered evidence manifest for citation grounding.
+
+    Returns:
+        The grounded answer text.
+    """
+    parts: list[str] = [
+        "Answering from this run's own artifacts (offline mode, no "
+        "language model configured).",
+        f"Research goal: {research_goal}",
+    ]
+    if hypotheses:
+        parts.append(
+            f"The run produced {len(hypotheses)} hypotheses; the "
+            f"top-ranked by Elo are:"
+        )
+        parts.extend(_offline_hypothesis_lines(hypotheses, bool(manifest)))
+    else:
+        parts.append(
+            "No hypotheses have been generated for this run yet, so there "
+            "is nothing to summarize."
+        )
+    if reviews:
+        latest = reviews[-1]
+        summary = (latest.get("summary") or "").strip()
+        if summary:
+            parts.append(f"Latest reviewer note: {summary}")
+    if manifest:
+        top = manifest[0]
+        parts.append(
+            f"Grounded in {len(manifest)} source(s), including "
+            f"[1] {top.get('title') or 'Untitled source'}."
+        )
+    return "\n".join(parts)
+
+
+async def stream_offline_answer(
+    run_id: str,
+    question_id: int,
+    answer: str,
+    manifest: list[dict[str, Any]],
+) -> AsyncGenerator[str, None]:
+    """Stream a deterministic offline answer as SSE frames and persist it.
+
+    Mirrors ``stream_answer``'s framing (a leading ``sources`` frame, then
+    answer chunks, then ``done``) so the workbench chat renders the offline
+    answer identically to a model-generated one, and persists the exchange
+    with its evidence manifest.
+
+    Args:
+        run_id: The run being asked about.
+        question_id: Message id of the persisted question, echoed on ``done``.
+        answer: The pre-composed grounded answer text.
+        manifest: The evidence manifest, stored with the answer.
+
+    Yields:
+        SSE ``data:`` frames.
+    """
+    if manifest:
+        yield sse_frame({"type": "sources", "sources": manifest})
+    # Emit the answer line by line so the UI renders it as a stream; the
+    # persisted text is the exact concatenation of the emitted chunks.
+    full: list[str] = []
+    for chunk in answer.splitlines(keepends=True):
+        full.append(chunk)
+        yield sse_frame({"type": "chunk", "content": chunk})
+    _persist_qa_answer(run_id, full, manifest)
+    yield sse_frame({"type": "done", "question_id": question_id})
+
+
 async def _stream_llm_deltas(
     model: str,
     system_prompt: str,

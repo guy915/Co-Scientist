@@ -45,15 +45,61 @@ def test_starting_a_completed_run_is_a_conflict() -> None:
     assert again.status_code == 409
 
 
-def test_cancel_requires_active_run() -> None:
+def test_cancel_draft_run_without_handle_marks_it_cancelled() -> None:
     c = _client()
     rid = c.post(
         "/api/runs",
         json={"research_goal": "Inactive cancel test", "profile": "standard"},
     ).json()["id"]
+    # No in-process handle (never started), but a draft is non-terminal, so
+    # cancel transitions it to cancelled rather than 404-ing.
     res = c.post(f"/api/runs/{rid}/cancel")
-    # Run hasn't started → no active handle → 404.
-    assert res.status_code == 404
+    assert res.status_code == 200
+    assert res.json()["status"] == "cancelled"
+    assert c.get(f"/api/runs/{rid}").json()["status"] == "cancelled"
+
+
+def test_cancel_restart_survivor_marks_it_cancelled() -> None:
+    """A run left non-terminal by a restart (no handle) is still cancellable."""
+    from app import store
+    from app.store import RunStatus
+
+    c = _client()
+    rid = c.post(
+        "/api/runs",
+        json={
+            "research_goal": "Restart survivor cancel",
+            "profile": "standard",
+        },
+    ).json()["id"]
+    # Simulate a run that was running when the server restarted: persisted as
+    # RUNNING with no in-process handle registered.
+    store.update_run_status(rid, RunStatus.RUNNING)
+
+    res = c.post(f"/api/runs/{rid}/cancel")
+
+    assert res.status_code == 200
+    assert res.json()["status"] == "cancelled"
+    assert c.get(f"/api/runs/{rid}").json()["status"] == "cancelled"
+    # A terminal status event is emitted so any SSE stream closes.
+    events = store.list_events(rid)
+    assert any(
+        e["type"] == "status" and e["payload"].get("status") == "cancelled"
+        for e in events
+    )
+
+
+def test_cancel_completed_run_conflicts() -> None:
+    c = _client()
+    rid = c.post(
+        "/api/runs",
+        json={"research_goal": "Cancel a finished run", "profile": "standard"},
+    ).json()["id"]
+    c.post(f"/api/runs/{rid}/start", json={})
+    assert _wait_status(c, rid, "completed", timeout=20.0)
+    # A finished run cannot be cancelled.
+    res = c.post(f"/api/runs/{rid}/cancel")
+    assert res.status_code == 409
 
 
 def test_report_md_404_before_completion() -> None:

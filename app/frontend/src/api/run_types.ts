@@ -80,6 +80,18 @@ export interface Run {
    * home surfaces avoid fetching hypotheses. Absent/null until the run has any.
    */
   top_elo?: number | null;
+  /**
+   * Titles of the run's top hypotheses by Elo, served by the run-list endpoint
+   * so home surfaces show real winning ideas without fetching hypotheses.
+   * `null` on single-run reads; `[]` for a listed run with no hypotheses yet.
+   */
+  top_hypotheses?: string[] | null;
+  /**
+   * The run's most recent pipeline-stage event type (e.g. `generate`,
+   * `ranking`), served by the run-list endpoint to drive the live progress
+   * indicator. Absent/null on single-run reads and before the first stage.
+   */
+  latest_stage?: string | null;
 }
 
 /** Aggregate counts of the artifacts a run has produced. */

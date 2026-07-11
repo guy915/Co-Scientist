@@ -14,7 +14,6 @@ import {
 import {
   formatHomeRunDate,
   formatHomeRunTimeChip,
-  homeRunIdeaTitles,
   homeRunScore,
   homeRunStepIndex,
 } from './home_recents_data';
@@ -192,10 +191,9 @@ function LoadMoreRunsItem({
  * @param topScore The run's top Elo score, or null if unknown/not completed.
  */
 function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
-  // Placeholder idea titles derived from the goal text (see
-  // homeRunIdeaTitles) - the run summary doesn't carry real hypothesis
-  // titles, so this substitutes plausible-looking ones keyed off the topic.
-  const topIdeas = homeRunIdeaTitles(run.research_goal);
+  // The run's real top hypotheses by Elo, served on the run-list payload
+  // (`top_hypotheses`). Empty for a run that produced none (e.g. failed).
+  const topIdeas = run.top_hypotheses ?? [];
   const isActiveRun = isActiveStatus(run.status);
 
   return (
@@ -236,9 +234,10 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
 /**
  * Renders a completed run's summary within its recents card: the "Winning
  * ideas" chip pair (with an optional top-score chip) and the ranked list of
- * placeholder idea titles.
+ * the run's real top hypothesis titles. The list is omitted when the run
+ * produced no hypotheses.
  *
- * @param topIdeas The idea titles to list, in rank order.
+ * @param topIdeas The run's top hypothesis titles, in rank order.
  * @param topScore The run's top Elo score, or null if unknown.
  */
 function RecentRunResults({
@@ -270,14 +269,16 @@ function RecentRunResults({
           </span>
         )}
       </span>
-      <ol className={WINNER_LIST_CLASSES}>
-        {topIdeas.map((idea, index) => (
-          <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
-            <span>{index + 1}.</span>
-            <span>{idea}</span>
-          </li>
-        ))}
-      </ol>
+      {topIdeas.length > 0 && (
+        <ol className={WINNER_LIST_CLASSES}>
+          {topIdeas.map((idea, index) => (
+            <li key={idea} className={WINNER_LIST_ITEM_CLASSES}>
+              <span>{index + 1}.</span>
+              <span>{idea}</span>
+            </li>
+          ))}
+        </ol>
+      )}
     </>
   );
 }

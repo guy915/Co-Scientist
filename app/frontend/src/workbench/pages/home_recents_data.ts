@@ -1,7 +1,5 @@
 import {isActiveStatus, type Run} from '@/api/runs';
-import {isLiverFibrosisGoal} from '@/lib/demo_domains';
 import {formatDurationPhrase} from '@/lib/duration';
-import {conciseTitle} from '@/lib/text';
 
 // Formats a run's creation date for the meta chip, e.g. "July 8, 2026".
 // Timestamps on Run are Unix seconds, hence the *1000 to build a Date.
@@ -22,21 +20,24 @@ export function formatHomeRunDate(timestamp: number): string {
   return HOME_RUN_DATE_FMT.format(new Date(timestamp * 1000));
 }
 
-// Wall-clock duration phrase when the run has a valid end timestamp after
-// its start, else null.
+// Real wall-clock duration phrase from the run's persisted start/end
+// timestamps, or null when no usable end timestamp is recorded. A sub-minute
+// real span renders as "< 1 minute" rather than being rounded up.
 function completedDurationLabel(run: Run): string | null {
   const endTime = run.completed_at ?? run.updated_at;
-  if (!endTime || endTime <= run.created_at) return null;
-  return formatDurationPhrase(endTime - run.created_at);
+  if (!endTime) return null;
+  const seconds = endTime - run.created_at;
+  if (seconds < 0) return null;
+  if (seconds < 60) return '< 1 minute';
+  return formatDurationPhrase(seconds);
 }
 
-// Total wall-clock duration for a finished (or presumed-finished) run. Falls
-// back to a flat 60s phrase for completed runs missing a proper end
-// timestamp, "In progress" for active runs, and the raw status otherwise.
+// Total wall-clock duration for a finished (or presumed-finished) run, driven
+// by the run's real timestamps: the measured span when available, "In
+// progress" for active runs, and the raw status otherwise.
 function formatHomeRunDuration(run: Run): string {
   const completed = completedDurationLabel(run);
   if (completed !== null) return completed;
-  if (run.status === 'completed') return formatDurationPhrase(60);
   if (isActiveStatus(run.status)) return 'In progress';
   return formatHomeRunStatus(run);
 }
@@ -93,21 +94,29 @@ export function homeRunScore(
     : null;
 }
 
-// Elapsed minutes since an active run was created, floored at zero to guard
-// against client/server clock skew.
-function homeRunElapsedMinutes(run: Run): number {
-  return Math.max(
-    0,
-    ((run.updated_at || Date.now() / 1000) - run.created_at) / 60,
-  );
-}
+// Maps each pipeline-stage event type (Run.latest_stage, served by the run-list
+// endpoint) to its 1-based step in the four-step home progress flow: Exploring
+// focus areas, Generating hypotheses, Reviewing hypotheses, Playing tournament.
+// Kept in sync with the backend's `_STAGE_EVENT_TYPES` in app/store/runs.py.
+const STAGE_STEP_INDEX: Record<string, number> = {
+  'supervisor.plan': 1,
+  literature_review: 2,
+  generate: 2,
+  reflection: 3,
+  proximity: 3,
+  ranking: 4,
+  evolve: 4,
+  meta_review: 4,
+  deep_verification: 4,
+  research_overview: 4,
+};
 
 /**
- * Derives the 1-based active step (1-4) for a live run. The run summary carries
- * no fine-grained stage, so this mirrors the existing progress heuristic:
- * `queued` sits on Exploring, `synthesizing` on the final Tournament step, and
- * `running` advances Generating -> Reviewing -> Tournament by elapsed
- * minutes so the flow visibly moves without a backend stage signal.
+ * Derives the 1-based active step (1-4) for a live run from its persisted
+ * progress: `queued` sits on Exploring, `synthesizing` on the final Tournament
+ * step, and any other active status maps its latest pipeline stage
+ * (`run.latest_stage`) onto the flow. A running run with no stage recorded yet
+ * shows the first step.
  *
  * @param run The active run.
  * @returns The active step index in the range 1-4.
@@ -115,75 +124,10 @@ function homeRunElapsedMinutes(run: Run): number {
 export function homeRunStepIndex(run: Run): number {
   if (run.status === 'queued') return 1;
   if (run.status === 'synthesizing') return 4;
-  const elapsedMinutes = homeRunElapsedMinutes(run);
-  if (elapsedMinutes < 1) return 2;
-  if (elapsedMinutes < 2) return 3;
-  return 4;
-}
-
-// Keyword -> placeholder "winning ideas" title set for a recents card (see
-// homeRunIdeaTitles). Checked in order; the first matching rule wins.
-const HOME_RUN_IDEA_TITLE_RULES: {
-  test: (normalized: string, goal: string) => boolean;
-  titles: string[];
-}[] = [
-  {
-    test: normalized =>
-      normalized.includes('ferroptosis') || normalized.includes('pancreatic'),
-    titles: [
-      'Mitochondrial feedback rescue hypothesis',
-      'Lipid peroxide buffering threshold hypothesis',
-      'Iron-trafficking checkpoint hypothesis',
-    ],
-  },
-  {
-    test: (_normalized, goal) => isLiverFibrosisGoal(goal),
-    titles: [
-      'Epigenetic stromal reversal hypothesis',
-      'Fibrotic memory erasure hypothesis',
-      'Macrophage remodeling checkpoint hypothesis',
-    ],
-  },
-  {
-    test: normalized =>
-      normalized.includes('m.tuberculosis') ||
-      normalized.includes('tuberculosis'),
-    titles: [
-      'Metabolic refuge disruption hypothesis',
-      'Biofilm redox-state vulnerability hypothesis',
-      'Quorum-linked susceptibility restoration hypothesis',
-    ],
-  },
-  {
-    test: normalized =>
-      normalized.includes('synaptic') || normalized.includes('pruning'),
-    titles: [
-      'Microglial timing-window pruning hypothesis',
-      'Complement-gated flexibility hypothesis',
-      'Activity-dependent dendritic retention hypothesis',
-    ],
-  },
-];
-
-/**
- * Maps a run's goal text to a fixed, plausible-looking set of three "winning
- * idea" titles by keyword-matching known demo topics; any unmatched goal
- * falls back to its own concise title plus two generic hypothesis labels.
- * This is decorative placeholder content - the run summary has no real
- * per-hypothesis titles to show here.
- *
- * @param goal The run's research goal text.
- * @returns Three placeholder "winning idea" titles.
- */
-export function homeRunIdeaTitles(goal: string): string[] {
-  const normalized = goal.toLowerCase();
-  const rule = HOME_RUN_IDEA_TITLE_RULES.find(({test}) =>
-    test(normalized, goal),
-  );
-  if (rule) return rule.titles;
-  return [
-    conciseTitle(goal),
-    'Mechanistic differentiation hypothesis',
-    'Evidence-guided intervention hypothesis',
-  ];
+  const stage = run.latest_stage;
+  if (stage && STAGE_STEP_INDEX[stage] !== undefined) {
+    return STAGE_STEP_INDEX[stage];
+  }
+  // Running but no pipeline stage recorded yet -> first step.
+  return 1;
 }

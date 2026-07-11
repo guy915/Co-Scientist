@@ -69,9 +69,15 @@ from app.runs_models import (
 from app.runs_registry import _active as _active
 from app.runs_registry import _active_lock as _active_lock
 from app.runs_registry import _RunHandle as _RunHandle
-from app.store import RunRow, RunStatus
+from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 
 logger = logging.getLogger(__name__)
+
+# Terminal run-status *string values* (the RunRow.status column is a str), used
+# to reject cancelling a run that has already finished.
+_TERMINAL_STATUS_VALUES: frozenset[str] = frozenset(
+    s.value for s in TERMINAL_STATUSES
+)
 
 # Strong references to detached resume tasks so they are not garbage-collected
 # mid-run; each removes itself on completion (see _launch_resume).
@@ -312,22 +318,30 @@ async def start_run(
 
 @router.post("/{run_id}/cancel")
 async def cancel_run(run_id: str) -> dict[str, Any]:
-    """Request cancellation of an actively running workflow.
+    """Cancel a run, whether or not it has an in-process workflow handle.
 
-    Cancellation is cooperative: this only sets the handle's event. The
-    workflow notices at its next checkpoint and transitions the run to
-    CANCELLED itself, so the response says 'cancelling', not 'cancelled'.
+    With an active handle, cancellation is cooperative: this only sets the
+    handle's event, and the workflow transitions the run to CANCELLED at its
+    next checkpoint, so the response says 'cancelling'.
+
+    Without a handle -- a draft that never started, or a run left non-terminal
+    by a server restart -- there is no workflow to signal, so any non-terminal
+    run is transitioned to CANCELLED here directly and a terminal ``cancelled``
+    status event is emitted (mirroring the failed-run path) so open SSE streams
+    close. An already-terminal run cannot be cancelled and returns 409.
     """
-    _require_run(run_id)
+    run = _run_or_404(run_id)
     async with _active_lock:
         handle = _active.get(run_id)
-    # A run without an in-process handle is not running here (finished, or
-    # the server restarted since it started), so there is nothing to cancel.
-    if not handle:
-        raise HTTPException(status_code=404, detail="run is not active")
-    handle.cancelled.set()
-    store.append_event(run_id, "lifecycle", {"event": "cancel_requested"})
-    return {"id": run_id, "status": "cancelling"}
+    if handle:
+        handle.cancelled.set()
+        store.append_event(run_id, "lifecycle", {"event": "cancel_requested"})
+        return {"id": run_id, "status": "cancelling"}
+    if run.status in _TERMINAL_STATUS_VALUES:
+        raise HTTPException(status_code=409, detail="run already finished")
+    store.update_run_status(run_id, RunStatus.CANCELLED)
+    store.append_event(run_id, "status", {"status": "cancelled"})
+    return {"id": run_id, "status": "cancelled"}
 
 
 @router.post("/{run_id}/pause")
@@ -726,6 +740,20 @@ async def ask_question(run_id: str, req: AskRequest) -> StreamingResponse:
     # Prompt assembly and streaming are delegated to qa.py; the endpoint
     # only gathers state and wires the SSE response.
     manifest = qa.build_evidence_manifest(evidence, citations)
+
+    # Keyless demo posture: with the mock provider selected there is no
+    # language model to call, so synthesize a deterministic answer grounded in
+    # the run's own artifacts rather than streaming an API-key error. The real
+    # LLM path is unchanged for a configured provider.
+    if engine_adapter.select_provider() == "mock":
+        answer = qa.build_offline_answer(
+            run.research_goal, hypotheses, reviews, manifest
+        )
+        return StreamingResponse(
+            qa.stream_offline_answer(run_id, question_msg.id, answer, manifest),
+            media_type="text/event-stream",
+        )
+
     system_prompt = qa.build_system_prompt(
         run.research_goal, hypotheses, reviews, matches, history, manifest
     )

@@ -122,10 +122,107 @@ def run_exists(run_id: str, db_path: str | None = None) -> bool:
         return row is not None
 
 
+# Number of top hypotheses surfaced per run on list endpoints.
+_TOP_HYPOTHESES_CAP = 3
+
+# Event types that mark a pipeline stage, used to report a run's
+# ``latest_stage`` for the live progress indicator. Cross-cutting events
+# (safety.*, citation.*, status, lifecycle, report) are excluded so the
+# reported stage tracks the linear agent pipeline. Both providers emit these
+# canonical types.
+_STAGE_EVENT_TYPES: tuple[str, ...] = (
+    "supervisor.plan",
+    "literature_review",
+    "generate",
+    "reflection",
+    "proximity",
+    "ranking",
+    "evolve",
+    "meta_review",
+    "deep_verification",
+    "research_overview",
+)
+
+
+def _top_hypotheses_by_run(
+    conn: sqlite3.Connection, run_ids: list[str]
+) -> dict[str, list[str]]:
+    """Return each run's top hypothesis titles by Elo, capped per run.
+
+    Uses one windowed query over the given run ids rather than a per-run
+    fetch, matching ``list_hypotheses``' ``elo DESC, created_at ASC`` ordering
+    (with the row id as a final deterministic tiebreak).
+
+    Args:
+        conn: Open database connection.
+        run_ids: Run ids to fetch top hypotheses for.
+
+    Returns:
+        Mapping of run id to its ordered list of top hypothesis titles. Runs
+        with no hypotheses are absent from the mapping.
+    """
+    if not run_ids:
+        return {}
+    placeholders = ",".join("?" for _ in run_ids)
+    rows = conn.execute(
+        "SELECT run_id, title FROM ("
+        " SELECT h.run_id AS run_id, h.title AS title, ROW_NUMBER() OVER ("
+        "  PARTITION BY h.run_id"
+        "  ORDER BY s.elo_rating DESC, h.created_at ASC, h.id"
+        " ) AS rn"
+        " FROM hypotheses h"
+        " JOIN hypothesis_state s ON s.hypothesis_id = h.id"
+        f" WHERE h.run_id IN ({placeholders})"
+        ") WHERE rn <= ? ORDER BY run_id, rn",
+        (*run_ids, _TOP_HYPOTHESES_CAP),
+    ).fetchall()
+    by_run: dict[str, list[str]] = {}
+    for row in rows:
+        by_run.setdefault(row["run_id"], []).append(row["title"])
+    return by_run
+
+
+def _latest_stage_by_run(
+    conn: sqlite3.Connection, run_ids: list[str]
+) -> dict[str, str]:
+    """Return each run's most recent pipeline-stage event type.
+
+    Args:
+        conn: Open database connection.
+        run_ids: Run ids to fetch the latest stage for.
+
+    Returns:
+        Mapping of run id to its latest ``_STAGE_EVENT_TYPES`` event type. Runs
+        with no such event are absent from the mapping.
+    """
+    if not run_ids:
+        return {}
+    run_placeholders = ",".join("?" for _ in run_ids)
+    stage_placeholders = ",".join("?" for _ in _STAGE_EVENT_TYPES)
+    rows = conn.execute(
+        "SELECT run_id, type FROM ("
+        " SELECT run_id, type, ROW_NUMBER() OVER ("
+        "  PARTITION BY run_id ORDER BY seq DESC"
+        " ) AS rn"
+        " FROM run_events"
+        f" WHERE run_id IN ({run_placeholders})"
+        f" AND type IN ({stage_placeholders})"
+        ") WHERE rn = 1",
+        (*run_ids, *_STAGE_EVENT_TYPES),
+    ).fetchall()
+    return {row["run_id"]: row["type"] for row in rows}
+
+
 def list_runs(
     client_id: str = "", limit: int = 100, db_path: str | None = None
 ) -> list[RunRow]:
-    """Return a client's runs, newest first, each with its top Elo."""
+    """Return a client's runs, newest first, each enriched for list surfaces.
+
+    Alongside the run rows, each is populated with its top hypothesis Elo
+    (``top_elo``), its top hypothesis titles (``top_hypotheses``), and the type
+    of its most recent pipeline-stage event (``latest_stage``), so home/list
+    surfaces render real data without fetching each run's hypotheses or events.
+    """
     with connect(db_path) as conn:
         # One grouped aggregate joined in, rather than a correlated subquery
         # re-run per run row.
@@ -143,7 +240,17 @@ def list_runs(
             "ORDER BY r.created_at DESC LIMIT ?",
             (client_id, limit),
         ).fetchall()
-        return [_row_to_run(r) for r in rows]
+        runs = [_row_to_run(r) for r in rows]
+        run_ids = [run.id for run in runs]
+        # Two windowed lookups over just the listed ids, rather than per-run.
+        top_hypotheses = _top_hypotheses_by_run(conn, run_ids)
+        latest_stage = _latest_stage_by_run(conn, run_ids)
+    for run in runs:
+        # Absent from the map means no hypotheses yet -> an explicit empty list
+        # so clients can distinguish "none" from the None single-read default.
+        run.top_hypotheses = top_hypotheses.get(run.id, [])
+        run.latest_stage = latest_stage.get(run.id)
+    return runs
 
 
 def update_run_status(

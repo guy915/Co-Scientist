@@ -64,6 +64,15 @@ class RunRow:
     # single aggregate query) so list surfaces avoid fetching every hypothesis;
     # None on single-run reads and runs with no hypotheses yet.
     top_elo: int | None = None
+    # Titles of the run's top hypotheses by Elo (capped), populated by
+    # ``list_runs`` so home surfaces show real winning ideas without fetching
+    # every hypothesis. None on single-run reads; ``[]`` for a listed run with
+    # no hypotheses yet.
+    top_hypotheses: list[str] | None = None
+    # Type of the run's most recent pipeline-stage event (e.g. ``generate``,
+    # ``ranking``), populated by ``list_runs`` to drive the live progress
+    # indicator. None on single-run reads and runs with no stage events yet.
+    latest_stage: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the row to the JSON shape the API returns to clients."""
@@ -83,6 +92,8 @@ class RunRow:
             "completed_at": self.completed_at,
             "error": self.error,
             "top_elo": self.top_elo,
+            "top_hypotheses": self.top_hypotheses,
+            "latest_stage": self.latest_stage,
         }
 
 

@@ -3,7 +3,6 @@ import type {Run, RunStatus} from '@/api/runs';
 import {
   formatHomeRunDate,
   formatHomeRunTimeChip,
-  homeRunIdeaTitles,
   homeRunScore,
   homeRunStepIndex,
 } from './home_recents_data';
@@ -41,14 +40,15 @@ describe('formatHomeRunTimeChip', () => {
     expect(formatHomeRunTimeChip(run)).toBe('Total time: 1 hour');
   });
 
-  it('falls back to a flat 60s phrase for a completed run missing a usable end timestamp', () => {
+  it('reports a sub-minute real span as "< 1 minute" for a completed run', () => {
     const run = makeRun({
       status: 'completed',
       created_at: 1000,
       updated_at: 1000,
       completed_at: null,
     });
-    expect(formatHomeRunTimeChip(run)).toBe('Total time: 1 minute');
+    // Real span is zero (updated_at == created_at), not a fabricated 60s.
+    expect(formatHomeRunTimeChip(run)).toBe('Total time: < 1 minute');
   });
 
   it('shows elapsed time under a minute for a freshly started active run', () => {
@@ -104,60 +104,29 @@ describe('homeRunStepIndex', () => {
     expect(homeRunStepIndex(makeRun({status: 'synthesizing'}))).toBe(4);
   });
 
-  it('advances a running run through steps 2-4 by elapsed minutes', () => {
-    const now = Date.now() / 1000;
-    expect(
-      homeRunStepIndex(
-        makeRun({status: 'running', created_at: now, updated_at: now}),
-      ),
-    ).toBe(2);
-    expect(
-      homeRunStepIndex(
-        makeRun({status: 'running', created_at: now - 90, updated_at: now}),
-      ),
-    ).toBe(3);
-    expect(
-      homeRunStepIndex(
-        makeRun({status: 'running', created_at: now - 200, updated_at: now}),
-      ),
-    ).toBe(4);
-  });
-});
-
-describe('homeRunIdeaTitles', () => {
-  it('matches the ferroptosis/pancreatic keyword rule', () => {
-    expect(
-      homeRunIdeaTitles('Ferroptosis regulators in pancreatic cancer'),
-    ).toEqual([
-      'Mitochondrial feedback rescue hypothesis',
-      'Lipid peroxide buffering threshold hypothesis',
-      'Iron-trafficking checkpoint hypothesis',
-    ]);
+  it('derives the step from the run’s latest pipeline stage', () => {
+    const cases: [string, number][] = [
+      ['supervisor.plan', 1],
+      ['literature_review', 2],
+      ['generate', 2],
+      ['reflection', 3],
+      ['proximity', 3],
+      ['ranking', 4],
+      ['evolve', 4],
+      ['meta_review', 4],
+      ['deep_verification', 4],
+      ['research_overview', 4],
+    ];
+    for (const [latest_stage, step] of cases) {
+      expect(homeRunStepIndex(makeRun({status: 'running', latest_stage}))).toBe(
+        step,
+      );
+    }
   });
 
-  it('matches the liver-fibrosis keyword rule', () => {
-    const titles = homeRunIdeaTitles(
-      'Reversing MASLD liver fibrosis via stellate cell reprogramming',
-    );
-    expect(titles).toContain('Epigenetic stromal reversal hypothesis');
-  });
-
-  it('matches the tuberculosis keyword rule', () => {
+  it('falls back to step 1 for a running run with no stage recorded yet', () => {
     expect(
-      homeRunIdeaTitles('New therapeutic targets for M.tuberculosis'),
-    ).toContain('Metabolic refuge disruption hypothesis');
-  });
-
-  it('matches the synaptic pruning keyword rule', () => {
-    expect(
-      homeRunIdeaTitles('Synaptic pruning and neuroinflammation'),
-    ).toContain('Microglial timing-window pruning hypothesis');
-  });
-
-  it('falls back to a concise-title-derived set for an unmatched goal', () => {
-    const titles = homeRunIdeaTitles('Optimize battery electrolyte chemistry');
-    expect(titles).toHaveLength(3);
-    expect(titles[1]).toBe('Mechanistic differentiation hypothesis');
-    expect(titles[2]).toBe('Evidence-guided intervention hypothesis');
+      homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
+    ).toBe(1);
   });
 });
