@@ -42,9 +42,7 @@ def test_format_kv_empty() -> None:
 
 def test_format_record_line_selects_first_present_key() -> None:
     record = {"id": 5, "state": "verified", "claim": "a  claim"}
-    line = render.format_record_line(
-        record, (("id",), ("state",), ("claim",))
-    )
+    line = render.format_record_line(record, (("id",), ("state",), ("claim",)))
     assert line == "5\tverified\ta claim"
 
 
