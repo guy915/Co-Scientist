@@ -294,3 +294,78 @@ def test_stream_answer_error_path_persists_and_emits_fallback(
     assert any('"type": "error"' in f for f in frames)
     msgs = store.list_messages(run_id, db_path=isolated_db)
     assert msgs[-1].content.startswith("Q&A requires")
+
+
+# ---------------------------------------------------------------------------
+# build_offline_answer (deterministic, keyless grounding)
+# ---------------------------------------------------------------------------
+
+
+def test_build_offline_answer_grounds_in_run_hypotheses_and_sources() -> None:
+    """The offline answer synthesizes real hypotheses and cites sources."""
+    hyps = [
+        {"title": "H1: rescue", "elo_rating": 1320, "win_count": 3},
+        {"title": "H2: buffer", "elo_rating": 1290, "win_count": 2},
+    ]
+    reviews = [
+        {
+            "reviewer_agent": "review",
+            "hypothesis_id": "abcdefgh12",
+            "summary": "well grounded in the literature",
+        }
+    ]
+    manifest = [
+        {"n": 1, "title": "Key paper", "source": "PubMed", "state": "verified"}
+    ]
+
+    answer = qa.build_offline_answer(
+        "Investigate ferroptosis", hyps, reviews, manifest
+    )
+
+    assert "Investigate ferroptosis" in answer
+    assert "H1: rescue" in answer
+    assert "1320" in answer
+    assert "[1]" in answer  # cites the numbered manifest
+    assert "Key paper" in answer
+
+
+def test_build_offline_answer_does_not_key_off_the_question() -> None:
+    """The answer is identical regardless of the question text."""
+    hyps = [{"title": "H1", "elo_rating": 1300, "win_count": 1}]
+
+    assert qa.build_offline_answer("Goal", hyps, [], []) == (
+        qa.build_offline_answer("Goal", hyps, [], [])
+    )
+
+
+def test_build_offline_answer_handles_a_run_with_no_hypotheses() -> None:
+    """With no hypotheses yet, the answer says so plainly rather than faking."""
+    answer = qa.build_offline_answer("Goal", [], [], [])
+    assert "no hypotheses" in answer.lower()
+
+
+def test_stream_offline_answer_emits_sources_chunks_done_and_persists(
+    isolated_db: str,
+) -> None:
+    """The offline stream mirrors the LLM SSE framing and persists it."""
+    store.create_run(
+        "goal", "default", "mock", {}, client_id="off1", db_path=isolated_db
+    )
+    run_id = store.list_runs(client_id="off1", db_path=isolated_db)[0].id
+    manifest = [
+        {"n": 1, "evidence_id": "e1", "title": "T", "state": "verified"}
+    ]
+    answer = "First line.\nSecond line."
+
+    frames = _drain(qa.stream_offline_answer(run_id, 7, answer, manifest))
+
+    assert any('"type": "sources"' in f for f in frames)
+    assert any('"type": "chunk"' in f for f in frames)
+    assert any(
+        '"type": "done"' in f and '"question_id": 7' in f for f in frames
+    )
+    assert not any('"type": "error"' in f for f in frames)
+
+    msgs = store.list_messages(run_id, db_path=isolated_db)
+    assert msgs[-1].content == answer
+    assert msgs[-1].meta == {"sources": manifest}

@@ -58,6 +58,56 @@ def test_list_runs_reports_top_elo(db: str) -> None:
     assert store.get_run(run.id).top_elo is None  # type: ignore[union-attr]
 
 
+def test_list_runs_reports_top_hypotheses_by_elo(db: str) -> None:
+    run = store.create_run("top-hyps", "standard", "mock", {})
+    for title, rating in (("Low", 1180), ("High", 1320), ("Mid", 1250)):
+        hid = store.add_hypothesis(
+            run.id, title=title, statement="s", created_by_agent="generation"
+        )
+        store.update_hypothesis_state(hid, elo_rating=rating)
+    # A run with no hypotheses reports an empty list, not None or a stray value.
+    store.create_run("no-hyps", "standard", "mock", {})
+
+    by_goal = {r.research_goal: r for r in store.list_runs()}
+    # Ordered by Elo descending, so the highest-rated hypotheses lead.
+    assert by_goal["top-hyps"].top_hypotheses == ["High", "Mid", "Low"]
+    assert by_goal["no-hyps"].top_hypotheses == []
+    # A single-run read does not carry the list enrichment.
+    assert store.get_run(run.id).top_hypotheses is None  # type: ignore[union-attr]
+
+
+def test_list_runs_caps_top_hypotheses_at_three(db: str) -> None:
+    run = store.create_run("many-hyps", "standard", "mock", {})
+    for rating in (1300, 1290, 1280, 1270, 1260):
+        hid = store.add_hypothesis(
+            run.id,
+            title=f"h{rating}",
+            statement="s",
+            created_by_agent="generation",
+        )
+        store.update_hypothesis_state(hid, elo_rating=rating)
+
+    listed = {r.research_goal: r for r in store.list_runs()}["many-hyps"]
+    assert listed.top_hypotheses == ["h1300", "h1290", "h1280"]
+
+
+def test_list_runs_reports_latest_pipeline_stage(db: str) -> None:
+    run = store.create_run("staged", "standard", "mock", {})
+    store.append_event(run.id, "supervisor.plan", {})
+    store.append_event(run.id, "generate", {})
+    store.append_event(run.id, "ranking", {})
+    # A later non-stage event (status) does not shift the reported stage.
+    store.append_event(run.id, "status", {"status": "running"})
+    # A run with no pipeline events yet reports None.
+    store.create_run("unstaged", "standard", "mock", {})
+
+    by_goal = {r.research_goal: r for r in store.list_runs()}
+    assert by_goal["staged"].latest_stage == "ranking"
+    assert by_goal["unstaged"].latest_stage is None
+    # A single-run read does not carry the list enrichment.
+    assert store.get_run(run.id).latest_stage is None  # type: ignore[union-attr]
+
+
 def test_hypothesis_state_decoupled_from_hypothesis_row(db: str) -> None:
     run = store.create_run("decoupling test", "standard", "mock", {})
     hid = store.add_hypothesis(
