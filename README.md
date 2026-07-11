@@ -174,6 +174,7 @@ Full diagrams and module map in
 
 - [Towards an AI Co-Scientist](https://arxiv.org/abs/2502.18864)
 - [Accelerating scientific discovery with Co-Scientist](https://doi.org/10.1038/s41586-026-10644-y)
+- [Gemini Enterprise — Idea Generation agent](https://docs.cloud.google.com/gemini/enterprise/docs/idea-generation)
 - [Science Skills for Antigravity](https://github.com/google-deepmind/science-skills)
 - [Jataware Open Co-Scientist](https://github.com/jataware/open-coscientist)
 - [Sakana AI Scientist](https://github.com/SakanaAI/AI-Scientist)
