@@ -246,11 +246,8 @@ def _select_evolution_pool(
     evolution_max_count = state.get("evolution_max_count", 10)
 
     # Calculate actual number to evolve (may be less than max if fewer
-    # hypotheses available)
-    # evolution_max_count doubles as the size of the pool going forward
-    # (see "Keep ONLY the evolved hypotheses" in _finalize_evolve_result),
-    # so clamp it to the available count rather than evolving hypotheses
-    # that do not exist.
+    # hypotheses available), so progress reporting counts real attempts
+    # rather than the configured maximum.
     actual_count = min(len(hypotheses), evolution_max_count)
 
     # Get top-k hypotheses
@@ -403,8 +400,9 @@ async def evolve_node(state: WorkflowState) -> dict[str, Any]:
     """Evolve top-k hypotheses with context-aware refinement.
 
     This node implements the most impactful anti-duplicate strategy:
-    context-aware evolution where each LLM call knows what all other
-    hypotheses are to prevent convergence.
+    context-aware evolution where each LLM call sees a strategically
+    sampled subset of its peers (top-Elo plus random, capped at 15) to
+    prevent convergence without an unbounded token budget.
 
     Args:
         state: Current workflow state

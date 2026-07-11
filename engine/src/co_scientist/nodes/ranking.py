@@ -535,16 +535,16 @@ async def _finalize_ranking_result(
 async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     """Runs tournament-style pairwise comparisons with Elo rating updates.
 
-    This node runs multiple rounds of random pairwise matchups where an LLM
-    judges which hypothesis is superior. Elo ratings are updated after each
-    matchup to reflect relative quality.
+    This node schedules weighted pairwise matchups (proximity-, recency-,
+    and rank-aware; see ranking_matchmaking) and has an LLM judge which
+    hypothesis in each pairing is superior. Elo ratings are updated after
+    each matchup, and matchups involving a top-ranked hypothesis run a
+    multi-turn scientific debate instead of a single-turn comparison.
 
-    Tournament rounds = len(hypotheses) * 1 (can be adjusted)
-
-    deterministic seeding: the random pairings are seeded using research_goal
-    and current_iteration to ensure cache consistency across runs. this allows
-    identical inputs to produce identical tournament results, enabling proper
-    cache hits in subsequent iterations.
+    The round count comes from the run tier's tournament_pairs setting,
+    falling back to len(hypotheses) when unset. Pairings are seeded from
+    research_goal and current_iteration so identical inputs replay
+    identical tournaments, keeping LLM cache hits stable across reruns.
 
     Args:
         state: Current workflow state
