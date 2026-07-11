@@ -128,7 +128,8 @@ export const COMPOSER_LABEL_ICON_CLASSES = 'text-[1.15rem]';
 // Height is driven imperatively by the composer's auto-grow effect (min-height
 // floor here, JS caps the max at COMPOSER_MAX_HEIGHT and toggles scrolling), so
 // no fixed height and no max-height cap — the box grows with the textarea to
-// its full height and the action row follows below it.
+// its full height and the action row follows below it, kept clear by the
+// action row's own top gap.
 export const COMPOSER_TEXTAREA_CLASSES =
   'relative z-[2] block min-h-[2.85rem] w-full ' +
   'resize-none overflow-y-auto border-0 bg-transparent pt-0 font-[inherit] ' +
@@ -142,7 +143,7 @@ export const COMPOSER_TEXTAREA_CLASSES =
 // it.
 export const COMPOSER_ACTIONS_CLASSES =
   'reference-composer-actions mt-auto flex shrink-0 items-end ' +
-  'justify-between gap-3 pt-2';
+  'justify-between gap-3 pt-4';
 
 // File-upload and connectors buttons, plus the connectors dropdown anchor.
 export const COMPOSER_SOURCE_CONTROLS_CLASSES =
