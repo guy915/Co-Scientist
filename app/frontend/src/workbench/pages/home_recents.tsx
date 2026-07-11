@@ -1,7 +1,7 @@
 import {Link} from 'react-router-dom';
 import {isActiveStatus, type Run} from '@/api/runs';
 import {Icon} from '@/components/icon';
-import {conciseTitle} from '@/lib/text';
+import {firstSentenceClause} from '@/lib/text';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
 import {
@@ -213,9 +213,11 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
             {formatHomeRunTimeChip(run)}
           </span>
         </span>
-        <strong className={RECENT_TITLE_CLASSES}>
-          {conciseTitle(run.research_goal)}
-        </strong>
+        <TruncatedLabel
+          className={RECENT_TITLE_CLASSES}
+          text={firstSentenceClause(run.research_goal) || 'Untitled session'}
+        />
+
         <TruncatedLabel
           className={RECENT_DESCRIPTION_CLASSES}
           text={run.research_goal}

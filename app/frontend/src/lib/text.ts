@@ -18,12 +18,21 @@ export function conciseTitle(goal: string, maxChars = 52): string {
   return truncateOnWordBoundary(firstClause, maxChars);
 }
 
-// First sentence only, but split on sentence-ending punctuation followed by
-// whitespace/end — so an abbreviation like "M.tuberculosis" (period mid-word)
-// is not mistaken for a clause boundary and truncated to "...for M".
-function firstSentenceClause(text: string): string {
-  const sentenceEnd = text.search(/[.?!;](\s|$)/);
-  return (sentenceEnd >= 0 ? text.slice(0, sentenceEnd) : text).trim();
+/**
+ * The first sentence/clause of a research goal, split on sentence-ending
+ * punctuation followed by whitespace/end — so an abbreviation like
+ * "M.tuberculosis" (period mid-word) is not mistaken for a clause boundary and
+ * truncated to "...for M". Returns '' for empty input.
+ *
+ * Exported for width-aware titles (e.g. the recents cards) that render this
+ * clause through TruncatedLabel instead of the char-capped conciseTitle: the
+ * label fills the available width and ellipsizes on a word boundary, matching
+ * every other truncation in the UI.
+ */
+export function firstSentenceClause(text: string): string {
+  const source = (text ?? '').trim();
+  const sentenceEnd = source.search(/[.?!;](\s|$)/);
+  return (sentenceEnd >= 0 ? source.slice(0, sentenceEnd) : source).trim();
 }
 
 /**

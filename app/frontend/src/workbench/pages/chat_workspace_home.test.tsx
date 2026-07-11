@@ -32,7 +32,9 @@ describe('ChatWorkspace home stage', () => {
     ).toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeInTheDocument();
     expect(
-      await screen.findByText(/ferroptosis in pancreatic cancer cells/i),
+      await screen.findByText(/ferroptosis in pancreatic cancer cells/i, {
+        selector: '.reference-recent-description',
+      }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('link', {
