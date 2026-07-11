@@ -228,10 +228,9 @@ jobs:
             pydantic pydantic-settings httpx
       - name: Run viewer backend test suite
         working-directory: app
-        env:
-          # Forces the deterministic mock workflow provider so the suite
-          # runs offline with no model API keys.
-          COSCIENTIST_TEST_MODE: '1'
+        # Runs offline: CI has no model API keys, and the suite's autouse
+        # isolated_db fixture forces the deterministic mock provider
+        # (COSCIENTIST_FORCE_MOCK=1) for every test.
         run: python -m pytest -q
 
   evaluations:

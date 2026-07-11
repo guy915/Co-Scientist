@@ -44,8 +44,9 @@ Test Sizes / ch. 11: small and medium tests get no external network access —
 that is what makes them deterministic and trustworthy as merge gates.
 
 - Engine tests: pure unit/graph tests, LLM calls mocked (961 tests, ~12 s).
-- App tests: `COSCIENTIST_TEST_MODE=1` forces the deterministic mock
-  workflow provider; no model API keys exist in CI.
+- App tests: the suite's autouse `isolated_db` fixture forces the
+  deterministic mock workflow provider (`COSCIENTIST_FORCE_MOCK=1`); no model
+  API keys exist in CI.
 - MCP server tests: fake `httpx` clients, no network (see
   `engine/mcp_server/tests/test_openalex.py` docstring).
 - Evaluations: `evaluations.smoke` is by construction the *offline* (no-LLM,
