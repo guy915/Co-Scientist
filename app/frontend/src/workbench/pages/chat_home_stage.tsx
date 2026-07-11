@@ -31,25 +31,51 @@ import {HomeRecentsPanel} from './home_recents';
 import {GoogleLabsIcon} from '../components/google_labs_icon';
 import {TruncatedLabel} from '../components/truncated_label';
 
-// Single source of truth: the full prompt. The card truncates it to the real
-// available width via TruncatedLabel, and the hover preview shows it in full.
-// (Do not add a hand-shortened variant — a pre-truncated string fed to a
-// width-aware truncator can never fill the actual card space.) Each carries a
-// leading glyph shown in the mobile list layout.
-export const SUGGESTIONS: readonly {text: string; icon: IconName}[] = [
+// Each suggestion carries two strings with distinct jobs. `preview` is a
+// one-sentence teaser shown on the card (truncated to the card width via
+// TruncatedLabel) and in the hover bubble. `prompt` is the full, well-formed
+// research goal dropped into the composer on click — modelled on the
+// Co-Scientist input anatomy (a title line, a goal with an explicit output
+// format, novelty/feasibility constraints, and the reasoning the system should
+// perform), so a scientist starts from a real prompt rather than a teaser.
+// `icon` is the leading glyph shown in the mobile list layout.
+export const SUGGESTIONS: readonly {
+  preview: string;
+  prompt: string;
+  icon: IconName;
+}[] = [
   {
-    text: 'Suggest an approved drug that could be repurposed to slow glioblastoma progression. Explain its molecular mechanism and affected pathways, propose a testable in-vitro assay, and favor candidates with no prior evidence in glioblastoma and low toxicity to healthy cells.',
+    preview: 'Repurpose an approved drug to slow glioblastoma progression.',
+    prompt:
+      'Repurposing an approved drug for glioblastoma.\n\n' +
+      'Suggest an existing, approved drug that could be repurposed to slow the progression of glioblastoma, and provide experimentally testable concentrations for an in-vitro proliferation assay in patient-derived glioblastoma cells. The drug should cross the blood-brain barrier and inhibit tumor cell growth.\n\n' +
+      'The drug should have minimal cytotoxicity in healthy neural and glial cells, and should not have been experimentally tested for glioblastoma before.\n\n' +
+      'Reason about the drug’s molecular mechanism, impacted pathways, and effect on tumor-cell proliferation. Describe the mechanism of action in detail, and reason about safety and toxicity, stating where no safety data exists.',
     icon: 'search',
   },
   {
-    text: 'Develop a novel, mechanistic hypothesis linking gut-microbiome metabolites to the progression of Parkinson’s disease. Detail the pathway involved and outline a feasible experiment to test it.',
+    preview:
+      'Find a mechanistic link between gut-microbiome metabolites and Parkinson’s.',
+    prompt:
+      'A novel hypothesis for gut-microbiome metabolites in Parkinson’s disease progression.\n\n' +
+      'Develop a novel, mechanistic hypothesis explaining how specific gut-microbiome-derived metabolites influence the progression of Parkinson’s disease, focusing on the gut–brain axis and α-synuclein aggregation. Explain the mechanism of action in detail, from the metabolite to the molecular pathway to the neuronal phenotype.\n\n' +
+      'Prioritize hypotheses that are novel — not already established in the literature — and consistent with known human and model-organism evidence.\n\n' +
+      'Include a feasible experiment to test the hypothesis, specifying the model system (for example gnotobiotic mice or enteric neuron cultures) and the measurable readout.',
     icon: 'lightbulb',
   },
   {
-    text: 'Propose a novel strategy to resensitize multidrug-resistant Gram-negative bacteria to an existing antibiotic. Explain the mechanism, keep the approach feasible with current lab techniques, and require the idea to be experimentally testable.',
+    preview:
+      'Resensitize multidrug-resistant Gram-negative bacteria to an antibiotic.',
+    prompt:
+      'A strategy to resensitize multidrug-resistant Gram-negative bacteria.\n\n' +
+      'Propose a novel strategy to resensitize multidrug-resistant Gram-negative bacteria (for example carbapenem-resistant Klebsiella pneumoniae) to an existing antibiotic. The strategy should target a specific resistance mechanism — such as an efflux pump, β-lactamase activity, or outer-membrane permeability — and restore the potency of a clinically used drug.\n\n' +
+      'The approach should be feasible with current laboratory techniques and should not depend on developing an entirely new class of antibiotic.\n\n' +
+      'Explain the molecular mechanism in detail, reason about how readily resistance could emerge against the strategy itself, and outline an experimentally testable assay (for example a checkerboard MIC assay) to validate the resensitization.',
     icon: 'stars',
   },
 ];
+
+type Suggestion = (typeof SUGGESTIONS)[number];
 
 // Copy for the desktop-only 1-2-3 onboarding timeline rendered below the
 // title (hidden on mobile to save vertical space; see the `!isMobile` guard).
@@ -113,9 +139,9 @@ export function HomeStage({
   showAllRecents: boolean;
   onToggleShowAll: () => void;
 }) {
-  // Tracks which suggestion (by its full text, used as the identity key) is
-  // currently hovered/focused, to show that suggestion's full-text preview
-  // bubble and its "previewed" button styling.
+  // Tracks which suggestion (by its preview text, used as the identity key) is
+  // currently hovered/focused, to show that suggestion's preview bubble and its
+  // "previewed" button styling.
   const [hoveredSuggestion, setHoveredSuggestion] = useState<string | null>(
     null,
   );
@@ -125,10 +151,11 @@ export function HomeStage({
   // active layout.
   const isMobile = useIsMobile();
 
-  // Filling the composer from a suggestion also dismisses that suggestion's
-  // preview bubble, since the row is about to lose focus/hover anyway.
-  function selectSuggestion(text: string) {
-    setInput(text);
+  // Filling the composer from a suggestion drops in the full prompt (not the
+  // preview) and dismisses that suggestion's preview bubble, since the row is
+  // about to lose focus/hover anyway.
+  function selectSuggestion(prompt: string) {
+    setInput(prompt);
     setHoveredSuggestion(null);
   }
 
@@ -220,11 +247,11 @@ function HomeSuggestionRow({
     <div className={HOME_SUGGESTION_ROW_CLASSES}>
       {SUGGESTIONS.map((suggestion, index) => (
         <SuggestionCard
-          key={suggestion.text}
+          key={suggestion.preview}
           suggestion={suggestion}
           index={index}
           isMobile={isMobile}
-          isPreviewed={hoveredSuggestion === suggestion.text}
+          isPreviewed={hoveredSuggestion === suggestion.preview}
           onPreview={onPreview}
           onSelect={onSelect}
         />
@@ -269,9 +296,9 @@ function suggestionPreviewPositionClass(index: number) {
 }
 
 // Renders one suggestion card in the home-stage suggestion row: the
-// hover/focus-revealed full-text preview bubble (SuggestionPreviewBubble),
-// and the button that fills the composer with the suggestion's text when
-// selected (SuggestionTriggerButton).
+// hover/focus-revealed one-sentence preview bubble (SuggestionPreviewBubble),
+// and the button that fills the composer with the suggestion's full prompt
+// when selected (SuggestionTriggerButton).
 function SuggestionCard({
   suggestion,
   index,
@@ -280,12 +307,12 @@ function SuggestionCard({
   onPreview,
   onSelect,
 }: {
-  suggestion: {text: string; icon: IconName};
+  suggestion: Suggestion;
   index: number;
   isMobile: boolean;
   isPreviewed: boolean;
-  onPreview: (text: string | null) => void;
-  onSelect: (text: string) => void;
+  onPreview: (preview: string | null) => void;
+  onSelect: (prompt: string) => void;
 }) {
   // The preview bubble anchors differently per column (start/center/end) so
   // it stays roughly centered over the row rather than overflowing past the
@@ -295,7 +322,7 @@ function SuggestionCard({
   return (
     <div className={HOME_SUGGESTION_SLOT_CLASSES}>
       <SuggestionPreviewBubble
-        text={suggestion.text}
+        text={suggestion.preview}
         isPreviewed={isPreviewed}
         positionClass={previewPositionClass}
       />
@@ -310,7 +337,7 @@ function SuggestionCard({
   );
 }
 
-// Full-text preview bubble revealed above a suggestion card on hover/focus.
+// One-sentence preview bubble revealed above a suggestion card on hover/focus.
 function SuggestionPreviewBubble({
   text,
   isPreviewed,
@@ -337,9 +364,9 @@ function SuggestionPreviewBubble({
 }
 
 // The suggestion's clickable trigger: fills the composer with the
-// suggestion's full text when clicked, and drives the preview bubble's
+// suggestion's full prompt when clicked, and drives the preview bubble's
 // visibility on hover/pointer/focus so touch/keyboard users get the same
-// full-text preview that mouse hover provides.
+// one-sentence preview that mouse hover provides.
 function SuggestionTriggerButton({
   suggestion,
   isMobile,
@@ -347,11 +374,11 @@ function SuggestionTriggerButton({
   onPreview,
   onSelect,
 }: {
-  suggestion: {text: string; icon: IconName};
+  suggestion: Suggestion;
   isMobile: boolean;
   isPreviewed: boolean;
-  onPreview: (text: string | null) => void;
-  onSelect: (text: string) => void;
+  onPreview: (preview: string | null) => void;
+  onSelect: (prompt: string) => void;
 }) {
   return (
     <button
@@ -362,13 +389,13 @@ function SuggestionTriggerButton({
       ]
         .filter(Boolean)
         .join(' ')}
-      onMouseEnter={() => onPreview(suggestion.text)}
+      onMouseEnter={() => onPreview(suggestion.preview)}
       onMouseLeave={() => onPreview(null)}
-      onPointerEnter={() => onPreview(suggestion.text)}
+      onPointerEnter={() => onPreview(suggestion.preview)}
       onPointerLeave={() => onPreview(null)}
-      onFocus={() => onPreview(suggestion.text)}
+      onFocus={() => onPreview(suggestion.preview)}
       onBlur={() => onPreview(null)}
-      onClick={() => onSelect(suggestion.text)}
+      onClick={() => onSelect(suggestion.prompt)}
     >
       {/* Leading glyph is part of the phone list layout only; desktop cards
           are text-only. */}
@@ -381,7 +408,7 @@ function SuggestionTriggerButton({
       )}
       <TruncatedLabel
         className={HOME_SUGGESTION_TEXT_CLASSES}
-        text={suggestion.text}
+        text={suggestion.preview}
         lines={isMobile ? 1 : 2}
       />
     </button>

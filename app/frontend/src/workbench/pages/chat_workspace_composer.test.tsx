@@ -112,12 +112,12 @@ describe('ChatWorkspace composer', () => {
       ?.getBoundingClientRect().top;
 
     const suggestion = screen.getByRole('button', {
-      name: FIRST_SUGGESTION.text,
+      name: FIRST_SUGGESTION.preview,
     });
 
     fireEvent.pointerEnter(suggestion);
 
-    const preview = screen.getByText(FIRST_SUGGESTION.text, {
+    const preview = screen.getByText(FIRST_SUGGESTION.preview, {
       selector: '.reference-suggestion-preview',
     });
     expect(preview).toBeInTheDocument();
@@ -137,12 +137,13 @@ describe('ChatWorkspace composer', () => {
     renderWorkspace();
 
     const suggestion = screen.getByRole('button', {
-      name: FIRST_SUGGESTION.text,
+      name: FIRST_SUGGESTION.preview,
     });
 
     fireEvent.click(suggestion);
 
-    expect(screen.getByRole('textbox')).toHaveValue(FIRST_SUGGESTION.text);
+    // The card previews one sentence, but selecting it fills the full prompt.
+    expect(screen.getByRole('textbox')).toHaveValue(FIRST_SUGGESTION.prompt);
     expect(suggestion).not.toHaveClass('selected');
     expect(suggestion).not.toHaveClass('is-previewed');
   });
@@ -151,12 +152,12 @@ describe('ChatWorkspace composer', () => {
     renderWorkspace();
 
     const suggestion = screen.getByRole('button', {
-      name: SECOND_SUGGESTION.text,
+      name: SECOND_SUGGESTION.preview,
     });
 
     fireEvent.pointerEnter(suggestion);
 
-    const preview = screen.getByText(SECOND_SUGGESTION.text, {
+    const preview = screen.getByText(SECOND_SUGGESTION.preview, {
       selector: '.reference-suggestion-preview',
     });
     expect(preview).toHaveClass('visible');
