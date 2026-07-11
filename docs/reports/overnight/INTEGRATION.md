@@ -282,13 +282,22 @@ These were done in the same session, once the user authorized push and cleanup:
   hardening against runner-image updates that drop a shared library. Placed in
   CI rather than `make e2e` so local runs never invoke sudo. Verified green on
   GitHub (the step ran and the suite passed behind it).
+- **Branch protection configured.** `main` was already protected by a
+  repository **ruleset** named "Default" (the newer rulesets system, not
+  classic branch protection — which is why the classic API reported "not
+  protected"). It blocked deletion and force-pushes with an admin bypass. The
+  nine substantive CI checks (format-lint, typecheck, both engine matrices,
+  app, evaluations, frontend, mcp-server, e2e) were **added to that same
+  ruleset** as required status checks (`strict` off), preserving its existing
+  rules and its admin bypass. Net effect: pull requests must pass the nine
+  checks before merging; the owner retains direct-push to `main` via the
+  admin bypass (`current_user_can_bypass: always`). To enforce PR-only (block
+  direct pushes too), remove the `RepositoryRole` bypass actor from the
+  ruleset.
 
 ## Remaining follow-ups for the user
 
-1. **Branch protection.** `docs/CI.md` recommends (does not configure) marking
-   the CI jobs — now including `e2e` — as required status checks on `main`.
-   The workflow has now run green on GitHub, so this can be configured.
-2. **Superseded archived report.** `docs/reports/overnight/feat-operator-cli.md`
+1. **Superseded archived report.** `docs/reports/overnight/feat-operator-cli.md`
    (branch 5's snapshot) still describes the pre-integration offline `ask`
    behavior ("the endpoint returns HTTP 200 and emits a graceful error frame").
    That is superseded by branch 2: offline `ask` now returns a grounded answer.
