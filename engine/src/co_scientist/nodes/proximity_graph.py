@@ -32,6 +32,31 @@ _DEGREE_WEIGHT: dict[str, float] = {
 PROXIMITY_METHOD = "llm-cluster"
 PROXIMITY_METHOD_VERSION = "1"
 
+# The proximity LLM echoes each hypothesis's text back per cluster; matching is
+# done on the first 100 chars (nodes/proximity.py::_match_hypothesis_to_cluster
+# uses the same prefix), so a re-quote that drifts past char 100 still resolves.
+_MATCH_PREFIX_CHARS = 100
+
+
+def member_match_key(text: str) -> str:
+    """Normalize hypothesis text to the key used to resolve cluster members.
+
+    Both the id map (built by the proximity node from surviving hypotheses)
+    and each cluster member's echoed text are reduced to this key, so a member
+    resolves to its hypothesis id whenever the node would have clustered it.
+    Matching is on the normalized first ``_MATCH_PREFIX_CHARS`` characters,
+    consistent with the node's own prefix matching and robust to the LLM
+    editing the tail of a re-quoted hypothesis.
+
+    Args:
+        text: Raw hypothesis text (from a Hypothesis or an echoed cluster
+            member).
+
+    Returns:
+        The normalized match key.
+    """
+    return text[:_MATCH_PREFIX_CHARS].strip().lower()
+
 
 def _degree_weight(degree: str | None) -> float:
     """Map a similarity degree label to its numeric weight (default low)."""
@@ -41,11 +66,17 @@ def _degree_weight(degree: str | None) -> float:
 def _cluster_member_ids(
     cluster: dict[str, Any], id_by_text: dict[str, str]
 ) -> list[tuple[str, str]]:
-    """Return (hypothesis_id, degree) for each resolvable cluster member."""
+    """Return (hypothesis_id, degree) for each resolvable cluster member.
+
+    Consumes the proximity schema's ``similar_hypotheses[].text`` shape (the
+    only shape a live ``PROXIMITY_SCHEMA`` response emits) and resolves each
+    member back to a hypothesis id via :func:`member_match_key`. Members whose
+    text does not resolve (e.g. a hypothesis pruned by dedup before the graph
+    was built) are dropped.
+    """
     members: list[tuple[str, str]] = []
-    for member in cluster.get("hypotheses", []):
-        text = member.get("hypothesis_text") or member.get("text") or ""
-        hyp_id = id_by_text.get(text.strip().lower())
+    for member in cluster.get("similar_hypotheses", []):
+        hyp_id = id_by_text.get(member_match_key(member.get("text", "")))
         if hyp_id is not None:
             members.append((hyp_id, member.get("similarity_degree", "low")))
     return members
