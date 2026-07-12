@@ -125,7 +125,7 @@ def _initial_user_and_literature_fields(
         "literature_review_queries": None,
         "articles": None,
         "debate_transcripts": None,
-        "context_enrichment_sources": None,
+        "context_enrichment_sources": opts.get("context_enrichment_sources"),
     }
 
 

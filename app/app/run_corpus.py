@@ -128,3 +128,42 @@ def corpus_from_evidence(
         for row in evidence_rows
         if row.get("source") == ATTACHMENT_SOURCE
     ]
+
+
+def engine_context_sources(
+    evidence_rows: list[dict[str, Any]],
+    research_goal: str,
+    *,
+    max_documents: int = 20,
+    excerpt_chars: int = 6000,
+) -> list[dict[str, Any]]:
+    """Retrieve private documents and format bounded engine evidence sources."""
+    documents = corpus_from_evidence(evidence_rows)
+    hits = KeywordCorpusRetriever(documents).retrieve(
+        research_goal, k=max_documents
+    )
+    # If goal vocabulary does not overlap a small scientist corpus, preserve
+    # the documents in deterministic order rather than silently discarding
+    # explicitly supplied context.
+    selected = [hit.document for hit in hits]
+    if not selected:
+        selected = sorted(documents, key=lambda item: item.doc_id)[
+            :max_documents
+        ]
+    return [
+        {
+            "display": (
+                f"Private scientist source '{document.title}': "
+                f"{document.text[:excerpt_chars]}"
+            ),
+            "tool_id": "private_corpus",
+            "source_type": "private_document",
+            "data": {
+                "document_id": document.doc_id,
+                "title": document.title,
+                "excerpt": document.text[:excerpt_chars],
+                "private": True,
+            },
+        }
+        for document in selected
+    ]

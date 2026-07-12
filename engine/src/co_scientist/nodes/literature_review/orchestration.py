@@ -228,6 +228,18 @@ async def _collect_and_enrich_papers(
     ) = await _fetch_content_and_enrichment(
         all_paper_metadata, paper_source_map, config, mcp_client, state
     )
+    private_sources = state.get("context_enrichment_sources") or []
+    if private_sources:
+        context_enrichment_sources = [
+            *private_sources,
+            *context_enrichment_sources,
+        ]
+        private_context = "\n\n".join(
+            str(item.get("display") or "") for item in private_sources
+        )
+        background_context = "\n\n".join(
+            part for part in (private_context, background_context) if part
+        )
 
     with_fulltext, without_fulltext = count_papers_with_fulltext(
         all_paper_metadata

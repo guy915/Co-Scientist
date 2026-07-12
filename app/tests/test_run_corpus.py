@@ -5,6 +5,7 @@ from __future__ import annotations
 from app.run_corpus import (
     CorpusDocument,
     KeywordCorpusRetriever,
+    engine_context_sources,
 )
 
 
@@ -57,3 +58,29 @@ def test_retrieval_is_deterministic() -> None:
 def test_empty_corpus_returns_nothing() -> None:
     """Retrieval over an empty corpus is safe and empty."""
     assert KeywordCorpusRetriever([]).retrieve("anything") == []
+
+
+def test_engine_context_sources_preserve_private_provenance() -> None:
+    """Retrieved attachments become bounded, explicitly private sources."""
+    rows = [
+        {
+            "id": "private-1",
+            "title": "Unpublished kinase study",
+            "source": "attachment",
+            "abstract": "Kinase X inhibition reduced AML growth. " * 1000,
+        },
+        {
+            "id": "public-1",
+            "title": "Public paper",
+            "source": "pubmed",
+            "abstract": "Not part of the private corpus.",
+        },
+    ]
+
+    sources = engine_context_sources(rows, "kinase AML", excerpt_chars=200)
+
+    assert len(sources) == 1
+    assert sources[0]["source_type"] == "private_document"
+    assert sources[0]["data"]["document_id"] == "private-1"
+    assert sources[0]["data"]["private"] is True
+    assert len(sources[0]["data"]["excerpt"]) <= 200

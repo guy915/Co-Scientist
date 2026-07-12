@@ -113,6 +113,29 @@ def test_no_steering_leaves_pending_flag_unset(isolated_db: str) -> None:
     assert "pending_steering" not in opts
 
 
+def test_engine_opts_bind_private_attachment_context(isolated_db: str) -> None:
+    """A consented attachment becomes engine literature and citation context."""
+    from app.engine_adapter import _build_engine_opts
+
+    run = store.create_run(
+        "kinase AML", "standard", "engine", {}, db_path=isolated_db
+    )
+    store.add_evidence(
+        run.id,
+        "Private kinase result",
+        source="attachment",
+        abstract="Kinase X inhibition reduced AML growth in donor samples.",
+        db_path=isolated_db,
+    )
+
+    opts = _build_engine_opts(run.config, run.id, isolated_db)
+
+    sources = opts["context_enrichment_sources"]
+    assert sources[0]["source_type"] == "private_document"
+    assert sources[0]["tool_id"] == "private_corpus"
+    assert "Kinase X" in opts["user_inputs"]["literature"][0]
+
+
 def test_message_to_dict(isolated_db: str) -> None:
     store.create_run(
         "rg", "standard", "mock", {}, client_id="c1", db_path=isolated_db

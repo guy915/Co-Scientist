@@ -148,7 +148,7 @@ def _enrichment_reference_entries(
         display = item.get("display", "External source")
         lines.append(f"[{key}] {display}")
         sources[key] = {
-            "type": "knowledge_graph",
+            "type": item.get("source_type", "knowledge_graph"),
             "display": display,
             "tool_id": item.get("tool_id", ""),
             "data": item.get("data", {}),

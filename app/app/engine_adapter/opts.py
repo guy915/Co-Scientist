@@ -10,7 +10,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-from app import store
+from app import run_corpus, store
 from app.config import settings
 from app.run_modes import (
     clean_string_list,
@@ -138,6 +138,15 @@ def _build_engine_opts(
     initial_opts["enable_literature_review_node"] = (
         _resolve_literature_review_toggle(cfg)
     )
+    private_sources = run_corpus.engine_context_sources(
+        store.list_evidence(run_id, db_path=db_path),
+        str((cfg.get("setup") or {}).get("goal") or ""),
+    )
+    if private_sources:
+        initial_opts["context_enrichment_sources"] = private_sources
+        initial_opts["user_inputs"] = {
+            "literature": [str(item["display"]) for item in private_sources]
+        }
     return initial_opts
 
 

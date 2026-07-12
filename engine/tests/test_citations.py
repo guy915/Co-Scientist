@@ -261,6 +261,24 @@ def test_build_index_enrichment_display_defaults() -> None:
     }
 
 
+def test_build_index_preserves_private_document_type() -> None:
+    """Private corpus sources remain distinguishable from knowledge graphs."""
+    idx = build_reference_index(
+        None,
+        [
+            {
+                "display": "Private result excerpt",
+                "tool_id": "private_corpus",
+                "source_type": "private_document",
+                "data": {"document_id": "doc-1", "private": True},
+            }
+        ],
+    )
+
+    assert idx.sources["C1"]["type"] == "private_document"
+    assert idx.sources["C1"]["data"]["private"] is True
+
+
 # --- build_reference_index: empty inputs -----------------------------------
 
 
