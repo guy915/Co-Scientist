@@ -22,7 +22,6 @@ from app.engine_adapter.events import (
 )
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
-from app.mock_workflow import run_mock_workflow
 from app.report_render import EmitFn, emit_cancel_or_pause, finalize_report
 from app.store import RunStatus
 
@@ -425,20 +424,11 @@ def _real_engine_stream(
     emit: EmitFn,
     resume: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Return the real-engine event stream, bridging it into our event log.
-
-    Falls back to the mock workflow if the real engine cannot be imported
-    even though the caller resolved to "engine" (e.g. a partial install).
-    """
+    """Return the real-engine event stream, bridging it into our event log."""
     generator_cls = _import_hypothesis_generator()
     if generator_cls is None:
-        return run_mock_workflow(
-            run_id=run_id,
-            research_goal=research_goal,
-            config=cfg,
-            db_path=db_path,
-            cancelled=cancelled,
-            sleep_seconds=sleep_seconds,
+        raise RuntimeError(
+            "real engine is unavailable; refusing to substitute mock science"
         )
 
     return _run_engine_provider(

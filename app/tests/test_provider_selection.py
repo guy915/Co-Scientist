@@ -16,6 +16,7 @@ import sys
 import pytest
 
 from app.engine_adapter import provider
+from app.engine_adapter.engine_stream import _real_engine_stream
 
 
 def test_engine_importable_returns_false_on_exception(
@@ -52,6 +53,33 @@ def test_select_provider_returns_engine_when_available(
     monkeypatch.setattr(provider, "_has_provider_key", lambda: True)
     monkeypatch.setattr(provider, "_engine_importable", lambda: True)
     assert provider.select_provider() == "engine"
+
+
+def test_missing_engine_never_substitutes_mock_science(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A run resolved as real fails loudly if its engine disappears."""
+    async def _emit(
+        _kind: str, _payload: dict[str, object]
+    ) -> dict[str, object]:
+        return {}
+
+    monkeypatch.setattr(
+        "app.engine_adapter.engine_stream._import_hypothesis_generator",
+        lambda: None,
+    )
+
+    with pytest.raises(RuntimeError, match="refusing to substitute mock"):
+        _real_engine_stream(
+            "goal",
+            "run-id",
+            "standard",
+            {},
+            cancelled=None,
+            db_path=None,
+            sleep_seconds=0,
+            emit=_emit,
+        )
 
 
 def test_missing_engine_src_gets_added_to_syspath_on_import(

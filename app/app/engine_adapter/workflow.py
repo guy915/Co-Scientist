@@ -84,13 +84,7 @@ async def _select_provider_stream(
     emit: EmitFn,
     resume: bool,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Return the event stream for the resolved provider, choosing a fallback.
-
-    Falls back to the mock workflow if the real engine cannot be imported
-    even though `provider` resolved to "engine" (e.g. a partial install). The
-    mock re-derives deterministically from its seed on resume, so it ignores
-    the flag; only the engine restores a persisted WorkflowState.
-    """
+    """Return the event stream for the explicitly resolved provider."""
     if provider == "mock":
         return _stream_mock_provider(
             run_id,
