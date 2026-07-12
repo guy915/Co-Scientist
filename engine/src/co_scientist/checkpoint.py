@@ -22,6 +22,12 @@ from __future__ import annotations
 import time
 from typing import Any
 
+from langchain_core.messages import (
+    BaseMessage,
+    messages_from_dict,
+    messages_to_dict,
+)
+
 from co_scientist.models import (
     Article,
     ExecutionMetrics,
@@ -33,9 +39,41 @@ from co_scientist.state import WorkflowState
 # checkpoint whose version differs fails closed (see restore_workflow_state).
 CHECKPOINT_VERSION = 1
 
-# Collections serialized via their dataclasses' to_dict/from_dict rather
-# than carried verbatim (see serialize_workflow_state).
-_SPECIAL_COLLECTION_KEYS = frozenset({"hypotheses", "metrics", "articles"})
+# Collections serialized via their dataclasses' to_dict/from_dict (or, for
+# ``messages``, LangChain's message (de)serializers) rather than carried
+# verbatim -- their runtime objects are not JSON-serializable, so a persisted
+# checkpoint (the app store json.dumps() this envelope) would fail without it.
+_SPECIAL_COLLECTION_KEYS = frozenset(
+    {"hypotheses", "metrics", "articles", "messages"}
+)
+
+
+def _serialize_messages(messages: Any) -> list[dict[str, Any]]:
+    """Convert the LangGraph message channel to JSON-safe dicts.
+
+    ``add_messages`` coerces the ``messages`` channel to LangChain
+    ``BaseMessage`` objects at runtime, which are not JSON-serializable. A run
+    that never appended a message leaves plain data, so only ``BaseMessage``
+    items are converted; anything already plain is passed through.
+    """
+    items = list(messages or [])
+    if items and all(isinstance(m, BaseMessage) for m in items):
+        return messages_to_dict(items)
+    return items
+
+
+def _deserialize_messages(raw: Any) -> list[Any]:
+    """Rebuild LangChain messages from the serialized dicts, if any.
+
+    ``add_messages`` accepts both message objects and message-shaped dicts, so
+    a value that is not the ``messages_to_dict`` shape is returned unchanged.
+    """
+    items = list(raw or [])
+    if items and all(
+        isinstance(m, dict) and "type" in m and "data" in m for m in items
+    ):
+        return list(messages_from_dict(items))
+    return items
 
 # Runtime handles never serialized; re-injected on restore from the live run.
 _EXCLUDED_RUNTIME_KEYS = frozenset({"progress_callback", "tool_registry"})
@@ -118,6 +156,7 @@ def serialize_workflow_state(
     payload["articles"] = (
         [a.to_dict() for a in articles] if articles else articles
     )
+    payload["messages"] = _serialize_messages(state.get("messages"))
 
     return {
         "version": CHECKPOINT_VERSION,
@@ -170,6 +209,7 @@ def restore_workflow_state(
     payload["articles"] = (
         [Article.from_dict(a) for a in articles] if articles else articles
     )
+    payload["messages"] = _deserialize_messages(payload.get("messages"))
     # Rebase the start timestamp so elapsed time counts only active seconds,
     # excluding the real-world gap between checkpoint and resume. The
     # fallback keeps CHECKPOINT_VERSION 1 backward compatible (no bump

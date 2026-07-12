@@ -10,8 +10,8 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from collections.abc import AsyncIterator
-from typing import Any
+from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any, cast
 
 from app import store
 from app.engine_adapter.drain import _persist_final_state
@@ -28,6 +28,61 @@ from app.runs_registry import is_pause_requested
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
+
+# Provider tag written on an engine checkpoint's envelope so the resume path
+# can tell a real serialized WorkflowState apart from the mock's lightweight
+# {provider, run_mode, iteration, config} envelope.
+_ENGINE_CHECKPOINT_PROVIDER = "engine"
+
+
+def _make_engine_checkpoint_callback(
+    run_id: str, db_path: str | None
+) -> Callable[[str, dict[str, Any]], Awaitable[None]]:
+    """Return an async hook that persists the engine's full WorkflowState.
+
+    The engine invokes this after each node completes (and before the node's
+    event is yielded), handing over the complete post-node ``WorkflowState``.
+    We serialize it with the engine's own versioned serializer and store it as
+    a durable checkpoint, tagged as an engine checkpoint so resume restores it
+    (rather than re-running from the goal). ``last_event_seq`` records the
+    run's event high-water mark so a resumed run assigns new seqs above it.
+
+    The engine import is deferred into the hook body: it runs only when the
+    real engine actually checkpoints, so fake-generator tests (which stub
+    ``co_scientist`` with a non-package) never trigger it.
+    """
+
+    async def _checkpoint(node_name: str, full_state: dict[str, Any]) -> None:
+        from co_scientist.checkpoint import (
+            CHECKPOINT_VERSION,
+            serialize_workflow_state,
+        )
+
+        envelope = serialize_workflow_state(
+            full_state,
+            last_event_seq=store.latest_event_seq(run_id, db_path=db_path),
+        )
+        store.save_checkpoint(
+            run_id,
+            stage=f"engine:{node_name}",
+            schema_version=CHECKPOINT_VERSION,
+            last_event_seq=envelope["last_event_seq"],
+            state={"provider": _ENGINE_CHECKPOINT_PROVIDER, **envelope},
+            db_path=db_path,
+        )
+
+    return _checkpoint
+
+
+def is_engine_checkpoint(checkpoint: dict[str, Any] | None) -> bool:
+    """Whether a stored checkpoint carries a serialized engine WorkflowState."""
+    if not checkpoint:
+        return False
+    state = checkpoint.get("state")
+    return (
+        isinstance(state, dict)
+        and state.get("provider") == _ENGINE_CHECKPOINT_PROVIDER
+    )
 
 
 def _merge_engine_state(
@@ -91,6 +146,53 @@ async def _emit_engine_node_event(
     return await emit(node_type, payload)
 
 
+def _engine_node_stream(
+    generator: Any,
+    research_goal: str,
+    run_id: str,
+    initial_opts: dict[str, Any] | None,
+    checkpoint_callback: Callable[[str, dict[str, Any]], Awaitable[None]],
+    *,
+    resume: bool,
+) -> AsyncIterator[tuple[str, dict[str, Any]]]:
+    """Return the engine's raw (node_name, snapshot) stream, fresh or resumed.
+
+    A fresh run streams from the goal, checkpointing its full state after each
+    node. A resume restores the latest engine checkpoint and re-enters the
+    graph at the orchestrator via ``resume_hypotheses`` — completed nodes are
+    not re-run — while still checkpointing so a re-interruption is recoverable.
+    """
+    if not resume:
+        return cast(
+            "AsyncIterator[tuple[str, dict[str, Any]]]",
+            generator.generate_hypotheses(
+                research_goal=research_goal,
+                stream=True,
+                run_id=run_id,
+                opts=initial_opts,
+                checkpoint_callback=checkpoint_callback,
+            ),
+        )
+
+    from co_scientist.checkpoint import restore_workflow_state
+
+    checkpoint = store.get_latest_checkpoint(run_id)
+    if not is_engine_checkpoint(checkpoint):
+        raise RuntimeError(
+            f"run {run_id} has no engine checkpoint to resume from"
+        )
+    assert checkpoint is not None
+    restored_state = restore_workflow_state(checkpoint["state"])
+    return cast(
+        "AsyncIterator[tuple[str, dict[str, Any]]]",
+        generator.resume_hypotheses(
+            restored_state,
+            opts=initial_opts,
+            checkpoint_callback=checkpoint_callback,
+        ),
+    )
+
+
 async def _stream_engine_nodes(
     generator: Any,
     research_goal: str,
@@ -101,20 +203,26 @@ async def _stream_engine_nodes(
     cancelled: asyncio.Event | None,
     db_path: str | None,
     emit: EmitFn,
+    resume: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream the engine's per-node events, updating `final_state` in place.
 
     Normalizes each node to the canonical mock event vocabulary, emits it
     (with a milestone side-message for key events), and yields the streamed
-    event. On cancellation, yields a final "cancelled" status event and
-    returns early; the caller checks `cancelled.is_set()` once this generator
-    is exhausted to distinguish that from a natural finish.
+    event. Each node's full ``WorkflowState`` is checkpointed (before its
+    event is emitted) so the run can resume without re-running completed work.
+    On cancellation, yields a final "cancelled" status event and returns
+    early; the caller checks `cancelled.is_set()` once this generator is
+    exhausted to distinguish that from a natural finish.
     """
-    async for node_name, state in generator.generate_hypotheses(
-        research_goal=research_goal,
-        stream=True,
-        run_id=run_id,
-        opts=initial_opts,
+    checkpoint_callback = _make_engine_checkpoint_callback(run_id, db_path)
+    async for node_name, state in _engine_node_stream(
+        generator,
+        research_goal,
+        run_id,
+        initial_opts,
+        checkpoint_callback,
+        resume=resume,
     ):
         if cancelled and cancelled.is_set():
             yield await _emit_cancelled_event(run_id, db_path, emit)
@@ -215,6 +323,7 @@ async def _run_engine_and_report(
     cancelled: asyncio.Event | None,
     db_path: str | None,
     emit: EmitFn,
+    resume: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream the engine's nodes, then drain final state and emit the report.
 
@@ -232,6 +341,7 @@ async def _run_engine_and_report(
         cancelled=cancelled,
         db_path=db_path,
         emit=emit,
+        resume=resume,
     ):
         yield event
     if cancelled and cancelled.is_set():
@@ -283,6 +393,7 @@ async def _run_engine_provider(
     cancelled: asyncio.Event | None,
     db_path: str | None,
     emit: EmitFn,
+    resume: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Run the real engine end to end: stream nodes, drain state, report.
 
@@ -307,6 +418,7 @@ async def _run_engine_provider(
             cancelled=cancelled,
             db_path=db_path,
             emit=emit,
+            resume=resume,
         ):
             yield event
     except Exception as e:
@@ -323,6 +435,7 @@ def _real_engine_stream(
     db_path: str | None,
     sleep_seconds: float,
     emit: EmitFn,
+    resume: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Return the real-engine event stream, bridging it into our event log.
 
@@ -349,4 +462,5 @@ def _real_engine_stream(
         cancelled=cancelled,
         db_path=db_path,
         emit=emit,
+        resume=resume,
     )

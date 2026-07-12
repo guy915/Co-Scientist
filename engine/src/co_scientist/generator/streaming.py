@@ -67,6 +67,13 @@ def _merge_node_state_into_cumulative(
             updated in place.
         node_state: The incremental state returned by the node that just ran.
     """
+    # A node that returns no update is a no-op for cumulative state. In
+    # ``["updates", "values"]`` stream mode LangGraph surfaces such a node's
+    # empty return as ``None`` (plain "updates" mode surfaces ``{}``), so guard
+    # both — e.g. deep_verification returns ``{}`` when the top-k is already
+    # verified.
+    if not node_state:
+        return
     for key in _PLAIN_COPY_STATE_KEYS:
         if key in node_state:
             cumulative_state[key] = node_state[key]

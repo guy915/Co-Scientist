@@ -77,11 +77,14 @@ async def _select_provider_stream(
     db_path: str | None,
     sleep_seconds: float,
     emit: EmitFn,
+    resume: bool,
 ) -> AsyncIterator[dict[str, Any]]:
     """Return the event stream for the resolved provider, choosing a fallback.
 
     Falls back to the mock workflow if the real engine cannot be imported
-    even though `provider` resolved to "engine" (e.g. a partial install).
+    even though `provider` resolved to "engine" (e.g. a partial install). The
+    mock re-derives deterministically from its seed on resume, so it ignores
+    the flag; only the engine restores a persisted WorkflowState.
     """
     if provider == "mock":
         return _stream_mock_provider(
@@ -102,6 +105,7 @@ async def _select_provider_stream(
         db_path=db_path,
         sleep_seconds=sleep_seconds,
         emit=emit,
+        resume=resume,
     )
 
 
@@ -116,6 +120,7 @@ async def _dispatch_provider(
     db_path: str | None,
     sleep_seconds: float,
     emit: EmitFn,
+    resume: bool,
 ) -> AsyncIterator[dict[str, Any]]:
     """Dispatch to the mock or real-engine workflow after the intake gate."""
     stream = await _select_provider_stream(
@@ -128,6 +133,7 @@ async def _dispatch_provider(
         db_path=db_path,
         sleep_seconds=sleep_seconds,
         emit=emit,
+        resume=resume,
     )
     async for event in stream:
         yield event
@@ -142,11 +148,16 @@ async def run_workflow(
     cancelled: asyncio.Event | None = None,
     sleep_seconds: float = 0.05,
     force_provider: str | None = None,
+    resume: bool = False,
 ) -> AsyncIterator[dict[str, Any]]:
     """Drive the chosen workflow and yield events as the store records them.
 
     Intake safety screening runs here, at the shared boundary both providers
-    pass through, so every run (engine or mock) is gated before any work.
+    pass through, so every run (engine or mock) is gated before any work. On
+    ``resume``, the engine provider restores its persisted WorkflowState and
+    continues from the last checkpoint instead of running from the goal; the
+    mock re-derives deterministically and ignores the flag. Intake screening
+    is skipped on resume — the goal was already gated on the original run.
     """
     # force_provider lets a caller (e.g. seed.py's demo seeding) pin the
     # provider explicitly, bypassing select_provider()'s env/import probes.
@@ -164,12 +175,16 @@ async def run_workflow(
     emit = make_emitter(run_id, db_path=db_path)
 
     # Intake safety gate, shared by every provider. A hard block short-circuits
-    # the run before any hypotheses are generated.
-    intake = screen_intake(research_goal)
-    async for event in apply_safety_gate(run_id, intake, emit, db_path=db_path):
-        yield event
-    if intake.decision == "block":
-        return
+    # the run before any hypotheses are generated. On resume the original goal
+    # was already screened, so re-gating would only duplicate the intake event.
+    if not resume:
+        intake = screen_intake(research_goal)
+        async for event in apply_safety_gate(
+            run_id, intake, emit, db_path=db_path
+        ):
+            yield event
+        if intake.decision == "block":
+            return
 
     async for event in _dispatch_provider(
         provider,
@@ -181,5 +196,6 @@ async def run_workflow(
         db_path=db_path,
         sleep_seconds=sleep_seconds,
         emit=emit,
+        resume=resume,
     ):
         yield event

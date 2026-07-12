@@ -104,8 +104,9 @@ class _FakeGenerator:
         stream: bool,
         run_id: str,
         opts: dict[str, Any] | None = None,
+        checkpoint_callback: Any = None,
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-        _ = (research_goal, stream, run_id, opts)
+        _ = (research_goal, stream, run_id, opts, checkpoint_callback)
         state = _engine_streaming_state()
         for node in _ENGINE_NODES:
             yield node, state
@@ -223,8 +224,9 @@ def test_engine_adapter_persists_streamed_metrics(
             stream: bool,
             run_id: str,
             opts: dict[str, Any] | None = None,
+            checkpoint_callback: Any = None,
         ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-            _ = (research_goal, stream, run_id, opts)
+            _ = (research_goal, stream, run_id, opts, checkpoint_callback)
             for node in _ENGINE_NODES:
                 yield node, state
 

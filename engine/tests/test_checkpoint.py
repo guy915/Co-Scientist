@@ -194,3 +194,33 @@ def test_checkpoint_is_json_serializable() -> None:
     reloaded = json.loads(dumped)
     restored = restore_workflow_state(reloaded)
     assert restored["run_id"] == "run-123"
+
+
+def test_langchain_messages_round_trip_through_json() -> None:
+    """LangChain messages (added by ``add_messages``) survive JSON persistence.
+
+    At runtime the ``messages`` channel holds ``BaseMessage`` objects, which
+    are not JSON-serializable; the serializer must convert them so the app
+    store can ``json.dumps`` the envelope, and restore them on the way back.
+    """
+    import json
+
+    from langchain_core.messages import AIMessage, HumanMessage
+
+    state = _rich_state()
+    state["messages"] = [
+        HumanMessage(content="goal"),
+        AIMessage(content="hypothesis drafted"),
+    ]
+
+    checkpoint = serialize_workflow_state(state, last_event_seq=1)
+    # The envelope is genuinely JSON-serializable (no BaseMessage leaks).
+    reloaded = json.loads(json.dumps(checkpoint))
+    restored = restore_workflow_state(reloaded)
+
+    messages = restored["messages"]
+    assert [type(m).__name__ for m in messages] == [
+        "HumanMessage",
+        "AIMessage",
+    ]
+    assert [m.content for m in messages] == ["goal", "hypothesis drafted"]

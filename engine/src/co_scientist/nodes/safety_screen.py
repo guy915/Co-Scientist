@@ -134,8 +134,12 @@ async def safety_screen_node(
             len(hypotheses),
         )
 
-    existing_decisions: list[dict[str, Any]] = state.get("safety_decisions", [])
-    existing_held: list[dict[str, Any]] = state.get("held_for_review", [])
+    # ``or []`` (not a .get default): a checkpoint restore can carry an
+    # explicit None for a field that was unset when the run was serialized.
+    existing_decisions: list[dict[str, Any]] = (
+        state.get("safety_decisions") or []
+    )
+    existing_held: list[dict[str, Any]] = state.get("held_for_review") or []
 
     elapsed = time.time() - start
 

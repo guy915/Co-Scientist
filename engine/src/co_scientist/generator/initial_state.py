@@ -38,6 +38,11 @@ def _initial_runtime_fields() -> dict[str, Any]:
         "proximity_graph": {},
         "tournament_matchups": [],
         "evolution_details": [],
+        # Per-hypothesis safety screen (pre-ranking gate): the audit trail and
+        # the manual-review hold start empty so they are always present lists,
+        # including across a checkpoint restore.
+        "safety_decisions": [],
+        "held_for_review": [],
         "metrics": ExecutionMetrics(),
         "messages": [],
     }
