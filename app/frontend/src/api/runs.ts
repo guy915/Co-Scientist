@@ -1,6 +1,6 @@
 // Run lifecycle API client. Mirrors the FastAPI router in app/runs.py.
 
-import {getClientId} from '@/lib/client_id';
+import {getAccessToken, getClientId} from '@/lib/client_id';
 import {mergeByIdNewestFirst} from '@/lib/merge';
 import type {
   ClaimEvidenceRow,
@@ -57,9 +57,23 @@ export type {
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';
 
+/** Exchange a configured researcher invite code for a signed session. */
+export function exchangeAccessCode(
+  accessCode: string,
+): Promise<{access_token: string; researcher_id: string; expires_in: number}> {
+  return fetchJson('/api/auth/exchange', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({access_code: accessCode}),
+  });
+}
+
 /** Header identifying the calling browser client to the backend. */
 function clientHeaders(): Record<string, string> {
-  return {'X-Client-ID': getClientId()};
+  const token = getAccessToken();
+  return token
+    ? {Authorization: `Bearer ${token}`}
+    : {'X-Client-ID': getClientId()};
 }
 
 /** Statuses for a run whose workflow is still in progress. */
@@ -420,7 +434,11 @@ export async function getReport(id: string): Promise<Report | null> {
 
 /** Returns the browser-download URL for a persisted Markdown Goal Report. */
 export function reportMarkdownUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/report.md?client_id=${encodeURIComponent(getClientId())}`;
+  const token = getAccessToken();
+  const query = token
+    ? `access_token=${encodeURIComponent(token)}`
+    : `client_id=${encodeURIComponent(getClientId())}`;
+  return `${API_BASE_URL}/api/runs/${id}/report.md?${query}`;
 }
 
 /** Streams a grounded report-level or idea-level Agent answer to completion. */
@@ -496,7 +514,11 @@ export function getSharedGoalReport(token: string): Promise<SharedGoalReport> {
  * @returns The absolute events endpoint URL.
  */
 export function eventsStreamUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/events?client_id=${encodeURIComponent(getClientId())}`;
+  const token = getAccessToken();
+  const query = token
+    ? `access_token=${encodeURIComponent(token)}`
+    : `client_id=${encodeURIComponent(getClientId())}`;
+  return `${API_BASE_URL}/api/runs/${id}/events?${query}`;
 }
 
 /** One persisted row of a run's append-only event log. */

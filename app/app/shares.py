@@ -7,13 +7,14 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request, Response
 
 from app import store
+from app.auth import require_principal
 
 router = APIRouter(tags=["shares"])
 
 
 def _client_id(request: Request) -> str:
-    """Read the browser ownership identifier used by the run API."""
-    return request.headers.get("X-Client-ID", "")
+    """Return the verified researcher subject or compatibility scope."""
+    return require_principal(request).subject
 
 
 def _owned_run(run_id: str, request: Request) -> store.RunRow:
@@ -48,9 +49,7 @@ async def revoke_share(
 ) -> Response:
     """Revoke one public capability immediately."""
     _owned_run(run_id, request)
-    if not store.revoke_report_share(
-        share_id, run_id, _client_id(request)
-    ):
+    if not store.revoke_report_share(share_id, run_id, _client_id(request)):
         raise HTTPException(status_code=404, detail="share not found")
     return Response(status_code=204)
 

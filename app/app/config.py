@@ -71,6 +71,14 @@ class Settings(BaseSettings):
     smtp_from_email: str = ""
     public_app_url: str = "http://localhost:5173"
 
+    # Researcher access. ``required`` rejects unauthenticated private API
+    # requests; ``compatibility`` retains browser-local IDs for local demos.
+    auth_mode: str = "compatibility"
+    auth_secret: str = ""
+    # JSON object mapping researcher ids to invite/access codes.
+    researcher_access_codes: str = "{}"
+    auth_session_hours: int = 12
+
     # Tools Configuration (optional)
     # Path to a YAML tools config file, or an HTTP(S) URL.
     # Relative paths resolve from the server working directory.

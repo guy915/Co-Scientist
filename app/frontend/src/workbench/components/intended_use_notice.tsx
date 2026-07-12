@@ -9,6 +9,9 @@ export function IntendedUseNotice() {
       Co-Scientist outputs are starting points for scientific researchers and
       require independent verification. Do not rely on them for clinical
       decisions or applications that place people at risk.
+      <a className="ml-2 underline" href="/access">
+        Researcher access
+      </a>
     </aside>
   );
 }

@@ -52,6 +52,7 @@ from fastapi.responses import (
 )
 
 from app import engine_adapter, human_input, qa, run_corpus, store, task_worker
+from app.auth import require_principal
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
 from app.runs_events import _event_stream
@@ -112,8 +113,8 @@ def _require_run(run_id: str) -> None:
 # A missing header yields '' (shared by all header-less callers). This is
 # scoping for a friendlier multi-user demo, not authentication.
 def _client_id(request: Request) -> str:
-    """Return the caller's client id from the X-Client-ID header."""
-    return request.headers.get("X-Client-ID", "")
+    """Return the verified researcher subject or compatibility scope."""
+    return require_principal(request).subject
 
 
 async def _populate_run_title(run_id: str, goal: str) -> None:

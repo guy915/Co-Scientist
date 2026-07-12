@@ -11,6 +11,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app import store
+from app.auth import require_principal
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -83,8 +84,8 @@ class InterviewFieldsRequest(BaseModel):
 
 
 def _client_id(request: Request) -> str:
-    """Return the same browser ownership key used by run APIs."""
-    return request.headers.get("X-Client-ID", "")
+    """Return the verified researcher subject or compatibility scope."""
+    return require_principal(request).subject
 
 
 def _owned_interview(interview_id: str, request: Request) -> dict[str, Any]:

@@ -19,6 +19,13 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 from app import diagnostics, engine_adapter, store
+from app.auth import (
+    auth_required,
+    principal_for_request,
+)
+from app.auth import (
+    router as auth_router,
+)
 from app.config import settings
 from app.interviews import router as interviews_router
 from app.logging_setup import configure_logging
@@ -157,26 +164,40 @@ app.add_middleware(
 
 @app.middleware("http")
 async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
-    """Hide private run resources from callers without the owning client id."""
+    """Authenticate private API calls and hide runs from non-owners."""
+    path = request.url.path
+    public_api = path.startswith("/api/auth/") or path.startswith(
+        "/api/shared/"
+    )
+    principal = principal_for_request(request)
+    if (
+        auth_required()
+        and path.startswith("/api/")
+        and not public_api
+        and principal is None
+    ):
+        return JSONResponse(
+            {"detail": "researcher access required"}, status_code=401
+        )
     parts = request.url.path.strip("/").split("/")
     if len(parts) >= 3 and parts[:2] == ["api", "runs"]:
         run_id = parts[2]
         if run_id != "demo":
             run = store.get_run(run_id)
             if run is not None and run.client_id != store.DEMO_CLIENT_ID:
-                client_id = request.headers.get("X-Client-ID") or (
-                    request.query_params.get("client_id", "")
-                )
+                client_id = principal.subject if principal else ""
                 if client_id != run.client_id:
                     return JSONResponse(
                         {"detail": "run not found"}, status_code=404
                     )
     return cast(Response, await call_next(request))
 
+
 # Mount the new run-lifecycle router (durable, persisted, SSE).
 app.include_router(runs_router)
 app.include_router(interviews_router)
 app.include_router(shares_router)
+app.include_router(auth_router)
 
 
 class HealthCheckResult(BaseModel):

@@ -8,6 +8,7 @@ import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
 import {RunDetail} from './pages/run_detail';
 import {SharedGoalReportPage} from './pages/shared_goal_report';
+import {ResearcherAccessPage} from './pages/researcher_access';
 import {ThemeProvider} from './theme_context';
 
 // Render-nothing bridge: useGlobalShortcuts needs react-router hooks, so it
@@ -48,6 +49,15 @@ export function WorkbenchApp() {
                 workspace, which owns run creation. */}
               <Route path="/runs" element={<Navigate to="/" replace />} />
               <Route path="/runs/new" element={<Navigate to="/" replace />} />
+              <Route
+                path="/access"
+                element={
+                  <>
+                    <NoIndex title="Researcher access" />
+                    <ResearcherAccessPage />
+                  </>
+                }
+              />
               <Route
                 path="/shared/:token"
                 element={
