@@ -8,9 +8,12 @@ report's publication-gate exclusion end-to-end.
 
 from __future__ import annotations
 
+from typing import Any
+
 from app import report_render, store
 from app.claim_grounding import (
     GroundingResult,
+    build_assessor,
     evidence_passages,
     ground_hypotheses,
 )
@@ -141,6 +144,72 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
         "Supporting passage two.",
     ]
     assert edges[0]["contradicting"] == []
+
+
+def test_build_assessor_selects_by_mode() -> None:
+    """`build_assessor` returns the deterministic or LLM assessor by mode."""
+    _, det_id = build_assessor("deterministic", "unused")
+    assert det_id == "deterministic-v1"
+    _, llm_id = build_assessor("llm", "deepseek/deepseek-chat")
+    assert llm_id == "llm:deepseek/deepseek-chat"
+
+
+def test_ground_with_llm_assessor_persists_provenance(
+    isolated_db: str, monkeypatch: Any
+) -> None:
+    """Grounding with the LLM assessor (faked) persists llm-tagged spans."""
+    import types
+
+    import litellm
+
+    run = store.create_run("grounding goal", "standard", "engine", {})
+    hyp_id = _add(
+        run.id,
+        "Supported",
+        "Inhibiting kinase X reduces melanoma tumor growth in mouse models.",
+        isolated_db,
+    )
+    ev_id = store.add_evidence(
+        run.id,
+        "Kinase X melanoma study",
+        abstract="Kinase X inhibition reduces melanoma tumor growth markedly.",
+        source="pubmed",
+        url="https://example.org/ev",
+        db_path=isolated_db,
+    )
+
+    # The faked model cites the real evidence id so the span locates.
+    def _completion_for_ev(**_kwargs: Any) -> Any:
+        content = (
+            '{"label": "supports", "supporting": '
+            f'[{{"evidence_id": "{ev_id}", '
+            '"quote": "reduces melanoma tumor growth"}], '
+            '"contradicting": []}'
+        )
+        message = types.SimpleNamespace(content=content)
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    monkeypatch.setattr(litellm, "completion", _completion_for_ev)
+
+    assessor, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
+    ground_hypotheses(
+        run.id,
+        store.list_hypotheses(run.id),
+        evidence_passages(run.id, db_path=isolated_db),
+        assessor=assessor,
+        assessor_id=assessor_id,
+        db_path=isolated_db,
+    )
+
+    edges = store.list_claim_evidence(run.id, db_path=isolated_db)
+    edge = next(e for e in edges if e["hypothesis_id"] == hyp_id)
+    assert edge["assessor"] == "llm:deepseek/deepseek-chat"
+    span = edge["supporting"][0]
+    assert span["evidence_id"] == ev_id
+    assert span["quote"] == "reduces melanoma tumor growth"
+    assert span["url"] == "https://example.org/ev"
 
 
 def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
