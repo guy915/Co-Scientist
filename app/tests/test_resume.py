@@ -191,10 +191,9 @@ async def test_mock_stop_emits_paused_when_pause_flagged(
     emit must consult the registry pause flag and land the run PAUSED rather
     than writing a terminal `cancelled` status event that closes SSE streams.
     """
-    import app.runs as runs_mod
     from app.mock_workflow_stages import _emit_cancelled_if_set
     from app.report_events import make_emitter
-    from app.runs_registry import _RunHandle
+    from app.runs_registry import _active, _RunHandle
     from app.store import RunStatus
 
     run = store.create_run("Mock pause emit", "standard", "mock", {})
@@ -204,13 +203,13 @@ async def test_mock_stop_emits_paused_when_pause_flagged(
 
     handle = _RunHandle()
     handle.paused = True
-    runs_mod._active[run.id] = handle
+    _active[run.id] = handle
     try:
         event = await _emit_cancelled_if_set(
             run.id, isolated_db, cancelled, emit
         )
     finally:
-        runs_mod._active.pop(run.id, None)
+        _active.pop(run.id, None)
 
     assert event is not None and event["payload"]["status"] == "paused"
     reopened = store.get_run(run.id, db_path=isolated_db)
@@ -286,10 +285,9 @@ async def test_paused_engine_run_lands_in_paused_not_cancelled(
     override the terminal status to the resumable PAUSED, not leave it
     CANCELLED.
     """
-    import app.runs as runs_mod
     from app import engine_adapter
     from app.runs import _ensure_resumable_checkpoint, _run_workflow_task
-    from app.runs_registry import _RunHandle
+    from app.runs_registry import _active, _RunHandle
     from app.store import RunStatus
 
     run = store.create_run("Engine pause e2e", "standard", "engine", {})
@@ -307,7 +305,7 @@ async def test_paused_engine_run_lands_in_paused_not_cancelled(
     try:
         handle = _RunHandle()
         handle.paused = True
-        runs_mod._active[run.id] = handle
+        _active[run.id] = handle
         # What the pause endpoint does before signalling:
         _ensure_resumable_checkpoint(run.id, "engine")
 
@@ -316,7 +314,7 @@ async def test_paused_engine_run_lands_in_paused_not_cancelled(
         )
     finally:
         engine_adapter.run_workflow = original
-        runs_mod._active.pop(run.id, None)
+        _active.pop(run.id, None)
 
     reopened = store.get_run(run.id)
     assert reopened is not None
