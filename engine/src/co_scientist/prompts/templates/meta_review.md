@@ -56,7 +56,7 @@ Refrain from evaluating individual proposals or reviews; focus on producing a sy
 **Additional instructions**:
 {{instructions}}
 
-**All Hypotheses with Reviews:**
+**Complete Review Histories and Ranking Debate Transcripts:**
 {{all_reviews}}
 
 ## Output Format

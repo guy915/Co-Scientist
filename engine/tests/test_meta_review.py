@@ -13,7 +13,11 @@ import pytest
 
 from co_scientist.models import HypothesisReview
 from co_scientist.nodes import meta_review
-from co_scientist.nodes.meta_review import meta_review_node
+from co_scientist.nodes.meta_review import (
+    _collect_feedback_records,
+    _collect_review_summaries,
+    meta_review_node,
+)
 from tests._state import make_hypothesis, make_state
 
 
@@ -161,3 +165,41 @@ async def test_recurring_themes_flattened_to_emerging_themes(
         "mitochondrial dysfunction",
         "oxidative stress",
     ]
+
+
+def test_review_collection_keeps_complete_history() -> None:
+    """An older critique remains visible after a later review is added."""
+    hypothesis = make_hypothesis(
+        text="reviewed hyp",
+        reviews=[
+            _make_review(review_summary="first failure pattern"),
+            _make_review(review_summary="later reassessment"),
+        ],
+    )
+    [record] = _collect_review_summaries([hypothesis])
+    assert [review["review_summary"] for review in record["reviews"]] == [
+        "first failure pattern",
+        "later reassessment",
+    ]
+
+
+def test_feedback_collection_keeps_full_debate_transcript() -> None:
+    """Every ranking debate turn reaches Meta-review unchanged."""
+    transcript = [
+        {"turn": 1, "reasoning": "A has stronger causal evidence."},
+        {"turn": 2, "reasoning": "B has a cleaner falsification test."},
+    ]
+    records = _collect_feedback_records(
+        [make_hypothesis(text="reviewed", reviews=[_make_review()])],
+        [
+            {
+                "hypothesis_a_id": "a",
+                "hypothesis_b_id": "b",
+                "winner_id": "b",
+                "debate_turns": 2,
+                "debate_transcript": transcript,
+            }
+        ],
+    )
+    debate = next(r for r in records if r["record_type"] == "ranking_debate")
+    assert debate["debate_transcript"] == transcript

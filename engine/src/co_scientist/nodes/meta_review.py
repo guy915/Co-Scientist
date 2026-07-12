@@ -1,5 +1,6 @@
 """Meta-review node - synthesize insights from all reviews."""
 
+import dataclasses
 import json
 import logging
 from typing import Any
@@ -46,8 +47,11 @@ async def meta_review_node(state: WorkflowState) -> dict[str, Any]:
         PROGRESS_META_REVIEW_START,
     )
 
-    # Collect all reviews
-    all_reviews = _collect_review_summaries(hypotheses)
+    # Collect the complete feedback history: every review and every ranking
+    # debate. Later feedback does not erase earlier failure patterns.
+    all_reviews = _collect_feedback_records(
+        hypotheses, state.get("tournament_matchups", [])
+    )
 
     # Edge case: no hypothesis has been reviewed yet (e.g. review node was
     # skipped or failed for all hypotheses). Skip the LLM call and return a
@@ -205,11 +209,10 @@ def _log_meta_review_summary(meta_review: dict[str, Any]) -> None:
 def _collect_review_summaries(
     hypotheses: list[Hypothesis],
 ) -> list[dict[str, Any]]:
-    """Builds a compact per-hypothesis review summary for the LLM.
+    """Build complete per-hypothesis review histories for the LLM.
 
-    Only the latest review is used (earlier reviews are superseded), plus
-    current tournament standing and verification status, so the synthesis
-    can correlate review feedback with how a hypothesis actually performed.
+    Every review is retained in chronological order, plus current tournament
+    standing and verification status, so recurring critiques remain visible.
 
     Args:
         hypotheses: hypotheses to summarize.
@@ -223,22 +226,51 @@ def _collect_review_summaries(
         if not hyp.reviews:
             continue
 
-        # Get the latest review for each hypothesis
-        latest_review = hyp.reviews[-1]
-
         review_data = {
+            "record_type": "review_history",
             "hypothesis_index": i,
             "hypothesis_text": truncate(hyp.text),
-            "overall_score": latest_review.overall_score,
-            "review_summary": latest_review.review_summary,
-            "scores": latest_review.scores,
-            "constructive_feedback": latest_review.constructive_feedback,
+            "reviews": [dataclasses.asdict(review) for review in hyp.reviews],
             "elo_rating": hyp.elo_rating,
             "win_loss_record": f"{hyp.win_count}W-{hyp.loss_count}L",
             "deep_verification_verdict": hyp.deep_verification_verdict,
         }
         all_reviews.append(review_data)
     return all_reviews
+
+
+def _collect_debate_records(
+    matchups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Return every tournament debate and its full turn transcript."""
+    return [
+        {
+            "record_type": "ranking_debate",
+            "match_index": index,
+            "hypothesis_a_id": matchup.get("hypothesis_a_id"),
+            "hypothesis_b_id": matchup.get("hypothesis_b_id"),
+            "hypothesis_a": matchup.get("hypothesis_a"),
+            "hypothesis_b": matchup.get("hypothesis_b"),
+            "winner_id": matchup.get("winner_id"),
+            "winner": matchup.get("winner"),
+            "reasoning": matchup.get("reasoning"),
+            "confidence": matchup.get("confidence"),
+            "debate_turns": matchup.get("debate_turns", 1),
+            "debate_transcript": matchup.get("debate_transcript", []),
+        }
+        for index, matchup in enumerate(matchups)
+    ]
+
+
+def _collect_feedback_records(
+    hypotheses: list[Hypothesis],
+    matchups: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Combine all review histories and ranking debates for meta-analysis."""
+    return [
+        *_collect_review_summaries(hypotheses),
+        *_collect_debate_records(matchups),
+    ]
 
 
 def _build_meta_review(response: dict[str, Any]) -> dict[str, Any]:
