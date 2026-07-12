@@ -61,14 +61,14 @@ For each draft hypothesis, decide whether to **approve**, **refine**, or **pivot
 Output your hypotheses in JSON format. Provide a list of {{hypotheses_count}} hypotheses, each with:
 
 ### 1. Technical Hypothesis (required)
-A densely formulated technical description following "We want to develop [X] to enable [Y]" format.
+A densely formulated, falsifiable mechanistic proposition with explicit context and predicted outcome.
 - Include specific technical details: algorithms, mechanisms, mathematical formulations, layer specifications, etc.
 - Be precise about what will be developed and the technical approach
 - 2-4 sentences maximum
 - Use technical terminology appropriately
 
 **Example:**
-"We want to develop a 'Dynamic Velocity Sentinel'—which monitors the rate of change in latent activation directions across expanded early-to-mid layers (L < N/2) rather than static depths—to enable anticipatory SAE gating that triggers only when precursor signals cross a 'point of no return' for danger features. By integrating adversarial distillation to harden probes against injection attacks and relaxing layer constraints to capture sufficient signal fidelity, this approach ensures robust, pre-emptive interception of hazardous generations without incurring the cost of full-depth activation scanning."
+"Transient inhibition of regulator X during the early response window will prevent compensatory pathway Y from restoring the disease phenotype, but only in cells with biomarker Z. This predicts a time-dependent loss of rescue after pathway-Y activation and can be falsified by matched perturbation, rescue, and biomarker-negative controls."
 
 ### 2. Explanation (required)
 A clear explanation of the approach for technical audiences (e.g., DARPA program managers, ML researchers), but in layman terms

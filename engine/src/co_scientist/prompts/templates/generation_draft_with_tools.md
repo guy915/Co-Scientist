@@ -101,7 +101,7 @@ The literature review node already analyzed papers and identified key themes. Us
 {
   "drafts": [
     {
-      "hypothesis": "Dense technical hypothesis following 'We want to develop [X] to enable [Y]' format (2-3 sentences)",
+      "hypothesis": "Precise mechanistic proposition with context, intervention or observation, and predicted outcome",
       "explanation": "Step-by-step layman explanation (4-6 sentences)",
       "gap_reasoning": "Brief explanation of what gap in the literature this hypothesis addresses and why it seems promising",
       "literature_sources": "Bracketed citation keys from the reference list that informed this gap. Example: 'Gap identified via retinal imaging [P1] and mechanistic data [KG1].'",
@@ -112,7 +112,7 @@ The literature review node already analyzed papers and identified key themes. Us
 ```
 
 **Field requirements:**
-- `hypothesis`: Technical formulation following "We want to develop [X] to enable [Y]" format
+- `hypothesis`: Technical, falsifiable formulation; do not force a fixed sentence template
 - `explanation`: Clear explanation for technical audiences in layman terms
 - `gap_reasoning`: What research gap this addresses and why it's promising
 - `literature_sources`: **CRITICAL - Use ONLY `[C*]` keys from the Citation Reference List (if provided). Do NOT invent author-year citations.**

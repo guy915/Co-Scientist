@@ -19,14 +19,12 @@ Instructions:
 
 ## Each Hypothesis Should:
 
-1. Follow the format: "We want to develop [X] to enable [Y]"
-   - X = A specific technique, method, algorithm, or system
-   - Y = A practically useful capability or outcome (e.g., improved reliability, safety, interpretability, robustness)
-2. Be concise and action-oriented (2-3 sentences maximum)
-3. Focus on practical utility and real-world applications
-4. Challenge existing assumptions or extend current knowledge based on your domain expertise
-5. Be formulated as something that can be developed and tested
-6. Explore a UNIQUE approach compared to the other hypotheses you generate. First debate turn would generate 3, keeping in mind each one of them should be unique; this also applies when iterating hypotheses on subsequent debate turns, and when deciding which one to keep, which to discard, and which to select if there are still more than 1 hypotheses in the final turn.
+1. State a precise causal or mechanistic proposition with the entities, context, intervention or observation, and predicted outcome.
+2. Explain why the mechanism is plausible, what premise it extends, and what result would falsify it.
+3. Include a concrete experimental route with model system, controls, measurable readouts, limitations, and alternatives.
+4. Challenge existing assumptions or extend current knowledge based on domain expertise.
+5. Remain testable without presenting unsupported details as established facts.
+6. Explore a UNIQUE approach and preserve meaningful diversity throughout selection and refinement.
 
 ## Procedure
 
@@ -51,7 +49,7 @@ General guidelines:
 * Prioritize the generation of a high-quality {{attributes}} hypothesis.
 
 Termination condition:
-When sufficient discussion has transpired (typically 3-5 conversational turns, with a maximum of 10 turns) and all relevant questions and points have been thoroughly addressed and clarified, conclude the process by writing "HYPOTHESIS" (in all capital letters) followed by a concise and self-contained exposition of the finalized idea.
+When sufficient discussion has transpired, conclude by writing "HYPOTHESIS" followed by a self-contained domain-expert proposal covering mechanism, rationale, test, falsification criteria, limitations, and alternatives.
 
 #BEGIN TRANSCRIPT#
 {{transcript}}

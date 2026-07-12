@@ -16,12 +16,7 @@ You are a Hypothesis Evolution Agent. Your task is to refine and improve a resea
 
 ## IMPORTANT: Maintain Hypothesis Format
 
-The refined hypothesis MUST follow the structure:
-"We want to develop [specific technique/method] to enable [practical capability/outcome]."
-
-Keep hypotheses concise (2-3 sentences maximum) and focused on:
-- What will be developed (X)
-- What practical capability it enables (Y)
+The refined proposal must preserve a clear hypothesis identity while providing domain-expert depth: mechanism, evidence-linked rationale, predicted outcome, experiment, controls, falsification criteria, limitations, and alternatives. Combination, analogy, and out-of-box operators may materially transform the parent when their operator instructions require it; record that relationship instead of forcing a fixed sentence template.
 
 ## Refinement Approach
 
@@ -72,7 +67,7 @@ The following represents an analysis of relevant scientific literature:
 Provide your refined hypothesis in JSON format with:
 
 ### 1. \[Technical\] Hypothesis (required)
-The refined dense technical formulation following "We want to develop [X] to enable [Y]" format.
+A dense, testable mechanistic proposition with explicit context and predicted outcome.
 
 ### 2. Explanation (required)
 Updated step-by-step layman explanation reflecting any refinements made (4-6 sentences).

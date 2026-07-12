@@ -39,17 +39,12 @@ Consider current scientific literature and knowledge in the domain.
 
 ## Each Hypothesis Should:
 
-1. Follow the format: "We want to develop [X] to enable [Y]"
-   - X = A specific technique, method, algorithm, or system
-   - Y = A practically useful capability or outcome (e.g., improved reliability, safety, interpretability, robustness)
-2. Be concise and action-oriented (2-3 sentences maximum)
-3. Focus on practical utility and real-world applications
-4. Challenge existing assumptions or extend current knowledge based on the literature
-5. Be formulated as something that can be developed and tested
-6. Explore a UNIQUE approach compared to the other hypotheses you generate. First debate turn would generate 3 (with a mix of the user-provided hypotheses, when provided), keeping in mind each one of them should be unique; this also applies when iterating hypotheses on subsequent debate turns, and when deciding which one to keep, which to discard, and which to select if there are still more than 1 hypotheses in the final turn.
-
-Example structure:
-"We want to develop [a causal intervention technique for attention heads] to enable [real-time debugging of reasoning errors in deployed language models]."
+1. State a precise causal or mechanistic proposition with the entities, context, intervention or observation, and predicted outcome.
+2. Ground the rationale in the provided literature and distinguish support, inference, and speculation.
+3. Specify a feasible test with model system, controls, readouts, falsification criteria, limitations, and alternatives.
+4. Challenge accepted assumptions or pursue an underexplored literature-backed gap.
+5. Use enough domain detail for expert review; do not force a fixed sentence template.
+6. Explore a UNIQUE approach and preserve meaningful diversity through debate and selection.
 
 ## Task
 
