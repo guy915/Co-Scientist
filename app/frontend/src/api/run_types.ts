@@ -357,6 +357,23 @@ export interface ReportShare {
   created_at: number;
 }
 
+/** Versioned safety decision, including optional human adjudication. */
+export interface SafetyDecision {
+  id: number;
+  stage: string;
+  decision: 'allow' | 'redact' | 'hold' | 'block';
+  reason: string;
+  matches: string[];
+  category?: string | null;
+  policy_version?: string | null;
+  risk_domains: string[];
+  requires_review: boolean;
+  assessor?: string | null;
+  resolution?: 'approved' | 'rejected' | null;
+  resolved_by?: string | null;
+  resolved_at?: number | null;
+}
+
 /** Read-only data available through a public share capability. */
 export interface SharedGoalReport {
   share_id: string;

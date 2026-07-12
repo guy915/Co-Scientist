@@ -77,6 +77,8 @@ from app.store.records import (
     list_matches,
     list_reviews,
     list_safety_decisions,
+    resolve_safety_decision,
+    safety_stage_is_approved,
 )
 from app.store.reports import (
     get_latest_report,
@@ -167,8 +169,10 @@ __all__ = [
     "redact_hypothesis_fields",
     "reserve_run_capacity",
     "resolve_report_share",
+    "resolve_safety_decision",
     "revoke_report_share",
     "run_exists",
+    "safety_stage_is_approved",
     "save_checkpoint",
     "save_report",
     "save_run_metrics",

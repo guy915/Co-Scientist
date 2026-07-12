@@ -7,6 +7,8 @@ import {
   type MatchRow,
   type Report,
   type Review,
+  type SafetyDecision,
+  adjudicateSafety,
   runGoal,
   type RunWithSummary,
 } from '@/api/runs';
@@ -65,10 +67,12 @@ export function RunDetail() {
     reviews,
     claimEvidence,
     report,
+    safety,
     error,
     loaded,
     toast,
     title,
+    refreshNow,
   } = useRunDetailData(id);
 
   if (!id) return null;
@@ -98,6 +102,8 @@ export function RunDetail() {
           matches={matches}
           reviews={reviews}
           claimEvidence={claimEvidence}
+          safety={safety}
+          onSafetyChanged={refreshNow}
           ideasViewKey={ideasViewKey}
         />
       )}
@@ -126,6 +132,8 @@ function RunDetailTabContent({
   matches,
   reviews,
   claimEvidence,
+  safety,
+  onSafetyChanged,
   ideasViewKey,
 }: {
   activeTab: TabName;
@@ -136,11 +144,19 @@ function RunDetailTabContent({
   matches: MatchRow[];
   reviews: Review[];
   claimEvidence: ClaimEvidenceRow[];
+  safety: SafetyDecision[];
+  onSafetyChanged: () => void;
   ideasViewKey: number;
 }) {
   return (
     <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
-      {activeTab === 'specifications' && <RunSpecificationsView run={run} />}
+      {activeTab === 'specifications' && (
+        <RunSpecificationsView
+          run={run}
+          safety={safety}
+          onSafetyChanged={onSafetyChanged}
+        />
+      )}
       {activeTab === 'knowledge' && (
         <LearningView goal={runGoal(run)} evidence={evidence} report={report} />
       )}
@@ -184,7 +200,15 @@ function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
 }
 
 // Run Specifications preserves the final interview contract and run mode.
-function RunSpecificationsView({run}: {run: RunWithSummary | null}) {
+function RunSpecificationsView({
+  run,
+  safety,
+  onSafetyChanged,
+}: {
+  run: RunWithSummary | null;
+  safety: SafetyDecision[];
+  onSafetyChanged: () => void;
+}) {
   const goal = runGoal(run) || 'Loading...';
   const {requirements, attributes, criteria} = goalDetailsLists(
     run?.config.setup,
@@ -215,6 +239,82 @@ function RunSpecificationsView({run}: {run: RunWithSummary | null}) {
           interview contract.
         </p>
       )}
+      <SafetyReviewSection
+        runId={run?.id}
+        decisions={safety}
+        onChanged={onSafetyChanged}
+      />
     </ReportDocument>
+  );
+}
+
+function SafetyReviewSection({
+  runId,
+  decisions,
+  onChanged,
+}: {
+  runId: string | undefined;
+  decisions: SafetyDecision[];
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState<number | null>(null);
+  const reviewable = decisions.filter(
+    decision => decision.requires_review && !decision.resolution,
+  );
+  if (!decisions.length) return null;
+
+  async function resolve(
+    decision: SafetyDecision,
+    resolution: 'approved' | 'rejected',
+  ) {
+    if (!runId) return;
+    setBusy(decision.id);
+    try {
+      await adjudicateSafety(runId, decision.id, resolution);
+      onChanged();
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <section className="mt-8 border-t border-cosci-border pt-5">
+      <h3 className={REPORT_H3_CLASSES}>Safety audit</h3>
+      {decisions.map(decision => (
+        <div className="mb-5" key={decision.id}>
+          <p>
+            <strong>{decision.stage}:</strong>{' '}
+            {decision.category || decision.decision} — {decision.reason}
+          </p>
+          <p className="text-sm text-cosci-muted">
+            Policy {decision.policy_version || 'legacy'} ·{' '}
+            {decision.assessor || 'deterministic'}
+          </p>
+          {decision.resolution ? (
+            <p>Resolution: {decision.resolution}</p>
+          ) : null}
+          {reviewable.includes(decision) ? (
+            <div className="flex gap-2">
+              <button
+                className="rounded-full border border-cosci-border px-4 py-2"
+                disabled={busy === decision.id}
+                onClick={() => void resolve(decision, 'approved')}
+                type="button"
+              >
+                Approve for research use
+              </button>
+              <button
+                className="rounded-full border border-cosci-border px-4 py-2"
+                disabled={busy === decision.id}
+                onClick={() => void resolve(decision, 'rejected')}
+                type="button"
+              >
+                Reject
+              </button>
+            </div>
+          ) : null}
+        </div>
+      ))}
+    </section>
   );
 }

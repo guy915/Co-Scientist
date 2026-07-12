@@ -8,7 +8,7 @@ stay stable.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -102,6 +102,12 @@ class HumanAttachmentRequest(BaseModel):
     title: str = Field(..., min_length=1)
     text: str = Field(..., min_length=1, max_length=MAX_ATTACHMENT_CHARS)
     consent: bool = False
+
+
+class SafetyAdjudicationRequest(BaseModel):
+    """Human resolution of a safety item held for review."""
+
+    resolution: Literal["approved", "rejected"]
 
 
 def _run_overrides_from_request(

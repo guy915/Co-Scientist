@@ -34,7 +34,12 @@ from app.report_markdown import build_report_payload, render_report_markdown
 from app.report_markdown import (
     format_deep_verification_critique as format_deep_verification_critique,
 )
-from app.safety import apply_safety_gate, screen_final
+from app.safety import (
+    POLICY_VERSION,
+    apply_safety_gate,
+    screen_contextual,
+    screen_final,
+)
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -444,11 +449,16 @@ async def finalize_report(
     )
 
     final = screen_final(markdown)
+    approved = store.safety_stage_is_approved(
+        run_id, "final", POLICY_VERSION, db_path=db_path
+    )
+    if provider != "mock" and not approved:
+        final = await screen_contextual(markdown, "final", deterministic=final)
     async for event in apply_safety_gate(run_id, final, emit, db_path=db_path):
         yield event
-    if final.decision == "block":
+    if final.decision in {"block", "hold"}:
         logger.warning(
-            "Report finalize blocked for run %s by the final safety gate.",
+            "Report finalize withheld for run %s by the final safety gate.",
             run_id,
         )
         return

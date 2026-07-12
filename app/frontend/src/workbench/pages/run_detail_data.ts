@@ -9,12 +9,14 @@ import {
   getReport,
   getReviews,
   getRun,
+  getSafety,
   type Hypothesis,
   type MatchRow,
   type Report,
   type Review,
   runGoal,
   type RunWithSummary,
+  type SafetyDecision,
 } from '@/api/runs';
 import {useDebouncedCallback} from '@/hooks/use_debounced_callback';
 import {type StreamEvent, useRunStream} from '@/hooks/use_run_stream';
@@ -25,6 +27,7 @@ type RunDataKey =
   | 'matches'
   | 'reviews'
   | 'claimEvidence'
+  | 'safety'
   | 'report';
 
 // Which fetched collections each canonical event type can change mid-run.
@@ -39,6 +42,8 @@ const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   meta_review: ['reviews'],
   deep_verification: ['reviews'],
   'citation.grounding': ['claimEvidence'],
+  'safety.intake': ['safety'],
+  'safety.final': ['safety'],
   proximity: ['hypotheses'],
   ranking: ['hypotheses', 'matches'],
   evolve: ['hypotheses', 'claimEvidence'],
@@ -63,17 +68,39 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
     fetcher: (id: string) => Promise<T>,
   ): Promise<T> | undefined =>
     !keys || keys.has(key) ? fetcher(id) : undefined;
-  const [run, hypotheses, evidence, matches, reviews, claimEvidence, report] =
-    await Promise.all([
-      getRun(id),
-      fetchIfWanted('hypotheses', getHypotheses),
-      fetchIfWanted('evidence', getEvidence),
-      fetchIfWanted('matches', getMatches),
-      fetchIfWanted('reviews', getReviews),
-      fetchIfWanted('claimEvidence', getClaimEvidence),
-      fetchIfWanted('report', getReport),
-    ]);
-  return {run, hypotheses, evidence, matches, reviews, claimEvidence, report};
+  // Older compatible backends may not expose the safety-audit endpoint yet;
+  // the rest of a Goal Report must remain readable during rolling upgrades.
+  const getSafetyCompatible = (runId: string) =>
+    getSafety(runId).catch((): SafetyDecision[] => []);
+  const [
+    run,
+    hypotheses,
+    evidence,
+    matches,
+    reviews,
+    claimEvidence,
+    safety,
+    report,
+  ] = await Promise.all([
+    getRun(id),
+    fetchIfWanted('hypotheses', getHypotheses),
+    fetchIfWanted('evidence', getEvidence),
+    fetchIfWanted('matches', getMatches),
+    fetchIfWanted('reviews', getReviews),
+    fetchIfWanted('claimEvidence', getClaimEvidence),
+    fetchIfWanted('safety', getSafetyCompatible),
+    fetchIfWanted('report', getReport),
+  ]);
+  return {
+    run,
+    hypotheses,
+    evidence,
+    matches,
+    reviews,
+    claimEvidence,
+    safety,
+    report,
+  };
 }
 
 // Calls `setState` only when `value` was actually fetched (a selective
@@ -134,6 +161,7 @@ function useRunFetch(id: string | undefined) {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [claimEvidence, setClaimEvidence] = useState<ClaimEvidenceRow[]>([]);
+  const [safety, setSafety] = useState<SafetyDecision[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -152,6 +180,7 @@ function useRunFetch(id: string | undefined) {
         applyIfFetched(data.matches, setMatches);
         applyIfFetched(data.reviews, setReviews);
         applyIfFetched(data.claimEvidence, setClaimEvidence);
+        applyIfFetched(data.safety, setSafety);
         applyIfFetched(data.report, setReport);
         setLoaded(true);
         setError(null);
@@ -184,6 +213,7 @@ function useRunFetch(id: string | undefined) {
     matches,
     reviews,
     claimEvidence,
+    safety,
     report,
     error,
     loaded,
@@ -292,10 +322,12 @@ export function useRunDetailData(id: string | undefined) {
     matches: data.matches,
     reviews: data.reviews,
     claimEvidence: data.claimEvidence,
+    safety: data.safety,
     report: data.report,
     error: data.error,
     loaded: data.loaded,
     toast,
     title,
+    refreshNow: data.refreshNow,
   };
 }

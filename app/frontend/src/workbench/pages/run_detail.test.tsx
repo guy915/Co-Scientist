@@ -48,6 +48,11 @@ vi.mock('@/api/runs', async importActual => {
     getMatches: vi.fn().mockResolvedValue([]),
     getReviews: vi.fn().mockResolvedValue([]),
     getClaimEvidence: vi.fn().mockResolvedValue([]),
+    getSafety: vi.fn().mockResolvedValue([]),
+    adjudicateSafety: vi.fn().mockResolvedValue({
+      decision_id: 1,
+      resolution: 'approved',
+    }),
     getCitations: vi.fn().mockResolvedValue([]),
     getReport: vi.fn().mockResolvedValue(null),
     listReportShares: vi.fn().mockResolvedValue([]),
@@ -104,6 +109,7 @@ beforeEach(() => {
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
+  vi.mocked(runsApi.getSafety).mockResolvedValue([]);
   vi.mocked(runsApi.listReportShares).mockResolvedValue([]);
 });
 
@@ -132,6 +138,39 @@ describe('RunDetail', () => {
     renderAt('/runs/run-1/specifications');
     expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
     expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
+  });
+
+  it('shows and adjudicates held safety decisions', async () => {
+    vi.mocked(runsApi.getSafety).mockResolvedValue([
+      {
+        id: 7,
+        stage: 'intake',
+        decision: 'hold',
+        reason: 'Ambiguous dual-use intent.',
+        matches: [],
+        category: 'uncertain',
+        policy_version: 'coscientist-safety-v2',
+        risk_domains: ['biology'],
+        requires_review: true,
+        assessor: 'semantic:test-model',
+        resolution: null,
+      },
+    ]);
+    renderAt('/runs/run-1/specifications');
+
+    expect(
+      await screen.findByRole('heading', {name: 'Safety audit'}),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole('button', {name: 'Approve for research use'}),
+    );
+    await waitFor(() =>
+      expect(runsApi.adjudicateSafety).toHaveBeenCalledWith(
+        'run-1',
+        7,
+        'approved',
+      ),
+    );
   });
 
   it('refetches on a coalesced batch that ends in status but carries data', async () => {

@@ -203,6 +203,22 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(
         conn, "matches", "debate_turns", "INTEGER NOT NULL DEFAULT 1"
     )
+    # Versioned contextual safety provenance and human-review routing.
+    _add_column_if_missing(conn, "safety_decisions", "category", "TEXT")
+    _add_column_if_missing(conn, "safety_decisions", "policy_version", "TEXT")
+    _add_column_if_missing(
+        conn, "safety_decisions", "risk_domains_json", "TEXT"
+    )
+    _add_column_if_missing(
+        conn,
+        "safety_decisions",
+        "requires_review",
+        "INTEGER NOT NULL DEFAULT 0",
+    )
+    _add_column_if_missing(conn, "safety_decisions", "assessor", "TEXT")
+    _add_column_if_missing(conn, "safety_decisions", "resolution", "TEXT")
+    _add_column_if_missing(conn, "safety_decisions", "resolved_by", "TEXT")
+    _add_column_if_missing(conn, "safety_decisions", "resolved_at", "REAL")
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:

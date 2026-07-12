@@ -10,7 +10,9 @@ Goals:
 from __future__ import annotations
 
 import enum
+import json
 import logging
+import os
 import re
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from dataclasses import dataclass, field
@@ -21,6 +23,8 @@ from app.config import settings
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
+
+POLICY_VERSION = "coscientist-safety-v2"
 
 
 class SafetyMode(str, enum.Enum):
@@ -79,14 +83,24 @@ class SafetyDecision:
     decision: str  # "allow" | "redact" | "block"
     reason: str = ""
     matches: list[str] = field(default_factory=list)
+    category: str = "allowed"
+    policy_version: str = POLICY_VERSION
+    risk_domains: list[str] = field(default_factory=list)
+    requires_review: bool = False
+    assessor: str = "deterministic"
 
-    def to_dict(self) -> dict[str, str | list[str]]:
+    def to_dict(self) -> dict[str, str | list[str] | bool]:
         """Serialize this decision for the `safety.{stage}` event payload."""
         return {
             "stage": self.stage,
             "decision": self.decision,
             "reason": self.reason,
             "matches": self.matches,
+            "category": self.category,
+            "policy_version": self.policy_version,
+            "risk_domains": self.risk_domains,
+            "requires_review": self.requires_review,
+            "assessor": self.assessor,
         }
 
 
@@ -115,6 +129,8 @@ def screen_intake(goal: str) -> SafetyDecision:
                 "mass-casualty intent)."
             ),
             matches=blocked,
+            category="prohibited",
+            risk_domains=["cbrn_weaponization"],
         )
     flagged = _scan(text, _REDACT_PATTERNS)
     # Unlike screen_final below, intake only redacts under strict mode: a
@@ -129,6 +145,9 @@ def screen_intake(goal: str) -> SafetyDecision:
                 "oversight."
             ),
             matches=flagged,
+            category="redacted",
+            risk_domains=["dual_use"],
+            requires_review=True,
         )
     return SafetyDecision(stage="intake", decision="allow")
 
@@ -146,6 +165,8 @@ def screen_final(report_markdown: str) -> SafetyDecision:
                 "refusing to publish."
             ),
             matches=blocked,
+            category="prohibited",
+            risk_domains=["cbrn_weaponization"],
         )
     flagged = _scan(text, _REDACT_PATTERNS)
     # Final output always flags dual-use language, regardless of SAFETY_MODE:
@@ -159,8 +180,120 @@ def screen_final(report_markdown: str) -> SafetyDecision:
                 "Output contains dual-use language; flagged for human review."
             ),
             matches=flagged,
+            category="redacted",
+            risk_domains=["dual_use"],
+            requires_review=True,
         )
     return SafetyDecision(stage="final", decision="allow")
+
+
+def _semantic_credential_available(model: str) -> bool:
+    """Return whether the configured provider has a usable credential."""
+    provider = model.split("/", 1)[0].lower()
+    env_names = {
+        "gemini": ("GEMINI_API_KEY", "GOOGLE_API_KEY"),
+        "deepseek": ("DEEPSEEK_API_KEY",),
+        "openai": ("OPENAI_API_KEY",),
+        "anthropic": ("ANTHROPIC_API_KEY",),
+    }.get(provider, ())
+    return any(os.getenv(name) for name in env_names)
+
+
+def _semantic_prompt(text: str, stage: str) -> str:
+    """Build a bounded contextual-risk classification prompt."""
+    return (
+        "Classify the scientific content under a research safety policy. "
+        "Return JSON only with category, reason, risk_domains, and "
+        "operational_detail. category must be one of prohibited, "
+        "ethical_concern, uncertain, redacted, allowed. Treat requests that "
+        "meaningfully enable weaponization, harmful pathogen enhancement, "
+        "mass-casualty capability, non-consensual human experimentation, or "
+        "evasion as prohibited or ethical_concern. Legitimate dual-use work "
+        "with actionable harmful operational detail is redacted. Ambiguous "
+        "risk is uncertain. Do not reproduce or elaborate unsafe detail.\n"
+        f"Stage: {stage}\nContent:\n{text[:16000]}"
+    )
+
+
+async def screen_contextual(
+    text: str,
+    stage: str,
+    *,
+    deterministic: SafetyDecision | None = None,
+) -> SafetyDecision:
+    """Combine hard deterministic rules with contextual model assessment."""
+    baseline = deterministic or (
+        screen_intake(text) if stage == "intake" else screen_final(text)
+    )
+    if baseline.decision == "block":
+        return baseline
+    model = settings.semantic_safety_model or settings.supervisor_model_name
+    model = model or settings.model_name
+    if (
+        not settings.semantic_safety_enabled
+        or not _semantic_credential_available(model)
+    ):
+        return baseline
+    try:
+        import litellm
+
+        response = await litellm.acompletion(
+            model=model,
+            messages=[
+                {"role": "user", "content": _semantic_prompt(text, stage)}
+            ],
+            response_format={"type": "json_object"},
+            temperature=0,
+            timeout=20,
+        )
+        content = response.choices[0].message.content or "{}"
+        parsed = json.loads(content)
+        category = str(parsed.get("category") or "uncertain")
+        if category not in {
+            "prohibited",
+            "ethical_concern",
+            "uncertain",
+            "redacted",
+            "allowed",
+        }:
+            category = "uncertain"
+        decision = {
+            "prohibited": "block",
+            "ethical_concern": "block",
+            "uncertain": "hold",
+            "redacted": "redact",
+            "allowed": "allow",
+        }[category]
+        domains = parsed.get("risk_domains")
+        return SafetyDecision(
+            stage=stage,
+            decision=decision,
+            reason=str(parsed.get("reason") or "Contextual safety assessment."),
+            category=category,
+            risk_domains=(
+                [str(item) for item in domains]
+                if isinstance(domains, list)
+                else []
+            ),
+            requires_review=decision in {"hold", "redact"},
+            assessor=f"semantic:{model}",
+        )
+    except Exception as exc:  # Provider failure must not silently clear risk.
+        logger.warning("Contextual safety assessment failed: %s", exc)
+        if baseline.decision == "redact":
+            return baseline
+        return SafetyDecision(
+            stage=stage,
+            decision="hold",
+            reason=(
+                "Contextual safety assessment was unavailable; human review "
+                "required."
+            ),
+            category="uncertain",
+            risk_domains=["assessment_unavailable"],
+            requires_review=True,
+            assessor=f"semantic:{model}:error",
+        )
 
 
 async def apply_safety_gate(
@@ -193,11 +326,16 @@ async def apply_safety_gate(
         result.decision,
         result.reason,
         result.matches,
+        category=result.category,
+        policy_version=result.policy_version,
+        risk_domains=result.risk_domains,
+        requires_review=result.requires_review,
+        assessor=result.assessor,
         db_path=db_path,
     )
-    if result.decision == "block":
+    if result.decision in {"block", "hold"}:
         logger.warning(
-            "Safety gate blocked run %s at %s stage: %s",
+            "Safety gate withheld run %s at %s stage: %s",
             run_id,
             result.stage,
             result.reason,
@@ -216,4 +354,16 @@ async def apply_safety_gate(
         )
         yield await emit(
             "status", {"status": "blocked", "error": result.reason}
+        )
+    elif result.decision == "hold":
+        store.update_run_status(
+            run_id, RunStatus.PAUSED, error=result.reason, db_path=db_path
+        )
+        yield await emit(
+            "status",
+            {
+                "status": "paused",
+                "reason": "safety_review",
+                "error": result.reason,
+            },
         )

@@ -61,6 +61,7 @@ from app.runs_models import (
     HumanAttachmentRequest,
     HumanHypothesisRequest,
     HumanReviewRequest,
+    SafetyAdjudicationRequest,
     SendMessageRequest,
     StartRunRequest,
     _build_create_run_config,
@@ -406,9 +407,7 @@ async def start_run(
     # excluded from fidelity claims.
     if effective_provider == "engine":
         store.append_event(run_id, "lifecycle", {"event": "queued"})
-        task = task_worker.enqueue_run_workflow(
-            run_id, force_provider="engine"
-        )
+        task = task_worker.enqueue_run_workflow(run_id, force_provider="engine")
         if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
             # Local compatibility mode consumes the same durable lease. A
             # production worker service runs ``python -m app.task_worker`` and
@@ -673,6 +672,48 @@ async def get_safety(run_id: str) -> dict[str, Any]:
     """Return the run's intake/final safety-gate decisions."""
     _require_run(run_id)
     return {"safety": store.list_safety_decisions(run_id)}
+
+
+@router.post("/{run_id}/safety/{decision_id}/adjudicate")
+async def adjudicate_safety(
+    run_id: str,
+    decision_id: int,
+    body: SafetyAdjudicationRequest,
+    request: Request,
+) -> dict[str, Any]:
+    """Resolve one held safety decision and update the run lifecycle."""
+    run = _run_or_404(run_id)
+    reviewer = _client_id(request)
+    if not reviewer:
+        raise HTTPException(
+            status_code=403, detail="an identified reviewer is required"
+        )
+    resolved = store.resolve_safety_decision(
+        run_id, decision_id, body.resolution, reviewer
+    )
+    if not resolved:
+        raise HTTPException(
+            status_code=409,
+            detail="decision is not reviewable or was already resolved",
+        )
+    if body.resolution == "rejected":
+        store.update_run_status(
+            run_id,
+            RunStatus.BLOCKED,
+            error="Safety reviewer rejected held content.",
+        )
+    elif run.status == RunStatus.PAUSED.value:
+        # Intake holds return to draft; final holds retain a checkpoint and can
+        # resume through the ordinary recovery path.
+        decisions = store.list_safety_decisions(run_id)
+        decision = next(item for item in decisions if item["id"] == decision_id)
+        target = (
+            RunStatus.DRAFT
+            if decision["stage"] == "intake"
+            else RunStatus.PAUSED
+        )
+        store.update_run_status(run_id, target, error=None)
+    return {"resolution": body.resolution, "decision_id": decision_id}
 
 
 @router.get("/{run_id}/citations")

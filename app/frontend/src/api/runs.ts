@@ -16,6 +16,7 @@ import type {
   RunStatus,
   RunTier,
   RunWithSummary,
+  SafetyDecision,
   SharedGoalReport,
 } from './run_types';
 // Re-export the run-domain types so callers can `import type {...} from
@@ -49,6 +50,7 @@ export type {
   RunSummary,
   RunTier,
   RunWithSummary,
+  SafetyDecision,
   SharedGoalReport,
   SupportSpan,
 } from './run_types';
@@ -365,6 +367,24 @@ export function getMatches(id: string): Promise<MatchRow[]> {
  */
 export function getReviews(id: string): Promise<Review[]> {
   return getRunList<Review>(id, 'reviews');
+}
+
+/** Fetch the versioned safety audit trail for a run. */
+export function getSafety(id: string): Promise<SafetyDecision[]> {
+  return getRunList<SafetyDecision>(id, 'safety');
+}
+
+/** Resolve one held safety decision as the identified run owner. */
+export function adjudicateSafety(
+  runId: string,
+  decisionId: number,
+  resolution: 'approved' | 'rejected',
+): Promise<{decision_id: number; resolution: string}> {
+  return fetchJson(`/api/runs/${runId}/safety/${decisionId}/adjudicate`, {
+    method: 'POST',
+    headers: {...clientHeaders(), 'Content-Type': 'application/json'},
+    body: JSON.stringify({resolution}),
+  });
 }
 
 /**

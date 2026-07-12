@@ -30,6 +30,56 @@ def test_create_run_returns_draft_status() -> None:
     )
 
 
+def test_safety_adjudication_is_identified_and_single_use(
+    isolated_db: str,
+) -> None:
+    """A held decision requires an identified reviewer and resolves once."""
+    from app import store
+
+    client = _client()
+    headers = {"X-Client-ID": "reviewer-1"}
+    created = client.post(
+        "/api/runs",
+        headers=headers,
+        json={"research_goal": "Review a sensitive research protocol"},
+    ).json()
+    store.add_safety_decision(
+        created["id"],
+        "intake",
+        "hold",
+        "Context requires review.",
+        [],
+        category="uncertain",
+        policy_version="coscientist-safety-v2",
+        requires_review=True,
+    )
+    decision_id = store.list_safety_decisions(created["id"])[0]["id"]
+
+    anonymous = client.post(
+        f"/api/runs/{created['id']}/safety/{decision_id}/adjudicate",
+        json={"resolution": "approved"},
+    )
+    # Ownership middleware hides the existence of another client's run.
+    assert anonymous.status_code == 404
+
+    approved = client.post(
+        f"/api/runs/{created['id']}/safety/{decision_id}/adjudicate",
+        headers=headers,
+        json={"resolution": "approved"},
+    )
+    assert approved.status_code == 200
+    assert store.safety_stage_is_approved(
+        created["id"], "intake", "coscientist-safety-v2"
+    )
+
+    repeated = client.post(
+        f"/api/runs/{created['id']}/safety/{decision_id}/adjudicate",
+        headers=headers,
+        json={"resolution": "rejected"},
+    )
+    assert repeated.status_code == 409
+
+
 def test_list_runs_honors_limit_query(isolated_db: str) -> None:
     client = _client()
     headers = {"X-Client-ID": "limit-test"}

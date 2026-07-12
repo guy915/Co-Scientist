@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     # Safety filter aggressiveness: "standard" or "strict". safety.py coerces
     # this into its SafetyMode enum, defaulting to standard on any other value.
     safety_mode: str = "standard"
+    # Contextual safety assessment is used for real-provider runs when the
+    # configured model's provider credential is present. Deterministic hard
+    # blocks always run first and cannot be overridden by the model.
+    semantic_safety_enabled: bool = True
+    semantic_safety_model: str | None = None
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see
