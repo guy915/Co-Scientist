@@ -138,7 +138,37 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                     ],
                 },
             },
+            "knowledge_base": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "title": {"type": "string"},
+                        "summary": {"type": "string"},
+                        "detail": {"type": "string"},
+                        "uncertainty": {"type": "string"},
+                        "evidence_ids": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                    "required": [
+                        "title",
+                        "summary",
+                        "detail",
+                        "uncertainty",
+                        "evidence_ids",
+                    ],
+                },
+            },
         },
-        "required": ["overview", "nih_specific_aims", "research_contacts"],
+        "required": [
+            "overview",
+            "nih_specific_aims",
+            "research_contacts",
+            "knowledge_base",
+        ],
     },
 }

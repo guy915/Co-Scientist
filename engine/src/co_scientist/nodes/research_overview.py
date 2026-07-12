@@ -43,6 +43,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
 
     summary = _summarize_top_hypotheses(hypotheses)
     contact_candidates = _build_contact_candidates(state.get("articles"))
+    evidence_corpus = _build_evidence_corpus(state.get("articles"))
 
     await emit_progress(
         state,
@@ -52,7 +53,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
     )
 
     research_overview = await _synthesize_research_overview(
-        state, summary, contact_candidates
+        state, summary, contact_candidates, evidence_corpus
     )
 
     await emit_progress(
@@ -91,6 +92,7 @@ async def _synthesize_research_overview(
     state: WorkflowState,
     summary: str,
     contact_candidates: dict[str, dict[str, Any]],
+    evidence_corpus: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Builds the research-overview prompt, calls the LLM, and formats it.
 
@@ -104,6 +106,7 @@ async def _synthesize_research_overview(
         state: Current workflow state.
         summary: Top-k hypotheses summary from _summarize_top_hypotheses.
         contact_candidates: Verified authors keyed by a stable candidate id.
+        evidence_corpus: Analyzed sources keyed by a stable evidence id.
 
     Returns:
         Dict with "overview" and "nih_specific_aims" keys, defaulting to
@@ -114,6 +117,7 @@ async def _synthesize_research_overview(
         research_goal=state["research_goal"],
         hypotheses_summary=summary,
         contact_candidates=_format_contact_candidates(contact_candidates),
+        evidence_corpus=_format_evidence_corpus(evidence_corpus),
         meta_review=state.get("meta_review"),
         tool_registry=state.get("tool_registry"),
         run_setup_guidance=state.get("run_setup_guidance"),
@@ -132,6 +136,9 @@ async def _synthesize_research_overview(
         "nih_specific_aims": response.get("nih_specific_aims", {}),
         "research_contacts": _validate_research_contacts(
             response.get("research_contacts"), contact_candidates
+        ),
+        "knowledge_base": _validate_knowledge_base(
+            response.get("knowledge_base"), evidence_corpus
         ),
     }
 
@@ -214,6 +221,73 @@ def _validate_research_contacts(
         if len(accepted) == 5:
             break
     return accepted
+
+
+def _build_evidence_corpus(
+    articles: list[Article] | None,
+) -> dict[str, dict[str, Any]]:
+    """Build the terminal synthesis corpus from articles actually analyzed."""
+    corpus: dict[str, dict[str, Any]] = {}
+    for index, article in enumerate(articles or []):
+        if not article.used_in_analysis:
+            continue
+        evidence_id = f"evidence-{index + 1}"
+        corpus[evidence_id] = {
+            "evidence_id": evidence_id,
+            "source_id": article.source_id or "",
+            "title": article.title,
+            "abstract": (article.abstract or "")[:3000],
+            "source": article.source,
+            "url": article.url or "",
+        }
+    return corpus
+
+
+def _format_evidence_corpus(corpus: dict[str, dict[str, Any]]) -> str:
+    """Format bounded analyzed evidence for cross-source synthesis."""
+    if not corpus:
+        return "No verified evidence corpus available."
+    return "\n".join(
+        (
+            "- {evidence_id}: title={title}; source={source}; "
+            "source_id={source_id}; abstract={abstract}"
+        ).format(**evidence)
+        for evidence in corpus.values()
+    )
+
+
+def _validate_knowledge_base(
+    raw_topics: Any,
+    corpus: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Drop unsourced topics and attach immutable source metadata."""
+    if not isinstance(raw_topics, list):
+        return []
+    topics: list[dict[str, Any]] = []
+    for index, raw in enumerate(raw_topics[:8]):
+        if not isinstance(raw, dict):
+            continue
+        raw_ids = raw.get("evidence_ids")
+        if not isinstance(raw_ids, list):
+            continue
+        evidence_ids = [
+            item
+            for item in raw_ids
+            if isinstance(item, str) and item in corpus
+        ]
+        if not evidence_ids:
+            continue
+        topics.append(
+            {
+                "id": f"topic-{index + 1}",
+                "title": str(raw.get("title") or "").strip(),
+                "summary": str(raw.get("summary") or "").strip(),
+                "detail": str(raw.get("detail") or "").strip(),
+                "uncertainty": str(raw.get("uncertainty") or "").strip(),
+                "references": [corpus[item] for item in evidence_ids],
+            }
+        )
+    return topics
 
 
 def _build_research_overview_result(

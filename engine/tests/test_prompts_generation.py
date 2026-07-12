@@ -191,10 +191,12 @@ def test_get_research_overview_prompt_substitutes_and_returns_schema() -> None:
         research_goal="Find liver-fibrosis targets",
         hypotheses_summary="1. HDAC inhibition (Elo 1700)\n2. BRD4 (Elo 1650)",
         contact_candidates="- author-1-1: Ada Researcher; paper=Study",
+        evidence_corpus="- evidence-1: title=Study; abstract=Finding",
     )
     assert "Find liver-fibrosis targets" in prompt
     assert "HDAC inhibition" in prompt
     assert "Ada Researcher" in prompt
+    assert "evidence-1" in prompt
     assert schema is not None
 
 

@@ -132,7 +132,15 @@ export function LearningView({
 
 // Expanded "Details" block within a Learning section: renders nothing when
 // collapsed, so the caller can render it unconditionally.
-function LearningSectionDetailsBlock({detail}: {detail: string}) {
+function LearningSectionDetailsBlock({
+  detail,
+  uncertainty,
+  referenceIds,
+}: {
+  detail: string;
+  uncertainty?: string;
+  referenceIds: string[];
+}) {
   return (
     <>
       <h4 className={REPORT_H4_CLASSES}>Details</h4>
@@ -141,6 +149,23 @@ function LearningSectionDetailsBlock({detail}: {detail: string}) {
           __html: renderInlineHtml(detail),
         }}
       />
+      {uncertainty ? (
+        <p>
+          <strong>Uncertainty: </strong>
+          {uncertainty}
+        </p>
+      ) : null}
+      {referenceIds.length ? (
+        <p>
+          <strong>Supporting references: </strong>
+          {referenceIds.map((id, index) => (
+            <span key={id}>
+              {index ? ', ' : ''}
+              <a href={`#reference-${id}`}>[{index + 1}]</a>
+            </span>
+          ))}
+        </p>
+      ) : null}
     </>
   );
 }
@@ -193,7 +218,13 @@ function LearningSectionBlock({
       />
       <h4 className={REPORT_H4_CLASSES}>Summary</h4>
       <AbstractBody text={section.summary} />
-      {expanded && <LearningSectionDetailsBlock detail={section.detail} />}
+      {expanded && (
+        <LearningSectionDetailsBlock
+          detail={section.detail}
+          uncertainty={section.uncertainty}
+          referenceIds={section.referenceIds}
+        />
+      )}
       <LearningSectionToggle expanded={expanded} onToggle={onToggle} />
     </section>
   );
@@ -291,7 +322,7 @@ function ReferenceList({evidence}: {evidence: Evidence[]}) {
 // One numbered reference row: title plus an optional "Open" link.
 function ReferenceListItem({item, index}: {item: Evidence; index: number}) {
   return (
-    <li className={REFERENCE_LIST_ITEM_CLASSES}>
+    <li id={`reference-${item.id}`} className={REFERENCE_LIST_ITEM_CLASSES}>
       <span className={REFERENCE_LIST_INDEX_CLASSES}>[{index + 1}]</span>
       <strong
         className={REFERENCE_LIST_TITLE_CLASSES}
@@ -323,6 +354,8 @@ interface LearningSectionItem {
   title: string;
   summary: string;
   detail: string;
+  uncertainty?: string;
+  referenceIds: string[];
 }
 
 // Builds up to three display sections (title/summary/detail) from the run's
@@ -341,6 +374,8 @@ function learningSections(
       title: topic.title,
       summary: topic.summary,
       detail: topic.detail,
+      uncertainty: topic.uncertainty,
+      referenceIds: topic.reference_ids,
     }));
   }
   const fallbackGoal =
@@ -356,6 +391,7 @@ function learningSections(
         summary:
           'No evidence-backed technical topics have been synthesized for this run.',
         detail: `The run must retrieve and verify evidence before it can build a Knowledge Base for ${fallbackGoal}.`,
+        referenceIds: [],
       },
     ];
   }
@@ -372,6 +408,7 @@ function learningSections(
       item.source && item.year
         ? `Source context: ${item.source}, ${item.year}. Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis.`
         : `Co-Scientist keeps this learning available for downstream hypothesis generation, ranking, and synthesis for ${fallbackGoal}.`,
+    referenceIds: [item.id],
   }));
 }
 

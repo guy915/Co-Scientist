@@ -55,6 +55,22 @@ async def test_produces_overview_and_aims(
                     "justification": "Not grounded.",
                 },
             ],
+            "knowledge_base": [
+                {
+                    "title": "Epigenetic control of fibrosis",
+                    "summary": "HDAC activity is implicated in fibrosis.",
+                    "detail": "The analyzed study supports a testable axis.",
+                    "uncertainty": "Causality remains unresolved.",
+                    "evidence_ids": ["evidence-1", "invented-evidence"],
+                },
+                {
+                    "title": "Unsupported topic",
+                    "summary": "No source.",
+                    "detail": "No source.",
+                    "uncertainty": "Unknown.",
+                    "evidence_ids": ["invented-evidence"],
+                },
+            ],
         }
     )
     monkeypatch.setattr(ro, "call_llm_json", fake)
@@ -89,3 +105,8 @@ async def test_produces_overview_and_aims(
     assert contacts[0]["name"] == "Ada Researcher"
     assert contacts[0]["source_id"] == "PMID:123"
     assert "Invented Person" not in str(contacts)
+    topics = out["research_overview"]["knowledge_base"]
+    assert len(topics) == 1
+    assert topics[0]["title"] == "Epigenetic control of fibrosis"
+    assert topics[0]["references"][0]["title"] == "Fibrosis mechanisms"
+    assert "Unsupported topic" not in str(topics)

@@ -53,3 +53,34 @@ def test_goal_report_sections_preserve_claim_grounding() -> None:
     assert buckets["high_potential"][0]["id"] == "h1"
     assert buckets["non_viable"][0]["id"] == "h2"
     assert "Evidence verification" in buckets["non_viable"][0]["reason"]
+
+
+def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
+    """Engine topic references become ids; unsupported topics drop."""
+    overview = {
+        "knowledge_base": [
+            {
+                "id": "topic-1",
+                "title": "Cross-source mechanism",
+                "summary": "Two findings converge.",
+                "detail": "A detailed synthesis.",
+                "uncertainty": "The causal direction remains uncertain.",
+                "references": [
+                    {"title": "Persisted study"},
+                    {"title": "Missing study"},
+                ],
+            },
+            {
+                "id": "topic-2",
+                "title": "Unsupported synthesis",
+                "references": [{"title": "Missing study"}],
+            },
+        ]
+    }
+    topics = report_render._synthesized_knowledge_base_topics(
+        overview, [{"id": "ev-1", "title": "Persisted study"}]
+    )
+
+    assert len(topics) == 1
+    assert topics[0]["reference_ids"] == ["ev-1"]
+    assert topics[0]["uncertainty"].startswith("The causal direction")

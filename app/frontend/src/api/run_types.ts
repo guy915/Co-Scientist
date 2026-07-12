@@ -293,6 +293,7 @@ export interface KnowledgeBaseTopic {
   title: string;
   summary: string;
   detail: string;
+  uncertainty?: string;
   reference_ids: string[];
 }
 

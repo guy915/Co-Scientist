@@ -80,6 +80,48 @@ def _knowledge_base_topics(
     return topics
 
 
+def _synthesized_knowledge_base_topics(
+    research_overview: dict[str, Any] | None,
+    evidence: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Map engine-synthesized source titles to durable evidence identifiers."""
+    if not isinstance(research_overview, dict):
+        return []
+    raw_topics = research_overview.get("knowledge_base")
+    if not isinstance(raw_topics, list):
+        return []
+    evidence_id_by_title = {
+        str(item.get("title") or ""): str(item.get("id") or "")
+        for item in evidence
+    }
+    topics: list[dict[str, Any]] = []
+    for raw in raw_topics:
+        if not isinstance(raw, dict):
+            continue
+        references = raw.get("references") or []
+        reference_ids = sorted(
+            {
+                evidence_id_by_title.get(str(ref.get("title") or ""), "")
+                for ref in references
+                if isinstance(ref, dict)
+            }
+            - {""}
+        )
+        if not reference_ids:
+            continue
+        topics.append(
+            {
+                "id": str(raw.get("id") or f"topic-{len(topics) + 1}"),
+                "title": str(raw.get("title") or "Technical topic"),
+                "summary": str(raw.get("summary") or ""),
+                "detail": str(raw.get("detail") or ""),
+                "uncertainty": str(raw.get("uncertainty") or ""),
+                "reference_ids": reference_ids,
+            }
+        )
+    return topics
+
+
 def _agent_insights(
     hypotheses: list[dict[str, Any]],
     claim_edges: list[dict[str, Any]],
@@ -293,6 +335,10 @@ def _build_report_content(
     counts = store.summary_counts(run_id, db_path=db_path)
     leaderboard = live_leaderboard(hyps)
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
+    evidence = store.list_evidence(run_id, db_path=db_path)
+    synthesized_topics = _synthesized_knowledge_base_topics(
+        research_overview, evidence
+    )
     payload = build_report_payload(
         research_goal=research_goal,
         run_mode=run_mode,
@@ -304,7 +350,10 @@ def _build_report_content(
         citation_summary=citation_summary,
         meta_review=meta_review,
         research_overview=research_overview,
-        knowledge_base=_knowledge_base_topics(hyps, claim_edges),
+        knowledge_base=(
+            synthesized_topics
+            or _knowledge_base_topics(hyps, claim_edges)
+        ),
         agent_insights=_agent_insights(hyps, claim_edges, meta_review),
         idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
         execution_time=execution_time,
