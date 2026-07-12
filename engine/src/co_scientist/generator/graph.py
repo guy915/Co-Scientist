@@ -25,6 +25,7 @@ from co_scientist.nodes.ranking import ranking_node
 from co_scientist.nodes.reflection import reflection_node
 from co_scientist.nodes.research_overview import research_overview_node
 from co_scientist.nodes.review import review_node
+from co_scientist.nodes.safety_screen import safety_screen_node
 from co_scientist.nodes.supervisor import supervisor_node
 from co_scientist.state import WorkflowState
 
@@ -46,7 +47,7 @@ _WorkflowBuilder = StateGraph[Any, Any, Any, Any]
 _TASK_ROUTES: dict[str, str] = {
     "generate": "generate",
     "reflect": "review",
-    "rank": "ranking",
+    "rank": "safety_screen",
     "evolve": "meta_review",
     "proximity": "proximity",
     "terminate": "research_overview",
@@ -91,6 +92,7 @@ def _add_workflow_nodes(
     workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("generate", generate_node)
     workflow.add_node("review", review_node)
+    workflow.add_node("safety_screen", safety_screen_node)
     workflow.add_node("ranking", ranking_node)
     workflow.add_node("deep_verification", deep_verification_node)
     workflow.add_node("orchestrator", orchestrator_node)
@@ -136,13 +138,14 @@ def _add_workflow_edges(
         workflow.add_edge("supervisor", "generate")
         workflow.add_edge("generate", "review")
 
-    workflow.add_edge("review", "ranking")
+    workflow.add_edge("review", "safety_screen")
+    workflow.add_edge("safety_screen", "ranking")
 
     # Evolve branch: meta_review → evolve → review (children re-reviewed).
     workflow.add_edge("meta_review", "evolve")
     workflow.add_edge("evolve", "review")
 
-    # Note: review → ranking already defined above.
+    # Note: review → safety_screen → ranking already defined above.
 
     # Every work phase converges on ranking → deep_verification → the
     # orchestrator, which is the single adaptive loop point.
@@ -160,7 +163,7 @@ def _add_workflow_edges(
         {
             "generate": "generate",
             "review": "review",
-            "ranking": "ranking",
+            "safety_screen": "safety_screen",
             "meta_review": "meta_review",
             "proximity": "proximity",
             "research_overview": "research_overview",

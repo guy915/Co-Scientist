@@ -68,6 +68,8 @@ def make_state(**overrides: Any) -> WorkflowState:
         "removed_duplicates": [],
         "tournament_matchups": [],
         "evolution_details": [],
+        "safety_decisions": [],
+        "held_for_review": [],
         "metrics": ExecutionMetrics(),
         "start_time": 0.0,
         "run_id": "test-run",

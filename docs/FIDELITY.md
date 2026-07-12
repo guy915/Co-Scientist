@@ -25,13 +25,16 @@ The Co-Scientist research artefacts (the "Towards an AI co-scientist" paper, the
 | Runs use one canonical hypothesis-generation path | `run_modes.normalize_run_mode`; legacy `standard`/`advanced` inputs resolve to `default` | implementation policy after removing the obsolete profile split |
 | UI exposes hypotheses (ideas), evidence, tournament, reports, and scientist-in-the-loop interaction | Workbench chat workspace + run detail (`workbench_app.tsx`); the only live tab component is `ideas_tab.tsx`; `run_detail.tsx` renders details / learning / research-overview inline | published UX (see the note below on retired tabs) |
 
-> **Not yet a claim-level verification gate.** Citation classification
-> (`store.citations.state` ∈ {verified, partial, unsupported, unavailable}) is a
-> post-hoc **audit label** computed from document-level lexical overlap
-> (`app/citations.py`, Jaccard thresholds), surfaced in the UI and report. It is
-> **not** a claim-level entailment check and does **not** gate ranking or
-> publication. Claim-level grounding and a publication gate are tracked as
-> `CITE-*` rows in [PARITY.md](PARITY.md) (Milestone 5).
+> **The citation classifier is an audit label, not a verification gate.**
+> Citation classification (`store.citations.state` ∈ {verified, partial,
+> unsupported, unavailable}) is a post-hoc **audit label** computed from
+> document-level lexical overlap (`app/citations.py`, Jaccard thresholds),
+> surfaced in the UI and report. It is **not** a claim-level entailment check.
+> A separate claim-level grounding + publication gate (`app/claims.py`,
+> `CITE-*` in [PARITY.md](PARITY.md)) now exists but is `partial`: the
+> assessor is still lexical (not entailment), and for the real engine it runs
+> *after* the tournament rather than gating ranking. See PARITY.md for the
+> exact status.
 
 ## Implementation-defined values
 
@@ -77,18 +80,25 @@ The mock workflow is **deterministic**: same goal + same run mode + same `run_id
 The "Towards an AI co-scientist" paper is the primary fidelity reference. The implementation matches its described behaviour on:
 
 -   The "generate → debate → evolve" core loop, under a supervisor that
-    conditions each iteration's prompts. The supervisor does **not** yet
-    dynamically schedule/weight agents from summary statistics — that adaptive
-    orchestration is Milestone 2 (`SUP-*` in [PARITY.md](PARITY.md)); today the
-    LangGraph iteration order is a fixed bounded sequence.
+    conditions each iteration's prompts and now **dynamically schedules**
+    agents from summary statistics (Milestone 2, `SUP-*` in
+    [PARITY.md](PARITY.md)) — replacing the earlier fixed bounded iteration
+    order. This is a *deterministic adaptive policy* with fixed thresholds
+    dispatched through a single sequential graph loop, not Google's freeform
+    parallel planner; that scale/parallelism gap is tracked in the audit.
 -   Hypotheses receive deeper review when they rank highly (top-k evolution).
 -   Proximity clustering guides deduplication and pairing.
 -   The final report distinguishes verified, partially supported, and
-    unsupported claims **by the audit label above** (not a claim-level
-    verification gate; see Milestone 5).
+    unsupported claims **by the audit label above** (the document-level
+    citation classifier). Separate claim-level grounding (`app/claims.py`)
+    now exists but is `partial` — a lexical assessor, not entailment, and for
+    the real engine it runs *after* the tournament; see the `CITE-*` rows in
+    [PARITY.md](PARITY.md).
 -   Safety as a fail-closed gate on hazardous biomedical / chemical content
-    **at the run level** (intake + final). Per-hypothesis safety review that
-    removes individual unsafe hypotheses before ranking is Milestone 6
-    (`SAFE-PERHYP-001`).
+    **at the run level** (intake + final), **plus** a structured
+    per-hypothesis safety review (`SAFE-PERHYP-001`). For the real engine that
+    review runs *after* its internal tournament (report exclusion, not
+    pre-ranking removal); only the mock path screens before ranking. That
+    pre-tournament gap is `partial` in [PARITY.md](PARITY.md).
 
 Where the paper is silent (specific Elo K, exact pool sizes, prompt templates, regex patterns), this implementation makes pragmatic choices and documents them here.

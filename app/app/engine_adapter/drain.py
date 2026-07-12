@@ -18,7 +18,12 @@ from app.citations import (
     classify_citation,
     empty_citation_summary,
 )
-from app.claim_grounding import evidence_passages, ground_hypotheses
+from app.claim_grounding import (
+    build_assessor,
+    evidence_passages,
+    ground_hypotheses,
+)
+from app.config import settings
 from app.elo import INITIAL_ELO
 from app.hypothesis_screening import screen_hypotheses
 from app.report_render import format_deep_verification_critique
@@ -510,11 +515,24 @@ def _persist_final_state(
         persisted = store.list_hypotheses(run_id, conn=conn)
         screen_hypotheses(run_id, persisted, conn=conn)
 
-        # 4. Claim-level grounding: extract atomic claims, assess each against
-        # the retrieved evidence, persist the claim-evidence graph, and record
-        # any contradicted (publication-gate blocking) hypothesis.
+        # 4. Claim-level grounding: extract atomic claims, retrieve and assess
+        # each against the retrieved evidence (deterministic by default, or the
+        # semantic NLI assessor when settings.claim_assessor == "llm"), persist
+        # the provenance-stamped claim-evidence graph, and record any
+        # contradicted (publication-gate blocking) hypothesis.
         passages = evidence_passages(run_id, conn=conn)
-        ground_hypotheses(run_id, persisted, passages, conn=conn)
+        assessor, assessor_id = build_assessor(
+            settings.claim_assessor,
+            settings.claim_verifier_model or settings.model_name,
+        )
+        ground_hypotheses(
+            run_id,
+            persisted,
+            passages,
+            assessor=assessor,
+            assessor_id=assessor_id,
+            conn=conn,
+        )
 
         # 5. Tournament matches: resolve each side by the engine's stable
         # hypothesis id.

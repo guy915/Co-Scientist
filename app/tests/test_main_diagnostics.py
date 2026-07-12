@@ -12,6 +12,7 @@ from __future__ import annotations
 import importlib
 import logging
 import os
+import pathlib
 
 import pytest
 from fastapi.testclient import TestClient
@@ -21,6 +22,18 @@ from app.run_modes import DEFAULT_RUN_TIER, RUN_TIER_DEFAULTS
 from app.store import DEMO_CLIENT_ID
 from app.version import API_VERSION
 from tests._client import make_client as _client
+
+# The engine's example config: a real, readable YAML for the tools_config
+# startup path (validation must pass for it and reject a nonexistent path).
+_INDRA_CONFIG = str(
+    pathlib.Path(__file__).resolve().parents[2]
+    / "engine"
+    / "src"
+    / "co_scientist"
+    / "config"
+    / "examples"
+    / "indra_cancer.yaml"
+)
 
 
 def test_root_endpoint_returns_api_metadata() -> None:
@@ -90,15 +103,76 @@ def test_lifespan_reconciles_interrupted_runs_and_seeds_demo_data(
 def test_lifespan_logs_configured_tools_config(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """A configured ``tools_config`` logs the "configured" branch at startup."""
+    """A configured, readable ``tools_config`` starts up cleanly."""
     import app.main as main_module
     from app.config import settings
 
-    monkeypatch.setattr(settings, "tools_config", "some/tools.yaml")
+    monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
 
     with TestClient(main_module.app) as client:
         res = client.get("/health")
         assert res.status_code == 200
+
+
+def test_lifespan_fails_on_unreadable_tools_config(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A configured but unreadable ``tools_config`` fails a real-engine boot.
+
+    Guards the historical bug where a bad TOOLS_CONFIG was logged but never
+    forwarded, so the run silently fell back to default tools. The check is
+    gated to the real engine (the mock never uses tools), so force the
+    engine provider here since the suite otherwise runs mock-forced.
+    """
+    import app.main as main_module
+    from app import engine_adapter
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "tools_config", "/no/such/tools.yaml")
+    monkeypatch.setattr(engine_adapter, "select_provider", lambda: "engine")
+
+    with (
+        pytest.raises(RuntimeError, match="tools_config"),
+        TestClient(main_module.app),
+    ):
+        pass
+
+
+def test_lifespan_skips_tools_validation_for_mock_provider(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A mock-provider boot ignores an unreadable tools_config (never used).
+
+    The mock workflow does not touch the engine's tools, so a stale
+    TOOLS_CONFIG must not break mock/dev startup.
+    """
+    import app.main as main_module
+    from app import engine_adapter
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "tools_config", "/no/such/tools.yaml")
+    monkeypatch.setattr(engine_adapter, "select_provider", lambda: "mock")
+
+    with TestClient(main_module.app) as client:
+        assert client.get("/health").status_code == 200
+
+
+def test_status_reports_effective_tools_config(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """/status discloses the configured tools_config and its enabled tools."""
+    import app.main as main_module
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "tools_config", _INDRA_CONFIG)
+
+    with TestClient(main_module.app) as client:
+        res = client.get("/status")
+        assert res.status_code == 200
+        body = res.json()
+        assert body["tools_config"] == _INDRA_CONFIG
+        assert body["tools_config_valid"] is True
+        assert "indra_statements" in body["enabled_tools"]
 
 
 def test_module_import_bridges_settings_and_logs_missing_mcp_url(

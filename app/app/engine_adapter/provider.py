@@ -71,6 +71,10 @@ def system_status() -> dict[str, Any]:
     has_key = _has_provider_key()
     engine = _engine_importable()
     provider = select_provider()
+    # Imported lazily to avoid a package-level import cycle (engine_adapter's
+    # __init__ re-exports both this module and tools).
+    from app.engine_adapter.tools import tools_config_report
+
     return {
         "provider": provider,
         "mock_mode": provider == "mock",
@@ -82,6 +86,9 @@ def system_status() -> dict[str, Any]:
         # model actually used for planning/meta-review.
         "supervisor_model_name": settings.effective_supervisor_model,
         "mcp_server_url": settings.mcp_server_url,
+        # Effective tools config so the UI/ops can see whether a real run will
+        # use the configured domain tools (e.g. INDRA) or the engine defaults.
+        **tools_config_report(settings.tools_config),
     }
 
 

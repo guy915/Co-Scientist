@@ -252,6 +252,7 @@ async def _run_workflow_task(
     config: dict[str, Any],
     force_provider: str | None,
     handle: _RunHandle,
+    resume: bool = False,
 ) -> None:
     """Drive a run's workflow to completion as a background task.
 
@@ -261,10 +262,12 @@ async def _run_workflow_task(
         config: The run's resolved configuration.
         force_provider: Optional provider override ('mock' or 'engine').
         handle: The run's registry handle for cancellation/new-event signals.
+        resume: When True, the engine restores its persisted WorkflowState and
+            continues from the last checkpoint instead of running from the goal.
     """
     with run_log_context(run_id):
         await _drive_workflow(
-            run_id, research_goal, config, force_provider, handle
+            run_id, research_goal, config, force_provider, handle, resume
         )
 
 
@@ -274,6 +277,7 @@ async def _drive_workflow(
     config: dict[str, Any],
     force_provider: str | None,
     handle: _RunHandle,
+    resume: bool = False,
 ) -> None:
     """Body of ``_run_workflow_task``, run inside the run's log context."""
     try:
@@ -285,6 +289,7 @@ async def _drive_workflow(
             config=config,
             cancelled=handle.cancelled,
             force_provider=force_provider,
+            resume=resume,
         ):
             handle.new_event.set()
         # A cooperative pause stopped the workflow at a checkpoint boundary.
@@ -460,16 +465,30 @@ async def resume_run(run_id: str) -> dict[str, Any]:
 
 
 async def _launch_resume(run_id: str) -> None:
-    """Clear a run's derived data and relaunch its workflow from a checkpoint.
+    """Relaunch a run's workflow from its last checkpoint on a detached task.
 
-    Shared by the resume endpoint and the startup auto-resume launcher. Clears
-    the prior (partial) artifacts so the deterministic re-run reconstructs the
-    run without duplicating rows or events, then drives the workflow on a
-    detached task. A completed run is never relaunched by callers.
+    Shared by the resume endpoint and the startup auto-resume launcher. Two
+    resume modes, chosen by the kind of checkpoint on disk:
+
+    - Engine checkpoint (a serialized WorkflowState): a *true* resume. The
+      engine restores that state and re-enters at the orchestrator, so
+      completed LLM/tool work is not repeated. Derived data is NOT cleared —
+      the engine persists artifacts only at the final drain, so a mid-run
+      interruption left only events + the checkpoint, and clearing would
+      discard the pre-orchestrator events that resume never re-emits.
+    - Mock (or envelope) checkpoint: a deterministic re-derive from the run's
+      seed. Derived data IS cleared so the replay rebuilds identical artifacts
+      without duplicating rows or events.
+
+    A completed run is never relaunched by callers.
     """
     run = _run_or_404(run_id)
     handle = await _reserve_active_slot(run_id)
-    store.clear_run_derived_data(run_id)
+
+    checkpoint = store.get_latest_checkpoint(run_id)
+    engine_resume = engine_adapter.is_engine_checkpoint(checkpoint)
+    if not engine_resume:
+        store.clear_run_derived_data(run_id)
     store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(
         run_id, "status", {"status": "resuming", "detail": "from checkpoint"}
@@ -478,7 +497,14 @@ async def _launch_resume(run_id: str) -> None:
     # on a detached asyncio task rather than FastAPI BackgroundTasks. Keep a
     # strong reference until it finishes so it is not garbage-collected.
     task = asyncio.create_task(
-        _run_workflow_task(run_id, run.research_goal, run.config, None, handle)
+        _run_workflow_task(
+            run_id,
+            run.research_goal,
+            run.config,
+            None,
+            handle,
+            resume=engine_resume,
+        )
     )
     _resume_tasks.add(task)
     task.add_done_callback(_resume_tasks.discard)

@@ -1,31 +1,43 @@
-"""Tests for the weighted proximity graph builder (Milestone 3)."""
+"""Tests for the weighted proximity graph builder (Milestone 3).
+
+These feed the builder the *real* proximity-schema shape
+(``similarity_clusters[].similar_hypotheses[].text``) that ``proximity_node``
+passes in production, not the earlier hand-shaped ``hypotheses`` key that never
+existed in a live response.
+"""
 
 from co_scientist.nodes.proximity_graph import (
     PROXIMITY_METHOD,
     build_proximity_graph,
+    member_match_key,
 )
 
 
+def _id_map(*pairs: tuple[str, str]) -> dict[str, str]:
+    """Build a match-key -> id map the way the node does (prefix-normalized)."""
+    return {member_match_key(text): hyp_id for text, hyp_id in pairs}
+
+
 def _clusters() -> list[dict[str, object]]:
-    """Two clusters: one with two similar members, one singleton."""
+    """Two clusters (real schema shape): one pair, one singleton."""
     return [
         {
             "cluster_id": "c1",
-            "hypotheses": [
-                {"hypothesis_text": "alpha", "similarity_degree": "high"},
-                {"hypothesis_text": "beta", "similarity_degree": "medium"},
+            "similar_hypotheses": [
+                {"text": "alpha", "similarity_degree": "high"},
+                {"text": "beta", "similarity_degree": "medium"},
             ],
         },
         {
             "cluster_id": "c2",
-            "hypotheses": [
-                {"hypothesis_text": "gamma", "similarity_degree": "low"},
+            "similar_hypotheses": [
+                {"text": "gamma", "similarity_degree": "low"},
             ],
         },
     ]
 
 
-_ID_BY_TEXT = {"alpha": "h-a", "beta": "h-b", "gamma": "h-c"}
+_ID_BY_TEXT = _id_map(("alpha", "h-a"), ("beta", "h-b"), ("gamma", "h-c"))
 
 
 def test_builds_weighted_edges_within_clusters() -> None:
@@ -71,9 +83,9 @@ def test_unresolvable_members_are_skipped() -> None:
     clusters = [
         {
             "cluster_id": "c1",
-            "hypotheses": [
-                {"hypothesis_text": "alpha", "similarity_degree": "high"},
-                {"hypothesis_text": "unknown", "similarity_degree": "high"},
+            "similar_hypotheses": [
+                {"text": "alpha", "similarity_degree": "high"},
+                {"text": "unknown", "similarity_degree": "high"},
             ],
         }
     ]
@@ -96,3 +108,43 @@ def test_empty_clusters_yield_empty_graph() -> None:
     assert graph["edges"] == []
     assert graph["meta"]["edge_count"] == 0
     assert graph["meta"]["node_count"] == 0
+
+
+def test_resolves_member_text_drifted_beyond_prefix() -> None:
+    """A member echoed with drift past the first 100 chars still resolves.
+
+    The proximity LLM re-quotes each hypothesis's text, and may edit it past
+    the first 100 characters (the reason the node matches on a 100-char
+    prefix). The graph must key on the same normalized prefix, or the edge is
+    silently lost even though the node clustered the members.
+    """
+    prefix_a = "x" * 100
+    prefix_b = "y" * 100
+    id_map = _id_map(
+        (prefix_a + " canonical tail", "h-1"),
+        (prefix_b + " canonical tail", "h-2"),
+    )
+    clusters = [
+        {
+            "cluster_id": "c1",
+            "similar_hypotheses": [
+                # Same first 100 chars as h-1, different tail.
+                {
+                    "text": prefix_a + " DIFFERENT tail",
+                    "similarity_degree": "medium",
+                },
+                {
+                    "text": prefix_b + " also different",
+                    "similarity_degree": "medium",
+                },
+            ],
+        }
+    ]
+    graph = build_proximity_graph(
+        clusters, id_map, research_goal="g", model="m", updated_at=1.0
+    )
+    assert graph["meta"]["edge_count"] == 1
+    assert {graph["edges"][0]["source"], graph["edges"][0]["target"]} == {
+        "h-1",
+        "h-2",
+    }

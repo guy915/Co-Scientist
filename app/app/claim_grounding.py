@@ -29,8 +29,11 @@ from typing import Any
 
 from app import store
 from app.claims import (
+    Assessor,
+    EvidencePassage,
     GateDecision,
     assess_claim,
+    deterministic_assessor,
     extract_atomic_claims,
     publication_gate,
 )
@@ -47,24 +50,49 @@ def _claim_source_text(hyp: Mapping[str, Any]) -> str:
     return " ".join(part for part in parts if part)
 
 
+def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
+    """Return the ``(assessor, assessor_id)`` for a grounding mode.
+
+    ``mode == "llm"`` builds the semantic NLI assessor (imported lazily so the
+    deterministic default never pulls in the LLM path); anything else is the
+    offline deterministic assessor. Used by the real-engine drain to honor
+    ``settings.claim_assessor``; the mock path always grounds deterministically.
+    """
+    if mode == "llm":
+        from app.claim_verifier import make_llm_assessor
+
+        return make_llm_assessor(model)
+    return deterministic_assessor, "deterministic-v1"
+
+
 def evidence_passages(
     run_id: str,
     *,
     conn: sqlite3.Connection | None = None,
     db_path: str | None = None,
-) -> list[str]:
-    """Return the run's evidence text (title + abstract) for claim grounding.
+) -> list[EvidencePassage]:
+    """Return the run's evidence passages (with provenance) for grounding.
 
-    Shared by both providers (the mock stages pass ``db_path``; the engine
-    drain reuses its open ``conn``).
+    Each passage is the evidence row's title + abstract, carrying the source
+    evidence id, source, and url so a support span located inside it can be
+    traced back to (and opened at) its exact source. Shared by both providers
+    (the mock stages pass ``db_path``; the engine drain reuses its ``conn``).
     """
-    passages: list[str] = []
+    passages: list[EvidencePassage] = []
     for ev in store.list_evidence(run_id, conn=conn, db_path=db_path):
         text = " ".join(
             str(ev.get(k) or "") for k in ("title", "abstract")
         ).strip()
-        if text:
-            passages.append(text)
+        if not text:
+            continue
+        passages.append(
+            EvidencePassage(
+                evidence_id=str(ev.get("id") or ""),
+                text=text,
+                source=str(ev.get("source") or ""),
+                url=str(ev.get("url") or ""),
+            )
+        )
     return passages
 
 
@@ -86,32 +114,38 @@ class GroundingResult:
 def ground_hypotheses(
     run_id: str,
     hyps: Sequence[Mapping[str, Any]],
-    evidence_passages: Sequence[str],
+    passages: Sequence[EvidencePassage],
     *,
+    assessor: Assessor = deterministic_assessor,
+    assessor_id: str = "deterministic-v1",
     conn: sqlite3.Connection | None = None,
     db_path: str | None = None,
 ) -> GroundingResult:
     """Ground each hypothesis's claims, persist the graph, and gate publishing.
 
-    For every hypothesis this extracts atomic claims, assesses each against the
-    run's evidence passages, persists the claim-evidence edges, and runs the
-    publication gate. A hypothesis whose gate blocks *because a claim is
-    contradicted* is returned in ``blocked_ids`` so the caller keeps it out of
-    the tournament and synthesis.
+    For every hypothesis this extracts atomic claims, retrieves and assesses
+    the most relevant evidence passages per claim (via the swappable
+    ``assessor``), persists the claim-evidence edges with provenance-stamped
+    support spans, and runs the publication gate. A hypothesis whose gate
+    blocks *because a claim is contradicted* is returned in ``blocked_ids`` so
+    the caller keeps it out of the tournament and synthesis.
 
     Args:
         run_id: Identifier of the run being grounded.
         hyps: The run's hypotheses (store rows/payloads with an ``id`` and the
             claim text fields).
-        evidence_passages: The run's retrieved evidence passages (e.g. abstract
-            text) every claim is assessed against.
+        passages: The run's retrieved evidence passages (with provenance) every
+            claim is assessed against.
+        assessor: The entailment assessor (deterministic by default; the LLM
+            assessor is plugged in for a real grounded run).
+        assessor_id: Provenance id recorded on each persisted edge.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
         db_path: Optional override for the SQLite database path.
 
     Returns:
         A :class:`GroundingResult` with the blocked ids and per-id reasons.
     """
-    passages = [p for p in evidence_passages if p]
+    candidates = [p for p in passages if p.text]
     blocked: set[str] = set()
     reason_by_id: dict[str, str] = {}
     for hyp in hyps:
@@ -119,15 +153,23 @@ def ground_hypotheses(
         if not hyp_id:
             continue
         claims = extract_atomic_claims(_claim_source_text(hyp))
-        assessments = [assess_claim(claim, list(passages)) for claim in claims]
+        assessments = [
+            assess_claim(
+                claim,
+                candidates,
+                assessor=assessor,
+                assessor_id=assessor_id,
+            )
+            for claim in claims
+        ]
         for assessment in assessments:
             store.add_claim_evidence(
                 run_id,
                 hyp_id,
                 assessment.claim,
                 assessment.label.value,
-                assessment.supporting_passages,
-                assessment.contradicting_passages,
+                [s.to_dict() for s in assessment.supporting_passages],
+                [s.to_dict() for s in assessment.contradicting_passages],
                 assessment.assessor,
                 conn=conn,
                 db_path=db_path,

@@ -39,6 +39,7 @@ export type {
   RunSummary,
   RunTier,
   RunWithSummary,
+  SupportSpan,
 } from './run_types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL as string) || '';

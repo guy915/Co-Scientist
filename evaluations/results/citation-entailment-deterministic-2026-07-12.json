@@ -1,0 +1,53 @@
+{
+  "dataset": "citation-entailment-v1",
+  "dataset_version": 2,
+  "assessor": "deterministic-v1",
+  "metrics": {
+    "accuracy": 0.75,
+    "contradiction_recall": 0.75,
+    "abstention_rate": 0.45,
+    "per_label": {
+      "insufficient": {
+        "precision": 0.444,
+        "recall": 1.0
+      },
+      "contradicts": {
+        "precision": 1.0,
+        "recall": 0.75
+      },
+      "supports": {
+        "precision": 1.0,
+        "recall": 0.625
+      }
+    },
+    "n": 20,
+    "by_kind": {
+      "hard_paraphrase": {
+        "accuracy": 0.0,
+        "n": 5
+      },
+      "mixed": {
+        "accuracy": 1.0,
+        "n": 3
+      },
+      "obvious": {
+        "accuracy": 1.0,
+        "n": 12
+      }
+    }
+  },
+  "confusion": {
+    "supports": {
+      "supports": 5,
+      "insufficient": 3
+    },
+    "contradicts": {
+      "contradicts": 6,
+      "insufficient": 2
+    },
+    "insufficient": {
+      "insufficient": 4
+    }
+  },
+  "external_gap": "Human-audited representative sample and threshold calibration not performed (no annotator panel); synthetic dataset only."
+}

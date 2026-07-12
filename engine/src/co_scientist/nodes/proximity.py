@@ -19,7 +19,10 @@ from co_scientist.models import (
     rank_by_elo,
 )
 from co_scientist.nodes.progress import emit_progress
-from co_scientist.nodes.proximity_graph import build_proximity_graph
+from co_scientist.nodes.proximity_graph import (
+    build_proximity_graph,
+    member_match_key,
+)
 from co_scientist.prompts import get_proximity_prompt
 from co_scientist.state import WorkflowState
 
@@ -429,9 +432,11 @@ def _build_proximity_update(
 
     # Build the persisted weighted proximity graph from this pass's clusters
     # (Milestone 3): edges over the kept hypotheses carry a similarity score
-    # and method/model/goal/update-time provenance.
+    # and method/model/goal/update-time provenance. The id map is keyed by
+    # member_match_key so a cluster member echoed by the LLM resolves to its
+    # surviving hypothesis the same way the node's clustering does.
     id_by_text = {
-        h.text.strip().lower(): h.id for h in outcome.hypotheses_to_keep
+        member_match_key(h.text): h.id for h in outcome.hypotheses_to_keep
     }
     proximity_graph = build_proximity_graph(
         outcome.similarity_clusters,

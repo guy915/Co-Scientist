@@ -115,3 +115,85 @@ async def test_empty_clusters_returns_all(
     assert len(result["hypotheses"]) == 2
     # Proximity no longer touches the iteration counter (orchestrator owns it).
     assert "current_iteration" not in result
+
+
+async def test_proximity_graph_has_weighted_edge_for_surviving_cluster(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A live 2-member cluster yields one weighted edge in the graph.
+
+    Regression guard for the schema-contract bug: the graph builder consumed
+    a ``hypotheses`` key while the proximity schema emits
+    ``similar_hypotheses``, so production graphs were always empty. This feeds
+    the real schema shape through ``proximity_node`` (which calls
+    ``_build_proximity_update``) and asserts a nonzero weighted edge. Both
+    members are "medium" so both survive dedup and become graph nodes.
+    """
+    state = make_state(
+        hypotheses=[make_hypothesis(text="aaa"), make_hypothesis(text="bbb")]
+    )
+    _stub_clusters(
+        monkeypatch,
+        {
+            "similarity_clusters": [
+                {
+                    "cluster_id": "c1",
+                    "similar_hypotheses": [
+                        {"text": "aaa", "similarity_degree": "medium"},
+                        {"text": "bbb", "similarity_degree": "medium"},
+                    ],
+                }
+            ]
+        },
+    )
+    result = await proximity_node(state)
+    graph = result["proximity_graph"]
+    assert graph["meta"]["edge_count"] == 1
+    assert graph["meta"]["node_count"] == 2
+    edge = graph["edges"][0]
+    assert edge["similarity"] == 0.6  # both members "medium"
+    assert edge["cluster_id"] == "c1"
+
+
+async def test_proximity_graph_excludes_deduped_high_similarity_member(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A removed high-similarity duplicate is not a graph node.
+
+    The graph is built over dedup survivors (``hypotheses_to_keep``), so a
+    cluster whose members are all "high" (one kept, the rest removed) leaves
+    no surviving pair and therefore no edge. This pins survivors-only keying
+    so a later change cannot "fix" empty edges by pairing against a removed
+    hypothesis, which would make the matchmaker compare deleted ideas.
+    """
+    low = make_hypothesis(
+        text="alpha pathway drives tumor growth", elo_rating=1200
+    )
+    high = make_hypothesis(
+        text="beta pathway drives tumor growth", elo_rating=1400
+    )
+    state = make_state(hypotheses=[low, high])
+    _stub_clusters(
+        monkeypatch,
+        {
+            "similarity_clusters": [
+                {
+                    "cluster_id": "c1",
+                    "similar_hypotheses": [
+                        {
+                            "text": "alpha pathway drives tumor growth",
+                            "similarity_degree": "high",
+                        },
+                        {
+                            "text": "beta pathway drives tumor growth",
+                            "similarity_degree": "high",
+                        },
+                    ],
+                }
+            ]
+        },
+    )
+    result = await proximity_node(state)
+    # One survivor after high-similarity dedup -> no pair -> no edges.
+    assert len(result["hypotheses"]) == 1
+    assert result["proximity_graph"]["edges"] == []

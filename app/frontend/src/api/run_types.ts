@@ -179,8 +179,26 @@ export interface MatchRow {
 }
 
 /**
+ * An exact evidence span an assessor cited for (or against) a claim: the
+ * verbatim quote and its character offsets in the source passage, plus the
+ * source evidence id and url so a reader can open the exact supporting passage.
+ * Older runs may have stored bare passage strings; the display layer tolerates
+ * both.
+ */
+export interface SupportSpan {
+  evidence_id: string;
+  quote: string;
+  start: number;
+  end: number;
+  source: string;
+  url: string;
+}
+
+/**
  * One edge of the claim-level entailment graph: an atomic claim of a
- * hypothesis assessed against the retrieved evidence (Milestone 5).
+ * hypothesis assessed against the retrieved evidence (Milestone 5). The
+ * `supporting`/`contradicting` arrays hold provenance-stamped spans; a legacy
+ * run may still carry bare passage strings.
  */
 export interface ClaimEvidenceRow {
   id: number;
@@ -188,8 +206,8 @@ export interface ClaimEvidenceRow {
   claim: string;
   // supports | contradicts | insufficient
   label: string;
-  supporting: string[];
-  contradicting: string[];
+  supporting: (SupportSpan | string)[];
+  contradicting: (SupportSpan | string)[];
   assessor: string;
 }
 

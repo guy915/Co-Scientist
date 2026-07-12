@@ -8,8 +8,16 @@ report's publication-gate exclusion end-to-end.
 
 from __future__ import annotations
 
+from typing import Any
+
 from app import report_render, store
-from app.claim_grounding import GroundingResult, ground_hypotheses
+from app.claim_grounding import (
+    GroundingResult,
+    build_assessor,
+    evidence_passages,
+    ground_hypotheses,
+)
+from app.claims import as_passages
 
 # A claim whose evidence flatly contradicts it (negation marker + shared terms).
 _CONTRADICTED = (
@@ -39,7 +47,7 @@ def test_ground_persists_graph_and_blocks_contradicted(
     result = ground_hypotheses(
         run.id,
         store.list_hypotheses(run.id),
-        [_CONTRADICTING_EVIDENCE],
+        as_passages([_CONTRADICTING_EVIDENCE]),
         db_path=isolated_db,
     )
 
@@ -48,12 +56,17 @@ def test_ground_persists_graph_and_blocks_contradicted(
     assert result.blocked_ids == frozenset({bad_id})
     assert ok_id not in result.blocked_ids
 
-    # The claim-evidence graph is persisted, with a contradicts edge.
+    # The claim-evidence graph is persisted, with a contradicts edge whose
+    # support span carries provenance (evidence id + located offsets).
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
     labels = {e["hypothesis_id"]: e["label"] for e in edges}
     assert labels.get(bad_id) == "contradicts"
     contradicted_edge = next(e for e in edges if e["hypothesis_id"] == bad_id)
-    assert contradicted_edge["contradicting"]  # passages recorded
+    spans = contradicted_edge["contradicting"]
+    assert spans  # spans recorded
+    span = spans[0]
+    assert span["evidence_id"] == "passage-0"
+    assert span["quote"] and span["end"] > span["start"] >= 0
     assert contradicted_edge["assessor"]  # provenance recorded
 
     # A claim_gate audit row was recorded for the block.
@@ -78,10 +91,12 @@ def test_contradicted_hypothesis_excluded_from_report(
         db_path=isolated_db,
     )
 
+    # Ground against the run's real evidence rows so the support spans carry a
+    # real evidence id / url (the provenance path a live run exercises).
     ground_hypotheses(
         run.id,
         store.list_hypotheses(run.id),
-        [_CONTRADICTING_EVIDENCE],
+        evidence_passages(run.id, db_path=isolated_db),
         db_path=isolated_db,
     )
 
@@ -105,7 +120,11 @@ def test_contradicted_hypothesis_excluded_from_report(
 
 
 def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
-    """The store round-trips claim-evidence edges with decoded passages."""
+    """The store round-trips claim-evidence edges with legacy string passages.
+
+    Bare-string passages (the pre-P0.5 shape) still round-trip, so a store
+    holding old rows keeps decoding cleanly.
+    """
     run = store.create_run("grounding goal", "standard", "mock", {})
     store.add_claim_evidence(
         run.id,
@@ -125,3 +144,95 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
         "Supporting passage two.",
     ]
     assert edges[0]["contradicting"] == []
+
+
+def test_build_assessor_selects_by_mode() -> None:
+    """`build_assessor` returns the deterministic or LLM assessor by mode."""
+    _, det_id = build_assessor("deterministic", "unused")
+    assert det_id == "deterministic-v1"
+    _, llm_id = build_assessor("llm", "deepseek/deepseek-chat")
+    assert llm_id == "llm:deepseek/deepseek-chat"
+
+
+def test_ground_with_llm_assessor_persists_provenance(
+    isolated_db: str, monkeypatch: Any
+) -> None:
+    """Grounding with the LLM assessor (faked) persists llm-tagged spans."""
+    import types
+
+    import litellm
+
+    run = store.create_run("grounding goal", "standard", "engine", {})
+    hyp_id = _add(
+        run.id,
+        "Supported",
+        "Inhibiting kinase X reduces melanoma tumor growth in mouse models.",
+        isolated_db,
+    )
+    ev_id = store.add_evidence(
+        run.id,
+        "Kinase X melanoma study",
+        abstract="Kinase X inhibition reduces melanoma tumor growth markedly.",
+        source="pubmed",
+        url="https://example.org/ev",
+        db_path=isolated_db,
+    )
+
+    # The faked model cites the real evidence id so the span locates.
+    def _completion_for_ev(**_kwargs: Any) -> Any:
+        content = (
+            '{"label": "supports", "supporting": '
+            f'[{{"evidence_id": "{ev_id}", '
+            '"quote": "reduces melanoma tumor growth"}], '
+            '"contradicting": []}'
+        )
+        message = types.SimpleNamespace(content=content)
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    monkeypatch.setattr(litellm, "completion", _completion_for_ev)
+
+    assessor, assessor_id = build_assessor("llm", "deepseek/deepseek-chat")
+    ground_hypotheses(
+        run.id,
+        store.list_hypotheses(run.id),
+        evidence_passages(run.id, db_path=isolated_db),
+        assessor=assessor,
+        assessor_id=assessor_id,
+        db_path=isolated_db,
+    )
+
+    edges = store.list_claim_evidence(run.id, db_path=isolated_db)
+    edge = next(e for e in edges if e["hypothesis_id"] == hyp_id)
+    assert edge["assessor"] == "llm:deepseek/deepseek-chat"
+    span = edge["supporting"][0]
+    assert span["evidence_id"] == ev_id
+    assert span["quote"] == "reduces melanoma tumor growth"
+    assert span["url"] == "https://example.org/ev"
+
+
+def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
+    """A provenance-stamped support span round-trips through the store."""
+    run = store.create_run("grounding goal", "standard", "mock", {})
+    span = {
+        "evidence_id": "ev-9",
+        "quote": "reduces tumor growth",
+        "start": 12,
+        "end": 32,
+        "source": "pubmed",
+        "url": "https://example.org/9",
+    }
+    store.add_claim_evidence(
+        run.id,
+        "hyp-1",
+        "A supported claim.",
+        "supports",
+        [span],
+        [],
+        "llm:deepseek/deepseek-chat",
+        db_path=isolated_db,
+    )
+    edges = store.list_claim_evidence(run.id, db_path=isolated_db)
+    assert edges[0]["supporting"] == [span]
+    assert edges[0]["assessor"] == "llm:deepseek/deepseek-chat"

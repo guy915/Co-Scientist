@@ -38,6 +38,8 @@ _STREAMED_STATE_KEYS = (
     "literature_review_queries",
     "articles",
     "debate_transcripts",
+    "safety_decisions",
+    "held_for_review",
 )
 
 # Streamed keys copied last-write-wins; "hypotheses" is excluded because it
@@ -65,6 +67,13 @@ def _merge_node_state_into_cumulative(
             updated in place.
         node_state: The incremental state returned by the node that just ran.
     """
+    # A node that returns no update is a no-op for cumulative state. In
+    # ``["updates", "values"]`` stream mode LangGraph surfaces such a node's
+    # empty return as ``None`` (plain "updates" mode surfaces ``{}``), so guard
+    # both — e.g. deep_verification returns ``{}`` when the top-k is already
+    # verified.
+    if not node_state:
+        return
     for key in _PLAIN_COPY_STATE_KEYS:
         if key in node_state:
             cumulative_state[key] = node_state[key]
@@ -142,6 +151,8 @@ def _initial_cumulative_stream_state() -> dict[str, Any]:
         "literature_review_queries": [],
         "articles": [],
         "debate_transcripts": None,
+        "safety_decisions": [],
+        "held_for_review": [],
     }
 
 
@@ -207,6 +218,8 @@ def _build_generation_result(
         # Adaptive-orchestration ledger and final stop (Milestone 2).
         "task_history": final_state.get("task_history", []),
         "termination_reason": final_state.get("termination_reason"),
+        "safety_decisions": final_state.get("safety_decisions", []),
+        "held_for_review": final_state.get("held_for_review", []),
         "execution_time": execution_time,
         "metrics": {
             "total_time": execution_time,

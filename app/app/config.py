@@ -63,6 +63,15 @@ class Settings(BaseSettings):
     # Relative paths resolve from the server working directory.
     tools_config: str | None = None
 
+    # Claim-grounding entailment assessor for the real-engine path:
+    # "deterministic" (offline lexical + negation, no provider) or "llm" (the
+    # NLI assessor in claim_verifier.py, using claim_verifier_model). The mock
+    # path is always deterministic. Defaults to deterministic so no run makes
+    # per-claim LLM calls unless explicitly opted in (e.g. the golden run).
+    claim_assessor: str = "deterministic"
+    # Model for the "llm" claim assessor; falls back to model_name when unset.
+    claim_verifier_model: str | None = None
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
