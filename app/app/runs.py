@@ -25,9 +25,8 @@ Endpoints:
 
 The router maintains a per-run cancellation event in `_active` (defined in
 ``runs_registry``). Streams are backed by the persisted event log so they
-survive client reconnects and full backend restarts. Request models and SSE
-streaming helpers live in ``runs_models`` and ``runs_events`` respectively, and
-are re-exported here so the ``app.runs.<name>`` import paths stay stable.
+survive client reconnects and full backend restarts. Request models live in
+``runs_models`` and SSE streaming helpers in ``runs_events``.
 """
 
 from __future__ import annotations
@@ -55,32 +54,18 @@ from app import engine_adapter, human_input, qa, run_corpus, store
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
 from app.run_modes import CANONICAL_RUN_MODE
-from app.runs_events import _drain_tick_frames as _drain_tick_frames
-from app.runs_events import _event_stream as _event_stream
-from app.runs_events import _resolve_tick_terminal as _resolve_tick_terminal
-from app.runs_events import _should_skip_tick as _should_skip_tick
-from app.runs_events import _stream_live_tail as _stream_live_tail
-from app.runs_events import _terminal_frame as _terminal_frame
-from app.runs_events import (
-    _terminal_status_from_event as _terminal_status_from_event,
-)
-from app.runs_events import (
-    _terminal_status_from_run as _terminal_status_from_run,
-)
-from app.runs_models import AskRequest as AskRequest
-from app.runs_models import CreateRunRequest as CreateRunRequest
-from app.runs_models import HumanAttachmentRequest as HumanAttachmentRequest
-from app.runs_models import HumanHypothesisRequest as HumanHypothesisRequest
-from app.runs_models import HumanReviewRequest as HumanReviewRequest
-from app.runs_models import SendMessageRequest as SendMessageRequest
-from app.runs_models import StartRunRequest as StartRunRequest
-from app.runs_models import _build_create_run_config as _build_create_run_config
+from app.runs_events import _event_stream
 from app.runs_models import (
-    _run_overrides_from_request as _run_overrides_from_request,
+    AskRequest,
+    CreateRunRequest,
+    HumanAttachmentRequest,
+    HumanHypothesisRequest,
+    HumanReviewRequest,
+    SendMessageRequest,
+    StartRunRequest,
+    _build_create_run_config,
 )
-from app.runs_registry import _active as _active
-from app.runs_registry import _active_lock as _active_lock
-from app.runs_registry import _RunHandle as _RunHandle
+from app.runs_registry import _active, _active_lock, _RunHandle
 from app.store import TERMINAL_STATUSES, RunRow, RunStatus
 from app.title_gen import generate_run_title
 
