@@ -19,7 +19,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _OPENALEX_WORKS_URL = "https://api.openalex.org/works"
-_MAX_PER_PAGE = 25  # OpenAlex /works page-size ceiling used by this tool.
+_MAX_PER_PAGE = 100  # Current documented OpenAlex page-size ceiling.
 
 
 def _inverted_index_positions(
@@ -156,6 +156,11 @@ def _build_work_metadata(work: dict[str, Any]) -> dict[str, Any]:
         "abstract": _reconstruct_abstract(work.get("abstract_inverted_index")),
         "url": _work_url(work),
         "source": "openalex",
+        "cited_by_count": work.get("cited_by_count", 0),
+        "publication_date": work.get("publication_date"),
+        "updated_date": work.get("updated_date"),
+        "work_type": work.get("type"),
+        "is_retracted": bool(work.get("is_retracted", False)),
     }
 
 
@@ -216,7 +221,7 @@ def _build_search_params(
 
     Args:
         query: Free-text search query.
-        max_papers: Maximum number of works to return (capped at 25).
+        max_papers: Maximum number of works to return across cursor pages.
         recency_years: If > 0, restrict to works published within this many
             years.
 
@@ -227,7 +232,8 @@ def _build_search_params(
     per_page = min(max(max_papers, 1), _MAX_PER_PAGE)
     params: dict[str, str] = {
         "search": query,
-        "per-page": str(per_page),
+        "per_page": str(per_page),
+        "cursor": "*",
     }
     # Reuse the Entrez contact email if set; OpenAlex's "polite pool"
     # (faster, more reliable responses) is granted to requests that
@@ -235,12 +241,28 @@ def _build_search_params(
     mailto = os.environ.get("ENTREZ_EMAIL") or os.environ.get("OPENALEX_MAILTO")
     if mailto:
         params["mailto"] = mailto
+    api_key = os.environ.get("OPENALEX_API_KEY")
+    if api_key:
+        params["api_key"] = api_key
+    filters = ["is_retracted:false"]
     if recency_years and recency_years > 0:
         # OpenAlex filter syntax: restrict to works published on/after
         # January 1 of (current year - recency_years).
         from_year = datetime.now(timezone.utc).year - recency_years
-        params["filter"] = f"from_publication_date:{from_year}-01-01"
+        filters.append(f"from_publication_date:{from_year}-01-01")
+    params["filter"] = ",".join(filters)
     return params, per_page
+
+
+def _next_cursor(data: Any) -> str | None:
+    """Return a usable OpenAlex cursor from one response page."""
+    if not isinstance(data, dict):
+        return None
+    meta = data.get("meta")
+    if not isinstance(meta, dict):
+        return None
+    cursor = meta.get("next_cursor")
+    return str(cursor) if cursor else None
 
 
 async def search_openalex(
@@ -253,7 +275,7 @@ async def search_openalex(
 
     Args:
         query: Free-text search query.
-        max_papers: Maximum number of works to return (capped at 25).
+        max_papers: Maximum number of works to return across cursor pages.
         recency_years: If > 0, restrict to works published within this many
             years.
         run_id: Unused; accepted for interface parity with other search tools.
@@ -264,15 +286,26 @@ async def search_openalex(
     """
     params, per_page = _build_search_params(query, max_papers, recency_years)
 
+    collected: dict[str, Any] = {}
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(_OPENALEX_WORKS_URL, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+            while len(collected) < max(max_papers, 0):
+                params["per_page"] = str(
+                    min(per_page, max_papers - len(collected))
+                )
+                resp = await client.get(_OPENALEX_WORKS_URL, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+                page = normalize_works(data, max_papers - len(collected))
+                collected.update(page)
+                cursor = _next_cursor(data)
+                if not page or not cursor:
+                    break
+                params["cursor"] = cursor
     except (httpx.HTTPError, ValueError) as exc:
         # Network/parsing failures degrade to no results rather than
         # propagating, so a single failed source doesn't fail the whole
         # literature-review step.
         logger.warning("OpenAlex search failed for %r: %s", query, exc)
         return {}
-    return normalize_works(data, per_page)
+    return collected

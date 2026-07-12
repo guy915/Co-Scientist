@@ -10,6 +10,7 @@ from typing import Any
 
 import httpx
 from mcp_server.tools.lit_review.openalex_search import (
+    _build_search_params,
     normalize_works,
     search_openalex,
 )
@@ -55,6 +56,7 @@ def test_normalize_basic_fields() -> None:
     assert w["abstract"] == "Nitrogen fixation matters"
     assert w["url"] == "https://example/w123"
     assert w["source"] == "openalex"
+    assert w["is_retracted"] is False
 
 
 def test_normalize_falls_back_to_doi_url_and_display_name() -> None:
@@ -103,6 +105,22 @@ class _FakeClient:
         return self._resp
 
 
+class _PagedClient:
+    def __init__(self, pages: list[dict[str, Any]]) -> None:
+        self._pages = iter(pages)
+        self.cursors: list[str] = []
+
+    async def __aenter__(self) -> "_PagedClient":
+        return self
+
+    async def __aexit__(self, *_: Any) -> bool:
+        return False
+
+    async def get(self, _url: str, params: Any = None) -> _FakeResp:
+        self.cursors.append(str(params["cursor"]))
+        return _FakeResp(next(self._pages))
+
+
 def test_search_openalex_returns_normalized(monkeypatch: Any) -> None:
     monkeypatch.setattr(
         httpx,
@@ -123,3 +141,35 @@ def test_search_openalex_degrades_on_http_error(monkeypatch: Any) -> None:
     )
     # A transport error must degrade to an empty dict, not raise.
     assert asyncio.run(search_openalex("q")) == {}
+
+
+def test_search_openalex_uses_cursor_pagination(monkeypatch: Any) -> None:
+    second = {
+        "results": [
+            {
+                "id": "https://openalex.org/W789",
+                "title": "Third work",
+            }
+        ],
+        "meta": {"next_cursor": None},
+    }
+    first = {**_SAMPLE, "meta": {"next_cursor": "cursor-2"}}
+    client = _PagedClient([first, second])
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **_: client)
+
+    out = asyncio.run(search_openalex("nitrogen fixation", max_papers=3))
+
+    assert set(out) == {"W123", "W456", "W789"}
+    assert client.cursors == ["*", "cursor-2"]
+
+
+def test_search_params_exclude_retractions_and_support_api_key(
+    monkeypatch: Any,
+) -> None:
+    monkeypatch.setenv("OPENALEX_API_KEY", "key")
+    params, per_page = _build_search_params("q", 250, 5)
+
+    assert per_page == 100
+    assert params["cursor"] == "*"
+    assert params["api_key"] == "key"
+    assert "is_retracted:false" in params["filter"]

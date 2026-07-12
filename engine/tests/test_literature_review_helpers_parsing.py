@@ -254,6 +254,41 @@ def test_merge_search_results_no_dedup_keeps_duplicates() -> None:
     assert set(merged) == {"p1", "a1"}
 
 
+def test_merge_search_results_ranks_quality_and_flags_retractions() -> None:
+    """Merged retrieval is best-first and exposes correction status."""
+    source_results = [
+        (
+            "openalex",
+            {
+                "weak": {
+                    "title": "Weak",
+                    "source": "openalex",
+                    "year": 2000,
+                },
+                "strong": {
+                    "title": "Strong",
+                    "source": "pubmed",
+                    "year": 2026,
+                    "cited_by_count": 1000,
+                },
+                "retracted": {
+                    "title": "Retracted",
+                    "source": "pubmed",
+                    "is_retracted": True,
+                },
+            },
+        )
+    ]
+
+    merged, _ = helpers.merge_search_results(source_results)
+
+    assert list(merged) == ["strong", "weak", "retracted"]
+    assert (
+        merged["strong"]["retrieval_score"] > merged["weak"]["retrieval_score"]
+    )
+    assert merged["retracted"]["correction_status"] == "retracted"
+
+
 # =============================================================================
 # parse_pdf_discovery_result
 # =============================================================================

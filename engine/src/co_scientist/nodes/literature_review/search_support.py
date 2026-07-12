@@ -9,6 +9,7 @@ and multi-source result merging.
 import json
 import logging
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any, Optional, cast
 
 if TYPE_CHECKING:
@@ -308,6 +309,52 @@ def _normalize_title(metadata: dict[str, Any]) -> str:
     return str(metadata.get("title") or "").lower().strip()
 
 
+def _retrieval_score(metadata: dict[str, Any]) -> float:
+    """Score source quality, impact, recency, and correction risk."""
+    if metadata.get("is_retracted"):
+        return -1_000_000.0
+    source = str(
+        metadata.get("source") or metadata.get("_source_name") or ""
+    ).lower()
+    source_quality = {
+        "pubmed": 3.0,
+        "openalex": 2.0,
+        "arxiv": 1.0,
+    }.get(source, 1.5)
+    try:
+        citations = max(0, int(metadata.get("cited_by_count") or 0))
+    except (TypeError, ValueError):
+        citations = 0
+    try:
+        year = int(metadata.get("year") or 0)
+    except (TypeError, ValueError):
+        year = 0
+    current_year = datetime.now(timezone.utc).year
+    recency = max(0.0, 1.0 - max(0, current_year - year) / 20) if year else 0
+    return source_quality + min(citations, 1000) / 1000 + recency
+
+
+def _rank_search_results(
+    metadata: dict[str, dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    """Return deterministic best-first metadata with disclosed scores."""
+    for item in metadata.values():
+        item["retrieval_score"] = round(_retrieval_score(item), 4)
+        item["correction_status"] = (
+            "retracted" if item.get("is_retracted") else "current"
+        )
+    return dict(
+        sorted(
+            metadata.items(),
+            key=lambda pair: (
+                -float(pair[1]["retrieval_score"]),
+                _normalize_title(pair[1]),
+                pair[0],
+            ),
+        )
+    )
+
+
 def _is_duplicate_title(
     metadata: Any,
     deduplicate: bool,
@@ -358,4 +405,8 @@ def merge_search_results(
             # map to pick the correct per-source tool config.
             paper_source_map[paper_id] = source_tool_id
 
-    return all_paper_metadata, paper_source_map
+    ranked = _rank_search_results(all_paper_metadata)
+    ranked_source_map = {
+        paper_id: paper_source_map[paper_id] for paper_id in ranked
+    }
+    return ranked, ranked_source_map
