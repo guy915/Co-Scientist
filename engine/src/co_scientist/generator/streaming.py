@@ -38,6 +38,8 @@ _STREAMED_STATE_KEYS = (
     "literature_review_queries",
     "articles",
     "debate_transcripts",
+    "safety_decisions",
+    "held_for_review",
 )
 
 # Streamed keys copied last-write-wins; "hypotheses" is excluded because it
@@ -142,6 +144,8 @@ def _initial_cumulative_stream_state() -> dict[str, Any]:
         "literature_review_queries": [],
         "articles": [],
         "debate_transcripts": None,
+        "safety_decisions": [],
+        "held_for_review": [],
     }
 
 
@@ -207,6 +211,8 @@ def _build_generation_result(
         # Adaptive-orchestration ledger and final stop (Milestone 2).
         "task_history": final_state.get("task_history", []),
         "termination_reason": final_state.get("termination_reason"),
+        "safety_decisions": final_state.get("safety_decisions", []),
+        "held_for_review": final_state.get("held_for_review", []),
         "execution_time": execution_time,
         "metrics": {
             "total_time": execution_time,

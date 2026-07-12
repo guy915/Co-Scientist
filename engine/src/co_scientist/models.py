@@ -146,6 +146,7 @@ class Hypothesis:
     debate_id: None | (
         int
     ) = None  # None for literature-generated, 0-N for debate-generated
+    safety_status: str | None = field(default=None, compare=False)
     win_count: int = 0
     loss_count: int = 0
 
@@ -204,6 +205,7 @@ class Hypothesis:
             "reflection_notes": self.reflection_notes,
             "deep_verification_probes": self.deep_verification_probes,
             "deep_verification_verdict": self.deep_verification_verdict,
+            "safety_status": self.safety_status,
             "generation_method": generation_method,
             "debate_id": self.debate_id,
             "win_count": self.win_count,

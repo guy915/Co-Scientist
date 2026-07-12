@@ -45,9 +45,22 @@ class AppendHypotheses:
     items: list[Hypothesis]
 
 
+@dataclasses.dataclass(frozen=True)
+class ReplaceHypotheses:
+    """Explicit reducer op: replace the pool with exactly these hypotheses.
+
+    Unlike a bare list (where an empty list is treated as "no change"),
+    ``ReplaceHypotheses([])`` genuinely sets the pool to empty. The safety
+    screen node uses this so a fully-blocked pool is cleared rather than
+    silently surviving the empty-list guard.
+    """
+
+    items: list[Hypothesis]
+
+
 # Explicit reducer op payloads a node may return for the "hypotheses" channel.
 # A bare ``list[Hypothesis]`` means REPLACE (set the pool to exactly this list).
-HypothesisUpdate = list[Hypothesis] | AppendHypotheses
+HypothesisUpdate = list[Hypothesis] | AppendHypotheses | ReplaceHypotheses
 
 
 def _dedup_by_id(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
@@ -139,6 +152,8 @@ def deduplicate_hypotheses(
     """
     if isinstance(new, AppendHypotheses):
         return _append_hypotheses(existing, new.items)
+    if isinstance(new, ReplaceHypotheses):
+        return _dedup_by_id(new.items)
     # Bare list => REPLACE. An empty list means "no update" (never a wipe).
     if not new:
         return existing
@@ -259,6 +274,17 @@ class WorkflowState(TypedDict):
 
     evolution_details: list[dict[str, Any]]
     """List of evolution transformations with reasoning."""
+
+    safety_decisions: list[dict[str, Any]]
+    """Audit trail of per-hypothesis safety decisions (blocked + uncertain).
+    Accumulated across safety screen passes (initial + each evolution cycle).
+    """
+
+    held_for_review: list[dict[str, Any]]
+    """Full hypothesis dicts for UNCERTAIN outcomes, preserved for manual
+    review by the app layer. Distinct from the hypothesis pool (which no
+    longer contains them) so they are genuinely paused, not just hidden.
+    """
 
     # Metrics
     metrics: Annotated[ExecutionMetrics, merge_metrics]

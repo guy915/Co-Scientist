@@ -29,6 +29,7 @@ _LIT_NODES = {
     "generate",
     "reflection",
     "review",
+    "safety_screen",
     "ranking",
     "deep_verification",
     "orchestrator",
