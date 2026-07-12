@@ -9,6 +9,7 @@ import {isMobileViewport} from './hooks/use_is_mobile';
 import {ShellHeader} from './layout_header';
 import {useChatHistory, useHeaderTitle, useLayoutChrome} from './layout_hooks';
 import {NavRail} from './layout_nav_rail';
+import {IntendedUseNotice} from './components/intended_use_notice';
 
 // The constants below pair a CSS class for the "open" shell state with one
 // for the "collapsed"/default state; each pair is selected at render time by
@@ -179,7 +180,10 @@ export function Layout({children}: {children: ReactNode}) {
           activeRunId={activeRunId}
           logsControlRef={logsControlRef}
         />
-        <main className={pageClasses}>{children}</main>
+        <main className={pageClasses}>
+          {children}
+          <IntendedUseNotice />
+        </main>
       </section>
       {settingsSection && (
         <SettingsDialog
