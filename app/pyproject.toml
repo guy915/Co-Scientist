@@ -18,6 +18,8 @@ dependencies = [
     # HTTP. FastAPI does not pull httpx in, so a bare install would expose the
     # entry point but fail to import it without this pin.
     "httpx>=0.25.0",
+    "python-multipart>=0.0.9",
+    "pypdf>=5.0.0,<7.0.0",
     "co-scientist-engine>=0.2.0"
 ]
 
@@ -117,6 +119,10 @@ plugins = ["pydantic.mypy"]
 module = ["co_scientist", "co_scientist.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
+
+[[tool.mypy.overrides]]
+module = ["pypdf", "pypdf.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
