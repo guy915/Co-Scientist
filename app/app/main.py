@@ -19,6 +19,7 @@ load_dotenv()
 
 from app import diagnostics, engine_adapter, store
 from app.config import settings
+from app.interviews import router as interviews_router
 from app.logging_setup import configure_logging
 from app.run_modes import (
     DEFAULT_RUN_TIER,
@@ -153,6 +154,7 @@ app.add_middleware(
 
 # Mount the new run-lifecycle router (durable, persisted, SSE).
 app.include_router(runs_router)
+app.include_router(interviews_router)
 
 
 class HealthCheckResult(BaseModel):

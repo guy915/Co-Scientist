@@ -47,9 +47,9 @@ describe('ChatWorkspace run flow', () => {
 
     expect(await screen.findByLabelText('Copy prompt')).toBeInTheDocument();
     expect(screen.getByLabelText('Edit prompt')).toBeInTheDocument();
-    expect(screen.getByLabelText('Retry response')).toBeInTheDocument();
-    expect(screen.getByLabelText('Copy response')).toBeInTheDocument();
-    expect(screen.getByLabelText('Download response')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Retry response')).not.toHaveLength(0);
+    expect(screen.getAllByLabelText('Copy response')).not.toHaveLength(0);
+    expect(screen.getAllByLabelText('Download response')).not.toHaveLength(0);
 
     fireEvent.click(screen.getByLabelText('Edit prompt'));
     expect(screen.getByRole('textbox')).toHaveValue(
@@ -66,16 +66,14 @@ describe('ChatWorkspace run flow', () => {
       screen.getByRole('heading', {name: 'Research plan'}),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByLabelText('Copy response'));
+    fireEvent.click(screen.getAllByLabelText('Copy response').at(-1)!);
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith(
-        expect.stringContaining(
-          '# Investigate glucose homeostasis under cold stress',
-        ),
+        expect.stringContaining('# Cold-stress glucose homeostasis'),
       );
     });
 
-    fireEvent.click(screen.getByLabelText('Download response'));
+    fireEvent.click(screen.getAllByLabelText('Download response').at(-1)!);
     expect(createObjectURL).toHaveBeenCalled();
     expect(createObjectURL.mock.calls[0][0].type).toBe(
       'text/markdown;charset=utf-8',
@@ -119,7 +117,7 @@ describe('ChatWorkspace run flow', () => {
     fireEvent.submit(input.closest('form')!);
 
     expect(
-      await screen.findByText(/Please review or edit the details below/),
+      await screen.findByText(/Review the four fields and select a run type/),
     ).toBeInTheDocument();
     expect(screen.queryByText('AI Co-Scientist')).toBeNull();
     expect(
@@ -131,7 +129,7 @@ describe('ChatWorkspace run flow', () => {
     expect(
       screen
         .getByRole('heading', {
-          name: 'Investigate glucose homeostasis under cold stress',
+          name: 'Cold-stress glucose homeostasis',
         })
         .closest('.reference-setup-document'),
     ).not.toBeNull();
@@ -150,11 +148,10 @@ describe('ChatWorkspace run flow', () => {
       expect(apiMock.createRun).toHaveBeenCalledWith(
         expect.objectContaining({
           research_goal: 'Investigate glucose homeostasis under cold stress.',
-          requirements: expect.arrayContaining([
-            expect.stringContaining('mechanistic novelty'),
-          ]),
-          attributes: expect.arrayContaining(['Mechanistically specific']),
-          criteria: expect.arrayContaining(['Scientific soundness']),
+          interview_id: 'interview-1',
+          requirements: ['Prioritize mechanistic novelty'],
+          attributes: ['Cold-stress glucose regulation'],
+          criteria: [],
           tier: 'advanced',
         }),
       );
@@ -172,7 +169,7 @@ describe('ChatWorkspace run flow', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
-        name: 'Investigate glucose homeostasis under cold stress',
+        name: 'Cold-stress glucose homeostasis',
       }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', {name: 'Start research'})).toBeDisabled();

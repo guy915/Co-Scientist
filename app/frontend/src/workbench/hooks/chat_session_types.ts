@@ -1,5 +1,6 @@
 import {type Dispatch, type SetStateAction} from 'react';
 import {type InferredRunSpec} from '../run_spec';
+import {type Interview} from '@/api/runs';
 import {
   type ChatEntry,
   type StartedSession,
@@ -44,6 +45,8 @@ export interface HandlerDeps {
   input: string;
   setInput: (value: string) => void;
   draft: SpecStage | null;
+  interview: Interview | null;
+  setInterview: (interview: Interview | null) => void;
   setDraft: (stage: SpecStage | null) => void;
   setConfirmed: (stage: SpecStage | null) => void;
   setStartedSession: (session: StartedSession) => void;

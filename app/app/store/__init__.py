@@ -41,6 +41,12 @@ from app.store.hypotheses import (
     redact_hypothesis_fields,
     update_hypothesis_state,
 )
+from app.store.interviews import (
+    append_interview_turn,
+    create_interview,
+    get_interview,
+    update_interview,
+)
 from app.store.messages import (
     append_message,
     get_pending_steering,
@@ -114,16 +120,19 @@ __all__ = [
     "add_review",
     "add_safety_decision",
     "append_event",
+    "append_interview_turn",
     "append_message",
     "checkpoint_wal",
     "claim_task",
     "clear_run_derived_data",
     "complete_task",
     "connect",
+    "create_interview",
     "create_run",
     "enqueue_task",
     "fail_task",
     "get_hypothesis",
+    "get_interview",
     "get_latest_checkpoint",
     "get_latest_report",
     "get_pending_steering",
@@ -156,5 +165,6 @@ __all__ = [
     "summary_counts",
     "transaction",
     "update_hypothesis_state",
+    "update_interview",
     "update_run_status",
 ]

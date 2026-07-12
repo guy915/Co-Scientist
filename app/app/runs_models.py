@@ -26,6 +26,7 @@ class CreateRunRequest(BaseModel):
     """Body for POST /api/runs; everything but the goal is optional."""
 
     research_goal: str = Field(..., min_length=1)
+    interview_id: str | None = None
     # Free-form planning guidance lists; defaults are filled by setup_config
     # when omitted (direct API calls, seeded demos).
     requirements: list[str] | None = None

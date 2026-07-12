@@ -1,4 +1,5 @@
 import {useCallback, useState} from 'react';
+import {type Interview} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
 import {
   type ChatEntry,
@@ -15,6 +16,7 @@ import {type SpecStage} from './chat_session_types';
  * renders.
  */
 export function useRunSpecLifecycle() {
+  const [interview, setInterview] = useState<Interview | null>(null);
   const [draft, setDraft] = useState<SpecStage | null>(null);
   const [confirmed, setConfirmed] = useState<SpecStage | null>(null);
   const [startedSession, setStartedSession] = useState<StartedSession | null>(
@@ -25,6 +27,7 @@ export function useRunSpecLifecycle() {
   // resetSession (which depends on it) also stays referentially stable.
   const clearSessionState = useCallback(() => {
     setDraft(null);
+    setInterview(null);
     setConfirmed(null);
     setStartedSession(null);
   }, []);
@@ -42,6 +45,8 @@ export function useRunSpecLifecycle() {
 
   return {
     draft,
+    interview,
+    setInterview,
     setDraft,
     confirmed,
     setConfirmed,

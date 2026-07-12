@@ -39,8 +39,7 @@ import {
 
 /**
  * Renders the inferred research-plan card shown in the timeline once a
- * request has been parsed into an {@link InferredRunSpec}: the goal/
- * requirements/attributes/criteria breakdown, editable Focus/Tier option
+ * request has been refined by the Agent: the four interview fields and Tier
  * groups, and the cancel/start actions. Also used, via `locked`, to show a
  * previously-confirmed spec read-only.
  *
@@ -80,13 +79,12 @@ export function RunSpecCard({
   return (
     <section className={SETUP_MESSAGE_CLASSES} aria-label="Inferred run setup">
       <p className={SETUP_PARAGRAPH_CLASSES}>
-        Okay, I've drafted the requirements to propose a novel, testable
-        hypothesis for this research session. Let me know if you have any
-        suggestions.
+        The interview is complete. I derived the research setup below from your
+        answers.
       </p>
       <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
-        Please review or edit the details below as needed. Once ready, click
-        "Start research" to start generating hypotheses.
+        Review the four fields and select a run type. Once ready, click "Start
+        research" to begin.
       </p>
       <PlanHeading onEdit={onEdit} />
       <p className={PLAN_SUBHEADING_CLASSES}>
@@ -137,8 +135,7 @@ function PlanHeading({onEdit}: {onEdit: () => void}) {
   );
 }
 
-// Renders RunSpecCard's document body: the goal/requirements/attributes/
-// criteria breakdown, the editable (or, when `locked`, disabled) Focus/Tier
+// Renders the four interview fields and the editable run tier
 // option groups, and the cancel/start actions.
 function RunSpecDocument({
   spec,
@@ -158,7 +155,7 @@ function RunSpecDocument({
   return (
     <div className={SETUP_DOCUMENT_CLASSES}>
       <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
-        {conciseTitle(spec.goal)}
+        {spec.title || conciseTitle(spec.goal)}
       </h3>
       <SpecSummary spec={spec} />
       <RunOptionGroup
@@ -179,15 +176,14 @@ function RunSpecDocument({
   );
 }
 
-// The goal/requirements/attributes/criteria definition list at the top of
-// RunSpecDocument.
+// The exact four fields shown by Google's interview progress and setup flow.
 function SpecSummary({spec}: {spec: InferredRunSpec}) {
   return (
     <dl className={SPEC_GRID_CLASSES}>
-      <SpecRow label="Goal">{spec.goal}</SpecRow>
-      <SpecList label="Requirements" values={spec.requirements} />
-      <SpecList label="Attributes" values={spec.attributes} />
-      <SpecList label="Criteria" values={spec.criteria} />
+      <SpecRow label="Research Challenge">{spec.goal}</SpecRow>
+      <SpecList label="Focus Area" values={spec.attributes} />
+      <SpecList label="Preferences" values={spec.requirements} />
+      <SpecRow label="Title">{spec.title || 'Optional'}</SpecRow>
     </dl>
   );
 }
@@ -234,21 +230,21 @@ function RunSpecActions({
 // card's copy/download actions (see responseActions).
 function formatRunSpecResponse(spec: InferredRunSpec): string {
   return [
-    `# ${conciseTitle(spec.goal)}`,
+    `# ${spec.title || conciseTitle(spec.goal)}`,
     '',
-    "I've drafted the requirements to propose a novel, testable hypothesis for this research session.",
+    'Agent interview-derived research setup.',
     '',
-    '## Goal',
+    '## Research Challenge',
     spec.goal,
     '',
-    '## Requirements',
-    ...spec.requirements.map(value => `* ${value}`),
-    '',
-    '## Attributes',
+    '## Focus Area',
     ...spec.attributes.map(value => `* ${value}`),
     '',
-    '## Criteria',
-    ...spec.criteria.map(value => `* ${value}`),
+    '## Preferences',
+    ...spec.requirements.map(value => `* ${value}`),
+    '',
+    '## Title',
+    spec.title || 'Optional',
     '',
     '## Setup Options',
     `* **Run type:** ${runOptionLabel(TIER_OPTIONS, spec.tier)}`,

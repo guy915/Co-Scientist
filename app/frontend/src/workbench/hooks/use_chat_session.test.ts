@@ -7,8 +7,33 @@ import type {ChatEntry} from '../pages/chat_timeline_cards';
 
 vi.mock('@/api/runs', async importActual => {
   const actual = await importActual<typeof import('@/api/runs')>();
-  return {...actual, createRun: vi.fn(), startRun: vi.fn()};
+  return {
+    ...actual,
+    createInterview: vi.fn(),
+    addInterviewTurn: vi.fn(),
+    createRun: vi.fn(),
+    startRun: vi.fn(),
+  };
 });
+
+function completedInterview(goal: string) {
+  return {
+    id: 'interview-1',
+    client_id: 'client-1',
+    status: 'completed' as const,
+    fields: {
+      research_challenge: goal,
+      focus_area: ['Hepatic stellate cells'],
+      preferences: ['Prioritize mechanistic novelty'],
+      title: 'Liver fibrosis',
+    },
+    current_question: null,
+    turns: [],
+    created_at: 1,
+    updated_at: 2,
+    completed_at: 2,
+  };
+}
 
 const submitEvent = () =>
   ({preventDefault: () => undefined}) as unknown as FormEvent<HTMLFormElement>;
@@ -29,6 +54,9 @@ function renderSession(deps = makeDeps()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(runsApi.createInterview).mockImplementation(async goal =>
+    completedInterview(goal),
+  );
 });
 
 describe('useChatSession', () => {
@@ -66,7 +94,7 @@ describe('useChatSession', () => {
     expect(result.current.messages).toHaveLength(0);
   });
 
-  it('submitting again while a draft exists revises it and adds a reply', async () => {
+  it('a completed interview leaves its persisted draft stable', async () => {
     const {result} = renderSession();
 
     act(() => result.current.setInput('Study MASLD fibrosis'));
@@ -75,17 +103,8 @@ describe('useChatSession', () => {
     });
     const afterFirst = result.current.messages.length;
 
-    act(() => result.current.setInput('Focus on hepatic stellate cells'));
-    await act(async () => {
-      await result.current.handleSubmit(submitEvent());
-    });
-
     expect(result.current.draft).not.toBeNull();
-    // A user message plus an assistant acknowledgement were appended.
-    expect(result.current.messages.length).toBe(afterFirst + 2);
-    expect(result.current.messages.some(m => m.role === 'assistant')).toBe(
-      true,
-    );
+    expect(result.current.messages.length).toBe(afterFirst);
   });
 
   it('cancelling clears the session and shows a toast', async () => {

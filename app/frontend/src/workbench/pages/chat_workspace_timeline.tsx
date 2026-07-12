@@ -1,6 +1,6 @@
 import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
-import {type RunTier} from '@/api/runs';
+import {type Interview, type RunTier} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
 import {type SpecStage} from '../hooks/chat_session_types';
 import {
@@ -34,6 +34,7 @@ export interface TimelineItem {
  */
 export interface BuildTimelineItemsArgs {
   messages: ChatEntry[];
+  interview: Interview | null;
   handleEditMessage: (message: ChatEntry) => void;
   handleCopyRequest: (message: ChatEntry) => Promise<void>;
   handleRetryMessage: (message: ChatEntry) => void;
@@ -51,6 +52,50 @@ export interface BuildTimelineItemsArgs {
   navigate: NavigateFunction;
   resetWorkspace: () => void;
   focusComposer: () => void;
+}
+
+// Shows the four canonical Agent-derived fields while the scientist is still
+// answering questions. Values come directly from the durable interview.
+function interviewTimelineItems({
+  interview,
+  draft,
+}: Pick<BuildTimelineItemsArgs, 'interview' | 'draft'>): TimelineItem[] {
+  if (!interview || draft) return [];
+  const fields = [
+    ['Research Challenge', interview.fields.research_challenge],
+    ['Focus Area', interview.fields.focus_area.join(', ')],
+    ['Preferences', interview.fields.preferences.join(', ')],
+    ['Title', interview.fields.title || 'Optional'],
+  ] as const;
+  return [
+    {
+      id: `interview-progress-${interview.id}`,
+      at: interview.created_at,
+      order: 40,
+      node: (
+        <aside
+          aria-label="Interview Progress"
+          className="rounded-xl bg-th-surface-container p-5"
+        >
+          <h2 className="text-base font-semibold text-th-on-surface">
+            Interview Progress
+          </h2>
+          <dl className="mt-3 grid gap-3">
+            {fields.map(([label, value]) => (
+              <div key={label} className="grid gap-1">
+                <dt className="text-xs font-medium text-th-on-surface-variant">
+                  {label}
+                </dt>
+                <dd className="text-sm text-th-on-surface">
+                  {value || 'Still discussing'}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        </aside>
+      ),
+    },
+  ];
 }
 
 // Each chat message becomes a ChatBubble; `order` preserves message array
@@ -217,6 +262,7 @@ export function buildTimelineItems(
 ): TimelineItem[] {
   const timelineItems: TimelineItem[] = [
     ...messageTimelineItems(args),
+    ...interviewTimelineItems(args),
     ...draftTimelineItems(args),
     ...confirmedSpecTimelineItems(args),
     ...startedTimelineItems(args),

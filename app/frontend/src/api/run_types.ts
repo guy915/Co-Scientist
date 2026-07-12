@@ -25,6 +25,35 @@ export type RunFocus =
 /** Depth preset selected in the Co-Scientist setup flow. */
 export type RunTier = 'standard' | 'advanced';
 
+/** The four verified fields derived by the research-goal interview. */
+export interface InterviewFields {
+  research_challenge: string;
+  focus_area: string[];
+  preferences: string[];
+  title: string | null;
+}
+
+/** One immutable scientist/Agent interview turn. */
+export interface InterviewTurn {
+  id: number;
+  role: 'user' | 'agent';
+  content: string;
+  created_at: number;
+}
+
+/** Durable interview state returned by the backend. */
+export interface Interview {
+  id: string;
+  client_id: string;
+  status: 'active' | 'completed' | 'cancelled';
+  fields: InterviewFields;
+  current_question: string | null;
+  turns: InterviewTurn[];
+  created_at: number;
+  updated_at: number;
+  completed_at: number | null;
+}
+
 /** Durable setup payload persisted inside `Run.config.setup`. */
 export interface RunSetupConfig {
   goal: string;

@@ -6,6 +6,7 @@ import type {
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
+  Interview,
   MatchRow,
   Report,
   Review,
@@ -22,6 +23,9 @@ export type {
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
+  Interview,
+  InterviewFields,
+  InterviewTurn,
   JsonPrimitive,
   JsonValue,
   LegacyRunProfile,
@@ -172,6 +176,7 @@ function jsonRequest(body: unknown, includeClientId = false): RequestInit {
  */
 export async function createRun(input: {
   research_goal: string;
+  interview_id?: string;
   requirements?: string[];
   attributes?: string[];
   criteria?: string[];
@@ -184,6 +189,45 @@ export async function createRun(input: {
   enable_literature_review?: boolean;
 }): Promise<Run> {
   return fetchJson('/api/runs', jsonRequest(input, true));
+}
+
+/** Starts a durable model-driven research-goal interview. */
+export async function createInterview(
+  researchChallenge: string,
+): Promise<Interview> {
+  return fetchJson(
+    '/api/interviews',
+    jsonRequest({research_challenge: researchChallenge}, true),
+  );
+}
+
+/** Sends one scientist answer and returns the Agent's updated derivation. */
+export async function addInterviewTurn(
+  interviewId: string,
+  content: string,
+): Promise<Interview> {
+  return fetchJson(
+    `/api/interviews/${interviewId}/turns`,
+    jsonRequest({content}, true),
+  );
+}
+
+/** Reloads a durable interview for resume. */
+export async function getInterview(interviewId: string): Promise<Interview> {
+  return fetchJson(`/api/interviews/${interviewId}`, {
+    headers: clientHeaders(),
+  });
+}
+
+/** Persists scientist edits to the four verified fields. */
+export async function editInterviewFields(
+  interviewId: string,
+  fields: Interview['fields'],
+): Promise<Interview> {
+  return fetchJson(
+    `/api/interviews/${interviewId}/fields`,
+    jsonRequest(fields, true),
+  );
 }
 
 /**

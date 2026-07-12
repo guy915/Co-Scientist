@@ -31,6 +31,7 @@ const apiMock = vi.hoisted(() => {
     );
   });
   return {
+    createInterview: vi.fn(),
     createRun: vi.fn(),
     getHypotheses: vi.fn(),
     listDemoRuns,
@@ -125,6 +126,29 @@ export function installChatWorkspaceMocks() {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   apiMock.createRun.mockResolvedValue(minimalRun({status: 'draft'}));
+  apiMock.createInterview.mockImplementation(async (goal: string) => ({
+    id: 'interview-1',
+    client_id: 'client-1',
+    status: 'completed',
+    fields: {
+      research_challenge: goal,
+      focus_area: ['Cold-stress glucose regulation'],
+      preferences: ['Prioritize mechanistic novelty'],
+      title: 'Cold-stress glucose homeostasis',
+    },
+    current_question: null,
+    turns: [
+      {
+        id: 1,
+        role: 'agent',
+        content: 'I have enough detail to configure this research run.',
+        created_at: 2,
+      },
+    ],
+    created_at: 1,
+    updated_at: 2,
+    completed_at: 2,
+  }));
   apiMock.getHypotheses.mockResolvedValue([hypothesis]);
   apiMock.listDemoRuns.mockResolvedValue([
     minimalRun({

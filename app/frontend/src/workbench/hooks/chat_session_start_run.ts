@@ -19,6 +19,7 @@ async function executeStart({
 }: ExecuteStartDeps): Promise<StartedSession> {
   const created = await createRun({
     research_goal: specToStart.goal,
+    interview_id: specToStart.interviewId,
     requirements: specToStart.requirements,
     attributes: specToStart.attributes,
     criteria: specToStart.criteria,

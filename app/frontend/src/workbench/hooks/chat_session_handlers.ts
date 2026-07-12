@@ -1,5 +1,6 @@
 import {type Dispatch, type FormEvent, type SetStateAction} from 'react';
-import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
+import {addInterviewTurn, createInterview, type Interview} from '@/api/runs';
+import {interviewToRunSpec, type InferredRunSpec} from '../run_spec';
 import {copyText} from '@/lib/clipboard';
 import {conciseTitle} from '@/lib/text';
 import {type ChatEntry} from '../pages/chat_timeline_cards';
@@ -13,81 +14,30 @@ import {
 } from './chat_session_types';
 import {type ComposerLog, type RunSpecLifecycle} from './chat_session_state';
 
-// Revises the staged draft against a follow-up message and acknowledges it
-// in the chat log. Split out of submitComposerMessage so that function's two
-// branches (revise vs. infer) each read as a single call.
-function reviseDraftFromMessage({
-  draftSpec,
-  text,
-  sentAt,
-  setMessages,
-  stageDraftSpec,
-}: {
-  draftSpec: InferredRunSpec;
-  text: string;
-  sentAt: number;
-  setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
-  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
-}): void {
-  const next = reviseRunSpec(draftSpec, text);
-  // The +0.001/+0.002 offsets keep the spec card and the assistant reply
-  // ordered strictly after the user message in the timeline sort.
-  stageDraftSpec(next, sentAt + 0.001);
-  appendChatMessage(
-    setMessages,
-    'assistant',
-    'I updated the run setup. Start it when the spec looks right.',
-    sentAt + 0.002,
-  );
-  emitDiagnosticEvent({
-    stage: 'CHAT',
-    run: conciseTitle(next.goal),
-    payload: {event: 'draft_revised'},
-  });
-}
-
-// Infers a brand-new draft spec from the message's text. Split out of
-// submitComposerMessage alongside reviseDraftFromMessage.
-function createDraftFromMessage({
-  text,
-  sentAt,
-  stageDraftSpec,
-}: {
-  text: string;
-  sentAt: number;
-  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
-}): void {
-  const next = inferRunSpec(text);
-  stageDraftSpec(next, sentAt + 0.001);
-  emitDiagnosticEvent({
-    stage: 'LIFECYCLE',
-    run: conciseTitle(next.goal),
-    payload: {event: 'draft_created'},
-  });
-}
-
-// Composer submit. With a draft staged, the message is treated as a revision
-// instruction against it; otherwise it becomes the research goal a brand-new
-// draft spec is inferred from. Nothing hits the API here -- runs are only
-// created/started in handleStartRun. Takes its dependencies as arguments
-// instead of closing over hook state.
+// Composer submit advances the durable Agent interview. The browser never
+// derives scientific setup fields from keywords; only the persisted model
+// response can complete the setup and produce a runnable specification.
 async function submitComposerMessage({
   e,
   input,
-  draft,
+  interview,
   setInput,
   setError,
   setToast,
   setMessages,
+  setInterview,
+  setIsStarting,
   stageDraftSpec,
 }: {
   e: FormEvent<HTMLFormElement>;
   input: string;
-  draft: SpecStage | null;
+  interview: Interview | null;
   setInput: (value: string) => void;
   setError: (message: string | null) => void;
   setToast: (value: string | ToastState | null) => void;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
+  setInterview: (interview: Interview | null) => void;
+  setIsStarting: (value: boolean) => void;
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
 }): Promise<void> {
   e.preventDefault();
@@ -98,16 +48,46 @@ async function submitComposerMessage({
   setToast(null);
 
   const sentAt = appendChatMessage(setMessages, 'user', text);
-  if (draft) {
-    reviseDraftFromMessage({
-      draftSpec: draft.spec,
-      text,
-      sentAt,
-      setMessages,
-      stageDraftSpec,
-    });
-  } else {
-    createDraftFromMessage({text, sentAt, stageDraftSpec});
+  setIsStarting(true);
+  try {
+    const updated = interview
+      ? await addInterviewTurn(interview.id, text)
+      : await createInterview(text);
+    setInterview(updated);
+    const agentTurn = [...updated.turns]
+      .reverse()
+      .find(turn => turn.role === 'agent');
+    if (agentTurn) {
+      appendChatMessage(
+        setMessages,
+        'assistant',
+        agentTurn.content,
+        sentAt + 0.001,
+      );
+    }
+    if (updated.status === 'completed') {
+      const spec = interviewToRunSpec(updated);
+      stageDraftSpec(spec, sentAt + 0.002);
+      emitDiagnosticEvent({
+        stage: 'LIFECYCLE',
+        run: conciseTitle(spec.goal),
+        payload: {event: 'interview_completed', interview_id: updated.id},
+      });
+    } else {
+      emitDiagnosticEvent({
+        stage: 'CHAT',
+        run: conciseTitle(updated.fields.research_challenge),
+        payload: {event: 'interview_advanced', interview_id: updated.id},
+      });
+    }
+  } catch (error) {
+    setError(
+      error instanceof Error
+        ? error.message
+        : 'The Agent could not continue the interview.',
+    );
+  } finally {
+    setIsStarting(false);
   }
 }
 
@@ -227,13 +207,13 @@ function loadMessageIntoComposer(
   focusComposer();
 }
 
-// Re-runs spec inference from the draft's goal, discarding any revisions.
+// Re-stages the persisted Agent derivation without recomputing it locally.
 function retryDraftSpec(
   draft: SpecStage | null,
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void,
 ): void {
   if (!draft) return;
-  stageDraftSpec(inferRunSpec(draft.spec.goal));
+  stageDraftSpec(draft.spec);
 }
 
 /**
@@ -278,6 +258,8 @@ export function toHandlerDeps(
     input: composer.input,
     setInput: composer.setInput,
     draft: lifecycle.draft,
+    interview: lifecycle.interview,
+    setInterview: lifecycle.setInterview,
     setDraft: lifecycle.setDraft,
     setConfirmed: lifecycle.setConfirmed,
     setStartedSession: lifecycle.setStartedSession,

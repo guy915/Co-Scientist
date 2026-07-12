@@ -249,6 +249,32 @@ CREATE TABLE IF NOT EXISTS runs (
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);
 
+-- Durable pre-run Agent interview. The structured fields are derived from the
+-- append-only turn transcript and remain editable until finalized.
+CREATE TABLE IF NOT EXISTS interviews (
+    id TEXT PRIMARY KEY,
+    client_id TEXT NOT NULL,
+    status TEXT NOT NULL,             -- active | completed | cancelled
+    fields_json TEXT NOT NULL,
+    current_question TEXT,
+    created_at REAL NOT NULL,
+    updated_at REAL NOT NULL,
+    completed_at REAL
+);
+CREATE INDEX IF NOT EXISTS idx_interviews_client
+    ON interviews(client_id, updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS interview_turns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    interview_id TEXT NOT NULL,
+    role TEXT NOT NULL,               -- user | agent
+    content TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (interview_id) REFERENCES interviews(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_interview_turns
+    ON interview_turns(interview_id, id ASC);
+
 -- Append-only timeline of everything that happened during a run. This is the
 -- canonical source the SSE endpoint replays on client reconnect or restart.
 CREATE TABLE IF NOT EXISTS run_events (

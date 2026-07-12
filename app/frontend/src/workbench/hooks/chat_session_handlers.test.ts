@@ -3,6 +3,39 @@ import {buildChatHandlers} from './chat_session_handlers';
 import type {HandlerDeps} from './chat_session_types';
 import type {ChatEntry} from '../pages/chat_timeline_cards';
 import type {InferredRunSpec} from '../run_spec';
+import {addInterviewTurn, createInterview, type Interview} from '@/api/runs';
+
+vi.mock('@/api/runs', async importOriginal => {
+  const actual = await importOriginal<typeof import('@/api/runs')>();
+  return {...actual, createInterview: vi.fn(), addInterviewTurn: vi.fn()};
+});
+
+function makeInterview(overrides: Partial<Interview> = {}): Interview {
+  return {
+    id: 'interview-1',
+    client_id: 'client-1',
+    status: 'active',
+    fields: {
+      research_challenge: 'Study liver fibrosis',
+      focus_area: [],
+      preferences: [],
+      title: null,
+    },
+    current_question: 'Which mechanisms should I prioritize?',
+    turns: [
+      {
+        id: 1,
+        role: 'agent',
+        content: 'Which mechanisms should I prioritize?',
+        created_at: 2,
+      },
+    ],
+    created_at: 1,
+    updated_at: 2,
+    completed_at: null,
+    ...overrides,
+  };
+}
 
 function makeSpec(overrides: Partial<InferredRunSpec> = {}): InferredRunSpec {
   return {
@@ -29,6 +62,8 @@ function makeMessage(overrides: Partial<ChatEntry> = {}): ChatEntry {
 function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
   return {
     input: '',
+    interview: null,
+    setInterview: vi.fn(),
     setInput: vi.fn(),
     draft: null,
     setDraft: vi.fn(),
@@ -48,6 +83,53 @@ function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
 }
 
 describe('buildChatHandlers', () => {
+  it('starts a model-driven interview without deriving a local draft', async () => {
+    const interview = makeInterview();
+    vi.mocked(createInterview).mockResolvedValue(interview);
+    const deps = makeDeps({input: 'Study liver fibrosis'});
+    const handlers = buildChatHandlers(deps);
+
+    await handlers.handleSubmit({preventDefault: vi.fn()} as never);
+
+    expect(createInterview).toHaveBeenCalledWith('Study liver fibrosis');
+    expect(deps.setInterview).toHaveBeenCalledWith(interview);
+    expect(deps.stageDraftSpec).not.toHaveBeenCalled();
+    expect(deps.setMessages).toHaveBeenCalledTimes(2);
+  });
+
+  it('stages only a completed persisted interview derivation', async () => {
+    const active = makeInterview();
+    const completed = makeInterview({
+      status: 'completed',
+      fields: {
+        research_challenge: 'Study liver fibrosis',
+        focus_area: ['Stellate-cell metabolism'],
+        preferences: ['Human evidence'],
+        title: 'Fibrosis metabolism',
+      },
+    });
+    vi.mocked(addInterviewTurn).mockResolvedValue(completed);
+    const deps = makeDeps({input: 'Focus on metabolism', interview: active});
+
+    await buildChatHandlers(deps).handleSubmit({
+      preventDefault: vi.fn(),
+    } as never);
+
+    expect(addInterviewTurn).toHaveBeenCalledWith(
+      active.id,
+      'Focus on metabolism',
+    );
+    expect(deps.stageDraftSpec).toHaveBeenCalledWith(
+      expect.objectContaining({
+        interviewId: active.id,
+        goal: 'Study liver fibrosis',
+        attributes: ['Stellate-cell metabolism'],
+        requirements: ['Human evidence'],
+      }),
+      expect.any(Number),
+    );
+  });
+
   it('handleEditPlan stages the spec and focuses the composer', () => {
     const deps = makeDeps();
     const handlers = buildChatHandlers(deps);
@@ -76,16 +158,14 @@ describe('buildChatHandlers', () => {
     expect(next[0]).toMatchObject({role: 'assistant', content: 'Reply text'});
   });
 
-  it('handleRetryDraftSpec re-infers the draft from its goal when a draft exists', () => {
+  it('handleRetryDraftSpec re-stages the persisted derivation', () => {
     const spec = makeSpec({goal: 'Study X', focus: 'prefer_novelty'});
     const deps = makeDeps({draft: {spec, createdAt: 1}});
     const handlers = buildChatHandlers(deps);
 
     handlers.handleRetryDraftSpec();
 
-    expect(deps.stageDraftSpec).toHaveBeenCalledWith(
-      expect.objectContaining({goal: 'Study X'}),
-    );
+    expect(deps.stageDraftSpec).toHaveBeenCalledWith(spec);
   });
 
   it('handleRetryDraftSpec is a no-op without a staged draft', () => {

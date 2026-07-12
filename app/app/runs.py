@@ -149,10 +149,33 @@ async def create_run(
     Returns:
         The created run serialized as a dict.
     """
+    interview = None
+    if req.interview_id:
+        interview = store.get_interview(req.interview_id)
+        if (
+            interview is None
+            or interview["client_id"] != _client_id(request)
+            or interview["status"] != "completed"
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="a completed owned interview is required",
+            )
+        fields = interview["fields"]
+        req = req.model_copy(
+            update={
+                "research_goal": fields["research_challenge"],
+                "requirements": fields["preferences"],
+                "attributes": fields["focus_area"],
+            }
+        )
+
     # Provider (engine vs mock) is decided at creation from availability;
     # /start can still override it per run via force_provider.
     provider = engine_adapter.select_provider()
     config, focus, tier = _build_create_run_config(req)
+    if interview is not None:
+        config["interview_id"] = interview["id"]
     run_mode = tier
     # The run is persisted in DRAFT; nothing executes until /start is called.
     run = store.create_run(
@@ -161,6 +184,7 @@ async def create_run(
         provider=provider,
         config=config,
         client_id=_client_id(request),
+        title=(interview["fields"].get("title") if interview else None),
     )
     # First entry in the run's event log, so replays show creation metadata.
     store.append_event(
