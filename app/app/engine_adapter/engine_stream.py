@@ -23,8 +23,7 @@ from app.engine_adapter.events import (
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
 from app.mock_workflow import run_mock_workflow
-from app.report_render import EmitFn, finalize_report
-from app.runs_registry import is_pause_requested
+from app.report_render import EmitFn, emit_cancel_or_pause, finalize_report
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -107,20 +106,7 @@ def _merge_engine_state(
             final_state[key] = state[key]
 
 
-async def _emit_cancelled_event(
-    run_id: str, db_path: str | None, emit: EmitFn
-) -> dict[str, Any]:
-    """Persist the closing status and return the terminal event to yield.
-
-    The pause endpoint reuses the cancel signal, so a pause-flagged run is
-    persisted/emitted as ``paused`` (resumable) rather than a wrong terminal
-    ``cancelled`` landing in the event log.
-    """
-    if is_pause_requested(run_id):
-        store.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
-        return await emit("status", {"status": "paused"})
-    store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
-    return await emit("status", {"status": "cancelled"})
+_emit_cancelled_event = emit_cancel_or_pause
 
 
 async def _emit_engine_node_event(
