@@ -1,0 +1,41 @@
+{
+  "findings": {
+    "L08": {
+      "status": "implemented",
+      "implementation": "app/app/engine_tasks.py; app/app/store/tasks.py; engine/src/co_scientist/task_runtime.py",
+      "verification": "app/tests/test_engine_tasks.py; app/tests/test_task_queue.py; app tests: 422 passed",
+      "remaining": "Final multi-process restart soak remains part of acceptance condition 4."
+    },
+    "L15": {
+      "status": "implemented",
+      "implementation": "Durable per-item review, generation, debate, mature Reflection, and verification leases plus sequential ranking-match leases.",
+      "verification": "app/tests/test_engine_tasks.py::test_review_fanout_uses_independent_leases_and_one_aggregate_commit and related fan-out tests",
+      "remaining": "Production-scale concurrency characteristics remain reconstructed."
+    }
+  },
+  "acceptance": [
+    {"id": 1, "status": "unproven", "requirement": "Complete Agent interview with exactly four research-plan fields.", "evidence": "—", "remaining": "Run browser-level journey and link transcript/screenshots."},
+    {"id": 2, "status": "unproven", "requirement": "Only Standard and Advanced; enforce 3/1 concurrency.", "evidence": "—", "remaining": "Re-audit API and faithful UI together."},
+    {"id": 3, "status": "partial", "requirement": "Supervisor creates and reprioritizes diverse durable tasks from state and feedback.", "evidence": "engine/src/co_scientist/nodes/orchestrator.py; app/app/engine_tasks.py", "remaining": "Prove free task creation, cancellation, retry, and reprioritization end to end."},
+    {"id": 4, "status": "partial", "requirement": "Concurrent durable tasks survive restart with exactly-once effects.", "evidence": "app/tests/test_engine_tasks.py; app/tests/test_task_queue.py", "remaining": "Add multi-process crash/restart and duplicate-delivery acceptance run."},
+    {"id": 5, "status": "partial", "requirement": "Every disclosed specialist strategy has an end-to-end behavioral test.", "evidence": "Engine and app specialist tests", "remaining": "Complete strategy-by-strategy closure audit."},
+    {"id": 6, "status": "missing", "requirement": "Multi-source ranked retrieval and large/private/multimodal provenance.", "evidence": "app/app/document_ingest.py", "remaining": "Tables, figures, OCR/multimodal reasoning, pagination, retraction awareness."},
+    {"id": 7, "status": "partial", "requirement": "Every material final claim has visible support spans and gates publication.", "evidence": "app/app/claim_grounding.py; app/app/report_render.py", "remaining": "Re-audit every report surface and real-provider output."},
+    {"id": 8, "status": "unproven", "requirement": "Citation evaluation meets contradiction and larger-panel gates.", "evidence": "—", "remaining": "Run and record current evaluation package."},
+    {"id": 9, "status": "unproven", "requirement": "Truthful monotonic/indeterminate progress and real activity metrics.", "evidence": "—", "remaining": "Browser and API runtime verification."},
+    {"id": 10, "status": "unproven", "requirement": "Complete Goal Report and follow-up/export controls.", "evidence": "—", "remaining": "Browser journey and permission/revocation verification."},
+    {"id": 11, "status": "unproven", "requirement": "All human inputs demonstrably alter subsequent work.", "evidence": "—", "remaining": "Trace each input through task allocation/output."},
+    {"id": 12, "status": "partial", "requirement": "Coherent safety, adjudication, intended use, and authorization.", "evidence": "app/app/safety.py; app/app/hypothesis_safety.py; authorization tests", "remaining": "Consolidate app/engine policy and run complete adversarial suite."},
+    {"id": 13, "status": "unproven", "requirement": "Mock/demo data cannot contaminate live runs.", "evidence": "—", "remaining": "Re-audit seeding, recents, evidence, and reports."},
+    {"id": 14, "status": "missing", "requirement": "Full desktop/mobile browser verification with no clipping.", "evidence": "—", "remaining": "Capture and assert complete 1440x720 and 390x780 journeys."},
+    {"id": 15, "status": "partial", "requirement": "All software, browser, evaluation, safety, and provenance gates pass.", "evidence": "Engine 1046 passed; app 422 passed; frontend 274 passed and built", "remaining": "Browser, evaluation, safety, and provenance gates remain."},
+    {"id": 16, "status": "partial", "requirement": "All required evaluation reports are checked in.", "evidence": "Existing scaling/ablation artifacts", "remaining": "Elo calibration, expert review, expanded citation/safety and failure recovery reports."},
+    {"id": 17, "status": "unproven", "requirement": "Final documentation identifies every proprietary uncertainty without claiming literal parity.", "evidence": "—", "remaining": "Final documentation and closure audit."}
+  ],
+  "verification_log": [
+    "2026-07-13: engine Ruff and mypy passed; 1,046 tests passed.",
+    "2026-07-13: app Ruff and mypy passed; 422 tests passed.",
+    "2026-07-13: frontend lint passed; 274 tests passed; production build passed.",
+    "2026-07-13: durable orchestration commits f76a66b4 and d355f19e."
+  ]
+}
