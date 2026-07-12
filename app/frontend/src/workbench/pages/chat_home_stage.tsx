@@ -389,8 +389,6 @@ function SuggestionTriggerButton({
       ]
         .filter(Boolean)
         .join(' ')}
-      onMouseEnter={() => onPreview(suggestion.preview)}
-      onMouseLeave={() => onPreview(null)}
       onPointerEnter={() => onPreview(suggestion.preview)}
       onPointerLeave={() => onPreview(null)}
       onFocus={() => onPreview(suggestion.preview)}
