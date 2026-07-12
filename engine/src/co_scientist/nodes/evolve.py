@@ -1,6 +1,7 @@
 """Evolve node - refine top hypotheses with context-aware evolution."""
 
 import asyncio
+import json
 import logging
 from collections.abc import Coroutine
 from typing import Any
@@ -170,6 +171,7 @@ async def evolve_single_hypothesis(
     run_focus_guidance: str | None = None,
     creation_iteration: int | None = None,
     operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
+    specialist_feedback: str = "",
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
     """Evolve a single hypothesis into a new child with sampled context.
 
@@ -194,6 +196,7 @@ async def evolve_single_hypothesis(
         run_focus_guidance: Optional selected focus guidance
         creation_iteration: Workflow iteration producing any child
         operator: Distinct evolution strategy assigned to this task.
+        specialist_feedback: Bounded prior-agent outputs for this parent.
 
     Returns:
         A ``(child, detail)`` pair on acceptance, or ``(None, None)`` when the
@@ -216,6 +219,7 @@ async def evolve_single_hypothesis(
         run_setup_guidance=run_setup_guidance,
         run_focus_guidance=run_focus_guidance,
         operator=operator,
+        specialist_feedback=specialist_feedback,
     )
 
     response = await _call_evolution_llm(
@@ -360,9 +364,65 @@ def _build_evolution_tasks(
             run_focus_guidance=state.get("run_focus_guidance"),
             creation_iteration=creation_iteration,
             operator=select_operator(i, creation_iteration),
+            specialist_feedback=_specialist_feedback_for(state, hyp),
         )
         for i, hyp in enumerate(top_k)
     ]
+
+
+def _specialist_feedback_for(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> str:
+    """Build a bounded, hypothesis-specific feedback ledger for evolution."""
+    debates = [
+        {
+            "debate_id": item.get("debate_id"),
+            "transcript": str(item.get("transcript") or "")[-2500:],
+        }
+        for item in state.get("debate_transcripts") or []
+        if item.get("hypothesis_text") == hypothesis.text
+    ][-2:]
+    matches = []
+    for item in state.get("tournament_matchups", []):
+        side_a = item.get("hypothesis_a_id") == hypothesis.id
+        side_b = item.get("hypothesis_b_id") == hypothesis.id
+        if not side_a and not side_b:
+            continue
+        matches.append(
+            {
+                "outcome": (
+                    "won" if item.get("winner_id") == hypothesis.id else "lost"
+                ),
+                "reasoning": item.get("reasoning") or item.get("reason"),
+                "confidence": item.get("confidence"),
+            }
+        )
+    neighbors = []
+    for edge in (state.get("proximity_graph") or {}).get("edges", []):
+        if edge.get("source") == hypothesis.id:
+            neighbor = edge.get("target")
+        elif edge.get("target") == hypothesis.id:
+            neighbor = edge.get("source")
+        else:
+            continue
+        neighbors.append(
+            {
+                "hypothesis_id": neighbor,
+                "similarity": edge.get("similarity"),
+                "cluster_id": edge.get("cluster_id"),
+            }
+        )
+    verification = {
+        "verdict": hypothesis.deep_verification_verdict,
+        "probes": hypothesis.deep_verification_probes,
+    }
+    ledger = {
+        "debates": debates,
+        "tournament": matches[-8:],
+        "proximity_neighbors": neighbors[:8],
+        "deep_verification": verification,
+    }
+    return json.dumps(ledger, indent=2)[:8000]
 
 
 async def _finalize_evolve_result(

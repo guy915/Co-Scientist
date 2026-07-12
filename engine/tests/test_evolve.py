@@ -23,7 +23,7 @@ import pytest
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis, HypothesisOrigin
 from co_scientist.nodes import evolve
-from co_scientist.nodes.evolve import evolve_node
+from co_scientist.nodes.evolve import _specialist_feedback_for, evolve_node
 from tests._state import make_hypothesis, make_state
 
 
@@ -46,6 +46,54 @@ def _stub_llm(
         return response
 
     monkeypatch.setattr(evolve, "call_llm_json", fake)
+
+
+def test_specialist_feedback_joins_prior_agent_outputs() -> None:
+    """Evolution receives debate, tournament, proximity, and probe feedback."""
+    hypothesis = make_hypothesis(
+        text="mitochondrial checkpoint controls neuronal aging",
+        deep_verification_verdict="partially_holds",
+        deep_verification_probes=[
+            {"question": "Is it causal?", "answer": "Unknown"}
+        ],
+    )
+    state = make_state(
+        hypotheses=[hypothesis],
+        debate_transcripts=[
+            {
+                "debate_id": 3,
+                "hypothesis_text": hypothesis.text,
+                "transcript": "Skeptic requests a rescue experiment.",
+            }
+        ],
+        tournament_matchups=[
+            {
+                "hypothesis_a_id": hypothesis.id,
+                "hypothesis_b_id": "peer",
+                "winner_id": "peer",
+                "reasoning": "The peer has stronger causal controls.",
+                "confidence": "high",
+            }
+        ],
+        proximity_graph={
+            "edges": [
+                {
+                    "source": hypothesis.id,
+                    "target": "neighbor",
+                    "similarity": 0.72,
+                    "cluster_id": "c1",
+                }
+            ]
+        },
+    )
+
+    feedback = _specialist_feedback_for(state, hypothesis)
+
+    assert "rescue experiment" in feedback
+    assert "stronger causal controls" in feedback
+    assert '"outcome": "lost"' in feedback
+    assert '"hypothesis_id": "neighbor"' in feedback
+    assert "partially_holds" in feedback
 
 
 def _stub_llm_from_prompt(

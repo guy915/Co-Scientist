@@ -245,6 +245,7 @@ def _build_evolution_variables(
     tool_registry: Any | None,
     run_setup_guidance: str | None,
     run_focus_guidance: str | None,
+    specialist_feedback: str = "",
 ) -> dict[str, Any]:
     """Builds the template variables for the "evolution" prompt.
 
@@ -264,6 +265,7 @@ def _build_evolution_variables(
         tool_registry: Optional ToolRegistry for dynamic tool instructions.
         run_setup_guidance: Optional durable setup guidance.
         run_focus_guidance: Optional selected focus guidance.
+        specialist_feedback: Bounded outputs from prior specialist agents.
 
     Returns:
         Template variables for the "evolution" prompt.
@@ -284,6 +286,8 @@ def _build_evolution_variables(
             run_setup_guidance, run_focus_guidance
         ),
         "articles_with_reasoning": articles_with_reasoning or "",
+        "specialist_feedback": specialist_feedback
+        or "No prior specialist feedback.",
     }
     variables.update(_get_domain_variables(tool_registry))
     return variables
@@ -300,6 +304,7 @@ def _build_evolution_prompt(
     run_setup_guidance: str | None,
     run_focus_guidance: str | None,
     operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
+    specialist_feedback: str = "",
 ) -> tuple[str, dict[str, Any] | None]:
     """Assembles the full evolution prompt (and schema) for one hypothesis.
 
@@ -317,6 +322,7 @@ def _build_evolution_prompt(
         run_setup_guidance: Optional durable setup guidance.
         run_focus_guidance: Optional selected focus guidance.
         operator: Distinct evolution strategy this task must execute.
+        specialist_feedback: Bounded outputs from prior specialist agents.
 
     Returns:
         Tuple of (full prompt text with diversity instruction appended,
@@ -330,6 +336,7 @@ def _build_evolution_prompt(
         tool_registry=tool_registry,
         run_setup_guidance=run_setup_guidance,
         run_focus_guidance=run_focus_guidance,
+        specialist_feedback=specialist_feedback,
     )
 
     prompt, schema = load_prompt_with_schema("evolution", variables)

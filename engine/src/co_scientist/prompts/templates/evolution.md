@@ -52,6 +52,9 @@ Before finalizing, verify:
 **Meta-Review Insights:**
 {{meta_review_insights}}
 
+**Specialist Feedback Ledger (debate, ranking, proximity, verification):**
+{{specialist_feedback}}
+
 {{supervisor_guidance}}
 
 {{run_guidance}}
