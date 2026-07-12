@@ -14,8 +14,8 @@ implied by scattered nodes:
   (``reflection_observations``).
 - ``SIMULATION`` -- step-through mental simulation of the mechanism
   (``simulation_review``).
-- ``RECURRENT`` -- synthesis of recurring cross-review patterns fed back into
-  later reviews (``meta_review``).
+- ``RECURRENT`` -- a full review adapted with growing review and tournament
+  knowledge (dispatched by ``comprehensive_reflection``).
 """
 
 from __future__ import annotations
@@ -45,7 +45,7 @@ _PROMPT_BY_TYPE: dict[ReviewType, str] = {
     ReviewType.DEEP_VERIFICATION: "deep_verification",
     ReviewType.OBSERVATION: "reflection_observations",
     ReviewType.SIMULATION: "simulation_review",
-    ReviewType.RECURRENT: "meta_review",
+    ReviewType.RECURRENT: "full_review",
 }
 
 

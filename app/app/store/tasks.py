@@ -143,20 +143,35 @@ def task_progress(
 ) -> dict[str, Any]:
     """Summarize monotonic execution progress from committed durable tasks."""
     tasks = list_tasks(run_id, db_path=db_path, conn=conn)
-    total = len(tasks)
+    # A single workflow lease is only a durable process boundary, not a
+    # disclosed scientific work budget. Treat it as indeterminate until the
+    # supervisor has materialized independently countable specialist tasks.
+    scientific_tasks = [
+        task for task in tasks if task.task_type != "run.workflow"
+    ]
+    total = len(scientific_tasks)
     terminal = {"completed", "failed", "cancelled"}
-    completed = sum(task.status in terminal for task in tasks)
+    completed = sum(task.status in terminal for task in scientific_tasks)
     active = next(
-        (task for task in tasks if task.status in {"leased", "running"}),
+        (
+            task
+            for task in scientific_tasks
+            if task.status in {"leased", "running"}
+        ),
         None,
     )
+    dynamic_plan = any(
+        task.task_type.startswith("engine.") for task in scientific_tasks
+    )
     return {
-        "determinate": total > 0,
+        "determinate": total > 0 and not dynamic_plan,
         "completed_tasks": completed,
         "total_tasks": total,
-        "fraction": completed / total if total else None,
+        "fraction": completed / total if total and not dynamic_plan else None,
         "active_task": active.task_type if active else None,
-        "queued_tasks": sum(task.status == "queued" for task in tasks),
+        "queued_tasks": sum(
+            task.status == "queued" for task in scientific_tasks
+        ),
     }
 
 
@@ -185,8 +200,13 @@ def _dependencies_complete(
         f"SELECT id, status FROM scientific_tasks WHERE id IN ({placeholders})",
         task.dependencies,
     ).fetchall()
+    allowed = (
+        {"completed", "failed", "cancelled"}
+        if task.provenance.get("allow_failed_dependencies")
+        else {"completed"}
+    )
     return len(rows) == len(task.dependencies) and all(
-        row["status"] == "completed" for row in rows
+        row["status"] in allowed for row in rows
     )
 
 
@@ -259,6 +279,67 @@ def complete_task(
             ),
         ).rowcount
     return bool(changed)
+
+
+def renew_task_lease(
+    task_id: str,
+    worker_id: str,
+    lease_seconds: float,
+    *,
+    db_path: str | None = None,
+) -> bool:
+    """Extend an owned lease so long scientific work cannot be redelivered."""
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be positive")
+    now = _now()
+    with transaction(db_path) as conn:
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET lease_expires_at=?, updated_at=? "
+            "WHERE id=? AND status='leased' AND lease_owner=?",
+            (now + lease_seconds, now, task_id, worker_id),
+        ).rowcount
+    return bool(changed)
+
+
+def cancel_run_tasks(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+) -> int:
+    """Revoke every queued/leased task for a cancelled run."""
+    now = _now()
+    with transaction(db_path) as conn:
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET status='cancelled', "
+            "lease_owner=NULL, lease_expires_at=NULL, completed_at=?, "
+            "updated_at=? WHERE run_id=? AND status IN ('queued','leased')",
+            (now, now, run_id),
+        ).rowcount
+    return int(changed)
+
+
+def pause_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
+    """Make queued work non-claimable while an in-flight lease checkpoints."""
+    now = _now()
+    with transaction(db_path) as conn:
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET status='paused', updated_at=? "
+            "WHERE run_id=? AND status='queued'",
+            (now, run_id),
+        ).rowcount
+    return int(changed)
+
+
+def resume_run_tasks(run_id: str, *, db_path: str | None = None) -> int:
+    """Return paused queued work to the global ready queue."""
+    now = _now()
+    with transaction(db_path) as conn:
+        changed = conn.execute(
+            "UPDATE scientific_tasks SET status='queued', updated_at=? "
+            "WHERE run_id=? AND status='paused'",
+            (now, run_id),
+        ).rowcount
+    return int(changed)
 
 
 def fail_task(

@@ -11,6 +11,9 @@ from typing import Any
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
+from co_scientist.nodes.comprehensive_reflection import (
+    comprehensive_reflection_node,
+)
 from co_scientist.nodes.deep_verification import deep_verification_node
 from co_scientist.nodes.evolve import evolve_node
 
@@ -92,6 +95,7 @@ def _add_workflow_nodes(
     workflow.add_node("supervisor", supervisor_node)
     workflow.add_node("generate", generate_node)
     workflow.add_node("review", review_node)
+    workflow.add_node("comprehensive_reflection", comprehensive_reflection_node)
     workflow.add_node("safety_screen", safety_screen_node)
     workflow.add_node("ranking", ranking_node)
     workflow.add_node("deep_verification", deep_verification_node)
@@ -138,8 +142,10 @@ def _add_workflow_edges(
         workflow.add_edge("supervisor", "generate")
         workflow.add_edge("generate", "review")
 
-    workflow.add_edge("review", "safety_screen")
-    workflow.add_edge("safety_screen", "ranking")
+    workflow.add_edge("review", "comprehensive_reflection")
+    workflow.add_edge("comprehensive_reflection", "safety_screen")
+    workflow.add_edge("safety_screen", "deep_verification")
+    workflow.add_edge("deep_verification", "ranking")
 
     # Evolve branch: meta_review → evolve → review (children re-reviewed).
     workflow.add_edge("meta_review", "evolve")
@@ -147,10 +153,9 @@ def _add_workflow_edges(
 
     # Note: review → safety_screen → ranking already defined above.
 
-    # Every work phase converges on ranking → deep_verification → the
-    # orchestrator, which is the single adaptive loop point.
-    workflow.add_edge("ranking", "deep_verification")
-    workflow.add_edge("deep_verification", "orchestrator")
+    # Verification precedes every tournament so contradicted fundamentals do
+    # not contaminate Elo; ranking then returns to the adaptive loop point.
+    workflow.add_edge("ranking", "orchestrator")
     # Proximity is a maintenance task; it returns to the orchestrator too.
     workflow.add_edge("proximity", "orchestrator")
 

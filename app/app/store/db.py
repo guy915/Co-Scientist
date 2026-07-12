@@ -219,6 +219,14 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     _add_column_if_missing(conn, "safety_decisions", "resolution", "TEXT")
     _add_column_if_missing(conn, "safety_decisions", "resolved_by", "TEXT")
     _add_column_if_missing(conn, "safety_decisions", "resolved_at", "REAL")
+    _add_column_if_missing(
+        conn, "proximity_edges", "created_at", "REAL NOT NULL DEFAULT 0"
+    )
+    _add_column_if_missing(conn, "evidence", "mime_type", "TEXT")
+    _add_column_if_missing(conn, "evidence", "sha256", "TEXT")
+    _add_column_if_missing(conn, "evidence", "byte_size", "INTEGER")
+    _add_column_if_missing(conn, "evidence", "document_version", "TEXT")
+    _add_column_if_missing(conn, "evidence", "extraction_tool", "TEXT")
 
 
 def checkpoint_wal(db_path: str | None = None) -> None:
@@ -325,7 +333,7 @@ CREATE TABLE IF NOT EXISTS scientific_tasks (
     id TEXT PRIMARY KEY,
     run_id TEXT NOT NULL,
     task_type TEXT NOT NULL,
-    -- queued | leased | completed | failed | cancelled
+    -- queued | leased | paused | completed | failed | cancelled
     status TEXT NOT NULL,
     priority INTEGER NOT NULL DEFAULT 0,
     inputs_json TEXT NOT NULL,
@@ -405,6 +413,11 @@ CREATE TABLE IF NOT EXISTS evidence (
     year INTEGER,
     abstract TEXT,
     available INTEGER NOT NULL DEFAULT 1,
+    mime_type TEXT,
+    sha256 TEXT,
+    byte_size INTEGER,
+    document_version TEXT,
+    extraction_tool TEXT,
     created_at REAL NOT NULL,
     FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
 );
@@ -561,4 +574,26 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
     FOREIGN KEY (hypothesis_id) REFERENCES hypotheses(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_claim_ev_hyp ON claim_evidence(hypothesis_id);
+
+-- Explainable hypothesis-proximity landscape persisted from the engine.
+CREATE TABLE IF NOT EXISTS proximity_edges (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id TEXT NOT NULL,
+    source_hypothesis_id TEXT NOT NULL,
+    target_hypothesis_id TEXT NOT NULL,
+    similarity REAL NOT NULL,
+    degree TEXT,
+    cluster_id TEXT,
+    method TEXT,
+    version TEXT,
+    model TEXT,
+    updated_at REAL,
+    created_at REAL NOT NULL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_hypothesis_id)
+        REFERENCES hypotheses(id) ON DELETE CASCADE,
+    FOREIGN KEY (target_hypothesis_id)
+        REFERENCES hypotheses(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_proximity_run ON proximity_edges(run_id);
 """

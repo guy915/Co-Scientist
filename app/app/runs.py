@@ -35,15 +35,18 @@ import asyncio
 import logging
 import os
 import sqlite3
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
     BackgroundTasks,
+    File,
+    Form,
     HTTPException,
     Query,
     Request,
     Response,
+    UploadFile,
 )
 from fastapi.responses import (
     JSONResponse,
@@ -51,7 +54,15 @@ from fastapi.responses import (
     StreamingResponse,
 )
 
-from app import engine_adapter, human_input, qa, run_corpus, store, task_worker
+from app import (
+    document_ingest,
+    engine_adapter,
+    human_input,
+    qa,
+    run_corpus,
+    store,
+    task_worker,
+)
 from app.auth import require_principal
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
@@ -414,7 +425,9 @@ async def start_run(
             # production worker service runs ``python -m app.task_worker`` and
             # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
             background.add_task(
-                task_worker.run_once, f"embedded-api:{os.getpid()}"
+                task_worker.run_run_until_idle,
+                run_id,
+                f"embedded-api:{os.getpid()}",
             )
         return {"id": run_id, "status": "queued", "task_id": task.id}
 
@@ -459,6 +472,7 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
         return {"id": run_id, "status": "cancelling"}
     if run.status in TERMINAL_STATUSES:
         raise HTTPException(status_code=409, detail="run already finished")
+    store.cancel_run_tasks(run_id)
     store.update_run_status(run_id, RunStatus.CANCELLED)
     store.append_event(run_id, "status", {"status": "cancelled"})
     return {"id": run_id, "status": "cancelled"}
@@ -478,6 +492,20 @@ async def pause_run(run_id: str) -> dict[str, Any]:
     async with _active_lock:
         handle = _active.get(run_id)
     if not handle:
+        has_engine_task = any(
+            task.task_type.startswith("engine.")
+            for task in store.list_tasks(run_id)
+        )
+        if has_engine_task and run.status in {
+            RunStatus.QUEUED.value,
+            RunStatus.RUNNING.value,
+        }:
+            store.pause_run_tasks(run_id)
+            store.update_run_status(run_id, RunStatus.PAUSED)
+            store.append_event(
+                run_id, "lifecycle", {"event": "pause_requested"}
+            )
+            return {"id": run_id, "status": "paused"}
         raise HTTPException(status_code=404, detail="run is not active")
     _ensure_resumable_checkpoint(run_id, run.provider)
     handle.paused = True
@@ -517,7 +545,11 @@ async def resume_run(run_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="run already completed")
     if run.status in (RunStatus.RUNNING.value, RunStatus.SYNTHESIZING.value):
         raise HTTPException(status_code=409, detail="run already in progress")
-    if not store.has_checkpoint(run_id):
+    has_paused_engine_task = any(
+        task.status == "paused" and task.task_type.startswith("engine.")
+        for task in store.list_tasks(run_id)
+    )
+    if not store.has_checkpoint(run_id) and not has_paused_engine_task:
         raise HTTPException(status_code=409, detail="run has no checkpoint")
     await _launch_resume(run_id)
     return {"id": run_id, "status": "queued"}
@@ -542,10 +574,31 @@ async def _launch_resume(run_id: str) -> None:
     A completed run is never relaunched by callers.
     """
     run = _run_or_404(run_id)
-    handle = await _reserve_active_slot(run_id)
-
     checkpoint = store.get_latest_checkpoint(run_id)
     engine_resume = engine_adapter.is_engine_checkpoint(checkpoint)
+    has_paused_engine_task = any(
+        task.status == "paused" and task.task_type.startswith("engine.")
+        for task in store.list_tasks(run_id)
+    )
+    if engine_resume or has_paused_engine_task:
+        store.update_run_status(run_id, RunStatus.QUEUED)
+        store.append_event(
+            run_id,
+            "status",
+            {"status": "resuming", "detail": "from specialist checkpoint"},
+        )
+        task_worker.enqueue_run_workflow(run_id, resume=True)
+        if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+            task = asyncio.create_task(
+                task_worker.run_run_until_idle(
+                    run_id, f"embedded-resume:{os.getpid()}"
+                )
+            )
+            _resume_tasks.add(task)
+            task.add_done_callback(_resume_tasks.discard)
+        return
+
+    handle = await _reserve_active_slot(run_id)
     if not engine_resume:
         store.clear_run_derived_data(run_id)
     store.update_run_status(run_id, RunStatus.QUEUED)
@@ -661,6 +714,13 @@ async def get_matches(run_id: str) -> dict[str, Any]:
     return {"matches": store.list_matches(run_id)}
 
 
+@router.get("/{run_id}/proximity")
+async def get_proximity(run_id: str) -> dict[str, Any]:
+    """Return the persisted weighted idea-proximity landscape."""
+    _require_run(run_id)
+    return {"proximity": store.list_proximity_edges(run_id)}
+
+
 @router.get("/{run_id}/reviews")
 async def get_reviews(run_id: str) -> dict[str, Any]:
     """Return reviewer and meta-review notes for the run."""
@@ -750,7 +810,7 @@ async def get_claim_evidence(run_id: str) -> dict[str, Any]:
 
 @router.post("/{run_id}/hypotheses")
 async def add_human_hypothesis(
-    run_id: str, req: HumanHypothesisRequest
+    run_id: str, req: HumanHypothesisRequest, request: Request
 ) -> dict[str, Any]:
     """Admit a scientist-contributed hypothesis (Milestone 7).
 
@@ -762,8 +822,9 @@ async def add_human_hypothesis(
     the admission decision and is not persisted (HTTP 200 with admitted=false).
     """
     _require_run(run_id)
+    author = _client_id(request) or req.author
     admission = human_input.admit_human_hypothesis(
-        text=req.statement, author=req.author, title=req.title
+        text=req.statement, author=author, title=req.title
     )
     if not admission.admitted or admission.hypothesis is None:
         return {"admitted": False, "safety": admission.safety_review.to_dict()}
@@ -774,22 +835,35 @@ async def add_human_hypothesis(
         title=str(hyp["title"]),
         statement=str(hyp["statement"]),
         created_by_agent=human_input.SCIENTIST_MANUAL_ORIGIN,
-        author=req.author,
+        author=author,
     )
     # Same safety screen as the pipeline, so the manual hypothesis carries a
     # persisted safety_status and any blocking outcome is audited identically.
     screen_hypotheses(run_id, store.list_hypotheses(run_id))
+    store.append_message(
+        run_id,
+        author,
+        "Scientist-contributed hypothesis to evaluate in subsequent work: "
+        f"{req.statement}",
+        "steering",
+        meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
+    )
+    store.append_event(
+        run_id,
+        "scientist.hypothesis",
+        {"hypothesis_id": hyp_id, "author": author},
+    )
     return {
         "admitted": True,
         "id": hyp_id,
-        "author": req.author,
+        "author": author,
         "safety": admission.safety_review.to_dict(),
     }
 
 
 @router.post("/{run_id}/reviews")
 async def add_human_review(
-    run_id: str, req: HumanReviewRequest
+    run_id: str, req: HumanReviewRequest, request: Request
 ) -> dict[str, Any]:
     """Persist a scientist-contributed review (Milestone 7).
 
@@ -804,10 +878,11 @@ async def add_human_review(
         raise HTTPException(
             status_code=404, detail="hypothesis not found in this run"
         )
+    author = _client_id(request) or req.author
     try:
         review = human_input.build_human_review(
             hypothesis_id=req.hypothesis_id,
-            author=req.author,
+            author=author,
             verdict=req.verdict,
             critique=req.critique,
         )
@@ -819,6 +894,23 @@ async def add_human_review(
         reviewer_agent="scientist",
         summary=f"Scientist verdict: {review.verdict} (by {review.author})",
         critique=review.critique,
+    )
+    store.append_message(
+        run_id,
+        author,
+        "Scientist review of hypothesis "
+        f"{req.hypothesis_id}: verdict={review.verdict}; {review.critique}",
+        "steering",
+        meta={"kind": "human_review", "hypothesis_id": req.hypothesis_id},
+    )
+    store.append_event(
+        run_id,
+        "scientist.review",
+        {
+            "hypothesis_id": req.hypothesis_id,
+            "author": author,
+            "verdict": review.verdict,
+        },
     )
     return {"recorded": True, **review.to_dict()}
 
@@ -847,6 +939,62 @@ async def add_attachment(
         abstract=req.text,
     )
     return {"id": ev_id, "indexed": True}
+
+
+@router.post("/{run_id}/attachments/upload")
+async def upload_attachment(
+    run_id: str,
+    request: Request,
+    file: Annotated[UploadFile, File()],
+    consent: Annotated[bool, Form()],
+) -> dict[str, Any]:
+    """Extract and index a real scientist-uploaded document with provenance."""
+    _require_run(run_id)
+    _client_id(request)  # Require the run's authenticated researcher context.
+    if not consent:
+        raise HTTPException(
+            status_code=422, detail="consent is required to index a document"
+        )
+    data = await file.read(document_ingest.MAX_UPLOAD_BYTES + 1)
+    try:
+        extracted = document_ingest.extract_document(
+            data, file.content_type or "application/octet-stream"
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    title = (file.filename or "Uploaded document").strip()
+    evidence_id = store.add_evidence(
+        run_id,
+        title,
+        source=run_corpus.ATTACHMENT_SOURCE,
+        abstract=extracted.text,
+        mime_type=extracted.mime_type,
+        sha256=extracted.sha256,
+        byte_size=extracted.byte_size,
+        document_version=extracted.sha256,
+        extraction_tool=extracted.extraction_tool,
+    )
+    store.append_message(
+        run_id,
+        _client_id(request),
+        "Use the uploaded private research document "
+        f"'{title}' in subsequent work.",
+        "steering",
+        meta={"kind": "attachment", "evidence_id": evidence_id},
+    )
+    store.append_event(
+        run_id,
+        "scientist.attachment",
+        {"evidence_id": evidence_id, "title": title},
+    )
+    return {
+        "id": evidence_id,
+        "indexed": True,
+        "sha256": extracted.sha256,
+        "byte_size": extracted.byte_size,
+        "mime_type": extracted.mime_type,
+        "extraction_tool": extracted.extraction_tool,
+    }
 
 
 @router.get("/{run_id}/attachments/search")

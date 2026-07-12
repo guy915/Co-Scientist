@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.nodes import deep_verification as dv
-from tests._state import make_hypothesis, make_state
+from tests._state import make_article, make_hypothesis, make_state
 
 
 async def test_verifies_only_top_k_by_elo(
@@ -51,11 +51,8 @@ async def test_verifies_only_top_k_by_elo(
     assert len(verified) == 3
     assert {h.text for h in verified} == {"h4", "h3", "h2"}
     assert verified[0].deep_verification_verdict == "weakened"
-    # 3 deep-verification calls + a full-review and simulation-review on the
-    # single top hypothesis (SSR §4).
-    assert fake.await_count == 5
-    top = max(out["hypotheses"], key=lambda h: h.elo_rating)
-    assert "full" in top.enrichments and "simulation" in top.enrichments
+    # Full/simulation reviews run in the comprehensive Reflection node.
+    assert fake.await_count == 3
 
 
 async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -88,3 +85,31 @@ async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
     state = make_state(hypotheses=[h])
     await dv.deep_verification_node(state)
     assert fake.await_count == 0  # already has probes -> skipped
+
+
+def test_verification_context_includes_public_and_private_evidence() -> None:
+    """Verification sees only bounded analyzed and private source content."""
+    state = make_state(
+        articles=[
+            make_article(
+                "Analyzed paper",
+                abstract="Direct mechanistic finding.",
+                used_in_analysis=True,
+            ),
+            make_article(
+                "Search-only paper",
+                abstract="Must not be treated as analyzed.",
+                used_in_analysis=False,
+            ),
+        ],
+        context_enrichment_sources=[
+            {"display": "Private scientist result with matched controls."}
+        ],
+    )
+
+    context = dv._verification_evidence_context(state)
+
+    assert "Analyzed paper" in context
+    assert "Direct mechanistic finding" in context
+    assert "Search-only paper" not in context
+    assert "Private scientist result" in context

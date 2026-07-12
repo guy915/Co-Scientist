@@ -29,6 +29,7 @@ _LIT_NODES = {
     "generate",
     "reflection",
     "review",
+    "comprehensive_reflection",
     "safety_screen",
     "ranking",
     "deep_verification",
@@ -170,15 +171,19 @@ def test_build_graph_without_literature_review_omits_nodes() -> None:
     assert "reflection" not in graph.nodes
 
 
-def test_deep_verification_follows_ranking() -> None:
-    """Ranking routes unconditionally into the deep_verification node."""
+def test_deep_verification_precedes_ranking() -> None:
+    """Safety routes through verification before ranking can update Elo."""
     gen = HypothesisGenerator()
     graph = gen._build_graph(enable_literature_review_node=False)
     drawable = graph.get_graph()
-    ranking_targets = {
-        e.target for e in drawable.edges if e.source == "ranking"
+    safety_targets = {
+        e.target for e in drawable.edges if e.source == "safety_screen"
     }
-    assert ranking_targets == {"deep_verification"}
+    verification_targets = {
+        e.target for e in drawable.edges if e.source == "deep_verification"
+    }
+    assert safety_targets == {"deep_verification"}
+    assert verification_targets == {"ranking"}
 
 
 def test_research_overview_is_the_only_terminal_node() -> None:
@@ -408,7 +413,7 @@ async def test_tool_calling_with_lit_disabled_does_not_raise(
 
 
 def test_graph_includes_deep_verification_node() -> None:
-    """The graph registers a deep_verification node after ranking."""
+    """The graph registers a pre-tournament deep_verification node."""
     gen = HypothesisGenerator(model_name="test/model")
     graph = gen._build_graph(enable_literature_review_node=False)
     assert "deep_verification" in graph.nodes

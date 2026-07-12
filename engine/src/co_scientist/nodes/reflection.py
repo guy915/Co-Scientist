@@ -375,6 +375,10 @@ def _apply_reflection_results(
             hypothesis.reflection_notes = (
                 f"{reasoning}\n\nClassification: {classification}"
             )
+            hypothesis.enrichments["observation"] = {
+                "classification": classification,
+                "reasoning": reasoning,
+            }
             # Store knowledge graph evidence in enrichments (yaml-driven,
             # only present for biomedical configs)
             enrichment_items = result.get("indra_enrichment_items", [])

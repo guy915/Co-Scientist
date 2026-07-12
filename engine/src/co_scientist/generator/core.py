@@ -247,6 +247,28 @@ class HypothesisGenerator(McpAvailabilityMixin):
             "tool_registry": self._tool_registry,
         }
 
+    @property
+    def tool_registry(self) -> Any:
+        """Return the configured registry for restored durable task state."""
+        return self._tool_registry
+
+    async def prepare_task_state(
+        self,
+        research_goal: str,
+        *,
+        progress_callback: None
+        | (Callable[[str, dict[str, Any]], Awaitable[None]]) = None,
+        opts: dict[str, Any] | None = None,
+        run_id: str | None = None,
+    ) -> WorkflowState:
+        """Prepare the initial state for node-level durable task execution."""
+        return await self._prepare_generation(
+            research_goal,
+            progress_callback=progress_callback,
+            opts=opts,
+            run_id=run_id,
+        )
+
     # Two @overload stubs give type checkers a precise return type per
     # stream value; the un-decorated implementation below (with a union
     # return type) is what actually runs.
@@ -499,9 +521,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
         self,
         initial_state: WorkflowState,
         cumulative_state: dict[str, Any],
-        checkpoint_callback: Callable[
-            [str, dict[str, Any]], Awaitable[None]
-        ],
+        checkpoint_callback: Callable[[str, dict[str, Any]], Awaitable[None]],
     ) -> AsyncIterator[tuple[str, dict[str, Any]]]:
         """Stream node updates, checkpointing the full state before each yield.
 

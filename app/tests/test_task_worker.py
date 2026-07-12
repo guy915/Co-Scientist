@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -17,7 +18,7 @@ def test_enqueue_workflow_is_idempotent(isolated_db: str) -> None:
     first = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     duplicate = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
     assert duplicate.id == first.id
-    assert duplicate.task_type == "run.workflow"
+    assert duplicate.task_type == "engine.bootstrap"
 
 
 def test_engine_start_queues_durable_work(
@@ -37,7 +38,7 @@ def test_engine_start_queues_durable_work(
     assert started.status_code == 200
     assert started.json()["status"] == "queued"
     [task] = store.list_tasks(run_id, db_path=isolated_db)
-    assert task.task_type == "run.workflow"
+    assert task.task_type == "engine.bootstrap"
     assert task.status == "queued"
 
 
@@ -47,7 +48,13 @@ async def test_worker_executes_and_commits_once(
 ) -> None:
     """A leased workflow commits one terminal result."""
     run = store.create_run("worker goal", "standard", "engine", {})
-    task = task_worker.enqueue_run_workflow(run.id, db_path=isolated_db)
+    task = store.enqueue_task(
+        run.id,
+        "run.workflow",
+        {},
+        idempotency_key="legacy-workflow",
+        db_path=isolated_db,
+    )
 
     async def _workflow(**_kwargs: Any) -> Any:
         store.update_run_status(run.id, store.RunStatus.COMPLETED)
@@ -61,6 +68,39 @@ async def test_worker_executes_and_commits_once(
     assert saved.status == "completed"
     assert saved.result == {"run_id": run.id, "status": "completed"}
     assert not await task_worker.run_once("worker-b", db_path=isolated_db)
+
+
+@pytest.mark.asyncio
+async def test_worker_heartbeats_long_workflow_lease(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Long execution cannot be reclaimed after its original lease expires."""
+    run = store.create_run("long worker goal", "standard", "engine", {})
+    store.enqueue_task(
+        run.id,
+        "run.workflow",
+        {},
+        idempotency_key="legacy-long-workflow",
+        db_path=isolated_db,
+    )
+    release = asyncio.Event()
+
+    async def _workflow(**_kwargs: Any) -> Any:
+        await release.wait()
+        store.update_run_status(run.id, store.RunStatus.COMPLETED)
+        if False:
+            yield None
+
+    monkeypatch.setattr(engine_adapter, "run_workflow", _workflow)
+    running = asyncio.create_task(
+        task_worker.run_once(
+            "worker-a", db_path=isolated_db, lease_seconds=0.06
+        )
+    )
+    await asyncio.sleep(0.1)
+    assert store.claim_task("worker-b", db_path=isolated_db) is None
+    release.set()
+    assert await running
 
 
 @pytest.mark.asyncio

@@ -18,6 +18,7 @@ from collections.abc import Coroutine
 from typing import Any
 
 from co_scientist.exceptions import GenerationError
+from co_scientist.models import GenerationMethod
 from co_scientist.nodes.generation.assumptions import generate_with_assumptions
 from co_scientist.nodes.generation.citations import (
     ReferenceIndex,
@@ -313,6 +314,16 @@ async def _finalize_generation(
     creation_iteration = state.get("current_iteration", 0)
     for hyp in all_hypotheses:
         hyp.creation_iteration = creation_iteration
+        if creation_iteration > 0:
+            # Later Supervisor-directed generation is the disclosed research-
+            # expansion technique: prompts already receive meta-review context
+            # and seek underexplored branches. Preserve the underlying method
+            # as provenance before stamping the observable technique.
+            if hyp.generation_method is not None:
+                hyp.enrichments["base_generation_method"] = (
+                    hyp.generation_method.value
+                )
+            hyp.generation_method = GenerationMethod.RESEARCH_EXPANSION
 
     # Run post-generation enrichments (e.g., NVD CVE lookup)
     await _enrich_hypotheses(all_hypotheses, state)

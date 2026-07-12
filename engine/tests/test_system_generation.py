@@ -26,24 +26,26 @@ from tests._llm_fake import install_fake_llm
 
 # The node execution order for one max_iterations=1 run in LLM-only mode
 # (literature_review/reflection are absent -- see tests/test_generator.py's
-# _SIMPLE_NODES). One full pass through generate/review/ranking/
-# deep_verification reaches the orchestrator, which schedules one evolve cycle,
+# _SIMPLE_NODES). One full pass through generate/review/deep_verification/
+# ranking reaches the orchestrator, which schedules one evolve cycle,
 # then a proximity refresh, then terminates (converged) into research_overview.
 # The orchestrator is the loop point that appears before each routed phase.
 _EXPECTED_NODE_SEQUENCE = [
     "supervisor",
     "generate",
     "review",
+    "comprehensive_reflection",
     "safety_screen",
-    "ranking",
     "deep_verification",
+    "ranking",
     "orchestrator",
     "meta_review",
     "evolve",
     "review",
+    "comprehensive_reflection",
     "safety_screen",
-    "ranking",
     "deep_verification",
+    "ranking",
     "orchestrator",
     "proximity",
     "orchestrator",
@@ -135,8 +137,8 @@ async def test_generate_hypotheses_streaming_event_progression(
     assert all(isinstance(h, dict) for h in generate_state["hypotheses"])
 
     # The first "ranking" pass has already recorded tournament matchups.
-    first_ranking_state = events[4][1]
-    assert events[4][0] == "ranking"
+    first_ranking_state = events[6][1]
+    assert events[6][0] == "ranking"
     assert first_ranking_state["tournament_matchups"]
 
     # "meta_review" carries a populated meta_review payload from that

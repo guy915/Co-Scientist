@@ -275,6 +275,9 @@ class WorkflowState(TypedDict):
     tournament_matchups: list[dict[str, Any]]
     """List of tournament matchups with reasoning."""
 
+    pending_ranking_matchups: list[dict[str, Any]]
+    """Current durable tournament's sequentially committed match outcomes."""
+
     evolution_details: list[dict[str, Any]]
     """List of evolution transformations with reasoning."""
 

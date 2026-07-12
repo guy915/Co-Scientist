@@ -75,6 +75,7 @@ def _deserialize_messages(raw: Any) -> list[Any]:
         return list(messages_from_dict(items))
     return items
 
+
 # Runtime handles never serialized; re-injected on restore from the live run.
 _EXCLUDED_RUNTIME_KEYS = frozenset({"progress_callback", "tool_registry"})
 

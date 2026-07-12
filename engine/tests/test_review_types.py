@@ -65,6 +65,6 @@ def test_simulation_review_schema_shape() -> None:
     assert "steps" in props and "failure_points" in props
 
 
-def test_recurrent_review_maps_to_meta_review() -> None:
-    """Recurrent review is the meta-review's cross-review synthesis."""
-    assert prompt_name_for(ReviewType.RECURRENT) == "meta_review"
+def test_recurrent_review_adapts_full_review() -> None:
+    """Recurrent review reuses the full-review schema with growing context."""
+    assert prompt_name_for(ReviewType.RECURRENT) == "full_review"

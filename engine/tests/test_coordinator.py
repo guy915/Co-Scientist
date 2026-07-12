@@ -15,7 +15,7 @@ import pytest
 
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.exceptions import GenerationError
-from co_scientist.models import Hypothesis
+from co_scientist.models import GenerationMethod, Hypothesis
 from co_scientist.nodes.generation import coordinator
 from co_scientist.nodes.generation.coordinator import generate_hypotheses
 from tests._state import make_hypothesis, make_state
@@ -331,6 +331,31 @@ async def test_result_dict_shape_and_message_format(
     assert result["message"] == (
         "Generated 2 hypotheses (1 tool-based, 1 debate-with-literature)"
     )
+
+
+async def test_later_generation_is_disclosed_as_research_expansion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Later Supervisor cycles expose research expansion and base provenance."""
+    tools = _ToolsRecorder([])
+    hypothesis = make_hypothesis(text="underexplored branch")
+    hypothesis.generation_method = GenerationMethod.DEBATE
+    debate = _DebateRecorder([hypothesis], [])
+    _install(monkeypatch, tools, debate)
+
+    state = make_state(
+        supervisor_guidance={"focus": "seek an underexplored branch"},
+        initial_hypotheses_count=1,
+        current_iteration=2,
+        mcp_available=False,
+        enable_tool_calling_generation=False,
+    )
+    result = await generate_hypotheses(state)
+
+    expanded = result["hypotheses"].items[0]
+    assert expanded.creation_iteration == 2
+    assert expanded.generation_method == GenerationMethod.RESEARCH_EXPANSION
+    assert expanded.enrichments["base_generation_method"] == "debate"
 
 
 async def test_progress_callback_emits_start_and_complete(

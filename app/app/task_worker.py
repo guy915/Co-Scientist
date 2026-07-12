@@ -10,7 +10,7 @@ import socket
 import uuid
 from collections.abc import Sequence
 
-from app import engine_adapter, store
+from app import engine_adapter, engine_tasks, store
 from app.logging_setup import run_log_context
 from app.notifications import deliver_completion_notification
 from app.store import RunStatus, ScientificTask
@@ -46,26 +46,31 @@ def enqueue_run_workflow(
     db_path: str | None = None,
 ) -> ScientificTask:
     """Enqueue one idempotent workflow attempt for a run."""
+    if resume and store.resume_run_tasks(run_id, db_path=db_path):
+        resumed = [
+            task
+            for task in store.list_tasks(run_id, db_path=db_path)
+            if task.status == "queued" and task.task_type.startswith("engine.")
+        ]
+        if resumed:
+            return resumed[0]
     checkpoint = store.get_latest_checkpoint(run_id, db_path=db_path)
-    checkpoint_seq = int(checkpoint["seq"]) if checkpoint else 0
-    return store.enqueue_task(
-        run_id,
-        _WORKFLOW_TASK,
-        {
-            "force_provider": force_provider,
-            "resume": resume,
-            "checkpoint_seq": checkpoint_seq,
-        },
-        idempotency_key=f"workflow:{checkpoint_seq}:{int(resume)}",
-        priority=100,
-        provenance={
-            "behavior": "reconstructed",
-            "scheduler": "durable-sqlite-worker-v1",
-        },
-        budget={"lease_seconds": 300},
-        max_attempts=3,
-        db_path=db_path,
-    )
+    if resume and checkpoint:
+        checkpoint_seq = int(checkpoint["seq"])
+        recorded_successor = checkpoint["state"].get("resume_successor")
+        task_type = str(recorded_successor or "") or (
+            f"{engine_tasks.NODE_TASK_PREFIX}orchestrator"
+        )
+        return store.enqueue_task(
+            run_id,
+            task_type,
+            {"checkpoint_seq": checkpoint_seq},
+            idempotency_key=f"{task_type}:{checkpoint_seq}",
+            priority=100,
+            provenance={"scheduled_by": "resume"},
+            db_path=db_path,
+        )
+    return engine_tasks.enqueue_bootstrap(run_id, db_path=db_path)
 
 
 async def _execute_workflow_task(
@@ -100,17 +105,35 @@ async def _execute_workflow_task(
 async def run_once(
     worker_id: str,
     *,
+    run_id: str | None = None,
     db_path: str | None = None,
     lease_seconds: float = 300.0,
 ) -> bool:
     """Lease and execute one ready task, returning whether work was found."""
     task = store.claim_task(
-        worker_id, lease_seconds=lease_seconds, db_path=db_path
+        worker_id,
+        lease_seconds=lease_seconds,
+        run_id=run_id,
+        db_path=db_path,
     )
     if task is None:
         return False
+    stop_heartbeat = asyncio.Event()
+    heartbeat = asyncio.create_task(
+        _heartbeat_lease(
+            task,
+            worker_id,
+            stop_heartbeat,
+            db_path=db_path,
+            lease_seconds=lease_seconds,
+        )
+    )
     try:
-        if task.task_type == _WORKFLOW_TASK:
+        if task.task_type.startswith("engine."):
+            result = await engine_tasks.execute_engine_task(
+                task, db_path=db_path
+            )
+        elif task.task_type == _WORKFLOW_TASK:
             result = await _execute_workflow_task(task, db_path=db_path)
         elif task.task_type == _EMAIL_TASK:
             result = await deliver_completion_notification(task.inputs)
@@ -135,11 +158,58 @@ async def run_once(
         )
         logger.exception("Task %s failed", task.id)
     else:
-        if not store.complete_task(
-            task.id, worker_id, result, db_path=db_path
-        ):
+        if not store.complete_task(task.id, worker_id, result, db_path=db_path):
             logger.warning("Task %s lost its lease before completion", task.id)
+    finally:
+        stop_heartbeat.set()
+        await heartbeat
     return True
+
+
+async def run_run_until_idle(
+    run_id: str,
+    worker_id: str,
+    *,
+    db_path: str | None = None,
+    lease_seconds: float = 300.0,
+) -> None:
+    """Consume a run's task chain until no ready task remains."""
+    while True:
+        worked = await run_once(
+            worker_id,
+            run_id=run_id,
+            db_path=db_path,
+            lease_seconds=lease_seconds,
+        )
+        if not worked:
+            return
+
+
+async def _heartbeat_lease(
+    task: ScientificTask,
+    worker_id: str,
+    stop: asyncio.Event,
+    *,
+    db_path: str | None,
+    lease_seconds: float,
+) -> None:
+    """Renew periodically until execution finishes or ownership is lost."""
+    interval = max(0.05, lease_seconds / 3)
+    while True:
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=interval)
+            return
+        except TimeoutError:
+            if not store.renew_task_lease(
+                task.id,
+                worker_id,
+                lease_seconds,
+                db_path=db_path,
+            ):
+                logger.warning(
+                    "Task %s lease heartbeat lost ownership", task.id
+                )
+                return
 
 
 async def run_forever(
@@ -166,9 +236,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--worker-id", default=_worker_id())
     parser.add_argument("--poll-seconds", type=float, default=0.5)
     args = parser.parse_args(argv)
-    asyncio.run(
-        run_forever(args.worker_id, poll_seconds=args.poll_seconds)
-    )
+    asyncio.run(run_forever(args.worker_id, poll_seconds=args.poll_seconds))
     return 0
 
 
