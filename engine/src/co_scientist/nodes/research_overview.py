@@ -212,9 +212,7 @@ def _validate_research_contacts(
             {
                 **candidate,
                 "expertise": str(raw.get("expertise") or "").strip(),
-                "justification": str(
-                    raw.get("justification") or ""
-                ).strip(),
+                "justification": str(raw.get("justification") or "").strip(),
             }
         )
         seen.add(candidate_id)
@@ -271,9 +269,7 @@ def _validate_knowledge_base(
         if not isinstance(raw_ids, list):
             continue
         evidence_ids = [
-            item
-            for item in raw_ids
-            if isinstance(item, str) and item in corpus
+            item for item in raw_ids if isinstance(item, str) and item in corpus
         ]
         if not evidence_ids:
             continue

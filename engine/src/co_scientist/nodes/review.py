@@ -55,6 +55,25 @@ from co_scientist.state import WorkflowState
 logger = logging.getLogger(__name__)
 
 
+def _apply_initial_review_gate(
+    hypotheses: list[Hypothesis], reviews: list[HypothesisReview]
+) -> None:
+    """Classify ideas that fail Google's early accuracy/novelty screen."""
+    for hypothesis, review in zip(hypotheses, reviews, strict=True):
+        soundness = review.scores.get("scientific_soundness", 0)
+        novelty = review.scores.get("novelty", 0)
+        inaccurate = soundness <= 3
+        non_novel = novelty <= 3
+        if inaccurate and non_novel:
+            hypothesis.review_disposition = "inaccurate_and_non_novel"
+        elif inaccurate:
+            hypothesis.review_disposition = "inaccurate"
+        elif non_novel:
+            hypothesis.review_disposition = "non_novel"
+        else:
+            hypothesis.review_disposition = "viable"
+
+
 async def review_single_hypothesis(
     hypothesis_text: str,
     research_goal: str,
@@ -386,6 +405,7 @@ async def review_node(state: WorkflowState) -> dict[str, Any]:
 
     _validate_reviews(reviews)
     _attach_reviews_to_hypotheses(unreviewed, reviews)
+    _apply_initial_review_gate(unreviewed, reviews)
 
     logger.info(
         "Completed %s reviews using %s strategy", len(reviews), strategy_name

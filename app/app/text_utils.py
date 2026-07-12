@@ -26,9 +26,7 @@ def hypothesis_title(h: dict[str, Any]) -> str:
 
 def hypothesis_id(h: dict[str, Any]) -> str:
     """Canonical hypothesis id, falling back to title."""
-    return str(
-        h.get("id") or h.get("hypothesis_id") or hypothesis_title(h)
-    )
+    return str(h.get("id") or h.get("hypothesis_id") or hypothesis_title(h))
 
 
 def first_sentence(text: str) -> str:

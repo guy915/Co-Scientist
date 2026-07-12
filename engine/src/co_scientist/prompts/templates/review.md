@@ -35,6 +35,10 @@ Evaluate the hypothesis on these dimensions (score 1-10 for each):
 
 ## Scoring Guidelines
 
+This is also an initial viability gate. Explicitly use scores 1-3 for a
+hypothesis that is scientifically inaccurate or already established/non-novel;
+downstream ranking excludes those outcomes rather than rewarding polish.
+
 **CRITICAL**: Each hypothesis is unique and should receive DIFFERENT scores based on its specific strengths and weaknesses. Do NOT use the same scores for different hypotheses. Be DISCRIMINATING in your scoring - differentiate between good and excellent work.
 
 **Use the full 1-10 scale:**

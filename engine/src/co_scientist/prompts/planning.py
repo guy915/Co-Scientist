@@ -73,8 +73,6 @@ def get_research_overview_prompt(
     )
 
 
-
-
 def _format_lit_review_description(
     mcp_available: bool, pubmed_available: bool
 ) -> str:

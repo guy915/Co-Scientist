@@ -61,9 +61,9 @@ async def test_single_iteration_pipeline_updates_cross_node_state(
 ) -> None:
     """A max_iterations=1 run touches every node with consistent state.
 
-    Covers the full cycle: supervisor -> generate -> review -> ranking ->
-    deep_verification -> meta_review -> evolve -> review -> ranking ->
-    deep_verification -> proximity -> research_overview.
+    Covers the full cycle: supervisor -> generate -> review -> verification ->
+    ranking -> meta_review -> evolve -> review -> verification -> ranking ->
+    proximity -> research_overview.
     """
     install_fake_llm(monkeypatch)
     gen = HypothesisGenerator(

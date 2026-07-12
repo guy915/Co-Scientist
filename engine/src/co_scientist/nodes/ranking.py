@@ -14,7 +14,7 @@ from co_scientist.constants import (
     THINKING_MAX_TOKENS,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, rank_by_elo
+from co_scientist.models import Hypothesis
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.nodes.ranking_elo import (
     calculate_elo_update as calculate_elo_update,
@@ -518,7 +518,17 @@ async def _finalize_ranking_result(
     """
     # Sort hypotheses by Elo rating (highest first), with score then text as
     # deterministic tiebreakers when Elo ratings are equal.
-    hypotheses = rank_by_elo(hypotheses)
+    hypotheses = sorted(
+        hypotheses,
+        key=lambda item: (
+            item.deep_verification_verdict == "undermined"
+            or item.review_disposition
+            in {"inaccurate", "non_novel", "inaccurate_and_non_novel"},
+            -item.elo_rating,
+            -item.score,
+            item.text,
+        ),
+    )
 
     logger.info("Tournament complete. Top Elo: %s", hypotheses[0].elo_rating)
     logger.info("Top hypothesis: %s...", hypotheses[0].text[:100])
@@ -558,6 +568,13 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         Dictionary with updated state fields (hypotheses sorted by Elo)
     """
     hypotheses = state["hypotheses"]
+    eligible = [
+        hypothesis
+        for hypothesis in hypotheses
+        if hypothesis.deep_verification_verdict != "undermined"
+        and hypothesis.review_disposition
+        not in {"inaccurate", "non_novel", "inaccurate_and_non_novel"}
+    ]
     logger.info(
         "Starting ranking tournament with %s hypotheses", len(hypotheses)
     )
@@ -567,7 +584,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     # Edge case: a tournament requires at least two hypotheses to pair up.
     # With fewer, skip the tournament entirely and pass the list through
     # unchanged (Elo ratings stay at their prior/initial values).
-    if len(hypotheses) < 2:
+    if len(eligible) < 2:
         logger.warning("Need at least 2 hypotheses for tournament")
         return {"hypotheses": hypotheses}
 
@@ -578,11 +595,11 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         meta_review,
         run_setup_guidance,
         run_focus_guidance,
-    ) = await _prepare_ranking_round(state, hypotheses)
+    ) = await _prepare_ranking_round(state, eligible)
 
     matchup_details, total_llm_calls = await _run_tournament_matchups(
         state,
-        hypotheses,
+        eligible,
         tournament_rounds,
         supervisor_guidance,
         tool_registry,

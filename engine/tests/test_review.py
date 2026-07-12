@@ -23,9 +23,36 @@ from typing import Any
 import pytest
 
 from co_scientist.constants import COMPARATIVE_BATCH_THRESHOLD
+from co_scientist.models import HypothesisReview
 from co_scientist.nodes import review
 from co_scientist.nodes.review import review_node
 from tests._state import make_hypothesis, make_state
+
+
+def test_initial_review_gate_classifies_accuracy_and_novelty_failures() -> None:
+    """Low soundness/novelty scores become explicit tournament exclusions."""
+    hypotheses = [make_hypothesis(text=f"idea {index}") for index in range(4)]
+    scores = [(2, 8), (8, 2), (2, 2), (8, 8)]
+    reviews = [
+        HypothesisReview(
+            review_summary="summary",
+            scores={"scientific_soundness": soundness, "novelty": novelty},
+            safety_ethical_concerns="none",
+            detailed_feedback={},
+            constructive_feedback="feedback",
+            overall_score=5,
+        )
+        for soundness, novelty in scores
+    ]
+
+    review._apply_initial_review_gate(hypotheses, reviews)
+
+    assert [hypothesis.review_disposition for hypothesis in hypotheses] == [
+        "inaccurate",
+        "non_novel",
+        "inaccurate_and_non_novel",
+        "viable",
+    ]
 
 
 def _stub_llm(

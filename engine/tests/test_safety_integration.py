@@ -90,9 +90,7 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
     )
 
     # --- Verify safety_screen removed it ---
-    safety_events = [
-        (n, s) for n, s in events if n == "safety_screen"
-    ]
+    safety_events = [(n, s) for n, s in events if n == "safety_screen"]
     assert len(safety_events) >= 1
     for _, ss_state in safety_events:
         pool_ids = {h["id"] for h in ss_state["hypotheses"]}
@@ -114,9 +112,7 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
 
     # --- Verify it never appears in the final hypothesis pool ---
     final_ids = {h["id"] for h in final_state["hypotheses"]}
-    assert UNSAFE_ID not in final_ids, (
-        "Unsafe hypothesis present in final pool"
-    )
+    assert UNSAFE_ID not in final_ids, "Unsafe hypothesis present in final pool"
     final_texts = {h["text"] for h in final_state["hypotheses"]}
     assert UNSAFE_TEXT not in final_texts, (
         "Unsafe hypothesis text present in final pool"

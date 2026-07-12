@@ -329,9 +329,12 @@ def test_completion_notification_is_opt_in_and_durable(
             },
         )
         run_id = created.json()["id"]
-        assert client.post(
-            f"/api/runs/{run_id}/start", headers=headers, json={}
-        ).status_code == 200
+        assert (
+            client.post(
+                f"/api/runs/{run_id}/start", headers=headers, json={}
+            ).status_code
+            == 200
+        )
         _wait_status(
             client,
             run_id,

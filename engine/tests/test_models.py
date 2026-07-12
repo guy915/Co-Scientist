@@ -157,6 +157,7 @@ def test_hypothesis_to_dict_shape_and_computed_fields() -> None:
         "reflection_notes",
         "deep_verification_probes",
         "deep_verification_verdict",
+        "review_disposition",
         "safety_status",
         "generation_method",
         "debate_id",

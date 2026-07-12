@@ -50,7 +50,9 @@ async def test_later_cycle_runs_recurrent_review_with_tournament_context(
     await cr.comprehensive_reflection_node(state)
 
     assert fake.await_count == 1
-    prompt = fake.await_args.kwargs["prompt"]
+    call = fake.await_args
+    assert call is not None
+    prompt = call.kwargs["prompt"]
     assert "recurrent/tournament review" in prompt
     assert "1337" in prompt
     assert hypothesis.enrichments["recurrent_review_iteration"] == 2

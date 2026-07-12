@@ -262,7 +262,8 @@ def build_report_payload(
         "research_overview": research_overview or {},
         "knowledge_base": knowledge_base or [],
         "agent_insights": agent_insights or {},
-        "idea_buckets": idea_buckets or {
+        "idea_buckets": idea_buckets
+        or {
             "high_potential": [],
             "non_viable": [],
         },

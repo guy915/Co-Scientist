@@ -254,6 +254,52 @@ async def test_each_round_selects_from_committed_current_elo(
     assert hypotheses[0].win_count == 2
 
 
+async def test_undermined_hypothesis_cannot_enter_tournament(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A failed fundamental verification remains auditable but never pairs."""
+    undermined = make_hypothesis(
+        text="invalidated mechanism",
+        deep_verification_verdict="undermined",
+        elo_rating=1800,
+    )
+    non_novel = make_hypothesis(
+        text="already established mechanism",
+        review_disposition="non_novel",
+        elo_rating=1700,
+    )
+    eligible_a = make_hypothesis(text="supported mechanism alpha")
+    eligible_b = make_hypothesis(text="supported mechanism beta")
+    seen_prompts: list[str] = []
+
+    async def fake(*, prompt: str, **_: Any) -> dict[str, Any]:
+        seen_prompts.append(prompt)
+        return {
+            "winner": "a",
+            "decision_summary": "A wins.",
+            "confidence_level": "High",
+        }
+
+    monkeypatch.setattr(ranking, "call_llm_json", fake)
+    state = make_state(
+        hypotheses=[undermined, non_novel, eligible_a, eligible_b],
+        tournament_pairs=2,
+    )
+
+    result = await ranking_node(state)
+
+    assert all("invalidated mechanism" not in prompt for prompt in seen_prompts)
+    assert all(
+        "already established mechanism" not in prompt for prompt in seen_prompts
+    )
+    assert undermined.total_matches == 0
+    assert non_novel.total_matches == 0
+    assert {hypothesis.id for hypothesis in result["hypotheses"][-2:]} == {
+        undermined.id,
+        non_novel.id,
+    }
+
+
 # --- match_tier: deterministic decisiveness classification ------------------
 
 

@@ -141,6 +141,8 @@ class Hypothesis:
     reflection_notes: str | None = None
     deep_verification_probes: list[dict[str, Any]] = field(default_factory=list)
     deep_verification_verdict: str | None = None
+    # Initial peer-review gate used to keep flawed/non-novel ideas out of Elo.
+    review_disposition: str | None = field(default=None, compare=False)
     # 'debate' or 'literature_tools'
     generation_method: GenerationMethod | None = None
     debate_id: None | (
@@ -205,6 +207,7 @@ class Hypothesis:
             "reflection_notes": self.reflection_notes,
             "deep_verification_probes": self.deep_verification_probes,
             "deep_verification_verdict": self.deep_verification_verdict,
+            "review_disposition": self.review_disposition,
             "safety_status": self.safety_status,
             "generation_method": generation_method,
             "debate_id": self.debate_id,

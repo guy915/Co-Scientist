@@ -184,9 +184,7 @@ def ground_hypotheses(
         reason_by_id[hyp_id] = gate.reason
         if gate.decision is GateDecision.BLOCK:
             blocked.add(hyp_id)
-            failed_claims = (
-                gate.contradicted_claims or gate.unsupported_claims
-            )
+            failed_claims = gate.contradicted_claims or gate.unsupported_claims
             store.add_safety_decision(
                 run_id,
                 stage="claim_gate",

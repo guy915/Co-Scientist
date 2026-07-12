@@ -359,8 +359,11 @@ async def test_launch_resume_drives_engine_resume_end_to_end(
     assert pre_resume_seqs <= set(all_seqs)
     assert len(all_seqs) == len(set(all_seqs))  # unique
     assert all_seqs == sorted(all_seqs)  # monotonic
-    # The configured launcher completes its provider path exactly once.
-    assert store.get_latest_report(run.id) is not None
+    # The launcher reaches finalization exactly once. This fixture deliberately
+    # supplies no evidence, so the claim-level release gate must block a report
+    # rather than treating an ungrounded run as successful.
+    assert store.get_latest_report(run.id) is None
     final = store.get_run(run.id)
     assert final is not None
-    assert final.status == store.RunStatus.COMPLETED.value
+    assert final.status == store.RunStatus.BLOCKED.value
+    assert "claim-level evidence release gate" in (final.error or "")

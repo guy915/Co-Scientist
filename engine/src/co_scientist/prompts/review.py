@@ -42,6 +42,7 @@ def get_deep_verification_prompt(
     research_goal: str,
     hypothesis_text: str,
     tool_registry: Any | None = None,
+    evidence_context: str = "No retrieved evidence available.",
 ) -> tuple[str, dict[str, Any] | None]:
     """Get the deep-verification (probing questions) prompt and schema."""
     return _build_prompt(
@@ -49,6 +50,7 @@ def get_deep_verification_prompt(
         {
             "research_goal": research_goal,
             "hypothesis_text": hypothesis_text,
+            "evidence_context": evidence_context,
         },
         tool_registry=tool_registry,
     )

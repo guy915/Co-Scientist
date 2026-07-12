@@ -98,6 +98,7 @@ def _hypothesis_state_updates(
     novelty: float | None,
     cluster_id: str | None,
     safety_status: str | None,
+    status: str | None,
 ) -> list[tuple[str, Any]]:
     """Return the (SQL fragment, value) pairs for the provided fields.
 
@@ -113,6 +114,7 @@ def _hypothesis_state_updates(
         (novelty is not None, "novelty_score=?", novelty),
         (cluster_id is not None, "cluster_id=?", cluster_id),
         (safety_status is not None, "safety_status=?", safety_status),
+        (status is not None, "status=?", status),
     )
     return [
         (fragment, value) for active, fragment, value in candidates if active
@@ -128,6 +130,7 @@ def update_hypothesis_state(
     novelty: float | None = None,
     cluster_id: str | None = None,
     safety_status: str | None = None,
+    status: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
@@ -145,6 +148,7 @@ def update_hypothesis_state(
         cluster_id: New proximity cluster identifier to set.
         safety_status: New per-hypothesis safety status (e.g. 'allow',
             'redact', 'blocked') from the pre-tournament safety review.
+        status: New lifecycle status, such as active or review-rejected.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
@@ -157,6 +161,7 @@ def update_hypothesis_state(
         novelty=novelty,
         cluster_id=cluster_id,
         safety_status=safety_status,
+        status=status,
     )
     sets = [fragment for fragment, _ in updates] + ["updated_at=?"]
     params: list[Any] = [value for _, value in updates] + [

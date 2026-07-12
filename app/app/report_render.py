@@ -248,6 +248,8 @@ def _exclude_unsafe_hypotheses(
     unverified = _unverified_hypothesis_ids(run_id, db_path)
     safe: list[dict[str, Any]] = []
     for hyp in hyps:
+        if hyp.get("status") == "rejected":
+            continue
         # Faithful publication gate: every material claim must be supported
         # before the hypothesis can enter synthesis. Explicit mock workflows
         # remain compatibility fixtures and are never credited as science.
@@ -356,8 +358,7 @@ def _build_report_content(
         meta_review=meta_review,
         research_overview=research_overview,
         knowledge_base=(
-            synthesized_topics
-            or _knowledge_base_topics(hyps, claim_edges)
+            synthesized_topics or _knowledge_base_topics(hyps, claim_edges)
         ),
         agent_insights=_agent_insights(hyps, claim_edges, meta_review),
         idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
@@ -480,9 +481,7 @@ async def finalize_report(
             run_id, RunStatus.BLOCKED, error=reason, db_path=db_path
         )
         logger.warning("Report finalize blocked for run %s: %s", run_id, reason)
-        yield await emit(
-            "status", {"status": "blocked", "reason": reason}
-        )
+        yield await emit("status", {"status": "blocked", "reason": reason})
         return
 
     saved = store.save_report(run_id, payload, markdown, db_path=db_path)
