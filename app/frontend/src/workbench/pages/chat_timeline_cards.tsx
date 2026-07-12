@@ -8,7 +8,7 @@
  * import sites keep a single entry point.
  */
 export {ChatBubble, type ChatEntry} from './chat_timeline_bubble';
-export {referenceSetupTitle, RunSpecCard} from './chat_timeline_run_spec_card';
+export {RunSpecCard} from './chat_timeline_run_spec_card';
 export {
   StartedSessionCard,
   type StartedSession,

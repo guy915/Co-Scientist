@@ -1,10 +1,8 @@
 import {type Dispatch, type FormEvent, type SetStateAction} from 'react';
 import {inferRunSpec, type InferredRunSpec, reviseRunSpec} from '../run_spec';
 import {copyText} from '@/lib/clipboard';
-import {
-  type ChatEntry,
-  referenceSetupTitle,
-} from '../pages/chat_timeline_cards';
+import {conciseTitle} from '@/lib/text';
+import {type ChatEntry} from '../pages/chat_timeline_cards';
 import {type ToastState} from './use_toast';
 import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {promoteDraftToRun} from './chat_session_start_run';
@@ -43,7 +41,7 @@ function reviseDraftFromMessage({
   );
   emitDiagnosticEvent({
     stage: 'CHAT',
-    run: referenceSetupTitle(next.goal),
+    run: conciseTitle(next.goal),
     payload: {event: 'draft_revised'},
   });
 }
@@ -63,7 +61,7 @@ function createDraftFromMessage({
   stageDraftSpec(next, sentAt + 0.001);
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
-    run: referenceSetupTitle(next.goal),
+    run: conciseTitle(next.goal),
     payload: {event: 'draft_created'},
   });
 }
@@ -131,7 +129,7 @@ function cancelDraftSpec({
   setError: (message: string | null) => void;
   setToast: (value: string | ToastState | null) => void;
 }) {
-  const title = draft ? referenceSetupTitle(draft.spec.goal) : undefined;
+  const title = draft ? conciseTitle(draft.spec.goal) : undefined;
   setInput('');
   clearSessionState();
   setMessages([]);
@@ -160,7 +158,7 @@ function editPlan({
   focusComposer();
   emitDiagnosticEvent({
     stage: 'CHAT',
-    run: referenceSetupTitle(spec.goal),
+    run: conciseTitle(spec.goal),
     payload: {event: 'plan_edit_requested'},
   });
 }
@@ -206,7 +204,7 @@ async function copyMessagePrompt({
   });
   emitDiagnosticEvent({
     stage: 'CHAT',
-    run: referenceSetupTitle(promptText),
+    run: conciseTitle(promptText),
     payload: {event: 'prompt_copied'},
   });
 }
