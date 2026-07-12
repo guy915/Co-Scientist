@@ -135,6 +135,20 @@ def list_tasks(
     return [_decode(row) for row in rows]
 
 
+def get_task(
+    task_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> ScientificTask | None:
+    """Return one task by identifier, or None when it does not exist."""
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            "SELECT * FROM scientific_tasks WHERE id=?", (task_id,)
+        ).fetchone()
+    return _decode(row) if row is not None else None
+
+
 def _dependencies_complete(
     conn: sqlite3.Connection, task: ScientificTask
 ) -> bool:

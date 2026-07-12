@@ -94,6 +94,7 @@ from app.store.tasks import (
     complete_task,
     enqueue_task,
     fail_task,
+    get_task,
     list_tasks,
 )
 
@@ -127,6 +128,7 @@ __all__ = [
     "get_pending_steering",
     "get_run",
     "get_run_metrics",
+    "get_task",
     "has_checkpoint",
     "latest_event_seq",
     "list_citations",

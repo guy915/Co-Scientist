@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sqlite3
 from typing import Any
 
@@ -50,7 +51,7 @@ from fastapi.responses import (
     StreamingResponse,
 )
 
-from app import engine_adapter, human_input, qa, run_corpus, store
+from app import engine_adapter, human_input, qa, run_corpus, store, task_worker
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
 from app.run_modes import CANONICAL_RUN_MODE
@@ -337,6 +338,26 @@ async def start_run(
     """
     run = _run_or_404(run_id)
     _check_startable(run)
+    effective_provider = req.force_provider or run.provider
+
+    # Real scientific runs are delivered through the durable worker queue.
+    # Mock fixtures retain the historical background path and are explicitly
+    # excluded from fidelity claims.
+    if effective_provider == "engine":
+        store.update_run_status(run_id, RunStatus.QUEUED)
+        store.append_event(run_id, "lifecycle", {"event": "queued"})
+        task = task_worker.enqueue_run_workflow(
+            run_id, force_provider="engine"
+        )
+        if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+            # Local compatibility mode consumes the same durable lease. A
+            # production worker service runs ``python -m app.task_worker`` and
+            # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
+            background.add_task(
+                task_worker.run_once, f"embedded-api:{os.getpid()}"
+            )
+        return {"id": run_id, "status": "queued", "task_id": task.id}
+
     handle = await _reserve_active_slot(run_id)
 
     # Transition draft -> queued before returning; the runner moves the run
