@@ -190,7 +190,7 @@ def _wait_status(
 def completed_run(cli_server: str) -> tuple[str, str, str]:
     """Return (base, run_id, client_id) for one completed express run."""
     client_id = "reads"
-    run_id = _create(cli_server, client_id, tier="express")
+    run_id = _create(cli_server, client_id, tier="standard")
     _start(cli_server, run_id, client_id)
     _wait_status(cli_server, run_id, "completed", client_id)
     return cli_server, run_id, client_id
@@ -244,7 +244,7 @@ def test_create_json_with_config(
         "create",
         "Config goal",
         "--tier",
-        "express",
+        "standard",
         "--focus",
         "prefer_novelty",
         "--json",
@@ -253,7 +253,7 @@ def test_create_json_with_config(
     assert code == 0
     data = json.loads(capsys.readouterr().out)
     assert data["status"] == "draft"
-    assert data["config"]["tier"] == "express"
+    assert data["config"]["tier"] == "standard"
     assert data["config"]["focus"] == "prefer_novelty"
 
 
@@ -298,7 +298,7 @@ def test_show_summary_and_json(
 def test_start_and_watch_to_terminal(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    run_id = _create(cli_server, "watch-client", tier="express")
+    run_id = _create(cli_server, "watch-client", tier="standard")
     assert (
         _invoke(cli_server, "runs", "start", run_id, client_id="watch-client")
         == 0
@@ -516,7 +516,7 @@ def test_pause_then_resume_cycle(
 ) -> None:
     # A multi-iteration run stays active for seconds, so the pause request
     # lands well inside its run window.
-    run_id = _create(cli_server, "pause-client", tier="ultra")
+    run_id = _create(cli_server, "pause-client", tier="advanced")
     _start(cli_server, run_id, "pause-client")
     assert (
         _invoke(cli_server, "runs", "pause", run_id, client_id="pause-client")
@@ -536,7 +536,7 @@ def test_pause_then_resume_cycle(
 def test_cancel_active_run(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    run_id = _create(cli_server, "cancel-client", tier="ultra")
+    run_id = _create(cli_server, "cancel-client", tier="advanced")
     _start(cli_server, run_id, "cancel-client")
     assert (
         _invoke(cli_server, "runs", "cancel", run_id, client_id="cancel-client")

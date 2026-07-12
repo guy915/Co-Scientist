@@ -106,26 +106,14 @@ describe('draftTimelineItems', () => {
     expect(items).toHaveLength(1);
     renderItems(items);
 
-    fireEvent.click(screen.getByLabelText(/Prefer novelty/i));
-    expect(args.setDraft).toHaveBeenCalled();
-    const focusUpdater = vi.mocked(args.setDraft).mock
-      .calls[0][0] as unknown as (
-      current: SpecStage | null,
-    ) => SpecStage | null;
-    expect(focusUpdater(draft)).toEqual({
-      ...draft,
-      spec: {...spec, focus: 'prefer_novelty'},
-    });
-    expect(focusUpdater(null)).toBeNull();
-
-    fireEvent.click(screen.getByLabelText(/Extended/i));
+    fireEvent.click(screen.getByLabelText(/Advanced Run/i));
     const tierUpdater = vi.mocked(args.setDraft).mock
-      .calls[1][0] as unknown as (
+      .calls[0][0] as unknown as (
       current: SpecStage | null,
     ) => SpecStage | null;
     expect(tierUpdater(draft)).toEqual({
       ...draft,
-      spec: {...spec, tier: 'extended'},
+      spec: {...spec, tier: 'advanced'},
     });
 
     fireEvent.click(screen.getByLabelText('Edit research plan'));
@@ -148,7 +136,7 @@ describe('draftTimelineItems', () => {
 });
 
 describe('confirmedSpecTimelineItems', () => {
-  it('renders read-only with edit/retry wired, and inert focus/tier/cancel/start no-ops', () => {
+  it('renders read-only with edit/retry and inert tier/cancel/start no-ops', () => {
     const spec = makeSpec({goal: 'Confirmed goal'});
     const args = baseArgs({confirmed: {spec, createdAt: 9}});
     const items = buildTimelineItems(args);
@@ -165,16 +153,14 @@ describe('confirmedSpecTimelineItems', () => {
     fireEvent.click(screen.getByLabelText('Retry response'));
     expect(args.stageDraftSpec).toHaveBeenCalledWith(spec);
 
-    // The locked card's focus/tier/cancel handlers are inert no-ops that
+    // The locked card's tier/cancel handlers are inert no-ops that
     // can't be reached through disabled UI controls; invoke them directly
     // via the rendered element's props to cover their bodies.
     const cardElement = items[0].node as ReactElement<{
-      onFocusChange: (focus: string) => void;
       onTierChange: (tier: string) => void;
       onCancel: () => void;
       onStart: () => void;
     }>;
-    expect(() => cardElement.props.onFocusChange('balance')).not.toThrow();
     expect(() => cardElement.props.onTierChange('standard')).not.toThrow();
     expect(() => cardElement.props.onCancel()).not.toThrow();
     expect(() => cardElement.props.onStart()).not.toThrow();

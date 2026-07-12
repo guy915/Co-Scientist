@@ -14,7 +14,7 @@ import uuid
 from typing import Any
 
 from app.store.checkpoints import has_checkpoint
-from app.store.db import _now, _use_conn, connect
+from app.store.db import _now, _use_conn, connect, transaction
 from app.store.events import _append_event
 from app.store.models import (
     TERMINAL_STATUSES,
@@ -118,6 +118,57 @@ def get_run(
             "SELECT * FROM runs WHERE id = ?", (run_id,)
         ).fetchone()
         return _row_to_run(row) if row else None
+
+
+def reserve_run_capacity(
+    run_id: str,
+    *,
+    profile: str,
+    client_id: str,
+    limit: int,
+    db_path: str | None = None,
+) -> bool:
+    """Atomically reserve one Standard/Advanced concurrency slot.
+
+    Args:
+        run_id: Draft run to transition to queued.
+        profile: Faithful run mode whose active rows consume the quota.
+        client_id: Scientist ownership scope.
+        limit: Maximum concurrent runs of this mode for the scientist.
+        db_path: Optional override for the SQLite database path.
+
+    Returns:
+        True when the slot was reserved and the run queued; False when the
+        quota was already full or the run was no longer startable.
+    """
+    active = (
+        RunStatus.QUEUED.value,
+        RunStatus.RUNNING.value,
+        RunStatus.SYNTHESIZING.value,
+    )
+    with transaction(db_path) as conn:
+        count = conn.execute(
+            "SELECT COUNT(*) FROM runs WHERE client_id=? AND profile=? "
+            "AND status IN (?,?,?) AND id!=?",
+            (client_id, profile, *active, run_id),
+        ).fetchone()[0]
+        if int(count) >= limit:
+            return False
+        now = _now()
+        changed = conn.execute(
+            "UPDATE runs SET status=?, updated_at=?, completed_at=NULL, "
+            "error=NULL WHERE id=? AND status IN (?,?,?,?)",
+            (
+                RunStatus.QUEUED.value,
+                now,
+                run_id,
+                RunStatus.DRAFT.value,
+                RunStatus.FAILED.value,
+                RunStatus.BLOCKED.value,
+                RunStatus.CANCELLED.value,
+            ),
+        ).rowcount
+    return bool(changed)
 
 
 def run_exists(run_id: str, db_path: str | None = None) -> bool:

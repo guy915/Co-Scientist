@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -21,7 +23,67 @@ def test_create_run_defaults_run_mode() -> None:
     c = _client()
     res = c.post("/api/runs", json={"research_goal": "x"})
     assert res.status_code == 200
-    assert res.json()["run_mode"] == "default"
+    assert res.json()["run_mode"] == "standard"
+
+
+@pytest.mark.parametrize("legacy", ["express", "extended", "ultra"])
+def test_create_run_rejects_non_faithful_tiers(legacy: str) -> None:
+    """Legacy clone tiers are migration aliases, not new product choices."""
+    client = _client()
+    response = client.post(
+        "/api/runs", json={"research_goal": "x", "tier": legacy}
+    )
+    assert response.status_code == 422
+
+
+def test_standard_and_advanced_concurrency_limits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Server atomically enforces three Standard and one Advanced run."""
+    # The fixture supplies pytest.MonkeyPatch at runtime; keeping the test
+    # client worker disabled leaves queued rows occupying their durable slots.
+    monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
+    client = _client()
+    headers = {"X-Client-ID": "quota-scientist"}
+
+    standard_ids = [
+        client.post(
+            "/api/runs",
+            headers=headers,
+            json={"research_goal": f"Standard {index}", "tier": "standard"},
+        ).json()["id"]
+        for index in range(4)
+    ]
+    for run_id in standard_ids[:3]:
+        response = client.post(
+            f"/api/runs/{run_id}/start",
+            json={"force_provider": "engine"},
+        )
+        assert response.status_code == 200
+    blocked_standard = client.post(
+        f"/api/runs/{standard_ids[3]}/start",
+        json={"force_provider": "engine"},
+    )
+    assert blocked_standard.status_code == 409
+
+    advanced_ids = [
+        client.post(
+            "/api/runs",
+            headers=headers,
+            json={"research_goal": f"Advanced {index}", "tier": "advanced"},
+        ).json()["id"]
+        for index in range(2)
+    ]
+    first_advanced = client.post(
+        f"/api/runs/{advanced_ids[0]}/start",
+        json={"force_provider": "engine"},
+    )
+    second_advanced = client.post(
+        f"/api/runs/{advanced_ids[1]}/start",
+        json={"force_provider": "engine"},
+    )
+    assert first_advanced.status_code == 200
+    assert second_advanced.status_code == 409
 
 
 def test_get_run_returns_404_for_unknown_id() -> None:

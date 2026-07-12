@@ -96,7 +96,7 @@ def test_full_run_flow_persists_events_matching_store_and_api(
         json={
             "research_goal": "Integration flow: dissect ferroptosis "
             "resistance in melanoma",
-            "tier": "express",
+            "tier": "standard",
         },
     )
     run_id = res.json()["id"]
@@ -147,7 +147,7 @@ async def test_sse_stream_replay_then_live_matches_full_event_log(
             json={
                 "research_goal": "Integration flow: SSE replay-then-live "
                 "consistency",
-                "tier": "express",
+                "tier": "standard",
             },
         )
         run_id = create.json()["id"]
@@ -205,7 +205,7 @@ async def test_cancel_mid_run_leaves_consistent_terminal_state(
             "/api/runs",
             json={
                 "research_goal": "Integration flow: cancel mid-run consistency",
-                "tier": "express",
+                "tier": "standard",
             },
         )
         run_id = create.json()["id"]
@@ -271,7 +271,7 @@ async def test_steering_message_queued_mid_run_is_drained(
             "/api/runs",
             json={
                 "research_goal": "Integration flow: steering drained mid-run",
-                "tier": "express",
+                "tier": "standard",
             },
         )
         run_id = create.json()["id"]

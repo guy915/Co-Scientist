@@ -1,8 +1,8 @@
 import {type ReactNode} from 'react';
-import {type RunFocus, type RunTier} from '@/api/runs';
+import {type RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
-import {FOCUS_OPTIONS, type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
+import {type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
 import {
   OPTION_CARD_BASE_CLASSES,
@@ -60,7 +60,6 @@ export function RunSpecCard({
   spec,
   isStarting,
   locked = false,
-  onFocusChange,
   onTierChange,
   onCancel,
   onEdit,
@@ -70,7 +69,6 @@ export function RunSpecCard({
   spec: InferredRunSpec;
   isStarting: boolean;
   locked?: boolean;
-  onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onCancel: () => void;
   onEdit: () => void;
@@ -98,7 +96,6 @@ export function RunSpecCard({
         spec={spec}
         locked={locked}
         isStarting={isStarting}
-        onFocusChange={onFocusChange}
         onTierChange={onTierChange}
         onCancel={onCancel}
         onStart={onStart}
@@ -147,7 +144,6 @@ function RunSpecDocument({
   spec,
   locked,
   isStarting,
-  onFocusChange,
   onTierChange,
   onCancel,
   onStart,
@@ -155,7 +151,6 @@ function RunSpecDocument({
   spec: InferredRunSpec;
   locked: boolean;
   isStarting: boolean;
-  onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onCancel: () => void;
   onStart: () => void;
@@ -167,15 +162,7 @@ function RunSpecDocument({
       </h3>
       <SpecSummary spec={spec} />
       <RunOptionGroup
-        label="Focus"
-        name="focus"
-        value={spec.focus}
-        options={FOCUS_OPTIONS}
-        disabled={locked}
-        onChange={value => onFocusChange(value as RunFocus)}
-      />
-      <RunOptionGroup
-        label="Tier"
+        label="Run type"
         name="tier"
         value={spec.tier}
         options={TIER_OPTIONS}
@@ -264,8 +251,7 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
     ...spec.criteria.map(value => `* ${value}`),
     '',
     '## Setup Options',
-    `* **Focus:** ${runOptionLabel(FOCUS_OPTIONS, spec.focus)}`,
-    `* **Tier:** ${runOptionLabel(TIER_OPTIONS, spec.tier)}`,
+    `* **Run type:** ${runOptionLabel(TIER_OPTIONS, spec.tier)}`,
   ].join('\n');
 }
 

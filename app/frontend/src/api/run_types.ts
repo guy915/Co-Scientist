@@ -9,11 +9,11 @@ export type RunStatus =
   | 'blocked'
   | 'cancelled';
 
-/** Canonical run mode for the single clone workflow. */
-export type RunMode = 'default';
+/** Verified Hypothesis Generation run modes. */
+export type RunMode = 'standard' | 'advanced';
 
 /** Former generation profile labels still accepted by the backend. */
-export type LegacyRunProfile = RunMode | 'standard' | 'advanced';
+export type LegacyRunProfile = RunMode | 'default';
 
 /** Research style selected in the Co-Scientist setup flow. */
 export type RunFocus =
@@ -23,7 +23,7 @@ export type RunFocus =
   | 'breakthrough';
 
 /** Depth preset selected in the Co-Scientist setup flow. */
-export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
+export type RunTier = 'standard' | 'advanced';
 
 /** Durable setup payload persisted inside `Run.config.setup`. */
 export interface RunSetupConfig {

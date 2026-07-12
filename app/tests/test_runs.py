@@ -21,8 +21,8 @@ def test_create_run_returns_draft_status() -> None:
     data = res.json()
     assert data["status"] == "draft"
     assert data["provider"] == "mock"
-    assert data["run_mode"] == "default"
-    assert data["profile"] == "default"
+    assert data["run_mode"] == "standard"
+    assert data["profile"] == "standard"
     assert data["config"]["tier"] == "standard"
     assert data["config"]["focus"] == "balance"
     assert data["config"]["setup"]["goal"] == (
@@ -72,8 +72,8 @@ def test_legacy_profile_and_tiny_overrides_run_as_default(
         create_run(req, _Request(), BackgroundTasks())  # type: ignore[arg-type]
     )
 
-    assert run["run_mode"] == "default"
-    assert run["profile"] == "default"
+    assert run["run_mode"] == "standard"
+    assert run["profile"] == "standard"
     assert run["config"]["initial_hypotheses_count"] >= 8
     assert run["config"]["max_iterations"] >= 2
     assert run["config"]["evolution_max_count"] >= 8
@@ -91,24 +91,24 @@ def test_create_run_persists_setup_and_exact_tier_defaults(
             "attributes": ["Mechanistic"],
             "criteria": ["Testability"],
             "focus": "prefer_novelty",
-            "tier": "express",
+            "tier": "standard",
         },
     )
 
     assert res.status_code == 200
     config = res.json()["config"]
-    assert config["initial_hypotheses_count"] == 4
-    assert config["max_iterations"] == 1
-    assert config["evolution_max_count"] == 4
-    assert config["tournament_pairs"] == 6
-    assert config["evidence_count"] == 4
+    assert config["initial_hypotheses_count"] == 8
+    assert config["max_iterations"] == 2
+    assert config["evolution_max_count"] == 8
+    assert config["tournament_pairs"] == 12
+    assert config["evidence_count"] == 8
     assert config["setup"] == {
         "goal": "Discover selective autophagy mechanisms",
         "requirements": ["Use primary literature"],
         "attributes": ["Mechanistic"],
         "criteria": ["Testability"],
         "focus": "prefer_novelty",
-        "tier": "express",
+        "tier": "standard",
     }
 
 
@@ -248,8 +248,8 @@ def test_legacy_advanced_run_uses_default_artifact_depth(
     assert _wait_status(client, run_id, "completed", timeout=30.0)
 
     run = client.get(f"/api/runs/{run_id}").json()
-    assert run["run_mode"] == "default"
-    assert run["profile"] == "default"
+    assert run["run_mode"] == "standard"
+    assert run["profile"] == "standard"
     hyps = client.get(f"/api/runs/{run_id}/hypotheses").json()["hypotheses"]
     matches = client.get(f"/api/runs/{run_id}/matches").json()["matches"]
     assert len(hyps) >= 8

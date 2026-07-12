@@ -22,7 +22,6 @@ async function executeStart({
     requirements: specToStart.requirements,
     attributes: specToStart.attributes,
     criteria: specToStart.criteria,
-    focus: specToStart.focus,
     tier: specToStart.tier,
     enable_literature_review: pubmedEnabled,
   });

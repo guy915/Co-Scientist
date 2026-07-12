@@ -1,6 +1,6 @@
 import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
-import {type RunFocus, type RunTier} from '@/api/runs';
+import {type RunTier} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
 import {type SpecStage} from '../hooks/chat_session_types';
 import {
@@ -110,11 +110,6 @@ function draftTimelineItems({
         <RunSpecCard
           spec={draft.spec}
           isStarting={isStarting}
-          onFocusChange={(focus: RunFocus) =>
-            setDraft(current =>
-              current ? {...current, spec: {...current.spec, focus}} : current,
-            )
-          }
           onTierChange={(tier: RunTier) =>
             setDraft(current =>
               current ? {...current, spec: {...current.spec, tier}} : current,
@@ -152,7 +147,6 @@ function confirmedSpecTimelineItems({
           spec={confirmed.spec}
           isStarting={false}
           locked
-          onFocusChange={() => undefined}
           onTierChange={() => undefined}
           onCancel={() => undefined}
           onEdit={() => handleEditPlan(confirmed.spec)}

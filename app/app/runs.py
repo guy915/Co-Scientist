@@ -54,7 +54,6 @@ from fastapi.responses import (
 from app import engine_adapter, human_input, qa, run_corpus, store, task_worker
 from app.hypothesis_screening import screen_hypotheses
 from app.logging_setup import run_log_context
-from app.run_modes import CANONICAL_RUN_MODE
 from app.runs_events import _event_stream
 from app.runs_models import (
     AskRequest,
@@ -76,6 +75,8 @@ logger = logging.getLogger(__name__)
 # mid-run; each removes itself on completion (see _launch_resume).
 _resume_tasks: set[asyncio.Task[None]] = set()
 router = APIRouter(prefix="/api/runs", tags=["runs"])
+
+_MODE_CONCURRENCY_LIMITS = {"standard": 3, "advanced": 1}
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -151,8 +152,8 @@ async def create_run(
     # Provider (engine vs mock) is decided at creation from availability;
     # /start can still override it per run via force_provider.
     provider = engine_adapter.select_provider()
-    run_mode = CANONICAL_RUN_MODE
     config, focus, tier = _build_create_run_config(req)
+    run_mode = tier
     # The run is persisted in DRAFT; nothing executes until /start is called.
     run = store.create_run(
         research_goal=req.research_goal,
@@ -298,7 +299,11 @@ def _check_startable(run: RunRow) -> None:
     Only draft/failed/blocked/cancelled runs may (re)start; in-progress and
     completed runs 409 rather than double-running.
     """
-    if run.status in (RunStatus.RUNNING, RunStatus.SYNTHESIZING):
+    if run.status in (
+        RunStatus.QUEUED,
+        RunStatus.RUNNING,
+        RunStatus.SYNTHESIZING,
+    ):
         raise HTTPException(status_code=409, detail="run already in progress")
     if run.status == RunStatus.COMPLETED:
         raise HTTPException(status_code=409, detail="run already completed")
@@ -339,12 +344,23 @@ async def start_run(
     run = _run_or_404(run_id)
     _check_startable(run)
     effective_provider = req.force_provider or run.provider
+    mode = str(run.profile)
+    limit = _MODE_CONCURRENCY_LIMITS.get(mode, 3)
+    if not store.reserve_run_capacity(
+        run_id,
+        profile=mode,
+        client_id=run.client_id,
+        limit=limit,
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail=f"concurrent {mode} run limit reached ({limit})",
+        )
 
     # Real scientific runs are delivered through the durable worker queue.
     # Mock fixtures retain the historical background path and are explicitly
     # excluded from fidelity claims.
     if effective_provider == "engine":
-        store.update_run_status(run_id, RunStatus.QUEUED)
         store.append_event(run_id, "lifecycle", {"event": "queued"})
         task = task_worker.enqueue_run_workflow(
             run_id, force_provider="engine"
@@ -362,7 +378,6 @@ async def start_run(
 
     # Transition draft -> queued before returning; the runner moves the run
     # to running/synthesizing/terminal states as the workflow progresses.
-    store.update_run_status(run_id, RunStatus.QUEUED)
     store.append_event(run_id, "lifecycle", {"event": "queued"})
 
     # Returns immediately; FastAPI runs the task after the response is sent.

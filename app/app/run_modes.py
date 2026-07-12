@@ -1,9 +1,4 @@
-"""Run-mode compatibility helpers.
-
-The product now has one canonical run path. Older clients and persisted rows
-may still use the former ``standard`` or ``advanced`` profile labels; both map
-to the same default run mode.
-"""
+"""Faithful Standard/Advanced run configuration and legacy normalization."""
 
 from __future__ import annotations
 
@@ -12,13 +7,14 @@ from typing import Any
 
 from app.elo import DEFAULT_K_FACTOR
 
-# The single run mode stored in runs.profile for every new run.
-CANONICAL_RUN_MODE = "default"
+# Default retained as an import-compatible constant; new rows persist the
+# selected Standard/Advanced mode rather than an invented canonical value.
+CANONICAL_RUN_MODE = "standard"
 # Tier controls run size/depth; focus controls ranking emphasis. The
 # *_PATTERN regexes are used by the API's pydantic Field validation, so
 # invalid values 422 at the edge while None falls through to the defaults.
 DEFAULT_RUN_TIER = "standard"
-RUN_TIER_PATTERN = "^(express|standard|extended|ultra)$"
+RUN_TIER_PATTERN = "^(standard|advanced)$"
 DEFAULT_RUN_FOCUS = "balance"
 RUN_FOCUS_VALUES: tuple[str, ...] = (
     "prefer_evidence",
@@ -49,17 +45,11 @@ DEFAULT_CRITERIA: tuple[str, ...] = (
     "Translational feasibility",
 )
 
-# Numeric baseline per tier; every knob scales up together from express to
-# ultra. resolved_run_config starts from the selected tier's dict and lets
+# Reconstructed compute envelopes. Google verifies that Advanced is deeper,
+# but not these exact numbers; provenance records them as reconstructed.
+# resolved_run_config starts from the selected mode and lets
 # explicit user overrides raise (never lower) these values.
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
-    "express": {
-        "initial_hypotheses_count": 4,
-        "max_iterations": 1,
-        "evolution_max_count": 4,
-        "tournament_pairs": 6,
-        "evidence_count": 4,
-    },
     DEFAULT_RUN_TIER: {
         "initial_hypotheses_count": 8,
         "max_iterations": 2,
@@ -67,14 +57,7 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "tournament_pairs": 12,
         "evidence_count": 8,
     },
-    "extended": {
-        "initial_hypotheses_count": 12,
-        "max_iterations": 3,
-        "evolution_max_count": 12,
-        "tournament_pairs": 20,
-        "evidence_count": 12,
-    },
-    "ultra": {
+    "advanced": {
         "initial_hypotheses_count": 16,
         "max_iterations": 4,
         "evolution_max_count": 16,
@@ -88,9 +71,13 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
 # back to the default rather than raising, so persisted rows from older
 # builds and loosely-validated callers keep working.
 def normalize_run_tier(tier: str | None = None) -> str:
-    """Return a supported run tier, defaulting to Standard."""
+    """Return a faithful mode, migrating legacy stored tiers conservatively."""
     if tier in RUN_TIER_DEFAULTS:
         return tier
+    if tier in {"extended", "ultra"}:
+        return "advanced"
+    if tier in {"express", "default"}:
+        return "standard"
     return DEFAULT_RUN_TIER
 
 
@@ -192,7 +179,7 @@ def setup_guidance(setup: dict[str, Any] | None) -> str:
     lines = [
         "Run setup:",
         f"- Focus: {focus}",
-        f"- Tier: {tier}",
+        f"- Run type: {tier}",
     ]
     for title, key in (
         ("Requirements", "requirements"),

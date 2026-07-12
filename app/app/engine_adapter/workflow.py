@@ -19,7 +19,7 @@ from app.engine_adapter.opts import _drain_pre_run_steering
 from app.engine_adapter.provider import select_provider
 from app.mock_workflow import run_mock_workflow
 from app.report_render import EmitFn, make_emitter
-from app.run_modes import CANONICAL_RUN_MODE, resolved_run_config
+from app.run_modes import normalize_run_tier, resolved_run_config
 from app.safety import apply_safety_gate, screen_intake
 
 logger = logging.getLogger(__name__)
@@ -162,8 +162,8 @@ async def run_workflow(
     # force_provider lets a caller (e.g. seed.py's demo seeding) pin the
     # provider explicitly, bypassing select_provider()'s env/import probes.
     provider = force_provider or select_provider()
-    run_mode = CANONICAL_RUN_MODE
     cfg = resolved_run_config(config)
+    run_mode = normalize_run_tier(str(cfg.get("tier") or ""))
 
     logger.info(
         "starting workflow run=%s provider=%s run_mode=%s",

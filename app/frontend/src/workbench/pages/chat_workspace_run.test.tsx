@@ -136,13 +136,13 @@ describe('ChatWorkspace run flow', () => {
         .closest('.reference-setup-document'),
     ).not.toBeNull();
     expect(screen.getByText('Cancel')).toBeInTheDocument();
-    expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
-    expect(screen.getByRole('group', {name: 'Tier'})).toBeInTheDocument();
-    expect(screen.getByLabelText(/Balance/i)).toBeChecked();
-    expect(screen.getByLabelText(/Standard/i)).toBeChecked();
+    expect(
+      screen.queryByRole('group', {name: 'Focus'}),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('group', {name: 'Run type'})).toBeInTheDocument();
+    expect(screen.getByLabelText(/Standard Run/i)).toBeChecked();
 
-    fireEvent.click(screen.getByLabelText(/Prefer novelty/i));
-    fireEvent.click(screen.getByLabelText(/Extended/i));
+    fireEvent.click(screen.getByLabelText(/Advanced Run/i));
 
     fireEvent.click(screen.getByText('Start research'));
 
@@ -155,8 +155,7 @@ describe('ChatWorkspace run flow', () => {
           ]),
           attributes: expect.arrayContaining(['Mechanistically specific']),
           criteria: expect.arrayContaining(['Scientific soundness']),
-          focus: 'prefer_novelty',
-          tier: 'extended',
+          tier: 'advanced',
         }),
       );
       expect(apiMock.startRun).toHaveBeenCalledWith('run-1');
