@@ -502,6 +502,7 @@ def clear_run_derived_data(
         "matches",
         "citations",
         "claim_evidence",
+        "proximity_edges",
         "run_metrics",
     )
     with _use_conn(conn, db_path) as conn:
@@ -527,3 +528,49 @@ def clear_run_derived_data(
         )
         for table in run_scoped:
             conn.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
+
+
+def clear_publication_artifacts(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> None:
+    """Clear replayable final-drain rows while retaining task/event history.
+
+    This narrower reset is used by the idempotent finalizer. It preserves
+    checkpoints, scientific tasks, lifecycle events, intake/final safety audit,
+    messages, reports, and scientist contributions while removing rows that
+    `_persist_final_state` deterministically reconstructs.
+    """
+    with _use_conn(conn, db_path) as active:
+        active.execute(
+            "DELETE FROM hypothesis_state WHERE hypothesis_id IN "
+            "(SELECT id FROM hypotheses WHERE run_id=? AND "
+            "created_by_agent != ?)",
+            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
+        )
+        active.execute(
+            "DELETE FROM hypotheses WHERE run_id=? AND created_by_agent != ?",
+            (run_id, _HUMAN_HYPOTHESIS_ORIGIN),
+        )
+        active.execute(
+            "DELETE FROM reviews WHERE run_id=? AND reviewer_agent != ?",
+            (run_id, _HUMAN_REVIEWER),
+        )
+        active.execute(
+            "DELETE FROM evidence WHERE run_id=? AND source != ?",
+            (run_id, _HUMAN_EVIDENCE_SOURCE),
+        )
+        for table in (
+            "matches",
+            "citations",
+            "claim_evidence",
+            "proximity_edges",
+            "run_metrics",
+        ):
+            active.execute(f"DELETE FROM {table} WHERE run_id=?", (run_id,))
+        active.execute(
+            "DELETE FROM safety_decisions WHERE run_id=? "
+            "AND stage='hypothesis'",
+            (run_id,),
+        )

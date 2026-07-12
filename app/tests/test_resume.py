@@ -149,6 +149,46 @@ def test_resume_preserves_scientist_contributions(isolated_db: str) -> None:
     assert [e["source"] for e in evidence] == ["attachment"]
 
 
+def test_publication_replay_preserves_task_history_and_scientist_input(
+    isolated_db: str,
+) -> None:
+    """Finalizer cleanup removes drain rows without erasing durable history."""
+    run = store.create_run("Publication replay", "standard", "engine", {})
+    manual_id = store.add_hypothesis(
+        run.id,
+        title="Human idea",
+        statement="Scientist idea",
+        created_by_agent="scientist_manual",
+    )
+    store.add_hypothesis(
+        run.id,
+        title="Agent idea",
+        statement="Agent idea",
+        created_by_agent="generation",
+    )
+    store.add_evidence(run.id, "Private", source="attachment", abstract="x")
+    store.add_evidence(run.id, "Paper", source="pubmed", abstract="y")
+    store.append_event(run.id, "scientific_task", {"task": "ranking"})
+    store.add_safety_decision(run.id, "intake", "allow", "", [])
+    store.enqueue_task(
+        run.id,
+        "engine.finalize",
+        {},
+        idempotency_key="finalize-test",
+        db_path=isolated_db,
+    )
+
+    store.clear_publication_artifacts(run.id, db_path=isolated_db)
+
+    assert [item["id"] for item in store.list_hypotheses(run.id)] == [manual_id]
+    assert [item["source"] for item in store.list_evidence(run.id)] == [
+        "attachment"
+    ]
+    assert len(store.list_events(run.id)) == 1
+    assert len(store.list_safety_decisions(run.id)) == 1
+    assert len(store.list_tasks(run.id, db_path=isolated_db)) == 1
+
+
 def test_resume_reassigns_event_seqs_above_last_checkpoint(
     isolated_db: str,
 ) -> None:

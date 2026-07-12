@@ -1,14 +1,16 @@
-import {useEffect, useState} from 'react';
+import {type ChangeEvent, useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
 import {
   type ClaimEvidenceRow,
   type Evidence,
   type Hypothesis,
   type MatchRow,
+  type ProximityEdge,
   type Report,
   type Review,
   type SafetyDecision,
   adjudicateSafety,
+  uploadRunDocument,
   runGoal,
   type RunWithSummary,
 } from '@/api/runs';
@@ -66,6 +68,7 @@ export function RunDetail() {
     matches,
     reviews,
     claimEvidence,
+    proximity,
     report,
     safety,
     error,
@@ -95,6 +98,7 @@ export function RunDetail() {
       ) : (
         <RunDetailTabContent
           activeTab={activeTab}
+          runId={id}
           run={run}
           evidence={evidence}
           report={report}
@@ -102,6 +106,7 @@ export function RunDetail() {
           matches={matches}
           reviews={reviews}
           claimEvidence={claimEvidence}
+          proximity={proximity}
           safety={safety}
           onSafetyChanged={refreshNow}
           ideasViewKey={ideasViewKey}
@@ -125,6 +130,7 @@ export function RunDetail() {
 // IdeasTab's selection, LearningView's search query).
 function RunDetailTabContent({
   activeTab,
+  runId,
   run,
   evidence,
   report,
@@ -132,11 +138,13 @@ function RunDetailTabContent({
   matches,
   reviews,
   claimEvidence,
+  proximity,
   safety,
   onSafetyChanged,
   ideasViewKey,
 }: {
   activeTab: TabName;
+  runId: string;
   run: RunWithSummary | null;
   evidence: Evidence[];
   report: Report | null;
@@ -144,6 +152,7 @@ function RunDetailTabContent({
   matches: MatchRow[];
   reviews: Review[];
   claimEvidence: ClaimEvidenceRow[];
+  proximity: ProximityEdge[];
   safety: SafetyDecision[];
   onSafetyChanged: () => void;
   ideasViewKey: number;
@@ -172,11 +181,14 @@ function RunDetailTabContent({
         <section className={ALL_IDEAS_CLASSES}>
           <IdeasTab
             key={ideasViewKey}
+            runId={runId}
             hypotheses={hypotheses}
             reviews={reviews}
             matches={matches}
             claimEvidence={claimEvidence}
+            proximity={proximity}
             ideaBuckets={report?.payload.idea_buckets}
+            onScientistInputChanged={onSafetyChanged}
           />
         </section>
       )}
@@ -244,7 +256,63 @@ function RunSpecificationsView({
         decisions={safety}
         onChanged={onSafetyChanged}
       />
+      <PrivateCorpusUpload runId={run?.id} onChanged={onSafetyChanged} />
     </ReportDocument>
+  );
+}
+
+function PrivateCorpusUpload({
+  runId,
+  onChanged,
+}: {
+  runId: string | undefined;
+  onChanged: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  async function upload(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !runId) return;
+    setBusy(true);
+    setStatus(null);
+    try {
+      const result = await uploadRunDocument(runId, file);
+      setStatus(
+        `${file.name} indexed (${result.byte_size.toLocaleString()} bytes).`,
+      );
+      onChanged();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-8 border-t border-cosci-border pt-5">
+      <h3 className={REPORT_H3_CLASSES}>Private research sources</h3>
+      <p>
+        Upload a PDF or UTF-8 text, Markdown, CSV, or JSON document. It remains
+        scoped to this run and is indexed for subsequent scientific tasks.
+      </p>
+      <label className="mt-3 inline-flex cursor-pointer rounded-full border border-cosci-border px-4 py-2 text-sm hover:bg-cosci-hover">
+        {busy ? 'Indexing…' : 'Upload document'}
+        <input
+          type="file"
+          className="sr-only"
+          accept=".pdf,.txt,.md,.csv,.json,application/pdf,text/plain,text/markdown,text/csv,application/json"
+          disabled={busy || !runId}
+          onChange={event => void upload(event)}
+        />
+      </label>
+      {status && (
+        <p role="status" className="mt-2 text-sm">
+          {status}
+        </p>
+      )}
+    </section>
   );
 }
 

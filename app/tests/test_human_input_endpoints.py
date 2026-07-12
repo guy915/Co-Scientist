@@ -43,6 +43,9 @@ def test_scientist_hypothesis_admitted_with_authorship(
     assert manual["created_by_agent"] == "scientist_manual"
     assert manual["author"] == "dr-smith"
     assert manual["safety_status"] == "allow"
+    pending = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
+    assert pending[-1]["kind"] == "steering"
+    assert pending[-1]["meta"]["kind"] == "manual_hypothesis"
 
 
 def test_scientist_unsafe_hypothesis_is_blocked_not_persisted(
@@ -94,6 +97,9 @@ def test_scientist_review_lands_in_reviews_table(isolated_db: str) -> None:
     scientist = [r for r in reviews if r["reviewer_agent"] == "scientist"]
     assert len(scientist) == 1
     assert "dr-lee" in scientist[0]["summary"]
+    messages = client.get(f"/api/runs/{run_id}/messages").json()["messages"]
+    assert messages[-1]["meta"]["kind"] == "human_review"
+    assert messages[-1]["applied"] is False
 
 
 def test_scientist_review_rejects_invalid_verdict(isolated_db: str) -> None:

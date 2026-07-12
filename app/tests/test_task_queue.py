@@ -291,7 +291,9 @@ def test_pause_and_resume_make_queued_tasks_non_claimable(
     assert (
         store.claim_task("worker", run_id=run_id, db_path=isolated_db) is None
     )
-    assert store.get_task(task.id, db_path=isolated_db).status == "paused"
+    paused = store.get_task(task.id, db_path=isolated_db)
+    assert paused is not None
+    assert paused.status == "paused"
     assert store.resume_run_tasks(run_id, db_path=isolated_db) == 1
     claimed = store.claim_task("worker", run_id=run_id, db_path=isolated_db)
     assert claimed is not None and claimed.id == task.id

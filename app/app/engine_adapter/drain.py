@@ -137,6 +137,12 @@ def _persist_hypothesis_state(
         win_delta=int(h.get("win_count", 0)),
         loss_delta=int(h.get("loss_count", 0)),
         novelty=float(h.get("score", 0) or 0) or None,
+        status=(
+            "rejected"
+            if h.get("review_disposition")
+            in {"inaccurate", "non_novel", "inaccurate_and_non_novel"}
+            else "active"
+        ),
         conn=conn,
     )
 
@@ -449,6 +455,34 @@ def _final_state_dict(final_state: dict[str, Any], key: str) -> dict[str, Any]:
     return final_state.get(key) or {}
 
 
+def _persist_engine_proximity(
+    run_id: str,
+    graph: dict[str, Any],
+    store_id_by_engine_id: dict[str, str],
+    conn: sqlite3.Connection,
+) -> None:
+    """Persist weighted graph edges after resolving engine hypothesis ids."""
+    meta = graph.get("meta") or {}
+    for edge in graph.get("edges") or []:
+        source = store_id_by_engine_id.get(str(edge.get("source") or ""))
+        target = store_id_by_engine_id.get(str(edge.get("target") or ""))
+        if not source or not target:
+            continue
+        store.add_proximity_edge(
+            run_id,
+            source,
+            target,
+            float(edge.get("similarity", 0.0)),
+            degree=edge.get("degree"),
+            cluster_id=edge.get("cluster_id"),
+            method=meta.get("method"),
+            version=meta.get("version"),
+            model=meta.get("model"),
+            updated_at=meta.get("updated_at"),
+            conn=conn,
+        )
+
+
 def _persist_final_state(
     *,
     run_id: str,
@@ -476,6 +510,7 @@ def _persist_final_state(
     hyps = _final_state_list(final_state, "hypotheses")
     articles = _final_state_list(final_state, "articles")
     matchups = _final_state_list(final_state, "tournament_matchups")
+    proximity_graph = _final_state_dict(final_state, "proximity_graph")
     citation_summary = empty_citation_summary()
     store_id_by_engine_id: dict[str, str] = {}
     # Every engine id being persisted, so a child's parent_id foreign key is
@@ -537,6 +572,11 @@ def _persist_final_state(
         # 5. Tournament matches: resolve each side by the engine's stable
         # hypothesis id.
         _persist_engine_matches(run_id, matchups, store_id_by_engine_id, conn)
+
+        # 6. Proximity graph: resolve engine ids after every hypothesis exists.
+        _persist_engine_proximity(
+            run_id, proximity_graph, store_id_by_engine_id, conn
+        )
 
     return {
         "citation_summary": citation_summary,

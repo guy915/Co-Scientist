@@ -120,6 +120,7 @@ export function NavRail({
   onTogglePanel,
   onOpenSettings,
   settingsControlRef,
+  showDeveloperControls,
 }: {
   navOpen: boolean;
   toggleNav: () => void;
@@ -132,6 +133,7 @@ export function NavRail({
   onTogglePanel: (panel: ShellPanel) => void;
   onOpenSettings: (section: SettingsSection) => void;
   settingsControlRef: RefObject<HTMLDivElement | null>;
+  showDeveloperControls: boolean;
 }) {
   const nav = navOpen ? NAV_RAIL_VARIANTS.open : NAV_RAIL_VARIANTS.collapsed;
 
@@ -164,15 +166,17 @@ export function NavRail({
           onToggleShowAllChats={onToggleShowAllChats}
         />
       </div>
-      <div className={nav.bottom}>
-        <RailSettingsControl
-          navOpen={navOpen}
-          activePanel={activePanel}
-          onTogglePanel={onTogglePanel}
-          onOpenSettings={onOpenSettings}
-          settingsControlRef={settingsControlRef}
-        />
-      </div>
+      {showDeveloperControls && (
+        <div className={nav.bottom}>
+          <RailSettingsControl
+            navOpen={navOpen}
+            activePanel={activePanel}
+            onTogglePanel={onTogglePanel}
+            onOpenSettings={onOpenSettings}
+            settingsControlRef={settingsControlRef}
+          />
+        </div>
+      )}
     </aside>
   );
 }

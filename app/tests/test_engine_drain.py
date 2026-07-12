@@ -111,6 +111,23 @@ def _final_state_with_features() -> dict[str, Any]:
                 "loser_elo_after": 1180,
             },
         ],
+        "proximity_graph": {
+            "edges": [
+                {
+                    "source": "eng-hyp-a",
+                    "target": "eng-hyp-b",
+                    "similarity": 0.82,
+                    "degree": "high",
+                    "cluster_id": "cluster-1",
+                }
+            ],
+            "meta": {
+                "method": "llm_cluster_pairwise_graph",
+                "version": "1",
+                "model": "fixture-model",
+                "updated_at": 1234.5,
+            },
+        },
         "meta_review": {},
         "evolution_details": [],
         "research_overview": {
@@ -202,6 +219,22 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     assert "## NIH Specific Aims" in markdown
     assert "Aim 1: Quantify CXCR1 dependence." in markdown
     assert "Could yield a combination therapy for TNBC." in markdown
+
+    edges = store.list_proximity_edges(run.id, db_path=isolated_db)
+    hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)
+    hypothesis_ids = {hypothesis["id"] for hypothesis in hypotheses}
+    assert len(edges) == 1
+    edge = edges[0]
+    assert edge["source_hypothesis_id"] in hypothesis_ids
+    assert edge["target_hypothesis_id"] in hypothesis_ids
+    assert edge["source_hypothesis_id"] != edge["target_hypothesis_id"]
+    assert edge["similarity"] == 0.82
+    assert edge["degree"] == "high"
+    assert edge["cluster_id"] == "cluster-1"
+    assert edge["method"] == "llm_cluster_pairwise_graph"
+    assert edge["version"] == "1"
+    assert edge["model"] == "fixture-model"
+    assert edge["updated_at"] == 1234.5
 
 
 def _final_state_with_lineage() -> dict[str, Any]:

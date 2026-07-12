@@ -31,6 +31,11 @@ def add_evidence(
     year: int | None = None,
     abstract: str = "",
     available: bool = True,
+    mime_type: str | None = None,
+    sha256: str | None = None,
+    byte_size: int | None = None,
+    document_version: str | None = None,
+    extraction_tool: str | None = None,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> str:
@@ -45,6 +50,11 @@ def add_evidence(
         year: Optional publication year.
         abstract: Optional abstract text for the evidence.
         available: Whether the evidence full text is available.
+        mime_type: Original document media type when uploaded.
+        sha256: Content digest for immutable document identity.
+        byte_size: Original upload size in bytes.
+        document_version: Version label for extraction/cache provenance.
+        extraction_tool: Extractor and version used to produce text.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
 
@@ -55,8 +65,9 @@ def add_evidence(
     with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO evidence (id, run_id, title, source, url, "
-            "authors_json, year, abstract, available, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "authors_json, year, abstract, available, mime_type, sha256, "
+            "byte_size, document_version, extraction_tool, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 ev_id,
                 run_id,
@@ -67,6 +78,11 @@ def add_evidence(
                 year,
                 abstract,
                 1 if available else 0,
+                mime_type,
+                sha256,
+                byte_size,
+                document_version,
+                extraction_tool,
                 _now(),
             ),
         )
@@ -386,6 +402,53 @@ def list_safety_decisions(
         d["requires_review"] = bool(d.get("requires_review"))
         out.append(d)
     return out
+
+
+def add_proximity_edge(
+    run_id: str,
+    source_hypothesis_id: str,
+    target_hypothesis_id: str,
+    similarity: float,
+    *,
+    degree: str | None = None,
+    cluster_id: str | None = None,
+    method: str | None = None,
+    version: str | None = None,
+    model: str | None = None,
+    updated_at: float | None = None,
+    conn: sqlite3.Connection | None = None,
+    db_path: str | None = None,
+) -> None:
+    """Persist one explainable proximity edge between stored hypotheses."""
+    with _use_conn(conn, db_path) as active:
+        active.execute(
+            "INSERT INTO proximity_edges (run_id, source_hypothesis_id, "
+            "target_hypothesis_id, similarity, degree, cluster_id, method, "
+            "version, model, updated_at, created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                run_id,
+                source_hypothesis_id,
+                target_hypothesis_id,
+                similarity,
+                degree,
+                cluster_id,
+                method,
+                version,
+                model,
+                updated_at,
+                _now(),
+            ),
+        )
+
+
+def list_proximity_edges(
+    run_id: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> list[dict[str, Any]]:
+    """Return a run's weighted proximity landscape edges."""
+    return _list_by_run("proximity_edges", run_id, db_path, conn)
 
 
 def resolve_safety_decision(

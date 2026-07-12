@@ -98,6 +98,7 @@ def _merge_engine_state(
         "tournament_matchups",
         "meta_review",
         "research_overview",
+        "proximity_graph",
         # Cumulative ExecutionMetrics dict; each snapshot's copy is already
         # merged across nodes by the engine, so last-write-wins is correct.
         "metrics",
@@ -229,6 +230,7 @@ def _new_engine_final_state() -> dict[str, Any]:
         "tournament_matchups": [],
         "meta_review": {},
         "research_overview": {},
+        "proximity_graph": {},
         "metrics": {},
     }
 

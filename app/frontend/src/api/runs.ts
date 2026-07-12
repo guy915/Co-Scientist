@@ -8,6 +8,7 @@ import type {
   Hypothesis,
   Interview,
   MatchRow,
+  ProximityEdge,
   Report,
   ReportShare,
   Review,
@@ -36,6 +37,7 @@ export type {
   KnowledgeBaseTopic,
   LegacyRunProfile,
   MatchRow,
+  ProximityEdge,
   Report,
   ReportPayload,
   ReportShare,
@@ -416,6 +418,56 @@ export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
     'claim_evidence',
     {headers: clientHeaders()},
   );
+}
+
+/** Return the persisted weighted hypothesis proximity graph. */
+export function getProximity(id: string): Promise<ProximityEdge[]> {
+  return fetchJson<{proximity: ProximityEdge[]}>(
+    `/api/runs/${id}/proximity`,
+  ).then(response => response.proximity);
+}
+
+/** Submit a scientist-authored hypothesis through the shared safety gate. */
+export function addScientistHypothesis(
+  runId: string,
+  input: {title?: string; statement: string; author: string},
+): Promise<{admitted: boolean; id?: string; safety: {outcome: string}}> {
+  return fetchJson(`/api/runs/${runId}/hypotheses`, jsonRequest(input, true));
+}
+
+/** Attach a scientist verdict to an existing hypothesis. */
+export function addScientistReview(
+  runId: string,
+  input: {
+    hypothesis_id: string;
+    author: string;
+    verdict: 'support' | 'oppose' | 'revise';
+    critique: string;
+  },
+): Promise<{recorded: boolean}> {
+  return fetchJson(`/api/runs/${runId}/reviews`, jsonRequest(input, true));
+}
+
+/** Upload and index a private scientific document for subsequent tasks. */
+export function uploadRunDocument(
+  runId: string,
+  file: File,
+): Promise<{
+  id: string;
+  indexed: boolean;
+  sha256: string;
+  byte_size: number;
+  mime_type: string;
+  extraction_tool: string;
+}> {
+  const body = new FormData();
+  body.set('file', file);
+  body.set('consent', 'true');
+  return fetchJson(`/api/runs/${runId}/attachments/upload`, {
+    method: 'POST',
+    headers: clientHeaders(),
+    body,
+  });
 }
 
 /**

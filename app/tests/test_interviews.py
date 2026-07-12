@@ -107,9 +107,7 @@ def test_interview_persists_turns_progress_and_final_plan(
             "agent",
         ]
 
-        resumed = client.get(
-            f"/api/interviews/{interview_id}", headers=headers
-        )
+        resumed = client.get(f"/api/interviews/{interview_id}", headers=headers)
         assert resumed.json()["fields"] == payload["fields"]
 
         run = client.post(
@@ -123,9 +121,10 @@ def test_interview_persists_turns_progress_and_final_plan(
         )
         assert run.status_code == 200
         run_payload = run.json()
-        assert run_payload["research_goal"] == payload["fields"][
-            "research_challenge"
-        ]
+        assert (
+            run_payload["research_goal"]
+            == payload["fields"]["research_challenge"]
+        )
         assert run_payload["title"] == "Restoring Antibiotic Susceptibility"
         assert run_payload["config"]["interview_id"] == interview_id
 

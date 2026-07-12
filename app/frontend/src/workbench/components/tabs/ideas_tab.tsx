@@ -1,9 +1,11 @@
-import {useMemo, useState} from 'react';
+import {type FormEvent, useMemo, useState} from 'react';
+import {addScientistHypothesis, addScientistReview} from '@/api/runs';
 import type {
   ClaimEvidenceRow,
   Hypothesis,
   IdeaBucketEntry,
   MatchRow,
+  ProximityEdge,
   Review,
 } from '@/api/runs';
 import {sortByEloDesc} from '@/lib/hypotheses';
@@ -112,20 +114,26 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
  * @param props The hypotheses, reviews, matches, and claim-evidence graph.
  */
 export function IdeasTab({
+  runId,
   hypotheses,
   reviews,
   matches = [],
   claimEvidence = [],
+  proximity = [],
   ideaBuckets,
+  onScientistInputChanged,
 }: {
+  runId?: string;
   hypotheses: Hypothesis[];
   reviews: Review[];
   matches?: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
+  proximity?: ProximityEdge[];
   ideaBuckets?: {
     high_potential: IdeaBucketEntry[];
     non_viable: IdeaBucketEntry[];
   };
+  onScientistInputChanged?: () => void;
 }) {
   const isMobile = useIsMobile();
   const {sorted, selected, onSelect} = useIdeaSelection(hypotheses, isMobile);
@@ -143,7 +151,25 @@ export function IdeasTab({
   const IdeaView = isMobile ? MobileIdeaView : DesktopIdeaSplit;
   return (
     <div className={IDEAS_REPORT_CLASSES}>
+      {runId && (
+        <div className="grid shrink-0 grid-cols-2 border-b border-cosci-border max-[720px]:grid-cols-1">
+          <ScientistHypothesisComposer
+            runId={runId}
+            onRecorded={onScientistInputChanged}
+          />
+          <ScientistReviewComposer
+            runId={runId}
+            hypothesis={selected}
+            onRecorded={onScientistInputChanged}
+          />
+        </div>
+      )}
       <IdeaBucketSummary buckets={ideaBuckets} />
+      <IdeaLandscape
+        hypotheses={sorted}
+        edges={proximity}
+        onSelect={onSelect}
+      />
       <IdeaView
         sorted={sorted}
         selected={selected}
@@ -153,6 +179,299 @@ export function IdeasTab({
         onSelect={onSelect}
       />
     </div>
+  );
+}
+
+function ScientistHypothesisComposer({
+  runId,
+  onRecorded,
+}: {
+  runId: string;
+  onRecorded?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true);
+    setStatus(null);
+    try {
+      const result = await addScientistHypothesis(runId, {
+        title: String(form.get('title') || ''),
+        statement: String(form.get('statement') || ''),
+        author: String(form.get('author') || ''),
+      });
+      if (!result.admitted) {
+        setStatus(`Not admitted: ${result.safety.outcome}`);
+        return;
+      }
+      setStatus('Hypothesis admitted for review and ranking.');
+      formElement.reset();
+      onRecorded?.();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="px-4 py-3">
+      <button
+        type="button"
+        className="rounded-full border border-cosci-border px-4 py-2 text-sm hover:bg-cosci-hover"
+        onClick={() => setOpen(value => !value)}
+        aria-expanded={open}
+      >
+        Add your hypothesis
+      </button>
+      {open && (
+        <form className="mt-3 grid max-w-2xl gap-3" onSubmit={submit}>
+          <label className="grid gap-1 text-sm text-cosci-fg">
+            Researcher name
+            <input
+              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
+              name="author"
+              required
+            />
+          </label>
+          <label className="grid gap-1 text-sm text-cosci-fg">
+            Optional title
+            <input
+              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
+              name="title"
+            />
+          </label>
+          <label className="grid gap-1 text-sm text-cosci-fg">
+            Hypothesis
+            <textarea
+              className="min-h-28 rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
+              name="statement"
+              required
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-fit rounded-full bg-cosci-blue px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {busy ? 'Submitting…' : 'Submit hypothesis'}
+          </button>
+          {status && (
+            <p role="status" className="text-sm text-cosci-muted">
+              {status}
+            </p>
+          )}
+        </form>
+      )}
+    </section>
+  );
+}
+
+function ScientistReviewComposer({
+  runId,
+  hypothesis,
+  onRecorded,
+}: {
+  runId: string;
+  hypothesis: Hypothesis | null;
+  onRecorded?: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!hypothesis) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    setBusy(true);
+    setStatus(null);
+    try {
+      await addScientistReview(runId, {
+        hypothesis_id: hypothesis.id,
+        author: String(form.get('author') || ''),
+        verdict: String(form.get('verdict')) as 'support' | 'oppose' | 'revise',
+        critique: String(form.get('critique') || ''),
+      });
+      setStatus('Review recorded and available to subsequent work.');
+      formElement.reset();
+      onRecorded?.();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="border-l border-cosci-border px-4 py-3 max-[720px]:border-t max-[720px]:border-l-0">
+      <button
+        type="button"
+        className="rounded-full border border-cosci-border px-4 py-2 text-sm hover:bg-cosci-hover disabled:opacity-50"
+        onClick={() => setOpen(value => !value)}
+        disabled={!hypothesis}
+        aria-expanded={open}
+      >
+        Review selected idea
+      </button>
+      {open && hypothesis && (
+        <form className="mt-3 grid gap-3" onSubmit={submit}>
+          <p className="text-sm text-cosci-muted">
+            Reviewing {hypothesis.title}
+          </p>
+          <label className="grid gap-1 text-sm text-cosci-fg">
+            Researcher name
+            <input
+              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
+              name="author"
+              required
+            />
+          </label>
+          <label className="grid gap-1 text-sm text-cosci-fg">
+            Verdict
+            <select
+              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
+              name="verdict"
+              defaultValue="revise"
+            >
+              <option value="support">Support</option>
+              <option value="revise">Revise</option>
+              <option value="oppose">Oppose</option>
+            </select>
+          </label>
+          <label className="grid gap-1 text-sm text-cosci-fg">
+            Scientific critique
+            <textarea
+              className="min-h-24 rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
+              name="critique"
+              required
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={busy}
+            className="w-fit rounded-full bg-cosci-blue px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {busy ? 'Recording…' : 'Record review'}
+          </button>
+          {status && (
+            <p role="status" className="text-sm text-cosci-muted">
+              {status}
+            </p>
+          )}
+        </form>
+      )}
+    </section>
+  );
+}
+
+// A deterministic circular layout keeps the persisted similarity graph
+// inspectable without introducing a client-side physics simulation.
+function IdeaLandscape({
+  hypotheses,
+  edges,
+  onSelect,
+}: {
+  hypotheses: Hypothesis[];
+  edges: ProximityEdge[];
+  onSelect: (id: string) => void;
+}) {
+  if (!edges.length) return null;
+  const connectedIds = new Set(
+    edges.flatMap(edge => [
+      edge.source_hypothesis_id,
+      edge.target_hypothesis_id,
+    ]),
+  );
+  const nodes = hypotheses.filter(hypothesis =>
+    connectedIds.has(hypothesis.id),
+  );
+  if (nodes.length < 2) return null;
+  const positions = new Map(
+    nodes.map((node, index) => {
+      const angle = (index / nodes.length) * Math.PI * 2 - Math.PI / 2;
+      return [
+        node.id,
+        {x: 160 + Math.cos(angle) * 118, y: 90 + Math.sin(angle) * 62},
+      ];
+    }),
+  );
+  return (
+    <section
+      className="shrink-0 border-b border-cosci-border px-4 py-3"
+      aria-label="Idea landscape"
+    >
+      <div className="mb-2 flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-cosci-fg">Idea landscape</h2>
+        <p className="text-xs text-cosci-muted">
+          Stronger links indicate greater conceptual proximity.
+        </p>
+      </div>
+      <svg
+        className="h-44 w-full"
+        viewBox="0 0 320 180"
+        role="img"
+        aria-label={`${nodes.length} ideas connected by ${edges.length} similarity links`}
+      >
+        {edges.map(edge => {
+          const source = positions.get(edge.source_hypothesis_id);
+          const target = positions.get(edge.target_hypothesis_id);
+          if (!source || !target) return null;
+          return (
+            <line
+              key={edge.id}
+              x1={source.x}
+              y1={source.y}
+              x2={target.x}
+              y2={target.y}
+              className="stroke-cosci-border"
+              strokeWidth={1 + edge.similarity * 3}
+              opacity={0.4 + edge.similarity * 0.5}
+            />
+          );
+        })}
+        {nodes.map((node, index) => {
+          const point = positions.get(node.id);
+          if (!point) return null;
+          return (
+            <g
+              key={node.id}
+              className="cursor-pointer"
+              onClick={() => onSelect(node.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={event => {
+                if (event.key === 'Enter' || event.key === ' ')
+                  onSelect(node.id);
+              }}
+              aria-label={`Open idea ${index + 1}: ${node.title}`}
+            >
+              <circle
+                cx={point.x}
+                cy={point.y}
+                r="12"
+                className="fill-cosci-idea-row-selected-bg stroke-cosci-idea-row-selected-border"
+                strokeWidth="2"
+              />
+              <text
+                x={point.x}
+                y={point.y + 4}
+                textAnchor="middle"
+                className="fill-cosci-fg text-[10px] font-semibold"
+              >
+                {index + 1}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </section>
   );
 }
 

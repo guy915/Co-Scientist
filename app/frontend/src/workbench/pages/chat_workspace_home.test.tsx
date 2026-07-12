@@ -17,7 +17,7 @@ describe('ChatWorkspace home stage', () => {
 
     expect(
       screen.getByRole('heading', {
-        name: 'What breakthrough should we make today?',
+        name: "What's your research challenge?",
       }),
     ).toBeInTheDocument();
     expect(screen.getByText('Recents')).toBeInTheDocument();

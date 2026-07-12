@@ -201,7 +201,7 @@ function HomeGreeting({isMobile}: {isMobile: boolean}) {
         <GoogleLabsIcon aria-hidden="true" className={HOME_LOGO_CLASSES} />
       )}
       <h1 className={HOME_TITLE_CLASSES}>
-        What breakthrough should we make today?
+        What&apos;s your research challenge?
       </h1>
       {!isMobile && (
         <ol className={HOME_STEP_TIMELINE_CLASSES}>

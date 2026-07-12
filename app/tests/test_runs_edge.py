@@ -138,18 +138,56 @@ def test_cancel_restart_survivor_marks_it_cancelled() -> None:
     # Simulate a run that was running when the server restarted: persisted as
     # RUNNING with no in-process handle registered.
     store.update_run_status(rid, RunStatus.RUNNING)
+    queued = store.enqueue_task(
+        rid,
+        "engine.node.ranking",
+        {},
+        idempotency_key="cancel-api-task",
+    )
 
     res = c.post(f"/api/runs/{rid}/cancel")
 
     assert res.status_code == 200
     assert res.json()["status"] == "cancelled"
     assert c.get(f"/api/runs/{rid}").json()["status"] == "cancelled"
+    cancelled = store.get_task(queued.id)
+    assert cancelled is not None
+    assert cancelled.status == "cancelled"
     # A terminal status event is emitted so any SSE stream closes.
     events = store.list_events(rid)
     assert any(
         e["type"] == "status" and e["payload"].get("status") == "cancelled"
         for e in events
     )
+
+
+def test_engine_queue_can_pause_and_resume_without_process_handle(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Durable engine work pauses in SQLite and resumes without a checkpoint."""
+    from app import store
+
+    monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
+    c = _client()
+    rid = c.post(
+        "/api/runs",
+        json={"research_goal": "Durable pause test", "profile": "standard"},
+    ).json()["id"]
+    started = c.post(
+        f"/api/runs/{rid}/start", json={"force_provider": "engine"}
+    )
+    assert started.status_code == 200
+
+    paused = c.post(f"/api/runs/{rid}/pause")
+    assert paused.status_code == 200
+    assert paused.json()["status"] == "paused"
+    [task] = store.list_tasks(rid, db_path=isolated_db)
+    assert task.status == "paused"
+
+    resumed = c.post(f"/api/runs/{rid}/resume")
+    assert resumed.status_code == 200
+    [task] = store.list_tasks(rid, db_path=isolated_db)
+    assert task.status == "queued"
 
 
 def test_cancel_completed_run_conflicts() -> None:
