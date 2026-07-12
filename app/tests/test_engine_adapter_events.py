@@ -73,7 +73,16 @@ def _engine_streaming_state() -> dict[str, Any]:
                 "evolution_history": [{"round": 1}],
             },
         ],
-        "articles": [{"title": "A1", "url": "https://example.org/a1"}],
+        "articles": [
+            {
+                "title": "A1",
+                "url": "https://example.org/a1",
+                "abstract": (
+                    "H1: a mechanistic claim about the pathway. H2: an "
+                    "evolved variant of the leading claim."
+                ),
+            }
+        ],
         "tournament_matchups": [
             {
                 "hypothesis_a": "H1: a mechanistic claim about the pathway.",

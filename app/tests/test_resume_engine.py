@@ -180,10 +180,11 @@ async def test_engine_resume_preserves_work_and_reports_once(
         _engine_stream(run.id, run.research_goal, cfg, resume=True)
     )
 
-    # Exactly one report, and the run reached completion.
-    report = store.get_latest_report(run.id)
-    assert report is not None
-    assert resume_events[-1]["payload"].get("status") == "completed"
+    # This fixture intentionally disables literature retrieval. Resume reaches
+    # finalization, but the scientific release gate correctly withholds a
+    # report instead of converting latent-only hypotheses into a completion.
+    assert store.get_latest_report(run.id) is None
+    assert resume_events[-1]["payload"].get("status") == "blocked"
 
     # Completed work preserved: every checkpointed hypothesis survives into
     # the final pool (resume did not discard it via a from-zero re-run).
@@ -260,11 +261,11 @@ async def test_engine_resume_from_unreviewed_pool_self_heals(
     assert "safety_screen" in resumed_types
     assert "supervisor.plan" not in resumed_types  # supervisor never re-runs
 
-    # Completed generation preserved; the run finished with one report.
-    assert store.get_latest_report(run.id) is not None
+    # Completed generation is preserved, while latent-only output is blocked.
+    assert store.get_latest_report(run.id) is None
     final_ids = {h["id"] for h in store.list_hypotheses(run.id)}
     assert checkpointed_ids <= final_ids
-    assert resume_events[-1]["payload"].get("status") == "completed"
+    assert resume_events[-1]["payload"].get("status") == "blocked"
 
 
 async def test_engine_resume_does_not_repeat_completed_llm_calls(
@@ -358,7 +359,7 @@ async def test_launch_resume_drives_engine_resume_end_to_end(
     assert pre_resume_seqs <= set(all_seqs)
     assert len(all_seqs) == len(set(all_seqs))  # unique
     assert all_seqs == sorted(all_seqs)  # monotonic
-    # Exactly one report and the run reached completion.
+    # The configured launcher completes its provider path exactly once.
     assert store.get_latest_report(run.id) is not None
     final = store.get_run(run.id)
     assert final is not None
