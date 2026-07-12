@@ -275,6 +275,20 @@ CREATE TABLE IF NOT EXISTS interview_turns (
 CREATE INDEX IF NOT EXISTS idx_interview_turns
     ON interview_turns(interview_id, id ASC);
 
+-- Revocable capability links for read-only public Goal Reports. Tokens are
+-- random and stored only as hashes so a database read cannot disclose links.
+CREATE TABLE IF NOT EXISTS report_shares (
+    id TEXT PRIMARY KEY,
+    run_id TEXT NOT NULL,
+    token_hash TEXT NOT NULL UNIQUE,
+    created_by_client TEXT NOT NULL,
+    created_at REAL NOT NULL,
+    revoked_at REAL,
+    FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_report_shares_run
+    ON report_shares(run_id, created_at DESC);
+
 -- Append-only timeline of everything that happened during a run. This is the
 -- canonical source the SSE endpoint replays on client reconnect or restart.
 CREATE TABLE IF NOT EXISTS run_events (

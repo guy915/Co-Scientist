@@ -7,6 +7,7 @@ import {RunHistoryProvider} from './hooks/run_history_context';
 import {Layout} from './layout';
 import {ChatWorkspace} from './pages/chat_workspace';
 import {RunDetail} from './pages/run_detail';
+import {SharedGoalReportPage} from './pages/shared_goal_report';
 import {ThemeProvider} from './theme_context';
 
 // Render-nothing bridge: useGlobalShortcuts needs react-router hooks, so it
@@ -47,6 +48,15 @@ export function WorkbenchApp() {
                 workspace, which owns run creation. */}
               <Route path="/runs" element={<Navigate to="/" replace />} />
               <Route path="/runs/new" element={<Navigate to="/" replace />} />
+              <Route
+                path="/shared/:token"
+                element={
+                  <>
+                    <NoIndex title="Shared Goal Report" />
+                    <SharedGoalReportPage />
+                  </>
+                }
+              />
               {/* Redirect the bare id to the default tab so every tab shares one
                 required-param route. Switching tabs is then a param change, not
                 a remount — otherwise RunDetail refetches and its header-title

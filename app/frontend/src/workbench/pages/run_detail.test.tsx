@@ -50,6 +50,9 @@ vi.mock('@/api/runs', async importActual => {
     getClaimEvidence: vi.fn().mockResolvedValue([]),
     getCitations: vi.fn().mockResolvedValue([]),
     getReport: vi.fn().mockResolvedValue(null),
+    listReportShares: vi.fn().mockResolvedValue([]),
+    createReportShare: vi.fn(),
+    revokeReportShare: vi.fn(),
   };
 });
 
@@ -101,6 +104,7 @@ beforeEach(() => {
   vi.mocked(runsApi.getHypotheses).mockResolvedValue([]);
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
+  vi.mocked(runsApi.listReportShares).mockResolvedValue([]);
 });
 
 describe('RunDetail', () => {
@@ -108,10 +112,13 @@ describe('RunDetail', () => {
     renderAt('/runs/run-1/ideas');
     expect(await screen.findByText('Ideas')).toBeInTheDocument();
     expect(screen.getByText('Open in NotebookLM')).toBeInTheDocument();
-    expect(screen.getByRole('link', {name: 'Download'})).toHaveAttribute(
-      'href',
-      '/api/runs/run-1/report.md',
-    );
+    fireEvent.click(screen.getByRole('button', {name: 'Share'}));
+    expect(
+      await screen.findByRole('region', {name: 'Share Goal Report'}),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', {name: 'Download'}).getAttribute('href'),
+    ).toMatch(/^\/api\/runs\/run-1\/report\.md\?client_id=.+/);
 
     fireEvent.click(screen.getByRole('button', {name: 'Open Agent'}));
     expect(

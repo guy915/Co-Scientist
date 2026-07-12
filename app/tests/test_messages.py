@@ -137,10 +137,10 @@ def test_message_to_dict(isolated_db: str) -> None:
 
 
 def _make_run(client: TestClient, goal: str = "test goal") -> str:
+    client.headers.update({"X-Client-ID": "test-client"})
     res = client.post(
         "/api/runs",
         json={"research_goal": goal, "profile": "standard"},
-        headers={"X-Client-ID": "test-client"},
     )
     assert res.status_code == 200
     return cast(str, res.json()["id"])

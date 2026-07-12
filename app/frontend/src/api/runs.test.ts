@@ -148,7 +148,7 @@ describe('listRuns', () => {
 });
 
 describe('getRun', () => {
-  it('GETs /api/runs/:id without a client-id header and returns the run', async () => {
+  it('GETs /api/runs/:id with the ownership header and returns the run', async () => {
     const run = {id: 'r7', summary: {events: 1}};
     fetchMock().mockResolvedValue(jsonResponse(run));
 
@@ -156,8 +156,9 @@ describe('getRun', () => {
 
     const [url, opts] = firstCall();
     expect(url).toBe('/api/runs/r7');
-    // Bare fetch(url) -- no options object at all.
-    expect(opts).toBeUndefined();
+    expect(
+      (opts?.headers as Record<string, string>)['X-Client-ID'],
+    ).toBeTruthy();
     expect(result).toEqual(run);
   });
 
@@ -168,7 +169,7 @@ describe('getRun', () => {
 });
 
 describe('startRun', () => {
-  it('POSTs to /api/runs/:id/start with the provider body and no client header', async () => {
+  it('POSTs to /api/runs/:id/start with provider and ownership data', async () => {
     fetchMock().mockResolvedValue(jsonResponse({id: 'r1', status: 'queued'}));
 
     const result = await startRun('r1', {force_provider: 'engine'});
@@ -178,7 +179,7 @@ describe('startRun', () => {
     expect(opts?.method).toBe('POST');
     const headers = opts?.headers as Record<string, string>;
     expect(headers['Content-Type']).toBe('application/json');
-    expect(headers['X-Client-ID']).toBeUndefined();
+    expect(headers['X-Client-ID']).toBeTruthy();
     expect(JSON.parse(opts?.body as string)).toEqual({
       force_provider: 'engine',
     });
@@ -398,7 +399,7 @@ describe('url builders', () => {
   it('eventsStreamUrl builds the run events endpoint', () => {
     const url = eventsStreamUrl('run-42');
     expect(url).toContain('run-42');
-    expect(url).toBe('/api/runs/run-42/events');
+    expect(url).toMatch(/^\/api\/runs\/run-42\/events\?client_id=.+/);
   });
 
   it('getRunEvents fetches the persisted JSON snapshot', async () => {

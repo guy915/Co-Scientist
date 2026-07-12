@@ -4,12 +4,13 @@ import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, cast
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, Response
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 # Load .env file before importing settings
@@ -29,6 +30,7 @@ from app.runs import (
     router as runs_router,
 )
 from app.seed import seed_demo_runs
+from app.shares import router as shares_router
 from app.version import API_VERSION
 
 # Configure logging: one stdout handler (text by default, JSON via
@@ -152,9 +154,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
+    """Hide private run resources from callers without the owning client id."""
+    parts = request.url.path.strip("/").split("/")
+    if len(parts) >= 3 and parts[:2] == ["api", "runs"]:
+        run_id = parts[2]
+        if run_id != "demo":
+            run = store.get_run(run_id)
+            if run is not None and run.client_id != store.DEMO_CLIENT_ID:
+                client_id = request.headers.get("X-Client-ID") or (
+                    request.query_params.get("client_id", "")
+                )
+                if client_id != run.client_id:
+                    return JSONResponse(
+                        {"detail": "run not found"}, status_code=404
+                    )
+    return cast(Response, await call_next(request))
+
 # Mount the new run-lifecycle router (durable, persisted, SSE).
 app.include_router(runs_router)
 app.include_router(interviews_router)
+app.include_router(shares_router)
 
 
 class HealthCheckResult(BaseModel):

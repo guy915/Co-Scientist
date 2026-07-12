@@ -337,3 +337,20 @@ export interface Report {
   markdown_path: string;
   created_at: number;
 }
+
+/** One active public Goal Report capability. Tokens return only on creation. */
+export interface ReportShare {
+  id: string;
+  run_id: string;
+  token?: string;
+  created_at: number;
+}
+
+/** Read-only data available through a public share capability. */
+export interface SharedGoalReport {
+  share_id: string;
+  run: Run;
+  report: Report;
+  hypotheses: Hypothesis[];
+  evidence: Evidence[];
+}

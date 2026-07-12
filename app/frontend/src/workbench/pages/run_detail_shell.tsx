@@ -4,6 +4,7 @@ import {Icon, type IconName} from '@/components/icon';
 import {reportMarkdownUrl} from '@/api/runs';
 import {TruncatedLabel} from '../components/truncated_label';
 import {TABS, type TabName} from '../run_tabs';
+import {ReportShareControl} from './report_share_control';
 
 // Material icon shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank icon).
@@ -108,10 +109,12 @@ export function ReportTitlebar({
   title,
   runId,
   onOpenAgent,
+  shareEnabled,
 }: {
   title: string;
   runId: string;
   onOpenAgent: () => void;
+  shareEnabled: boolean;
 }) {
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
@@ -123,7 +126,11 @@ export function ReportTitlebar({
           <TruncatedLabel className={REPORT_TITLE_TEXT_CLASSES} text={title} />
         </h1>
       </div>
-      <ReportActions runId={runId} onOpenAgent={onOpenAgent} />
+      <ReportActions
+        runId={runId}
+        onOpenAgent={onOpenAgent}
+        shareEnabled={shareEnabled}
+      />
     </header>
   );
 }
@@ -131,9 +138,11 @@ export function ReportTitlebar({
 function ReportActions({
   runId,
   onOpenAgent,
+  shareEnabled,
 }: {
   runId: string;
   onOpenAgent: () => void;
+  shareEnabled: boolean;
 }) {
   const actionClasses =
     'rounded-full border border-cosci-border px-3 py-2 text-xs no-underline text-cosci-fg hover:bg-cosci-hover';
@@ -150,6 +159,9 @@ function ReportActions({
       <button type="button" className={actionClasses} onClick={onOpenAgent}>
         Open Agent
       </button>
+      {shareEnabled ? (
+        <ReportShareControl runId={runId} className={actionClasses} />
+      ) : null}
       <button
         type="button"
         className={`${actionClasses} max-[720px]:hidden`}

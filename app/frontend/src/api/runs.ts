@@ -9,12 +9,14 @@ import type {
   Interview,
   MatchRow,
   Report,
+  ReportShare,
   Review,
   Run,
   RunFocus,
   RunStatus,
   RunTier,
   RunWithSummary,
+  SharedGoalReport,
 } from './run_types';
 // Re-export the run-domain types so callers can `import type {...} from
 // '@/api/runs'` alongside the API functions below, without a second import
@@ -35,6 +37,7 @@ export type {
   MatchRow,
   Report,
   ReportPayload,
+  ReportShare,
   ResearchOverview,
   Review,
   Run,
@@ -46,6 +49,7 @@ export type {
   RunSummary,
   RunTier,
   RunWithSummary,
+  SharedGoalReport,
   SupportSpan,
 } from './run_types';
 
@@ -280,7 +284,7 @@ export async function loadRunHistory(): Promise<Run[]> {
  * @returns The run and its aggregate counts.
  */
 export async function getRun(id: string): Promise<RunWithSummary> {
-  return fetchJson(`/api/runs/${id}`);
+  return fetchJson(`/api/runs/${id}`, {headers: clientHeaders()});
 }
 
 /**
@@ -294,7 +298,7 @@ export async function startRun(
   id: string,
   body: {force_provider?: 'mock' | 'engine'} = {},
 ): Promise<{id: string; status: string}> {
-  return fetchJson(`/api/runs/${id}/start`, jsonRequest(body));
+  return fetchJson(`/api/runs/${id}/start`, jsonRequest(body, true));
 }
 
 /**
@@ -316,7 +320,7 @@ function getRunList<T>(
   return fetchField<string, T[]>(
     `/api/runs/${id}/${key}`,
     key,
-    init,
+    init || {headers: clientHeaders()},
     errorPrefix,
   );
 }
@@ -374,6 +378,7 @@ export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
   return fetchField<'claim_evidence', ClaimEvidenceRow[]>(
     `/api/runs/${id}/claim-evidence`,
     'claim_evidence',
+    {headers: clientHeaders()},
   );
 }
 
@@ -384,14 +389,16 @@ export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
  * @returns The report, or null when not yet generated.
  */
 export async function getReport(id: string): Promise<Report | null> {
-  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`);
+  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/report`, {
+    headers: clientHeaders(),
+  });
   if (res.status === 404) return null; // no report yet, not an error
   return parseJson<Report>(res);
 }
 
 /** Returns the browser-download URL for a persisted Markdown Goal Report. */
 export function reportMarkdownUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/report.md`;
+  return `${API_BASE_URL}/api/runs/${id}/report.md?client_id=${encodeURIComponent(getClientId())}`;
 }
 
 /** Streams a grounded report-level or idea-level Agent answer to completion. */
@@ -401,7 +408,7 @@ export async function askRunQuestion(
 ): Promise<string> {
   const response = await fetch(`${API_BASE_URL}/api/runs/${id}/messages/ask`, {
     method: 'POST',
-    headers: {'Content-Type': 'application/json'},
+    headers: {'Content-Type': 'application/json', ...clientHeaders()},
     body: JSON.stringify({question}),
   });
   if (!response.ok || !response.body) {
@@ -430,6 +437,35 @@ export async function askRunQuestion(
   return answer;
 }
 
+/** Enables public read-only access and returns the one-time bearer token. */
+export function createReportShare(id: string): Promise<ReportShare> {
+  return fetchJson(`/api/runs/${id}/shares`, jsonRequest({}, true));
+}
+
+/** Lists active grants without disclosing their bearer tokens. */
+export function listReportShares(id: string): Promise<ReportShare[]> {
+  return fetchField(`/api/runs/${id}/shares`, 'shares', {
+    headers: clientHeaders(),
+  });
+}
+
+/** Revokes one public report capability. */
+export async function revokeReportShare(
+  runId: string,
+  shareId: string,
+): Promise<void> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/runs/${runId}/shares/${shareId}`,
+    {method: 'DELETE', headers: clientHeaders()},
+  );
+  if (!response.ok) throw new Error(await response.text());
+}
+
+/** Loads a public read-only Goal Report without a client ownership header. */
+export function getSharedGoalReport(token: string): Promise<SharedGoalReport> {
+  return fetchJson(`/api/shared/${token}`);
+}
+
 /**
  * Builds the SSE events-stream URL for a run. The stream always replays from
  * the start; the backend treats a missing cursor as `after=0`.
@@ -438,7 +474,7 @@ export async function askRunQuestion(
  * @returns The absolute events endpoint URL.
  */
 export function eventsStreamUrl(id: string): string {
-  return `${API_BASE_URL}/api/runs/${id}/events`;
+  return `${API_BASE_URL}/api/runs/${id}/events?client_id=${encodeURIComponent(getClientId())}`;
 }
 
 /** One persisted row of a run's append-only event log. */
@@ -461,5 +497,6 @@ export function getRunEvents(id: string, after = 0): Promise<RunEvent[]> {
   return fetchField(
     `/api/runs/${id}/events?stream=false&after=${after}`,
     'events',
+    {headers: clientHeaders()},
   );
 }

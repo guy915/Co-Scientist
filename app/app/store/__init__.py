@@ -95,6 +95,12 @@ from app.store.runs import (
     summary_counts,
     update_run_status,
 )
+from app.store.shares import (
+    create_report_share,
+    list_report_shares,
+    resolve_report_share,
+    revoke_report_share,
+)
 from app.store.tasks import (
     ScientificTask,
     claim_task,
@@ -129,6 +135,7 @@ __all__ = [
     "complete_task",
     "connect",
     "create_interview",
+    "create_report_share",
     "create_run",
     "enqueue_task",
     "fail_task",
@@ -149,6 +156,7 @@ __all__ = [
     "list_hypotheses",
     "list_matches",
     "list_messages",
+    "list_report_shares",
     "list_reviews",
     "list_runs",
     "list_safety_decisions",
@@ -158,6 +166,8 @@ __all__ = [
     "reconcile_interrupted_runs",
     "redact_hypothesis_fields",
     "reserve_run_capacity",
+    "resolve_report_share",
+    "revoke_report_share",
     "run_exists",
     "save_checkpoint",
     "save_report",

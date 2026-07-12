@@ -45,6 +45,7 @@ def test_standard_and_advanced_concurrency_limits(
     monkeypatch.setenv("COSCIENTIST_EMBEDDED_WORKER", "0")
     client = _client()
     headers = {"X-Client-ID": "quota-scientist"}
+    client.headers.update(headers)
 
     standard_ids = [
         client.post(

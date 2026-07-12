@@ -79,6 +79,7 @@ export function RunDetail() {
         title={title}
         runId={id}
         onOpenAgent={() => setAgentQuestion('')}
+        shareEnabled={Boolean(run && !run.is_demo)}
       />
 
       <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
