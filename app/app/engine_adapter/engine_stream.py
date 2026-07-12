@@ -399,7 +399,7 @@ async def _run_engine_provider(
             research_goal,
             run_id,
             run_mode,
-            initial_opts if initial_opts else None,
+            initial_opts,
             start=start,
             cancelled=cancelled,
             db_path=db_path,
