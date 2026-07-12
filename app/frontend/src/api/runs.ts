@@ -389,6 +389,47 @@ export async function getReport(id: string): Promise<Report | null> {
   return parseJson<Report>(res);
 }
 
+/** Returns the browser-download URL for a persisted Markdown Goal Report. */
+export function reportMarkdownUrl(id: string): string {
+  return `${API_BASE_URL}/api/runs/${id}/report.md`;
+}
+
+/** Streams a grounded report-level or idea-level Agent answer to completion. */
+export async function askRunQuestion(
+  id: string,
+  question: string,
+): Promise<string> {
+  const response = await fetch(`${API_BASE_URL}/api/runs/${id}/messages/ask`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({question}),
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(await response.text());
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  let answer = '';
+  while (true) {
+    const {done, value} = await reader.read();
+    pending += decoder.decode(value, {stream: !done});
+    const frames = pending.split('\n\n');
+    pending = frames.pop() || '';
+    for (const frame of frames) {
+      const data = frame
+        .split('\n')
+        .find(line => line.startsWith('data: '))
+        ?.slice(6);
+      if (!data) continue;
+      const event = JSON.parse(data) as {type: string; content?: string};
+      if (event.type === 'chunk') answer += event.content || '';
+    }
+    if (done) break;
+  }
+  return answer;
+}
+
 /**
  * Builds the SSE events-stream URL for a run. The stream always replays from
  * the start; the backend treats a missing cursor as `after=0`.

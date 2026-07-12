@@ -1,3 +1,4 @@
+import {useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
 import {
   type ClaimEvidenceRow,
@@ -27,6 +28,7 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {normalizeTab, type TabName} from '../run_tabs';
+import {RunAgentDialog} from './run_agent_dialog';
 
 const REPORT_PAGE_CLASSES =
   'cosci-report-page grid h-full min-h-0 ' +
@@ -45,6 +47,15 @@ export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const activeTab = normalizeTab(tab);
   const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
+  const [agentQuestion, setAgentQuestion] = useState<string | null>(null);
+  useEffect(() => {
+    const openIdeaAgent = (event: Event) => {
+      setAgentQuestion((event as CustomEvent<string>).detail || '');
+    };
+    window.addEventListener('cosci-open-run-agent', openIdeaAgent);
+    return () =>
+      window.removeEventListener('cosci-open-run-agent', openIdeaAgent);
+  }, []);
 
   const {
     run,
@@ -64,7 +75,11 @@ export function RunDetail() {
 
   return (
     <div className={REPORT_PAGE_CLASSES}>
-      <ReportTitlebar title={title} />
+      <ReportTitlebar
+        title={title}
+        runId={id}
+        onOpenAgent={() => setAgentQuestion('')}
+      />
 
       <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
 
@@ -87,6 +102,13 @@ export function RunDetail() {
       )}
 
       {toast && <RunToast message={toast} />}
+      {agentQuestion !== null && (
+        <RunAgentDialog
+          runId={id}
+          initialQuestion={agentQuestion}
+          onClose={() => setAgentQuestion(null)}
+        />
+      )}
     </div>
   );
 }

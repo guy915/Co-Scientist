@@ -104,6 +104,23 @@ beforeEach(() => {
 });
 
 describe('RunDetail', () => {
+  it('exposes Goal Report follow-up and export controls', async () => {
+    renderAt('/runs/run-1/ideas');
+    expect(await screen.findByText('Ideas')).toBeInTheDocument();
+    expect(screen.getByText('Open in NotebookLM')).toBeInTheDocument();
+    expect(screen.getByRole('link', {name: 'Download'})).toHaveAttribute(
+      'href',
+      '/api/runs/run-1/report.md',
+    );
+
+    fireEvent.click(screen.getByRole('button', {name: 'Open Agent'}));
+    expect(
+      screen.getByRole('dialog', {name: 'Open Agent'}),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', {name: 'Close Agent'}));
+    expect(screen.queryByRole('dialog', {name: 'Open Agent'})).toBeNull();
+  });
+
   it('shows a skeleton while loading, then the goal details', async () => {
     renderAt('/runs/run-1/specifications');
     expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();

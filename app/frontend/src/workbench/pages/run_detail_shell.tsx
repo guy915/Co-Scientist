@@ -1,6 +1,7 @@
 import {useCallback, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
+import {reportMarkdownUrl} from '@/api/runs';
 import {TruncatedLabel} from '../components/truncated_label';
 import {TABS, type TabName} from '../run_tabs';
 
@@ -103,7 +104,15 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
 }
 
 /** Titlebar: back link plus the run's (possibly domain-overridden) title. */
-export function ReportTitlebar({title}: {title: string}) {
+export function ReportTitlebar({
+  title,
+  runId,
+  onOpenAgent,
+}: {
+  title: string;
+  runId: string;
+  onOpenAgent: () => void;
+}) {
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
       <div className={REPORT_TITLE_LEFT_CLASSES}>
@@ -114,7 +123,44 @@ export function ReportTitlebar({title}: {title: string}) {
           <TruncatedLabel className={REPORT_TITLE_TEXT_CLASSES} text={title} />
         </h1>
       </div>
+      <ReportActions runId={runId} onOpenAgent={onOpenAgent} />
     </header>
+  );
+}
+
+function ReportActions({
+  runId,
+  onOpenAgent,
+}: {
+  runId: string;
+  onOpenAgent: () => void;
+}) {
+  const actionClasses =
+    'rounded-full border border-cosci-border px-3 py-2 text-xs no-underline text-cosci-fg hover:bg-cosci-hover';
+  function openNotebookHandoff() {
+    // The Markdown download is the interoperable handoff; NotebookLM itself
+    // is proprietary and receives the file only if the scientist uploads it.
+    const download = document.createElement('a');
+    download.href = reportMarkdownUrl(runId);
+    download.click();
+    window.open('https://notebooklm.google.com/', '_blank', 'noopener');
+  }
+  return (
+    <div className="flex shrink-0 items-center gap-2 max-[720px]:gap-1">
+      <button type="button" className={actionClasses} onClick={onOpenAgent}>
+        Open Agent
+      </button>
+      <button
+        type="button"
+        className={`${actionClasses} max-[720px]:hidden`}
+        onClick={openNotebookHandoff}
+      >
+        Open in NotebookLM
+      </button>
+      <a className={actionClasses} href={reportMarkdownUrl(runId)} download>
+        Download
+      </a>
+    </div>
   );
 }
 

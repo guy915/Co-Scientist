@@ -125,6 +125,19 @@ export function HypothesisDetail({
       className={IDEA_DETAIL_PANE_CLASSES}
       aria-label="Hypothesis detail"
     >
+      <button
+        type="button"
+        className="mb-4 w-fit rounded-full border border-cosci-border px-4 py-2 text-sm hover:bg-cosci-hover"
+        onClick={() =>
+          window.dispatchEvent(
+            new CustomEvent('cosci-open-run-agent', {
+              detail: `Evaluate, refine, and propose the next discriminating experiment for this idea: ${hypothesis.title}`,
+            }),
+          )
+        }
+      >
+        Chat with Agent
+      </button>
       <DetailSection title={SECTIONS.overview} level={2}>
         <p>{hypothesis.statement}</p>
       </DetailSection>
