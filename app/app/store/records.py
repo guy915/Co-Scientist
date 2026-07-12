@@ -144,8 +144,8 @@ def add_claim_evidence(
     hypothesis_id: str,
     claim: str,
     label: str,
-    supporting: Iterable[str],
-    contradicting: Iterable[str],
+    supporting: Iterable[Any],
+    contradicting: Iterable[Any],
     assessor: str,
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
@@ -158,8 +158,10 @@ def add_claim_evidence(
             from.
         claim: The atomic claim text.
         label: Entailment verdict ('supports' | 'contradicts' | 'insufficient').
-        supporting: Passages that support the claim.
-        contradicting: Passages that contradict the claim.
+        supporting: Support spans that support the claim — JSON-serializable
+            provenance objects (``{evidence_id, quote, start, end, source,
+            url}``); legacy rows stored bare passage strings.
+        contradicting: Support spans that contradict the claim (same shape).
         assessor: Provenance id of the entailment assessor.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).

@@ -9,7 +9,12 @@ report's publication-gate exclusion end-to-end.
 from __future__ import annotations
 
 from app import report_render, store
-from app.claim_grounding import GroundingResult, ground_hypotheses
+from app.claim_grounding import (
+    GroundingResult,
+    evidence_passages,
+    ground_hypotheses,
+)
+from app.claims import as_passages
 
 # A claim whose evidence flatly contradicts it (negation marker + shared terms).
 _CONTRADICTED = (
@@ -39,7 +44,7 @@ def test_ground_persists_graph_and_blocks_contradicted(
     result = ground_hypotheses(
         run.id,
         store.list_hypotheses(run.id),
-        [_CONTRADICTING_EVIDENCE],
+        as_passages([_CONTRADICTING_EVIDENCE]),
         db_path=isolated_db,
     )
 
@@ -48,12 +53,17 @@ def test_ground_persists_graph_and_blocks_contradicted(
     assert result.blocked_ids == frozenset({bad_id})
     assert ok_id not in result.blocked_ids
 
-    # The claim-evidence graph is persisted, with a contradicts edge.
+    # The claim-evidence graph is persisted, with a contradicts edge whose
+    # support span carries provenance (evidence id + located offsets).
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
     labels = {e["hypothesis_id"]: e["label"] for e in edges}
     assert labels.get(bad_id) == "contradicts"
     contradicted_edge = next(e for e in edges if e["hypothesis_id"] == bad_id)
-    assert contradicted_edge["contradicting"]  # passages recorded
+    spans = contradicted_edge["contradicting"]
+    assert spans  # spans recorded
+    span = spans[0]
+    assert span["evidence_id"] == "passage-0"
+    assert span["quote"] and span["end"] > span["start"] >= 0
     assert contradicted_edge["assessor"]  # provenance recorded
 
     # A claim_gate audit row was recorded for the block.
@@ -78,10 +88,12 @@ def test_contradicted_hypothesis_excluded_from_report(
         db_path=isolated_db,
     )
 
+    # Ground against the run's real evidence rows so the support spans carry a
+    # real evidence id / url (the provenance path a live run exercises).
     ground_hypotheses(
         run.id,
         store.list_hypotheses(run.id),
-        [_CONTRADICTING_EVIDENCE],
+        evidence_passages(run.id, db_path=isolated_db),
         db_path=isolated_db,
     )
 
@@ -105,7 +117,11 @@ def test_contradicted_hypothesis_excluded_from_report(
 
 
 def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
-    """The store round-trips claim-evidence edges with decoded passages."""
+    """The store round-trips claim-evidence edges with legacy string passages.
+
+    Bare-string passages (the pre-P0.5 shape) still round-trip, so a store
+    holding old rows keeps decoding cleanly.
+    """
     run = store.create_run("grounding goal", "standard", "mock", {})
     store.add_claim_evidence(
         run.id,
@@ -125,3 +141,29 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
         "Supporting passage two.",
     ]
     assert edges[0]["contradicting"] == []
+
+
+def test_ground_records_provenance_spans_round_trip(isolated_db: str) -> None:
+    """A provenance-stamped support span round-trips through the store."""
+    run = store.create_run("grounding goal", "standard", "mock", {})
+    span = {
+        "evidence_id": "ev-9",
+        "quote": "reduces tumor growth",
+        "start": 12,
+        "end": 32,
+        "source": "pubmed",
+        "url": "https://example.org/9",
+    }
+    store.add_claim_evidence(
+        run.id,
+        "hyp-1",
+        "A supported claim.",
+        "supports",
+        [span],
+        [],
+        "llm:deepseek/deepseek-chat",
+        db_path=isolated_db,
+    )
+    edges = store.list_claim_evidence(run.id, db_path=isolated_db)
+    assert edges[0]["supporting"] == [span]
+    assert edges[0]["assessor"] == "llm:deepseek/deepseek-chat"
