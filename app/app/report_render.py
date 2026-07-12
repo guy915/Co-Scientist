@@ -26,6 +26,7 @@ from app.hypothesis_safety import (
 )
 from app.report_events import EmitFn as EmitFn
 from app.report_events import article_stub as article_stub
+from app.report_events import emit_cancel_or_pause as emit_cancel_or_pause
 from app.report_events import hypothesis_stub as hypothesis_stub
 from app.report_events import make_emitter as make_emitter
 from app.report_events import match_stub as match_stub

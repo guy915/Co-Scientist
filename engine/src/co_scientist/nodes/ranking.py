@@ -3,6 +3,7 @@
 import asyncio
 import hashlib
 import logging
+import statistics
 from typing import Any
 
 from co_scientist.constants import (
@@ -299,14 +300,9 @@ async def judge_matchup(
 
 def _median_elo(hypotheses: list[Hypothesis]) -> float:
     """Return the median Elo of the pool (the debate-depth threshold)."""
-    elos = sorted(h.elo_rating for h in hypotheses)
-    n = len(elos)
-    if n == 0:
+    if not hypotheses:
         return 0.0
-    mid = n // 2
-    if n % 2:
-        return float(elos[mid])
-    return (elos[mid - 1] + elos[mid]) / 2.0
+    return statistics.median(h.elo_rating for h in hypotheses)
 
 
 def _matchup_debate_turns(

@@ -42,11 +42,11 @@ from app.mock_workflow_seeds import (
 from app.report_render import (
     EmitFn,
     article_stub,
+    emit_cancel_or_pause,
     finalize_report,
     hypothesis_stub,
 )
 from app.run_modes import CANONICAL_RUN_MODE
-from app.runs_registry import is_pause_requested
 from app.store import RunStatus
 
 
@@ -116,19 +116,11 @@ async def _emit_cancelled_if_set(
 ) -> dict[str, Any] | None:
     """If the stop signal is set, persist and emit the closing status event.
 
-    The pause endpoint reuses the cancel signal to stop the workflow, so this
-    checks the registry's pause flag to persist/emit ``paused`` (resumable)
-    instead of a wrong terminal ``cancelled`` landing in the event log.
-
     Returns the emitted status event, or None if no stop was requested.
     """
     if not _is_cancelled(cancelled):
         return None
-    if is_pause_requested(run_id):
-        store.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
-        return await emit("status", {"status": "paused"})
-    store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
-    return await emit("status", {"status": "cancelled"})
+    return await emit_cancel_or_pause(run_id, db_path, emit)
 
 
 async def _maybe_evolve_and_meta_review_round(

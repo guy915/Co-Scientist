@@ -14,6 +14,7 @@ from collections.abc import Awaitable, Callable
 from typing import Any
 
 from app import store
+from app.store import RunStatus
 
 # Emitter both providers pass in: records an event and returns its stub.
 EmitFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -71,3 +72,22 @@ def article_stub(a: dict[str, Any]) -> dict[str, str]:
 def match_stub(m: dict[str, Any]) -> dict[str, str]:
     """Project a tournament matchup to a minimal JSON-safe stub."""
     return {"winner": str(m.get("winner") or "")}
+
+
+async def emit_cancel_or_pause(
+    run_id: str, db_path: str | None, emit: EmitFn
+) -> dict[str, Any]:
+    """Persist and emit the terminal status for a stopped run.
+
+    The pause endpoint reuses the cancel signal, so a pause-flagged run is
+    persisted/emitted as ``paused`` (resumable) rather than ``cancelled``.
+    Both workflow providers call this to ensure identical event/persistence
+    behaviour on stop.
+    """
+    from app.runs_registry import is_pause_requested
+
+    if is_pause_requested(run_id):
+        store.update_run_status(run_id, RunStatus.PAUSED, db_path=db_path)
+        return await emit("status", {"status": "paused"})
+    store.update_run_status(run_id, RunStatus.CANCELLED, db_path=db_path)
+    return await emit("status", {"status": "cancelled"})
