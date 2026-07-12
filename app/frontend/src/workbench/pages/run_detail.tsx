@@ -117,11 +117,11 @@ function RunDetailTabContent({
 }) {
   return (
     <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
-      {activeTab === 'details' && <GoalDetailsView run={run} />}
-      {activeTab === 'learning' && (
+      {activeTab === 'specifications' && <RunSpecificationsView run={run} />}
+      {activeTab === 'knowledge' && (
         <LearningView goal={runGoal(run)} evidence={evidence} />
       )}
-      {activeTab === 'overview' && (
+      {activeTab === 'summary' && (
         <ResearchOverviewView
           run={run}
           report={report}
@@ -159,9 +159,8 @@ function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
   };
 }
 
-// "Goal Details" tab: the raw research goal plus the requirements,
-// attributes, and criteria captured in the run's setup config.
-function GoalDetailsView({run}: {run: RunWithSummary | null}) {
+// Run Specifications preserves the final interview contract and run mode.
+function RunSpecificationsView({run}: {run: RunWithSummary | null}) {
   const goal = runGoal(run) || 'Loading...';
   const {requirements, attributes, criteria} = goalDetailsLists(
     run?.config.setup,
@@ -169,16 +168,29 @@ function GoalDetailsView({run}: {run: RunWithSummary | null}) {
 
   return (
     <ReportDocument
-      title="Research goal details"
-      className="cosci-goal-details"
+      title="Run Specifications"
+      className="cosci-run-specifications"
     >
       <h3 className={REPORT_H3_CLASSES}>{goal}</h3>
       <p>
-        <strong>Goal:</strong> {goal}
+        <strong>Research Challenge:</strong> {goal}
       </p>
-      <ReportList title="Requirements" values={requirements} />
-      <ReportList title="Attributes" values={attributes} />
-      <ReportList title="Criteria" values={criteria} />
+      <ReportList title="Focus Area" values={attributes} />
+      <ReportList title="Preferences" values={requirements} />
+      <p>
+        <strong>Title:</strong> {run?.title || 'Optional'}
+      </p>
+      <p>
+        <strong>Run type:</strong>{' '}
+        {run?.config.tier === 'advanced' ? 'Advanced Run' : 'Standard Run'}
+      </p>
+      {criteria.length > 0 && (
+        <p>
+          <strong>Reconstruction provenance:</strong> Legacy criteria are
+          retained in the stored run but are not part of the four-field Agent
+          interview contract.
+        </p>
+      )}
     </ReportDocument>
   );
 }

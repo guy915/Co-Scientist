@@ -76,9 +76,7 @@ function nextTabPath(pathname: string, key: string): string | null {
   const next = adjacentTabIndex(idx, key);
   if (next === idx) return null;
   const nextTab = TABS[next];
-  // 'details' navigates to the bare id, which the router redirects to
-  // /runs/:id/details (the canonical default-tab URL).
-  return `/runs/${route.id}/${nextTab === 'details' ? '' : nextTab}`;
+  return `/runs/${route.id}/${nextTab}`;
 }
 
 // Builds the document keydown handler for the given navigation callback and

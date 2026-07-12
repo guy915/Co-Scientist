@@ -7,18 +7,18 @@ import {TABS, type TabName} from '../run_tabs';
 // Material icon shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank icon).
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
-  details: 'assignment',
-  learning: 'menu_book',
-  overview: 'summarize',
   ideas: 'lightbulb',
+  knowledge: 'menu_book',
+  summary: 'summarize',
+  specifications: 'assignment',
 };
 
 // Human-readable label shown per tab in the nav bar.
 const TAB_LABELS: Record<TabName, string> = {
-  details: 'Goal Details',
-  learning: 'Learning',
-  overview: 'Research Overview',
-  ideas: 'All Ideas',
+  ideas: 'Ideas',
+  knowledge: 'Knowledge Base',
+  summary: 'Summary',
+  specifications: 'Run Specifications',
 };
 
 const REPORT_TITLEBAR_CLASSES =

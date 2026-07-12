@@ -105,11 +105,9 @@ beforeEach(() => {
 
 describe('RunDetail', () => {
   it('shows a skeleton while loading, then the goal details', async () => {
-    renderAt('/runs/run-1');
+    renderAt('/runs/run-1/specifications');
     expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
-    expect(
-      await screen.findByText('Research goal details'),
-    ).toBeInTheDocument();
+    expect(await screen.findByText('Run Specifications')).toBeInTheDocument();
   });
 
   it('refetches on a coalesced batch that ends in status but carries data', async () => {
@@ -117,7 +115,7 @@ describe('RunDetail', () => {
     // A fresh element each render — passing the same reference makes React bail
     // out of re-rendering, so the mutated stream would never be re-read.
     const makeUi = () => (
-      <MemoryRouter initialEntries={['/runs/run-1']}>
+      <MemoryRouter initialEntries={['/runs/run-1/specifications']}>
         <Routes>
           <Route path="/runs/:id" element={<RunDetail />} />
           <Route path="/runs/:id/:tab" element={<RunDetail />} />
@@ -125,7 +123,7 @@ describe('RunDetail', () => {
       </MemoryRouter>
     );
     const {rerender} = render(makeUi());
-    await screen.findByText('Research goal details');
+    await screen.findByText('Run Specifications');
     const afterMount = getRun.mock.calls.length;
 
     // A pure-status delta must not refetch (preserves the original filter).
@@ -149,44 +147,44 @@ describe('RunDetail', () => {
 
   it('renders all four report tabs', async () => {
     renderAt('/runs/run-1');
-    await screen.findByText('Research goal details');
+    await screen.findByText('Ideas');
     for (const label of [
-      'Goal Details',
-      'Learning',
-      'Research Overview',
-      'All Ideas',
+      'Ideas',
+      'Knowledge Base',
+      'Summary',
+      'Run Specifications',
     ]) {
       expect(tab(new RegExp(label))).toBeInTheDocument();
     }
   });
 
-  it('marks the Details tab active for the base URL', async () => {
+  it('marks the Ideas tab active for the base URL', async () => {
     renderAt('/runs/run-1');
-    await screen.findByText('Research goal details');
-    expect(tab(/Goal Details/)).toHaveAttribute('aria-current', 'page');
-    expect(tab(/All Ideas/)).not.toHaveAttribute('aria-current');
+    await screen.findByText('Ideas');
+    expect(tab(/^Ideas$/)).toHaveAttribute('aria-current', 'page');
+    expect(tab(/Run Specifications/)).not.toHaveAttribute('aria-current');
   });
 
   it('resolves a tab alias in the URL to its canonical tab', async () => {
-    // "specs" aliases to the details tab.
+    // "specs" aliases to Run Specifications.
     renderAt('/runs/run-1/specs');
-    await screen.findByText('Research goal details');
-    expect(tab(/Goal Details/)).toHaveAttribute('aria-current', 'page');
+    await screen.findByText('Run Specifications');
+    expect(tab(/Run Specifications/)).toHaveAttribute('aria-current', 'page');
   });
 
   it('activates the tab named directly in the URL', async () => {
     renderAt('/runs/run-1/overview');
     await screen.findByText('Research overview');
-    expect(tab(/Research Overview/)).toHaveAttribute('aria-current', 'page');
+    expect(tab(/^Summary$/)).toHaveAttribute('aria-current', 'page');
   });
 
   it('navigates when a tab is clicked', async () => {
     renderAt('/runs/run-1');
-    await screen.findByText('Research goal details');
-    fireEvent.click(tab(/All Ideas/));
+    await screen.findByText('Ideas');
+    fireEvent.click(tab(/Knowledge Base/));
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent(
-        '/runs/run-1/ideas',
+        '/runs/run-1/knowledge',
       ),
     );
   });
