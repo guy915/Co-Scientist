@@ -214,7 +214,12 @@ async def list_runs(
 ) -> dict[str, Any]:
     """List the requesting client's runs, most recent first."""
     runs = store.list_runs(client_id=_client_id(request), limit=limit)
-    return {"runs": [r.to_dict() for r in runs]}
+    return {
+        "runs": [
+            {**r.to_dict(), "execution_progress": store.task_progress(r.id)}
+            for r in runs
+        ]
+    }
 
 
 # Registered before /{run_id} so the literal path wins route matching.
@@ -222,7 +227,12 @@ async def list_runs(
 async def list_demo_runs() -> dict[str, Any]:
     """List the seeded demo runs, which are visible to every client."""
     runs = store.list_runs(client_id=store.DEMO_CLIENT_ID)
-    return {"runs": [r.to_dict() for r in runs]}
+    return {
+        "runs": [
+            {**r.to_dict(), "execution_progress": store.task_progress(r.id)}
+            for r in runs
+        ]
+    }
 
 
 @router.get("/{run_id}")
@@ -232,7 +242,12 @@ async def get_run(run_id: str) -> dict[str, Any]:
     with store.connect() as conn:
         run = _run_or_404(run_id, conn=conn)
         summary = store.summary_counts(run_id, conn=conn)
-    return {**run.to_dict(), "summary": summary}
+        progress = store.task_progress(run_id, conn=conn)
+    return {
+        **run.to_dict(),
+        "summary": summary,
+        "execution_progress": progress,
+    }
 
 
 def _mark_workflow_failed(

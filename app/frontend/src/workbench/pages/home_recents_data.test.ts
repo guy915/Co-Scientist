@@ -4,7 +4,6 @@ import {
   formatHomeRunDate,
   formatHomeRunTimeChip,
   homeRunScore,
-  homeRunStepIndex,
 } from './home_recents_data';
 
 function makeRun(overrides: Partial<Run> = {}): Run {
@@ -95,38 +94,5 @@ describe('homeRunScore', () => {
   it('returns the recorded score for a completed run, distinguishing an explicit null', () => {
     expect(homeRunScore(makeRun({id: 'r1'}), {r1: 1620})).toBe(1620);
     expect(homeRunScore(makeRun({id: 'r1'}), {r1: null})).toBeNull();
-  });
-});
-
-describe('homeRunStepIndex', () => {
-  it('maps queued to step 1 and synthesizing to step 4 directly', () => {
-    expect(homeRunStepIndex(makeRun({status: 'queued'}))).toBe(1);
-    expect(homeRunStepIndex(makeRun({status: 'synthesizing'}))).toBe(4);
-  });
-
-  it('derives the step from the run’s latest pipeline stage', () => {
-    const cases: [string, number][] = [
-      ['supervisor.plan', 1],
-      ['literature_review', 2],
-      ['generate', 2],
-      ['reflection', 3],
-      ['proximity', 3],
-      ['ranking', 4],
-      ['evolve', 4],
-      ['meta_review', 4],
-      ['deep_verification', 4],
-      ['research_overview', 4],
-    ];
-    for (const [latest_stage, step] of cases) {
-      expect(homeRunStepIndex(makeRun({status: 'running', latest_stage}))).toBe(
-        step,
-      );
-    }
-  });
-
-  it('falls back to step 1 for a running run with no stage recorded yet', () => {
-    expect(
-      homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
-    ).toBe(1);
   });
 });

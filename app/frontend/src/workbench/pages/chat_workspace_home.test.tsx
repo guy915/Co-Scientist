@@ -144,7 +144,7 @@ describe('ChatWorkspace home stage', () => {
     expect(container.querySelector('.reference-winner-list')).toBeNull();
   });
 
-  it('shows active recents with the run step flow', async () => {
+  it('shows active recents with durable task progress', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue([
       minimalRun({
@@ -152,6 +152,15 @@ describe('ChatWorkspace home stage', () => {
         research_goal: 'Investigate synaptic pruning therapies.',
         status: 'running',
         completed_at: null,
+        latest_stage: 'reflection.full',
+        execution_progress: {
+          determinate: true,
+          completed_tasks: 3,
+          total_tasks: 5,
+          fraction: 0.6,
+          active_task: 'reflection.full',
+          queued_tasks: 1,
+        },
         summary: {
           events: 9,
           hypotheses: 3,
@@ -165,11 +174,15 @@ describe('ChatWorkspace home stage', () => {
 
     renderWorkspace();
 
-    expect(await screen.findByText(/Step \d of 4/)).toBeInTheDocument();
-    expect(screen.getByText('Exploring focus areas')).toBeInTheDocument();
-    expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
-    expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
-    expect(screen.getByText('Playing tournament')).toBeInTheDocument();
+    expect(await screen.findByText('Reflection Full')).toBeInTheDocument();
+    expect(screen.getByText('60%')).toBeInTheDocument();
+    expect(
+      screen.getByText(/3 of 5 committed tasks complete/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuenow',
+      '60',
+    );
   });
 
   it('shows the reference empty recents placeholder', async () => {

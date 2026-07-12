@@ -128,6 +128,14 @@ export interface Run {
    * indicator. Absent/null on single-run reads and before the first stage.
    */
   latest_stage?: string | null;
+  execution_progress?: {
+    determinate: boolean;
+    completed_tasks: number;
+    total_tasks: number;
+    fraction: number | null;
+    active_task: string | null;
+    queued_tasks: number;
+  };
 }
 
 /** Aggregate counts of the artifacts a run has produced. */

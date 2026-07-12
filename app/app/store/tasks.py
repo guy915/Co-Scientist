@@ -135,6 +135,31 @@ def list_tasks(
     return [_decode(row) for row in rows]
 
 
+def task_progress(
+    run_id: str,
+    *,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> dict[str, Any]:
+    """Summarize monotonic execution progress from committed durable tasks."""
+    tasks = list_tasks(run_id, db_path=db_path, conn=conn)
+    total = len(tasks)
+    terminal = {"completed", "failed", "cancelled"}
+    completed = sum(task.status in terminal for task in tasks)
+    active = next(
+        (task for task in tasks if task.status in {"leased", "running"}),
+        None,
+    )
+    return {
+        "determinate": total > 0,
+        "completed_tasks": completed,
+        "total_tasks": total,
+        "fraction": completed / total if total else None,
+        "active_task": active.task_type if active else None,
+        "queued_tasks": sum(task.status == "queued" for task in tasks),
+    }
+
+
 def get_task(
     task_id: str,
     *,

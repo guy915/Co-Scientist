@@ -103,6 +103,7 @@ from app.store.tasks import (
     fail_task,
     get_task,
     list_tasks,
+    task_progress,
 )
 
 __all__ = [
@@ -163,6 +164,7 @@ __all__ = [
     "save_run_metrics",
     "set_run_title",
     "summary_counts",
+    "task_progress",
     "transaction",
     "update_hypothesis_state",
     "update_interview",

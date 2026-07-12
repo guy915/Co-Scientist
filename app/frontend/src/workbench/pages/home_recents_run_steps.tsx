@@ -1,84 +1,60 @@
-import {Fragment} from 'react';
-import {Icon, type IconName} from '@/components/icon';
-
-// The four progress steps of a live run, mirroring the reference's session
-// loading flow (glyph, label, and the stage boundaries it advances through).
-const RUN_STEPS: {icon: IconName; label: string}[] = [
-  {icon: 'summarize', label: 'Exploring focus areas'},
-  {icon: 'rate_review', label: 'Generating hypotheses'},
-  {icon: 'reviews', label: 'Reviewing hypotheses'},
-  {icon: 'chess', label: 'Playing tournament'},
-];
+import {type Run} from '@/api/runs';
 
 /**
- * Renders the reference's live "session loading" flow: a "Step X of N" chip
- * over the four run steps, each with its glyph, a green check once done, and an
- * indeterminate spinner on the one currently in progress.
- *
- * @param activeIndex The 1-based index of the step currently running.
+ * Renders truthful task-queue progress for a live run. A percentage appears
+ * only when the Supervisor has committed a durable task budget; otherwise the
+ * bar remains explicitly indeterminate.
  */
-export function RunStepFlow({activeIndex}: {activeIndex: number}) {
+export function RunExecutionProgress({run}: {run: Run}) {
+  const progress = run.execution_progress;
+  const activeTask = progress?.active_task
+    ? humanizeTask(progress.active_task)
+    : run.latest_stage
+      ? humanizeTask(run.latest_stage)
+      : 'Waiting for Supervisor allocation';
+  const percentage =
+    progress?.determinate && progress.fraction !== null
+      ? Math.round(progress.fraction * 100)
+      : null;
+
   return (
-    <div className="reference-run-steps">
-      <span className="reference-run-step-chip">
-        Step {activeIndex} of {RUN_STEPS.length}
-      </span>
-      <div className="reference-run-step-list">
-        {RUN_STEPS.map((step, index) => {
-          const stepNumber = index + 1;
-          return (
-            <Fragment key={step.label}>
-              <RunStepItem
-                icon={step.icon}
-                label={step.label}
-                done={stepNumber < activeIndex}
-                active={stepNumber === activeIndex}
-              />
-              {index < RUN_STEPS.length - 1 && (
-                <div
-                  aria-hidden="true"
-                  className="reference-run-step-delimiter"
-                />
-              )}
-            </Fragment>
-          );
-        })}
+    <section className="mt-4" aria-label="Run execution progress">
+      <div className="flex items-center justify-between gap-3 text-xs">
+        <strong className="font-medium text-cosci-fg">{activeTask}</strong>
+        <span className="text-cosci-muted">
+          {percentage === null ? 'Progress pending' : `${percentage}%`}
+        </span>
       </div>
-    </div>
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-cosci-hover"
+        role="progressbar"
+        aria-label="Scientific task completion"
+        aria-valuemin={percentage === null ? undefined : 0}
+        aria-valuemax={percentage === null ? undefined : 100}
+        aria-valuenow={percentage ?? undefined}
+      >
+        <div
+          className={
+            percentage === null
+              ? 'h-full w-1/3 animate-pulse rounded-full bg-cosci-blue-strong'
+              : 'h-full rounded-full bg-cosci-blue-strong transition-[width]'
+          }
+          style={percentage === null ? undefined : {width: `${percentage}%`}}
+        />
+      </div>
+      {progress?.determinate ? (
+        <p className="mt-2 text-xs text-cosci-muted">
+          {progress.completed_tasks} of {progress.total_tasks} committed tasks
+          complete · {progress.queued_tasks} queued
+        </p>
+      ) : null}
+    </section>
   );
 }
 
-// One step's glyph, label, green check once done, and indeterminate spinner
-// while it's the one currently in progress.
-function RunStepItem({
-  icon,
-  label,
-  done,
-  active,
-}: {
-  icon: IconName;
-  label: string;
-  done: boolean;
-  active: boolean;
-}) {
-  return (
-    <div className="reference-run-step">
-      <Icon
-        aria-hidden="true"
-        className="reference-run-step-icon"
-        name={icon}
-      />
-      <span className="reference-run-step-label">{label}</span>
-      {done && (
-        <Icon
-          aria-hidden="true"
-          className="reference-run-step-done"
-          name="check"
-        />
-      )}
-      {active && (
-        <span aria-hidden="true" className="reference-run-step-spinner" />
-      )}
-    </div>
-  );
+function humanizeTask(value: string): string {
+  return value
+    .replaceAll('.', ' ')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase());
 }

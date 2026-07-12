@@ -137,3 +137,46 @@ def test_failure_retries_then_stops(isolated_db: str) -> None:
     )
     [saved] = store.list_tasks(run_id, db_path=isolated_db)
     assert saved.status == "failed"
+
+
+def test_task_progress_is_monotonic_and_budget_derived(
+    isolated_db: str,
+) -> None:
+    """Progress uses committed task rows and advances only on terminal work."""
+    run_id = _run()
+    first = store.enqueue_task(
+        run_id,
+        "retrieval.pubmed",
+        {},
+        idempotency_key="progress:retrieval",
+        db_path=isolated_db,
+    )
+    store.enqueue_task(
+        run_id,
+        "generation.initial",
+        {},
+        idempotency_key="progress:generation",
+        db_path=isolated_db,
+    )
+    initial = store.task_progress(run_id, db_path=isolated_db)
+    assert initial == {
+        "determinate": True,
+        "completed_tasks": 0,
+        "total_tasks": 2,
+        "fraction": 0.0,
+        "active_task": None,
+        "queued_tasks": 2,
+    }
+
+    leased = store.claim_task("worker", run_id=run_id, db_path=isolated_db)
+    assert leased is not None and leased.id == first.id
+    active = store.task_progress(run_id, db_path=isolated_db)
+    assert active["fraction"] == 0.0
+    assert active["active_task"] == "retrieval.pubmed"
+
+    assert store.complete_task(
+        first.id, "worker", {"count": 4}, db_path=isolated_db
+    )
+    completed = store.task_progress(run_id, db_path=isolated_db)
+    assert completed["fraction"] == 0.5
+    assert completed["completed_tasks"] == 1
