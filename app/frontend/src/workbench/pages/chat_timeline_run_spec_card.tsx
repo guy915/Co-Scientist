@@ -38,14 +38,6 @@ import {
 } from './chat_timeline_message_actions';
 
 /**
- * Derives the concise display title shown atop a run-spec/plan card for a
- * given research goal.
- */
-export function referenceSetupTitle(goal: string): string {
-  return conciseTitle(goal);
-}
-
-/**
  * Renders the inferred research-plan card shown in the timeline once a
  * request has been parsed into an {@link InferredRunSpec}: the goal/
  * requirements/attributes/criteria breakdown, editable Focus/Tier option
@@ -171,7 +163,7 @@ function RunSpecDocument({
   return (
     <div className={SETUP_DOCUMENT_CLASSES}>
       <h3 className={SETUP_DOCUMENT_TITLE_CLASSES}>
-        {referenceSetupTitle(spec.goal)}
+        {conciseTitle(spec.goal)}
       </h3>
       <SpecSummary spec={spec} />
       <RunOptionGroup
@@ -255,7 +247,7 @@ function RunSpecActions({
 // card's copy/download actions (see responseActions).
 function formatRunSpecResponse(spec: InferredRunSpec): string {
   return [
-    `# ${referenceSetupTitle(spec.goal)}`,
+    `# ${conciseTitle(spec.goal)}`,
     '',
     "I've drafted the requirements to propose a novel, testable hypothesis for this research session.",
     '',

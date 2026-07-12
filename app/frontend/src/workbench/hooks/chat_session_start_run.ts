@@ -1,8 +1,6 @@
 import {createRun, startRun} from '@/api/runs';
-import {
-  referenceSetupTitle,
-  type StartedSession,
-} from '../pages/chat_timeline_cards';
+import {conciseTitle} from '@/lib/text';
+import {type StartedSession} from '../pages/chat_timeline_cards';
 import {emitDiagnosticEvent} from './chat_session_helpers';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
 
@@ -30,7 +28,7 @@ async function executeStart({
   });
   const session: StartedSession = {
     id: created.id,
-    title: referenceSetupTitle(specToStart.goal),
+    title: conciseTitle(specToStart.goal),
     at: Date.now() / 1000,
   };
   setConfirmed({spec: specToStart, createdAt: specCreatedAt});
@@ -54,7 +52,7 @@ async function startDraftRun(
   const {specToStart, setError} = deps;
   emitDiagnosticEvent({
     stage: 'LIFECYCLE',
-    run: referenceSetupTitle(specToStart.goal),
+    run: conciseTitle(specToStart.goal),
     payload: {event: 'start_requested'},
   });
   try {
@@ -69,7 +67,7 @@ async function startDraftRun(
     setError(err instanceof Error ? err.message : String(err));
     emitDiagnosticEvent({
       stage: 'LIFECYCLE',
-      run: referenceSetupTitle(specToStart.goal),
+      run: conciseTitle(specToStart.goal),
       level: 'error',
       payload: {
         event: 'start_failed',
