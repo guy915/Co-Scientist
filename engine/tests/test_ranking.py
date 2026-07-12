@@ -218,6 +218,42 @@ async def test_ranking_honors_tournament_pairs(
     assert len(result["tournament_matchups"]) == 5
 
 
+async def test_each_round_selects_from_committed_current_elo(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Later matchmaking observes Elo committed by the previous result."""
+    hypotheses = [
+        make_hypothesis(text="sequential alpha"),
+        make_hypothesis(text="sequential beta"),
+    ]
+    observed_elos: list[tuple[int, int]] = []
+
+    def fake_pairings(
+        pool: list[Any], *_: Any, **__: Any
+    ) -> list[tuple[Any, Any]]:
+        observed_elos.append((pool[0].elo_rating, pool[1].elo_rating))
+        return [(pool[0], pool[1])]
+
+    async def fake_judge(*_: Any, **__: Any) -> tuple[str, dict[str, Any]]:
+        return "a", {
+            "decision_summary": "A wins.",
+            "confidence_level": "High",
+            "debate_turns": 1,
+        }
+
+    monkeypatch.setattr(ranking, "_build_tournament_pairings", fake_pairings)
+    monkeypatch.setattr(ranking, "judge_matchup", fake_judge)
+    state = make_state(hypotheses=hypotheses, tournament_pairs=2)
+
+    await ranking._run_tournament_matchups(
+        state, hypotheses, 2, None, None, None, None, None
+    )
+
+    assert observed_elos[0] == (1200, 1200)
+    assert observed_elos[1] != (1200, 1200)
+    assert hypotheses[0].win_count == 2
+
+
 # --- match_tier: deterministic decisiveness classification ------------------
 
 

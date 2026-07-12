@@ -51,9 +51,6 @@ from co_scientist.nodes.ranking_results import (
     _apply_matchup_elo as _apply_matchup_elo,
 )
 from co_scientist.nodes.ranking_results import (
-    _apply_matchup_results as _apply_matchup_results,
-)
-from co_scientist.nodes.ranking_results import (
     _build_matchup_detail as _build_matchup_detail,
 )
 from co_scientist.nodes.ranking_results import (
@@ -330,11 +327,10 @@ async def _run_tournament_matchups(
     run_setup_guidance: str | None,
     run_focus_guidance: str | None,
 ) -> tuple[
-    list[tuple[Hypothesis, Hypothesis]],
-    list[tuple[str, dict[str, Any]]],
+    list[dict[str, Any]],
     int,
 ]:
-    """Builds tournament pairings and judges them concurrently.
+    """Select, judge, and commit tournament matchups sequentially.
 
     Each pairing runs a multi-turn debate when it is top-ranked and a
     single-turn comparison otherwise (depth from the pool's median Elo).
@@ -350,39 +346,57 @@ async def _run_tournament_matchups(
         run_focus_guidance: Optional run-focus guidance for the prompt.
 
     Returns:
-        Tuple of (pairings, results, total_llm_calls): the per-round
-        hypothesis pairs, their aligned judged (winner, response) outcomes,
-        and the total judge LLM calls made (summed over debate turns).
+        Tuple of (matchup details, total LLM calls). Each outcome is committed
+        before the next pairing is selected, so matchmaking observes current
+        ratings and coverage rather than a stale pre-round snapshot.
     """
     research_goal = state["research_goal"]
     current_iteration = state.get("current_iteration", 0)
-    pairings = _build_tournament_pairings(
-        hypotheses, tournament_rounds, research_goal, current_iteration
-    )
-    median_elo = _median_elo(hypotheses)
-    depths = [_matchup_debate_turns(a, b, median_elo) for a, b in pairings]
-    # Fire all matchup judgments concurrently; judge_matchup's semaphore
-    # caps how many LLM calls are actually in flight at once.
-    results = await asyncio.gather(
-        *[
-            judge_matchup(
-                a,
-                b,
-                state["research_goal"],
-                state["model_name"],
-                supervisor_guidance,
-                run_id=state.get("run_id"),
-                matchup_index=i,
-                tool_registry=tool_registry,
-                meta_review=meta_review,
-                run_setup_guidance=run_setup_guidance,
-                run_focus_guidance=run_focus_guidance,
-                debate_turns=depths[i],
-            )
-            for i, (a, b) in enumerate(pairings)
-        ]
-    )
-    return pairings, results, sum(depths)
+    details: list[dict[str, Any]] = []
+    total_llm_calls = 0
+    previous_pair: frozenset[str] | None = None
+    for index in range(tournament_rounds):
+        # A distinct deterministic seed plus updated in-memory Elo/match counts
+        # makes each selection depend on every committed earlier outcome.
+        candidates = _build_tournament_pairings(
+            hypotheses,
+            min(3, tournament_rounds),
+            research_goal,
+            current_iteration * 10_000 + index,
+        )
+        pairing = next(
+            (
+                item
+                for item in candidates
+                if frozenset({item[0].id, item[1].id}) != previous_pair
+            ),
+            candidates[0] if candidates else None,
+        )
+        if pairing is None:
+            break
+        hyp_a, hyp_b = pairing
+        depth = _matchup_debate_turns(hyp_a, hyp_b, _median_elo(hypotheses))
+        winner, response = await judge_matchup(
+            hyp_a,
+            hyp_b,
+            state["research_goal"],
+            state["model_name"],
+            supervisor_guidance,
+            run_id=state.get("run_id"),
+            matchup_index=index,
+            tool_registry=tool_registry,
+            meta_review=meta_review,
+            run_setup_guidance=run_setup_guidance,
+            run_focus_guidance=run_focus_guidance,
+            debate_turns=depth,
+        )
+        outcome = _apply_matchup_elo(hyp_a, hyp_b, winner)
+        details.append(
+            _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
+        )
+        previous_pair = frozenset({hyp_a.id, hyp_b.id})
+        total_llm_calls += depth
+    return details, total_llm_calls
 
 
 def _gather_tournament_context(
@@ -484,8 +498,7 @@ async def _prepare_ranking_round(
 async def _finalize_ranking_result(
     state: WorkflowState,
     hypotheses: list[Hypothesis],
-    pairings: list[tuple[Hypothesis, Hypothesis]],
-    results: list[tuple[str, dict[str, Any]]],
+    matchup_details: list[dict[str, Any]],
     tournament_rounds: int,
     total_llm_calls: int,
 ) -> dict[str, Any]:
@@ -496,17 +509,13 @@ async def _finalize_ranking_result(
     Args:
         state: Current workflow state.
         hypotheses: Hypothesis pool that was paired for this tournament.
-        pairings: Per-round (hypothesis_a, hypothesis_b) pairs.
-        results: Per-round (winner, response) judgments, aligned with
-            pairings.
+        matchup_details: Sequentially committed tournament outcomes.
         tournament_rounds: Number of tournament rounds run.
         total_llm_calls: Total judge LLM calls (summed over debate turns).
 
     Returns:
         The ranking_node state delta dictionary.
     """
-    matchup_details = _apply_matchup_results(pairings, results)
-
     # Sort hypotheses by Elo rating (highest first), with score then text as
     # deterministic tiebreakers when Elo ratings are equal.
     hypotheses = rank_by_elo(hypotheses)
@@ -571,8 +580,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         run_focus_guidance,
     ) = await _prepare_ranking_round(state, hypotheses)
 
-    # Prepare all weighted pairwise matchups and judge them in parallel
-    pairings, results, total_llm_calls = await _run_tournament_matchups(
+    matchup_details, total_llm_calls = await _run_tournament_matchups(
         state,
         hypotheses,
         tournament_rounds,
@@ -586,8 +594,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
     return await _finalize_ranking_result(
         state,
         hypotheses,
-        pairings,
-        results,
+        matchup_details,
         tournament_rounds,
         total_llm_calls,
     )
