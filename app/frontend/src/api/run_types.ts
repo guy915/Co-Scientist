@@ -327,6 +327,16 @@ export interface ResearchOverview {
     aims?: {aim: string; rationale: string; approach: string}[];
     impact?: string;
   };
+  research_contacts?: {
+    candidate_id: string;
+    name: string;
+    expertise: string;
+    justification: string;
+    source_id: string;
+    source_title: string;
+    source_url: string;
+    source: string;
+  }[];
 }
 
 /** A persisted run report with its structured payload and markdown path. */

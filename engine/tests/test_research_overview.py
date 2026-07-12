@@ -11,7 +11,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from co_scientist.nodes import research_overview as ro
-from tests._state import make_hypothesis, make_state
+from tests._state import make_article, make_hypothesis, make_state
 
 
 async def test_produces_overview_and_aims(
@@ -41,6 +41,20 @@ async def test_produces_overview_and_aims(
                 ],
                 "impact": "imp",
             },
+            "research_contacts": [
+                {
+                    "candidate_id": "author-1-1",
+                    "name": "Ada Researcher",
+                    "expertise": "Fibrosis mechanisms",
+                    "justification": "Authored the analyzed source.",
+                },
+                {
+                    "candidate_id": "invented",
+                    "name": "Invented Person",
+                    "expertise": "Unknown",
+                    "justification": "Not grounded.",
+                },
+            ],
         }
     )
     monkeypatch.setattr(ro, "call_llm_json", fake)
@@ -53,6 +67,15 @@ async def test_produces_overview_and_aims(
         research_goal="g",
         supervisor_model_name="test/model",
         meta_review={},
+        articles=[
+            make_article(
+                title="Fibrosis mechanisms",
+                authors=["Ada Researcher"],
+                source_id="PMID:123",
+                url="https://pubmed.ncbi.nlm.nih.gov/123/",
+                used_in_analysis=True,
+            )
+        ],
     )
     out = await ro.research_overview_node(state)
 
@@ -61,3 +84,8 @@ async def test_produces_overview_and_aims(
         out["research_overview"]["nih_specific_aims"]["aims"][0]["aim"] == "A"
     )
     assert fake.await_count == 1
+    contacts = out["research_overview"]["research_contacts"]
+    assert len(contacts) == 1
+    assert contacts[0]["name"] == "Ada Researcher"
+    assert contacts[0]["source_id"] == "PMID:123"
+    assert "Invented Person" not in str(contacts)

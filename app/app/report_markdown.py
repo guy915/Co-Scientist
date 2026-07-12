@@ -185,6 +185,25 @@ def render_research_overview_markdown(overview: dict[str, Any]) -> list[str]:
         return []
     lines = _render_overview_section(overview.get("overview") or {})
     lines += _render_nih_aims_section(overview.get("nih_specific_aims") or {})
+    contacts = overview.get("research_contacts") or []
+    if isinstance(contacts, list) and contacts:
+        lines += ["\n## Research Contacts\n"]
+        for contact in contacts:
+            if not isinstance(contact, dict) or not contact.get("name"):
+                continue
+            lines.append(f"### {contact['name']}\n")
+            if contact.get("expertise"):
+                lines.append(
+                    f"**Relevant expertise:** {contact['expertise']}\n"
+                )
+            if contact.get("justification"):
+                lines.append(f"{contact['justification']}\n")
+            source_title = contact.get("source_title")
+            source_url = contact.get("source_url")
+            if source_title and source_url:
+                lines.append(f"Evidence: [{source_title}]({source_url})\n")
+            elif source_title:
+                lines.append(f"Evidence: {source_title}\n")
     return lines
 
 

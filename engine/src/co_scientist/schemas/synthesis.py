@@ -118,7 +118,27 @@ RESEARCH_OVERVIEW_SCHEMA: dict[str, Any] = {
                 },
                 "required": ["introduction", "aims", "impact"],
             },
+            "research_contacts": {
+                "type": "array",
+                "maxItems": 5,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "candidate_id": {"type": "string"},
+                        "name": {"type": "string"},
+                        "expertise": {"type": "string"},
+                        "justification": {"type": "string"},
+                    },
+                    "required": [
+                        "candidate_id",
+                        "name",
+                        "expertise",
+                        "justification",
+                    ],
+                },
+            },
         },
-        "required": ["overview", "nih_specific_aims"],
+        "required": ["overview", "nih_specific_aims", "research_contacts"],
     },
 }

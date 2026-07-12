@@ -49,6 +49,7 @@ def get_meta_review_prompt(
 def get_research_overview_prompt(
     research_goal: str,
     hypotheses_summary: str,
+    contact_candidates: str = "No verified literature authors available.",
     meta_review: dict[str, Any] | None = None,
     tool_registry: Any | None = None,
     run_setup_guidance: str | None = None,
@@ -60,6 +61,7 @@ def get_research_overview_prompt(
         {
             "research_goal": research_goal,
             "hypotheses_summary": hypotheses_summary,
+            "contact_candidates": contact_candidates,
         },
         meta_review_context=_format_meta_review_context(meta_review),
         run_guidance=_format_run_guidance(

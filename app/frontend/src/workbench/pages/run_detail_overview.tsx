@@ -141,9 +141,47 @@ export function ResearchOverviewView({
       <OverviewSummary overview={overview} />
       <ResearchDirectionsSection overview={overview} />
       <SpecificAimsSection overview={overview} />
+      <ResearchContactsSection overview={overview} />
       <WinningIdeasSection items={winningIdeas} />
       <TournamentSummarySection matches={matches} />
     </ReportDocument>
+  );
+}
+
+// Suggestions are restricted by the engine to authors of analyzed sources.
+function ResearchContactsSection({
+  overview,
+}: {
+  overview: ResearchOverview | undefined;
+}) {
+  const contacts = overview?.research_contacts;
+  if (!contacts?.length) return null;
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Research contacts</h3>
+      <p>
+        Relevant authors identified from the literature analyzed in this run.
+      </p>
+      {contacts.map(contact => (
+        <div key={contact.candidate_id}>
+          <h4 className={REPORT_H4_CLASSES}>{contact.name}</h4>
+          <p>{contact.expertise}</p>
+          <p>{contact.justification}</p>
+          {contact.source_url ? (
+            <a
+              className="text-th-primary underline"
+              href={contact.source_url}
+              rel="noreferrer"
+              target="_blank"
+            >
+              Evidence: {contact.source_title}
+            </a>
+          ) : (
+            <p>Evidence: {contact.source_title}</p>
+          )}
+        </div>
+      ))}
+    </section>
   );
 }
 

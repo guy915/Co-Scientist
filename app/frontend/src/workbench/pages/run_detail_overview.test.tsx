@@ -112,6 +112,18 @@ describe('ResearchOverviewView', () => {
           ],
           impact: 'The impact statement.',
         },
+        research_contacts: [
+          {
+            candidate_id: 'author-1-1',
+            name: 'Ada Researcher',
+            expertise: 'Fibrosis mechanisms',
+            justification: 'Authored a directly relevant analyzed paper.',
+            source_id: 'PMID:123',
+            source_title: 'A fibrosis study',
+            source_url: 'https://pubmed.ncbi.nlm.nih.gov/123/',
+            source: 'pubmed',
+          },
+        ],
       },
     });
 
@@ -150,6 +162,13 @@ describe('ResearchOverviewView', () => {
     expect(screen.getByText('Because reasons.')).toBeInTheDocument();
     expect(screen.getByText('Via this approach.')).toBeInTheDocument();
     expect(screen.getByText('The impact statement.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {name: 'Research contacts'}),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Ada Researcher')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', {name: 'Evidence: A fibrosis study'}),
+    ).toHaveAttribute('href', 'https://pubmed.ncbi.nlm.nih.gov/123/');
 
     expect(
       screen.getByRole('heading', {name: 'Winning ideas'}),

@@ -12,6 +12,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import (
+    Article,
     Hypothesis,
     create_metrics_update,
     phase_message,
@@ -41,6 +42,7 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         return {"research_overview": {}}
 
     summary = _summarize_top_hypotheses(hypotheses)
+    contact_candidates = _build_contact_candidates(state.get("articles"))
 
     await emit_progress(
         state,
@@ -49,7 +51,9 @@ async def research_overview_node(state: WorkflowState) -> dict[str, Any]:
         PROGRESS_RESEARCH_OVERVIEW_START,
     )
 
-    research_overview = await _synthesize_research_overview(state, summary)
+    research_overview = await _synthesize_research_overview(
+        state, summary, contact_candidates
+    )
 
     await emit_progress(
         state,
@@ -86,6 +90,7 @@ def _summarize_top_hypotheses(hypotheses: list[Hypothesis]) -> str:
 async def _synthesize_research_overview(
     state: WorkflowState,
     summary: str,
+    contact_candidates: dict[str, dict[str, Any]],
 ) -> dict[str, Any]:
     """Builds the research-overview prompt, calls the LLM, and formats it.
 
@@ -98,6 +103,7 @@ async def _synthesize_research_overview(
     Args:
         state: Current workflow state.
         summary: Top-k hypotheses summary from _summarize_top_hypotheses.
+        contact_candidates: Verified authors keyed by a stable candidate id.
 
     Returns:
         Dict with "overview" and "nih_specific_aims" keys, defaulting to
@@ -107,6 +113,7 @@ async def _synthesize_research_overview(
     prompt, schema = get_research_overview_prompt(
         research_goal=state["research_goal"],
         hypotheses_summary=summary,
+        contact_candidates=_format_contact_candidates(contact_candidates),
         meta_review=state.get("meta_review"),
         tool_registry=state.get("tool_registry"),
         run_setup_guidance=state.get("run_setup_guidance"),
@@ -123,7 +130,90 @@ async def _synthesize_research_overview(
     return {
         "overview": response.get("overview", {}),
         "nih_specific_aims": response.get("nih_specific_aims", {}),
+        "research_contacts": _validate_research_contacts(
+            response.get("research_contacts"), contact_candidates
+        ),
     }
+
+
+def _build_contact_candidates(
+    articles: list[Article] | None,
+) -> dict[str, dict[str, Any]]:
+    """Build a bounded expert pool exclusively from retrieved-paper authors."""
+    candidates: dict[str, dict[str, Any]] = {}
+    seen_names: set[str] = set()
+    for article_index, article in enumerate(articles or []):
+        if not article.used_in_analysis:
+            continue
+        for author_index, raw_name in enumerate(article.authors):
+            name = raw_name.strip()
+            normalized = name.casefold()
+            if not name or normalized in seen_names or len(candidates) >= 30:
+                continue
+            candidate_id = f"author-{article_index + 1}-{author_index + 1}"
+            candidates[candidate_id] = {
+                "candidate_id": candidate_id,
+                "name": name,
+                "source_id": article.source_id or "",
+                "source_title": article.title,
+                "source_url": article.url or "",
+                "source": article.source,
+            }
+            seen_names.add(normalized)
+    return candidates
+
+
+def _format_contact_candidates(
+    candidates: dict[str, dict[str, Any]],
+) -> str:
+    """Format the verified candidate pool for the synthesis prompt."""
+    if not candidates:
+        return "No verified literature authors available."
+    return "\n".join(
+        (
+            "- {candidate_id}: {name}; paper={source_title}; "
+            "source_id={source_id}; url={source_url}"
+        ).format(**candidate)
+        for candidate in candidates.values()
+    )
+
+
+def _validate_research_contacts(
+    raw_contacts: Any,
+    candidates: dict[str, dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Keep only exact candidate matches and attach immutable provenance."""
+    if not isinstance(raw_contacts, list):
+        return []
+    accepted: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw in raw_contacts:
+        if not isinstance(raw, dict):
+            continue
+        candidate_id_value = raw.get("candidate_id")
+        if not isinstance(candidate_id_value, str):
+            continue
+        candidate_id = candidate_id_value
+        candidate = candidates.get(candidate_id)
+        if (
+            candidate is None
+            or raw.get("name") != candidate["name"]
+            or candidate_id in seen
+        ):
+            continue
+        accepted.append(
+            {
+                **candidate,
+                "expertise": str(raw.get("expertise") or "").strip(),
+                "justification": str(
+                    raw.get("justification") or ""
+                ).strip(),
+            }
+        )
+        seen.add(candidate_id)
+        if len(accepted) == 5:
+            break
+    return accepted
 
 
 def _build_research_overview_result(
