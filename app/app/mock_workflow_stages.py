@@ -425,7 +425,11 @@ async def _run_reflection_and_proximity(
     # ---- 5c. Claim grounding + publication gate (before tournament entry) --
     passages = evidence_passages(run_id, db_path=db_path)
     grounding = ground_hypotheses(
-        run_id, hyp_payloads, passages, db_path=db_path
+        run_id,
+        hyp_payloads,
+        passages,
+        allow_speculative=True,
+        db_path=db_path,
     )
     _drop_blocked_hypotheses(hyp_ids, hyp_payloads, grounding.blocked_ids)
     yield await emit(

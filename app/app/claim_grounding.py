@@ -9,11 +9,8 @@ store-aware wiring both providers share (SSR §6, §7; RGV §4, §5):
 2. Assess each claim against the run's retrieved evidence passages and persist
    the resulting edge (label + exact supporting/contradicting passages +
    assessor provenance) to the ``claim_evidence`` graph.
-3. Run the publication gate: a hypothesis with a *contradicted* fundamental
-   claim cannot rank or publish and is excluded from the tournament and
-   synthesis. Merely unsupported (insufficient) claims are recorded and
-   surfaced as labeled speculation rather than hard-excluded, so they feed
-   back into revision without silently deleting benign hypotheses.
+3. Run the publication gate: a hypothesis with a contradicted or unsupported
+   material claim cannot rank or publish and is quarantined for revision.
 
 The default assessor is deterministic so the pipeline runs offline; a real
 NLI/LLM entailment model is a swappable, provenance-tagged assessor.
@@ -118,6 +115,7 @@ def ground_hypotheses(
     *,
     assessor: Assessor = deterministic_assessor,
     assessor_id: str = "deterministic-v1",
+    allow_speculative: bool = False,
     conn: sqlite3.Connection | None = None,
     db_path: str | None = None,
 ) -> GroundingResult:
@@ -139,6 +137,8 @@ def ground_hypotheses(
         assessor: The entailment assessor (deterministic by default; the LLM
             assessor is plugged in for a real grounded run).
         assessor_id: Provenance id recorded on each persisted edge.
+        allow_speculative: Compatibility-only switch for explicitly marked mock
+            workflows. Faithful engine runs must leave this False.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
         db_path: Optional override for the SQLite database path.
 
@@ -174,24 +174,30 @@ def ground_hypotheses(
                 conn=conn,
                 db_path=db_path,
             )
-        # Speculation is permitted (unsupported claims feed back to revision as
-        # labeled speculation); only a contradicted fundamental claim is a hard
-        # publication blocker.
-        gate = publication_gate(assessments, allow_speculative=True)
+        # Faithful publication policy is conservative: unsupported scientific
+        # claims are quarantined alongside contradictions until revised or
+        # grounded. Speculative prose may be retained in working memory, but it
+        # cannot enter decisive ranking or the final report categorically.
+        gate = publication_gate(
+            assessments, allow_speculative=allow_speculative
+        )
         reason_by_id[hyp_id] = gate.reason
-        if gate.decision is GateDecision.BLOCK and gate.contradicted_claims:
+        if gate.decision is GateDecision.BLOCK:
             blocked.add(hyp_id)
+            failed_claims = (
+                gate.contradicted_claims or gate.unsupported_claims
+            )
             store.add_safety_decision(
                 run_id,
                 stage="claim_gate",
                 decision="block",
                 reason=f"hypothesis {hyp_id}: {gate.reason}",
-                matches=list(gate.contradicted_claims),
+                matches=list(failed_claims),
                 conn=conn,
                 db_path=db_path,
             )
             logger.warning(
-                "Blocking hypothesis %s from the tournament: %s",
+                "Quarantining hypothesis %s from ranking and publication: %s",
                 hyp_id,
                 gate.reason,
             )

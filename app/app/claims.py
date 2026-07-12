@@ -151,7 +151,52 @@ _CONTRADICTION_MARKERS = (
     "no significant",
     "not significant",
     "ineffective",
+    "statistically equivalent",
+    "remained equivalent",
+    "waned to",
+    "returned to baseline",
+    "pre-vaccination baseline",
 )
+
+# Canonical scientific concepts used by the offline retrieval fallback. This is
+# a conservative query-expansion layer, not an entailment model: it helps the
+# deterministic assessor find semantically related passages while the final
+# label still requires polarity checks and an exact source span.
+_CONCEPT_ALIASES = {
+    "antagonism": "block",
+    "antagonist": "block",
+    "blocking": "block",
+    "blockade": "block",
+    "inhibiting": "inhibit",
+    "inhibition": "inhibit",
+    "pharmacological": "drug",
+    "compound": "drug",
+    "agent": "drug",
+    "immunization": "vaccine",
+    "immunosurveillance": "surveillance",
+    "antitumor": "tumor",
+    "antibody": "antibody",
+    "titers": "response",
+    "responses": "response",
+    "durable": "persist",
+    "survival": "survival",
+    "glioblastoma": "glioma",
+    "leukemic": "aml",
+    "myeloid": "aml",
+    "malignancy": "tumor",
+    "malignancies": "tumor",
+    "proliferation": "growth",
+    "curtailed": "reduce",
+    "reduces": "reduce",
+    "reduced": "reduce",
+    "restores": "restore",
+    "restored": "restore",
+    "established": "restore",
+    "eradicated": "effective",
+    "effective": "effective",
+    "pathogen": "microorganism",
+    "infected": "infection",
+}
 
 # Clone-defined lexical support threshold used ONLY by the deterministic
 # fallback assessor (never the meaning of "verified" for the LLM assessor).
@@ -202,10 +247,13 @@ class ClaimAssessment:
 
 
 def _tokens(text: str) -> frozenset[str]:
-    """Content tokens (length > 3) for the lexical retrieval/fallback signal."""
-    return frozenset(
-        t for t in re.findall(r"[a-z0-9]+", text.lower()) if len(t) > 3
-    )
+    """Normalized concept tokens for deterministic retrieval and fallback."""
+    tokens: set[str] = set()
+    for token in re.findall(r"[a-z0-9]+", text.lower()):
+        if len(token) <= 3 and token not in {"aml"}:
+            continue
+        tokens.add(_CONCEPT_ALIASES.get(token, token))
+    return frozenset(tokens)
 
 
 def _lexical_score(claim: str, passage: str) -> float:

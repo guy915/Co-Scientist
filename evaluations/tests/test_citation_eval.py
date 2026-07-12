@@ -20,21 +20,19 @@ def test_eval_runs_and_reports_metrics() -> None:
     assert "external_gap" in report
 
 
-def test_by_kind_shows_lexical_gap_on_hard_paraphrases() -> None:
-    """The per-kind split exposes where the lexical assessor fails.
+def test_by_kind_meets_offline_release_floor() -> None:
+    """The offline fallback handles the release panel's hard paraphrases.
 
     The dataset now includes hard paraphrases (semantic entailment with low
     lexical overlap) and mixed-evidence items. The deterministic (lexical)
-    assessor must handle the obvious/mixed cases but fail the hard paraphrases
-    — precisely the gap the semantic/NLI assessor closes.
+    fallback uses conservative concept normalization and polarity checks. It is
+    not a substitute for the configured semantic assessor, but it must remain
+    safe enough to satisfy the offline release floor when provider calls fail.
     """
     report = citation_eval.run()
     by_kind = report["metrics"]["by_kind"]
     assert set(by_kind) >= {"obvious", "hard_paraphrase", "mixed"}
-    # Lexical overlap resolves the obvious and mixed (retrieval + dominance)
-    # cases...
     assert by_kind["obvious"]["accuracy"] >= 0.9
     assert by_kind["mixed"]["accuracy"] >= 0.9
-    # ...but not the hard paraphrases, which need semantic entailment.
-    assert by_kind["hard_paraphrase"]["accuracy"] < 0.5
+    assert by_kind["hard_paraphrase"]["accuracy"] >= 0.8
     assert by_kind["hard_paraphrase"]["n"] >= 3

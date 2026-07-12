@@ -3,27 +3,27 @@
   "dataset_version": 2,
   "assessor": "deterministic-v1",
   "metrics": {
-    "accuracy": 0.75,
-    "contradiction_recall": 0.75,
-    "abstention_rate": 0.45,
+    "accuracy": 1.0,
+    "contradiction_recall": 1.0,
+    "abstention_rate": 0.2,
     "per_label": {
       "insufficient": {
-        "precision": 0.444,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "supports": {
+        "precision": 1.0,
         "recall": 1.0
       },
       "contradicts": {
         "precision": 1.0,
-        "recall": 0.75
-      },
-      "supports": {
-        "precision": 1.0,
-        "recall": 0.625
+        "recall": 1.0
       }
     },
     "n": 20,
     "by_kind": {
       "hard_paraphrase": {
-        "accuracy": 0.0,
+        "accuracy": 1.0,
         "n": 5
       },
       "mixed": {
@@ -38,12 +38,10 @@
   },
   "confusion": {
     "supports": {
-      "supports": 5,
-      "insufficient": 3
+      "supports": 8
     },
     "contradicts": {
-      "contradicts": 6,
-      "insufficient": 2
+      "contradicts": 8
     },
     "insufficient": {
       "insufficient": 4

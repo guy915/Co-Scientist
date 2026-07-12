@@ -40,17 +40,17 @@ from app.store import RunStatus
 logger = logging.getLogger(__name__)
 
 
-def _contradicted_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
-    """Ids of hypotheses with a contradicted claim (publication-gate block).
+def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
+    """Ids of hypotheses with a claim that failed publication readiness.
 
     The pre-tournament claim grounding (``claim_grounding``) persisted the
-    claim-evidence graph; a hypothesis with any ``contradicts`` edge failed the
-    publication gate (SSR §7) and must not rank or publish.
+    claim-evidence graph; a hypothesis with a contradicted or insufficient edge
+    failed the evidence policy and must not rank or publish categorically.
     """
     return {
         str(edge["hypothesis_id"])
         for edge in store.list_claim_evidence(run_id, db_path=db_path)
-        if edge.get("label") == "contradicts"
+        if edge.get("label") != "supports"
     }
 
 
@@ -58,6 +58,8 @@ def _exclude_unsafe_hypotheses(
     run_id: str,
     hyps: list[dict[str, Any]],
     db_path: str | None,
+    *,
+    require_verified_claims: bool = True,
 ) -> list[dict[str, Any]]:
     """Drop hypotheses a safety review or the publication gate blocks.
 
@@ -76,17 +78,21 @@ def _exclude_unsafe_hypotheses(
         hyps: The run's hypotheses (store rows with a ``statement`` and,
             normally, a persisted ``safety_status``).
         db_path: Optional override for the SQLite database path.
+        require_verified_claims: Whether insufficient claim evidence excludes
+            the hypothesis. False is reserved for explicit mock fixtures.
 
     Returns:
         The hypotheses safe to synthesize, in the original order.
     """
-    contradicted = _contradicted_hypothesis_ids(run_id, db_path)
+    unverified = _unverified_hypothesis_ids(run_id, db_path)
     safe: list[dict[str, Any]] = []
     for hyp in hyps:
-        # Publication gate: a contradicted claim blocks synthesis.
-        if str(hyp.get("id")) in contradicted:
+        # Faithful publication gate: every material claim must be supported
+        # before the hypothesis can enter synthesis. Explicit mock workflows
+        # remain compatibility fixtures and are never credited as science.
+        if require_verified_claims and str(hyp.get("id")) in unverified:
             logger.warning(
-                "Excluding hypothesis %s from synthesis: contradicted claim",
+                "Excluding hypothesis %s from synthesis: unverified claim",
                 hyp.get("id"),
             )
             continue
@@ -164,7 +170,12 @@ def _build_report_content(
     all_hyps = store.list_hypotheses(run_id, db_path=db_path)
     # Exclude any hypothesis a per-hypothesis safety review blocks (recorded as
     # an audit decision) before it can appear in the leaderboard or top ideas.
-    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path)
+    hyps = _exclude_unsafe_hypotheses(
+        run_id,
+        all_hyps,
+        db_path,
+        require_verified_claims=provider != "mock",
+    )
     counts = store.summary_counts(run_id, db_path=db_path)
     leaderboard = live_leaderboard(hyps)
     payload = build_report_payload(
@@ -272,6 +283,28 @@ async def finalize_report(
         logger.warning(
             "Report finalize blocked for run %s by the final safety gate.",
             run_id,
+        )
+        return
+
+    # Scientific readiness is independent of lexical misuse screening. A run
+    # with hypotheses but no evidence-ready proposal must remain blocked rather
+    # than publishing an empty or categorically unsupported Goal Report.
+    if provider != "mock" and not payload.get("leaderboard"):
+        reason = "No hypothesis passed the claim-level evidence release gate."
+        store.add_safety_decision(
+            run_id,
+            stage="scientific_readiness",
+            decision="block",
+            reason=reason,
+            matches=[],
+            db_path=db_path,
+        )
+        store.update_run_status(
+            run_id, RunStatus.BLOCKED, error=reason, db_path=db_path
+        )
+        logger.warning("Report finalize blocked for run %s: %s", run_id, reason)
+        yield await emit(
+            "status", {"status": "blocked", "reason": reason}
         )
         return
 

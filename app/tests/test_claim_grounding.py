@@ -52,9 +52,8 @@ def test_ground_persists_graph_and_blocks_contradicted(
     )
 
     assert isinstance(result, GroundingResult)
-    # Only the contradicted hypothesis is blocked.
-    assert result.blocked_ids == frozenset({bad_id})
-    assert ok_id not in result.blocked_ids
+    # Contradicted and unsupported hypotheses are both quarantined.
+    assert result.blocked_ids == frozenset({bad_id, ok_id})
 
     # The claim-evidence graph is persisted, with a contradicts edge whose
     # support span carries provenance (evidence id + located offsets).
@@ -88,6 +87,14 @@ def test_contradicted_hypothesis_excluded_from_report(
         run.id,
         "Kinase X mouse study",
         abstract=_CONTRADICTING_EVIDENCE,
+        db_path=isolated_db,
+    )
+    store.add_evidence(
+        run.id,
+        "Cardiovascular diet study",
+        abstract=(
+            "A dietary change improves cardiovascular outcomes in adults."
+        ),
         db_path=isolated_db,
     )
 

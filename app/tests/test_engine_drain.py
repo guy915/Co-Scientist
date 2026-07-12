@@ -81,7 +81,19 @@ def _final_state_with_features() -> dict[str, Any]:
                 "deep_verification_verdict": None,
             },
         ],
-        "articles": [],
+        "articles": [
+            {
+                "title": "CXCR1 validation study",
+                "source": "fixture",
+                "url": "https://example.org/cxcr1",
+                "abstract": (
+                    "Reparixin inhibits CXCR1 to suppress breast cancer stem "
+                    "cells. CXCR1 is enriched in breast CSCs. Blocking CXCR1 "
+                    "reduces the stem-cell pool. A control hypothesis with no "
+                    "probes."
+                ),
+            }
+        ],
         "tournament_matchups": [
             {
                 "hypothesis_a": "Reparixin inhibits CXCR1 to suppress "
