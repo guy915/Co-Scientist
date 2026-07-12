@@ -429,6 +429,27 @@ async def finalize_report(
     saved = store.save_report(run_id, payload, markdown, db_path=db_path)
     yield await emit("report", {**payload, "report_id": saved["id"]})
     store.update_run_status(run_id, RunStatus.COMPLETED, db_path=db_path)
+    run = store.get_run(run_id, db_path=db_path)
+    notification = (
+        run.config.get("completion_notification") if run else {}
+    ) or {}
+    if notification.get("enabled") and notification.get("email"):
+        store.enqueue_task(
+            run_id,
+            "notification.email",
+            {
+                "run_id": run_id,
+                "email": notification["email"],
+                "title": run.title or research_goal if run else research_goal,
+            },
+            idempotency_key=f"completion-email:{saved['id']}",
+            priority=-100,
+            dependencies=(),
+            provenance={"trigger": "Goal Report completed"},
+            budget={"delivery_attempts": 3},
+            max_attempts=3,
+            db_path=db_path,
+        )
     logger.info(
         "Report finalized for run %s (report_id=%s).", run_id, saved["id"]
     )

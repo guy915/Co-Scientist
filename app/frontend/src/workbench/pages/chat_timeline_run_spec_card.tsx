@@ -60,6 +60,7 @@ export function RunSpecCard({
   isStarting,
   locked = false,
   onTierChange,
+  onNotificationChange,
   onCancel,
   onEdit,
   onRetry,
@@ -69,6 +70,7 @@ export function RunSpecCard({
   isStarting: boolean;
   locked?: boolean;
   onTierChange: (tier: RunTier) => void;
+  onNotificationChange: (enabled: boolean, email: string) => void;
   onCancel: () => void;
   onEdit: () => void;
   onRetry: () => void;
@@ -95,6 +97,7 @@ export function RunSpecCard({
         locked={locked}
         isStarting={isStarting}
         onTierChange={onTierChange}
+        onNotificationChange={onNotificationChange}
         onCancel={onCancel}
         onStart={onStart}
       />
@@ -142,6 +145,7 @@ function RunSpecDocument({
   locked,
   isStarting,
   onTierChange,
+  onNotificationChange,
   onCancel,
   onStart,
 }: {
@@ -149,6 +153,7 @@ function RunSpecDocument({
   locked: boolean;
   isStarting: boolean;
   onTierChange: (tier: RunTier) => void;
+  onNotificationChange: (enabled: boolean, email: string) => void;
   onCancel: () => void;
   onStart: () => void;
 }) {
@@ -166,13 +171,61 @@ function RunSpecDocument({
         disabled={locked}
         onChange={value => onTierChange(value as RunTier)}
       />
+      <CompletionNotification
+        spec={spec}
+        disabled={locked}
+        onChange={onNotificationChange}
+      />
       <RunSpecActions
         locked={locked}
         isStarting={isStarting}
         onCancel={onCancel}
         onStart={onStart}
+        canStart={
+          !spec.notifyOnCompletion ||
+          /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(spec.completionEmail || '')
+        }
       />
     </div>
+  );
+}
+
+function CompletionNotification({
+  spec,
+  disabled,
+  onChange,
+}: {
+  spec: InferredRunSpec;
+  disabled: boolean;
+  onChange: (enabled: boolean, email: string) => void;
+}) {
+  const enabled = Boolean(spec.notifyOnCompletion);
+  return (
+    <fieldset className={OPTION_GROUP_CLASSES}>
+      <legend className={OPTION_GROUP_LEGEND_CLASSES}>Notification</legend>
+      <label className="flex items-center gap-3 text-sm">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={disabled}
+          onChange={event =>
+            onChange(event.currentTarget.checked, spec.completionEmail || '')
+          }
+        />
+        Email me when the Goal Report is ready
+      </label>
+      {enabled ? (
+        <input
+          type="email"
+          required
+          disabled={disabled}
+          aria-label="Completion notification email"
+          className="mt-3 w-full rounded-xl border border-cosci-border bg-transparent p-3"
+          value={spec.completionEmail || ''}
+          onChange={event => onChange(true, event.currentTarget.value)}
+        />
+      ) : null}
+    </fieldset>
   );
 }
 
@@ -196,11 +249,13 @@ function RunSpecActions({
   isStarting,
   onCancel,
   onStart,
+  canStart,
 }: {
   locked: boolean;
   isStarting: boolean;
   onCancel: () => void;
   onStart: () => void;
+  canStart: boolean;
 }) {
   return (
     <div className={SETUP_ACTIONS_CLASSES}>
@@ -218,7 +273,7 @@ function RunSpecActions({
         type="button"
         className={SETUP_PRIMARY_BUTTON_CLASSES}
         onClick={onStart}
-        disabled={isStarting || locked}
+        disabled={isStarting || locked || !canStart}
       >
         {isStarting ? 'Starting...' : 'Start research'}
       </button>

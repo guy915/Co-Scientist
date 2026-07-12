@@ -42,6 +42,11 @@ class CreateRunRequest(BaseModel):
     evolution_max_count: int | None = None
     k_factor: int | None = None
     enable_literature_review: bool | None = None
+    completion_email: str | None = Field(
+        None,
+        pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$",
+    )
+    notify_on_completion: bool = False
 
 
 class StartRunRequest(BaseModel):

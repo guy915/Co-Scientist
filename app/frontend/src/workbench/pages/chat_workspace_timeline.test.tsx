@@ -99,6 +99,21 @@ describe('messageTimelineItems', () => {
 });
 
 describe('draftTimelineItems', () => {
+  it('persists completion-notification opt-in and address in the draft', () => {
+    const spec = makeSpec();
+    const draft: SpecStage = {spec, createdAt: 5};
+    const args = baseArgs({draft});
+    renderItems(buildTimelineItems(args));
+
+    fireEvent.click(
+      screen.getByLabelText('Email me when the Goal Report is ready'),
+    );
+    const enableUpdater = vi.mocked(args.setDraft).mock.calls[0][0] as (
+      current: SpecStage | null,
+    ) => SpecStage | null;
+    expect(enableUpdater(draft)?.spec.notifyOnCompletion).toBe(true);
+  });
+
   it('wires the focus/tier/edit/retry/cancel/start actions to the session handlers', async () => {
     const spec = makeSpec();
     const draft: SpecStage = {spec, createdAt: 5};

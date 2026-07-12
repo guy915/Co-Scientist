@@ -10,6 +10,8 @@ export interface InferredRunSpec {
   criteria: string[];
   focus: RunFocus;
   tier: RunTier;
+  notifyOnCompletion?: boolean;
+  completionEmail?: string;
 }
 
 /** Maps a completed Agent interview into the run-configuration card model. */
@@ -23,6 +25,8 @@ export function interviewToRunSpec(interview: Interview): InferredRunSpec {
     criteria: [],
     focus: 'balance',
     tier: 'standard',
+    notifyOnCompletion: false,
+    completionEmail: '',
   };
 }
 

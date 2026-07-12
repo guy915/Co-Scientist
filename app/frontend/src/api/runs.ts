@@ -194,6 +194,8 @@ export async function createRun(input: {
   evolution_max_count?: number;
   k_factor?: number;
   enable_literature_review?: boolean;
+  notify_on_completion?: boolean;
+  completion_email?: string;
 }): Promise<Run> {
   return fetchJson('/api/runs', jsonRequest(input, true));
 }

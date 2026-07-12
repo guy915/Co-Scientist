@@ -12,11 +12,13 @@ from collections.abc import Sequence
 
 from app import engine_adapter, store
 from app.logging_setup import run_log_context
+from app.notifications import deliver_completion_notification
 from app.store import RunStatus, ScientificTask
 
 logger = logging.getLogger(__name__)
 
 _WORKFLOW_TASK = "run.workflow"
+_EMAIL_TASK = "notification.email"
 
 
 class _DatabaseStopSignal:
@@ -108,9 +110,12 @@ async def run_once(
     if task is None:
         return False
     try:
-        if task.task_type != _WORKFLOW_TASK:
+        if task.task_type == _WORKFLOW_TASK:
+            result = await _execute_workflow_task(task, db_path=db_path)
+        elif task.task_type == _EMAIL_TASK:
+            result = await deliver_completion_notification(task.inputs)
+        else:
             raise ValueError(f"unsupported task type: {task.task_type}")
-        result = await _execute_workflow_task(task, db_path=db_path)
     except ValueError as exc:
         store.fail_task(
             task.id,

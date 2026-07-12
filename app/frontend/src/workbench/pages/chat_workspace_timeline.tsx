@@ -160,6 +160,20 @@ function draftTimelineItems({
               current ? {...current, spec: {...current.spec, tier}} : current,
             )
           }
+          onNotificationChange={(enabled, email) =>
+            setDraft(current =>
+              current
+                ? {
+                    ...current,
+                    spec: {
+                      ...current.spec,
+                      notifyOnCompletion: enabled,
+                      completionEmail: email,
+                    },
+                  }
+                : current,
+            )
+          }
           onCancel={handleCancelDraftSpec}
           onEdit={() => handleEditPlan(draft.spec)}
           onRetry={() => handleRetryDraftSpec()}
@@ -193,6 +207,7 @@ function confirmedSpecTimelineItems({
           isStarting={false}
           locked
           onTierChange={() => undefined}
+          onNotificationChange={() => undefined}
           onCancel={() => undefined}
           onEdit={() => handleEditPlan(confirmed.spec)}
           onRetry={() => {

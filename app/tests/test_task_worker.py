@@ -79,3 +79,35 @@ async def test_worker_isolates_unknown_task_failure(isolated_db: str) -> None:
     assert saved is not None
     assert saved.status == "failed"
     assert "unsupported task type" in str(saved.error)
+
+
+@pytest.mark.asyncio
+async def test_worker_delivers_opted_in_completion_email(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A notification task is durable and commits its SMTP delivery result."""
+    run = store.create_run("notification goal", "standard", "engine", {})
+    task = store.enqueue_task(
+        run.id,
+        "notification.email",
+        {"run_id": run.id, "email": "scientist@example.org", "title": "Result"},
+        idempotency_key="email:1",
+        max_attempts=3,
+        db_path=isolated_db,
+    )
+
+    async def _deliver(inputs: dict[str, Any]) -> dict[str, str]:
+        assert inputs["email"] == "scientist@example.org"
+        return {"recipient": str(inputs["email"]), "status": "sent"}
+
+    monkeypatch.setattr(
+        task_worker, "deliver_completion_notification", _deliver
+    )
+    assert await task_worker.run_once("mail-worker", db_path=isolated_db)
+    saved = store.get_task(task.id, db_path=isolated_db)
+    assert saved is not None
+    assert saved.status == "completed"
+    assert saved.result == {
+        "recipient": "scientist@example.org",
+        "status": "sent",
+    }

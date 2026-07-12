@@ -174,6 +174,11 @@ async def create_run(
     # /start can still override it per run via force_provider.
     provider = engine_adapter.select_provider()
     config, focus, tier = _build_create_run_config(req)
+    if req.notify_on_completion and req.completion_email:
+        config["completion_notification"] = {
+            "enabled": True,
+            "email": req.completion_email,
+        }
     if interview is not None:
         config["interview_id"] = interview["id"]
     run_mode = tier

@@ -311,3 +311,39 @@ async def test_steering_message_queued_mid_run_is_drained(
         e["type"] for e in store.list_events(run_id, db_path=isolated_db)
     ]
     assert stored_types.count("ranking") >= 2
+
+
+def test_completion_notification_is_opt_in_and_durable(
+    isolated_db: str,
+) -> None:
+    """A requested email becomes a retryable task only after report release."""
+    headers = {"X-Client-ID": "notification-scientist"}
+    with _client() as client:
+        created = client.post(
+            "/api/runs",
+            headers=headers,
+            json={
+                "research_goal": "Study notification fidelity",
+                "notify_on_completion": True,
+                "completion_email": "scientist@example.org",
+            },
+        )
+        run_id = created.json()["id"]
+        assert client.post(
+            f"/api/runs/{run_id}/start", headers=headers, json={}
+        ).status_code == 200
+        _wait_status(
+            client,
+            run_id,
+            "completed",
+            timeout=20.0,
+            interval=0.1,
+        )
+
+    tasks = store.list_tasks(run_id, db_path=isolated_db)
+    email_tasks = [
+        task for task in tasks if task.task_type == "notification.email"
+    ]
+    assert len(email_tasks) == 1
+    assert email_tasks[0].inputs["email"] == "scientist@example.org"
+    assert email_tasks[0].max_attempts == 3

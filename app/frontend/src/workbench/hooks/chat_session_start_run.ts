@@ -24,6 +24,10 @@ async function executeStart({
     attributes: specToStart.attributes,
     criteria: specToStart.criteria,
     tier: specToStart.tier,
+    notify_on_completion: Boolean(specToStart.notifyOnCompletion),
+    completion_email: specToStart.notifyOnCompletion
+      ? specToStart.completionEmail
+      : undefined,
     enable_literature_review: pubmedEnabled,
   });
   const session: StartedSession = {

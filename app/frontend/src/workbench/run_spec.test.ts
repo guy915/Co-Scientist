@@ -23,6 +23,8 @@ describe('interviewToRunSpec', () => {
       criteria: [],
       focus: 'balance',
       tier: 'standard',
+      notifyOnCompletion: false,
+      completionEmail: '',
     });
   });
 });

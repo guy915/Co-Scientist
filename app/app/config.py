@@ -58,6 +58,14 @@ class Settings(BaseSettings):
     status_probe_timeout_seconds: float = 3.0
     status_probe_cache_ttl_seconds: float = 30.0
 
+    # Optional SMTP transport for scientist-requested completion notices.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    public_app_url: str = "http://localhost:5173"
+
     # Tools Configuration (optional)
     # Path to a YAML tools config file, or an HTTP(S) URL.
     # Relative paths resolve from the server working directory.
