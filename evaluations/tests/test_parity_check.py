@@ -241,6 +241,50 @@ def test_partial_and_missing_rows_need_no_evidence(
     }
 
 
+def test_partial_row_without_residual_gap_fails(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A 'partial' row must record a residual gap / owner.
+
+    Downgrading a row to 'partial' without saying what remains and who owns
+    it is exactly the truth-drift the ledger exists to prevent, so an empty
+    residual cell is a hard failure.
+    """
+    ledger = _write_rows(
+        tmp_path,
+        "| FOO-001 | PAPER | a | code | — | partial | — |",
+    )
+    result = parity_check.check_parity(ledger, repo_root=tmp_path)
+    assert not result.ok
+    assert any("residual" in e.lower() for e in result.errors)
+
+
+def test_missing_row_without_residual_gap_fails(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A 'missing' row must also name a residual gap / owner."""
+    ledger = _write_rows(
+        tmp_path,
+        "| FOO-001 | PAPER | a | code | — | missing | — |",
+    )
+    result = parity_check.check_parity(ledger, repo_root=tmp_path)
+    assert not result.ok
+    assert any("residual" in e.lower() for e in result.errors)
+
+
+def test_partial_row_with_residual_gap_passes(
+    tmp_path: pathlib.Path,
+) -> None:
+    """A 'partial' row that records its gap/owner satisfies the checker."""
+    ledger = _write_rows(
+        tmp_path,
+        "| FOO-001 | PAPER | a | code | — | partial |"
+        " app persistence owned by M9 |",
+    )
+    result = parity_check.check_parity(ledger, repo_root=tmp_path)
+    assert result.ok, result.errors
+
+
 def test_main_returns_nonzero_on_violation(tmp_path: pathlib.Path) -> None:
     """The CLI entry returns 1 when the ledger has a violation."""
     ledger = _write_rows(

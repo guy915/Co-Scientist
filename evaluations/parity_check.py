@@ -105,15 +105,16 @@ def _is_separator_row(cells: list[str]) -> bool:
     )
 
 
-def _header_indexes(cells: list[str]) -> tuple[int, int, int] | None:
-    """Return (id, status, test/eval) column indexes for a header row.
+def _header_indexes(cells: list[str]) -> tuple[int, int, int, int] | None:
+    """Return (id, status, test/eval, residual) column indexes for a header.
 
     Args:
         cells: The trimmed cells of a candidate header row.
 
     Returns:
-        The three column indexes, or None if this is not a recognizable
-        requirement-table header (must have ID and Status columns).
+        The four column indexes, or None if this is not a recognizable
+        requirement-table header (must have ID and Status columns). The
+        residual index is -1 when the header has no residual/gap column.
     """
     lowered = [cell.lower() for cell in cells]
     if "id" not in lowered or "status" not in lowered:
@@ -122,7 +123,11 @@ def _header_indexes(cells: list[str]) -> tuple[int, int, int] | None:
     status_idx = lowered.index("status")
     # The evidence column is titled "Test/Eval"; match leniently.
     test_idx = next((i for i, cell in enumerate(lowered) if "test" in cell), -1)
-    return id_idx, status_idx, test_idx
+    # The last column is the "Residual gap / owner"; match on either word.
+    residual_idx = next(
+        (i for i, cell in enumerate(lowered) if "residual" in cell), -1
+    )
+    return id_idx, status_idx, test_idx, residual_idx
 
 
 def _cell_is_empty(cell: str) -> bool:
@@ -269,7 +274,7 @@ def check_parity(
     rows: list[Row] = []
     errors: list[str] = []
     seen_ids: dict[str, int] = {}
-    header: tuple[int, int, int] | None = None
+    header: tuple[int, int, int, int] | None = None
     expected_cols = 0
 
     for lineno, line in enumerate(text.splitlines(), start=1):
@@ -285,7 +290,7 @@ def check_parity(
             continue
         if header is None:
             continue
-        id_idx, status_idx, test_idx = header
+        id_idx, status_idx, test_idx, residual_idx = header
         # A misaligned row means a literal pipe inside a cell (or a missing
         # cell) silently shifted columns — fail loudly instead of misparsing.
         if len(cells) != expected_cols:
@@ -298,6 +303,7 @@ def check_parity(
         req_id = cells[id_idx].strip("` ")
         status = cells[status_idx].strip().lower()
         test_eval = cells[test_idx].strip() if test_idx >= 0 else ""
+        residual = cells[residual_idx].strip() if residual_idx >= 0 else ""
         if not req_id or status not in ALLOWED_STATUSES:
             # Not a requirement row (e.g. a legend/notes table); skip quietly
             # unless it looks like one with a bad status.
@@ -328,6 +334,15 @@ def check_parity(
                 errors.extend(
                     _evidence_errors(path.name, lineno, req_id, test_eval, root)
                 )
+
+        # A 'partial'/'missing' row must record what remains and who owns it.
+        # Downgrading a claim without naming the residual gap is the exact
+        # truth-drift the ledger exists to prevent (PLAN.md M0).
+        if status in ("partial", "missing") and _cell_is_empty(residual):
+            errors.append(
+                f"{path.name}:{lineno}: {req_id!r} is {status!r} but records "
+                f"no residual gap / owner (the Residual gap cell is empty)"
+            )
 
     if not rows:
         errors.append(f"{path.name}: no requirement rows parsed")

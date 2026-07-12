@@ -30,7 +30,7 @@ shared Python 3.12.12 environment.
 | Engine typecheck | `cd engine && ../.venv/bin/python -m mypy .` | Success, no issues (196 files) |
 | App typecheck | `cd app && ../.venv/bin/python -m mypy .` | Success, no issues (43 files) |
 | Ruff lint (engine, app) | `ruff check .` in each of `engine/` and `app/` (system ruff — the shared venv has no `ruff` module, so `make lint`, which calls `python -m ruff`, does not run here) | clean |
-| Parity checker | `python -m evaluations.parity_check` | OK — every `verified` row cites test/eval evidence (62 rows) |
+| Parity checker | `python -m evaluations.parity_check` | OK — every `verified` row cites test/eval evidence; every `partial`/`missing` row names a residual gap/owner (64 rows) |
 | Parity checker tests | `python -m pytest evaluations/tests -q` | passed (parity + docs-truth + citation-eval + safety-eval) |
 
 Coverage floors required by PLAN.md (≥80% each of engine, app backend,
@@ -40,11 +40,26 @@ work) falls below 80%.
 
 ### Parity ledger status snapshot
 
-`python -m evaluations.parity_check` reports, over 62 requirement rows:
-**verified=54, external=6, undisclosed=2, partial=0, missing=0.** There are no
-`partial` or `missing` rows: every requirement is either verified with cited
-test/eval evidence, or is an `external`/`undisclosed` row with a precise,
-non-safety-weakening blocker in [PARITY.md](PARITY.md).
+`python -m evaluations.parity_check` reports, over 64 requirement rows:
+**verified=43, partial=14, missing=1, external=6, undisclosed=0.** Each
+`verified` row cites test/eval evidence that exists on disk; each `partial`/
+`missing` row names a concrete residual gap and owner; each `external` row
+records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
+
+> **Reclassification (2026-07-12).** An end-to-end parity re-audit found that
+> the earlier snapshot (54 verified, 0 partial) over-claimed: the checker
+> only proves each `verified` row *names an existing test*, not that the test
+> exercises the production contract or matches Google's behavior. Fourteen
+> rows whose production path is not yet equivalent were moved to `partial`
+> (real-engine safety/claim gating runs *after* the tournament; app resume
+> re-runs rather than continues; steering/manual hypotheses/reviews are stored
+> but not fed into a live run; review/generation techniques fire but are not
+> grounded; `RANK-K-FACTOR`/`ORCH-WORKER-IFACE` are cross-layer or interface
+> gaps). `PROX-GRAPH-001` was split into an engine build (`verified`, after a
+> schema-contract fix) and app persistence (`PROX-GRAPH-APP-001`, `missing`).
+> `TOOLS-CONFIG-001` was added (`verified`) for the newly wired tools-config
+> forwarding. The remaining production-contract work is tracked as P0/P1 in
+> the audit and in the row residuals.
 
 ---
 
@@ -168,25 +183,38 @@ production build). The frontend suite, lint, and build are green (§1).
 
 ## 5. Honest limitations — what is and is not a 1:1 replica
 
-**Implemented and proven (54 verified rows):** immutable evolution with explicit
+**Implemented and proven (43 verified rows):** immutable evolution with explicit
 lineage; explicit append/replace state reducer; deterministic adaptive
 Supervisor scheduling with recorded reasons, budgets, and termination; dynamic
-routing that generates in later cycles (research expansion); all four
-generation techniques (literature exploration, simulated debate, iterative
-assumptions, research expansion) each *invoked* by a run, and all six reflection
-review types *invoked* by a run (initial/observation/deep-verification/recurrent
-throughout, and full-review + simulation-review on the top hypothesis); all five
-default output criteria scored; meta-review critique appended to every relevant agent prompt; weighted
+routing that generates in later cycles; all five default output criteria scored;
+meta-review critique appended to every relevant agent prompt; weighted
 proximity-/recency-/rank-aware matchmaking with coverage guarantees; multi-turn
-debate for top-ranked vs single-turn for lower-ranked, with persisted depth; a
-persisted weighted proximity graph; a versioned workflow checkpoint with
-engine-exact resume and app-level deterministic resume + pause/resume + startup
-auto-resume; claim-level entailment with provenance, a publication gate wired
-into ranking/synthesis, and the claim-evidence graph persisted and surfaced;
-per-hypothesis safety review wired before the tournament with real redaction and
-safe abstention; scientist-contributed hypotheses/reviews and a safe text-only
-attachment corpus; grounded post-run Q&A; durable high-priority steering
-consumed by the real engine's orchestrator; and offline evaluation harnesses.
+debate for top-ranked vs single-turn for lower-ranked, with persisted depth; an
+engine-built weighted proximity graph from the real proximity schema
+(`PROX-GRAPH-001`, after a schema-contract fix); a versioned workflow
+checkpoint with engine-exact resume proven engine-side + pause/resume + startup
+auto-resume; the tools-config forwarding/validation/disclosure path
+(`TOOLS-CONFIG-001`); intake and final safety gates; run-level provider
+provenance; and offline evaluation harnesses.
+
+**Partial (component or one layer exists; the production path is not yet
+equivalent — 14 rows):** for the real engine, per-hypothesis safety review and
+claim grounding/gating run *after* its internal tournament, so an unsafe or
+contradicted hypothesis can still shape ranking/evolution/meta-review before
+being excluded from the report (mock path gates pre-tournament); app resume of a
+real-engine run re-runs from the goal rather than continuing from a persisted
+`WorkflowState`; scientist steering, manual hypotheses, and manual reviews are
+persisted but not injected into a live engine run; the six reflection review
+types and four generation techniques all *fire* but "full"/"simulation" review
+run ungrounded on the single top hypothesis and literature/assumptions behavior
+is path-dependent; the claim assessor is lexical overlap, not entailment, with
+no live retraction/DOI resolution; the app K-factor override is not forwarded to
+the engine; and no worker interface/queue semantics exist. Each row names its
+gap and owner; the production-contract work is tracked as P0/P1 in the audit.
+
+**Missing (1 row):** app-side persistence/API/UI of the proximity graph
+(`PROX-GRAPH-APP-001`) — the engine streams it, but nothing persists or surfaces
+it yet.
 
 **External (unavailable, cannot be reproduced locally — no safety/truthfulness
 impact):** Google's private 1,200-goal safety benchmark; the 203-goal
