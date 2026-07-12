@@ -19,6 +19,12 @@ explicitly says otherwise; machine-readable results are written under
   Elo as ground truth.
 - `expert_review.py` — the blinded expert-review export/import schema
   (novelty/plausibility/impact/preference), validated round-trip.
+- `scaling_eval.py` — computes budget-ordered best-Elo (internal signal),
+  blinded top-10 expert quality, diversity, verified-claim ratio, cost, and
+  latency; also aggregates paired feature-ablation arms without treating Elo
+  as quality ground truth.
+- `release_gate.py` — fail-closed scientific publication readiness over claim,
+  safety, and provenance artifacts.
 - `smoke.py` — the offline smoke suite with documented regression tolerances.
 - `datasets/` — versioned, synthetic, legally shareable labeled sets.
 - `results/` — dated machine-readable result artifacts.
@@ -32,6 +38,7 @@ python -m evaluations.parity_check          # ledger gate
 python -m evaluations.smoke                 # offline smoke (safety + citation)
 python -m evaluations.citation_eval         # writes results/citation-entailment-<date>.json
 python -m evaluations.safety_eval           # writes results/hypothesis-safety-<date>.json
+python -m evaluations.scaling_eval path/to/controlled-runs.json
 python -m pytest evaluations/tests -q       # harness unit tests
 
 # Or via make:
