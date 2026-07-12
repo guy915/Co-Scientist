@@ -82,6 +82,15 @@ async def lifespan(
     provider = engine_adapter.select_provider()
     logger.info("Workflow provider: %s", provider)
 
+    # Fail loudly if a configured tools_config path is unreadable rather than
+    # silently running the engine's default tools (the historical bug: the
+    # setting was logged but never forwarded to the generator, so a bad path
+    # went unnoticed). Gated to the real engine: the mock never uses tools, so
+    # a stale env var must not break mock/dev boot. The generator is built per
+    # run, so this is validated here at startup, once.
+    if provider == "engine":
+        engine_adapter.validate_tools_config(settings.tools_config)
+
     # Reconcile runs left non-terminal by a previous process: a fresh process
     # has no workflow tasks running, so anything still queued/running was
     # interrupted by a crash or restart and would otherwise be stuck forever.
@@ -233,6 +242,23 @@ class SystemStatusResponse(BaseModel):
     model_name: str = Field("", description="configured worker model id")
     supervisor_model_name: str = Field(
         "", description="effective supervisor/meta-review model id"
+    )
+    tools_config: str | None = Field(
+        None, description="configured tools YAML path/URL, or null for defaults"
+    )
+    tools_config_valid: bool = Field(
+        True,
+        description=(
+            "false only when a configured local tools_config path is not "
+            "readable"
+        ),
+    )
+    enabled_tools: list[str] | None = Field(
+        None,
+        description=(
+            "enabled tool ids for a readable local tools_config, else null "
+            "(unset/URL/engine-default)"
+        ),
     )
 
 

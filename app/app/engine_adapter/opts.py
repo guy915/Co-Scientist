@@ -160,4 +160,9 @@ def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
         # table; map it to the engine's parameter name at this translation
         # boundary rather than persisting a second synced key.
         literature_review_papers_count=int(cfg["evidence_count"]),
+        # Forward the configured tools YAML so a real run actually enables the
+        # domain tools (e.g. INDRA for the production indra_cancer.yaml). None
+        # leaves the engine on its default PubMed-only tools. Startup already
+        # validated this path is readable (see app.main lifespan).
+        tools_config=settings.tools_config,
     )
