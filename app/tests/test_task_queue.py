@@ -2,9 +2,48 @@
 
 from __future__ import annotations
 
+import subprocess
+import sys
 import time
 
 from app import store
+
+_CLAIM_SCRIPT = """
+import sys
+from app import store
+task = store.claim_task(sys.argv[3], run_id=sys.argv[2], db_path=sys.argv[1])
+print(task.id if task else "NONE")
+"""
+
+_COMPLETE_SCRIPT = """
+import sys
+from app import store
+completed = store.complete_task(
+    sys.argv[2], sys.argv[3], {"value": sys.argv[4]}, db_path=sys.argv[1]
+)
+print("TRUE" if completed else "FALSE")
+"""
+
+
+def _parallel_scripts(
+    script: str, arguments: list[list[str]]
+) -> list[str]:
+    """Run isolated Python workers concurrently and return their outputs."""
+    workers = [
+        subprocess.Popen(
+            [sys.executable, "-c", script, *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        for args in arguments
+    ]
+    outputs: list[str] = []
+    for worker in workers:
+        stdout, stderr = worker.communicate(timeout=10)
+        assert worker.returncode == 0, stderr
+        outputs.append(stdout.strip())
+    return outputs
 
 
 def _run() -> str:
@@ -84,6 +123,101 @@ def test_completion_is_exactly_once(isolated_db: str) -> None:
     )
     [saved] = store.list_tasks(run_id, db_path=isolated_db)
     assert saved.result == {"winner": "a"}
+
+
+def test_multi_process_claim_has_single_lease_winner(
+    isolated_db: str,
+) -> None:
+    """Independent worker processes cannot lease the same queued task."""
+    run_id = _run()
+    task = store.enqueue_task(
+        run_id,
+        "ranking.debate",
+        {},
+        idempotency_key="multi-process-claim",
+        db_path=isolated_db,
+    )
+
+    claimed_ids = _parallel_scripts(
+        _CLAIM_SCRIPT,
+        [
+            [isolated_db, run_id, "worker-0"],
+            [isolated_db, run_id, "worker-1"],
+        ],
+    )
+
+    assert claimed_ids.count(task.id) == 1
+    assert claimed_ids.count("NONE") == 1
+
+
+def test_multi_process_duplicate_completion_commits_one_effect(
+    isolated_db: str,
+) -> None:
+    """Concurrent duplicate acknowledgements commit exactly one result."""
+    run_id = _run()
+    task = store.enqueue_task(
+        run_id,
+        "verification.deep",
+        {},
+        idempotency_key="multi-process-completion",
+        db_path=isolated_db,
+    )
+    leased = store.claim_task(
+        "shared-worker", run_id=run_id, db_path=isolated_db
+    )
+    assert leased is not None
+
+    outcomes = _parallel_scripts(
+        _COMPLETE_SCRIPT,
+        [
+            [isolated_db, task.id, "shared-worker", "first"],
+            [isolated_db, task.id, "shared-worker", "second"],
+        ],
+    )
+
+    assert sorted(outcomes) == ["FALSE", "TRUE"]
+    saved = store.get_task(task.id, db_path=isolated_db)
+    assert saved is not None
+    assert saved.status == "completed"
+    assert saved.result in ({"value": "first"}, {"value": "second"})
+
+
+def test_crashed_process_lease_is_redelivered_after_restart(
+    isolated_db: str,
+) -> None:
+    """A process exit before acknowledgement is recovered by a new worker."""
+    run_id = _run()
+    task = store.enqueue_task(
+        run_id,
+        "evolution.combine",
+        {},
+        idempotency_key="process-crash-redelivery",
+        max_attempts=2,
+        db_path=isolated_db,
+    )
+    crash_script = _CLAIM_SCRIPT.replace(
+        "run_id=sys.argv[2], db_path=sys.argv[1]",
+        "run_id=sys.argv[2], db_path=sys.argv[1], lease_seconds=0.01",
+    )
+
+    [claimed] = _parallel_scripts(
+        crash_script, [[isolated_db, run_id, "crashed-worker"]]
+    )
+    assert claimed == task.id
+    time.sleep(0.02)
+
+    recovered = store.claim_task(
+        "restart-worker", run_id=run_id, db_path=isolated_db
+    )
+    assert recovered is not None
+    assert recovered.id == task.id
+    assert recovered.attempt == 2
+    assert store.complete_task(
+        task.id,
+        "restart-worker",
+        {"recovered": True},
+        db_path=isolated_db,
+    )
 
 
 def test_expired_lease_is_recovered(isolated_db: str) -> None:
