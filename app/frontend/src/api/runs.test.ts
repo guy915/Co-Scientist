@@ -147,6 +147,39 @@ describe('listRuns', () => {
   });
 });
 
+describe('loadRunHistory', () => {
+  it('does not request or expose demonstration runs in faithful mode', async () => {
+    fetchMock().mockResolvedValueOnce(
+      jsonResponse({
+        runs: [
+          {id: 'owned', provider: 'engine', updated_at: 2},
+          {id: 'legacy-mock', provider: 'mock', updated_at: 3},
+        ],
+      }),
+    );
+
+    const result = await loadRunHistory(false);
+
+    expect(fetchMock()).toHaveBeenCalledTimes(1);
+    expect(firstCall()[0]).toBe('/api/runs');
+    expect(result).toEqual([{id: 'owned', provider: 'engine', updated_at: 2}]);
+  });
+
+  it('merges demonstration runs only when developer mode requests them', async () => {
+    fetchMock()
+      .mockResolvedValueOnce(
+        jsonResponse({runs: [{id: 'owned', updated_at: 2}]}),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({runs: [{id: 'demo', updated_at: 1}]}),
+      );
+
+    const result = await loadRunHistory(true);
+
+    expect(result.map(run => run.id)).toEqual(['owned', 'demo']);
+  });
+});
+
 describe('getRun', () => {
   it('GETs /api/runs/:id with the ownership header and returns the run', async () => {
     const run = {id: 'r7', summary: {events: 1}};

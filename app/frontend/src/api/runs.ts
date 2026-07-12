@@ -2,6 +2,7 @@
 
 import {getAccessToken, getClientId} from '@/lib/client_id';
 import {mergeByIdNewestFirst} from '@/lib/merge';
+import {DEVELOPER_MODE} from '@/lib/product_mode';
 import type {
   ClaimEvidenceRow,
   Evidence,
@@ -285,13 +286,20 @@ export async function listDemoRuns(): Promise<Run[]> {
  *
  * @returns The merged, sorted run history.
  */
-export async function loadRunHistory(): Promise<Run[]> {
+export async function loadRunHistory(
+  includeDemos = DEVELOPER_MODE,
+): Promise<Run[]> {
   const [ownedRuns, demoRuns] = await Promise.all([
     listRuns().catch(() => [] as Run[]),
-    listDemoRuns().catch(() => [] as Run[]),
+    includeDemos ? listDemoRuns().catch(() => [] as Run[]) : [],
   ]);
+  // Faithful mode never presents deterministic fixtures as prior scientific
+  // work, including legacy mock rows owned by the current browser client.
+  const visibleOwnedRuns = includeDemos
+    ? ownedRuns
+    : ownedRuns.filter(run => run.provider === 'engine');
   return mergeByIdNewestFirst(
-    [...ownedRuns, ...demoRuns],
+    [...visibleOwnedRuns, ...demoRuns],
     run => run.id,
     run => run.updated_at,
   );
