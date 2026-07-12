@@ -6,6 +6,8 @@ Covers the supervisor, meta-review, and research-overview nodes.
 from typing import Any
 
 from co_scientist.prompts._common import (
+    _format_bullet_list,
+    _format_csv_list,
     _format_meta_review_context,
     _format_run_guidance,
 )
@@ -67,20 +69,6 @@ def get_research_overview_prompt(
     )
 
 
-def _format_bullet_list(items: list[str] | None) -> str:
-    """Render items as a "- " bullet list, or "None provided" when empty.
-
-    Shared by the constraints/criteria/user_hypotheses/user_literature
-    variables below, which otherwise repeat this same ternary four times.
-    """
-    if not items:
-        return "None provided"
-    return "\n".join(f"- {item}" for item in items)
-
-
-def _format_attributes_csv(attributes: list[str] | None) -> str:
-    """Format attributes as a comma-joined string, or a placeholder."""
-    return ", ".join(attributes) if attributes else "None provided"
 
 
 def _format_lit_review_description(
@@ -119,7 +107,7 @@ def _build_supervisor_prompt_variables(
     return {
         "research_goal": research_goal,
         "preferences": preferences or "None provided",
-        "attributes": _format_attributes_csv(attributes),
+        "attributes": _format_csv_list(attributes),
         "constraints": _format_bullet_list(constraints),
         "criteria": _format_bullet_list(criteria),
         "user_hypotheses": _format_bullet_list(user_hypotheses),

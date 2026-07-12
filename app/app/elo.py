@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.config import settings
+from app.text_utils import coalesce, hypothesis_id, hypothesis_title
 
 # All three constants are sourced from Settings (not hardcoded here) so the
 # mock and the real engine can be tuned from the same env-driven config.
@@ -48,18 +49,6 @@ def update_pair(
     return round(new_winner), round(new_loser)
 
 
-def _first(*values: Any) -> Any:
-    """Return the first truthy value among `values`, or the last (as default).
-
-    Mirrors a chained `a or b or ... or default` field-coalescing expression,
-    without lizard counting each `or` as a separate branch.
-    """
-    for value in values[:-1]:
-        if value:
-            return value
-    return values[-1]
-
-
 def _leaderboard_row(rank: int, h: dict[str, Any]) -> dict[str, Any]:
     """Format one hypothesis as a compact leaderboard standings row.
 
@@ -71,14 +60,15 @@ def _leaderboard_row(rank: int, h: dict[str, Any]) -> dict[str, Any]:
     Returns:
         A ``{rank, id, title, elo, wins, losses}`` dict.
     """
-    title = str(_first(h.get("title"), h.get("text"), "Untitled"))
     return {
         "rank": rank,
-        "id": str(_first(h.get("id"), h.get("hypothesis_id"), title)),
-        "title": title[:140],
-        "elo": int(_first(h.get("elo_rating", INITIAL_ELO), INITIAL_ELO)),
-        "wins": int(_first(h.get("win_count", 0), 0)),
-        "losses": int(_first(h.get("loss_count", 0), 0)),
+        "id": hypothesis_id(h),
+        "title": hypothesis_title(h),
+        "elo": int(
+            coalesce(h.get("elo_rating", INITIAL_ELO), default=INITIAL_ELO)
+        ),
+        "wins": int(coalesce(h.get("win_count", 0), default=0)),
+        "losses": int(coalesce(h.get("loss_count", 0), default=0)),
     }
 
 

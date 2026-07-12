@@ -3,11 +3,32 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 # Sentence boundary: terminal punctuation followed by whitespace or end of
 # string, so a mid-word abbreviation period (e.g. "M.tuberculosis") is not
 # mistaken for a boundary and truncated to "M".
 _SENTENCE_END = re.compile(r"[.?!](\s|$)")
+
+
+def coalesce(*values: Any, default: Any = "") -> Any:
+    """Return the first truthy value, or *default* when all are falsy."""
+    for value in values:
+        if value:
+            return value
+    return default
+
+
+def hypothesis_title(h: dict[str, Any]) -> str:
+    """Canonical hypothesis display title: "title" or "text", capped at 140."""
+    return str(h.get("title") or h.get("text") or "Untitled")[:140]
+
+
+def hypothesis_id(h: dict[str, Any]) -> str:
+    """Canonical hypothesis id, falling back to title."""
+    return str(
+        h.get("id") or h.get("hypothesis_id") or hypothesis_title(h)
+    )
 
 
 def first_sentence(text: str) -> str:

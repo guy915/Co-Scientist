@@ -15,6 +15,7 @@ from typing import Any
 
 from app import store
 from app.store import RunStatus
+from app.text_utils import hypothesis_id, hypothesis_title
 
 # Emitter both providers pass in: records an event and returns its stub.
 EmitFn = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -56,8 +57,8 @@ def make_emitter(
 def hypothesis_stub(h: dict[str, Any]) -> dict[str, str]:
     """Project a hypothesis to a minimal JSON-safe stub for event payloads."""
     return {
-        "id": str(h.get("id") or h.get("hypothesis_id") or ""),
-        "title": str(h.get("title") or h.get("text") or "Untitled")[:140],
+        "id": hypothesis_id(h),
+        "title": hypothesis_title(h),
     }
 
 

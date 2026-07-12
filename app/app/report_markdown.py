@@ -12,6 +12,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.text_utils import coalesce, hypothesis_title
+
 
 def _append_if(lines: list[str], label: str, value: str) -> None:
     """Append a ``  Label: value`` line to lines when value is non-empty."""
@@ -298,12 +300,9 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
 
 def _render_hypothesis_entry(i: int, hyp: dict[str, Any]) -> list[str]:
     """Render one numbered 'Top hypotheses' entry."""
-    # "title"/"statement" are store row field names; "text" is the raw
-    # engine hypothesis field name -- fall back across both so this renders
-    # whichever shape the caller happens to pass in.
-    title = hyp.get("title") or hyp.get("text") or "Untitled"
+    title = hypothesis_title(hyp)
     lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
-    statement = hyp.get("statement") or hyp.get("text") or ""
+    statement = coalesce(hyp.get("statement"), hyp.get("text"))
     if statement:
         lines += [statement, ""]
     for label, value in (
