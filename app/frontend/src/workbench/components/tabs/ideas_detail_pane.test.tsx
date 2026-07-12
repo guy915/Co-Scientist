@@ -257,3 +257,88 @@ describe('SectionsRail', () => {
     expect(notPrevented).toBe(true);
   });
 });
+
+describe('HypothesisDetail claim-evidence provenance', () => {
+  it('renders each grounded claim with its exact quote and a source link', () => {
+    const hypothesis = makeHypothesis({id: 'h1'});
+    const claimEvidence: ClaimEvidenceRow[] = [
+      {
+        id: 1,
+        hypothesis_id: 'h1',
+        claim: 'Kinase X inhibition reduces tumor growth.',
+        label: 'supports',
+        supporting: [
+          {
+            evidence_id: 'ev-1',
+            quote: 'reduces tumor growth in AML',
+            start: 18,
+            end: 45,
+            source: 'pubmed',
+            url: 'https://example.org/ev-1',
+          },
+        ],
+        contradicting: [],
+        assessor: 'llm:deepseek/deepseek-chat',
+      },
+      // An insufficient claim has no span and is not detailed.
+      {
+        id: 2,
+        hypothesis_id: 'h1',
+        claim: 'A speculative claim.',
+        label: 'insufficient',
+        supporting: [],
+        contradicting: [],
+        assessor: 'llm:deepseek/deepseek-chat',
+      },
+    ];
+
+    render(
+      <HypothesisDetail
+        hypothesis={hypothesis}
+        reviews={[]}
+        matches={[]}
+        claimEvidence={claimEvidence}
+      />,
+    );
+
+    // The exact supporting quote is shown...
+    expect(screen.getByText(/reduces tumor growth in AML/)).toBeInTheDocument();
+    // ...with a link that opens the exact source.
+    const link = screen.getByRole('link', {name: /open source/});
+    expect(link).toHaveAttribute('href', 'https://example.org/ev-1');
+    // The speculative claim is not detailed with a span.
+    expect(screen.queryByText('A speculative claim.')).not.toBeInTheDocument();
+  });
+
+  it('tolerates legacy claim rows that stored a bare passage string', () => {
+    const hypothesis = makeHypothesis({id: 'h1'});
+    const claimEvidence: ClaimEvidenceRow[] = [
+      {
+        id: 1,
+        hypothesis_id: 'h1',
+        claim: 'A supported claim.',
+        label: 'supports',
+        supporting: ['A legacy supporting passage.'],
+        contradicting: [],
+        assessor: 'deterministic-v1',
+      },
+    ];
+
+    render(
+      <HypothesisDetail
+        hypothesis={hypothesis}
+        reviews={[]}
+        matches={[]}
+        claimEvidence={claimEvidence}
+      />,
+    );
+
+    expect(
+      screen.getByText(/A legacy supporting passage\./),
+    ).toBeInTheDocument();
+    // No source link when the legacy row carries no url.
+    expect(
+      screen.queryByRole('link', {name: /open source/}),
+    ).not.toBeInTheDocument();
+  });
+});

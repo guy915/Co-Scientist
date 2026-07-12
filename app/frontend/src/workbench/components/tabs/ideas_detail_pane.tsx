@@ -1,5 +1,11 @@
 import type {MouseEvent, ReactNode} from 'react';
-import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {
+  ClaimEvidenceRow,
+  Hypothesis,
+  MatchRow,
+  Review,
+  SupportSpan,
+} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {smoothScrollToSection} from '@/lib/smooth_scroll';
 
@@ -204,6 +210,76 @@ function claimEvidenceSummary(claims: ClaimEvidenceRow[]): string | null {
   return parts.join(', ');
 }
 
+// A support span normalized for display: the exact quote plus (when known) a
+// link to open its source. Tolerates legacy rows that stored a bare string.
+interface NormalizedSpan {
+  quote: string;
+  url?: string;
+}
+
+function normalizeSpans(
+  items: (SupportSpan | string)[] | undefined,
+): NormalizedSpan[] {
+  if (!items) return [];
+  return items.map(item =>
+    typeof item === 'string'
+      ? {quote: item}
+      : {quote: item.quote, url: item.url || undefined},
+  );
+}
+
+// Renders the located evidence spans behind each supported/contradicted claim,
+// so a reader can read the exact quote that grounds the verdict and open its
+// source (Milestone 5 / P0.5). Insufficient (speculative) claims carry no span
+// and are covered by the one-line summary above.
+function ClaimEvidenceDetail({claims}: {claims: ClaimEvidenceRow[]}) {
+  const grounded = claims
+    .map(c => ({
+      claim: c,
+      spans:
+        c.label === 'contradicts'
+          ? normalizeSpans(c.contradicting)
+          : normalizeSpans(c.supporting),
+    }))
+    .filter(({claim, spans}) => claim.label !== 'insufficient' && spans.length);
+  if (!grounded.length) return null;
+  return (
+    <div className="mt-1 flex flex-col gap-2">
+      {grounded.map(({claim, spans}) => (
+        <div key={claim.id} className="text-xs">
+          <p>
+            <span className="capitalize font-medium">{claim.label}</span>:{' '}
+            {claim.claim}
+          </p>
+          <ul className="mt-1 flex flex-col gap-1">
+            {spans.map((span, i) => (
+              <li
+                key={i}
+                className="border-l-2 border-th-outline-variant pl-2 italic"
+              >
+                “{span.quote}”
+                {span.url && (
+                  <>
+                    {' '}
+                    <a
+                      href={span.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="not-italic underline"
+                    >
+                      open source
+                    </a>
+                  </>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // "Provenance & lineage" section body: where the hypothesis came from
 // (Milestone 1 immutable-evolution lineage), its proximity cluster
 // (Milestone 3), its safety status (Milestone 6), and a summary of its
@@ -245,6 +321,7 @@ function HypothesisProvenanceContent({
           <strong>Claim evidence:</strong> {claimSummary}
         </p>
       )}
+      <ClaimEvidenceDetail claims={claims} />
     </>
   );
 }
