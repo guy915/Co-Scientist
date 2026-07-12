@@ -270,7 +270,38 @@ export interface ReportPayload {
   leaderboard: {id: string; title: string; elo: number}[];
   meta_review?: Record<string, unknown>;
   research_overview?: ResearchOverview;
+  knowledge_base?: KnowledgeBaseTopic[];
+  agent_insights?: AgentInsights;
+  idea_buckets?: {
+    high_potential: IdeaBucketEntry[];
+    non_viable: IdeaBucketEntry[];
+  };
   execution_time?: number;
+}
+
+/** One synthesized technical topic backed by claim-evidence references. */
+export interface KnowledgeBaseTopic {
+  id: string;
+  title: string;
+  summary: string;
+  detail: string;
+  reference_ids: string[];
+}
+
+/** Run-wide findings and explicit scientific uncertainty. */
+export interface AgentInsights {
+  key_findings: string[];
+  uncertainties: string[];
+  contradictions: string[];
+  recommended_directions: string[];
+  next_experiments: string[];
+}
+
+/** An idea's report bucket and the persisted reason for that placement. */
+export interface IdeaBucketEntry {
+  id: string;
+  title: string;
+  reason: string;
 }
 
 /** Synthesized roadmap and NIH Specific Aims for a run's top hypotheses. */

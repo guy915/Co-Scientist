@@ -1,5 +1,5 @@
 import {useState} from 'react';
-import {type Evidence} from '@/api/runs';
+import {type Evidence, type Report} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {splitAbstractSections} from '@/lib/format_abstract';
 import {renderInlineHtml} from '@/lib/sanitize_html';
@@ -52,12 +52,16 @@ const REFERENCE_LIST_LINK_ICON_CLASSES = 'text-base';
 // State and derived data behind the "Learning" tab: the synthesized sections
 // (see learningSections), the query-filtered reference list, and the
 // per-section "Details" expand/collapse toggle.
-function useLearningViewState(goal: string, evidence: Evidence[]) {
+function useLearningViewState(
+  goal: string,
+  evidence: Evidence[],
+  report: Report | null,
+) {
   const [query, setQuery] = useState('');
   // Section ids currently showing their "Details" block; toggled independently
   // per section so expanding one does not affect the others.
   const [expandedSectionIds, setExpandedSectionIds] = useState<string[]>([]);
-  const sections = learningSections(goal, evidence);
+  const sections = learningSections(goal, evidence, report);
   // Case-insensitive substring match across title, source, and authors.
   const filteredReferences = evidence.filter(item => {
     const haystack = `${item.title} ${item.source} ${item.authors.join(' ')}`;
@@ -92,9 +96,11 @@ function useLearningViewState(goal: string, evidence: Evidence[]) {
 export function LearningView({
   goal,
   evidence,
+  report = null,
 }: {
   goal: string;
   evidence: Evidence[];
+  report?: Report | null;
 }) {
   const {
     sections,
@@ -103,10 +109,10 @@ export function LearningView({
     setQuery,
     expandedSectionIds,
     toggleSection,
-  } = useLearningViewState(goal, evidence);
+  } = useLearningViewState(goal, evidence, report);
 
   return (
-    <ReportDocument title="Learning">
+    <ReportDocument title="Knowledge Base">
       {sections.map(section => (
         <LearningSectionBlock
           key={section.id}
@@ -326,25 +332,33 @@ interface LearningSectionItem {
 function learningSections(
   goal: string,
   evidence: Evidence[],
+  report: Report | null,
 ): LearningSectionItem[] {
+  const persistedTopics = report?.payload.knowledge_base || [];
+  if (persistedTopics.length) {
+    return persistedTopics.map(topic => ({
+      id: topic.id,
+      title: topic.title,
+      summary: topic.summary,
+      detail: topic.detail,
+    }));
+  }
   const fallbackGoal =
     goal ||
     'the biological mechanisms and experimental systems relevant to this research goal';
-  const seedEvidence = evidence.length
-    ? evidence
-    : [
-        {
-          id: 'learning-fallback',
-          title: 'Research context and technical definitions',
-          abstract:
-            'Co-Scientist is assembling the terminology, methods, and biological context needed to evaluate the research goal.',
-          source: 'Co-Scientist',
-          authors: ['Co-Scientist'],
-          year: null,
-          url: '',
-          available: false,
-        },
-      ];
+  const seedEvidence = evidence;
+
+  if (!seedEvidence.length) {
+    return [
+      {
+        id: 'knowledge-unavailable',
+        title: 'Knowledge synthesis unavailable',
+        summary:
+          'No evidence-backed technical topics have been synthesized for this run.',
+        detail: `The run must retrieve and verify evidence before it can build a Knowledge Base for ${fallbackGoal}.`,
+      },
+    ];
+  }
 
   return seedEvidence.slice(0, 3).map((item, index) => ({
     id: `learning-section-${index + 1}`,

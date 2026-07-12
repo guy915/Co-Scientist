@@ -1,5 +1,11 @@
 import {useMemo, useState} from 'react';
-import type {ClaimEvidenceRow, Hypothesis, MatchRow, Review} from '@/api/runs';
+import type {
+  ClaimEvidenceRow,
+  Hypothesis,
+  IdeaBucketEntry,
+  MatchRow,
+  Review,
+} from '@/api/runs';
 import {sortByEloDesc} from '@/lib/hypotheses';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
@@ -9,6 +15,9 @@ import {HypothesisDetail, SectionsRail} from './ideas_detail_pane';
 const IDEA_SPLIT_SHELL_CLASSES =
   'idea-split-shell flex h-full min-h-0 flex-col overflow-hidden ' +
   'rounded-none border-0 bg-cosci-bg';
+
+const IDEAS_REPORT_CLASSES =
+  'flex h-full min-h-0 flex-col overflow-hidden bg-cosci-bg';
 
 const IDEA_SPLIT_GRID_CLASSES =
   'idea-split-grid reference grid min-h-0 min-w-0 flex-1 ' +
@@ -107,11 +116,16 @@ export function IdeasTab({
   reviews,
   matches = [],
   claimEvidence = [],
+  ideaBuckets,
 }: {
   hypotheses: Hypothesis[];
   reviews: Review[];
   matches?: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
+  ideaBuckets?: {
+    high_potential: IdeaBucketEntry[];
+    non_viable: IdeaBucketEntry[];
+  };
 }) {
   const isMobile = useIsMobile();
   const {sorted, selected, onSelect} = useIdeaSelection(hypotheses, isMobile);
@@ -128,14 +142,66 @@ export function IdeasTab({
   // which component to render.
   const IdeaView = isMobile ? MobileIdeaView : DesktopIdeaSplit;
   return (
-    <IdeaView
-      sorted={sorted}
-      selected={selected}
-      reviews={reviews}
-      matches={matches}
-      claimEvidence={claimEvidence}
-      onSelect={onSelect}
-    />
+    <div className={IDEAS_REPORT_CLASSES}>
+      <IdeaBucketSummary buckets={ideaBuckets} />
+      <IdeaView
+        sorted={sorted}
+        selected={selected}
+        reviews={reviews}
+        matches={matches}
+        claimEvidence={claimEvidence}
+        onSelect={onSelect}
+      />
+    </div>
+  );
+}
+
+// Google's report separates promising and rejected ideas while retaining the
+// full Elo leaderboard below for transparent ranking history.
+function IdeaBucketSummary({
+  buckets,
+}: {
+  buckets:
+    | {
+        high_potential: IdeaBucketEntry[];
+        non_viable: IdeaBucketEntry[];
+      }
+    | undefined;
+}) {
+  if (!buckets) return null;
+  return (
+    <div className="grid shrink-0 grid-cols-2 gap-4 border-b border-cosci-border p-4 max-[720px]:grid-cols-1">
+      <IdeaBucket title="High Potential" entries={buckets.high_potential} />
+      <IdeaBucket title="Non-Viable" entries={buckets.non_viable} />
+    </div>
+  );
+}
+
+function IdeaBucket({
+  title,
+  entries,
+}: {
+  title: string;
+  entries: IdeaBucketEntry[];
+}) {
+  return (
+    <section aria-label={title}>
+      <h2 className="text-sm font-semibold text-cosci-fg">{title}</h2>
+      {entries.length ? (
+        <ul className="mt-2 grid gap-1 text-xs text-cosci-muted">
+          {entries.map(entry => (
+            <li key={entry.id}>
+              <strong className="text-cosci-fg">{entry.title}:</strong>{' '}
+              {entry.reason}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-2 text-xs text-cosci-muted">
+          No ideas in this bucket.
+        </p>
+      )}
+    </section>
   );
 }
 

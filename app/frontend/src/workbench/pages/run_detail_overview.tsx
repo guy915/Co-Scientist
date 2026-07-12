@@ -1,6 +1,7 @@
 import {useMemo} from 'react';
 import {
   type Hypothesis,
+  type AgentInsights,
   type MatchRow,
   type Report,
   type ReportPayload,
@@ -104,7 +105,7 @@ function useResearchOverviewDerived({
 }
 
 /**
- * "Research Overview" tab: the synthesized report (summary, research
+ * Summary tab: Agent Insights plus the synthesized report
  * directions, specific aims), a lead-stat sentence, a top-5 leaderboard, and
  * a tournament-match count. Falls back to live hypotheses/matches when no
  * persisted report exists yet (run still in progress).
@@ -134,14 +135,49 @@ export function ResearchOverviewView({
   });
 
   return (
-    <ReportDocument title="Research overview">
+    <ReportDocument title="Summary">
       {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
+      <AgentInsightsSection insights={report?.payload.agent_insights} />
       <OverviewSummary overview={overview} />
       <ResearchDirectionsSection overview={overview} />
       <SpecificAimsSection overview={overview} />
       <WinningIdeasSection items={winningIdeas} />
       <TournamentSummarySection matches={matches} />
     </ReportDocument>
+  );
+}
+
+// The run-wide Agent Insights block exposes findings and uncertainty without
+// leaking private reasoning traces.
+function AgentInsightsSection({
+  insights,
+}: {
+  insights: AgentInsights | undefined;
+}) {
+  if (!insights) return null;
+  const sections: [string, string[]][] = [
+    ['Key findings', insights.key_findings],
+    ['Uncertainties', insights.uncertainties],
+    ['Contradictions', insights.contradictions],
+    ['Recommended directions', insights.recommended_directions],
+    ['Next experiments', insights.next_experiments],
+  ];
+  return (
+    <section className={REPORT_SECTION_CLASSES}>
+      <h3 className={REPORT_H3_CLASSES}>Agent Insights</h3>
+      {sections.map(([title, values]) =>
+        values.length ? (
+          <div key={title}>
+            <h4 className={REPORT_H4_CLASSES}>{title}</h4>
+            <ul className={REPORT_LIST_CLASSES}>
+              {values.map(value => (
+                <li key={value}>{value}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null,
+      )}
+    </section>
   );
 }
 

@@ -200,6 +200,9 @@ def build_report_payload(
     citation_summary: dict[str, int] | None,
     meta_review: dict[str, Any] | None,
     research_overview: dict[str, Any] | None,
+    knowledge_base: list[dict[str, Any]] | None = None,
+    agent_insights: dict[str, Any] | None = None,
+    idea_buckets: dict[str, list[dict[str, Any]]] | None = None,
     execution_time: float | None = None,
 ) -> dict[str, Any]:
     """Assemble the canonical report payload shared by every provider.
@@ -219,6 +222,9 @@ def build_report_payload(
         citation_summary: Citation state -> count, or None when unavailable.
         meta_review: Meta-review synthesis dict, or None.
         research_overview: Research-overview payload, or None.
+        knowledge_base: Evidence-linked technical topics synthesized at release.
+        agent_insights: Run-wide findings, uncertainty, and next experiments.
+        idea_buckets: High-potential and non-viable ideas with reasons.
         execution_time: Wall-clock seconds, when the provider tracks it.
 
     Returns:
@@ -235,6 +241,12 @@ def build_report_payload(
         "leaderboard": leaderboard,
         "meta_review": meta_review or {},
         "research_overview": research_overview or {},
+        "knowledge_base": knowledge_base or [],
+        "agent_insights": agent_insights or {},
+        "idea_buckets": idea_buckets or {
+            "high_potential": [],
+            "non_viable": [],
+        },
     }
     if execution_time is not None:
         payload["execution_time"] = execution_time

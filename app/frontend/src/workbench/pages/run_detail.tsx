@@ -119,7 +119,7 @@ function RunDetailTabContent({
     <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
       {activeTab === 'specifications' && <RunSpecificationsView run={run} />}
       {activeTab === 'knowledge' && (
-        <LearningView goal={runGoal(run)} evidence={evidence} />
+        <LearningView goal={runGoal(run)} evidence={evidence} report={report} />
       )}
       {activeTab === 'summary' && (
         <ResearchOverviewView
@@ -137,6 +137,7 @@ function RunDetailTabContent({
             reviews={reviews}
             matches={matches}
             claimEvidence={claimEvidence}
+            ideaBuckets={report?.payload.idea_buckets}
           />
         </section>
       )}

@@ -20,14 +20,17 @@ import type {
 // '@/api/runs'` alongside the API functions below, without a second import
 // from './run_types'.
 export type {
+  AgentInsights,
   ClaimEvidenceRow,
   Evidence,
   Hypothesis,
   Interview,
   InterviewFields,
   InterviewTurn,
+  IdeaBucketEntry,
   JsonPrimitive,
   JsonValue,
+  KnowledgeBaseTopic,
   LegacyRunProfile,
   MatchRow,
   Report,

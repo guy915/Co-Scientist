@@ -40,6 +40,120 @@ from app.store import RunStatus
 logger = logging.getLogger(__name__)
 
 
+def _knowledge_base_topics(
+    hypotheses: list[dict[str, Any]],
+    claim_edges: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Build named technical topics from released hypotheses and claim links."""
+    references_by_hypothesis: dict[str, list[str]] = {}
+    for edge in claim_edges:
+        if edge.get("label") != "supports":
+            continue
+        hypothesis_id = str(edge.get("hypothesis_id") or "")
+        evidence_id = str(edge.get("evidence_id") or "")
+        if evidence_id:
+            references_by_hypothesis.setdefault(hypothesis_id, []).append(
+                evidence_id
+            )
+    topics: list[dict[str, Any]] = []
+    for hypothesis in hypotheses[:8]:
+        hypothesis_id = str(hypothesis.get("id") or "")
+        topics.append(
+            {
+                "id": f"topic-{hypothesis_id}",
+                "title": str(hypothesis.get("title") or "Mechanistic finding"),
+                "summary": str(
+                    hypothesis.get("mechanism")
+                    or hypothesis.get("statement")
+                    or ""
+                ),
+                "detail": str(
+                    hypothesis.get("experimental_context")
+                    or hypothesis.get("expected_effect")
+                    or ""
+                ),
+                "reference_ids": sorted(
+                    set(references_by_hypothesis.get(hypothesis_id, []))
+                ),
+            }
+        )
+    return topics
+
+
+def _agent_insights(
+    hypotheses: list[dict[str, Any]],
+    claim_edges: list[dict[str, Any]],
+    meta_review: dict[str, Any] | None,
+) -> dict[str, Any]:
+    """Derive visible findings, uncertainty, contradictions, and experiments."""
+    meta = meta_review or {}
+    return {
+        "key_findings": [
+            str(hypothesis.get("statement") or hypothesis.get("title") or "")
+            for hypothesis in hypotheses[:5]
+        ],
+        "uncertainties": [
+            str(item) for item in meta.get("common_weaknesses", [])
+        ],
+        "contradictions": [
+            str(edge.get("claim_text") or edge.get("claim_id") or "")
+            for edge in claim_edges
+            if edge.get("label") == "contradicts"
+        ],
+        "recommended_directions": [
+            str(item) for item in meta.get("strategic_recommendations", [])
+        ],
+        "next_experiments": [
+            str(hypothesis.get("experimental_context") or "")
+            for hypothesis in hypotheses[:5]
+            if hypothesis.get("experimental_context")
+        ],
+    }
+
+
+def _idea_buckets(
+    safe_hypotheses: list[dict[str, Any]],
+    all_hypotheses: list[dict[str, Any]],
+    claim_edges: list[dict[str, Any]],
+) -> dict[str, list[dict[str, Any]]]:
+    """Classify released leaders and excluded ideas with explicit reasons."""
+    safe_ids = {str(hypothesis.get("id")) for hypothesis in safe_hypotheses}
+    edge_reasons: dict[str, set[str]] = {}
+    for edge in claim_edges:
+        if edge.get("label") == "supports":
+            continue
+        edge_reasons.setdefault(str(edge.get("hypothesis_id")), set()).add(
+            "Evidence verification did not support every material claim."
+        )
+    high_potential = [
+        {
+            "id": str(hypothesis.get("id")),
+            "title": str(hypothesis.get("title") or "Untitled idea"),
+            "reason": (
+                "Released by safety and evidence gates and ranked by Elo."
+            ),
+        }
+        for hypothesis in safe_hypotheses[:5]
+    ]
+    non_viable = []
+    for hypothesis in all_hypotheses:
+        hypothesis_id = str(hypothesis.get("id"))
+        if hypothesis_id in safe_ids:
+            continue
+        reasons = sorted(edge_reasons.get(hypothesis_id, set()))
+        if is_blocking_status(str(hypothesis.get("safety_status") or "")):
+            reasons.append("The scientific safety review blocked this idea.")
+        non_viable.append(
+            {
+                "id": hypothesis_id,
+                "title": str(hypothesis.get("title") or "Untitled idea"),
+                "reason": " ".join(reasons)
+                or "The release gate excluded this idea.",
+            }
+        )
+    return {"high_potential": high_potential, "non_viable": non_viable}
+
+
 def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
     """Ids of hypotheses with a claim that failed publication readiness.
 
@@ -178,6 +292,7 @@ def _build_report_content(
     )
     counts = store.summary_counts(run_id, db_path=db_path)
     leaderboard = live_leaderboard(hyps)
+    claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     payload = build_report_payload(
         research_goal=research_goal,
         run_mode=run_mode,
@@ -189,6 +304,9 @@ def _build_report_content(
         citation_summary=citation_summary,
         meta_review=meta_review,
         research_overview=research_overview,
+        knowledge_base=_knowledge_base_topics(hyps, claim_edges),
+        agent_insights=_agent_insights(hyps, claim_edges, meta_review),
+        idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
         execution_time=execution_time,
     )
     markdown = render_report_markdown(

@@ -174,7 +174,7 @@ describe('RunDetail', () => {
 
   it('activates the tab named directly in the URL', async () => {
     renderAt('/runs/run-1/overview');
-    await screen.findByText('Research overview');
+    await screen.findByText('Summary');
     expect(tab(/^Summary$/)).toHaveAttribute('aria-current', 'page');
   });
 
@@ -221,7 +221,7 @@ describe('RunDetail', () => {
     ]);
 
     renderAt('/runs/run-1/overview');
-    await screen.findByText('Research overview');
+    await screen.findByText('Summary');
 
     expect(
       await screen.findByText(
@@ -241,7 +241,7 @@ describe('RunDetail', () => {
     ]);
 
     renderAt('/runs/run-1/overview');
-    await screen.findByText('Research overview');
+    await screen.findByText('Summary');
 
     const stat = await screen.findByText(/A total of 1 idea was explored/);
     expect(stat).toHaveTextContent(

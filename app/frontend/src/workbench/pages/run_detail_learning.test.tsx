@@ -35,7 +35,9 @@ describe('LearningView', () => {
       />,
     );
 
-    expect(screen.getByRole('heading', {name: 'Learning'})).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', {name: 'Knowledge Base'}),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
         name: 'Mitochondrial Feedback in Cold Stress',
