@@ -27,6 +27,8 @@ RANKING_MATCH_TASK = "engine.ranking.match"
 RANKING_FINALIZE_TASK = "engine.ranking.finalize"
 GENERATION_STRATEGY_TASK = "engine.fanout.generation.strategy"
 GENERATION_AGGREGATE_TASK = "engine.fanout.generation.aggregate"
+MATURE_REFLECTION_ITEM_TASK = "engine.fanout.reflection.item"
+MATURE_REFLECTION_AGGREGATE_TASK = "engine.fanout.reflection.aggregate"
 
 
 def enqueue_bootstrap(
@@ -490,6 +492,77 @@ async def _enqueue_generation_fanout(
     }
 
 
+def _enqueue_mature_reflection_fanout(
+    task: ScientificTask,
+    state: dict[str, Any],
+    checkpoint_seq: int,
+    *,
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Schedule maturity-appropriate Reflection modes as durable tasks."""
+    iteration = int(state.get("current_iteration", 0))
+    literature = state.get("articles_with_reasoning")
+    specs: list[tuple[str, str]] = []
+    for hypothesis in state["hypotheses"]:
+        if hypothesis.review_disposition != "viable":
+            continue
+        if literature and not hypothesis.reflection_notes:
+            specs.append((hypothesis.id, "observation"))
+        if "full" not in hypothesis.enrichments:
+            specs.extend(
+                ((hypothesis.id, "full"), (hypothesis.id, "simulation"))
+            )
+        elif iteration > int(
+            hypothesis.enrichments.get("recurrent_review_iteration", -1)
+        ):
+            specs.append((hypothesis.id, "recurrent"))
+    with store.transaction(db_path) as conn:
+        items = [
+            store.enqueue_task(
+                task.run_id,
+                MATURE_REFLECTION_ITEM_TASK,
+                {
+                    "checkpoint_seq": checkpoint_seq,
+                    "hypothesis_id": hypothesis_id,
+                    "review_mode": review_mode,
+                },
+                idempotency_key=(
+                    f"reflection:{review_mode}:{checkpoint_seq}:{hypothesis_id}"
+                ),
+                priority=86,
+                dependencies=(task.id,),
+                provenance={
+                    "scheduled_by": task.task_type,
+                    "reflection_mode": review_mode,
+                },
+                conn=conn,
+            )
+            for hypothesis_id, review_mode in specs
+        ]
+        aggregate = store.enqueue_task(
+            task.run_id,
+            MATURE_REFLECTION_AGGREGATE_TASK,
+            {
+                "checkpoint_seq": checkpoint_seq,
+                "item_task_ids": [item.id for item in items],
+            },
+            idempotency_key=f"reflection:aggregate:{checkpoint_seq}",
+            priority=80,
+            dependencies=tuple(item.id for item in items),
+            provenance={
+                "scheduled_by": task.task_type,
+                "allow_failed_dependencies": True,
+            },
+            conn=conn,
+        )
+    return {
+        "checkpoint_seq": checkpoint_seq,
+        "fanout_task_ids": [item.id for item in items],
+        "aggregate_task_id": aggregate.id,
+        "node": "comprehensive_reflection",
+    }
+
+
 async def execute_review_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
@@ -788,6 +861,135 @@ async def execute_generation_aggregate(
         "successor_task_id": successor_id,
         "hypotheses_generated": update["hypothesis_count"],
         "failed_strategies": failed,
+    }
+
+
+async def execute_mature_reflection_item(
+    task: ScientificTask, *, db_path: str | None = None
+) -> dict[str, Any]:
+    """Execute one disclosed mature Reflection mode for one hypothesis."""
+    from co_scientist.checkpoint import restore_workflow_state
+    from co_scientist.nodes.comprehensive_reflection import _run_review
+    from co_scientist.nodes.reflection import analyze_single_hypothesis
+    from co_scientist.nodes.review_types import ReviewType
+
+    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
+    expected_seq = int(task.inputs["checkpoint_seq"])
+    if current_seq != expected_seq:
+        raise RuntimeError("mature reflection checkpoint was superseded")
+    generator = _generator_for_restore(task, db_path)
+    state = restore_workflow_state(
+        checkpoint["state"], tool_registry=generator.tool_registry
+    )
+    hypothesis_id = str(task.inputs["hypothesis_id"])
+    hypothesis = next(
+        (item for item in state["hypotheses"] if item.id == hypothesis_id),
+        None,
+    )
+    if hypothesis is None:
+        raise ValueError(
+            f"hypothesis {hypothesis_id} is absent from checkpoint"
+        )
+    mode = ReviewType(str(task.inputs["review_mode"]))
+    if mode is ReviewType.OBSERVATION:
+        literature = state.get("articles_with_reasoning")
+        if not literature:
+            raise RuntimeError("observation review has no literature context")
+        result = await analyze_single_hypothesis(
+            hypothesis=hypothesis,
+            articles_with_reasoning=literature,
+            model_name=state["model_name"],
+            hypothesis_index=1,
+            total_count=1,
+            run_id=state.get("run_id"),
+            tool_registry=state.get("tool_registry"),
+            meta_review=state.get("meta_review"),
+        )
+    else:
+        _, result = await _run_review(state, hypothesis, mode)
+    if result is None:
+        raise RuntimeError(f"{mode.value} review failed for {hypothesis_id}")
+    return {
+        "hypothesis_id": hypothesis_id,
+        "review_mode": mode.value,
+        "review": result,
+        "checkpoint_seq": expected_seq,
+    }
+
+
+async def execute_mature_reflection_aggregate(
+    task: ScientificTask, *, db_path: str | None = None
+) -> dict[str, Any]:
+    """Commit mature Reflection results while isolating individual failures."""
+    from co_scientist.checkpoint import restore_workflow_state
+    from co_scientist.models import create_metrics_update, phase_message
+    from co_scientist.nodes.review_types import ReviewType
+    from co_scientist.task_runtime import apply_task_update
+
+    checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
+    expected_seq = int(task.inputs["checkpoint_seq"])
+    if (
+        current_seq > expected_seq
+        and checkpoint["stage"] == f"engine_task:{task.id}"
+    ):
+        return {"checkpoint_seq": current_seq, "replayed": True}
+    if current_seq != expected_seq:
+        raise RuntimeError("reflection aggregate checkpoint was superseded")
+    generator = _generator_for_restore(task, db_path)
+    state = restore_workflow_state(
+        checkpoint["state"], tool_registry=generator.tool_registry
+    )
+    by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
+    successful = 0
+    failed = 0
+    for item_id in task.inputs.get("item_task_ids", []):
+        item = store.get_task(str(item_id), db_path=db_path)
+        if item is None:
+            raise RuntimeError(f"reflection task {item_id} disappeared")
+        if item.status != "completed" or not item.result:
+            failed += 1
+            continue
+        hypothesis = by_id[str(item.result["hypothesis_id"])]
+        mode = ReviewType(str(item.result["review_mode"]))
+        review = item.result["review"]
+        if mode is ReviewType.OBSERVATION:
+            classification = review.get("classification", "neutral")
+            reasoning = review.get("reasoning", "")
+            hypothesis.reflection_notes = (
+                f"{reasoning}\n\nClassification: {classification}"
+            )
+        hypothesis.enrichments[mode.value] = review
+        if mode is ReviewType.RECURRENT:
+            hypothesis.enrichments["recurrent_review_iteration"] = int(
+                state.get("current_iteration", 0)
+            )
+        successful += 1
+    committed = apply_task_update(
+        state,
+        {
+            "hypotheses": state["hypotheses"],
+            "metrics": create_metrics_update(
+                llm_calls_delta=successful + failed
+            ),
+            "messages": phase_message(
+                "reflection",
+                f"Completed {successful} mature reviews; "
+                f"{failed} isolated failures",
+            ),
+        },
+    )
+    checkpoint_seq, successor_id = _save_state_and_enqueue(
+        task,
+        committed,
+        "safety_screen",
+        expected_checkpoint_seq=current_seq,
+        db_path=db_path,
+    )
+    return {
+        "checkpoint_seq": checkpoint_seq,
+        "successor_task_id": successor_id,
+        "successful_reviews": successful,
+        "failed_reviews": failed,
     }
 
 
@@ -1123,6 +1325,10 @@ async def execute_node_task(
         return await _enqueue_generation_fanout(
             task, state, current_seq, db_path=db_path
         )
+    if node_name == "comprehensive_reflection":
+        return _enqueue_mature_reflection_fanout(
+            task, state, current_seq, db_path=db_path
+        )
     if node_name == "deep_verification":
         return _enqueue_verification_fanout(
             task, state, current_seq, db_path=db_path
@@ -1266,6 +1472,10 @@ async def execute_engine_task(
         return await execute_generation_strategy(task, db_path=db_path)
     if task.task_type == GENERATION_AGGREGATE_TASK:
         return await execute_generation_aggregate(task, db_path=db_path)
+    if task.task_type == MATURE_REFLECTION_ITEM_TASK:
+        return await execute_mature_reflection_item(task, db_path=db_path)
+    if task.task_type == MATURE_REFLECTION_AGGREGATE_TASK:
+        return await execute_mature_reflection_aggregate(task, db_path=db_path)
     if task.task_type.startswith(NODE_TASK_PREFIX):
         return await execute_node_task(task, db_path=db_path)
     if task.task_type == FINALIZE_TASK:

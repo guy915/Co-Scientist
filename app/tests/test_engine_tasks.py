@@ -704,3 +704,125 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
     successor = store.claim_task("review", run_id=run.id, db_path=isolated_db)
     assert successor is not None
     assert successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}review"
+
+
+@pytest.mark.asyncio
+async def test_mature_reflection_modes_are_independent_durable_tasks(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Observation, full, simulation, and recurrent modes lease separately."""
+    from co_scientist.checkpoint import (
+        CHECKPOINT_VERSION,
+        restore_workflow_state,
+        serialize_workflow_state,
+    )
+
+    run = store.create_run("Task-level science", "standard", "engine", {})
+    state = _task_state(run.id)
+    fresh = Hypothesis(text="fresh")
+    fresh.review_disposition = "viable"
+    mature = Hypothesis(text="mature")
+    mature.review_disposition = "viable"
+    mature.enrichments.update({"full": {}, "simulation": {}})
+    mature.reflection_notes = "prior observation"
+    state.update(
+        {
+            "hypotheses": [fresh, mature],
+            "articles_with_reasoning": "retrieved observations",
+            "current_iteration": 2,
+        }
+    )
+    envelope = serialize_workflow_state(state, last_event_seq=0)
+    checkpoint_seq = store.save_checkpoint(
+        run.id,
+        stage="fixture",
+        schema_version=CHECKPOINT_VERSION,
+        last_event_seq=0,
+        state={"provider": "engine", **envelope},
+    )
+    node = store.enqueue_task(
+        run.id,
+        f"{engine_tasks.NODE_TASK_PREFIX}comprehensive_reflection",
+        {"checkpoint_seq": checkpoint_seq},
+        idempotency_key="mature-reflection-node",
+        db_path=isolated_db,
+    )
+    generator = _Generator(state)
+    monkeypatch.setattr(
+        engine_tasks, "_generator_and_opts", lambda *_: (generator, {})
+    )
+    monkeypatch.setattr(
+        engine_tasks, "_generator_for_restore", lambda *_: generator
+    )
+
+    import co_scientist.nodes.comprehensive_reflection as reflection_module
+    import co_scientist.nodes.reflection as observation_module
+
+    async def fake_review(
+        _state: Any, _hypothesis: Any, mode: Any
+    ) -> tuple[Any, dict[str, Any]]:
+        return mode, {"verdict": f"{mode.value}-complete"}
+
+    async def fake_observation(**_: Any) -> dict[str, Any]:
+        return {"classification": "missing_piece", "reasoning": "explains x"}
+
+    monkeypatch.setattr(reflection_module, "_run_review", fake_review)
+    monkeypatch.setattr(
+        observation_module, "analyze_single_hypothesis", fake_observation
+    )
+    leased = store.claim_task("planner", run_id=run.id, db_path=isolated_db)
+    assert leased is not None and leased.id == node.id
+    planned = await engine_tasks.execute_node_task(leased, db_path=isolated_db)
+    assert len(planned["fanout_task_ids"]) == 4
+    assert store.complete_task(
+        leased.id, "planner", planned, db_path=isolated_db
+    )
+    items = [
+        store.claim_task(f"mode-{index}", run_id=run.id, db_path=isolated_db)
+        for index in range(4)
+    ]
+    assert all(item is not None for item in items)
+    results = await asyncio.gather(
+        *[
+            engine_tasks.execute_mature_reflection_item(
+                item, db_path=isolated_db
+            )
+            for item in items
+            if item is not None
+        ]
+    )
+    assert {result["review_mode"] for result in results} == {
+        "observation",
+        "full",
+        "simulation",
+        "recurrent",
+    }
+    for index, (item, result) in enumerate(zip(items, results, strict=True)):
+        assert item is not None
+        assert store.complete_task(
+            item.id, f"mode-{index}", result, db_path=isolated_db
+        )
+    aggregate = store.claim_task(
+        "aggregate", run_id=run.id, db_path=isolated_db
+    )
+    assert aggregate is not None
+    aggregated = await engine_tasks.execute_mature_reflection_aggregate(
+        aggregate, db_path=isolated_db
+    )
+    assert aggregated["successful_reviews"] == 4
+    assert store.complete_task(
+        aggregate.id, "aggregate", aggregated, db_path=isolated_db
+    )
+    checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
+    assert checkpoint is not None
+    restored = restore_workflow_state(checkpoint["state"])
+    restored_fresh, restored_mature = restored["hypotheses"]
+    assert {"observation", "full", "simulation"} <= set(
+        restored_fresh.enrichments
+    )
+    assert restored_mature.enrichments["recurrent_review_iteration"] == 2
+    successor = store.claim_task("safety", run_id=run.id, db_path=isolated_db)
+    assert successor is not None
+    assert (
+        successor.task_type == f"{engine_tasks.NODE_TASK_PREFIX}safety_screen"
+    )
