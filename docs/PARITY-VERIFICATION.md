@@ -41,7 +41,7 @@ work) falls below 80%.
 ### Parity ledger status snapshot
 
 `python -m evaluations.parity_check` reports, over 64 requirement rows:
-**verified=46, partial=11, missing=1, external=6, undisclosed=0.** Each
+**verified=47, partial=10, missing=1, external=6, undisclosed=0.** Each
 `verified` row cites test/eval evidence that exists on disk; each `partial`/
 `missing` row names a concrete residual gap and owner; each `external` row
 records a precise, non-safety-weakening blocker in [PARITY.md](PARITY.md).
@@ -183,7 +183,7 @@ production build). The frontend suite, lint, and build are green (§1).
 
 ## 5. Honest limitations — what is and is not a 1:1 replica
 
-**Implemented and proven (46 verified rows):** immutable evolution with explicit
+**Implemented and proven (47 verified rows):** immutable evolution with explicit
 lineage; explicit append/replace state reducer; deterministic adaptive
 Supervisor scheduling with recorded reasons, budgets, and termination; dynamic
 routing that generates in later cycles; all five default output criteria scored;
@@ -200,19 +200,22 @@ after each node and, on resume, restores it and continues from the orchestrator
 without repeating completed LLM/tool work (`CKPT-RESUME-001`) — plus
 pause/resume and startup auto-resume; the tools-config
 forwarding/validation/disclosure path (`TOOLS-CONFIG-001`); intake and final
-safety gates; run-level provider provenance; and offline evaluation harnesses.
+safety gates; run-level provider provenance; a provenance-stamped semantic
+(LLM/NLI) claim assessor exercised end-to-end by a local INDRA-tools golden run
+(`CITE-CLAIM-001`, `TOOLS-CONFIG-001`); and offline evaluation harnesses.
 
 **Partial (component or one layer exists; the production path is not yet
-equivalent — 11 rows):** for the real engine, claim grounding/gating runs
-*after* its internal tournament, so a contradicted hypothesis can still shape
+equivalent — 10 rows):** for the real engine, claim *gating* runs *after* its
+internal tournament, so a contradicted hypothesis can still shape
 ranking/evolution/meta-review before being excluded from the report (the
 per-hypothesis *safety* screen now runs pre-ranking — see `SAFE-PERHYP-001` —
-but claim-level entailment gating does not yet); scientist steering, manual
-hypotheses, and manual reviews are persisted but not injected into a live engine
-run; the six reflection review types and four generation techniques all *fire*
-but "full"/"simulation" review run ungrounded on the single top hypothesis and
-literature/assumptions behavior is path-dependent; the claim assessor is lexical
-overlap, not entailment, with no live retraction/DOI resolution; the app
+but claim-level entailment gating placement does not yet, `CITE-GATE-001`);
+scientist steering, manual hypotheses, and manual reviews are persisted but not
+injected into a live engine run; the six reflection review types and four
+generation techniques all *fire* but "full"/"simulation" review run ungrounded
+on the single top hypothesis and literature/assumptions behavior is
+path-dependent; citation resolvability has a swappable resolver but no live
+retraction/DOI lookup is wired (`CITE-META-001`); the app
 K-factor override is not forwarded to the engine; and no worker interface/queue
 semantics exist. Each row names its gap and owner; the production-contract work
 is tracked as P0/P1 in the audit.
