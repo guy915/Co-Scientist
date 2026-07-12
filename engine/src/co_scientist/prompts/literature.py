@@ -2,25 +2,13 @@
 
 from typing import Any
 
-from co_scientist.prompts._common import _format_authors, _format_year
+from co_scientist.prompts._common import (
+    _format_authors,
+    _format_bullet_list,
+    _format_csv_list,
+    _format_year,
+)
 from co_scientist.prompts.loading import load_prompt
-
-
-def _format_preferences(preferences: str | None) -> str:
-    """Format the preferences field, defaulting when absent."""
-    return preferences if preferences else "None provided"
-
-
-def _format_attributes_list(attributes: list[str] | None) -> str:
-    """Comma-join attributes, defaulting when absent."""
-    return ", ".join(attributes) if attributes else "None provided"
-
-
-def _format_bullet_list(items: list[str] | None) -> str:
-    """Format items as newline-joined bullet points, defaulting when absent."""
-    if not items:
-        return "None provided"
-    return "\n".join(f"- {item}" for item in items)
 
 
 def _format_query_generation_variables(
@@ -37,8 +25,8 @@ def _format_query_generation_variables(
     """
     return {
         "research_goal": research_goal,
-        "preferences": _format_preferences(preferences),
-        "attributes": _format_attributes_list(attributes),
+        "preferences": preferences or "None provided",
+        "attributes": _format_csv_list(attributes),
         "user_literature": _format_bullet_list(user_literature),
         "user_hypotheses": _format_bullet_list(user_hypotheses),
     }

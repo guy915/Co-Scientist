@@ -101,6 +101,18 @@ def _format_run_guidance(
     return "\n".join(sections).strip()
 
 
+def _format_bullet_list(items: list[str] | None) -> str:
+    """Render items as a "- " bullet list, or "None provided" when empty."""
+    if not items:
+        return "None provided"
+    return "\n".join(f"- {item}" for item in items)
+
+
+def _format_csv_list(items: list[str] | None) -> str:
+    """Comma-join items, or "None provided" when empty."""
+    return ", ".join(items) if items else "None provided"
+
+
 def _format_authors(authors: list[str]) -> str:
     """Format an author list for paper analysis prompts."""
     return ", ".join(authors) if authors else "Unknown"
