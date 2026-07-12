@@ -9,9 +9,8 @@ Outcomes are separated: ``prohibited`` / ``dual_use`` / ``ethical_concern`` /
 concern, uncertain) exclude from the pool entirely. ``uncertain`` routes to
 safe abstention (held for manual review), not optimistic inclusion.
 
-The app layer has a parallel copy (``app/app/hypothesis_safety.py``) that
-predates this module; a follow-up should consolidate on this engine-canonical
-version so the two cannot drift.
+The app imports this module for intake, hypothesis admission, and final-output
+decisions, then adds semantic adjudication and persistence at its boundary.
 """
 
 from __future__ import annotations
@@ -20,7 +19,7 @@ import dataclasses
 import enum
 import re
 
-POLICY_VERSION = "hyp-safety-v1"
+POLICY_VERSION = "coscientist-safety-v3"
 
 REDACTED_PLACEHOLDER = "[REDACTED FOR SAFETY]"
 
@@ -100,6 +99,25 @@ _SENSITIVE_HINT = _patterns(
     r"\b(pathogen|toxin|virus|agent|synthesis)\b",
 )
 
+_CONTENT_PROHIBITED = _patterns(
+    r"\b(synthes(?:is|e|ize)|engineer|weaponize)\b.{0,40}"
+    r"\b(nerve agent|sarin|vx|tabun|novichok)\b",
+    r"\b(enhance|engineer|weaponize)\b.{0,40}"
+    r"\b(smallpox|anthrax|ebola|marburg)\b.{0,40}"
+    r"\b(transmiss|lethal|virulen)",
+    r"\b(build|construct|assemble)\b.{0,40}\b(nuclear|radiological)\b"
+    r".{0,20}\b(weapon|bomb|device)\b",
+    r"\bgain[- ]of[- ]function\b.{0,40}\b(human-to-human|airborne)\b",
+    r"\b(produce|manufacture)\b.{0,40}\b(fentanyl|methamphetamine)\b"
+    r".{0,20}\b(scale|kilogram)\b",
+)
+_CONTENT_DUAL_USE = _patterns(
+    r"\b(pathogen|toxin|virus|bacterium)\b.{0,30}"
+    r"\b(transmiss|lethal|host range)\b",
+    r"\b(cbrn|chem-bio|bio-?weapon)\b",
+    r"\b(dual[- ]use|select agent)\b",
+)
+
 
 @dataclasses.dataclass(frozen=True)
 class SafetyReview:
@@ -123,6 +141,71 @@ class SafetyReview:
             "matches": list(self.matches),
             "policy_version": self.policy_version,
         }
+
+
+@dataclasses.dataclass(frozen=True)
+class ContentSafetyReview:
+    """Canonical deterministic intake/final-content policy decision."""
+
+    decision: str
+    category: str
+    reason: str
+    matches: tuple[str, ...]
+    risk_domains: tuple[str, ...]
+    requires_review: bool
+    policy_version: str = POLICY_VERSION
+
+
+def _all_matches(
+    text: str, patterns: tuple[re.Pattern[str], ...]
+) -> tuple[str, ...]:
+    """Return the first match from every canonical policy pattern."""
+    return tuple(
+        match.group(0)
+        for pattern in patterns
+        if (match := pattern.search(text or "")) is not None
+    )
+
+
+def review_content_safety(
+    text: str, stage: str, *, strict_intake: bool = False
+) -> ContentSafetyReview:
+    """Apply the shared deterministic policy to intake or final content."""
+    if stage not in {"intake", "final"}:
+        raise ValueError("stage must be 'intake' or 'final'")
+    prohibited = _all_matches(text, _CONTENT_PROHIBITED)
+    if prohibited:
+        return ContentSafetyReview(
+            decision="block",
+            category="prohibited",
+            reason=(
+                "Content matches a prohibited weaponization or "
+                "mass-casualty policy rule."
+            ),
+            matches=prohibited,
+            risk_domains=("cbrn_weaponization",),
+            requires_review=False,
+        )
+    dual_use = _all_matches(text, _CONTENT_DUAL_USE)
+    if dual_use and (stage == "final" or strict_intake):
+        return ContentSafetyReview(
+            decision="redact",
+            category="redacted",
+            reason=(
+                "Dual-use content requires redaction and explicit oversight."
+            ),
+            matches=dual_use,
+            risk_domains=("dual_use",),
+            requires_review=True,
+        )
+    return ContentSafetyReview(
+        decision="allow",
+        category="allowed",
+        reason="",
+        matches=(),
+        risk_domains=(),
+        requires_review=False,
+    )
 
 
 def _first_match(

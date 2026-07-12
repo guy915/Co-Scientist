@@ -13,18 +13,17 @@ import enum
 import json
 import logging
 import os
-import re
-from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
+
+from co_scientist.safety import POLICY_VERSION, review_content_safety
 
 from app import store
 from app.config import settings
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
-
-POLICY_VERSION = "coscientist-safety-v2"
 
 
 class SafetyMode(str, enum.Enum):
@@ -43,36 +42,6 @@ def _resolve_safety_mode() -> SafetyMode:
 
 
 SAFETY_MODE = _resolve_safety_mode()
-
-# Hard-block patterns: production of weaponized agents, mass-casualty intent.
-# These are deliberately narrow keyword combinations to avoid blocking
-# legitimate defensive / educational research.
-_BLOCK_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(p, re.IGNORECASE)
-    for p in (
-        r"\b(synthes(?:is|e|ize)|engineer|weaponize)\b.{0,40}"
-        r"\b(nerve agent|sarin|vx|tabun|novichok)\b",
-        r"\b(enhance|engineer|weaponize)\b.{0,40}"
-        r"\b(smallpox|anthrax|ebola|marburg)\b.{0,40}"
-        r"\b(transmiss|lethal|virulen)",
-        r"\b(build|construct|assemble)\b.{0,40}\b(nuclear|radiological)\b"
-        r".{0,20}\b(weapon|bomb|device)\b",
-        r"\bgain[- ]of[- ]function\b.{0,40}\b(human-to-human|airborne)\b",
-        r"\b(produce|manufacture)\b.{0,40}\b(fentanyl|methamphetamine)\b"
-        r".{0,20}\b(scale|kilogram)\b",
-    )
-)
-
-# Redact patterns: mark output as dual-use when present, but do not block.
-_REDACT_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
-    re.compile(p, re.IGNORECASE)
-    for p in (
-        r"\b(pathogen|toxin|virus|bacterium)\b.{0,30}"
-        r"\b(transmiss|lethal|host range)\b",
-        r"\b(cbrn|chem-bio|bio-?weapon)\b",
-        r"\b(dual[- ]use|select agent)\b",
-    )
-)
 
 
 @dataclass
@@ -104,87 +73,38 @@ class SafetyDecision:
         }
 
 
-def _scan(text: str, patterns: Iterable[re.Pattern[str]]) -> list[str]:
-    """Return the matched substring for each pattern that hits `text`."""
-    hits: list[str] = []
-    for pat in patterns:
-        # Only the first match per pattern is kept; `matches` is a diagnostic
-        # trail for the safety decision, not an exhaustive occurrence count.
-        m = pat.search(text or "")
-        if m:
-            hits.append(m.group(0))
-    return hits
-
-
 def screen_intake(goal: str) -> SafetyDecision:
     """Run the input gate. Returns block / redact / allow."""
-    text = goal or ""
-    blocked = _scan(text, _BLOCK_PATTERNS)
-    if blocked:
-        return SafetyDecision(
-            stage="intake",
-            decision="block",
-            reason=(
-                "Input matches a hard-block pattern (weaponization or "
-                "mass-casualty intent)."
-            ),
-            matches=blocked,
-            category="prohibited",
-            risk_domains=["cbrn_weaponization"],
-        )
-    flagged = _scan(text, _REDACT_PATTERNS)
-    # Unlike screen_final below, intake only redacts under strict mode: a
-    # dual-use-sounding research goal is allowed through by default so a
-    # run is not blocked purely on vocabulary before any content exists.
-    if flagged and SAFETY_MODE == SafetyMode.STRICT:
-        return SafetyDecision(
-            stage="intake",
-            decision="redact",
-            reason=(
-                "Input flagged dual-use; strict mode requires explicit "
-                "oversight."
-            ),
-            matches=flagged,
-            category="redacted",
-            risk_domains=["dual_use"],
-            requires_review=True,
-        )
-    return SafetyDecision(stage="intake", decision="allow")
+    review = review_content_safety(
+        goal or "",
+        "intake",
+        strict_intake=SAFETY_MODE == SafetyMode.STRICT,
+    )
+    return SafetyDecision(
+        stage="intake",
+        decision=review.decision,
+        reason=review.reason,
+        matches=list(review.matches),
+        category=review.category,
+        risk_domains=list(review.risk_domains),
+        requires_review=review.requires_review,
+        policy_version=review.policy_version,
+    )
 
 
 def screen_final(report_markdown: str) -> SafetyDecision:
     """Final-output gate. Block on hard hits; annotate dual-use otherwise."""
-    text = report_markdown or ""
-    blocked = _scan(text, _BLOCK_PATTERNS)
-    if blocked:
-        return SafetyDecision(
-            stage="final",
-            decision="block",
-            reason=(
-                "Generated report contains a hard-block pattern; "
-                "refusing to publish."
-            ),
-            matches=blocked,
-            category="prohibited",
-            risk_domains=["cbrn_weaponization"],
-        )
-    flagged = _scan(text, _REDACT_PATTERNS)
-    # Final output always flags dual-use language, regardless of SAFETY_MODE:
-    # a generated report is finished content, not an ambiguous ask, so it
-    # gets the stricter treatment intake reserves for strict mode only.
-    if flagged:
-        return SafetyDecision(
-            stage="final",
-            decision="redact",
-            reason=(
-                "Output contains dual-use language; flagged for human review."
-            ),
-            matches=flagged,
-            category="redacted",
-            risk_domains=["dual_use"],
-            requires_review=True,
-        )
-    return SafetyDecision(stage="final", decision="allow")
+    review = review_content_safety(report_markdown or "", "final")
+    return SafetyDecision(
+        stage="final",
+        decision=review.decision,
+        reason=review.reason,
+        matches=list(review.matches),
+        category=review.category,
+        risk_domains=list(review.risk_domains),
+        requires_review=review.requires_review,
+        policy_version=review.policy_version,
+    )
 
 
 def _semantic_credential_available(model: str) -> bool:
