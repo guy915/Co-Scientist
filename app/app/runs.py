@@ -86,12 +86,6 @@ from app.title_gen import generate_run_title
 
 logger = logging.getLogger(__name__)
 
-# Terminal run-status *string values* (the RunRow.status column is a str), used
-# to reject cancelling a run that has already finished.
-_TERMINAL_STATUS_VALUES: frozenset[str] = frozenset(
-    s.value for s in TERMINAL_STATUSES
-)
-
 # Strong references to detached resume tasks so they are not garbage-collected
 # mid-run; each removes itself on completion (see _launch_resume).
 _resume_tasks: set[asyncio.Task[None]] = set()
@@ -398,7 +392,7 @@ async def cancel_run(run_id: str) -> dict[str, Any]:
         handle.cancelled.set()
         store.append_event(run_id, "lifecycle", {"event": "cancel_requested"})
         return {"id": run_id, "status": "cancelling"}
-    if run.status in _TERMINAL_STATUS_VALUES:
+    if run.status in TERMINAL_STATUSES:
         raise HTTPException(status_code=409, detail="run already finished")
     store.update_run_status(run_id, RunStatus.CANCELLED)
     store.append_event(run_id, "status", {"status": "cancelled"})
