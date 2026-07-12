@@ -88,6 +88,14 @@ from app.store.runs import (
     summary_counts,
     update_run_status,
 )
+from app.store.tasks import (
+    ScientificTask,
+    claim_task,
+    complete_task,
+    enqueue_task,
+    fail_task,
+    list_tasks,
+)
 
 __all__ = [
     "DEMO_CLIENT_ID",
@@ -95,6 +103,7 @@ __all__ = [
     "MessageRow",
     "RunRow",
     "RunStatus",
+    "ScientificTask",
     "add_citation",
     "add_claim_evidence",
     "add_evidence",
@@ -105,9 +114,13 @@ __all__ = [
     "append_event",
     "append_message",
     "checkpoint_wal",
+    "claim_task",
     "clear_run_derived_data",
+    "complete_task",
     "connect",
     "create_run",
+    "enqueue_task",
+    "fail_task",
     "get_hypothesis",
     "get_latest_checkpoint",
     "get_latest_report",
@@ -126,6 +139,7 @@ __all__ = [
     "list_reviews",
     "list_runs",
     "list_safety_decisions",
+    "list_tasks",
     "mark_steering_applied",
     "read_report_markdown",
     "reconcile_interrupted_runs",
