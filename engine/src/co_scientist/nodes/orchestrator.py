@@ -20,6 +20,7 @@ from typing import Any
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis, phase_message
 from co_scientist.nodes.progress import emit_progress
+from co_scientist.nodes.supervisor_decision import choose_supervisor_task
 from co_scientist.scheduling import (
     Budget,
     SchedulerStats,
@@ -27,8 +28,6 @@ from co_scientist.scheduling import (
     TaskRecord,
     TaskStatus,
     TaskType,
-    decide_next_task,
-    validate_decision,
 )
 from co_scientist.state import WorkflowState
 
@@ -227,7 +226,9 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
     stats = _compute_stats(state, book)
     budget = _default_budget(state)
 
-    decision = validate_decision(decide_next_task(stats, budget), stats)
+    decision, decision_provenance = await choose_supervisor_task(
+        state, stats, budget
+    )
 
     iteration = state.get("current_iteration", 0)
     # A work cycle (generate/evolve) advances the iteration counter; a
@@ -253,12 +254,14 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
             if decision.termination_reason is not None
             else None
         ),
+        decision_provenance=decision_provenance,
     )
 
     return {
         "next_task": decision.next_task.value,
         "task_history": _appended_task_record(state, decision, iteration),
         "orchestrator_state": _next_bookkeeping(book, stats, decision),
+        "supervisor_decision_provenance": decision_provenance,
         "current_iteration": iteration,
         # Steering is a one-shot high-priority request: clear it once the
         # orchestrator has seen it (and scheduled work to incorporate it) so

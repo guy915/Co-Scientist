@@ -214,6 +214,32 @@ async def _fake_acompletion(**kwargs: Any) -> Any:
     if response_format and response_format.get("type") == "json_schema":
         json_schema = response_format["json_schema"]
         schema = json_schema["schema"]
+        if json_schema.get("name") == "supervisor_allocation":
+            # Exercise model-directed scheduling with a stable adaptive
+            # portfolio: improve leaders first, then explore new regions.
+            prompt = _prompt_text(kwargs)
+            needs_proximity = '"pool_grew_since_proximity": true' in prompt
+            first_cycle = '"iteration": 0' in prompt
+            next_task = (
+                "proximity"
+                if needs_proximity
+                else ("evolve" if first_cycle else "generate")
+            )
+            content = json.dumps(
+                {
+                    "next_task": next_task,
+                    "reason": (
+                        "Refresh the scientific similarity landscape."
+                        if needs_proximity
+                        else (
+                            "Improve reviewed leaders."
+                            if first_cycle
+                            else "Explore an underdeveloped direction."
+                        )
+                    ),
+                }
+            )
+            return _fake_response(content)
         length_hint = _ARRAY_LENGTH_HINTS.get(json_schema.get("name", ""))
         array_lengths = (
             length_hint(_prompt_text(kwargs)) if length_hint else None

@@ -20,7 +20,7 @@ def _state_with_steering(pending: bool) -> WorkflowState:
     return make_state(
         hypotheses=hyps,
         pending_steering=pending,
-        current_iteration=1,
+        current_iteration=0,
     )
 
 

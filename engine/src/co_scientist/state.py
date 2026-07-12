@@ -242,6 +242,9 @@ class WorkflowState(TypedDict):
     last work task). Internal to the scheduler; not part of the public API.
     """
 
+    supervisor_decision_provenance: str | None
+    """Latest allocation source: model, hard invariant, or fallback."""
+
     pending_steering: bool | None
     """True when durable high-priority user steering is waiting to be
     incorporated (SSR §5). The orchestrator treats it as a high-priority
