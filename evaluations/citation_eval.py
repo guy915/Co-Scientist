@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import os
 import pathlib
 import sys
 from collections import defaultdict
@@ -33,15 +34,60 @@ def _load_dataset(path: pathlib.Path) -> dict[str, Any]:
     return dataset
 
 
-def _confusion(items: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
-    """Return a nested expected->predicted count matrix over the dataset."""
-    from app.claims import assess_claim  # imported here so path is set first
+def _predict(
+    items: list[dict[str, Any]],
+    assessor: Any,
+    assessor_id: str,
+) -> list[tuple[str, str, str]]:
+    """Assess each item once, returning (expected, predicted, kind) triples.
 
-    matrix: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    Assessing once (rather than per metric) matters for the LLM assessor: each
+    item costs one provider call.
+    """
+    from app.claims import as_passages, assess_claim
+
+    rows: list[tuple[str, str, str]] = []
     for item in items:
-        predicted = assess_claim(item["claim"], item["passages"]).label.value
-        matrix[item["label"]][predicted] += 1
+        passages = as_passages(item["passages"])
+        predicted = assess_claim(
+            item["claim"],
+            passages,
+            assessor=assessor,
+            assessor_id=assessor_id,
+        ).label.value
+        rows.append((item["label"], predicted, item.get("kind", "obvious")))
+    return rows
+
+
+def _confusion(rows: list[tuple[str, str, str]]) -> dict[str, dict[str, int]]:
+    """Return a nested expected->predicted count matrix from prediction rows."""
+    matrix: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
+    for expected, predicted, _kind in rows:
+        matrix[expected][predicted] += 1
     return {k: dict(v) for k, v in matrix.items()}
+
+
+def _accuracy_by_kind(
+    rows: list[tuple[str, str, str]],
+) -> dict[str, dict[str, Any]]:
+    """Return per-kind accuracy, isolating where lexical vs semantic differ.
+
+    The deterministic assessor is expected to score well on ``obvious``/
+    ``mixed`` and poorly on ``hard_paraphrase`` (that is the gap the LLM/NLI
+    assessor closes); reporting the split keeps that honest.
+    """
+    counts: dict[str, list[int]] = defaultdict(lambda: [0, 0])
+    for expected, predicted, kind in rows:
+        counts[kind][1] += 1
+        if predicted == expected:
+            counts[kind][0] += 1
+    return {
+        kind: {
+            "accuracy": round(correct / total, 3) if total else 0.0,
+            "n": total,
+        }
+        for kind, (correct, total) in sorted(counts.items())
+    }
 
 
 def _metrics(matrix: dict[str, dict[str, int]]) -> dict[str, Any]:
@@ -77,15 +123,31 @@ def _metrics(matrix: dict[str, dict[str, int]]) -> dict[str, Any]:
     }
 
 
-def run() -> dict[str, Any]:
-    """Evaluate the assessor over the dataset and return the metrics report."""
+def run(
+    *,
+    assessor: Any = None,
+    assessor_id: str = "deterministic-v1",
+) -> dict[str, Any]:
+    """Evaluate the assessor over the dataset and return the metrics report.
+
+    The default (``assessor=None``) uses the offline deterministic assessor so
+    the eval runs in CI. Pass a real assessor (e.g. the LLM assessor from
+    ``app.claim_verifier.make_llm_assessor``) to score the semantic path; that
+    requires a provider and is run out of band, not in the offline suite.
+    """
+    from app.claims import deterministic_assessor
+
+    if assessor is None:
+        assessor = deterministic_assessor
     dataset = _load_dataset(_DATASET)
-    matrix = _confusion(dataset["items"])
+    rows = _predict(dataset["items"], assessor, assessor_id)
+    matrix = _confusion(rows)
     metrics = _metrics(matrix)
+    metrics["by_kind"] = _accuracy_by_kind(rows)
     return {
         "dataset": dataset["name"],
         "dataset_version": dataset["version"],
-        "assessor": "deterministic-v1",
+        "assessor": assessor_id,
         "metrics": metrics,
         "confusion": matrix,
         "external_gap": (
@@ -95,19 +157,41 @@ def run() -> dict[str, Any]:
     }
 
 
+def _build_llm_assessor() -> tuple[Any, str]:
+    """Build the LLM assessor from the MODEL_NAME env (for --llm runs)."""
+    from app.claim_verifier import make_llm_assessor
+
+    model = os.getenv("MODEL_NAME") or "deepseek/deepseek-chat"
+    assessor, assessor_id = make_llm_assessor(model)
+    return assessor, str(assessor_id)
+
+
 def main() -> int:
-    """Run the eval, write a dated artifact, and print a summary."""
-    report = run()
+    """Run the eval, write a dated artifact, and print a summary.
+
+    ``--llm`` scores the real LLM assessor (needs a provider key); the default
+    scores the offline deterministic assessor.
+    """
+    if "--llm" in sys.argv[1:]:
+        assessor, assessor_id = _build_llm_assessor()
+        report = run(assessor=assessor, assessor_id=assessor_id)
+        tag = assessor_id.replace("/", "_").replace(":", "_")
+    else:
+        report = run()
+        tag = "deterministic"
+
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     date = datetime.date.today().isoformat()
-    out = _RESULTS_DIR / f"citation-entailment-{date}.json"
+    out = _RESULTS_DIR / f"citation-entailment-{tag}-{date}.json"
     out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
     m = report["metrics"]
     print(
-        f"citation-entailment eval: n={m['n']} accuracy={m['accuracy']} "
+        f"citation-entailment eval [{report['assessor']}]: n={m['n']} "
+        f"accuracy={m['accuracy']} "
         f"contradiction_recall={m['contradiction_recall']}"
     )
+    print(f"by kind: {m['by_kind']}")
     print(f"wrote {out.relative_to(_ROOT)}")
     return 0
 
