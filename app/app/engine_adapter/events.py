@@ -84,14 +84,6 @@ def _evolve_payload_extra(state: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _supervisor_plan_payload_extra(
-    unused_state: dict[str, Any],
-) -> dict[str, Any]:
-    """Build the ``supervisor.plan`` node's payload keys."""
-    del unused_state
-    return {"agents": list(_ENGINE_PIPELINE_AGENTS)}
-
-
 # Per-node-type payload builders, keyed by the canonical event type. Nodes
 # with no entry (e.g. ``reflection``, ``review``) get no extra payload keys
 # beyond the common ``node``/``iteration`` pair built in
@@ -101,7 +93,7 @@ _PAYLOAD_BUILDERS: dict[str, Callable[[dict[str, Any]], dict[str, Any]]] = {
     "literature_review": _literature_review_payload_extra,
     "ranking": _ranking_payload_extra,
     "evolve": _evolve_payload_extra,
-    "supervisor.plan": _supervisor_plan_payload_extra,
+    "supervisor.plan": lambda _: {"agents": list(_ENGINE_PIPELINE_AGENTS)},
 }
 
 
@@ -139,12 +131,6 @@ def _canonical_engine_payload(
     return payload
 
 
-def _milestone_supervisor_plan(unused_payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed supervisor plan."""
-    del unused_payload
-    return "Research plan ready — supervisor complete"
-
-
 def _milestone_generate(payload: dict[str, Any]) -> str:
     """Build the milestone text for a completed generation round."""
     count = payload.get("count", 0)
@@ -160,12 +146,6 @@ def _milestone_ranking(payload: dict[str, Any]) -> str:
     return f"Tournament complete (iteration {itr}, {count} matches)"
 
 
-def _milestone_meta_review(unused_payload: dict[str, Any]) -> str:
-    """Build the milestone text for a completed meta-review."""
-    del unused_payload
-    return "Meta-review complete"
-
-
 def _milestone_evolve(payload: dict[str, Any]) -> str:
     """Build the milestone text for a completed evolve round."""
     count = len(payload.get("children") or [])
@@ -177,10 +157,10 @@ def _milestone_evolve(payload: dict[str, Any]) -> str:
 # with no entry (e.g. ``reflection``, ``review``) generate no milestone,
 # mirroring ``_PAYLOAD_BUILDERS``'s dispatch shape above.
 _MILESTONE_BUILDERS: dict[str, Callable[[dict[str, Any]], str]] = {
-    "supervisor.plan": _milestone_supervisor_plan,
+    "supervisor.plan": lambda _: "Research plan ready — supervisor complete",
     "generate": _milestone_generate,
     "ranking": _milestone_ranking,
-    "meta_review": _milestone_meta_review,
+    "meta_review": lambda _: "Meta-review complete",
     "evolve": _milestone_evolve,
 }
 
