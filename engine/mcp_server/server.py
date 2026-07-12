@@ -34,6 +34,7 @@ logging.basicConfig(
 # libraries stay at the INFO default set above.
 logging.getLogger("mcp_server").setLevel(log_level)
 
+from mcp_server.tools.biomedical_databases import search_chembl, search_uniprot
 from mcp_server.tools.indra_cogex import (
     query_causal_subnetwork,
     query_clinical_trials,
@@ -73,6 +74,8 @@ _MCP_TOOLS = (
     (search_pubmed, "search_pubmed"),
     (pubmed_search_with_fulltext, "pubmed_search_with_fulltext"),
     (search_openalex, "search_openalex"),
+    (search_chembl, "search_chembl"),
+    (search_uniprot, "search_uniprot"),
     (query_gene_disease_network, "query_gene_disease_network"),
     (query_gene_codependents, "query_gene_codependents"),
     (query_drug_info, "query_drug_info"),

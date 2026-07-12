@@ -130,6 +130,29 @@ tools:
         - Find targets for a drug: identifier="CHEBI:CHEBI:91399", query_type="targets"
         - Also: query_type="indications" or "side_effects"
 
+    chembl_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_chembl"
+      display_name: "ChEMBL Drug Search"
+      description: "Search authoritative bioactive molecule and development records"
+      category: "search"
+      enabled: true
+      prompt_snippet: |
+        Use `search_chembl` to verify drug identity, synonyms, molecule type,
+        approval history, and clinical development phase before making a
+        therapeutic claim.
+
+    uniprot_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_uniprot"
+      display_name: "UniProt Protein Search"
+      description: "Search reviewed UniProt protein functions and identifiers"
+      category: "search"
+      enabled: true
+      prompt_snippet: |
+        Use `search_uniprot` to ground protein names, gene mappings, organism,
+        and reviewed functional annotations before proposing a mechanism.
+
     indra_codependents:
       server: "default_pubmed"
       mcp_tool_name: "query_gene_codependents"
