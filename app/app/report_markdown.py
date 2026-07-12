@@ -296,22 +296,14 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _first(*values: str | None) -> str:
-    """Return the first truthy value among values, or "" when all falsy."""
-    for value in values:
-        if value:
-            return value
-    return ""
-
-
 def _render_hypothesis_entry(i: int, hyp: dict[str, Any]) -> list[str]:
     """Render one numbered 'Top hypotheses' entry."""
     # "title"/"statement" are store row field names; "text" is the raw
     # engine hypothesis field name -- fall back across both so this renders
     # whichever shape the caller happens to pass in.
-    title = _first(hyp.get("title"), hyp.get("text")) or "Untitled"
+    title = hyp.get("title") or hyp.get("text") or "Untitled"
     lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
-    statement = _first(hyp.get("statement"), hyp.get("text"))
+    statement = hyp.get("statement") or hyp.get("text") or ""
     if statement:
         lines += [statement, ""]
     for label, value in (
