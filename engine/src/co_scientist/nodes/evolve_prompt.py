@@ -5,6 +5,10 @@ import logging
 from typing import Any
 
 from co_scientist.models import Hypothesis
+from co_scientist.nodes.evolution_operators import (
+    EvolutionOperator,
+    operator_instruction,
+)
 from co_scientist.prompts import load_prompt_with_schema
 
 logger = logging.getLogger(__name__)
@@ -295,6 +299,7 @@ def _build_evolution_prompt(
     tool_registry: Any | None,
     run_setup_guidance: str | None,
     run_focus_guidance: str | None,
+    operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
 ) -> tuple[str, dict[str, Any] | None]:
     """Assembles the full evolution prompt (and schema) for one hypothesis.
 
@@ -311,6 +316,7 @@ def _build_evolution_prompt(
         tool_registry: Optional ToolRegistry for dynamic tool instructions.
         run_setup_guidance: Optional durable setup guidance.
         run_focus_guidance: Optional selected focus guidance.
+        operator: Distinct evolution strategy this task must execute.
 
     Returns:
         Tuple of (full prompt text with diversity instruction appended,
@@ -332,6 +338,13 @@ def _build_evolution_prompt(
     diversity_instruction = _format_diversity_instruction(
         other_hypotheses_texts, removed_duplicates
     )
-    full_prompt = prompt + diversity_instruction
+    operator_section = (
+        "\n\n## Required Evolution Operator\n"
+        f"**Operator:** {operator.value}\n"
+        f"{operator_instruction(operator)}\n"
+        "Record how this operator changed the proposal in the refinement "
+        "summary.\n"
+    )
+    full_prompt = prompt + operator_section + diversity_instruction
 
     return full_prompt, schema

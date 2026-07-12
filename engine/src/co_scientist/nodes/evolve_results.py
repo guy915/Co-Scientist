@@ -143,6 +143,7 @@ def _apply_refined_hypothesis(
         "original": hypothesis.text,
         "evolved": refined_text,
         "rationale": refinement_summary,
+        "operator": "enhancement",
     }
 
     return child, evolution_detail
@@ -206,7 +207,7 @@ def _apply_evolution_result(
         logger.debug("similar to: %s...", most_similar_text[:100])
         return None, None
 
-    return _apply_refined_hypothesis(
+    child, detail = _apply_refined_hypothesis(
         hypothesis,
         refined_text,
         explanation,
@@ -215,6 +216,10 @@ def _apply_evolution_result(
         max_similarity,
         creation_iteration,
     )
+    detail["operator"] = str(
+        response.get("_evolution_operator") or "enhancement"
+    )
+    return child, detail
 
 
 def _collect_evolution_results(

@@ -16,6 +16,10 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import Hypothesis
+from co_scientist.nodes.evolution_operators import (
+    EvolutionOperator,
+    select_operator,
+)
 from co_scientist.nodes.evolve_context import (
     _find_most_similar as _find_most_similar,
 )
@@ -165,6 +169,7 @@ async def evolve_single_hypothesis(
     run_setup_guidance: str | None = None,
     run_focus_guidance: str | None = None,
     creation_iteration: int | None = None,
+    operator: EvolutionOperator = EvolutionOperator.ENHANCEMENT,
 ) -> tuple[Hypothesis | None, dict[str, Any] | None]:
     """Evolve a single hypothesis into a new child with sampled context.
 
@@ -188,6 +193,7 @@ async def evolve_single_hypothesis(
         run_setup_guidance: Optional durable setup guidance
         run_focus_guidance: Optional selected focus guidance
         creation_iteration: Workflow iteration producing any child
+        operator: Distinct evolution strategy assigned to this task.
 
     Returns:
         A ``(child, detail)`` pair on acceptance, or ``(None, None)`` when the
@@ -209,6 +215,7 @@ async def evolve_single_hypothesis(
         tool_registry=tool_registry,
         run_setup_guidance=run_setup_guidance,
         run_focus_guidance=run_focus_guidance,
+        operator=operator,
     )
 
     response = await _call_evolution_llm(
@@ -220,6 +227,7 @@ async def evolve_single_hypothesis(
         hypothesis_index=hypothesis_index,
     )
 
+    response["_evolution_operator"] = operator.value
     return _apply_evolution_result(
         hypothesis,
         response,
@@ -351,6 +359,7 @@ def _build_evolution_tasks(
             run_setup_guidance=state.get("run_setup_guidance"),
             run_focus_guidance=state.get("run_focus_guidance"),
             creation_iteration=creation_iteration,
+            operator=select_operator(i, creation_iteration),
         )
         for i, hyp in enumerate(top_k)
     ]
