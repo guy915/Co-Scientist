@@ -156,7 +156,11 @@ function ReportActions({
     // is proprietary and receives the file only if the scientist uploads it.
     const download = document.createElement('a');
     download.href = reportMarkdownUrl(runId);
+    download.download = 'co-scientist-goal-report.md';
+    download.hidden = true;
+    document.body.append(download);
     download.click();
+    download.remove();
     window.open('https://notebooklm.google.com/', '_blank', 'noopener');
   }
   return (

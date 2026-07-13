@@ -119,6 +119,10 @@ beforeEach(() => {
 
 describe('RunDetail', () => {
   it('exposes Goal Report follow-up and export controls', async () => {
+    const anchorClick = vi
+      .spyOn(HTMLAnchorElement.prototype, 'click')
+      .mockImplementation(() => undefined);
+    const openNotebook = vi.spyOn(window, 'open').mockReturnValue(null);
     vi.mocked(runsApi.getReport).mockResolvedValue({
       payload: {},
     } as unknown as runsApi.Report);
@@ -132,6 +136,19 @@ describe('RunDetail', () => {
     expect(
       screen.getByRole('link', {name: 'Download'}).getAttribute('href'),
     ).toMatch(/^\/api\/runs\/run-1\/report\.md\?client_id=.+/);
+    fireEvent.click(screen.getByRole('button', {name: 'Open in NotebookLM'}));
+    const handoffDownload = anchorClick.mock.instances.at(
+      -1,
+    ) as HTMLAnchorElement;
+    expect(handoffDownload.download).toBe('co-scientist-goal-report.md');
+    expect(handoffDownload.href).toMatch(
+      /\/api\/runs\/run-1\/report\.md\?client_id=.+/,
+    );
+    expect(openNotebook).toHaveBeenCalledWith(
+      'https://notebooklm.google.com/',
+      '_blank',
+      'noopener',
+    );
 
     fireEvent.click(screen.getByRole('button', {name: 'Open Agent'}));
     expect(
@@ -139,6 +156,8 @@ describe('RunDetail', () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Close Agent'}));
     expect(screen.queryByRole('dialog', {name: 'Open Agent'})).toBeNull();
+    anchorClick.mockRestore();
+    openNotebook.mockRestore();
   });
 
   it('queues Agent guidance while research is active', async () => {
