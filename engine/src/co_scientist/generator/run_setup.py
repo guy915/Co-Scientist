@@ -157,21 +157,18 @@ def _resolve_dev_isolation_flag(opts: dict[str, Any]) -> bool:
 def _build_tool_registry(
     tools_config: str | None,
     disable_tools: list[str] | None,
-) -> Any | None:
-    """Builds the tool registry from constructor options, if requested.
+) -> Any:
+    """Build the configured or bundled-default scientific tool registry.
 
     Args:
-        tools_config: Path to custom tools YAML config file (None = use
-            defaults).
+        tools_config: Path to custom tools YAML config file. None loads the
+            bundled default registry.
         disable_tools: List of tool IDs to disable (None = use all enabled
             tools).
 
     Returns:
-        A ``ToolRegistry`` instance, or None if neither option was supplied.
+        An initialized ``ToolRegistry`` instance.
     """
-    if tools_config is None and disable_tools is None:
-        return None
-
     from co_scientist.config import (
         ToolRegistry,
     )
@@ -181,7 +178,8 @@ def _build_tool_registry(
         disabled_tools=disable_tools,
     )
     logger.info(
-        "Initialized tool registry: %s enabled tools",
+        "Initialized %s tool registry: %s enabled tools",
+        "custom" if tools_config else "bundled-default",
         len(registry.get_enabled_tools()),
     )
     return registry

@@ -102,12 +102,17 @@ def test_supervisor_model_override_is_independent() -> None:
 
 
 def test_lazy_state_is_unset_before_first_run() -> None:
-    """Graph and availability flags are lazily initialised (None) at first."""
+    """Graph/probes are lazy while bundled scientific tools are ready."""
     gen = HypothesisGenerator()
     assert gen._graph is None
     assert gen._mcp_available is None
     assert gen._pubmed_available is None
-    assert gen._tool_registry is None
+    assert gen._tool_registry is not None
+    workflow = gen._tool_registry.get_workflow("literature_review")
+    assert workflow is not None and workflow.is_multi_source()
+    assert [
+        source.tool for source in workflow.get_enabled_search_sources()
+    ] == ["pubmed_fulltext", "openalex_search"]
 
 
 def test_enable_cache_true_sets_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -219,7 +224,11 @@ async def test_prepare_generation_populates_core_config(
     assert state["evolution_max_count"] == 4
     assert state["hypotheses"] == []
     assert state["current_iteration"] == 0
-    assert state["tool_registry"] is None
+    registry = state["tool_registry"]
+    assert registry is gen._tool_registry
+    assert registry is not None
+    workflow = registry.get_workflow("literature_review")
+    assert workflow is not None and workflow.is_multi_source()
 
 
 async def test_prepare_generation_generates_run_id(

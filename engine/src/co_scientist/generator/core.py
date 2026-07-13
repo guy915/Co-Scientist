@@ -122,7 +122,9 @@ class HypothesisGenerator(McpAvailabilityMixin):
         # Configure cache if specified
         _configure_cache_env(enable_cache, cache_dir)
 
-        # Initialize tool registry if tools_config or disable_tools specified
+        # Always load the bundled provider-neutral registry unless a custom
+        # configuration replaces it; faithful runs must not silently collapse
+        # from PubMed + OpenAlex to the legacy single-source fallback.
         self._tool_registry = _build_tool_registry(tools_config, disable_tools)
 
         # Build the graph (lazy - only once)
