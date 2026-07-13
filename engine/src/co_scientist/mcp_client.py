@@ -10,6 +10,7 @@ The connection helpers and availability-probe helpers live in
 re-exported here so callers keep importing from ``co_scientist.mcp_client``.
 """
 
+import asyncio
 import json
 import logging
 from typing import TYPE_CHECKING, Any, Optional, cast
@@ -86,6 +87,7 @@ class MCPToolClient:
         self._client: MultiServerMCPClient | None = None
         self._tools_dict: dict[str, Any] | None = None
         self._openai_tools: list[dict[str, Any]] | None = None
+        self._initialize_lock = asyncio.Lock()
         self._tool_to_server: dict[str, str] = {}  # maps tool_name -> server_id
 
         self._server_configs = _resolve_server_configs(
@@ -101,39 +103,43 @@ class MCPToolClient:
 
     async def initialize(self) -> None:
         """Initialize the client and fetch available tools from all servers."""
-        # Idempotent: get_mcp_client() calls this on every lookup, so a
-        # second call on an already-connected client is a cheap no-op.
-        if self._client is not None:
+        # Tool indexes, rather than transport construction, define readiness.
+        # A concurrent caller must not observe the transport during the await
+        # below and mistake that half-initialized state for a usable client.
+        if self._tools_dict is not None:
             logger.debug("MCP client already initialized")
             return
 
-        if not self._server_configs:
-            raise RuntimeError("no server configurations available")
+        async with self._initialize_lock:
+            if self._tools_dict is not None:
+                logger.debug("MCP client initialized by concurrent caller")
+                return
+            if not self._server_configs:
+                raise RuntimeError("no server configurations available")
 
-        server_names = list(self._server_configs.keys())
-        logger.info(
-            "initializing MCP client for %s server(s): %s",
-            len(server_names),
-            server_names,
-        )
+            server_names = list(self._server_configs.keys())
+            logger.info(
+                "initializing MCP client for %s server(s): %s",
+                len(server_names),
+                server_names,
+            )
 
-        self._client = MultiServerMCPClient(
-            cast(dict[str, Connection], self._server_configs)
-        )
-        # This round-trips to every configured server. A server that is down
-        # or unreachable surfaces as a raised exception here, which
-        # check_mcp_available / check_literature_source_available below catch
-        # and turn into an availability=False result rather than propagating.
-        tools = await self._client.get_tools()
+            client = MultiServerMCPClient(
+                cast(dict[str, Connection], self._server_configs)
+            )
+            # This round-trips to every configured server. Publish the client
+            # only after its tool indexes are ready so all callers see one
+            # complete initialization state.
+            tools = await client.get_tools()
+            self._client = client
+            self._index_tools(tools)
 
-        self._index_tools(tools)
-
-        assert self._tools_dict is not None  # set by _index_tools above
-        logger.info(
-            "MCP client initialized with %s tools: %s",
-            len(self._tools_dict),
-            list(self._tools_dict.keys()),
-        )
+            assert self._tools_dict is not None  # set by _index_tools above
+            logger.info(
+                "MCP client initialized with %s tools: %s",
+                len(self._tools_dict),
+                list(self._tools_dict.keys()),
+            )
 
     def _index_tools(self, tools: list[Any]) -> None:
         """Populate lookup structures from the tools fetched by initialize().

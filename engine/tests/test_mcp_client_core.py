@@ -13,10 +13,13 @@ are built with ``types.SimpleNamespace`` to mimic the LiteLLM shape the code
 reads (``.id``, ``.function.name``, ``.function.arguments``).
 """
 
+import asyncio
 import json
+from typing import Any
 
 import pytest
 
+import co_scientist.mcp_client as mcp_client_module
 from co_scientist.mcp_client import MCPToolClient
 from tests._mcp import FakeMultiServerMCPClient, make_tool_call, string_tool
 
@@ -100,6 +103,46 @@ async def test_initialize_is_idempotent_single_construction(
     await client.initialize()
     await client.initialize()
     assert _patch_mcp_seam.instances_created == 1
+
+
+async def test_concurrent_initialize_waits_for_complete_tool_index(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Concurrent callers share one fully initialized MCP transport."""
+    started = asyncio.Event()
+    release = asyncio.Event()
+    calls = 0
+    tools: list[Any] = [string_tool("t1", "ok")]
+
+    class SlowMultiServerMCPClient:
+        """Hold tool discovery open so the initialization race is observable."""
+
+        def __init__(self, _connections: object) -> None:
+            pass
+
+        async def get_tools(self) -> list[object]:
+            nonlocal calls
+            calls += 1
+            started.set()
+            await release.wait()
+            return tools
+
+    monkeypatch.setattr(
+        mcp_client_module,
+        "MultiServerMCPClient",
+        SlowMultiServerMCPClient,
+    )
+    client = MCPToolClient(server_url="http://x.test/mcp")
+    first = asyncio.create_task(client.initialize())
+    await started.wait()
+    second = asyncio.create_task(client.initialize())
+    await asyncio.sleep(0)
+
+    assert not second.done()
+    release.set()
+    await asyncio.gather(first, second)
+    assert calls == 1
+    assert client.available_tools == ["t1"]
 
 
 def test_get_tools_before_initialize_raises() -> None:
