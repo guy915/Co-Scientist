@@ -135,21 +135,30 @@ class PubmedSource(_SharedPoolMixin):
         """Builds the final paper_id-to-metadata mapping to return.
 
         Args:
-            papers_to_use: Paper IDs selected for this run's final result
-                set.
+            papers_to_use: Paper IDs with downloaded PMC full text.
             all_details: Metadata dict keyed by paper_id.
-            max_papers: Target number of papers WITH fulltext, used only for
-                the summary log line.
+            max_papers: Target number of papers in the evidence corpus.
 
         Returns:
-            Dict mapping paper_id to metadata for papers with fulltext.
+            Dict mapping paper_id to metadata, preferring full text and
+            filling any shortfall with ranked abstract-only records.
         """
+        selected_ids = list(dict.fromkeys(papers_to_use))
+        selected_ids.extend(
+            paper_id for paper_id in all_details if paper_id not in selected_ids
+        )
+        selected_ids = selected_ids[:max_papers]
         final_details = {
-            paper_id: all_details[paper_id] for paper_id in papers_to_use
+            paper_id: all_details[paper_id] for paper_id in selected_ids
         }
+        fulltext_count = sum(
+            bool(metadata.get("fulltext"))
+            for metadata in final_details.values()
+        )
         logger.info(
-            "Returning %s papers with fulltext (target was %s)",
+            "Returning %s papers (%s with fulltext; target was %s)",
             len(final_details),
+            fulltext_count,
             max_papers,
         )
         return final_details
@@ -232,7 +241,8 @@ class PubmedSource(_SharedPoolMixin):
         - Processes in order (most recent first) until reaching max_papers
           WITH fulltext
         - If PubMed is exhausted, supplements from shared pool
-        - Returns ONLY papers with fulltext
+        - Returns fulltext papers first, then ranked abstract-only papers to
+          fill the requested corpus size
 
         Args:
             query: PubMed boolean query.
@@ -243,7 +253,7 @@ class PubmedSource(_SharedPoolMixin):
                 tracking).
 
         Returns:
-            Dict mapping paper_id to metadata for papers with fulltext.
+            Dict mapping paper_id to metadata, with fulltext where available.
         """
         # Imported locally so importing this module does not require an
         # event loop / asyncio setup unless this async method is actually
