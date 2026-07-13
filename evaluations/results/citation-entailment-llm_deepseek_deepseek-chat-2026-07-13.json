@@ -1,0 +1,51 @@
+{
+  "dataset": "citation-entailment-v1",
+  "dataset_version": 2,
+  "assessor": "llm:deepseek/deepseek-chat",
+  "metrics": {
+    "accuracy": 1.0,
+    "contradiction_recall": 1.0,
+    "abstention_rate": 0.2,
+    "per_label": {
+      "contradicts": {
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "supports": {
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "insufficient": {
+        "precision": 1.0,
+        "recall": 1.0
+      }
+    },
+    "n": 20,
+    "by_kind": {
+      "hard_paraphrase": {
+        "accuracy": 1.0,
+        "n": 5
+      },
+      "mixed": {
+        "accuracy": 1.0,
+        "n": 3
+      },
+      "obvious": {
+        "accuracy": 1.0,
+        "n": 12
+      }
+    }
+  },
+  "confusion": {
+    "supports": {
+      "supports": 8
+    },
+    "contradicts": {
+      "contradicts": 8
+    },
+    "insufficient": {
+      "insufficient": 4
+    }
+  },
+  "external_gap": "Human-audited representative sample and threshold calibration not performed (no annotator panel); synthetic dataset only."
+}
