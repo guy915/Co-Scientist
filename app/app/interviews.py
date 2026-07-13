@@ -174,11 +174,56 @@ async def _call_interview_model(
         ) from exc
 
 
+def _fallback_interview_response(
+    interview: dict[str, Any],
+) -> dict[str, Any]:
+    """Advance the four-field interview from explicit scientist answers.
+
+    The recovery path never infers scientific content. It assigns each new
+    answer to the field the Agent most recently requested, preserving a usable
+    and resumable interview when the configured model is temporarily absent.
+    """
+    fields = dict(interview["fields"])
+    user_turns = [
+        str(turn["content"]).strip()
+        for turn in interview["turns"]
+        if turn["role"] == "user" and str(turn["content"]).strip()
+    ]
+    answers = user_turns[1:]
+    if not fields.get("focus_area") and answers:
+        fields["focus_area"] = [answers[0]]
+    if not fields.get("preferences") and len(answers) > 1:
+        fields["preferences"] = [answers[1]]
+    completed = _ready(fields)
+    if completed:
+        message = "The research goal is ready for run configuration."
+    elif not fields.get("focus_area"):
+        message = (
+            "Which scientific mechanisms or focus areas should this research "
+            "prioritize?"
+        )
+    else:
+        message = (
+            "What constraints, available models or data, exclusions, and "
+            "feasibility preferences should guide the work?"
+        )
+    return {
+        "assistant_message": message,
+        **fields,
+        "completed": completed,
+    }
+
+
 async def _advance(interview_id: str) -> dict[str, Any]:
     """Run one Agent turn and persist its derivation for later resume."""
     interview = store.get_interview(interview_id)
     assert interview is not None
-    response = await _call_interview_model(interview)
+    try:
+        response = await _call_interview_model(interview)
+    except HTTPException as exc:
+        if exc.status_code != 503:
+            raise
+        response = _fallback_interview_response(interview)
     fields = _normalized_fields(response)
     message = str(response.get("assistant_message") or "").strip()
     if not message:

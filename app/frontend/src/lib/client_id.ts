@@ -1,3 +1,5 @@
+import {makePrefixedId} from './id';
+
 // localStorage key; sent as X-Client-ID to scope owned runs
 const KEY = 'co_scientist_client_id';
 const ACCESS_TOKEN_KEY = 'co_scientist_access_token';
@@ -10,7 +12,7 @@ const ACCESS_TOKEN_KEY = 'co_scientist_access_token';
 export function getClientId(): string {
   let id = localStorage.getItem(KEY);
   if (!id) {
-    id = crypto.randomUUID();
+    id = makePrefixedId('client');
     localStorage.setItem(KEY, id);
   }
   return id;

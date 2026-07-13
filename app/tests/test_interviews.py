@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app import interviews
@@ -190,3 +191,45 @@ def test_scientist_can_edit_and_finalize_fields(
         )
     assert edited.status_code == 200
     assert edited.json()["status"] == "completed"
+
+
+def test_interview_remains_usable_during_model_outage(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Explicit answers populate the four fields when the model is absent."""
+
+    async def _unavailable(_interview: dict[str, Any]) -> dict[str, Any]:
+        raise HTTPException(status_code=503, detail="unavailable")
+
+    monkeypatch.setattr(interviews, "_call_interview_model", _unavailable)
+    headers = {"X-Client-ID": "offline-scientist"}
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/interviews",
+            headers=headers,
+            json={"research_challenge": "Test astrocyte lactate transport"},
+        )
+        interview_id = created.json()["id"]
+        focused = client.post(
+            f"/api/interviews/{interview_id}/turns",
+            headers=headers,
+            json={"content": "Prioritize MCT1 and MCT4 mechanisms."},
+        )
+        completed = client.post(
+            f"/api/interviews/{interview_id}/turns",
+            headers=headers,
+            json={"content": "Use human organoids and exclude animal work."},
+        )
+
+    assert created.status_code == 200
+    assert focused.json()["fields"]["focus_area"] == [
+        "Prioritize MCT1 and MCT4 mechanisms."
+    ]
+    payload = completed.json()
+    assert payload["status"] == "completed"
+    assert payload["fields"] == {
+        "research_challenge": "Test astrocyte lactate transport",
+        "focus_area": ["Prioritize MCT1 and MCT4 mechanisms."],
+        "preferences": ["Use human organoids and exclude animal work."],
+        "title": None,
+    }
