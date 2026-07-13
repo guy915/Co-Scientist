@@ -137,6 +137,7 @@ export function ResearchOverviewView({
   return (
     <ReportDocument title="Summary">
       {leadStat ? <p className={REPORT_LEAD_STAT_CLASSES}>{leadStat}</p> : null}
+      <SummaryStats payload={report?.payload} />
       <AgentInsightsSection insights={report?.payload.agent_insights} />
       <OverviewSummary overview={overview} />
       <ResearchDirectionsSection overview={overview} />
@@ -145,6 +146,28 @@ export function ResearchOverviewView({
       <WinningIdeasSection items={winningIdeas} />
       <TournamentSummarySection matches={matches} />
     </ReportDocument>
+  );
+}
+
+function SummaryStats({payload}: {payload: ReportPayload | undefined}) {
+  if (!payload) return null;
+  const highPotential = payload.idea_buckets?.high_potential.length ?? 0;
+  const nonViable = payload.idea_buckets?.non_viable.length ?? 0;
+  const stats = [
+    ['High Potential', highPotential],
+    ['Non-Viable', nonViable],
+    ['Verified ideas', highPotential],
+    ['Sources Analyzed', payload.evidence_count ?? 0],
+  ] as const;
+  return (
+    <dl className="grid grid-cols-4 gap-3 max-[900px]:grid-cols-2 max-[520px]:grid-cols-1">
+      {stats.map(([label, value]) => (
+        <div key={label} className="rounded-md bg-cosci-panel p-4">
+          <dt className="text-sm text-cosci-muted">{label}</dt>
+          <dd className="mt-1 text-2xl font-medium">{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

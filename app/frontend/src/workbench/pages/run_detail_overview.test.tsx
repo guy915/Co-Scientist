@@ -80,7 +80,16 @@ describe('ResearchOverviewView', () => {
   it('renders the full synthesized report: summary, research directions, specific aims, and leaderboard', () => {
     const report = makeReport({
       hypothesis_count: 2,
+      evidence_count: 11,
       match_count: 3,
+      idea_buckets: {
+        high_potential: [
+          {id: 'h1', title: 'Leaderboard idea', reason: 'Released.'},
+        ],
+        non_viable: [
+          {id: 'h3', title: 'Rejected idea', reason: 'Contradicted.'},
+        ],
+      },
       leaderboard: [
         {id: 'h1', title: 'Leaderboard idea', elo: 1735},
         {id: 'h2', title: 'Second idea', elo: 1600},
@@ -139,6 +148,11 @@ describe('ResearchOverviewView', () => {
     expect(
       screen.getByText('A synthesized summary of the research.'),
     ).toBeInTheDocument();
+    expect(screen.getByText('High Potential')).toBeInTheDocument();
+    expect(screen.getByText('Non-Viable')).toBeInTheDocument();
+    expect(screen.getByText('Verified ideas')).toBeInTheDocument();
+    expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
+    expect(screen.getByText('11')).toBeInTheDocument();
 
     expect(
       screen.getByRole('heading', {name: 'Research directions'}),
