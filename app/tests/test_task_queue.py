@@ -431,3 +431,72 @@ def test_pause_and_resume_make_queued_tasks_non_claimable(
     assert store.resume_run_tasks(run_id, db_path=isolated_db) == 1
     claimed = store.claim_task("worker", run_id=run_id, db_path=isolated_db)
     assert claimed is not None and claimed.id == task.id
+
+
+def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
+    isolated_db: str,
+) -> None:
+    """Queue controls mutate only tasks in compatible lifecycle states."""
+    run_id = _run()
+    promoted = store.enqueue_task(
+        run_id,
+        "reflection.full",
+        {},
+        idempotency_key="control:promote",
+        priority=1,
+        db_path=isolated_db,
+    )
+    cancelled = store.enqueue_task(
+        run_id,
+        "generation.assumptions",
+        {},
+        idempotency_key="control:cancel",
+        priority=2,
+        db_path=isolated_db,
+    )
+    failed = store.enqueue_task(
+        run_id,
+        "verification.deep",
+        {},
+        idempotency_key="control:retry",
+        priority=100,
+        max_attempts=1,
+        db_path=isolated_db,
+    )
+    leased = store.claim_task(
+        "failed-worker", run_id=run_id, db_path=isolated_db
+    )
+    assert leased is not None and leased.id == failed.id
+    assert store.fail_task(
+        failed.id,
+        "failed-worker",
+        "transient provider error",
+        retryable=False,
+        db_path=isolated_db,
+    )
+
+    assert store.reprioritize_task(
+        promoted.id,
+        99,
+        reason="most valuable evidence gap",
+        db_path=isolated_db,
+    )
+    assert store.cancel_task(
+        cancelled.id,
+        reason="superseded branch",
+        db_path=isolated_db,
+    )
+    assert store.retry_task(
+        failed.id,
+        reason="new evidence available",
+        db_path=isolated_db,
+    )
+
+    by_id = {
+        task.id: task
+        for task in store.list_tasks(run_id, db_path=isolated_db)
+    }
+    assert by_id[promoted.id].priority == 99
+    assert by_id[cancelled.id].status == "cancelled"
+    assert by_id[failed.id].status == "queued"
+    assert by_id[failed.id].max_attempts == 2

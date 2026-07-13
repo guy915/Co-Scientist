@@ -152,6 +152,7 @@ class SupervisorDecision:
     next_task: TaskType
     reason: str
     priority: int = 50
+    queue_actions: tuple[dict[str, Any], ...] = ()
     terminate: bool = False
     termination_reason: TerminationReason | None = None
 

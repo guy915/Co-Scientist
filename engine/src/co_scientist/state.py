@@ -228,6 +228,12 @@ class WorkflowState(TypedDict):
     next_task_priority: int
     """Supervisor-assigned durable priority for the selected next task."""
 
+    durable_task_queue: list[dict[str, Any]]
+    """Live same-run queue snapshot available to the Supervisor."""
+
+    supervisor_queue_actions: list[dict[str, Any]]
+    """Validated queue mutations requested with the latest allocation."""
+
     termination_reason: str | None
     """Why the workflow stopped (a ``TerminationReason`` value), set by the
     orchestrator when it decides to terminate.

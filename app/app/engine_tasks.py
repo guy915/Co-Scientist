@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import sqlite3
 import time
 from typing import Any
 
@@ -107,6 +108,12 @@ def _save_state_and_enqueue(
             state={"provider": _CHECKPOINT_PROVIDER, **envelope},
             conn=conn,
         )
+        if task.task_type == f"{NODE_TASK_PREFIX}orchestrator":
+            _apply_supervisor_queue_actions(
+                task.run_id,
+                state.get("supervisor_queue_actions") or [],
+                conn,
+            )
         priority = (
             int(state.get("next_task_priority", 90))
             if task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
@@ -123,6 +130,53 @@ def _save_state_and_enqueue(
             conn=conn,
         )
     return checkpoint_seq, successor_task.id
+
+
+def _apply_supervisor_queue_actions(
+    run_id: str,
+    actions: list[dict[str, Any]],
+    conn: sqlite3.Connection,
+) -> None:
+    """Apply bounded same-run queue mutations inside the checkpoint commit."""
+    tasks = {task.id: task for task in store.list_tasks(run_id, conn=conn)}
+    for action in actions[:8]:
+        task_id = str(action.get("task_id") or "")
+        target = tasks.get(task_id)
+        if target is None:
+            continue
+        reason = str(action.get("reason") or "Supervisor queue update")
+        kind = action.get("action")
+        if kind == "reprioritize" and action.get("priority") is not None:
+            store.reprioritize_task(
+                task_id,
+                int(action["priority"]),
+                reason=reason,
+                conn=conn,
+            )
+        elif kind == "cancel":
+            store.cancel_task(task_id, reason=reason, conn=conn)
+        elif kind == "retry":
+            store.retry_task(task_id, reason=reason, conn=conn)
+
+
+def _durable_queue_snapshot(
+    run_id: str, db_path: str | None
+) -> list[dict[str, Any]]:
+    """Return the bounded queue state the Supervisor may safely mutate."""
+    return [
+        {
+            "task_id": task.id,
+            "task_type": task.task_type,
+            "status": task.status,
+            "priority": task.priority,
+            "attempt": task.attempt,
+            "max_attempts": task.max_attempts,
+            "dependencies": list(task.dependencies),
+            "error": task.error,
+        }
+        for task in store.list_tasks(run_id, db_path=db_path)[-100:]
+        if task.status in {"queued", "leased", "paused", "failed"}
+    ]
 
 
 def _save_state_and_enqueue_exact(
@@ -1314,6 +1368,10 @@ async def execute_node_task(
     if opts.get("context_enrichment_sources"):
         state["context_enrichment_sources"] = opts["context_enrichment_sources"]
     node_name = task.task_type.removeprefix(NODE_TASK_PREFIX)
+    if node_name == "orchestrator":
+        state["durable_task_queue"] = _durable_queue_snapshot(
+            task.run_id, db_path
+        )
     if run.status == RunStatus.PAUSED.value:
         checkpoint_seq = _save_paused_state(
             task,

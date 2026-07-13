@@ -262,6 +262,7 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
     return {
         "next_task": decision.next_task.value,
         "next_task_priority": decision.priority,
+        "supervisor_queue_actions": list(decision.queue_actions),
         "task_history": _appended_task_record(state, decision, iteration),
         "orchestrator_state": _next_bookkeeping(book, stats, decision),
         "supervisor_decision_provenance": decision_provenance,

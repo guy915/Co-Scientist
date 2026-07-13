@@ -40,6 +40,28 @@ _DECISION_SCHEMA: dict[str, Any] = {
             },
             "reason": {"type": "string", "minLength": 1},
             "priority": {"type": "integer", "minimum": 0, "maximum": 100},
+            "queue_actions": {
+                "type": "array",
+                "maxItems": 8,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "action": {
+                            "type": "string",
+                            "enum": ["reprioritize", "cancel", "retry"],
+                        },
+                        "task_id": {"type": "string", "minLength": 1},
+                        "priority": {
+                            "type": ["integer", "null"],
+                            "minimum": 0,
+                            "maximum": 100,
+                        },
+                        "reason": {"type": "string", "minLength": 1},
+                    },
+                    "required": ["action", "task_id", "reason"],
+                    "additionalProperties": False,
+                },
+            },
         },
         "required": ["next_task", "reason"],
         "additionalProperties": False,
@@ -95,6 +117,7 @@ def _planning_prompt(
         "meta_review": state.get("meta_review") or {},
         "pending_steering": state.get("pending_steering") or False,
         "held_for_review": len(state.get("held_for_review", [])),
+        "durable_task_queue": state.get("durable_task_queue") or [],
     }
     return (
         "You are the adaptive Supervisor for a scientific co-research system. "
@@ -103,7 +126,10 @@ def _planning_prompt(
         "fixed phase order. Prioritize unresolved verification and review work "
         "as hypotheses mature, incorporate scientist steering immediately, and "
         "balance exploration against improvement. Explain the observable basis "
-        "for the allocation without revealing hidden chain-of-thought.\n\n"
+        "for the allocation without revealing hidden chain-of-thought. Use "
+        "queue_actions only when a listed queued/failed task should be "
+        "reprioritized, cancelled as superseded, or retried because state has "
+        "materially changed. Never target an unlisted task.\n\n"
         "Live shared memory:\n"
         f"{json.dumps(context, sort_keys=True, default=str)}"
     )
@@ -148,6 +174,7 @@ async def choose_supervisor_task(
             next_task=TaskType(str(response["next_task"])),
             reason=str(response["reason"]),
             priority=max(0, min(100, int(response.get("priority", 50)))),
+            queue_actions=tuple(response.get("queue_actions") or ()),
         )
         return validate_decision(proposed, stats), "model"
     except Exception as exc:

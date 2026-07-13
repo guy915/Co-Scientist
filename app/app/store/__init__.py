@@ -109,6 +109,7 @@ from app.store.shares import (
 from app.store.tasks import (
     ScientificTask,
     cancel_run_tasks,
+    cancel_task,
     claim_task,
     complete_task,
     enqueue_task,
@@ -117,7 +118,9 @@ from app.store.tasks import (
     list_tasks,
     pause_run_tasks,
     renew_task_lease,
+    reprioritize_task,
     resume_run_tasks,
+    retry_task,
     task_progress,
 )
 
@@ -140,6 +143,7 @@ __all__ = [
     "append_interview_turn",
     "append_message",
     "cancel_run_tasks",
+    "cancel_task",
     "checkpoint_wal",
     "claim_task",
     "clear_publication_artifacts",
@@ -180,10 +184,12 @@ __all__ = [
     "reconcile_interrupted_runs",
     "redact_hypothesis_fields",
     "renew_task_lease",
+    "reprioritize_task",
     "reserve_run_capacity",
     "resolve_report_share",
     "resolve_safety_decision",
     "resume_run_tasks",
+    "retry_task",
     "revoke_report_share",
     "run_exists",
     "safety_stage_is_approved",

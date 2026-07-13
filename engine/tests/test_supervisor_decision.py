@@ -30,11 +30,19 @@ async def test_model_selects_productive_task(
 ) -> None:
     """A valid model allocation controls the next productive task."""
 
-    async def _allocation(**_kwargs: Any) -> dict[str, str]:
+    async def _allocation(**_kwargs: Any) -> dict[str, Any]:
         return {
             "next_task": "evolve",
             "reason": "Improve mature leaders.",
             "priority": "73",
+            "queue_actions": [
+                {
+                    "action": "reprioritize",
+                    "task_id": "task-1",
+                    "priority": 88,
+                    "reason": "Evidence gap is urgent.",
+                }
+            ],
         }
 
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
@@ -44,6 +52,7 @@ async def test_model_selects_productive_task(
     )
     assert decision.next_task is TaskType.EVOLVE
     assert decision.priority == 73
+    assert decision.queue_actions[0]["task_id"] == "task-1"
     assert provenance == "model"
 
 

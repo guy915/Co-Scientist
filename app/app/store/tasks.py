@@ -189,6 +189,81 @@ def get_task(
     return _decode(row) if row is not None else None
 
 
+def reprioritize_task(
+    task_id: str,
+    priority: int,
+    *,
+    reason: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Change one queued task's claim priority and record Supervisor reason."""
+    bounded = max(0, min(100, priority))
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            "SELECT provenance_json FROM scientific_tasks "
+            "WHERE id=? AND status='queued'",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        provenance = json.loads(row["provenance_json"])
+        provenance["supervisor_reprioritization"] = reason
+        active.execute(
+            "UPDATE scientific_tasks SET priority=?, provenance_json=?, "
+            "updated_at=? WHERE id=? AND status='queued'",
+            (bounded, json.dumps(provenance, sort_keys=True), _now(), task_id),
+        )
+    return True
+
+
+def cancel_task(
+    task_id: str,
+    *,
+    reason: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Cancel one not-yet-leased task without disturbing unrelated work."""
+    now = _now()
+    with _use_conn(conn, db_path) as active:
+        changed = active.execute(
+            "UPDATE scientific_tasks SET status='cancelled', error=?, "
+            "completed_at=?, updated_at=? WHERE id=? "
+            "AND status IN ('queued','paused')",
+            (f"Supervisor cancelled: {reason}", now, now, task_id),
+        ).rowcount
+    return bool(changed)
+
+
+def retry_task(
+    task_id: str,
+    *,
+    reason: str,
+    db_path: str | None = None,
+    conn: sqlite3.Connection | None = None,
+) -> bool:
+    """Requeue one failed task with one explicit additional attempt."""
+    now = _now()
+    with _use_conn(conn, db_path) as active:
+        row = active.execute(
+            "SELECT provenance_json FROM scientific_tasks "
+            "WHERE id=? AND status='failed'",
+            (task_id,),
+        ).fetchone()
+        if row is None:
+            return False
+        provenance = json.loads(row["provenance_json"])
+        provenance["supervisor_retry"] = reason
+        active.execute(
+            "UPDATE scientific_tasks SET status='queued', "
+            "max_attempts=max_attempts+1, error=NULL, completed_at=NULL, "
+            "provenance_json=?, updated_at=? WHERE id=? AND status='failed'",
+            (json.dumps(provenance, sort_keys=True), now, task_id),
+        )
+    return True
+
+
 def _dependencies_complete(
     conn: sqlite3.Connection, task: ScientificTask
 ) -> bool:

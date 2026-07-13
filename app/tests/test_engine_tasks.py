@@ -140,10 +140,29 @@ def test_orchestrator_priority_reaches_durable_successor(
     )
     task = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
     assert task is not None and task.id == queued.id
+    deferred = store.enqueue_task(
+        run.id,
+        "engine.node.reflect",
+        {},
+        idempotency_key="deferred-reflection",
+        priority=10,
+        db_path=isolated_db,
+    )
 
     engine_tasks._save_state_and_enqueue(
         task,
-        {**_task_state(run.id), "next_task_priority": 97},
+        {
+            **_task_state(run.id),
+            "next_task_priority": 97,
+            "supervisor_queue_actions": [
+                {
+                    "action": "reprioritize",
+                    "task_id": deferred.id,
+                    "priority": 98,
+                    "reason": "Review backlog is urgent.",
+                }
+            ],
+        },
         "generate",
         expected_checkpoint_seq=1,
         db_path=isolated_db,
@@ -152,6 +171,8 @@ def test_orchestrator_priority_reaches_durable_successor(
     successor = store.list_tasks(run.id, db_path=isolated_db)[-1]
     assert successor.task_type == "engine.node.generate"
     assert successor.priority == 97
+    updated = store.get_task(deferred.id, db_path=isolated_db)
+    assert updated is not None and updated.priority == 98
 
 
 @pytest.mark.asyncio
