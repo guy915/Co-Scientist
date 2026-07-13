@@ -20,6 +20,11 @@ def isolated_db(
     monkeypatch.setenv("COSCIENTIST_DB_PATH", db_path)
     monkeypatch.setenv("COSCIENTIST_REPORTS_DIR", reports_dir)
     monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", "1")
+    # Offline tests prove deterministic behavior without spending provider
+    # calls; production real-engine runs use the semantic default.
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "claim_assessor", "deterministic")
     # Wipe any cached default-path init flags from previous tests.
     from app.store import (
         db as _store_db,
