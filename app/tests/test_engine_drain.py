@@ -352,6 +352,51 @@ def test_drain_drops_orphaned_parent_reference(isolated_db: str) -> None:
     assert hyps[0]["generation"] == 1
 
 
+def test_drain_preserves_proximity_pruned_parent_as_non_viable(
+    isolated_db: str,
+) -> None:
+    """A full duplicate archive retains lineage outside active synthesis."""
+    state = _final_state_with_lineage()
+    parent = state["hypotheses"][0]
+    state["hypotheses"] = [state["hypotheses"][1]]
+    state["removed_duplicates"] = [
+        {
+            "text": parent["text"],
+            "cluster_id": "cluster-1",
+            "reason": "high_similarity_duplicate",
+            "kept_hypothesis_id": "child-1",
+            "kept_instead": "Child hypothesis",
+            "hypothesis": parent,
+        }
+    ]
+    state["tournament_matchups"] = [
+        {
+            "hypothesis_a_id": "parent-1",
+            "hypothesis_b_id": "child-1",
+            "winner_id": "child-1",
+            "reasoning": "The child is more specific.",
+            "confidence": "High",
+        }
+    ]
+    run = store.create_run("kinase archive goal", "standard", "engine", {})
+
+    engine_adapter._persist_final_state(
+        run_id=run.id, final_state=state, db_path=isolated_db
+    )
+
+    by_id = {
+        hypothesis["id"]: hypothesis
+        for hypothesis in store.list_hypotheses(
+            run.id, db_path=isolated_db
+        )
+    }
+    assert by_id["parent-1"]["status"] == "rejected"
+    assert by_id["child-1"]["parent_id"] == "parent-1"
+    [match] = store.list_matches(run.id, db_path=isolated_db)
+    assert match["winner_id"] == "child-1"
+    assert match["loser_id"] == "parent-1"
+
+
 def test_unsafe_hypothesis_excluded_from_synthesis(isolated_db: str) -> None:
     """A hypothesis a per-hypothesis review blocks never reaches the report.
 

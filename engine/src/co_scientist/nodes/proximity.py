@@ -110,7 +110,7 @@ def _partition_by_similarity_degree(
 
 
 def _build_removed_duplicate_record(
-    duplicate: Hypothesis, cluster_id: str, kept_text: str
+    duplicate: Hypothesis, cluster_id: str, kept: Hypothesis
 ) -> dict[str, Any]:
     """Builds one removed-duplicate audit entry for a dropped hypothesis.
 
@@ -121,7 +121,7 @@ def _build_removed_duplicate_record(
     Args:
         duplicate: The high-similarity hypothesis being dropped.
         cluster_id: Identifier of the cluster it was resolved from.
-        kept_text: Text of the hypothesis kept instead of this duplicate.
+        kept: Hypothesis retained instead of this duplicate.
 
     Returns:
         Removed-duplicate audit dict.
@@ -130,9 +130,14 @@ def _build_removed_duplicate_record(
         "text": duplicate.text,
         "cluster_id": cluster_id,
         "reason": "high_similarity_duplicate",
-        "kept_instead": kept_text[:200],
+        "kept_hypothesis_id": kept.id,
+        "kept_instead": kept.text[:200],
         "elo_rating": duplicate.elo_rating,
         "score": duplicate.score,
+        # Preserve the complete immutable idea for lineage, tournament history,
+        # and the Goal Report's Non-Viable archive without returning it to the
+        # active hypothesis pool.
+        "hypothesis": duplicate.to_dict(),
     }
 
 
@@ -180,7 +185,7 @@ def _resolve_cluster_duplicates(
     removed_duplicates: list[dict[str, Any]] = []
     for duplicate in high_similarity[1:]:
         removed_duplicates.append(
-            _build_removed_duplicate_record(duplicate, cluster_id, best.text)
+            _build_removed_duplicate_record(duplicate, cluster_id, best)
         )
         logger.info(
             "Removed duplicate from cluster %s: %s... (Elo: %s)",

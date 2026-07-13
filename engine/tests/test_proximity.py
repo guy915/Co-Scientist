@@ -75,6 +75,10 @@ async def test_high_similarity_duplicate_removed_keeping_best_elo(
     assert result["hypotheses"][0].elo_rating == 1400
     assert len(result["removed_duplicates"]) == 1
     assert result["removed_duplicates"][0]["elo_rating"] == 1200
+    archived = result["removed_duplicates"][0]
+    assert archived["hypothesis"]["id"]
+    assert archived["hypothesis"]["text"] == archived["text"]
+    assert archived["kept_hypothesis_id"]
 
 
 async def test_low_similarity_keeps_all(

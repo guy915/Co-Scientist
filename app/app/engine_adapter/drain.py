@@ -140,7 +140,12 @@ def _persist_hypothesis_state(
         status=(
             "rejected"
             if h.get("review_disposition")
-            in {"inaccurate", "non_novel", "inaccurate_and_non_novel"}
+            in {
+                "inaccurate",
+                "non_novel",
+                "inaccurate_and_non_novel",
+                "duplicate",
+            }
             else "active"
         ),
         conn=conn,
@@ -381,6 +386,34 @@ def _persist_engine_hypothesis(
     )
 
 
+def _hypotheses_with_proximity_archive(
+    active: list[dict[str, Any]], removed: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Return active hypotheses plus full proximity-pruned archive records."""
+    archived: dict[str, dict[str, Any]] = {}
+    for record in removed:
+        hypothesis = record.get("hypothesis")
+        if not isinstance(hypothesis, dict) or not hypothesis.get("id"):
+            # Legacy checkpoints retained only a text audit entry. They cannot
+            # safely reconstruct stable identity or lineage after the fact.
+            continue
+        archived_hypothesis = dict(hypothesis)
+        archived_hypothesis["review_disposition"] = "duplicate"
+        archived[str(archived_hypothesis["id"])] = archived_hypothesis
+
+    # An active row wins if an old audit record and the current pool ever share
+    # an id; the archive exists only for hypotheses absent from active ranking.
+    by_id = dict(archived)
+    by_id.update(
+        {
+            str(hypothesis["id"]): hypothesis
+            for hypothesis in active
+            if hypothesis.get("id")
+        }
+    )
+    return list(by_id.values())
+
+
 def _matchup_loser_engine_id(
     m: dict[str, Any], a_engine_id: str | None, winner_engine_id: str | None
 ) -> str | None:
@@ -512,7 +545,10 @@ def _persist_final_state(
         ``meta_review``, and ``research_overview``. Row counts are not
         returned; ``finalize_report`` reads them from the store.
     """
-    hyps = _final_state_list(final_state, "hypotheses")
+    hyps = _hypotheses_with_proximity_archive(
+        _final_state_list(final_state, "hypotheses"),
+        _final_state_list(final_state, "removed_duplicates"),
+    )
     articles = _final_state_list(final_state, "articles")
     matchups = _final_state_list(final_state, "tournament_matchups")
     proximity_graph = _final_state_dict(final_state, "proximity_graph")
@@ -565,9 +601,14 @@ def _persist_final_state(
             settings.claim_assessor,
             settings.claim_verifier_model or settings.model_name,
         )
+        grounding_candidates = [
+            hypothesis
+            for hypothesis in persisted
+            if hypothesis.get("status") != "rejected"
+        ]
         ground_hypotheses(
             run_id,
-            persisted,
+            grounding_candidates,
             passages,
             assessor=assessor,
             assessor_id=assessor_id,
