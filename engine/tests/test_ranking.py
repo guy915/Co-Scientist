@@ -99,6 +99,26 @@ async def test_empty_hypotheses_skips_tournament() -> None:
     assert "tournament_matchups" not in result
 
 
+async def test_evidence_blocked_hypothesis_cannot_enter_tournament(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pre-ranking evidence disposition excludes an ungrounded idea."""
+    winner = make_hypothesis(text="supported winner TXT alpha")
+    loser = make_hypothesis(text="supported loser TXT beta")
+    blocked = make_hypothesis(text="ungrounded idea TXT gamma")
+    blocked.review_disposition = "evidence_blocked"
+    state = make_state(hypotheses=[winner, loser, blocked])
+    _stub_winner_by_text(monkeypatch, winner.text)
+
+    result = await ranking_node(state)
+
+    assert blocked.total_matches == 0
+    assert all(
+        blocked.id not in {match["hypothesis_a_id"], match["hypothesis_b_id"]}
+        for match in result["tournament_matchups"]
+    )
+
+
 async def test_deterministic_winner_updates_elo_and_counts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -57,6 +57,10 @@ def test_specialist_feedback_joins_prior_agent_outputs() -> None:
             {"question": "Is it causal?", "answer": "Unknown"}
         ],
     )
+    hypothesis.enrichments["claim_gate"] = {
+        "decision": "block",
+        "reason": "one causal claim lacks support",
+    }
     state = make_state(
         hypotheses=[hypothesis],
         debate_transcripts=[
@@ -94,6 +98,7 @@ def test_specialist_feedback_joins_prior_agent_outputs() -> None:
     assert '"outcome": "lost"' in feedback
     assert '"hypothesis_id": "neighbor"' in feedback
     assert "partially_holds" in feedback
+    assert "one causal claim lacks support" in feedback
 
 
 def _stub_llm_from_prompt(

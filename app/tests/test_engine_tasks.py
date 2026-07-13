@@ -5,7 +5,12 @@ import time
 from typing import Any
 
 import pytest
-from co_scientist.models import ExecutionMetrics, Hypothesis, HypothesisReview
+from co_scientist.models import (
+    Article,
+    ExecutionMetrics,
+    Hypothesis,
+    HypothesisReview,
+)
 
 from app import engine_tasks, store, task_worker
 from app.safety import screen_intake
@@ -105,7 +110,64 @@ def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
     assert task.task_type == "engine.node.orchestrator"
     assert task.inputs["checkpoint_seq"] == checkpoint_seq
     assert task.priority == 100
-    assert store.get_run(run.id, db_path=isolated_db).status == "queued"
+    reopened = store.get_run(run.id, db_path=isolated_db)
+    assert reopened is not None and reopened.status == "queued"
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_quarantines_unsupported_claims() -> None:
+    """Only evidence-supported ideas remain eligible for decisive Elo."""
+    supported = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery."
+    )
+    unsupported = Hypothesis(
+        text="A fictional kinase completely reverses neuronal aging."
+    )
+    for hypothesis in (supported, unsupported):
+        hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [supported, unsupported],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract=(
+                    "Astrocyte lactate accelerates synaptic ATP recovery."
+                ),
+                source_id="PMID-1",
+            )
+        ],
+    }
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert supported.review_disposition == "viable"
+    assert supported.enrichments["claim_gate"]["decision"] == "allow"
+    assert unsupported.review_disposition == "evidence_blocked"
+    assert unsupported.enrichments["claim_gate"]["decision"] == "block"
+    assert "Evidence gate:" in (unsupported.reflection_notes or "")
+
+
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
+    """Newly retrieved support can release a quarantined idea for ranking."""
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery."
+    )
+    hypothesis.review_disposition = "viable"
+    state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    assert hypothesis.review_disposition == "evidence_blocked"
+
+    state["articles"] = [
+        Article(
+            title="Synaptic energetics",
+            abstract="Astrocyte lactate accelerates synaptic ATP recovery.",
+        )
+    ]
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
 
 
 @pytest.mark.asyncio

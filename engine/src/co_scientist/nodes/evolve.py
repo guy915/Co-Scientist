@@ -417,6 +417,7 @@ def _specialist_feedback_for(
         "probes": hypothesis.deep_verification_probes,
     }
     ledger = {
+        "claim_evidence_gate": hypothesis.enrichments.get("claim_gate") or {},
         "debates": debates,
         "tournament": matches[-8:],
         "proximity_neighbors": neighbors[:8],

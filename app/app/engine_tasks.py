@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import dataclasses
 import sqlite3
 import time
 from typing import Any
 
 from app import store
+from app.config import settings
 from app.engine_adapter.drain import _persist_final_state
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
@@ -141,6 +143,104 @@ def _merge_scientist_inputs(
             )
         )
     state["hypotheses"] = hypotheses
+
+
+async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
+    """Quarantine ungrounded ideas before a decisive Elo tournament."""
+    from app.claim_grounding import build_assessor
+    from app.claims import (
+        EvidencePassage,
+        GateDecision,
+        assess_claim,
+        extract_atomic_claims,
+        publication_gate,
+    )
+
+    passages = [
+        EvidencePassage(
+            evidence_id=str(article.source_id or article.title),
+            text=" ".join(
+                part
+                for part in (article.title, article.abstract, article.content)
+                if part
+            ),
+            source=article.source,
+            url=str(article.url or ""),
+        )
+        for article in state.get("articles") or []
+    ]
+    assessor, assessor_id = build_assessor(
+        settings.claim_assessor,
+        settings.claim_verifier_model or settings.model_name,
+    )
+    for hypothesis in state.get("hypotheses") or []:
+        gate_history = hypothesis.enrichments.get("claim_gate") or {}
+        prior_disposition = str(
+            gate_history.get("prior_review_disposition")
+            or hypothesis.review_disposition
+            or "viable"
+        )
+        source_text = " ".join(
+            part
+            for part in (
+                hypothesis.text,
+                hypothesis.explanation,
+                hypothesis.experiment,
+            )
+            if part
+        )
+        assessments = []
+        for claim in extract_atomic_claims(source_text):
+            assessment = (
+                await asyncio.to_thread(
+                    assess_claim,
+                    claim,
+                    passages,
+                    assessor=assessor,
+                    assessor_id=assessor_id,
+                )
+                if settings.claim_assessor == "llm"
+                else assess_claim(
+                    claim,
+                    passages,
+                    assessor=assessor,
+                    assessor_id=assessor_id,
+                )
+            )
+            assessments.append(assessment)
+        gate = publication_gate(assessments, allow_speculative=False)
+        hypothesis.enrichments["claim_gate"] = {
+            "decision": gate.decision.value,
+            "reason": gate.reason,
+            "assessor": assessor_id,
+            "prior_review_disposition": prior_disposition,
+            "claims": [
+                {
+                    "claim": assessment.claim,
+                    "label": assessment.label.value,
+                    "supporting_passages": [
+                        span.to_dict()
+                        for span in assessment.supporting_passages
+                    ],
+                    "contradicting_passages": [
+                        span.to_dict()
+                        for span in assessment.contradicting_passages
+                    ],
+                }
+                for assessment in assessments
+            ],
+        }
+        if gate.decision is GateDecision.BLOCK:
+            hypothesis.review_disposition = "evidence_blocked"
+            feedback = f"Evidence gate: {gate.reason}"
+            if feedback not in (hypothesis.reflection_notes or ""):
+                hypothesis.reflection_notes = "\n".join(
+                    part
+                    for part in (hypothesis.reflection_notes, feedback)
+                    if part
+                )
+        elif hypothesis.review_disposition == "evidence_blocked":
+            hypothesis.review_disposition = prior_disposition
 
 
 def _generator_and_opts(
@@ -1499,6 +1599,7 @@ async def execute_node_task(
             task, state, current_seq, db_path=db_path
         )
     if node_name == "ranking":
+        await _apply_pre_ranking_evidence_gate(state)
         scheduled = await _schedule_ranking_chain(
             task, state, current_seq, db_path=db_path
         )

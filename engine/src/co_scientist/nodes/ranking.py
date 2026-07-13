@@ -70,6 +70,15 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+_BLOCKING_REVIEW_DISPOSITIONS = frozenset(
+    {
+        "inaccurate",
+        "non_novel",
+        "inaccurate_and_non_novel",
+        "evidence_blocked",
+    }
+)
+
 # Semaphore to limit concurrent LLM calls (avoid rate limits)
 _ranking_semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
@@ -528,8 +537,7 @@ async def _finalize_ranking_result(
         hypotheses,
         key=lambda item: (
             item.deep_verification_verdict == "undermined"
-            or item.review_disposition
-            in {"inaccurate", "non_novel", "inaccurate_and_non_novel"},
+            or item.review_disposition in _BLOCKING_REVIEW_DISPOSITIONS,
             -item.elo_rating,
             -item.score,
             item.text,
@@ -578,8 +586,7 @@ async def ranking_node(state: WorkflowState) -> dict[str, Any]:
         hypothesis
         for hypothesis in hypotheses
         if hypothesis.deep_verification_verdict != "undermined"
-        and hypothesis.review_disposition
-        not in {"inaccurate", "non_novel", "inaccurate_and_non_novel"}
+        and hypothesis.review_disposition not in _BLOCKING_REVIEW_DISPOSITIONS
     ]
     logger.info(
         "Starting ranking tournament with %s hypotheses", len(hypotheses)
