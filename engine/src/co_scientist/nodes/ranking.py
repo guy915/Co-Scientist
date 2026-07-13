@@ -175,24 +175,40 @@ async def _call_matchup_judge(
         )
 
 
-def _parse_matchup_winner(response: dict[str, Any]) -> str:
+def _parse_matchup_winner(
+    response: dict[str, Any], *, fallback: str
+) -> tuple[str, bool]:
     """Extracts and validates the winner side from a judge response.
 
     Guards against a malformed/off-schema LLM judgment: if the model
-    returns anything other than "a" or "b" for the winner field, falls
-    back to "a" rather than propagating an invalid value downstream.
+    returns anything other than "a" or "b" for the winner field, uses the
+    caller's position-balanced fallback and marks the judgment invalid.
 
     Args:
         response: Parsed JSON response from the judge LLM call.
+        fallback: Position-balanced side used for malformed output.
 
     Returns:
-        "a" or "b".
+        The selected side and whether the model output was valid.
     """
-    winner: str = response.get("winner", "a").lower()
+    winner = str(response.get("winner") or "").lower()
     if winner not in ["a", "b"]:
-        logger.warning("Invalid winner '%s', defaulting to 'a'", winner)
-        winner = "a"
-    return winner
+        logger.warning("Invalid winner '%s'; using balanced fallback", winner)
+        return fallback, False
+    return winner, True
+
+
+def _balanced_invalid_fallback(
+    hypothesis_a: Hypothesis,
+    hypothesis_b: Hypothesis,
+    matchup_index: int | None,
+) -> str:
+    """Choose an identity-stable fallback that alternates across matchups."""
+    identity = "|".join(sorted((hypothesis_a.id, hypothesis_b.id)))
+    base = int(hashlib.sha256(identity.encode()).hexdigest()[:2], 16) % 2
+    parity = base ^ int(matchup_index or 0) % 2
+    chosen_id = sorted((hypothesis_a.id, hypothesis_b.id))[parity]
+    return "a" if chosen_id == hypothesis_a.id else "b"
 
 
 def _append_debate_context(
@@ -207,7 +223,8 @@ def _append_debate_context(
     lines = ["\n\n## Prior Debate Turns (re-examine and refine)\n"]
     for entry in transcript:
         lines.append(
-            f"- Turn {entry['turn']} favored '{entry['winner']}': "
+            f"- Turn {entry['turn']} favored hypothesis "
+            f"{entry['winner_id']}: "
             f"{entry['reasoning']}\n"
         )
     lines.append(
@@ -235,10 +252,10 @@ async def judge_matchup(
 
     For ``debate_turns == 1`` (lower-ranked matchups) this is a single-turn
     comparison. For ``debate_turns > 1`` (top-ranked matchups) it runs a
-    multi-turn scientific debate: each turn re-examines the accumulated
-    transcript before refining its verdict, and the final turn's verdict
-    stands. The complete turn-by-turn transcript, the debate depth, and the
-    model provenance are returned in the response for persistence.
+    position-balanced multi-turn scientific debate: each turn re-examines the
+    accumulated transcript, alternating A/B presentation order. The majority
+    identity-normalized verdict stands. The complete turn-by-turn transcript,
+    debate depth, and model provenance are returned for persistence.
 
     Args:
         hypothesis_a: First hypothesis
@@ -274,34 +291,81 @@ async def judge_matchup(
 
     turns = max(SINGLE_TURN_DEBATE_TURNS, debate_turns)
     transcript: list[dict[str, Any]] = []
-    winner = "a"
+    votes: list[str] = []
+    fallback = _balanced_invalid_fallback(
+        hypothesis_a, hypothesis_b, matchup_index
+    )
     response: dict[str, Any] = {}
     for turn in range(turns):
+        swapped = turn % 2 == 1
+        if swapped:
+            turn_prompt, turn_schema, turn_notes_a, turn_notes_b = (
+                _build_matchup_prompt(
+                    hypothesis_b,
+                    hypothesis_a,
+                    research_goal,
+                    supervisor_guidance,
+                    meta_review,
+                    tool_registry,
+                    run_setup_guidance,
+                    run_focus_guidance,
+                )
+            )
+        else:
+            turn_prompt = prompt
+            turn_schema = schema
+            turn_notes_a = reflection_notes_a
+            turn_notes_b = reflection_notes_b
         turn_prompt = (
-            prompt if turn == 0 else _append_debate_context(prompt, transcript)
+            turn_prompt
+            if turn == 0
+            else _append_debate_context(turn_prompt, transcript)
         )
         response = await _call_matchup_judge(
             turn_prompt,
-            schema,
+            turn_schema,
             model_name,
             run_id,
             matchup_index,
-            reflection_notes_a,
-            reflection_notes_b,
+            turn_notes_a,
+            turn_notes_b,
         )
-        winner = _parse_matchup_winner(response)
+        raw_fallback = (
+            ("b" if fallback == "a" else "a") if swapped else fallback
+        )
+        raw_winner, valid_output = _parse_matchup_winner(
+            response, fallback=raw_fallback
+        )
+        winner = (
+            "b" if raw_winner == "a" else "a"
+        ) if swapped else raw_winner
+        votes.append(winner)
         transcript.append(
             {
                 "turn": turn + 1,
                 "winner": winner,
+                "winner_id": (
+                    hypothesis_a.id if winner == "a" else hypothesis_b.id
+                ),
                 "reasoning": _extract_reasoning(response),
+                "presentation_order": "ba" if swapped else "ab",
+                "valid_output": valid_output,
             }
         )
+
+    winner = "a" if votes.count("a") > votes.count("b") else "b"
+    if votes.count("a") == votes.count("b"):
+        winner = fallback
 
     # Persist debate provenance on the final response.
     response["debate_turns"] = turns
     response["debate_transcript"] = transcript
     response["judge_model"] = model_name
+    response["consensus_votes"] = votes
+    response["position_balanced"] = turns > 1
+    response["invalid_output_fallback"] = not all(
+        turn["valid_output"] for turn in transcript
+    )
     return winner, response
 
 

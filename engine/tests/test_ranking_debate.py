@@ -93,6 +93,9 @@ async def test_multi_turn_debate_runs_multiple_calls_and_persists_transcript(
     transcript = response["debate_transcript"]
     assert len(transcript) == MULTI_TURN_DEBATE_TURNS
     assert [t["turn"] for t in transcript] == [1, 2, 3]
+    assert [t["presentation_order"] for t in transcript] == ["ab", "ba", "ab"]
+    assert response["consensus_votes"] == ["a", "b", "a"]
+    assert response["position_balanced"] is True
     assert response["judge_model"] == "fake/model"
 
 

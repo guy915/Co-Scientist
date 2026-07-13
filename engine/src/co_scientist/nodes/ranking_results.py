@@ -150,6 +150,11 @@ def _build_matchup_detail(
         "debate_turns": response.get("debate_turns", 1),
         "debate_transcript": response.get("debate_transcript", []),
         "judge_model": response.get("judge_model"),
+        "consensus_votes": response.get("consensus_votes", [winner]),
+        "position_balanced": response.get("position_balanced", False),
+        "invalid_output_fallback": response.get(
+            "invalid_output_fallback", False
+        ),
         "winner_elo_before": outcome.winner_elo_before,
         "winner_elo_after": outcome.winner_elo_after,
         "loser_elo_before": outcome.loser_elo_before,

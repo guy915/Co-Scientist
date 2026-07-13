@@ -185,10 +185,10 @@ async def test_matchups_carry_hypothesis_ids(
         assert matchup[slot_id_key] == winner.id
 
 
-async def test_malformed_judge_response_defaults_to_slot_a(
+async def test_malformed_judge_response_uses_position_balanced_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """An empty judge response defaults winner to slot 'a' with fallbacks."""
+    """Invalid judgments cannot award every matchup to presentation slot A."""
 
     async def fake(**_: Any) -> dict[str, Any]:
         return {}
@@ -205,9 +205,11 @@ async def test_malformed_judge_response_defaults_to_slot_a(
 
     matchups = result["tournament_matchups"]
     assert len(matchups) == 2
+    assert {matchup["winner_id"] for matchup in matchups} == {
+        hypothesis.id for hypothesis in state["hypotheses"]
+    }
     for matchup in matchups:
-        # judge_matchup defaults an absent/invalid winner to slot "a".
-        assert matchup["winner"] == "a"
+        assert matchup["invalid_output_fallback"] is True
         # ranking_node fills missing reasoning/confidence with placeholders.
         assert matchup["reasoning"] == "No reasoning provided"
         assert matchup["confidence"] == "Unknown"
