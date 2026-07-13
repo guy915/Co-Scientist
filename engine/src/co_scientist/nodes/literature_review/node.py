@@ -104,7 +104,7 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-_LITERATURE_CACHE_SCHEMA_VERSION = 2
+_LITERATURE_CACHE_SCHEMA_VERSION = 3
 
 
 # =============================================================================

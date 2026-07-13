@@ -81,7 +81,7 @@ def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
         registry_state, lr._get_search_config(registry_state)
     )
 
-    assert legacy["cache_schema_version"] == 2
+    assert legacy["cache_schema_version"] == 3
     assert legacy["papers_to_read_count"] == 4
     assert legacy["tool_contract"]["legacy_search_tool"] == (
         "pubmed_search_with_fulltext"
