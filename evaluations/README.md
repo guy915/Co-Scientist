@@ -18,7 +18,8 @@ explicitly says otherwise; machine-readable results are written under
   generation-vs-evolution yield/diversity). Does **not** use the engine's own
   Elo as ground truth.
 - `expert_review.py` — the blinded expert-review export/import schema
-  (novelty/plausibility/impact/preference), validated round-trip.
+  (alignment/plausibility/novelty/testability/safety/impact/preference),
+  validated round-trip.
 - `scaling_eval.py` — computes budget-ordered best-Elo (internal signal),
   blinded top-10 expert quality, diversity, verified-claim ratio, cost, and
   latency; also aggregates paired feature-ablation arms without treating Elo

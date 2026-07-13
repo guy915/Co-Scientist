@@ -1,10 +1,10 @@
 """Blinded expert-review export/import schema (PLAN.md Milestone 8).
 
-Google's evaluation had biomedical experts rate outputs on novelty, impact, and
-preference. Reproducing those *ratings* needs a recruited expert panel and is an
-external gap. What is tractable and required is the *schema*: a blinded export
-of hypotheses for experts to rate, and a validating import of their ratings so
-the results are machine-readable and comparable across equivalent budgets.
+Google's evaluation had biomedical experts rate outputs on scientific quality
+and preference. Reproducing those *ratings* needs a recruited expert panel and
+is an external gap. What is tractable and required is the *schema*: a blinded
+export of hypotheses for experts to rate on every required quality axis, and a
+validating import so results are machine-readable across equivalent budgets.
 
 Blinding: the export strips run/provider/Elo so a rater cannot infer which
 system produced a hypothesis; a stable opaque ``item_id`` links a rating back on
@@ -18,10 +18,18 @@ import dataclasses
 import hashlib
 from typing import Any
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-# The 1-5 axes and the 1-N preference rank the export asks experts to fill.
-RATING_AXES = ("novelty", "plausibility", "impact")
+# The 1-5 axes and 1-N preference rank the export asks experts to fill. Impact
+# is retained alongside the five acceptance-condition axes used by the system.
+RATING_AXES = (
+    "alignment",
+    "plausibility",
+    "novelty",
+    "testability",
+    "safety",
+    "impact",
+)
 
 
 def _item_id(run_id: str, hypothesis_id: str) -> str:
@@ -63,8 +71,11 @@ class ExpertRating:
     """One expert's rating of one item, validated on import."""
 
     item_id: str
-    novelty: int
+    alignment: int
     plausibility: int
+    novelty: int
+    testability: int
+    safety: int
     impact: int
     preference_rank: int
 
@@ -111,8 +122,11 @@ def parse_ratings(payload: dict[str, Any]) -> list[ExpertRating]:
         ratings.append(
             ExpertRating(
                 item_id=str(raw["item_id"]),
-                novelty=raw["novelty"],
+                alignment=raw["alignment"],
                 plausibility=raw["plausibility"],
+                novelty=raw["novelty"],
+                testability=raw["testability"],
+                safety=raw["safety"],
                 impact=raw["impact"],
                 preference_rank=rank,
             )

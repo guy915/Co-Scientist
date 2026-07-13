@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from evaluations.expert_review import (
+    RATING_AXES,
     SCHEMA_VERSION,
     ExpertReviewValidationError,
     build_blinded_export,
@@ -22,6 +23,7 @@ def test_export_is_blinded() -> None:
         ],
     )
     assert export["schema_version"] == SCHEMA_VERSION
+    assert export["rating_axes"] == list(RATING_AXES)
     for item in export["items"]:
         assert item["item_id"].startswith("item-")
         assert set(item) == {"item_id", "text"}  # no elo/origin/run leaked
@@ -42,8 +44,11 @@ def test_parse_valid_ratings() -> None:
             "ratings": [
                 {
                     "item_id": "item-abc",
+                    "alignment": 5,
                     "novelty": 4,
                     "plausibility": 3,
+                    "testability": 4,
+                    "safety": 5,
                     "impact": 5,
                     "preference_rank": 1,
                 }
@@ -51,7 +56,10 @@ def test_parse_valid_ratings() -> None:
         }
     )
     assert len(ratings) == 1
+    assert ratings[0].alignment == 5
     assert ratings[0].novelty == 4
+    assert ratings[0].testability == 4
+    assert ratings[0].safety == 5
     assert ratings[0].preference_rank == 1
 
 
@@ -64,9 +72,31 @@ def test_out_of_range_axis_fails_closed() -> None:
                 "ratings": [
                     {
                         "item_id": "x",
+                        "alignment": 3,
                         "novelty": 9,
                         "plausibility": 3,
+                        "testability": 3,
+                        "safety": 3,
                         "impact": 3,
+                        "preference_rank": 1,
+                    }
+                ],
+            }
+        )
+
+
+def test_missing_required_axis_fails_closed() -> None:
+    """A legacy three-axis rating cannot pass as the complete evaluation."""
+    with pytest.raises(ExpertReviewValidationError, match="alignment"):
+        parse_ratings(
+            {
+                "schema_version": SCHEMA_VERSION,
+                "ratings": [
+                    {
+                        "item_id": "legacy",
+                        "novelty": 4,
+                        "plausibility": 4,
+                        "impact": 4,
                         "preference_rank": 1,
                     }
                 ],
