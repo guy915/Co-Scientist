@@ -653,6 +653,9 @@ async def execute_review_aggregate(
         hypothesis = by_id[str(item.result["hypothesis_id"])]
         review = HypothesisReview(**item.result["review"])
         hypothesis.reviews.append(review)
+        # The durable aggregate mirrors the normal Review node's score update
+        # so tournament seeding observes peer-review quality.
+        hypothesis.score = review.overall_score
         _apply_initial_review_gate([hypothesis], [review])
         successful += 1
     committed = apply_task_update(

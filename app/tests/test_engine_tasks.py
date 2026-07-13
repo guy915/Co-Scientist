@@ -243,6 +243,8 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     )
     checkpoint = store.get_latest_checkpoint(run.id, db_path=isolated_db)
     assert checkpoint is not None and checkpoint["seq"] == 3
+    persisted = checkpoint["state"]["state"]["hypotheses"]
+    assert [hypothesis["score"] for hypothesis in persisted] == [8.0, 8.0]
 
 
 @pytest.mark.asyncio
