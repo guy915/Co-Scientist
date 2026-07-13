@@ -42,6 +42,72 @@ async def _deterministic_screen(text: str, *_: Any, **__: Any) -> Any:
     return screen_intake(text)
 
 
+def test_scientist_inputs_merge_into_engine_state_once(
+    isolated_db: str,
+) -> None:
+    """Manual ideas and reviews become typed inputs to later specialists."""
+    run = store.create_run("Scientist loop", "standard", "engine", {})
+    hypothesis_id = store.add_hypothesis(
+        run.id,
+        title="Scientist idea",
+        statement="A scientist-proposed mechanism",
+        created_by_agent="scientist_manual",
+        author="researcher",
+        db_path=isolated_db,
+    )
+    store.add_review(
+        run.id,
+        hypothesis_id,
+        "scientist",
+        "Scientist verdict: oppose (by researcher)",
+        "The proposed control cannot distinguish the mechanism.",
+        db_path=isolated_db,
+    )
+    state = _task_state(run.id)
+
+    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
+    engine_tasks._merge_scientist_inputs(state, run.id, isolated_db)
+
+    merged = state["hypotheses"]
+    assert [hypothesis.id for hypothesis in merged] == [hypothesis_id]
+    assert merged[0].origin.value == "scientist_manual"
+    assert len(merged[0].reviews) == 1
+    assert merged[0].reviews[0].overall_score == 20
+    assert "cannot distinguish" in merged[0].reviews[0].constructive_feedback
+
+
+def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
+    """A completed engine report can continue from its durable checkpoint."""
+    from co_scientist.checkpoint import (
+        CHECKPOINT_VERSION,
+        serialize_workflow_state,
+    )
+
+    run = store.create_run("Continuation", "standard", "engine", {})
+    envelope = serialize_workflow_state(_task_state(run.id), last_event_seq=0)
+    checkpoint_seq = store.save_checkpoint(
+        run.id,
+        stage="engine_task:final",
+        schema_version=CHECKPOINT_VERSION,
+        last_event_seq=0,
+        state={"provider": "engine", **envelope},
+        db_path=isolated_db,
+    )
+    store.update_run_status(
+        run.id, store.RunStatus.COMPLETED, db_path=isolated_db
+    )
+
+    task = engine_tasks.enqueue_scientist_continuation(
+        run.id, 42, db_path=isolated_db
+    )
+
+    assert task is not None
+    assert task.task_type == "engine.node.orchestrator"
+    assert task.inputs["checkpoint_seq"] == checkpoint_seq
+    assert task.priority == 100
+    assert store.get_run(run.id, db_path=isolated_db).status == "queued"
+
+
 @pytest.mark.asyncio
 async def test_bootstrap_commits_state_and_enqueues_supervisor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch

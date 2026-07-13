@@ -176,7 +176,17 @@ async def choose_supervisor_task(
             priority=max(0, min(100, int(response.get("priority", 50)))),
             queue_actions=tuple(response.get("queue_actions") or ()),
         )
-        return validate_decision(proposed, stats), "model"
+        validated = validate_decision(proposed, stats)
+        if (
+            not stats.pending_steering
+            and stats.iteration >= budget.max_iterations
+            and validated.next_task in {TaskType.GENERATE, TaskType.EVOLVE}
+        ):
+            # Once the exploration budget is spent, the model may select the
+            # required review/ranking/proximity cleanup but cannot grow the
+            # pool again. The deterministic policy owns that terminal drain.
+            return decide_next_task(stats, budget), "hard-invariant"
+        return validated, "model"
     except Exception as exc:
         logger.warning("Supervisor allocation failed; using fallback: %s", exc)
         fallback = validate_decision(decide_next_task(stats, budget), stats)

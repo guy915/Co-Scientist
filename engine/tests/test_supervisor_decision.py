@@ -77,6 +77,34 @@ async def test_hard_budget_stop_bypasses_model(
 
 
 @pytest.mark.asyncio
+async def test_iteration_budget_blocks_model_directed_pool_growth(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model cannot evolve again while terminal review work remains."""
+
+    async def _allocation(**_kwargs: Any) -> dict[str, str]:
+        return {
+            "next_task": "evolve",
+            "reason": "Keep expanding the pool.",
+        }
+
+    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    stats = SchedulerStats(
+        pool_size=8,
+        reviewed_count=7,
+        unreviewed_count=1,
+        iteration=2,
+    )
+
+    decision, provenance = await supervisor_decision.choose_supervisor_task(
+        _state(), stats, Budget(max_iterations=2)
+    )
+
+    assert decision.next_task is TaskType.REFLECT
+    assert provenance == "hard-invariant"
+
+
+@pytest.mark.asyncio
 async def test_provider_failure_records_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

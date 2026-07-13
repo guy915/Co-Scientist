@@ -57,6 +57,7 @@ from fastapi.responses import (
 from app import (
     document_ingest,
     engine_adapter,
+    engine_tasks,
     human_input,
     qa,
     run_corpus,
@@ -856,13 +857,16 @@ async def add_human_hypothesis(
     # Same safety screen as the pipeline, so the manual hypothesis carries a
     # persisted safety_status and any blocking outcome is audited identically.
     screen_hypotheses(run_id, store.list_hypotheses(run_id))
-    store.append_message(
+    message = store.append_message(
         run_id,
         author,
         "Scientist-contributed hypothesis to evaluate in subsequent work: "
         f"{req.statement}",
         "steering",
         meta={"kind": "manual_hypothesis", "hypothesis_id": hyp_id},
+    )
+    continuation = engine_tasks.enqueue_scientist_continuation(
+        run_id, message.id
     )
     store.append_event(
         run_id,
@@ -873,6 +877,7 @@ async def add_human_hypothesis(
         "admitted": True,
         "id": hyp_id,
         "author": author,
+        "continuation_task_id": continuation.id if continuation else None,
         "safety": admission.safety_review.to_dict(),
     }
 
@@ -911,13 +916,16 @@ async def add_human_review(
         summary=f"Scientist verdict: {review.verdict} (by {review.author})",
         critique=review.critique,
     )
-    store.append_message(
+    message = store.append_message(
         run_id,
         author,
         "Scientist review of hypothesis "
         f"{req.hypothesis_id}: verdict={review.verdict}; {review.critique}",
         "steering",
         meta={"kind": "human_review", "hypothesis_id": req.hypothesis_id},
+    )
+    continuation = engine_tasks.enqueue_scientist_continuation(
+        run_id, message.id
     )
     store.append_event(
         run_id,
@@ -928,7 +936,11 @@ async def add_human_review(
             "verdict": review.verdict,
         },
     )
-    return {"recorded": True, **review.to_dict()}
+    return {
+        "recorded": True,
+        "continuation_task_id": continuation.id if continuation else None,
+        **review.to_dict(),
+    }
 
 
 @router.post("/{run_id}/attachments")
@@ -954,7 +966,21 @@ async def add_attachment(
         source=run_corpus.ATTACHMENT_SOURCE,
         abstract=req.text,
     )
-    return {"id": ev_id, "indexed": True}
+    message = store.append_message(
+        run_id,
+        "scientist",
+        f"Use the private research document '{req.title}' in subsequent work.",
+        "steering",
+        meta={"kind": "attachment", "evidence_id": ev_id},
+    )
+    continuation = engine_tasks.enqueue_scientist_continuation(
+        run_id, message.id
+    )
+    return {
+        "id": ev_id,
+        "indexed": True,
+        "continuation_task_id": continuation.id if continuation else None,
+    }
 
 
 @router.post("/{run_id}/attachments/upload")
@@ -990,13 +1016,16 @@ async def upload_attachment(
         document_version=extracted.sha256,
         extraction_tool=extracted.extraction_tool,
     )
-    store.append_message(
+    message = store.append_message(
         run_id,
         _client_id(request),
         "Use the uploaded private research document "
         f"'{title}' in subsequent work.",
         "steering",
         meta={"kind": "attachment", "evidence_id": evidence_id},
+    )
+    continuation = engine_tasks.enqueue_scientist_continuation(
+        run_id, message.id
     )
     store.append_event(
         run_id,
@@ -1010,6 +1039,7 @@ async def upload_attachment(
         "byte_size": extracted.byte_size,
         "mime_type": extracted.mime_type,
         "extraction_tool": extracted.extraction_tool,
+        "continuation_task_id": continuation.id if continuation else None,
     }
 
 
