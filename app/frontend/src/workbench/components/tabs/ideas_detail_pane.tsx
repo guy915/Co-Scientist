@@ -12,7 +12,8 @@ import {smoothScrollToSection} from '@/lib/smooth_scroll';
 const IDEA_DETAIL_PANE_CLASSES =
   'idea-detail-pane grid min-h-0 min-w-0 flex-1 content-start gap-[1.35rem] ' +
   'overflow-x-hidden overflow-y-auto border-r-0 bg-transparent px-7 ' +
-  'pt-[1.45rem] pb-14';
+  'pt-[1.45rem] pb-14 max-[720px]:flex-none max-[720px]:overflow-y-visible ' +
+  'max-[720px]:px-4';
 
 const IDEA_DETAIL_EMPTY_CLASSES =
   `${IDEA_DETAIL_PANE_CLASSES} empty place-items-center text-center ` +

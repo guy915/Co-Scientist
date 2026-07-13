@@ -45,7 +45,7 @@ const REPORT_PAGE_CLASSES =
 const REPORT_SCROLL_CLASSES =
   'cosci-report-scroll min-h-0 overflow-auto max-[720px]:overflow-x-hidden';
 
-const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0';
+const ALL_IDEAS_CLASSES = 'cosci-all-ideas h-full p-0 max-[720px]:h-auto';
 
 /**
  * Renders the Co-Scientist goal report surface from the reference footage.

@@ -19,7 +19,8 @@ const IDEA_SPLIT_SHELL_CLASSES =
   'rounded-none border-0 bg-cosci-bg';
 
 const IDEAS_REPORT_CLASSES =
-  'flex h-full min-h-0 flex-col overflow-hidden bg-cosci-bg';
+  'flex h-full min-h-0 flex-col overflow-hidden bg-cosci-bg ' +
+  'max-[720px]:h-auto max-[720px]:overflow-visible';
 
 const IDEA_SPLIT_GRID_CLASSES =
   'idea-split-grid reference grid min-h-0 min-w-0 flex-1 ' +
@@ -72,11 +73,12 @@ const IDEA_RANK_PREVIEW_CLASSES =
 // idea's detail on tap (rather than the desktop split view), with a back
 // affordance to return to the list.
 const IDEA_MOBILE_VIEW_CLASSES =
-  'idea-mobile-view flex h-full min-h-0 flex-col overflow-hidden bg-cosci-bg';
+  'idea-mobile-view flex h-auto min-h-0 flex-none flex-col ' +
+  'overflow-visible bg-cosci-bg';
 
 const IDEA_MOBILE_LIST_CLASSES =
-  'idea-mobile-list m-0 grid min-h-0 flex-1 content-start gap-[0.7rem] ' +
-  'overflow-y-auto bg-transparent p-4 list-none';
+  'idea-mobile-list m-0 grid min-h-0 content-start gap-[0.7rem] ' +
+  'overflow-visible bg-transparent p-4 list-none';
 
 // Default selection for the split/master-detail views: an explicit tap wins
 // (falling back to the top idea if it no longer exists), otherwise desktop
