@@ -160,6 +160,11 @@ function ActiveRunView({
     0,
     Math.round(Date.now() / 1000 - run.created_at),
   );
+  const fraction = run.execution_progress?.fraction;
+  const remainingSeconds =
+    run.execution_progress?.determinate && fraction && fraction > 0
+      ? Math.max(0, Math.round((elapsedSeconds * (1 - fraction)) / fraction))
+      : null;
   const activity = events
     .filter(event => event.type !== 'status')
     .slice(-10)
@@ -173,9 +178,14 @@ function ActiveRunView({
           <RunExecutionProgress run={run} />
         </div>
         <dl className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
-          <RunMetric label="Elapsed time" value={`${elapsedSeconds}s`} />
-          <RunMetric label="Sources" value={String(evidenceCount)} />
-          <RunMetric label="Ideas" value={String(ideaCount)} />
+          <RunMetric
+            label="Time remaining"
+            value={
+              remainingSeconds === null ? 'Estimating…' : `${remainingSeconds}s`
+            }
+          />
+          <RunMetric label="Sources Analyzed" value={String(evidenceCount)} />
+          <RunMetric label="Ideas explored" value={String(ideaCount)} />
         </dl>
         <section aria-label="Activity log">
           <h3 className="text-base font-medium">Activity</h3>

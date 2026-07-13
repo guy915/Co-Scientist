@@ -183,6 +183,10 @@ describe('RunDetail', () => {
     renderAt('/runs/run-1/specifications');
 
     expect(await screen.findByText('Research in progress')).toBeInTheDocument();
+    expect(screen.getByText('Time remaining')).toBeInTheDocument();
+    expect(screen.getByText('Estimating…')).toBeInTheDocument();
+    expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
+    expect(screen.getByText('Ideas explored')).toBeInTheDocument();
     expect(screen.getByText('Engine Node Generate')).toBeInTheDocument();
     expect(
       screen.getByRole('region', {name: 'Activity log'}),
