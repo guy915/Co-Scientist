@@ -208,6 +208,51 @@ async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Repeated tournaments do not repay for identical claim assessments."""
+    from app import claim_grounding
+    from app.claims import deterministic_assessor
+
+    calls = 0
+
+    def counting_assessor(claim: str, passages: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return deterministic_assessor(claim, passages)
+
+    monkeypatch.setattr(
+        claim_grounding,
+        "build_assessor",
+        lambda *_: (counting_assessor, "counting-v1"),
+    )
+    hypothesis = Hypothesis(
+        text="We hypothesize lactate may accelerate ATP recovery.",
+        literature_grounding="Astrocyte lactate accelerates ATP recovery.",
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocyte lactate accelerates ATP recovery.",
+                source_id="PMID-1",
+            )
+        ],
+    }
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    first_call_count = calls
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert first_call_count > 0
+    assert calls == first_call_count
+    assert hypothesis.enrichments["claim_gate"]["input_fingerprint"]
+
+
+@pytest.mark.asyncio
 async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
     """Unsupported rationale cannot bypass the gate behind a supported idea."""
     hypothesis = Hypothesis(

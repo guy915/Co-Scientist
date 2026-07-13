@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import dataclasses
+import hashlib
+import json
 import sqlite3
 import time
 from typing import Any
@@ -198,6 +200,36 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
                     claim_roles[claim] = role
                 elif role == "categorical":
                     claim_roles[claim] = role
+        input_fingerprint = hashlib.sha256(
+            json.dumps(
+                {
+                    "assessor": assessor_id,
+                    "claims": [
+                        [claim, claim_roles[claim]] for claim in ordered_claims
+                    ],
+                    "passages": [
+                        {
+                            "evidence_id": passage.evidence_id,
+                            "text": passage.text,
+                            "source": passage.source,
+                            "url": passage.url,
+                        }
+                        for passage in passages
+                    ],
+                },
+                ensure_ascii=False,
+                separators=(",", ":"),
+                sort_keys=True,
+            ).encode()
+        ).hexdigest()
+        # An unchanged proposal/evidence snapshot reuses its audited verdict;
+        # repeated ranking cycles should spend compute on new science.
+        if gate_history.get("input_fingerprint") == input_fingerprint:
+            if gate_history.get("decision") == GateDecision.BLOCK.value:
+                hypothesis.review_disposition = "evidence_blocked"
+            elif hypothesis.review_disposition == "evidence_blocked":
+                hypothesis.review_disposition = prior_disposition
+            continue
         assessments = []
         for claim in ordered_claims:
             assessment = (
@@ -231,6 +263,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             "decision": gate.decision.value,
             "reason": gate.reason,
             "assessor": assessor_id,
+            "input_fingerprint": input_fingerprint,
             "prior_review_disposition": prior_disposition,
             "claims": [
                 {
