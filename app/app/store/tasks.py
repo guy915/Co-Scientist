@@ -135,6 +135,22 @@ def list_tasks(
     return [_decode(row) for row in rows]
 
 
+def list_active_engine_task_run_ids(
+    db_path: str | None = None,
+) -> list[str]:
+    """Return non-terminal runs whose durable engine work needs a worker."""
+    with _use_conn(None, db_path) as conn:
+        rows = conn.execute(
+            "SELECT DISTINCT t.run_id FROM scientific_tasks t "
+            "JOIN runs r ON r.id=t.run_id "
+            "WHERE t.task_type LIKE 'engine.%' "
+            "AND t.status IN ('queued','leased') "
+            "AND r.status IN ('queued','running','synthesizing') "
+            "ORDER BY t.run_id"
+        ).fetchall()
+    return [str(row["run_id"]) for row in rows]
+
+
 def task_progress(
     run_id: str,
     *,

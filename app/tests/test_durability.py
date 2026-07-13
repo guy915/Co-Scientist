@@ -50,6 +50,39 @@ def test_reconcile_fails_interrupted_runs(isolated_db: str) -> None:
     assert done_row.status == store.RunStatus.COMPLETED.value
 
 
+def test_active_engine_tasks_are_discoverable_before_lease_expiry(
+    isolated_db: str,
+) -> None:
+    """Startup recovery sees a live lease without waiting to reconcile it."""
+    run = store.create_run(
+        "recover leased science",
+        "standard",
+        "engine",
+        {},
+        db_path=isolated_db,
+    )
+    store.update_run_status(
+        run.id, store.RunStatus.RUNNING, db_path=isolated_db
+    )
+    store.enqueue_task(
+        run.id,
+        "engine.node.review",
+        {"checkpoint_seq": 1},
+        idempotency_key="recover-review",
+        db_path=isolated_db,
+    )
+    assert (
+        store.claim_task(
+            "dead-worker", lease_seconds=300, db_path=isolated_db
+        )
+        is not None
+    )
+
+    assert store.list_active_engine_task_run_ids(db_path=isolated_db) == [
+        run.id
+    ]
+
+
 def test_reconcile_marks_checkpointed_run_resumable(isolated_db: str) -> None:
     """An interrupted run with a checkpoint is resumable, not failed (M4)."""
     rid = _make_run("g", isolated_db)

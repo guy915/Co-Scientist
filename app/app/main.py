@@ -1,5 +1,6 @@
 """FastAPI application main module."""
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncGenerator
@@ -123,16 +124,38 @@ async def lifespan(
 
         await resume_interrupted_runs(reconciled["resumable"])
 
+    recovery_workers: list[asyncio.Task[None]] = []
+    if os.getenv("COSCIENTIST_EMBEDDED_WORKER", "1") == "1":
+        from app import task_worker
+
+        for run_id in store.list_active_engine_task_run_ids():
+            # A per-run recovery cohort waits out any unexpired lease and
+            # then resumes the same durable queue. Scientific effects remain
+            # exactly-once because every claim is lease- and checkpoint-gated.
+            recovery_workers.append(
+                asyncio.create_task(
+                    task_worker.run_run_worker_pool(
+                        run_id,
+                        f"embedded-recovery:{os.getpid()}",
+                    )
+                )
+            )
+
     # No-op after the first successful startup; see seed.py for the
     # per-goal skip/re-seed logic.
     await seed_demo_runs()
 
-    yield
-
-    # Shutdown
-    logger.info("Shutting down Co-Scientist server...")
-    # Merge the WAL into the main DB so a clean stop leaves no -wal sidecar.
-    store.checkpoint_wal()
+    try:
+        yield
+    finally:
+        for worker in recovery_workers:
+            worker.cancel()
+        if recovery_workers:
+            await asyncio.gather(*recovery_workers, return_exceptions=True)
+        # Shutdown
+        logger.info("Shutting down Co-Scientist server...")
+        # Merge the WAL into the main DB so a clean stop leaves no -wal sidecar.
+        store.checkpoint_wal()
 
 
 app = FastAPI(
