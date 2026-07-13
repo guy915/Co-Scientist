@@ -135,6 +135,22 @@ def _planning_prompt(
     )
 
 
+def _repeats_without_iteration_progress(
+    state: WorkflowState,
+    stats: SchedulerStats,
+    proposed: SupervisorDecision,
+    baseline: SupervisorDecision,
+) -> bool:
+    """Detect a model allocation that already ran in the current cycle."""
+    if proposed.next_task is baseline.next_task:
+        return False
+    return any(
+        str(record.get("task_type")) == proposed.next_task.value
+        and int(record.get("iteration", -1)) == stats.iteration
+        for record in state.get("task_history", [])
+    )
+
+
 async def choose_supervisor_task(
     state: WorkflowState,
     stats: SchedulerStats,
@@ -177,6 +193,15 @@ async def choose_supervisor_task(
             queue_actions=tuple(response.get("queue_actions") or ()),
         )
         validated = validate_decision(proposed, stats)
+        baseline = decide_next_task(stats, budget)
+        if _repeats_without_iteration_progress(
+            state, stats, validated, baseline
+        ):
+            # A freeform Supervisor may spend one maintenance pass beyond the
+            # baseline, but repeating the same pass without a work-cycle
+            # advance is a non-progress loop. Fall back to the disclosed
+            # scheduler and record that the code-enforced invariant fired.
+            return baseline, "hard-invariant"
         if (
             not stats.pending_steering
             and stats.iteration >= budget.max_iterations
@@ -185,7 +210,7 @@ async def choose_supervisor_task(
             # Once the exploration budget is spent, the model may select the
             # required review/ranking/proximity cleanup but cannot grow the
             # pool again. The deterministic policy owns that terminal drain.
-            return decide_next_task(stats, budget), "hard-invariant"
+            return baseline, "hard-invariant"
         return validated, "model"
     except Exception as exc:
         logger.warning("Supervisor allocation failed; using fallback: %s", exc)

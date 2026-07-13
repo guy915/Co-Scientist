@@ -152,3 +152,43 @@ async def test_scientist_steering_reprioritizes_generation(
     assert decision.next_task is TaskType.GENERATE
     assert decision.priority == 100
     assert provenance == "model"
+
+
+@pytest.mark.asyncio
+async def test_repeated_maintenance_cannot_stall_iteration_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The model cannot repeat a no-progress reflection loop indefinitely."""
+
+    async def _allocation(**_kwargs: Any) -> dict[str, str]:
+        return {
+            "next_task": "reflect",
+            "reason": "Run reflection again without new work.",
+        }
+
+    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    state = _state()
+    state["task_history"] = [
+        {
+            "task_type": "reflect",
+            "status": "queued",
+            "reason": "First reflection pass.",
+            "iteration": 0,
+        }
+    ]
+    stats = SchedulerStats(
+        pool_size=8,
+        reviewed_count=8,
+        unreviewed_count=0,
+        total_matches=16,
+        match_coverage=2.0,
+        iteration=0,
+        last_work_task=TaskType.GENERATE,
+    )
+
+    decision, provenance = await supervisor_decision.choose_supervisor_task(
+        state, stats, Budget(max_iterations=2)
+    )
+
+    assert decision.next_task is TaskType.EVOLVE
+    assert provenance == "hard-invariant"
