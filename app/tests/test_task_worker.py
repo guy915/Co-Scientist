@@ -137,6 +137,88 @@ async def test_worker_heartbeats_long_workflow_lease(
 
 
 @pytest.mark.asyncio
+async def test_worker_cancels_execution_after_lease_revocation(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Run cancellation interrupts an already executing specialist task."""
+    run = store.create_run("cancel active work", "standard", "engine", {})
+    task = store.enqueue_task(
+        run.id,
+        "engine.test.cancellable",
+        {},
+        idempotency_key="cancellable",
+        db_path=isolated_db,
+    )
+    started = asyncio.Event()
+    interrupted = asyncio.Event()
+
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            interrupted.set()
+            raise
+        return {"completed": True}
+
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    running = asyncio.create_task(
+        task_worker.run_once(
+            "worker-a", db_path=isolated_db, lease_seconds=0.15
+        )
+    )
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    assert store.cancel_run_tasks(run.id, db_path=isolated_db) == 1
+    assert await asyncio.wait_for(running, timeout=1)
+    assert interrupted.is_set()
+    saved = store.get_task(task.id, db_path=isolated_db)
+    assert saved is not None
+    assert saved.status == "cancelled"
+
+
+@pytest.mark.asyncio
+async def test_worker_shutdown_cancels_task_payload(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cancelling the worker does not orphan its provider coroutine."""
+    run = store.create_run("worker shutdown", "standard", "engine", {})
+    store.enqueue_task(
+        run.id,
+        "engine.test.shutdown",
+        {},
+        idempotency_key="shutdown",
+        db_path=isolated_db,
+    )
+    started = asyncio.Event()
+    interrupted = asyncio.Event()
+
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            interrupted.set()
+            raise
+        return {"completed": True}
+
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    running = asyncio.create_task(
+        task_worker.run_once("worker-a", db_path=isolated_db)
+    )
+    await asyncio.wait_for(started.wait(), timeout=1)
+
+    running.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await running
+    assert interrupted.is_set()
+
+
+@pytest.mark.asyncio
 async def test_embedded_worker_pool_executes_fanout_concurrently(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

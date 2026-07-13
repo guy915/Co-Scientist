@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import logging
 import os
 import socket
 import uuid
 from collections.abc import Sequence
+from typing import Any
 
 from app import engine_adapter, engine_tasks, store
 from app.logging_setup import run_log_context
@@ -19,6 +21,10 @@ logger = logging.getLogger(__name__)
 
 _WORKFLOW_TASK = "run.workflow"
 _EMAIL_TASK = "notification.email"
+
+
+class _LeaseLostError(RuntimeError):
+    """Signals that durable ownership ended while task code was running."""
 
 
 class _DatabaseStopSignal:
@@ -102,6 +108,57 @@ async def _execute_workflow_task(
     return {"run_id": run.id, "status": final.status}
 
 
+async def _execute_task_payload(
+    task: ScientificTask, *, db_path: str | None
+) -> dict[str, Any]:
+    """Execute one leased task without committing its durable outcome."""
+    if task.task_type.startswith("engine."):
+        return await engine_tasks.execute_engine_task(task, db_path=db_path)
+    if task.task_type == _WORKFLOW_TASK:
+        return await _execute_workflow_task(task, db_path=db_path)
+    if task.task_type == _EMAIL_TASK:
+        return await deliver_completion_notification(task.inputs)
+    raise ValueError(f"unsupported task type: {task.task_type}")
+
+
+async def _execute_until_lease_lost(
+    task: ScientificTask,
+    lease_lost: asyncio.Event,
+    *,
+    db_path: str | None,
+) -> dict[str, Any]:
+    """Run task code while durable ownership remains valid.
+
+    Cancellation revokes leased rows immediately. The heartbeat reports that
+    revocation through ``lease_lost``; cancelling the local coroutine then
+    stops in-flight provider and retrieval work instead of letting a revoked
+    task consume compute until its natural return.
+    """
+    execution = asyncio.create_task(
+        _execute_task_payload(task, db_path=db_path)
+    )
+    ownership = asyncio.create_task(lease_lost.wait())
+    try:
+        done, _ = await asyncio.wait(
+            {execution, ownership}, return_when=asyncio.FIRST_COMPLETED
+        )
+        if execution in done:
+            return await execution
+
+        execution.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await execution
+        raise _LeaseLostError(f"task {task.id} no longer owns its lease")
+    finally:
+        if not execution.done():
+            execution.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await execution
+        ownership.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await ownership
+
+
 async def run_once(
     worker_id: str,
     *,
@@ -119,26 +176,25 @@ async def run_once(
     if task is None:
         return False
     stop_heartbeat = asyncio.Event()
+    lease_lost = asyncio.Event()
     heartbeat = asyncio.create_task(
         _heartbeat_lease(
             task,
             worker_id,
             stop_heartbeat,
+            lease_lost,
             db_path=db_path,
             lease_seconds=lease_seconds,
         )
     )
     try:
-        if task.task_type.startswith("engine."):
-            result = await engine_tasks.execute_engine_task(
-                task, db_path=db_path
-            )
-        elif task.task_type == _WORKFLOW_TASK:
-            result = await _execute_workflow_task(task, db_path=db_path)
-        elif task.task_type == _EMAIL_TASK:
-            result = await deliver_completion_notification(task.inputs)
-        else:
-            raise ValueError(f"unsupported task type: {task.task_type}")
+        result = await _execute_until_lease_lost(
+            task, lease_lost, db_path=db_path
+        )
+    except _LeaseLostError:
+        # The durable row already records cancellation, pause, or competing
+        # ownership; the revoked worker must not overwrite that outcome.
+        logger.info("Task %s stopped after lease revocation", task.id)
     except engine_tasks.SupersededTaskError as exc:
         # Competing durable branches can finish after another branch advances
         # the checkpoint. Obsolescence is a successful idempotent outcome, not
@@ -242,12 +298,15 @@ async def _heartbeat_lease(
     task: ScientificTask,
     worker_id: str,
     stop: asyncio.Event,
+    lease_lost: asyncio.Event,
     *,
     db_path: str | None,
     lease_seconds: float,
 ) -> None:
     """Renew periodically until execution finishes or ownership is lost."""
-    interval = max(0.05, lease_seconds / 3)
+    # Poll at least once per second so explicit cancellation interrupts
+    # expensive provider calls promptly even when production leases are long.
+    interval = min(1.0, max(0.05, lease_seconds / 3))
     while True:
         try:
             await asyncio.wait_for(stop.wait(), timeout=interval)
@@ -262,6 +321,7 @@ async def _heartbeat_lease(
                 logger.warning(
                     "Task %s lease heartbeat lost ownership", task.id
                 )
+                lease_lost.set()
                 return
 
 
