@@ -72,6 +72,8 @@ function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     setIsStarting: vi.fn(),
     setMessages: vi.fn(),
     setError: vi.fn(),
+    pendingAttachments: [],
+    setPendingAttachments: vi.fn(),
     setToast: vi.fn(),
     clearSessionState: vi.fn(),
     stageDraftSpec: vi.fn(),

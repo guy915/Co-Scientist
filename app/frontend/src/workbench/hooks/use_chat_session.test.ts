@@ -13,6 +13,7 @@ vi.mock('@/api/runs', async importActual => {
     addInterviewTurn: vi.fn(),
     createRun: vi.fn(),
     startRun: vi.fn(),
+    uploadRunDocument: vi.fn(),
   };
 });
 
@@ -175,5 +176,43 @@ describe('useChatSession', () => {
     expect(result.current.startedSession?.id).toBe('run-xyz');
     expect(result.current.draft).toBeNull();
     expect(deps.reloadHistory).toHaveBeenCalled();
+  });
+
+  it('uploads staged scientific files before starting the run', async () => {
+    const file = new File(['private result'], 'result.txt', {
+      type: 'text/plain',
+    });
+    vi.mocked(runsApi.createRun).mockResolvedValue({
+      id: 'run-with-file',
+    } as Awaited<ReturnType<typeof runsApi.createRun>>);
+    vi.mocked(runsApi.uploadRunDocument).mockResolvedValue({
+      id: 'evidence-1',
+      indexed: true,
+      sha256: 'abc',
+      byte_size: 14,
+      mime_type: 'text/plain',
+      extraction_tool: 'text',
+    });
+    vi.mocked(runsApi.startRun).mockResolvedValue({
+      id: 'run-with-file',
+      status: 'running',
+    });
+    const {result} = renderSession();
+
+    act(() => result.current.setInput('Use my private result'));
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent(), [file]);
+    });
+    await act(async () => {
+      await result.current.handleStartRun();
+    });
+
+    expect(runsApi.uploadRunDocument).toHaveBeenCalledWith(
+      'run-with-file',
+      file,
+    );
+    expect(runsApi.uploadRunDocument).toHaveBeenCalledBefore(
+      vi.mocked(runsApi.startRun),
+    );
   });
 });

@@ -67,7 +67,7 @@ export function Composer({
   large?: boolean;
   pubmedEnabled?: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
 }) {
   const {
     fileInputRef,
@@ -78,6 +78,7 @@ export function Composer({
     setConnectorsOpen,
     onFilesChanged,
     removeAttachment,
+    clearAttachments,
   } = useComposerState(input, large);
 
   const referenceLabel = composerReferenceLabel(setupDraftMode);
@@ -85,7 +86,13 @@ export function Composer({
 
   return (
     <form
-      onSubmit={onSubmit}
+      onSubmit={event => {
+        onSubmit(
+          event,
+          attachments.map(attachment => attachment.file),
+        );
+        if (input.trim()) clearAttachments();
+      }}
       className={composerFormClassName(input, large, attachments.length > 0)}
     >
       <AttachmentStrip attachments={attachments} onRemove={removeAttachment} />
@@ -165,7 +172,7 @@ function useAutoGrowTextarea(input: string, large: boolean) {
 function useComposerState(input: string, large: boolean) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useAutoGrowTextarea(input, large);
-  const {attachments, onFilesChanged, removeAttachment} =
+  const {attachments, onFilesChanged, removeAttachment, clearAttachments} =
     useComposerAttachments();
   const {connectorsOpen, setConnectorsOpen, sourceControlsRef} =
     useConnectorsMenu();
@@ -179,6 +186,7 @@ function useComposerState(input: string, large: boolean) {
     setConnectorsOpen,
     onFilesChanged,
     removeAttachment,
+    clearAttachments,
   };
 }
 

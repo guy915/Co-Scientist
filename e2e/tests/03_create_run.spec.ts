@@ -19,6 +19,14 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   const composer = page.getByRole('textbox');
   await composer.click();
   await composer.fill(goal);
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'private-lactate-result.txt',
+    mimeType: 'text/plain',
+    buffer: Buffer.from(
+      'Private pilot result: MCT1 perturbation delayed synaptic ATP recovery.',
+    ),
+  });
+  await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
   await composer.press('Enter');
 
   // Complete the Agent interview's Focus Area and Preferences fields.
@@ -87,4 +95,6 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   await expect(
     page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
+  await page.getByRole('button', {name: 'Knowledge Base'}).click();
+  await expect(page.getByText('private-lactate-result.txt')).toBeVisible();
 });

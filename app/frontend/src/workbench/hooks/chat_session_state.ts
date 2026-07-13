@@ -73,6 +73,7 @@ export function useComposerLog(clearSessionState: () => void) {
   // from the spec state, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 
   // Full wipe back to the pristine composer, used by "New chat"; stable
   // identity so callers can hang effects off it.
@@ -82,6 +83,7 @@ export function useComposerLog(clearSessionState: () => void) {
     setIsStarting(false);
     setMessages([]);
     setError(null);
+    setPendingAttachments([]);
   }, [clearSessionState]);
 
   return {
@@ -93,6 +95,8 @@ export function useComposerLog(clearSessionState: () => void) {
     setMessages,
     error,
     setError,
+    pendingAttachments,
+    setPendingAttachments,
     resetSession,
   };
 }

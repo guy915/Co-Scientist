@@ -1,4 +1,4 @@
-import {createRun, startRun} from '@/api/runs';
+import {createRun, startRun, uploadRunDocument} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {type StartedSession} from '../pages/chat_timeline_cards';
 import {emitDiagnosticEvent} from './chat_session_helpers';
@@ -16,6 +16,8 @@ async function executeStart({
   setConfirmed,
   setDraft,
   setStartedSession,
+  pendingAttachments,
+  setPendingAttachments,
 }: ExecuteStartDeps): Promise<StartedSession> {
   const created = await createRun({
     research_goal: specToStart.goal,
@@ -37,7 +39,11 @@ async function executeStart({
   };
   setConfirmed({spec: specToStart, createdAt: specCreatedAt});
   setDraft(null);
+  for (const file of pendingAttachments) {
+    await uploadRunDocument(created.id, file);
+  }
   await startRun(created.id);
+  setPendingAttachments([]);
   setStartedSession(session);
   await reloadHistory();
   // Tell the shell sidebar (which owns a separate history copy) that a new
@@ -98,6 +104,8 @@ export async function promoteDraftToRun({
   setConfirmed,
   setDraft,
   setStartedSession,
+  pendingAttachments,
+  setPendingAttachments,
 }: HandlerDeps): Promise<void> {
   if (!draft) return;
   // Snapshot the draft up front so state changes during the awaits below
@@ -116,6 +124,8 @@ export async function promoteDraftToRun({
       setConfirmed,
       setDraft,
       setStartedSession,
+      pendingAttachments,
+      setPendingAttachments,
       setError,
     });
   } finally {

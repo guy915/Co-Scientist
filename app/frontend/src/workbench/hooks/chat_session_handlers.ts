@@ -19,6 +19,7 @@ import {type ComposerLog, type RunSpecLifecycle} from './chat_session_state';
 // response can complete the setup and produce a runnable specification.
 async function submitComposerMessage({
   e,
+  files,
   input,
   interview,
   setInput,
@@ -27,9 +28,11 @@ async function submitComposerMessage({
   setMessages,
   setInterview,
   setIsStarting,
+  setPendingAttachments,
   stageDraftSpec,
 }: {
   e: FormEvent<HTMLFormElement>;
+  files: File[];
   input: string;
   interview: Interview | null;
   setInput: (value: string) => void;
@@ -38,11 +41,15 @@ async function submitComposerMessage({
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setInterview: (interview: Interview | null) => void;
   setIsStarting: (value: boolean) => void;
+  setPendingAttachments: Dispatch<SetStateAction<File[]>>;
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
 }): Promise<void> {
   e.preventDefault();
   const text = input.trim();
   if (!text) return;
+  if (files.length) {
+    setPendingAttachments(current => [...current, ...files]);
+  }
   setInput('');
   setError(null);
   setToast(null);
@@ -237,8 +244,8 @@ export function buildChatHandlers(handlerDeps: HandlerDeps) {
     handleRetryDraftSpec: () => retryDraftSpec(draft, stageDraftSpec),
     handleCancelDraftSpec: () => cancelDraftSpec(handlerDeps),
     handleEditPlan: (spec: InferredRunSpec) => editPlan({spec, ...handlerDeps}),
-    handleSubmit: (e: FormEvent<HTMLFormElement>) =>
-      submitComposerMessage({e, ...handlerDeps}),
+    handleSubmit: (e: FormEvent<HTMLFormElement>, files: File[] = []) =>
+      submitComposerMessage({e, files, ...handlerDeps}),
     handleStartRun: () => promoteDraftToRun(handlerDeps),
   };
 }
@@ -266,6 +273,8 @@ export function toHandlerDeps(
     setIsStarting: composer.setIsStarting,
     setMessages: composer.setMessages,
     setError: composer.setError,
+    pendingAttachments: composer.pendingAttachments,
+    setPendingAttachments: composer.setPendingAttachments,
     setToast: view.setToast,
     clearSessionState: lifecycle.clearSessionState,
     stageDraftSpec: lifecycle.stageDraftSpec,

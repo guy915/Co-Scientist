@@ -34,6 +34,8 @@ export interface ExecuteStartDeps {
   setConfirmed: (stage: SpecStage | null) => void;
   setDraft: (stage: SpecStage | null) => void;
   setStartedSession: (session: StartedSession) => void;
+  pendingAttachments: File[];
+  setPendingAttachments: (files: File[]) => void;
 }
 
 /**
@@ -53,6 +55,8 @@ export interface HandlerDeps {
   setIsStarting: (value: boolean) => void;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setError: (message: string | null) => void;
+  pendingAttachments: File[];
+  setPendingAttachments: Dispatch<SetStateAction<File[]>>;
   setToast: (value: string | ToastState | null) => void;
   clearSessionState: () => void;
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;

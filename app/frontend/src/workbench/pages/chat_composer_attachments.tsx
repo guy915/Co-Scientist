@@ -73,6 +73,7 @@ const ATTACHMENT_REMOVE_ICON_CLASSES = 'text-[1.35rem]';
  */
 export interface ComposerAttachment {
   id: string;
+  file: File;
   name: string;
   badge: string;
   kind: string;
@@ -130,7 +131,16 @@ export function useComposerAttachments() {
     });
   }
 
-  return {attachments, onFilesChanged, removeAttachment};
+  function clearAttachments() {
+    setAttachments(current => {
+      current.forEach(attachment => {
+        if (attachment.previewUrl) URL.revokeObjectURL(attachment.previewUrl);
+      });
+      return [];
+    });
+  }
+
+  return {attachments, onFilesChanged, removeAttachment, clearAttachments};
 }
 
 /**
@@ -290,6 +300,7 @@ function fileToAttachment(file: File): ComposerAttachment {
   const suffix = Math.random().toString(36).slice(2);
   return {
     id: `${file.name}-${file.lastModified}-${suffix}`,
+    file,
     name: file.name,
     badge: fileBadge(extension),
     kind: fileKind(file, extension),

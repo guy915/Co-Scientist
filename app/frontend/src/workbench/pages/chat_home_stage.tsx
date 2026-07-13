@@ -133,7 +133,7 @@ export function HomeStage({
   setInput: (value: string) => void;
   pubmedEnabled: boolean;
   onPubmedEnabledChange: (enabled: boolean) => void;
-  onSubmit: (e: FormEvent<HTMLFormElement>) => void;
+  onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
   runs: Run[];
   scoresByRunId: Record<string, number | null>;
   showAllRecents: boolean;
