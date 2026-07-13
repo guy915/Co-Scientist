@@ -181,6 +181,65 @@ def test_send_message_endpoint(isolated_db: str) -> None:
     assert data["kind"] == "steering"
     assert data["status"] == "queued"
     assert data["content"] == "focus on cytokines"
+    assert data["continuation_task_id"] is None
+
+
+def test_steering_reopens_completed_engine_run(isolated_db: str) -> None:
+    """Post-report steering continues from the durable engine checkpoint."""
+    from co_scientist.checkpoint import (
+        CHECKPOINT_VERSION,
+        serialize_workflow_state,
+    )
+    from co_scientist.models import ExecutionMetrics
+
+    client = _client()
+    client.headers.update({"X-Client-ID": "test-client"})
+    run = store.create_run(
+        "Completed research",
+        "standard",
+        "engine",
+        {},
+        client_id="test-client",
+        db_path=isolated_db,
+    )
+    state = {
+        "run_id": run.id,
+        "research_goal": run.research_goal,
+        "model_name": "fixture",
+        "supervisor_model_name": "fixture",
+        "hypotheses": [],
+        "articles": [],
+        "messages": [],
+        "metrics": ExecutionMetrics(),
+        "mcp_available": False,
+        "current_iteration": 1,
+        "start_time": 1.0,
+    }
+    envelope = serialize_workflow_state(state, last_event_seq=0)
+    store.save_checkpoint(
+        run.id,
+        stage="engine_task:final",
+        schema_version=CHECKPOINT_VERSION,
+        last_event_seq=0,
+        state={"provider": "engine", **envelope},
+        db_path=isolated_db,
+    )
+    store.update_run_status(
+        run.id, store.RunStatus.COMPLETED, db_path=isolated_db
+    )
+
+    response = client.post(
+        f"/api/runs/{run.id}/messages",
+        json={"content": "Test the mechanism in organoids next."},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["continuation_task_id"] is not None
+    reopened = store.get_run(run.id, db_path=isolated_db)
+    assert reopened is not None and reopened.status == "queued"
+    tasks = store.list_tasks(run.id, db_path=isolated_db)
+    assert tasks[-1].task_type == "engine.node.orchestrator"
+    assert tasks[-1].priority == 100
 
 
 def test_send_message_always_stores_as_steering(isolated_db: str) -> None:

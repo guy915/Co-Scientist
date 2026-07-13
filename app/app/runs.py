@@ -1100,12 +1100,17 @@ async def get_report_markdown(run_id: str) -> PlainTextResponse:
 
 @router.post("/{run_id}/messages")
 async def send_message(run_id: str, req: SendMessageRequest) -> dict[str, Any]:
-    """Queue a user steering message for the next iteration."""
+    """Queue scientist steering and continue a completed engine run."""
     _require_run(run_id)
     # Stored with applied=0; the workflow drains pending steering messages
     # between iterations (store.get_pending_steering) and marks them applied.
     msg = store.append_message(run_id, "user", req.content, "steering")
-    return {**msg.to_dict(), "status": "queued"}
+    continuation = engine_tasks.enqueue_scientist_continuation(run_id, msg.id)
+    return {
+        **msg.to_dict(),
+        "status": "queued",
+        "continuation_task_id": continuation.id if continuation else None,
+    }
 
 
 @router.get("/{run_id}/messages")
