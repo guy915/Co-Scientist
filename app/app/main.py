@@ -165,6 +165,10 @@ app.add_middleware(
 @app.middleware("http")
 async def enforce_run_ownership(request: Request, call_next: Any) -> Response:
     """Authenticate private API calls and hide runs from non-owners."""
+    # CORS preflights carry the requested header names, not their values. Let
+    # CORSMiddleware authorize them before applying ownership to the real call.
+    if request.method == "OPTIONS":
+        return cast(Response, await call_next(request))
     path = request.url.path
     public_api = path.startswith("/api/auth/") or path.startswith(
         "/api/shared/"

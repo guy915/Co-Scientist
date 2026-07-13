@@ -28,6 +28,7 @@ export interface BackendApi {
   startRun(id: string): Promise<void>;
   cancelRun(id: string): Promise<void>;
   getRun(id: string): Promise<{status: string; [k: string]: unknown}>;
+  listDemoRuns(): Promise<{id: string; research_goal: string}[]>;
 }
 
 function makeBackendApi(ctx: APIRequestContext): BackendApi {
@@ -62,6 +63,13 @@ function makeBackendApi(ctx: APIRequestContext): BackendApi {
     async getRun(id) {
       const res = await send('getRun', () => ctx.get(`/api/runs/${id}`));
       return (await res.json()) as {status: string};
+    },
+    async listDemoRuns() {
+      const res = await send('listDemoRuns', () => ctx.get('/api/runs/demo'));
+      const payload = (await res.json()) as {
+        runs: {id: string; research_goal: string}[];
+      };
+      return payload.runs;
     },
   };
 }

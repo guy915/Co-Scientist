@@ -13,7 +13,7 @@ import {expect, test} from '../support/fixtures';
 // Determinism: the run is sized large (extra iterations and hypotheses) so it
 // stays active long enough to catch running and to land a cooperative cancel
 // at an iteration checkpoint well before it could finish.
-test('cancels a running run and shows the cancelled state on home', async ({
+test('cancels a running fixture without contaminating faithful history', async ({
   page,
   api,
 }) => {
@@ -21,7 +21,7 @@ test('cancels a running run and shows the cancelled state on home', async ({
 
   const {id} = await api.createRun({
     research_goal: goal,
-    tier: 'ultra',
+    tier: 'advanced',
     max_iterations: 8,
     initial_hypotheses_count: 30,
   });
@@ -46,10 +46,9 @@ test('cancels a running run and shows the cancelled state on home', async ({
     })
     .toBe('cancelled');
 
-  // Observe the terminal state in the UI: the owned run's recents card shows
-  // the cancelled status chip.
+  // Explicit mock fixtures remain quarantined from faithful Recents even
+  // though the lifecycle API correctly recorded their terminal state.
   await page.goto('/');
   const card = page.getByRole('link').filter({hasText: goal}).first();
-  await expect(card).toBeVisible();
-  await expect(card.getByText(/status:\s*cancelled/i)).toBeVisible();
+  await expect(card).toHaveCount(0);
 });

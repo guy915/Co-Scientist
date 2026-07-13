@@ -21,17 +21,45 @@ test('creates a run from chat, starts it, and watches it complete', async ({
   await composer.fill(goal);
   await composer.press('Enter');
 
-  // The submitted goal is inferred into an editable draft run spec.
+  // Complete the Agent interview's Focus Area and Preferences fields.
+  await expect(
+    page.getByText(/which scientific mechanisms or focus areas/i),
+  ).toBeVisible();
+  await page
+    .getByRole('textbox')
+    .last()
+    .fill('Prioritize GPX4-independent lipid repair mechanisms.');
+  await page.getByRole('button', {name: 'Send'}).click();
+  await expect(page.getByText(/what constraints, available models/i)).toBeVisible();
+  await page
+    .getByRole('textbox')
+    .last()
+    .fill('Use patient-derived organoids and isogenic controls.');
+  await page.getByRole('button', {name: 'Send'}).click();
+
+  // The completed interview produces the editable four-field research plan.
   const startButton = page.getByRole('button', {name: 'Start research'});
   await expect(startButton).toBeVisible();
   await expect(page.getByText(goal).first()).toBeVisible();
 
-  // Start the run: createRun + startRun round-trip, then the terminal
-  // "started" card.
+  // Capture both lifecycle mutations as direct evidence that the browser owns
+  // and starts the same draft through the cross-origin development topology.
+  const createdPromise = page.waitForResponse(
+    response =>
+      new URL(response.url()).pathname === '/api/runs' &&
+      response.request().method() === 'POST',
+  );
+  const startAttemptPromise = page.waitForResponse(
+    response =>
+      /\/api\/runs\/[^/]+\/start$/.test(new URL(response.url()).pathname) &&
+      response.request().method() === 'POST',
+  );
   await startButton.click();
-  await expect(
-    page.getByText(/your session has been started/i),
-  ).toBeVisible();
+  const created = await createdPromise;
+  expect(created.status()).toBe(200);
+  const {id} = (await created.json()) as {id: string};
+  const startAttempt = await startAttemptPromise;
+  expect(startAttempt.status()).toBe(200);
 
   // Open the run detail. Capture the SSE stream opening (browser -> backend)
   // as direct evidence the live event channel was established.
@@ -39,23 +67,24 @@ test('creates a run from chat, starts it, and watches it complete', async ({
     response => /\/api\/runs\/[^/]+\/events/.test(response.url()),
     {timeout: 30_000},
   );
-  await page.getByRole('button', {name: /view session details/i}).click();
+  await page.goto(`/runs/${id}/specifications`);
   const sse = await ssePromise;
   expect(sse.status()).toBe(200);
-  await expect(page).toHaveURL(/\/runs\/[^/]+\/details/);
+  await expect(page).toHaveURL(/\/runs\/[^/]+\/specifications/);
 
-  // Ideas tab: hypotheses arrive with Elo ratings (generate + ranking events).
-  await page.getByRole('button', {name: 'All Ideas'}).click();
-  await expect(page.getByText(/elo rating:/i).first()).toBeVisible();
-
-  // Overview tab: the synthesized report lands near the end of the pipeline.
-  // "Specific aims" is present only once the persisted report exists, so it is
-  // a clean signal that the streamed run finished and synthesized its report.
-  await page.getByRole('button', {name: 'Research Overview'}).click();
+  // The Goal Report tabs appear only after the run reaches publication.
+  await expect(page.getByRole('button', {name: 'Ideas'})).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByRole('button', {name: 'Ideas'}).click();
+  await expect(
+    page.getByRole('list', {name: /ranked hypothesis list/i}),
+  ).toBeVisible();
+  await page.getByRole('button', {name: 'Summary'}).click();
   await expect(
     page.getByRole('heading', {name: /specific aims/i}),
   ).toBeVisible();
   await expect(
-    page.getByRole('heading', {name: /winning ideas/i}),
+    page.getByRole('heading', {name: /agent insights/i}),
   ).toBeVisible();
 });

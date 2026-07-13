@@ -79,3 +79,28 @@ def test_invalid_invite_is_rejected(
         "/api/auth/exchange", json={"access_code": "wrong"}
     )
     assert response.status_code == 401
+
+
+def test_run_ownership_allows_cors_preflight(isolated_db: str) -> None:
+    """A browser can preflight an owner-authenticated lifecycle mutation."""
+    client = make_client()
+    created = client.post(
+        "/api/runs",
+        headers={"X-Client-ID": "browser-owner"},
+        json={"research_goal": "Cross-origin research goal"},
+    )
+    assert created.status_code == 200
+
+    response = client.options(
+        f"/api/runs/{created.json()['id']}/start",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "content-type,x-client-id",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == (
+        "http://localhost:5173"
+    )
