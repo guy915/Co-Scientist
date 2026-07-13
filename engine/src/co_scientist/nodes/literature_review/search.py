@@ -14,7 +14,6 @@ from co_scientist.constants import LITERATURE_REVIEW_RECENCY_YEARS
 from co_scientist.mcp_client import MCPToolClient
 from co_scientist.nodes.literature_review.helpers import (
     SearchConfig,
-    calculate_papers_per_query,
     extract_source_name,
     merge_search_results,
     normalize_search_response,
@@ -355,26 +354,20 @@ async def _phase2_collect_papers_single_source(
     """Phase 2 (single-source): Collect papers with legacy distribution."""
     logger.info("Phase 2: collecting papers with %s", config.search_tool_name)
 
-    # Distribute the fixed papers_to_read_count budget evenly across
-    # queries; any remainder (from integer division) is handed to the first
-    # `remainder` queries below so the total papers requested always sums to
-    # papers_to_read_count.
-    papers_per_query, remainder = calculate_papers_per_query(
-        config.papers_to_read_count,
-        len(queries),
-    )
-
     logger.info(
-        "Distributing %s papers: %s per query (+ %s extra)",
+        "Over-fetching %s papers per query for a %s-paper unique corpus",
         config.papers_to_read_count,
-        papers_per_query,
-        remainder,
+        config.papers_to_read_count,
     )
 
+    # Query expansion commonly returns the same high-ranking publications for
+    # several queries. Request the full target from each query, then dedupe,
+    # rank, and cap globally so the configured evidence count represents
+    # unique sources rather than raw search hits.
     search_results = await _search_all_queries(
         queries,
-        papers_per_query,
-        remainder,
+        config.papers_to_read_count,
+        0,
         slug,
         state["run_id"],
         config,
@@ -382,11 +375,14 @@ async def _phase2_collect_papers_single_source(
         errors,
     )
 
-    # Merge results (no source tracking needed for single-source)
-    # Every paper came from the same tool/source, so there is no
-    # per-source config to track.
-    all_paper_metadata = {}
+    combined: dict[str, dict[str, Any]] = {}
     for _, result_data in search_results:
-        all_paper_metadata.update(result_data)
+        combined.update(result_data)
+    ranked, _ = merge_search_results(
+        [(config.search_tool_name, combined)], deduplicate=True
+    )
+    all_paper_metadata = dict(
+        list(ranked.items())[: config.papers_to_read_count]
+    )
 
     return all_paper_metadata, {}
