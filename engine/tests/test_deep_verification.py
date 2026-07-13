@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from co_scientist.models import Article
 from co_scientist.nodes import deep_verification as dv
 from tests._state import make_article, make_hypothesis, make_state
 
@@ -113,3 +114,80 @@ def test_verification_context_includes_public_and_private_evidence() -> None:
     assert "Direct mechanistic finding" in context
     assert "Search-only paper" not in context
     assert "Private scientist result" in context
+
+
+@pytest.mark.asyncio
+async def test_probe_questions_trigger_retrieval_and_second_adjudication(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Deep verification searches its probes before the final verdict."""
+    first = {
+        "probes": [
+            {
+                "question": "Does intervention X alter pathway Y?",
+                "answer": "Unknown.",
+                "reasoning": "The initial corpus does not resolve it.",
+                "assumption_is_fundamental": True,
+            }
+        ],
+        "verdict": "weakened",
+        "overall_assessment": "Evidence is missing.",
+    }
+    final = {
+        "probes": first["probes"],
+        "verdict": "holds",
+        "overall_assessment": "Targeted evidence supports the assumption.",
+    }
+    call = AsyncMock(side_effect=[first, final])
+    retrieve = AsyncMock(
+        return_value=(
+            [
+                Article(
+                    title="Direct pathway test",
+                    source_id="PMID-1",
+                    abstract="Intervention X altered pathway Y.",
+                    used_in_analysis=True,
+                )
+            ],
+            [],
+        )
+    )
+    monkeypatch.setattr(dv, "call_llm_json", call)
+    monkeypatch.setattr(dv, "_retrieve_probe_evidence", retrieve)
+    hypothesis = make_hypothesis(text="X controls Y", elo_rating=1800)
+    state = make_state(
+        hypotheses=[hypothesis],
+        research_goal="Test X and Y",
+        model_name="test/model",
+        run_id="probe-run",
+        mcp_available=True,
+    )
+
+    output = await dv.deep_verification_node(state)
+
+    retrieve.assert_awaited_once_with(
+        state, ["Does intervention X alter pathway Y?"]
+    )
+    assert call.await_count == 2
+    assert output["hypotheses"][0].deep_verification_verdict == "holds"
+    assert output["articles"][-1].source_id == "PMID-1"
+    assert output["metrics"].llm_calls == 2
+    second_prompt = call.await_args_list[1].kwargs["prompt"]
+    assert "Targeted probe evidence" in second_prompt
+    assert "Direct pathway test" in second_prompt
+
+
+def test_retrieved_articles_are_deduplicated_by_source_identity() -> None:
+    """Repeated probe results do not duplicate evidence in shared state."""
+    article = Article(title="Paper", source_id="123", source="pubmed")
+    payload = article.to_dict()
+
+    merged = dv.merge_retrieved_articles(
+        [article],
+        [
+            {"retrieved_articles": [payload]},
+            {"retrieved_articles": [payload]},
+        ],
+    )
+
+    assert len(merged) == 1

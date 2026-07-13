@@ -970,6 +970,7 @@ async def execute_verification_item(
         asyncio.Semaphore(1),
         state.get("tool_registry"),
         _verification_evidence_context(state),
+        state,
     )
     if result is None:
         raise RuntimeError(f"deep verification failed for {hypothesis_id}")
@@ -1253,6 +1254,7 @@ async def execute_verification_aggregate(
     """Commit independent verification results and continue the tournament."""
     from co_scientist.checkpoint import restore_workflow_state
     from co_scientist.models import create_metrics_update, phase_message
+    from co_scientist.nodes.deep_verification import merge_retrieved_articles
     from co_scientist.task_runtime import apply_task_update
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
@@ -1271,6 +1273,8 @@ async def execute_verification_aggregate(
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     successful = 0
     failed = 0
+    llm_calls = 0
+    verification_results: list[dict[str, Any]] = []
     for item_id in task.inputs.get("item_task_ids", []):
         item = store.get_task(str(item_id), db_path=db_path)
         if item is None:
@@ -1280,16 +1284,21 @@ async def execute_verification_aggregate(
             continue
         hypothesis = by_id[str(item.result["hypothesis_id"])]
         verification = item.result["verification"]
+        verification_results.append(verification)
         hypothesis.deep_verification_probes = verification.get("probes", [])
         hypothesis.deep_verification_verdict = verification.get("verdict")
+        hypothesis.enrichments["deep_verification"] = verification
+        llm_calls += int(verification.get("verification_llm_calls", 1))
         successful += 1
+    state["articles"] = merge_retrieved_articles(
+        state.get("articles"), verification_results
+    )
     committed = apply_task_update(
         state,
         {
             "hypotheses": state["hypotheses"],
-            "metrics": create_metrics_update(
-                llm_calls_delta=successful + failed
-            ),
+            "articles": state["articles"],
+            "metrics": create_metrics_update(llm_calls_delta=llm_calls),
             "messages": phase_message(
                 "deep_verification",
                 f"Deep-verified {successful} hypotheses; "

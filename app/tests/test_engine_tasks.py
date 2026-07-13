@@ -518,7 +518,20 @@ async def test_verification_children_commit_through_single_aggregator(
     import co_scientist.nodes.deep_verification as verification_module
 
     async def fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
-        return {"probes": [{"question": "q"}], "verdict": "supported"}
+        return {
+            "probes": [{"question": "q"}],
+            "verdict": "supported",
+            "retrieval_queries": ["probe query"],
+            "retrieved_articles": [
+                Article(
+                    title="Probe evidence",
+                    source_id="probe-1",
+                    abstract="Direct targeted support.",
+                    used_in_analysis=True,
+                ).to_dict()
+            ],
+            "verification_llm_calls": 2,
+        }
 
     monkeypatch.setattr(verification_module, "_verify_one", fake_verify)
     children = [
@@ -557,6 +570,10 @@ async def test_verification_children_commit_through_single_aggregator(
     assert all(
         item["deep_verification_verdict"] == "supported" for item in restored
     )
+    assert latest["state"]["state"]["articles"][-1]["source_id"] == "probe-1"
+    assert restored[0]["enrichments"]["deep_verification"][
+        "retrieval_queries"
+    ] == ["probe query"]
 
 
 @pytest.mark.asyncio

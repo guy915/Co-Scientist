@@ -1,6 +1,7 @@
 """Deep-verification node - probing-question analysis of top hypotheses."""
 
 import asyncio
+import dataclasses
 import logging
 from typing import Any
 
@@ -14,6 +15,7 @@ from co_scientist.constants import (
 )
 from co_scientist.llm import call_llm_json
 from co_scientist.models import (
+    Article,
     Hypothesis,
     create_metrics_update,
     phase_message,
@@ -25,6 +27,102 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+_MAX_PROBE_QUERIES = 3
+_MAX_PROBE_SOURCES = 6
+
+
+def _probe_queries(result: dict[str, Any]) -> list[str]:
+    """Return unique load-bearing questions to send to literature search."""
+    probes = result.get("probes") or []
+    ordered = sorted(
+        probes,
+        key=lambda probe: not bool(probe.get("assumption_is_fundamental")),
+    )
+    queries: list[str] = []
+    seen: set[str] = set()
+    for probe in ordered:
+        query = " ".join(str(probe.get("question") or "").split())
+        key = query.casefold()
+        if not query or key in seen:
+            continue
+        seen.add(key)
+        queries.append(query)
+        if len(queries) == _MAX_PROBE_QUERIES:
+            break
+    return queries
+
+
+async def _retrieve_probe_evidence(
+    state: WorkflowState, queries: list[str]
+) -> tuple[list[Article], list[str]]:
+    """Execute targeted literature searches for verification questions."""
+    if not queries or not state.get("mcp_available"):
+        return [], []
+
+    from co_scientist.mcp_client import get_mcp_client
+    from co_scientist.nodes.literature_review.helpers import (
+        build_articles_from_metadata,
+    )
+    from co_scientist.nodes.literature_review.orchestration import (
+        _phase2_collect_papers,
+    )
+    from co_scientist.nodes.literature_review.run_config import (
+        _get_search_config,
+    )
+
+    config = dataclasses.replace(
+        _get_search_config(state), papers_to_read_count=_MAX_PROBE_SOURCES
+    )
+    errors: list[str] = []
+    try:
+        client = await get_mcp_client(tool_registry=config.tool_registry)
+        metadata, _ = await _phase2_collect_papers(
+            queries, state, config, client, errors
+        )
+    except Exception as exc:
+        logger.warning("Probe evidence retrieval unavailable: %s", exc)
+        return [], [*errors, str(exc)]
+
+    articles = build_articles_from_metadata(metadata, config.source_name)
+    usable = [
+        article
+        for article in articles
+        if not article.is_retracted and (article.abstract or article.content)
+    ]
+    return usable[:_MAX_PROBE_SOURCES], errors
+
+
+def _retrieved_evidence_context(articles: list[Article]) -> str:
+    """Format newly retrieved sources with stable verification keys."""
+    sections = []
+    for index, article in enumerate(articles):
+        content = article.abstract or article.content or ""
+        sections.append(f"[V{index + 1}] {article.title}: {content[:2000]}")
+    return "\n\n".join(sections)
+
+
+async def _call_verification(
+    hypothesis: Hypothesis,
+    research_goal: str,
+    model_name: str,
+    tool_registry: Any | None,
+    evidence_context: str,
+) -> dict[str, Any]:
+    """Call the verifier once against the supplied evidence snapshot."""
+    prompt, schema = get_deep_verification_prompt(
+        research_goal=research_goal,
+        hypothesis_text=hypothesis.text,
+        tool_registry=tool_registry,
+        evidence_context=evidence_context,
+    )
+    return await call_llm_json(
+        prompt=prompt,
+        model_name=model_name,
+        max_tokens=EXTENDED_MAX_TOKENS,
+        temperature=LOW_TEMPERATURE,
+        json_schema=schema,
+    )
+
 
 async def _verify_one(
     hypothesis: Hypothesis,
@@ -33,6 +131,7 @@ async def _verify_one(
     semaphore: asyncio.Semaphore,
     tool_registry: Any | None,
     evidence_context: str,
+    state: WorkflowState | None = None,
 ) -> dict[str, Any] | None:
     """Run probing-question deep verification for one hypothesis.
 
@@ -43,6 +142,7 @@ async def _verify_one(
         semaphore: Concurrency limiter shared across verifications.
         tool_registry: Optional registry for domain-specific prompt variables.
         evidence_context: Bounded analyzed-source excerpts.
+        state: Full state used to execute targeted probe retrieval when set.
 
     Returns:
         The parsed deep-verification result, or None if the call failed.
@@ -50,20 +150,42 @@ async def _verify_one(
     # Semaphore bounds how many of these run concurrently across the whole
     # top-k batch, shared with the caller via the `semaphore` argument.
     async with semaphore:
-        prompt, schema = get_deep_verification_prompt(
-            research_goal=research_goal,
-            hypothesis_text=hypothesis.text,
-            tool_registry=tool_registry,
-            evidence_context=evidence_context,
-        )
         try:
-            return await call_llm_json(
-                prompt=prompt,
-                model_name=model_name,
-                max_tokens=EXTENDED_MAX_TOKENS,
-                temperature=LOW_TEMPERATURE,
-                json_schema=schema,
+            initial = await _call_verification(
+                hypothesis,
+                research_goal,
+                model_name,
+                tool_registry,
+                evidence_context,
             )
+            if state is None:
+                return initial
+            queries = _probe_queries(initial)
+            articles, retrieval_errors = await _retrieve_probe_evidence(
+                state, queries
+            )
+            if not articles:
+                initial["retrieval_queries"] = queries
+                initial["retrieval_errors"] = retrieval_errors
+                initial["retrieved_articles"] = []
+                initial["verification_llm_calls"] = 1
+                return initial
+            targeted_context = _retrieved_evidence_context(articles)
+            result = await _call_verification(
+                hypothesis,
+                research_goal,
+                model_name,
+                tool_registry,
+                f"{evidence_context}\n\nTargeted probe evidence:\n"
+                f"{targeted_context}",
+            )
+            result["retrieval_queries"] = queries
+            result["retrieval_errors"] = retrieval_errors
+            result["retrieved_articles"] = [
+                article.to_dict() for article in articles
+            ]
+            result["verification_llm_calls"] = 2
+            return result
         except Exception as e:
             # Deliberately broad: one hypothesis's verification failing
             # (timeout, malformed response, provider error, etc.) should
@@ -137,6 +259,32 @@ def _apply_verification_results(
     return verified_count
 
 
+def merge_retrieved_articles(
+    existing: list[Article] | None,
+    results: list[dict[str, Any] | None],
+) -> list[Article]:
+    """Merge targeted verification sources into the run evidence corpus."""
+    merged = list(existing or [])
+    identities = {
+        (article.source, article.source_id or article.doi or article.url)
+        for article in merged
+    }
+    for result in results:
+        if not result:
+            continue
+        for payload in result.get("retrieved_articles") or []:
+            article = Article.from_dict(payload)
+            identity = (
+                article.source,
+                article.source_id or article.doi or article.url,
+            )
+            if identity in identities:
+                continue
+            identities.add(identity)
+            merged.append(article)
+    return merged
+
+
 async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
     """Probing-question deep verification of the top-k hypotheses by Elo.
 
@@ -168,12 +316,13 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
         )
         return {}
 
-    verified_count = await _run_verification_batch(state, to_verify)
+    verified_count, llm_calls = await _run_verification_batch(state, to_verify)
 
     logger.info("Deep verification complete: %s hypotheses", verified_count)
-    metrics = create_metrics_update(llm_calls_delta=verified_count)
+    metrics = create_metrics_update(llm_calls_delta=llm_calls)
     return {
         "hypotheses": hypotheses,
+        "articles": state["articles"],
         "metrics": metrics,
         "messages": phase_message(
             "deep_verification",
@@ -185,7 +334,7 @@ async def deep_verification_node(state: WorkflowState) -> dict[str, Any]:
 async def _run_verification_batch(
     state: WorkflowState,
     to_verify: list[Hypothesis],
-) -> int:
+) -> tuple[int, int]:
     """Runs deep verification for a batch of hypotheses and applies results.
 
     Verifies the given hypotheses concurrently, bounded by a semaphore
@@ -198,7 +347,7 @@ async def _run_verification_batch(
         to_verify: Hypotheses to verify.
 
     Returns:
-        Count of hypotheses whose probes/verdict were updated.
+        Count of updated hypotheses and actual verification LLM calls.
     """
     await emit_progress(
         state,
@@ -219,12 +368,19 @@ async def _run_verification_batch(
                 semaphore,
                 tool_registry,
                 evidence_context,
+                state,
             )
             for h in to_verify
         ]
     )
 
     verified_count = _apply_verification_results(to_verify, results)
+    state["articles"] = merge_retrieved_articles(state.get("articles"), results)
+    llm_calls = sum(
+        int(result.get("verification_llm_calls", 1))
+        for result in results
+        if result
+    )
 
     await emit_progress(
         state,
@@ -233,4 +389,4 @@ async def _run_verification_batch(
         PROGRESS_DEEP_VERIFICATION_COMPLETE,
     )
 
-    return verified_count
+    return verified_count, llm_calls
