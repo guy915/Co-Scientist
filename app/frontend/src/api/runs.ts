@@ -537,6 +537,14 @@ export async function askRunQuestion(
   return answer;
 }
 
+/** Queue scientist guidance for incorporation at the next safe task boundary. */
+export function sendRunSteering(
+  id: string,
+  content: string,
+): Promise<{id: string; status: string}> {
+  return fetchJson(`/api/runs/${id}/messages`, jsonRequest({content}, true));
+}
+
 /** Enables public read-only access and returns the one-time bearer token. */
 export function createReportShare(id: string): Promise<ReportShare> {
   return fetchJson(`/api/runs/${id}/shares`, jsonRequest({}, true));

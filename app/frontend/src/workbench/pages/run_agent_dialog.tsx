@@ -1,14 +1,16 @@
 import {type FormEvent, useState} from 'react';
-import {askRunQuestion} from '@/api/runs';
+import {askRunQuestion, sendRunSteering} from '@/api/runs';
 
 /** Grounded follow-up dialog shared by report- and idea-level Agent actions. */
 export function RunAgentDialog({
   runId,
   initialQuestion,
+  steering,
   onClose,
 }: {
   runId: string;
   initialQuestion?: string;
+  steering?: boolean;
   onClose: () => void;
 }) {
   const [question, setQuestion] = useState(initialQuestion || '');
@@ -23,7 +25,15 @@ export function RunAgentDialog({
     setAsking(true);
     setError('');
     try {
-      setAnswer(await askRunQuestion(runId, text));
+      if (steering) {
+        await sendRunSteering(runId, text);
+        setAnswer(
+          'Guidance queued. The Supervisor will incorporate it at the next safe task boundary.',
+        );
+        setQuestion('');
+      } else {
+        setAnswer(await askRunQuestion(runId, text));
+      }
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Agent unavailable');
     } finally {
@@ -60,7 +70,11 @@ export function RunAgentDialog({
         </div>
         <form className="grid gap-3" onSubmit={event => void submit(event)}>
           <label className="grid gap-2">
-            <span>Ask about this Goal Report</span>
+            <span>
+              {steering
+                ? 'Guide this active research run'
+                : 'Ask about this Goal Report'}
+            </span>
             <textarea
               className="min-h-28 rounded-xl border border-cosci-border bg-transparent p-3"
               value={question}
@@ -72,7 +86,13 @@ export function RunAgentDialog({
             disabled={asking || !question.trim()}
             className="w-fit rounded-full bg-cosci-blue-strong px-5 py-2 text-white disabled:opacity-50"
           >
-            {asking ? 'Asking…' : 'Ask Agent'}
+            {asking
+              ? steering
+                ? 'Sending…'
+                : 'Asking…'
+              : steering
+                ? 'Send guidance'
+                : 'Ask Agent'}
           </button>
         </form>
         {error ? <p role="alert">{error}</p> : null}

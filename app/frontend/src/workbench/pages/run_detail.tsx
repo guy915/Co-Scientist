@@ -10,6 +10,7 @@ import {
   type Review,
   type SafetyDecision,
   adjudicateSafety,
+  isActiveStatus,
   uploadRunDocument,
   runGoal,
   type RunWithSummary,
@@ -118,6 +119,7 @@ export function RunDetail() {
         <RunAgentDialog
           runId={id}
           initialQuestion={agentQuestion}
+          steering={isActiveStatus(run?.status)}
           onClose={() => setAgentQuestion(null)}
         />
       )}
