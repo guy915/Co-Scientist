@@ -31,7 +31,11 @@ async def test_model_selects_productive_task(
     """A valid model allocation controls the next productive task."""
 
     async def _allocation(**_kwargs: Any) -> dict[str, str]:
-        return {"next_task": "evolve", "reason": "Improve mature leaders."}
+        return {
+            "next_task": "evolve",
+            "reason": "Improve mature leaders.",
+            "priority": "73",
+        }
 
     monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
     stats = SchedulerStats(pool_size=4, reviewed_count=4, iteration=1)
@@ -39,6 +43,7 @@ async def test_model_selects_productive_task(
         _state(), stats, Budget(max_iterations=4)
     )
     assert decision.next_task is TaskType.EVOLVE
+    assert decision.priority == 73
     assert provenance == "model"
 
 
@@ -78,3 +83,35 @@ async def test_provider_failure_records_fallback(
     )
     assert decision.next_task is TaskType.GENERATE
     assert provenance == "reconstructed-fallback"
+
+
+@pytest.mark.asyncio
+async def test_scientist_steering_reprioritizes_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """User feedback overrides a lower-value model allocation immediately."""
+
+    async def _allocation(**_kwargs: Any) -> dict[str, Any]:
+        return {
+            "next_task": "reflect",
+            "reason": "Continue reviewing the existing pool.",
+            "priority": 20,
+        }
+
+    monkeypatch.setattr(supervisor_decision, "call_llm_json", _allocation)
+    state = _state()
+    state["pending_steering"] = True
+    decision, provenance = await supervisor_decision.choose_supervisor_task(
+        state,
+        SchedulerStats(
+            pool_size=4,
+            reviewed_count=4,
+            iteration=1,
+            pending_steering=True,
+        ),
+        Budget(max_iterations=4),
+    )
+
+    assert decision.next_task is TaskType.GENERATE
+    assert decision.priority == 100
+    assert provenance == "model"

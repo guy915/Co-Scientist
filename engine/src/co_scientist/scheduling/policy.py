@@ -299,6 +299,15 @@ def validate_decision(
     if decision.terminate:
         return decision
 
+    if stats.pending_steering and task is not TaskType.GENERATE:
+        return SupervisorDecision(
+            next_task=TaskType.GENERATE,
+            reason=(
+                "corrected: scientist steering reprioritized fresh generation"
+            ),
+            priority=100,
+        )
+
     if task not in ALLOWED_LOOP_TASKS:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,

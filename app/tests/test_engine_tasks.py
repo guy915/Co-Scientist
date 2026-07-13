@@ -118,6 +118,42 @@ async def test_node_task_commits_once_and_schedules_successor(
     ]
 
 
+def test_orchestrator_priority_reaches_durable_successor(
+    isolated_db: str,
+) -> None:
+    """The Supervisor's selected priority controls queue claim order."""
+    run = store.create_run("Priority science", "standard", "engine", {})
+    store.save_checkpoint(
+        run.id,
+        stage="seed",
+        schema_version=1,
+        last_event_seq=0,
+        state={"provider": "engine"},
+        db_path=isolated_db,
+    )
+    queued = store.enqueue_task(
+        run.id,
+        "engine.node.orchestrator",
+        {"checkpoint_seq": 1},
+        idempotency_key="orchestrator-priority",
+        db_path=isolated_db,
+    )
+    task = store.claim_task("worker", run_id=run.id, db_path=isolated_db)
+    assert task is not None and task.id == queued.id
+
+    engine_tasks._save_state_and_enqueue(
+        task,
+        {**_task_state(run.id), "next_task_priority": 97},
+        "generate",
+        expected_checkpoint_seq=1,
+        db_path=isolated_db,
+    )
+
+    successor = store.list_tasks(run.id, db_path=isolated_db)[-1]
+    assert successor.task_type == "engine.node.generate"
+    assert successor.priority == 97
+
+
 @pytest.mark.asyncio
 async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch

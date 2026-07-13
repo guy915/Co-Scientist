@@ -107,12 +107,17 @@ def _save_state_and_enqueue(
             state={"provider": _CHECKPOINT_PROVIDER, **envelope},
             conn=conn,
         )
+        priority = (
+            int(state.get("next_task_priority", 90))
+            if task.task_type == f"{NODE_TASK_PREFIX}orchestrator"
+            else 90
+        )
         successor_task = store.enqueue_task(
             task.run_id,
             successor_type,
             {"checkpoint_seq": checkpoint_seq},
             idempotency_key=f"{successor_type}:{checkpoint_seq}",
-            priority=90,
+            priority=max(0, min(100, priority)),
             dependencies=(task.id,),
             provenance={"scheduled_by": task.task_type},
             conn=conn,

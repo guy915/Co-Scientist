@@ -225,6 +225,9 @@ class WorkflowState(TypedDict):
     orchestrator decision.
     """
 
+    next_task_priority: int
+    """Supervisor-assigned durable priority for the selected next task."""
+
     termination_reason: str | None
     """Why the workflow stopped (a ``TerminationReason`` value), set by the
     orchestrator when it decides to terminate.

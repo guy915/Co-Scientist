@@ -151,6 +151,7 @@ class SupervisorDecision:
 
     next_task: TaskType
     reason: str
+    priority: int = 50
     terminate: bool = False
     termination_reason: TerminationReason | None = None
 

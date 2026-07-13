@@ -200,7 +200,9 @@ def _appended_task_record(
         termination_reason=decision.termination_reason,
     )
     history = list(state.get("task_history", []))
-    history.append(record.to_dict())
+    serialized = record.to_dict()
+    serialized["priority"] = decision.priority
+    history.append(serialized)
     return history
 
 
@@ -259,6 +261,7 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
 
     return {
         "next_task": decision.next_task.value,
+        "next_task_priority": decision.priority,
         "task_history": _appended_task_record(state, decision, iteration),
         "orchestrator_state": _next_bookkeeping(book, stats, decision),
         "supervisor_decision_provenance": decision_provenance,

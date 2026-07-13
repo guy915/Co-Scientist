@@ -39,6 +39,7 @@ _DECISION_SCHEMA: dict[str, Any] = {
                 "enum": [task.value for task in _PRODUCTIVE_TASKS],
             },
             "reason": {"type": "string", "minLength": 1},
+            "priority": {"type": "integer", "minimum": 0, "maximum": 100},
         },
         "required": ["next_task", "reason"],
         "additionalProperties": False,
@@ -146,6 +147,7 @@ async def choose_supervisor_task(
         proposed = SupervisorDecision(
             next_task=TaskType(str(response["next_task"])),
             reason=str(response["reason"]),
+            priority=max(0, min(100, int(response.get("priority", 50)))),
         )
         return validate_decision(proposed, stats), "model"
     except Exception as exc:
