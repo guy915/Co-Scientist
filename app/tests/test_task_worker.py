@@ -71,6 +71,39 @@ async def test_worker_executes_and_commits_once(
 
 
 @pytest.mark.asyncio
+async def test_worker_completes_superseded_engine_task(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An obsolete branch completes without retries or failure state."""
+    run = store.create_run("superseded goal", "standard", "engine", {})
+    task = store.enqueue_task(
+        run.id,
+        "engine.test.superseded",
+        {},
+        idempotency_key="superseded",
+        max_attempts=3,
+        db_path=isolated_db,
+    )
+
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, Any]:
+        raise engine_tasks.SupersededTaskError("checkpoint advanced")
+
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
+    assert await task_worker.run_once("worker-a", db_path=isolated_db)
+    saved = store.get_task(task.id, db_path=isolated_db)
+    assert saved is not None
+    assert saved.status == "completed"
+    assert saved.attempt == 1
+    assert saved.error is None
+    assert saved.result == {
+        "superseded": True,
+        "reason": "checkpoint advanced",
+    }
+
+
+@pytest.mark.asyncio
 async def test_worker_heartbeats_long_workflow_lease(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

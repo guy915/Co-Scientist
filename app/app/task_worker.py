@@ -139,6 +139,17 @@ async def run_once(
             result = await deliver_completion_notification(task.inputs)
         else:
             raise ValueError(f"unsupported task type: {task.task_type}")
+    except engine_tasks.SupersededTaskError as exc:
+        # Competing durable branches can finish after another branch advances
+        # the checkpoint. Obsolescence is a successful idempotent outcome, not
+        # a scientific failure and must not consume the retry budget.
+        result = {"superseded": True, "reason": str(exc)}
+        if not store.complete_task(
+            task.id, worker_id, result, db_path=db_path
+        ):
+            logger.warning("Task %s lost its lease while superseded", task.id)
+        else:
+            logger.info("Task %s superseded by a newer checkpoint", task.id)
     except ValueError as exc:
         store.fail_task(
             task.id,

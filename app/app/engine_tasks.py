@@ -34,6 +34,10 @@ MATURE_REFLECTION_ITEM_TASK = "engine.fanout.reflection.item"
 MATURE_REFLECTION_AGGREGATE_TASK = "engine.fanout.reflection.aggregate"
 
 
+class SupersededTaskError(RuntimeError):
+    """Signals that a newer checkpoint made a leased task obsolete."""
+
+
 def enqueue_bootstrap(
     run_id: str, *, db_path: str | None = None
 ) -> ScientificTask:
@@ -824,7 +828,7 @@ async def execute_review_item(
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
     if current_seq != expected_seq:
-        raise RuntimeError("review item checkpoint was superseded")
+        raise SupersededTaskError("review item checkpoint was superseded")
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -878,7 +882,7 @@ async def execute_review_aggregate(
     ):
         return {"checkpoint_seq": current_seq, "replayed": True}
     if current_seq != expected_seq:
-        raise RuntimeError("review aggregate checkpoint was superseded")
+        raise SupersededTaskError("review aggregate checkpoint was superseded")
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -949,7 +953,7 @@ async def execute_verification_item(
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
     if current_seq != expected_seq:
-        raise RuntimeError("verification item checkpoint was superseded")
+        raise SupersededTaskError("verification item checkpoint was superseded")
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -998,7 +1002,9 @@ async def execute_generation_strategy(
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
     if current_seq != expected_seq:
-        raise RuntimeError("generation strategy checkpoint was superseded")
+        raise SupersededTaskError(
+            "generation strategy checkpoint was superseded"
+        )
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -1062,7 +1068,9 @@ async def execute_generation_aggregate(
     ):
         return {"checkpoint_seq": current_seq, "replayed": True}
     if current_seq != expected_seq:
-        raise RuntimeError("generation aggregate checkpoint was superseded")
+        raise SupersededTaskError(
+            "generation aggregate checkpoint was superseded"
+        )
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -1131,7 +1139,7 @@ async def execute_mature_reflection_item(
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
     if current_seq != expected_seq:
-        raise RuntimeError("mature reflection checkpoint was superseded")
+        raise SupersededTaskError("mature reflection checkpoint was superseded")
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -1190,7 +1198,9 @@ async def execute_mature_reflection_aggregate(
     ):
         return {"checkpoint_seq": current_seq, "replayed": True}
     if current_seq != expected_seq:
-        raise RuntimeError("reflection aggregate checkpoint was superseded")
+        raise SupersededTaskError(
+            "reflection aggregate checkpoint was superseded"
+        )
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -1272,7 +1282,9 @@ async def execute_verification_aggregate(
     ):
         return {"checkpoint_seq": current_seq, "replayed": True}
     if current_seq != expected_seq:
-        raise RuntimeError("verification aggregate checkpoint was superseded")
+        raise SupersededTaskError(
+            "verification aggregate checkpoint was superseded"
+        )
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -1400,7 +1412,7 @@ async def execute_ranking_match(
     ):
         return {"checkpoint_seq": current_seq, "replayed": True}
     if current_seq != expected_seq:
-        raise RuntimeError("ranking match checkpoint was superseded")
+        raise SupersededTaskError("ranking match checkpoint was superseded")
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -1519,7 +1531,7 @@ async def execute_ranking_finalize(
     ):
         return {"checkpoint_seq": current_seq, "replayed": True}
     if current_seq != expected_seq:
-        raise RuntimeError("ranking finalizer checkpoint was superseded")
+        raise SupersededTaskError("ranking finalizer checkpoint was superseded")
     generator = _generator_for_restore(task, db_path)
     state = restore_workflow_state(
         checkpoint["state"], tool_registry=generator.tool_registry
@@ -1564,7 +1576,7 @@ async def execute_node_task(
     if current_seq > expected_seq:
         if checkpoint["stage"] == f"engine_task:{task.id}":
             return {"checkpoint_seq": current_seq, "replayed": True}
-        raise RuntimeError("specialist task checkpoint was superseded")
+        raise SupersededTaskError("specialist task checkpoint was superseded")
     if current_seq != expected_seq:
         raise RuntimeError("specialist task checkpoint does not match input")
 
