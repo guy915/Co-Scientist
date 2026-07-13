@@ -413,7 +413,7 @@ bun run build
 # Evaluation and ledger gates:
 cd /Users/guy/Code/Co-Scientist
 python -m pytest evaluations/tests -q
-python evaluations/smoke.py
+python -m evaluations.smoke
 python evaluations/parity_check.py
 python scripts/build_fidelity_closure.py
 ```
