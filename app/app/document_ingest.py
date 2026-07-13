@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import csv
 import dataclasses
 import hashlib
 import io
+import json
 import shutil
 import subprocess
 
@@ -49,11 +51,7 @@ def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
         raise ValueError("uploaded document exceeds the 25 MB limit")
     normalized_type = mime_type.split(";", 1)[0].strip().lower()
     if normalized_type in _TEXT_TYPES:
-        try:
-            text = data.decode("utf-8")
-        except UnicodeDecodeError as exc:
-            raise ValueError("text document must be UTF-8") from exc
-        tool = "utf8-decoder-v1"
+        text, tool = _extract_text_document(data, normalized_type)
     elif normalized_type == "application/pdf":
         text = _extract_pdf(data)
         tool = "pypdf-layout+tesseract-fallback-v2"
@@ -76,6 +74,43 @@ def extract_document(data: bytes, mime_type: str) -> ExtractedDocument:
     )
 
 
+def _extract_text_document(data: bytes, mime_type: str) -> tuple[str, str]:
+    """Decode text while preserving CSV tables and JSON structure."""
+    try:
+        decoded = data.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ValueError("text document must be UTF-8") from exc
+    if mime_type == "text/csv":
+        try:
+            rows = list(csv.reader(io.StringIO(decoded)))
+        except csv.Error as exc:
+            raise ValueError("CSV document could not be parsed") from exc
+        if not rows:
+            return "", "csv-table-v1"
+        width = max(len(row) for row in rows)
+        header = rows[0]
+        lines = [
+            f"[Table 1 rows={len(rows) - 1} columns={width}]",
+            "Header: " + " | ".join(header),
+        ]
+        lines.extend(
+            f"Row {index}: " + " | ".join(row)
+            for index, row in enumerate(rows[1:], start=1)
+        )
+        return "\n".join(lines), "csv-table-v1"
+    if mime_type == "application/json":
+        try:
+            payload = json.loads(decoded)
+        except json.JSONDecodeError as exc:
+            raise ValueError("JSON document could not be parsed") from exc
+        return (
+            "[Structured JSON]\n"
+            + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+            "json-structure-v1",
+        )
+    return decoded, "utf8-decoder-v1"
+
+
 def _extract_pdf(data: bytes) -> str:
     """Extract page text plus OCR for embedded figures on image-only pages."""
     try:
@@ -93,17 +128,24 @@ def _extract_pdf(data: bytes) -> str:
             except TypeError:
                 text = page.extract_text() or ""
             figure_sections = []
-            # OCR embedded figures only when the page has no useful text. This
-            # keeps born-digital documents fast while recovering scanned pages.
-            if not text.strip():
-                for figure_index, image in enumerate(page.images, start=1):
-                    image_data = image.data
-                    digest = hashlib.sha256(image_data).hexdigest()
+            # Embedded figures may carry experimental results even on pages
+            # that also contain prose, so each substantial image is inspected.
+            for figure_index, image in enumerate(page.images, start=1):
+                image_data = image.data
+                if len(image_data) < 1024:
+                    continue
+                digest = hashlib.sha256(image_data).hexdigest()
+                try:
                     ocr = _extract_image_ocr(image_data)
+                except ValueError:
                     figure_sections.append(
                         f"[Figure {index}.{figure_index} "
-                        f"sha256={digest}]\n{ocr}"
+                        f"sha256={digest} OCR unavailable]"
                     )
+                    continue
+                figure_sections.append(
+                    f"[Figure {index}.{figure_index} sha256={digest}]\n{ocr}"
+                )
             page_parts = [f"[Page {index}]", text, *figure_sections]
             pages.append("\n".join(part for part in page_parts if part))
     except ValueError:
