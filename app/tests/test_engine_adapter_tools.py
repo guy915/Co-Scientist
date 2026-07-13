@@ -41,6 +41,7 @@ def _cfg() -> dict[str, Any]:
         "evolution_max_count": 4,
         "tournament_pairs": 6,
         "evidence_count": 4,
+        "k_factor": 36,
     }
 
 
@@ -69,6 +70,12 @@ def test_build_generator_forwards_none_tools_config(
     monkeypatch.setattr(settings, "tools_config", None)
     _build_generator(_FakeGenerator, _cfg())
     assert _FakeGenerator.last_kwargs["tools_config"] is None
+
+
+def test_build_generator_forwards_run_elo_k_factor() -> None:
+    """The persisted run K-factor governs real-engine Elo updates."""
+    _build_generator(_FakeGenerator, _cfg())
+    assert _FakeGenerator.last_kwargs["elo_k_factor"] == 36
 
 
 def test_validate_tools_config_accepts_none() -> None:

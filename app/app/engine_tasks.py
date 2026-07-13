@@ -1265,6 +1265,7 @@ async def execute_ranking_match(
 ) -> dict[str, Any]:
     """Judge and commit exactly one Elo matchup before scheduling another."""
     from co_scientist.checkpoint import restore_workflow_state
+    from co_scientist.constants import ELO_K_FACTOR
     from co_scientist.nodes.ranking import (
         _apply_matchup_elo,
         _build_matchup_detail,
@@ -1334,7 +1335,12 @@ async def execute_ranking_match(
             run_focus_guidance=focus,
             debate_turns=depth,
         )
-        outcome = _apply_matchup_elo(hypothesis_a, hypothesis_b, winner)
+        outcome = _apply_matchup_elo(
+            hypothesis_a,
+            hypothesis_b,
+            winner,
+            k_factor=int(state.get("elo_k_factor") or ELO_K_FACTOR),
+        )
         details.append(
             _build_matchup_detail(
                 hypothesis_a, hypothesis_b, winner, response, outcome

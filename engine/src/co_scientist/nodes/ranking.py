@@ -7,6 +7,7 @@ import statistics
 from typing import Any
 
 from co_scientist.constants import (
+    ELO_K_FACTOR,
     LOW_TEMPERATURE,
     MAX_CONCURRENT_LLM_CALLS,
     MULTI_TURN_DEBATE_TURNS,
@@ -390,7 +391,12 @@ async def _run_tournament_matchups(
             run_focus_guidance=run_focus_guidance,
             debate_turns=depth,
         )
-        outcome = _apply_matchup_elo(hyp_a, hyp_b, winner)
+        outcome = _apply_matchup_elo(
+            hyp_a,
+            hyp_b,
+            winner,
+            k_factor=int(state.get("elo_k_factor") or ELO_K_FACTOR),
+        )
         details.append(
             _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
         )

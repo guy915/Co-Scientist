@@ -18,6 +18,7 @@ from co_scientist.constants import (
     DEFAULT_EVOLUTION_MAX_COUNT,
     DEFAULT_INITIAL_HYPOTHESES_COUNT,
     DEFAULT_MAX_ITERATIONS,
+    ELO_K_FACTOR,
 )
 from co_scientist.generator.availability import McpAvailabilityMixin
 from co_scientist.generator.graph import (
@@ -69,6 +70,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
         initial_hypotheses_count: int = DEFAULT_INITIAL_HYPOTHESES_COUNT,
         evolution_max_count: int = DEFAULT_EVOLUTION_MAX_COUNT,
         tournament_pairs: int = 12,
+        elo_k_factor: int = ELO_K_FACTOR,
         literature_review_papers_count: int = 8,
         enable_cache: bool | None = None,
         cache_dir: str | None = None,
@@ -86,6 +88,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
             initial_hypotheses_count: Number of initial hypotheses
             evolution_max_count: Number of top hypotheses to evolve
             tournament_pairs: Number of Elo tournament comparisons per ranking
+            elo_k_factor: Rating sensitivity applied to every committed match
             literature_review_papers_count: Number of papers to read/analyze
             enable_cache: Enable/disable LLM response caching
                 (None = use env var)
@@ -108,6 +111,9 @@ class HypothesisGenerator(McpAvailabilityMixin):
         self.initial_hypotheses_count = initial_hypotheses_count
         self.evolution_max_count = evolution_max_count
         self.tournament_pairs = tournament_pairs
+        if elo_k_factor <= 0:
+            raise ValueError("elo_k_factor must be positive")
+        self.elo_k_factor = elo_k_factor
         self.literature_review_papers_count = literature_review_papers_count
         # The scheduler always sees max_iterations; merge it into an explicit
         # budget so a run configured with only max_iterations still terminates.
@@ -238,6 +244,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
             "initial_hypotheses_count": self.initial_hypotheses_count,
             "evolution_max_count": self.evolution_max_count,
             "tournament_pairs": self.tournament_pairs,
+            "elo_k_factor": self.elo_k_factor,
             "literature_review_papers_count": (
                 self.literature_review_papers_count
             ),

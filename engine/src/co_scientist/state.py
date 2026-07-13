@@ -196,6 +196,9 @@ class WorkflowState(TypedDict):
     tournament_pairs: int
     """Number of pairwise Elo comparisons to run in each ranking pass."""
 
+    elo_k_factor: int
+    """Rating sensitivity applied sequentially to each committed matchup."""
+
     literature_review_papers_count: int
     """Number of papers to read/analyze during literature review."""
 

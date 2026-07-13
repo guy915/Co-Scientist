@@ -52,7 +52,11 @@ class _MatchupOutcome(NamedTuple):
 
 
 def _apply_matchup_elo(
-    hyp_a: Hypothesis, hyp_b: Hypothesis, winner: str
+    hyp_a: Hypothesis,
+    hyp_b: Hypothesis,
+    winner: str,
+    *,
+    k_factor: int | None = None,
 ) -> _MatchupOutcome:
     """Resolves the winner/loser of one matchup and applies its Elo update.
 
@@ -64,6 +68,7 @@ def _apply_matchup_elo(
         hyp_a: First hypothesis in the pairing.
         hyp_b: Second hypothesis in the pairing.
         winner: Side the judge picked, "a" or "b".
+        k_factor: Optional run-specific Elo sensitivity.
 
     Returns:
         The pre/post Elo ratings for the winner and loser.
@@ -74,8 +79,11 @@ def _apply_matchup_elo(
     old_winner_elo = winner_hyp.elo_rating
     old_loser_elo = loser_hyp.elo_rating
 
+    elo_kwargs = {"k_factor": k_factor} if k_factor is not None else {}
     new_winner_elo, new_loser_elo = calculate_elo_update(
-        winner_elo=winner_hyp.elo_rating, loser_elo=loser_hyp.elo_rating
+        winner_elo=winner_hyp.elo_rating,
+        loser_elo=loser_hyp.elo_rating,
+        **elo_kwargs,
     )
     logger.debug(
         "Matchup result: Winner %s -> %s, Loser %s -> %s",
@@ -152,6 +160,8 @@ def _build_matchup_detail(
 def _apply_matchup_results(
     pairings: list[tuple[Hypothesis, Hypothesis]],
     results: list[tuple[str, dict[str, Any]]],
+    *,
+    k_factor: int | None = None,
 ) -> list[dict[str, Any]]:
     """Applies Elo updates for judged matchups and collects their details.
 
@@ -165,6 +175,7 @@ def _apply_matchup_results(
         pairings: Per-round (hypothesis_a, hypothesis_b) pairs.
         results: Per-round (winner, response) judgments, aligned with
             pairings.
+        k_factor: Optional run-specific Elo sensitivity.
 
     Returns:
         List of matchup detail dicts, one per round, for the UI's
@@ -174,7 +185,9 @@ def _apply_matchup_results(
     for (hyp_a, hyp_b), (winner, response) in zip(
         pairings, results, strict=True
     ):
-        outcome = _apply_matchup_elo(hyp_a, hyp_b, winner)
+        outcome = _apply_matchup_elo(
+            hyp_a, hyp_b, winner, k_factor=k_factor
+        )
         matchup_details.append(
             _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
         )

@@ -165,6 +165,7 @@ def _build_generator(generator_cls: Any, cfg: dict[str, Any]) -> Any:
         initial_hypotheses_count=int(cfg["initial_hypotheses_count"]),
         evolution_max_count=int(cfg["evolution_max_count"]),
         tournament_pairs=int(cfg["tournament_pairs"]),
+        elo_k_factor=int(cfg["k_factor"]),
         # ``evidence_count`` is the single literature-budget knob in the tier
         # table; map it to the engine's parameter name at this translation
         # boundary rather than persisting a second synced key.

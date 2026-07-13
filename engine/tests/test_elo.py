@@ -8,7 +8,9 @@ only pure functions - no LLM calls and therefore no mocking are involved.
 import pytest
 
 from co_scientist.constants import ELO_K_FACTOR, INITIAL_ELO_RATING
+from co_scientist.models import Hypothesis
 from co_scientist.nodes.ranking import calculate_elo_update
+from co_scientist.nodes.ranking_results import _apply_matchup_elo
 
 
 def _reference_elo_update(
@@ -168,6 +170,19 @@ def test_higher_k_factor_produces_larger_change() -> None:
     large_k_winner, _ = calculate_elo_update(1200, 1200, 48)
 
     assert large_k_winner - 1200 > small_k_winner - 1200
+
+
+def test_matchup_applies_run_specific_k_factor() -> None:
+    """A committed real-engine matchup honors its run's K-factor."""
+    hypothesis_a = Hypothesis(text="A")
+    hypothesis_b = Hypothesis(text="B")
+
+    outcome = _apply_matchup_elo(
+        hypothesis_a, hypothesis_b, "a", k_factor=40
+    )
+
+    assert outcome.winner_elo_after == 1220
+    assert outcome.loser_elo_after == 1180
 
 
 def test_zero_k_factor_produces_no_change() -> None:
