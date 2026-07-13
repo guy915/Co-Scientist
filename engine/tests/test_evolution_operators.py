@@ -1,11 +1,17 @@
 """Tests for the disclosed evolution-operator portfolio."""
 
+from typing import Any
+
+import pytest
+
 from co_scientist.models import Hypothesis
+from co_scientist.nodes import evolve
 from co_scientist.nodes.evolution_operators import (
     EvolutionOperator,
     operator_instruction,
     select_operator,
 )
+from co_scientist.nodes.evolve import evolve_single_hypothesis
 from co_scientist.nodes.evolve_prompt import _build_evolution_prompt
 
 
@@ -64,3 +70,49 @@ def test_out_of_box_prompt_permits_core_mechanism_replacement() -> None:
     assert "**Operator:** out_of_box" in prompt
     assert "may replace the parent's mechanism" in prompt
     assert "DO NOT rewrite the hypothesis" not in prompt
+
+
+@pytest.mark.parametrize("operator", list(EvolutionOperator))
+async def test_every_operator_executes_as_a_distinct_evolution_task(
+    monkeypatch: pytest.MonkeyPatch,
+    operator: EvolutionOperator,
+) -> None:
+    """Each disclosed operator reaches a child and records its behavior."""
+    observed_prompt = ""
+
+    async def fake_llm(*, prompt: str, **_: Any) -> dict[str, Any]:
+        nonlocal observed_prompt
+        observed_prompt = prompt
+        return {
+            "hypothesis": (
+                f"The {operator.value} route tests a distinct temporal "
+                "checkpoint with an orthogonal perturbation and readout."
+            ),
+            "explanation": "The operator creates a separately testable path.",
+            "experiment": "Perturb the checkpoint and compare the readout.",
+            "refinement_summary": f"Applied {operator.value} behavior.",
+        }
+
+    monkeypatch.setattr(evolve, "call_llm_json", fake_llm)
+    parent = Hypothesis(
+        text="A parent proposal links metabolic state to recovery kinetics."
+    )
+
+    child, detail = await evolve_single_hypothesis(
+        parent,
+        other_hypotheses_texts=[],
+        meta_review={},
+        model_name="fake/model",
+        removed_duplicates=[],
+        creation_iteration=2,
+        operator=operator,
+    )
+
+    assert child is not None
+    assert detail is not None
+    assert f"**Operator:** {operator.value}" in observed_prompt
+    assert operator_instruction(operator) in observed_prompt
+    assert detail["operator"] == operator.value
+    assert child.parent_id == parent.id
+    assert child.generation == parent.generation + 1
+    assert child.creation_iteration == 2
