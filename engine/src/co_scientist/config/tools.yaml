@@ -121,6 +121,64 @@ tools:
           required: false
           description: "Optional run ID for tracking"
 
+    openalex_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_openalex"
+      display_name: "OpenAlex Search"
+      description: "Search current cross-disciplinary scholarly works"
+      category: "search"
+      source_type: "academic"
+      enabled: true
+      response_format:
+        type: "json"
+        results_path: "."
+        is_dict: true
+        field_mapping:
+          title: "title"
+          url: "url"
+          authors: "authors"
+          year: "year"
+          abstract: "abstract"
+          source_id: "@key"
+          source: "'openalex'"
+      parameter_mapping:
+        query: "query"
+        max_papers: "max_papers"
+        recency_years: "recency_years"
+        run_id: "run_id"
+      prompt_snippet: |
+        Use `search_openalex` for current cross-disciplinary scholarly work.
+
+    chembl_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_chembl"
+      display_name: "ChEMBL Search"
+      description: "Search bioactive molecules and development records"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      parameter_mapping:
+        entity_name: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_chembl` to verify molecule identity, synonyms, type,
+        approval history, and clinical development phase.
+
+    uniprot_search:
+      server: "default_pubmed"
+      mcp_tool_name: "search_uniprot"
+      display_name: "UniProt Search"
+      description: "Search reviewed protein functions and identifiers"
+      category: "search"
+      source_type: "scientific_database"
+      enabled: true
+      parameter_mapping:
+        entity_name: "query"
+        limit: "max_results"
+      prompt_snippet: |
+        Use `search_uniprot` to verify protein names, gene mappings,
+        organisms, and reviewed functional annotations.
+
   utility_tools:
     # PubMed availability check
     check_pubmed:
@@ -139,8 +197,17 @@ tools:
 workflows:
   # Literature review phase - comprehensive paper analysis
   literature_review:
-    primary_search: "pubmed_fulltext"
-    fallback_search: "pubmed_search"
+    search_sources:
+      - tool: "pubmed_fulltext"
+        papers_per_query: 4
+        enabled: true
+      - tool: "openalex_search"
+        papers_per_query: 4
+        enabled: true
+    deduplicate_across_sources: true
+    context_enrichment_tools:
+      - "chembl_search"
+      - "uniprot_search"
     availability_check: "check_pubmed"
 
   # Draft generation phase - quick metadata searches for ideation
@@ -152,6 +219,14 @@ workflows:
   validation:
     search_tools:
       - "pubmed_fulltext"
+      - "openalex_search"
+
+  reflection:
+    search_tools:
+      - "pubmed_fulltext"
+      - "openalex_search"
+      - "chembl_search"
+      - "uniprot_search"
 
 # Global Settings
 settings:
@@ -160,4 +235,3 @@ settings:
   # - extend: user values add to defaults
   # - replace: user config completely replaces defaults
   merge_strategy: "override"
-

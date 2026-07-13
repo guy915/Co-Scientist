@@ -288,6 +288,15 @@ async def _phase2_collect_papers_multi_source(
         source_results,
         deduplicate=config.workflow.deduplicate_across_sources,
     )
+    selected_ids = list(all_paper_metadata)[: config.papers_to_read_count]
+    all_paper_metadata = {
+        paper_id: all_paper_metadata[paper_id] for paper_id in selected_ids
+    }
+    paper_source_map = {
+        paper_id: paper_source_map[paper_id]
+        for paper_id in selected_ids
+        if paper_id in paper_source_map
+    }
 
     logger.info(
         "Multi-source search complete: %s unique papers from %s sources",

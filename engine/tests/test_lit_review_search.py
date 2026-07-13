@@ -284,3 +284,53 @@ async def test_phase2_collect_papers_multi_source_merges_and_dedupes() -> None:
     assert set(all_paper_metadata) == {"P1"}
     assert paper_source_map == {"P1": "src_a"}
     assert len(client.calls) == 2
+
+
+async def test_multi_source_collection_respects_unique_evidence_budget() -> (
+    None
+):
+    """Ranked multi-source results are capped to the configured corpus size."""
+    tool_a = _tool_config(mcp_tool_name="search_a")
+    tool_b = _tool_config(mcp_tool_name="search_b")
+    registry = _StubRegistry({"src_a": tool_a, "src_b": tool_b})
+    workflow = WorkflowConfig(
+        search_sources=[
+            SearchSourceConfig(tool="src_a", papers_per_query=4),
+            SearchSourceConfig(tool="src_b", papers_per_query=4),
+        ],
+        deduplicate_across_sources=True,
+    )
+    config = SearchConfig(
+        tool_registry=cast(ToolRegistry, registry),
+        workflow=workflow,
+        is_multi_source=True,
+        search_tool_name="unused",
+        search_tool_config=None,
+        source_name="academic",
+        papers_to_read_count=2,
+        is_dev_mode=False,
+    )
+    client = _SequencedMCPClient(
+        [
+            {
+                "A": {"title": "A", "year": 2025},
+                "B": {"title": "B", "year": 2024},
+            },
+            {
+                "C": {"title": "C", "year": 2023},
+                "D": {"title": "D", "year": 2022},
+            },
+        ]
+    )
+
+    metadata, source_map = await search._phase2_collect_papers_multi_source(
+        ["query"],
+        "slug",
+        make_state(run_id="run-budget"),
+        config,
+        cast(MCPToolClient, client),
+        [],
+    )
+
+    assert len(metadata) == 2
+    assert set(metadata) == set(source_map)
