@@ -80,9 +80,12 @@ class _SequencedMCPClient:
         self.calls: list[tuple[str, dict[str, Any]]] = []
 
     async def call_tool(self, tool_name: str, **kwargs: Any) -> Any:
-        """Record the call and pop the next queued response."""
+        """Record the call and return or raise the next queued outcome."""
         self.calls.append((tool_name, kwargs))
-        return self._responses.pop(0)
+        outcome = self._responses.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
 
 
 class _StubRegistry:
@@ -158,6 +161,39 @@ async def test_search_source_for_query_success_tags_results() -> None:
     assert client.calls[0][0] == "search_x"
 
 
+async def test_search_source_for_query_retries_malformed_transport_result(
+    monkeypatch: Any,
+) -> None:
+    """A transient non-JSON response is retried before losing the source."""
+
+    async def no_delay(_: float) -> None:
+        """Skip the production retry delay in this deterministic test."""
+
+    monkeypatch.setattr(search.asyncio, "sleep", no_delay)
+    tool_config = _tool_config()
+    client = _SequencedMCPClient(
+        ["429 Too Many Requests", {"P1": {"title": "Recovered"}}]
+    )
+    errors: list[str] = []
+
+    result = await search._search_source_for_query(
+        "query",
+        "slug",
+        "run1",
+        tool_config,
+        "openalex",
+        3,
+        cast(MCPToolClient, client),
+        errors,
+    )
+
+    assert result == {
+        "P1": {"title": "Recovered", "_source_name": "openalex"}
+    }
+    assert errors == []
+    assert len(client.calls) == 2
+
+
 async def test_search_source_for_query_error_appends_message_and_empties() -> (
     None
 ):
@@ -179,6 +215,7 @@ async def test_search_source_for_query_error_appends_message_and_empties() -> (
 
     assert result == {}
     assert errors == ["pubmed: ConnectionError: boom"]
+    assert len(client.calls) == 2
 
 
 # =============================================================================

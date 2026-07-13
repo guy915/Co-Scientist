@@ -26,6 +26,48 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_SEARCH_ATTEMPTS = 2
+_SEARCH_RETRY_DELAY_SECONDS = 0.25
+
+
+async def _call_search_tool(
+    mcp_client: MCPToolClient,
+    tool_name: str,
+    tool_params: dict[str, Any],
+) -> Any:
+    """Call and decode one search result with a bounded transient retry.
+
+    MCP transports can occasionally return a non-JSON status body while a
+    server session is reconnecting or an upstream index is rate-limiting.
+    Retrying the complete tool invocation once avoids silently discarding an
+    otherwise healthy evidence source. The final exception remains visible to
+    the caller so existing per-source diagnostics still record hard failures.
+
+    Args:
+        mcp_client: Initialized MCP client containing the search tool.
+        tool_name: MCP search tool name.
+        tool_params: Source-specific invocation arguments.
+
+    Returns:
+        Decoded search response.
+
+    Raises:
+        Exception: The final call or decoding failure after retries.
+    """
+    for attempt in range(1, _SEARCH_ATTEMPTS + 1):
+        try:
+            result = await mcp_client.call_tool(tool_name, **tool_params)
+            return parse_mcp_result(result)
+        except Exception:
+            if attempt == _SEARCH_ATTEMPTS:
+                raise
+            logger.warning(
+                "Search call to %s failed transiently; retrying", tool_name
+            )
+            await asyncio.sleep(_SEARCH_RETRY_DELAY_SECONDS)
+
+    raise AssertionError("search retry loop exited without a result")
+
 
 def _build_query_tool_params(
     query: str,
@@ -97,10 +139,11 @@ async def _search_source_for_query(
         tool_params = _build_query_tool_params(
             query, slug, run_id, papers_per_query, tool_config
         )
-        result = await mcp_client.call_tool(
-            tool_config.mcp_tool_name, **tool_params
+        result_data = await _call_search_tool(
+            mcp_client,
+            tool_config.mcp_tool_name,
+            tool_params,
         )
-        result_data = parse_mcp_result(result)
         normalized = normalize_search_response(result_data, tool_config)
         return _tag_source_name(normalized, src_name)
 
@@ -190,8 +233,9 @@ async def _search_single_query(
         tool_params = _build_query_tool_params(
             query, slug, run_id, papers_count, search_tool_config
         )
-        result = await mcp_client.call_tool(search_tool_name, **tool_params)
-        result_data = parse_mcp_result(result)
+        result_data = await _call_search_tool(
+            mcp_client, search_tool_name, tool_params
+        )
         normalized = normalize_search_response(result_data, search_tool_config)
 
         logger.debug("Query %s: found %s papers", index, len(normalized))
