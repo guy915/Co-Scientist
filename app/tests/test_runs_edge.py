@@ -9,6 +9,7 @@ import time
 
 import pytest
 
+from app import store
 from tests._client import make_client as _client
 from tests._client import wait_for_status as _wait_status
 
@@ -269,6 +270,46 @@ def test_run_get_includes_summary_counts() -> None:
     assert summary["events"] >= 10
     assert summary["hypotheses"] >= 5
     assert summary["matches"] >= 6
+
+
+def test_active_run_counts_committed_checkpoint_artifacts(
+    isolated_db: str,
+) -> None:
+    """Live idea/source metrics reflect committed engine state before drain."""
+    client = _client()
+    run = store.create_run(
+        "Live summary",
+        "standard",
+        "engine",
+        {},
+        client_id="live-owner",
+        db_path=isolated_db,
+    )
+    store.update_run_status(
+        run.id, store.RunStatus.RUNNING, db_path=isolated_db
+    )
+    store.save_checkpoint(
+        run.id,
+        stage="engine_task:test",
+        schema_version=1,
+        last_event_seq=0,
+        state={
+            "provider": "engine",
+            "state": {
+                "hypotheses": [{"id": "h1"}, {"id": "h2"}],
+                "articles": [{"id": "a1"}],
+            },
+        },
+        db_path=isolated_db,
+    )
+
+    response = client.get(
+        f"/api/runs/{run.id}", headers={"X-Client-ID": "live-owner"}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["summary"]["hypotheses"] == 2
+    assert response.json()["summary"]["evidence"] == 1
 
 
 def test_safety_block_at_intake_short_circuits_workflow() -> None:

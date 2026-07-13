@@ -260,6 +260,22 @@ async def get_run(run_id: str) -> dict[str, Any]:
     with store.connect() as conn:
         run = _run_or_404(run_id, conn=conn)
         summary = store.summary_counts(run_id, conn=conn)
+        checkpoint = store.get_latest_checkpoint(run_id, conn=conn)
+        if checkpoint and run.status in {
+            RunStatus.QUEUED.value,
+            RunStatus.RUNNING.value,
+            RunStatus.SYNTHESIZING.value,
+        }:
+            envelope = checkpoint.get("state") or {}
+            live_state = envelope.get("state") or {}
+            # Checkpointed pools are committed scientific effects even before
+            # final publication drains them into report-facing SQL tables.
+            summary["hypotheses"] = max(
+                summary["hypotheses"], len(live_state.get("hypotheses") or [])
+            )
+            summary["evidence"] = max(
+                summary["evidence"], len(live_state.get("articles") or [])
+            )
         progress = store.task_progress(run_id, conn=conn)
     return {
         **run.to_dict(),

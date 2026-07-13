@@ -272,7 +272,7 @@ function useRunEventStream(
     onTerminal();
   }, [terminal, onTerminal]);
 
-  return {terminal};
+  return {events, terminal};
 }
 
 // Toast message for a run that just reached a failed/blocked terminal state,
@@ -323,7 +323,7 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
  */
 export function useRunDetailData(id: string | undefined) {
   const data = useRunFetch(id);
-  const {terminal} = useRunEventStream(
+  const {events, terminal} = useRunEventStream(
     id,
     data.scheduleRefresh,
     data.refreshNow,
@@ -345,5 +345,6 @@ export function useRunDetailData(id: string | undefined) {
     toast,
     title,
     refreshNow: data.refreshNow,
+    events,
   };
 }

@@ -110,11 +110,13 @@ export function ReportTitlebar({
   runId,
   onOpenAgent,
   shareEnabled,
+  reportReady,
 }: {
   title: string;
   runId: string;
   onOpenAgent: () => void;
   shareEnabled: boolean;
+  reportReady: boolean;
 }) {
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
@@ -130,6 +132,7 @@ export function ReportTitlebar({
         runId={runId}
         onOpenAgent={onOpenAgent}
         shareEnabled={shareEnabled}
+        reportReady={reportReady}
       />
     </header>
   );
@@ -139,10 +142,12 @@ function ReportActions({
   runId,
   onOpenAgent,
   shareEnabled,
+  reportReady,
 }: {
   runId: string;
   onOpenAgent: () => void;
   shareEnabled: boolean;
+  reportReady: boolean;
 }) {
   const actionClasses =
     'rounded-full border border-cosci-border px-3 py-2 text-xs no-underline text-cosci-fg hover:bg-cosci-hover';
@@ -159,19 +164,23 @@ function ReportActions({
       <button type="button" className={actionClasses} onClick={onOpenAgent}>
         Open Agent
       </button>
-      {shareEnabled ? (
+      {reportReady && shareEnabled ? (
         <ReportShareControl runId={runId} className={actionClasses} />
       ) : null}
-      <button
-        type="button"
-        className={`${actionClasses} max-[720px]:hidden`}
-        onClick={openNotebookHandoff}
-      >
-        Open in NotebookLM
-      </button>
-      <a className={actionClasses} href={reportMarkdownUrl(runId)} download>
-        Download
-      </a>
+      {reportReady ? (
+        <>
+          <button
+            type="button"
+            className={`${actionClasses} max-[720px]:hidden`}
+            onClick={openNotebookHandoff}
+          >
+            Open in NotebookLM
+          </button>
+          <a className={actionClasses} href={reportMarkdownUrl(runId)} download>
+            Download
+          </a>
+        </>
+      ) : null}
     </div>
   );
 }

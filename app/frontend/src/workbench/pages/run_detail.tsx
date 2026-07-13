@@ -34,6 +34,8 @@ import {
 } from './run_detail_shell';
 import {normalizeTab, type TabName} from '../run_tabs';
 import {RunAgentDialog} from './run_agent_dialog';
+import {RunExecutionProgress} from './home_recents_run_steps';
+import type {StreamEvent} from '@/hooks/use_run_stream';
 
 const REPORT_PAGE_CLASSES =
   'cosci-report-page grid h-full min-h-0 ' +
@@ -77,25 +79,41 @@ export function RunDetail() {
     toast,
     title,
     refreshNow,
+    events,
   } = useRunDetailData(id);
 
   if (!id) return null;
 
+  const active = isActiveStatus(run?.status);
+  const reportReady = Boolean(report && run?.status === 'completed');
+  const pageClasses = active
+    ? `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`
+    : REPORT_PAGE_CLASSES;
   return (
-    <div className={REPORT_PAGE_CLASSES}>
+    <div className={pageClasses}>
       <ReportTitlebar
         title={title}
         runId={id}
         onOpenAgent={() => setAgentQuestion('')}
         shareEnabled={Boolean(run && !run.is_demo)}
+        reportReady={reportReady}
       />
 
-      <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
+      {!active && (
+        <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
+      )}
 
       <ReportErrorAlert message={error} />
 
       {!loaded && !error ? (
         <RunDetailSkeleton />
+      ) : active && run ? (
+        <ActiveRunView
+          run={run}
+          events={events}
+          evidenceCount={Math.max(evidence.length, run.summary.evidence)}
+          ideaCount={Math.max(hypotheses.length, run.summary.hypotheses)}
+        />
       ) : (
         <RunDetailTabContent
           activeTab={activeTab}
@@ -125,6 +143,78 @@ export function RunDetail() {
       )}
     </div>
   );
+}
+
+function ActiveRunView({
+  run,
+  events,
+  evidenceCount,
+  ideaCount,
+}: {
+  run: RunWithSummary;
+  events: StreamEvent[];
+  evidenceCount: number;
+  ideaCount: number;
+}) {
+  const elapsedSeconds = Math.max(
+    0,
+    Math.round(Date.now() / 1000 - run.created_at),
+  );
+  const activity = events
+    .filter(event => event.type !== 'status')
+    .slice(-10)
+    .reverse();
+  return (
+    <main className="min-h-0 overflow-auto px-8 py-7 max-[720px]:px-4">
+      <section className="mx-auto grid w-full max-w-4xl gap-7">
+        <div>
+          <p className="text-sm font-medium text-cosci-blue">Executing</p>
+          <h2 className="mt-1 text-2xl font-medium">Research in progress</h2>
+          <RunExecutionProgress run={run} />
+        </div>
+        <dl className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+          <RunMetric label="Elapsed time" value={`${elapsedSeconds}s`} />
+          <RunMetric label="Sources" value={String(evidenceCount)} />
+          <RunMetric label="Ideas" value={String(ideaCount)} />
+        </dl>
+        <section aria-label="Activity log">
+          <h3 className="text-base font-medium">Activity</h3>
+          {activity.length ? (
+            <ol className="mt-3 grid gap-2">
+              {activity.map(event => (
+                <li
+                  key={event.seq}
+                  className="rounded-md bg-cosci-hover px-3 py-2 text-sm"
+                >
+                  {activityLabel(event)}
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="mt-2 text-sm text-cosci-muted">
+              Waiting for the first committed activity.
+            </p>
+          )}
+        </section>
+      </section>
+    </main>
+  );
+}
+
+function RunMetric({label, value}: {label: string; value: string}) {
+  return (
+    <div className="rounded-md bg-cosci-hover p-4">
+      <dt className="text-xs text-cosci-muted">{label}</dt>
+      <dd className="mt-1 text-xl font-medium">{value}</dd>
+    </div>
+  );
+}
+
+function activityLabel(event: StreamEvent): string {
+  const detail =
+    event.payload.message || event.payload.task || event.payload.status;
+  const phase = event.type.replaceAll('_', ' ').replaceAll('.', ' ');
+  return detail ? `${phase}: ${String(detail)}` : phase;
 }
 
 // Active tab content for a loaded run. Keying <main> by activeTab remounts it

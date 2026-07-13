@@ -72,6 +72,7 @@ const makeRun = (
     id: 'run-1',
     research_goal: goal,
     status: 'completed',
+    summary: {events: 0, hypotheses: 0, evidence: 0, matches: 0, reviews: 0},
     config: {
       setup: {
         goal,
@@ -118,6 +119,9 @@ beforeEach(() => {
 
 describe('RunDetail', () => {
   it('exposes Goal Report follow-up and export controls', async () => {
+    vi.mocked(runsApi.getReport).mockResolvedValue({
+      payload: {},
+    } as unknown as runsApi.Report);
     renderAt('/runs/run-1/ideas');
     expect(await screen.findByText('Ideas')).toBeInTheDocument();
     expect(screen.getByText('Open in NotebookLM')).toBeInTheDocument();
@@ -159,6 +163,33 @@ describe('RunDetail', () => {
       ),
     );
     expect(await screen.findByText(/Guidance queued/)).toBeInTheDocument();
+  });
+
+  it('shows truthful live metrics and activity instead of report controls', async () => {
+    vi.mocked(runsApi.getRun).mockResolvedValue({
+      ...makeRun('Study pathway X'),
+      status: 'running',
+      execution_progress: {
+        determinate: false,
+        completed_tasks: 4,
+        total_tasks: 9,
+        fraction: null,
+        active_task: 'engine.node.generate',
+        queued_tasks: 3,
+      },
+    });
+    setStream([{seq: 1, type: 'scientific_task', payload: {task: 'generate'}}]);
+
+    renderAt('/runs/run-1/specifications');
+
+    expect(await screen.findByText('Research in progress')).toBeInTheDocument();
+    expect(screen.getByText('Engine Node Generate')).toBeInTheDocument();
+    expect(
+      screen.getByRole('region', {name: 'Activity log'}),
+    ).toHaveTextContent('scientific task: generate');
+    expect(screen.queryByText('Open in NotebookLM')).toBeNull();
+    expect(screen.queryByRole('link', {name: 'Download'})).toBeNull();
+    expect(screen.queryByText('Run Specifications')).toBeNull();
   });
 
   it('shows a skeleton while loading, then the goal details', async () => {
