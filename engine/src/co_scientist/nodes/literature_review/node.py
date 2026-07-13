@@ -17,6 +17,7 @@ top-level orchestrator plus the cache/availability gates whose external seams
 ``get_mcp_client``) tests monkeypatch on this namespace.
 """
 
+import dataclasses
 import logging
 from typing import Any
 
@@ -103,10 +104,40 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
+_LITERATURE_CACHE_SCHEMA_VERSION = 2
+
 
 # =============================================================================
 # Cache and availability gates
 # =============================================================================
+
+
+def _literature_cache_params(
+    state: WorkflowState, config: SearchConfig
+) -> dict[str, Any]:
+    """Return every material input that can change literature output."""
+    registry = config.tool_registry
+    tool_contract: dict[str, Any]
+    if registry is None:
+        tool_contract = {
+            "legacy_search_tool": config.search_tool_name,
+            "source_name": config.source_name,
+        }
+    else:
+        # The hash receives the resolved typed config, including enabled
+        # sources, parameter mappings, response mappings, and endpoint. The
+        # cache stores only the resulting digest, never this configuration.
+        tool_contract = dataclasses.asdict(registry.config)
+    return {
+        "cache_schema_version": _LITERATURE_CACHE_SCHEMA_VERSION,
+        "research_goal": state["research_goal"],
+        "model_name": state.get("model_name"),
+        "papers_to_read_count": config.papers_to_read_count,
+        "tool_contract": tool_contract,
+        "run_setup_guidance": state.get("run_setup_guidance"),
+        "run_focus_guidance": state.get("run_focus_guidance"),
+        "preferences": state.get("preferences"),
+    }
 
 
 def _initialize_review(
@@ -125,7 +156,7 @@ def _initialize_review(
     )
 
     node_cache = get_node_cache()
-    cache_params = {"research_goal": state["research_goal"]}
+    cache_params = _literature_cache_params(state, config)
     # dev_test_lit_tools_isolation forces cache use even when the global
     # cache is disabled, so a developer iterating on the downstream
     # lit-tools generation phase can skip re-running this expensive node
@@ -145,9 +176,9 @@ async def _check_cache(
 ) -> dict[str, Any] | None:
     """Return the cached literature review result, if any.
 
-    Keyed only on research_goal, so identical goals across runs reuse the
-    full literature review output (queries, articles, and synthesis) instead
-    of re-running every phase.
+    Keyed on the goal, model, evidence budget, run guidance, cache schema, and
+    complete resolved tool contract. Identical scientific inputs reuse the
+    full output, while source/configuration changes cannot replay stale work.
 
     Returns:
         The cached result dict on a cache hit, else None.

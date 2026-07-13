@@ -9,6 +9,7 @@ package's ``node`` and ``enrichment`` modules: ``_describe_exc``,
 
 import pytest
 
+from co_scientist.config import ToolRegistry
 from co_scientist.nodes.literature_review import enrichment as lr_enrichment
 from co_scientist.nodes.literature_review import node as lr
 from tests._state import make_state
@@ -61,6 +62,39 @@ def test_get_search_config_honors_run_paper_count(
         make_state(literature_review_papers_count=12)
     )
     assert config.papers_to_read_count == 12
+
+
+def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
+    """A source or evidence-budget change cannot replay stale literature."""
+    legacy_state = make_state(
+        model_name="model-a", literature_review_papers_count=4
+    )
+    registry_state = make_state(
+        model_name="model-a",
+        literature_review_papers_count=8,
+        tool_registry=ToolRegistry(skip_user_config=True),
+    )
+    legacy = lr._literature_cache_params(
+        legacy_state, lr._get_search_config(legacy_state)
+    )
+    multi_source = lr._literature_cache_params(
+        registry_state, lr._get_search_config(registry_state)
+    )
+
+    assert legacy["cache_schema_version"] == 2
+    assert legacy["papers_to_read_count"] == 4
+    assert legacy["tool_contract"]["legacy_search_tool"] == (
+        "pubmed_search_with_fulltext"
+    )
+    assert multi_source["papers_to_read_count"] == 8
+    workflow = multi_source["tool_contract"]["workflows"][
+        "literature_review"
+    ]
+    assert [source["tool"] for source in workflow["search_sources"]] == [
+        "pubmed_fulltext",
+        "openalex_search",
+    ]
+    assert legacy != multi_source
 
 
 def test_format_kg_section_empty_returns_empty_string() -> None:
