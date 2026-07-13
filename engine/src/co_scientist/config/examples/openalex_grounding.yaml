@@ -69,6 +69,7 @@ tools:
           source: "'openalex'"
       parameter_mapping:
         query: "query"
+        slug: null
         max_papers: "max_papers"
         recency_years: "recency_years"
         run_id: "run_id"

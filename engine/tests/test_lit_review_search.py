@@ -121,6 +121,23 @@ def test_build_query_tool_params_with_tool_config_maps_parameters() -> None:
     }
 
 
+def test_bundled_openalex_contract_drops_unsupported_slug() -> None:
+    """Bundled OpenAlex calls contain only parameters its MCP tool accepts."""
+    tool_config = ToolRegistry().get_tool("openalex_search")
+    assert tool_config is not None
+
+    params = search._build_query_tool_params(
+        "astrocyte lactate", "corpus-slug", "run1", 5, tool_config
+    )
+
+    assert params == {
+        "query": "astrocyte lactate",
+        "max_papers": 5,
+        "recency_years": 7,
+        "run_id": "run1",
+    }
+
+
 # =============================================================================
 # _tag_source_name
 # =============================================================================
