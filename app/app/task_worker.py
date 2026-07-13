@@ -222,6 +222,11 @@ async def run_run_worker_pool(
     await asyncio.gather(*(_worker(index) for index in range(worker_count)))
 
 
+def run_run_worker_pool_sync(run_id: str, worker_prefix: str) -> None:
+    """Run the embedded cohort on a worker thread, outside the API loop."""
+    asyncio.run(run_run_worker_pool(run_id, worker_prefix))
+
+
 async def _heartbeat_lease(
     task: ScientificTask,
     worker_id: str,

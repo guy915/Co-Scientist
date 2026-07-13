@@ -152,6 +152,22 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
     } == {"completed"}
 
 
+def test_sync_worker_pool_runs_on_its_own_event_loop(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """FastAPI can dispatch the sync wrapper through its threadpool."""
+    observed: list[tuple[str, str]] = []
+
+    async def _pool(run_id: str, worker_prefix: str) -> None:
+        observed.append((run_id, worker_prefix))
+
+    monkeypatch.setattr(task_worker, "run_run_worker_pool", _pool)
+
+    task_worker.run_run_worker_pool_sync("run-1", "embedded")
+
+    assert observed == [("run-1", "embedded")]
+
+
 @pytest.mark.asyncio
 async def test_worker_isolates_unknown_task_failure(isolated_db: str) -> None:
     """An unsupported task fails without crashing the worker loop."""
