@@ -430,9 +430,9 @@ export function getClaimEvidence(id: string): Promise<ClaimEvidenceRow[]> {
 
 /** Return the persisted weighted hypothesis proximity graph. */
 export function getProximity(id: string): Promise<ProximityEdge[]> {
-  return fetchJson<{proximity: ProximityEdge[]}>(
-    `/api/runs/${id}/proximity`,
-  ).then(response => response.proximity);
+  return fetchJson<{proximity: ProximityEdge[]}>(`/api/runs/${id}/proximity`, {
+    headers: clientHeaders(),
+  }).then(response => response.proximity);
 }
 
 /** Submit a scientist-authored hypothesis through the shared safety gate. */

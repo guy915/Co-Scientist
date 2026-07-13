@@ -9,6 +9,7 @@ import {
   getHypotheses,
   getEvidence,
   getMatches,
+  getProximity,
   getReviews,
   getReport,
   getRunEvents,
@@ -244,6 +245,22 @@ describe('getHypotheses', () => {
   it('throws on a non-OK response', async () => {
     fetchMock().mockResolvedValue(errorResponse(500, 'fail'));
     await expect(getHypotheses('r1')).rejects.toThrow('500 fail');
+  });
+});
+
+describe('getProximity', () => {
+  it('GETs the owned proximity graph with the ownership header', async () => {
+    const proximity = [{source_hypothesis_id: 'h1'}];
+    fetchMock().mockResolvedValue(jsonResponse({proximity}));
+
+    const result = await getProximity('r1');
+
+    const [url, opts] = firstCall();
+    expect(url).toBe('/api/runs/r1/proximity');
+    expect(
+      (opts?.headers as Record<string, string>)['X-Client-ID'],
+    ).toBeTruthy();
+    expect(result).toEqual(proximity);
   });
 });
 
