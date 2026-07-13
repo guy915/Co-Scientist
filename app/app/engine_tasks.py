@@ -188,6 +188,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             part
             for part in (
                 hypothesis.text,
+                hypothesis.literature_grounding,
                 hypothesis.explanation,
                 hypothesis.experiment,
             )

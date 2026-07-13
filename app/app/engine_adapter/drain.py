@@ -145,6 +145,7 @@ def _persist_hypothesis_state(
                 "non_novel",
                 "inaccurate_and_non_novel",
                 "duplicate",
+                "evidence_blocked",
             }
             else "active"
         ),

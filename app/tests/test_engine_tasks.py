@@ -171,6 +171,38 @@ async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
+    """Unsupported rationale cannot bypass the gate behind a supported idea."""
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "A fictional kinase completely reverses neuronal aging."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract=(
+                    "Astrocyte lactate accelerates synaptic ATP recovery."
+                ),
+            )
+        ],
+    }
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "evidence_blocked"
+    claims = hypothesis.enrichments["claim_gate"]["claims"]
+    assert [claim["label"] for claim in claims] == [
+        "supports",
+        "insufficient",
+    ]
+
+
+@pytest.mark.asyncio
 async def test_bootstrap_commits_state_and_enqueues_supervisor(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -965,7 +997,7 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
     async def fake_review(
         _state: Any, _hypothesis: Any, mode: Any
     ) -> tuple[Any, dict[str, Any]]:
-        result = {"verdict": f"{mode.value}-complete"}
+        result: dict[str, Any] = {"verdict": f"{mode.value}-complete"}
         if mode.value == "full":
             result["retrieved_articles"] = [
                 Article(
