@@ -7,7 +7,7 @@ product in one comprehensive implementation pass.
 
 Do not repeat the fidelity audit. This prompt is self-contained and is the
 implementation specification. The companion
-`docs/audits/GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md` is optional
+`docs/audits/google-co-scientist-implementation/GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md` is optional
 traceability material for canonical finding IDs, evidence, and exact verification
 locations; completing this work must not depend on re-auditing the target.
 Inspect the implementation before editing, preserve unrelated user changes, and

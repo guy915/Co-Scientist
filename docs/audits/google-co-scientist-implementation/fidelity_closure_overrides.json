@@ -1,0 +1,89 @@
+{
+  "findings": {
+    "L08": {
+      "status": "implemented",
+      "implementation": "app/app/engine_tasks.py; app/app/store/tasks.py; engine/src/co_scientist/task_runtime.py",
+      "verification": "app/tests/test_engine_tasks.py; app/tests/test_task_queue.py; app tests: 422 passed",
+      "remaining": "Final multi-process restart soak remains part of acceptance condition 4."
+    },
+    "L15": {
+      "status": "implemented",
+      "implementation": "Durable per-item review, generation, debate, mature Reflection, and verification leases plus sequential ranking-match leases.",
+      "verification": "app/tests/test_engine_tasks.py::test_review_fanout_uses_independent_leases_and_one_aggregate_commit and related fan-out tests",
+      "remaining": "Production-scale concurrency characteristics remain reconstructed."
+    },
+    "J08": {
+      "status": "implemented",
+      "implementation": "app/frontend/src/workbench/components/intended_use_notice.tsx; app/frontend/src/workbench/layout.tsx",
+      "verification": "frontend component tests and interactive home inspection",
+      "remaining": "Google's exact placement beyond the observed surfaces remains evidence-bounded."
+    },
+    "J09": {
+      "status": "implemented",
+      "implementation": "engine/src/co_scientist/safety.py; app/app/hypothesis_safety.py; app/app/safety.py",
+      "verification": "engine/tests/test_safety_integration.py; app safety suites",
+      "remaining": "The proprietary Google classifier and thresholds remain unverifiable."
+    },
+    "M02": {
+      "status": "implemented",
+      "implementation": "app/frontend/src/workbench/pages/chat_home_stage.tsx",
+      "verification": "interactive browser heading: What's your research challenge?",
+      "remaining": "Composer helper copy remains separately tracked."
+    },
+    "M09": {
+      "status": "implemented",
+      "implementation": "app/frontend/src/lib/product_mode.ts; app/frontend/src/workbench/theme_context.tsx",
+      "verification": "production build forces the faithful shell to light mode",
+      "remaining": "Developer mode intentionally retains non-faithful theme tooling outside the faithful product."
+    },
+    "M10": {
+      "status": "partial",
+      "implementation": "Responsive home shell and off-canvas navigation at 390x780",
+      "verification": "interactive browser: clientWidth=scrollWidth=390 and home content visible",
+      "remaining": "Complete every interview, running, report, modal, and export state at mobile size."
+    },
+    "M14": {
+      "status": "implemented",
+      "implementation": "app/frontend/src/lib/product_mode.ts; layout.tsx; layout_header.tsx; layout_nav_rail.tsx",
+      "verification": "interactive faithful build exposes neither Logs nor Settings controls",
+      "remaining": "Developer-only controls remain quarantined behind explicit developer mode."
+    },
+    "M15": {
+      "status": "implemented",
+      "implementation": "app/frontend/src/api/runs.ts::loadRunHistory; app/app/engine_adapter/engine_stream.py::_real_engine_stream",
+      "verification": "runs.test.ts faithful-history tests; test_provider_selection.py::test_missing_engine_never_substitutes_mock_science; interactive recents inspection",
+      "remaining": "Public demo endpoints remain a quarantined developer/reference surface, not faithful-product navigation."
+    },
+    "M20": {
+      "status": "partial",
+      "implementation": "Mock demonstrations are excluded from faithful run history and cannot replace a real engine run.",
+      "verification": "runs.test.ts; test_provider_selection.py; interactive faithful history inspection",
+      "remaining": "Fixed case-study-inspired suggestion prompts remain visible and must stay clearly framed as input examples."
+    }
+  },
+  "acceptance": [
+    {"id": 1, "status": "implemented", "requirement": "Complete Agent interview with exactly four research-plan fields.", "evidence": "Interactive browser journey completed challenge, Focus Area, Preferences, optional Title, plan review, and resumable transcript; app/app/interviews.py; app/tests/test_interviews.py", "remaining": "The exact wording of proprietary model-generated follow-up questions remains evidence-bounded."},
+    {"id": 2, "status": "implemented", "requirement": "Only Standard and Advanced; enforce 3/1 concurrency.", "evidence": "Browser run-type group exposes exactly Standard Run and Advanced Run; app/app/runs.py::_MODE_CONCURRENCY_LIMITS; app/tests/test_runs_edge.py::test_standard_and_advanced_concurrency_limits", "remaining": "Google's undisclosed internal compute envelopes for each type remain reconstructed."},
+    {"id": 3, "status": "implemented", "requirement": "Supervisor creates and reprioritizes diverse durable tasks from state and feedback.", "evidence": "Model-directed generate/reflect/rank/evolve/proximity selection; live durable queue snapshot; bounded reprioritize/cancel/retry actions; scientist steering forces priority-100 generation; engine/test_supervisor_decision.py; app/tests/test_engine_tasks.py; app/tests/test_task_queue.py", "remaining": "Google's proprietary allocation prompt and production scheduling distribution remain evidence-bounded."},
+    {"id": 4, "status": "implemented", "requirement": "Concurrent durable tasks survive restart with exactly-once effects.", "evidence": "app/tests/test_task_queue.py::test_multi_process_claim_has_single_lease_winner; test_multi_process_duplicate_completion_commits_one_effect; test_crashed_process_lease_is_redelivered_after_restart", "remaining": "Production soak duration and infrastructure topology remain environment-specific."},
+    {"id": 5, "status": "partial", "requirement": "Every disclosed specialist strategy has an end-to-end behavioral test.", "evidence": "Engine and app specialist tests", "remaining": "Complete strategy-by-strategy closure audit."},
+    {"id": 6, "status": "partial", "requirement": "Multi-source ranked retrieval and large/private/multimodal provenance.", "evidence": "OpenAlex cursor pagination/retraction metadata and ranked merge; PubMed/PMC plus biomedical databases; private-corpus SHA-256 provenance; image and scanned-PDF OCR with page/figure hashes", "remaining": "Prove structured table interpretation and genuinely large-corpus behavior under an end-to-end real-provider run."},
+    {"id": 7, "status": "partial", "requirement": "Every material final claim has visible support spans and gates publication.", "evidence": "app/app/claim_grounding.py; app/app/report_render.py", "remaining": "Re-audit every report surface and real-provider output."},
+    {"id": 8, "status": "unproven", "requirement": "Citation evaluation meets contradiction and larger-panel gates.", "evidence": "—", "remaining": "Run and record current evaluation package."},
+    {"id": 9, "status": "implemented", "requirement": "Truthful monotonic/indeterminate progress and real activity metrics.", "evidence": "task_progress derives committed/active/queued work; live checkpoint pools supply idea/source counts; browser verified indeterminate progress, active task, elapsed time, and event activity at 1440x720; focused backend/frontend tests", "remaining": "Exact Google progress wording and proprietary ETA behavior remain evidence-bounded."},
+    {"id": 10, "status": "unproven", "requirement": "Complete Goal Report and follow-up/export controls.", "evidence": "—", "remaining": "Browser journey and permission/revocation verification."},
+    {"id": 11, "status": "partial", "requirement": "All human inputs demonstrably alter subsequent work.", "evidence": "Real run steering changed applied=0 to applied=1 across forced restart and appeared in Supervisor decision; manual hypothesis/review/private-source paths append durable steering and have integration tests", "remaining": "Run one acceptance journey proving manual hypothesis, review, and uploaded resource each change a later real-provider task or final output."},
+    {"id": 12, "status": "partial", "requirement": "Coherent safety, adjudication, intended use, and authorization.", "evidence": "app/app/safety.py; app/app/hypothesis_safety.py; authorization tests", "remaining": "Consolidate app/engine policy and run complete adversarial suite."},
+    {"id": 13, "status": "implemented", "requirement": "Mock/demo data cannot contaminate live runs.", "evidence": "loadRunHistory filters demo and legacy mock rows in faithful mode; _real_engine_stream fails instead of falling back; focused tests and browser inspection", "remaining": "Mock tooling remains available only through explicit developer/test paths."},
+    {"id": 14, "status": "partial", "requirement": "Full desktop/mobile browser verification with no clipping.", "evidence": "Interactive home inspection at 1440x720 and 390x780: no document-width overflow; faithful controls verified", "remaining": "Complete interview, running, report, dialogs, sharing, download, and error-state journeys at both viewports and capture artifacts."},
+    {"id": 15, "status": "partial", "requirement": "All software, browser, evaluation, safety, and provenance gates pass.", "evidence": "Engine 1046 passed; app 422 passed; frontend 274 passed and built", "remaining": "Browser, evaluation, safety, and provenance gates remain."},
+    {"id": 16, "status": "partial", "requirement": "All required evaluation reports are checked in.", "evidence": "Existing scaling/ablation artifacts", "remaining": "Elo calibration, expert review, expanded citation/safety and failure recovery reports."},
+    {"id": 17, "status": "unproven", "requirement": "Final documentation identifies every proprietary uncertainty without claiming literal parity.", "evidence": "—", "remaining": "Final documentation and closure audit."}
+  ],
+  "verification_log": [
+    "2026-07-13: engine Ruff and mypy passed; 1,046 tests passed.",
+    "2026-07-13: app Ruff and mypy passed; 422 tests passed.",
+    "2026-07-13: frontend lint passed; 274 tests passed; production build passed.",
+    "2026-07-13: durable orchestration commits f76a66b4 and d355f19e."
+  ]
+}

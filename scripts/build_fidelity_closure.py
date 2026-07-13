@@ -7,9 +7,10 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-AUDIT = ROOT / "docs/audits/GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md"
-OVERRIDES = ROOT / "docs/audits/fidelity_closure_overrides.json"
-OUTPUT = ROOT / "docs/audits/IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md"
+PACKAGE = ROOT / "docs/audits/google-co-scientist-implementation"
+AUDIT = PACKAGE / "GOOGLE_CO_SCIENTIST_FIDELITY_DIFF_2026-07-12.md"
+OVERRIDES = PACKAGE / "fidelity_closure_overrides.json"
+OUTPUT = PACKAGE / "IMPLEMENTATION_CLOSURE_MATRIX_2026-07-13.md"
 
 FINDING = re.compile(
     r"^\| ([A-M]\d{2}) \| `([^`]+)` \| (.*?) \| (.*?) \| (.*?) \| (.*?) \|$"
