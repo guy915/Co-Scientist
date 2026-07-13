@@ -205,6 +205,46 @@ def _idea_buckets(
     return {"high_potential": high_potential, "non_viable": non_viable}
 
 
+def _released_claim_evidence(
+    hypotheses: list[dict[str, Any]],
+    claim_edges: list[dict[str, Any]],
+    evidence: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Attach source titles to claim spans for hypotheses in the report."""
+    released_ids = {
+        str(hypothesis.get("id") or "") for hypothesis in hypotheses
+    }
+    sources = {
+        str(item.get("id") or ""): item
+        for item in evidence
+        if item.get("id")
+    }
+    released: list[dict[str, Any]] = []
+    for edge in claim_edges:
+        if str(edge.get("hypothesis_id") or "") not in released_ids:
+            continue
+        enriched = dict(edge)
+        for key in ("supporting", "contradicting"):
+            spans: list[Any] = []
+            for raw_span in edge.get(key) or []:
+                if not isinstance(raw_span, dict):
+                    spans.append(raw_span)
+                    continue
+                span = dict(raw_span)
+                source = sources.get(str(span.get("evidence_id") or ""), {})
+                span["source_title"] = str(
+                    span.get("source_title") or source.get("title") or ""
+                )
+                span["source"] = str(
+                    span.get("source") or source.get("source") or ""
+                )
+                span["url"] = str(span.get("url") or source.get("url") or "")
+                spans.append(span)
+            enriched[key] = spans
+        released.append(enriched)
+    return released
+
+
 def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
     """Ids of hypotheses with a claim that failed publication readiness.
 
@@ -364,6 +404,9 @@ def _build_report_content(
     leaderboard = live_leaderboard(hyps)
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     evidence = store.list_evidence(run_id, db_path=db_path)
+    released_claim_edges = _released_claim_evidence(
+        hyps, claim_edges, evidence
+    )
     synthesized_topics = _synthesized_knowledge_base_topics(
         research_overview, evidence
     )
@@ -383,6 +426,7 @@ def _build_report_content(
         ),
         agent_insights=_agent_insights(hyps, claim_edges, meta_review),
         idea_buckets=_idea_buckets(hyps, all_hyps, claim_edges),
+        claim_evidence=released_claim_edges,
         execution_time=execution_time,
     )
     markdown = render_report_markdown(
@@ -395,6 +439,7 @@ def _build_report_content(
         citation_summary=citation_summary,
         research_overview=research_overview,
         summary=summary,
+        claim_evidence=released_claim_edges,
     )
     return payload, markdown
 

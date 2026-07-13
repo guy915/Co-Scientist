@@ -243,6 +243,7 @@ export interface SupportSpan {
   start: number;
   end: number;
   source: string;
+  source_title?: string;
   url: string;
 }
 
@@ -301,6 +302,7 @@ export interface ReportPayload {
     high_potential: IdeaBucketEntry[];
     non_viable: IdeaBucketEntry[];
   };
+  claim_evidence?: ClaimEvidenceRow[];
   execution_time?: number;
 }
 

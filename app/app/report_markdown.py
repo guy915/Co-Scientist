@@ -222,6 +222,7 @@ def build_report_payload(
     knowledge_base: list[dict[str, Any]] | None = None,
     agent_insights: dict[str, Any] | None = None,
     idea_buckets: dict[str, list[dict[str, Any]]] | None = None,
+    claim_evidence: list[dict[str, Any]] | None = None,
     execution_time: float | None = None,
 ) -> dict[str, Any]:
     """Assemble the canonical report payload shared by every provider.
@@ -244,6 +245,8 @@ def build_report_payload(
         knowledge_base: Evidence-linked technical topics synthesized at release.
         agent_insights: Run-wide findings, uncertainty, and next experiments.
         idea_buckets: High-potential and non-viable ideas with reasons.
+        claim_evidence: Claim-level verdicts and exact evidence spans for every
+            released hypothesis.
         execution_time: Wall-clock seconds, when the provider tracks it.
 
     Returns:
@@ -267,6 +270,7 @@ def build_report_payload(
             "high_potential": [],
             "non_viable": [],
         },
+        "claim_evidence": claim_evidence or [],
     }
     if execution_time is not None:
         payload["execution_time"] = execution_time
@@ -330,7 +334,66 @@ def _render_meta_review_markdown(meta_review: dict[str, Any]) -> list[str]:
     return lines
 
 
-def _render_hypothesis_entry(i: int, hyp: dict[str, Any]) -> list[str]:
+def _claim_status(edge: dict[str, Any]) -> str:
+    """Return the reader-facing scientific status for one claim edge."""
+    label = str(edge.get("label") or "insufficient")
+    role = str(edge.get("claim_role") or "categorical")
+    if label == "supports":
+        return "Supported"
+    if label == "contradicts":
+        return "Contradicted"
+    if role == "speculative":
+        return "Speculative — evidence insufficient"
+    return "Unsupported categorical claim"
+
+
+def _render_evidence_span(span: Any, relation: str) -> str:
+    """Render one exact supporting or contradicting source span."""
+    if not isinstance(span, dict):
+        quote = " ".join(str(span).split())
+        return f"  - {relation} span: “{quote}”"
+    quote = " ".join(str(span.get("quote") or "").split())
+    source_title = str(
+        span.get("source_title")
+        or span.get("source")
+        or span.get("evidence_id")
+        or "Evidence passage"
+    )
+    url = str(span.get("url") or "")
+    source = f"[{source_title}]({url})" if url else source_title
+    return f"  - {relation} span — {source}: “{quote}”"
+
+
+def _render_claim_evidence(
+    hypothesis_id: str,
+    claim_evidence: list[dict[str, Any]],
+) -> list[str]:
+    """Render every persisted claim verdict for one released hypothesis."""
+    edges = [
+        edge
+        for edge in claim_evidence
+        if str(edge.get("hypothesis_id") or "") == hypothesis_id
+    ]
+    if not edges:
+        return []
+    lines = ["**Claim evidence:**", ""]
+    for edge in edges:
+        role = str(edge.get("claim_role") or "categorical")
+        claim = str(edge.get("claim") or "")
+        lines.append(f"- **{_claim_status(edge)} · {role}** — {claim}")
+        for span in edge.get("supporting") or []:
+            lines.append(_render_evidence_span(span, "Supporting"))
+        for span in edge.get("contradicting") or []:
+            lines.append(_render_evidence_span(span, "Contradicting"))
+    lines.append("")
+    return lines
+
+
+def _render_hypothesis_entry(
+    i: int,
+    hyp: dict[str, Any],
+    claim_evidence: list[dict[str, Any]],
+) -> list[str]:
     """Render one numbered 'Top hypotheses' entry."""
     title = hypothesis_title(hyp)
     lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
@@ -343,16 +406,18 @@ def _render_hypothesis_entry(i: int, hyp: dict[str, Any]) -> list[str]:
     ):
         if value:
             lines += [f"{label} {value}", ""]
+    lines += _render_claim_evidence(str(hyp.get("id") or ""), claim_evidence)
     return lines
 
 
 def _render_top_hypotheses_markdown(
     top_hypotheses: list[dict[str, Any]],
+    claim_evidence: list[dict[str, Any]],
 ) -> list[str]:
     """Render the numbered 'Top hypotheses' section."""
     lines: list[str] = ["## Top hypotheses", ""]
     for i, hyp in enumerate(top_hypotheses, 1):
-        lines += _render_hypothesis_entry(i, hyp)
+        lines += _render_hypothesis_entry(i, hyp, claim_evidence)
     return lines
 
 
@@ -379,6 +444,7 @@ def render_report_markdown(
     citation_summary: dict[str, int] | None,
     research_overview: dict[str, Any] | None,
     summary: str | None = None,
+    claim_evidence: list[dict[str, Any]] | None = None,
 ) -> str:
     """Render a run's report markdown from one skeleton for every provider.
 
@@ -396,6 +462,8 @@ def render_report_markdown(
         research_overview: Research-overview payload, or None.
         summary: Optional lead paragraph rendered under a ``## Summary``
             heading (e.g. the mock's deterministic-mode disclaimer).
+        claim_evidence: Claim-level verdicts and exact source spans to render
+            alongside their released hypotheses.
 
     Returns:
         The rendered markdown document.
@@ -409,7 +477,9 @@ def render_report_markdown(
     if summary:
         lines += ["## Summary", summary, ""]
 
-    lines += _render_top_hypotheses_markdown(top_hypotheses)
+    lines += _render_top_hypotheses_markdown(
+        top_hypotheses, claim_evidence or []
+    )
     lines += _render_meta_review_markdown(meta_review or {})
     lines += _render_citation_audit(citation_summary)
     lines.extend(render_research_overview_markdown(research_overview or {}))

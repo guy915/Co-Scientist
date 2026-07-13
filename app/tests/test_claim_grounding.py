@@ -182,7 +182,7 @@ def test_speculative_insufficient_hypothesis_remains_visible(
         db_path=isolated_db,
     )
 
-    payload, _markdown = report_render._build_report_content(
+    payload, markdown = report_render._build_report_content(
         run_id=run.id,
         research_goal=run.research_goal,
         run_mode="standard",
@@ -203,6 +203,23 @@ def test_speculative_insufficient_hypothesis_remains_visible(
     )
     assert edge["label"] == "insufficient"
     assert edge["claim_role"] == "speculative"
+    report_edges = payload["claim_evidence"]
+    assert {item["hypothesis_id"] for item in report_edges} == {
+        hypothesis_id
+    }
+    supported = next(
+        item for item in report_edges if item["label"] == "supports"
+    )
+    assert supported["supporting"][0]["source_title"] == (
+        "General energetics review"
+    )
+    assert supported["supporting"][0]["quote"].endswith(
+        "Astrocytes contribute to neuronal energy metabolism."
+    )
+    assert "**Supported · categorical**" in markdown
+    assert "General energetics review" in markdown
+    assert "Astrocytes contribute to neuronal energy metabolism." in markdown
+    assert "**Speculative — evidence insufficient · speculative**" in markdown
 
 
 def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
