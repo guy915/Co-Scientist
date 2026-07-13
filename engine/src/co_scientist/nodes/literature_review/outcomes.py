@@ -113,12 +113,12 @@ async def _handle_no_fulltext_available(
     """Build the failure result when no collected paper has usable content.
 
     Papers were found but none have any usable content (fulltext or
-    abstract fallback) for Phase 3 analysis. Still returns the collected
-    metadata as `articles` (used_in_analysis defaults True in
-    build_article_from_metadata) so callers retain the paper list even
-    though the review itself failed.
+    abstract fallback) for Phase 3 analysis. The collected metadata remains
+    visible as articles, explicitly marked unused in analysis.
     """
-    logger.error("No papers have fulltexts available - cannot perform analysis")
+    logger.error(
+        "No papers have fulltext or abstracts available - cannot analyze"
+    )
     n = len(all_paper_metadata)
     await emit_progress(
         state,

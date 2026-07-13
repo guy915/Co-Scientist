@@ -151,7 +151,10 @@ def build_articles_from_metadata(
 
         articles.append(
             build_article_from_metadata(
-                paper_id, metadata, paper_source, used_in_analysis=True
+                paper_id,
+                metadata,
+                paper_source,
+                used_in_analysis=_has_analyzable_content(metadata),
             )
         )
     return articles
@@ -197,14 +200,11 @@ def count_papers_with_fulltext(
 def _has_analyzable_content(metadata: dict[str, Any]) -> bool:
     """Check whether a paper has content available for analysis.
 
-    Fulltext is always preferred when available. Otherwise, a paper with a
-    discovered pdf_url but no downloaded fulltext can still be analyzed
-    using its abstract as a fallback rather than being dropped from
-    analysis entirely.
+    Fulltext is always preferred when available. Otherwise, a source-provided
+    abstract is an explicit, bounded evidence passage and can support
+    abstract-level analysis without pretending the full paper was retrieved.
     """
-    if metadata.get("fulltext"):
-        return True
-    return bool(metadata.get("pdf_url") and metadata.get("abstract"))
+    return bool(metadata.get("fulltext") or metadata.get("abstract"))
 
 
 def get_papers_with_content(
@@ -212,8 +212,8 @@ def get_papers_with_content(
 ) -> dict[str, dict[str, Any]]:
     """Get papers that have content available for analysis.
 
-    Papers with fulltext are preferred. Papers with pdf_url and abstract
-    can use abstract as fallback.
+    Papers with fulltext are preferred. Abstract-bearing records use their
+    abstract as a visibly shallower fallback.
     """
     papers_with_content = {}
     for pid, metadata in all_paper_metadata.items():
@@ -283,6 +283,7 @@ def make_success_result(
     articles: list[Article],
 ) -> dict[str, Any]:
     """Create a success result dict."""
+    analyzed = [article for article in articles if article.used_in_analysis]
     return {
         "articles_with_reasoning": synthesis,
         "literature_review_queries": queries,
@@ -290,6 +291,15 @@ def make_success_result(
         "messages": phase_message(
             "literature_review",
             f"completed literature review with {len(queries)}"
-            f" queries, {len(articles)} articles analyzed",
+            f" queries, {len(analyzed)} of {len(articles)} articles analyzed",
+            articles_retrieved=len(articles),
+            articles_analyzed=len(analyzed),
+            fulltext_analyzed=sum(
+                bool(article.content) for article in analyzed
+            ),
+            abstract_only_analyzed=sum(
+                bool(not article.content and article.abstract)
+                for article in analyzed
+            ),
         ),
     }

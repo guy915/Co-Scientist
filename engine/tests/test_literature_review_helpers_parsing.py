@@ -120,6 +120,18 @@ def test_get_content_falls_back_to_abstract() -> None:
     assert helpers.get_paper_content_for_analysis({"abstract": "abs"}) == "abs"
 
 
+def test_abstract_only_paper_is_selected_for_analysis() -> None:
+    """Abstract-index sources contribute bounded evidence without a PDF."""
+    papers = {
+        "openalex-1": {"title": "A", "abstract": "Explicit abstract"},
+        "metadata-only": {"title": "B"},
+    }
+
+    selected = helpers.get_papers_with_content(papers)
+
+    assert list(selected) == ["openalex-1"]
+
+
 def test_get_content_empty_returns_empty_string() -> None:
     """No content yields an empty string, never None."""
     out = helpers.get_paper_content_for_analysis({})

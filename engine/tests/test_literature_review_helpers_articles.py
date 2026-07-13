@@ -206,6 +206,19 @@ def test_build_article_defaults_for_missing_fields() -> None:
     assert article.used_in_analysis is False
 
 
+def test_build_articles_marks_metadata_only_record_unanalyzed() -> None:
+    """A title and URL alone cannot inflate the analyzed-source count."""
+    articles = helpers.build_articles_from_metadata(
+        {
+            "abstract": {"title": "A", "abstract": "Evidence passage"},
+            "metadata": {"title": "B", "url": "https://example.test/b"},
+        },
+        "openalex",
+    )
+
+    assert [article.used_in_analysis for article in articles] == [True, False]
+
+
 def test_build_article_venue_falls_back_to_venue_key() -> None:
     """When ``publication`` is absent the ``venue`` key is used."""
     article = helpers.build_article_from_metadata(

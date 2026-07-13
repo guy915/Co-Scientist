@@ -90,10 +90,8 @@ async def _phase3_analyze_papers(
     state: WorkflowState,
 ) -> list[dict[str, Any]]:
     """Phase 3: Analyze papers with content for gaps and opportunities."""
-    # Only papers with fulltext, or with a pdf_url + abstract fallback, are
-    # eligible; papers with no usable content at all are silently excluded
-    # from analysis (they still appear in the final `articles` list, just
-    # with used_in_analysis effectively unsupported by real content).
+    # Papers with fulltext or a source-provided abstract are eligible; records
+    # with metadata alone are excluded rather than counted as analyzed.
     papers_with_content = get_papers_with_content(all_paper_metadata)
 
     if not papers_with_content:

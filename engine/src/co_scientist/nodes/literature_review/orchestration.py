@@ -32,6 +32,7 @@ from co_scientist.nodes.literature_review.helpers import (
     SearchConfig,
     build_articles_from_metadata,
     count_papers_with_fulltext,
+    get_papers_with_content,
     make_success_result,
 )
 from co_scientist.nodes.literature_review.outcomes import (
@@ -274,8 +275,8 @@ async def _handle_collection_edge_cases(
     """Builds an early failure result if collection yielded nothing usable.
 
     Zero papers collected is a hard failure (nothing to analyze or
-    synthesize from); zero papers with fulltext is also a hard failure for
-    Phase 3 analysis, though still surfaced with the collected metadata.
+    synthesize from); papers with neither fulltext nor abstracts also fail
+    Phase 3, though their metadata remains visible.
 
     Returns:
         A failure result dict if either edge case applies, else None to
@@ -284,7 +285,7 @@ async def _handle_collection_edge_cases(
     if len(collected.all_paper_metadata) == 0:
         return await _handle_no_papers_found(state, queries)
 
-    if collected.with_fulltext == 0:
+    if not get_papers_with_content(collected.all_paper_metadata):
         return await _handle_no_fulltext_available(
             state, collected.all_paper_metadata, queries, config.source_name
         )
@@ -355,6 +356,19 @@ async def _emit_and_log_completion(
         0.2,
         queries_count=len(queries),
         articles_count=len(articles),
+        articles_analyzed=_count_used_papers(articles),
+        fulltext_analyzed=sum(
+            bool(article.used_in_analysis and article.content)
+            for article in articles
+        ),
+        abstract_only_analyzed=sum(
+            bool(
+                article.used_in_analysis
+                and not article.content
+                and article.abstract
+            )
+            for article in articles
+        ),
         search_errors_count=len(search_errors),
     )
 
