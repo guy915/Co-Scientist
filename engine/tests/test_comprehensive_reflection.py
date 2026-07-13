@@ -4,7 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from co_scientist.models import Article
 from co_scientist.nodes import comprehensive_reflection as cr
+from co_scientist.nodes.review_types import ReviewType
 from tests._state import make_hypothesis, make_state
 
 
@@ -88,3 +90,41 @@ async def test_evolved_hypothesis_receives_missing_observation_review(
         == "missing_piece"
     )
     assert "explains x" in (hypothesis.reflection_notes or "")
+
+
+@pytest.mark.asyncio
+async def test_full_review_executes_targeted_retrieval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A full review searches and evaluates evidence specific to the idea."""
+    call = AsyncMock(return_value={"verdict": "sound"})
+    retrieve = AsyncMock(
+        return_value=(
+            [
+                Article(
+                    title="Targeted validation",
+                    source_id="validation-1",
+                    abstract="The proposed mechanism survived direct testing.",
+                    used_in_analysis=True,
+                )
+            ],
+            [],
+        )
+    )
+    monkeypatch.setattr(cr, "call_llm_json", call)
+    monkeypatch.setattr(cr, "_retrieve_probe_evidence", retrieve)
+    hypothesis = make_hypothesis(text="Mechanism X controls response Y")
+    state = make_state(
+        hypotheses=[hypothesis],
+        research_goal="Understand response Y",
+        mcp_available=True,
+    )
+
+    _, result = await cr._run_review(state, hypothesis, ReviewType.FULL)
+
+    retrieve.assert_awaited_once()
+    assert result is not None
+    assert result["retrieved_articles"][0]["source_id"] == "validation-1"
+    prompt = call.await_args.kwargs["prompt"]
+    assert "Targeted validation" in prompt
+    assert "survived direct testing" in prompt

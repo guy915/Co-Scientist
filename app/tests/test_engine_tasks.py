@@ -965,7 +965,16 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
     async def fake_review(
         _state: Any, _hypothesis: Any, mode: Any
     ) -> tuple[Any, dict[str, Any]]:
-        return mode, {"verdict": f"{mode.value}-complete"}
+        result = {"verdict": f"{mode.value}-complete"}
+        if mode.value == "full":
+            result["retrieved_articles"] = [
+                Article(
+                    title="Full-review source",
+                    source_id="full-review-1",
+                    abstract="Targeted review evidence.",
+                ).to_dict()
+            ]
+        return mode, result
 
     async def fake_observation(**_: Any) -> dict[str, Any]:
         return {"classification": "missing_piece", "reasoning": "explains x"}
@@ -1025,6 +1034,7 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
         restored_fresh.enrichments
     )
     assert restored_mature.enrichments["recurrent_review_iteration"] == 2
+    assert restored["articles"][-1].source_id == "full-review-1"
     successor = store.claim_task("safety", run_id=run.id, db_path=isolated_db)
     assert successor is not None
     assert (

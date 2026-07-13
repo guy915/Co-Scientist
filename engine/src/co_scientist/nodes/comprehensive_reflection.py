@@ -8,7 +8,16 @@ from typing import Any
 
 from co_scientist.constants import EXTENDED_MAX_TOKENS, LOW_TEMPERATURE
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis, create_metrics_update, phase_message
+from co_scientist.models import (
+    Article,
+    Hypothesis,
+    create_metrics_update,
+    phase_message,
+)
+from co_scientist.nodes.deep_verification import (
+    _retrieve_probe_evidence,
+    merge_retrieved_articles,
+)
 from co_scientist.nodes.reflection import analyze_single_hypothesis
 from co_scientist.nodes.review_types import ReviewType, prompt_name_for
 from co_scientist.prompts import build_tool_instructions
@@ -23,6 +32,7 @@ def _prompt_variables(
     state: WorkflowState,
     hypothesis: Hypothesis,
     review_type: ReviewType,
+    targeted_articles: list[Article] | None = None,
 ) -> dict[str, str]:
     """Build disclosed scientific and tool context for one review task."""
     registry = state.get("tool_registry")
@@ -41,10 +51,32 @@ def _prompt_variables(
             + "\n\nCross-agent feedback:\n"
             + _format_meta_review_context(state.get("meta_review"))
         )
+    evidence = [
+        article
+        for article in (state.get("articles") or [])
+        if article.used_in_analysis and not article.is_retracted
+    ]
+    evidence.extend(targeted_articles or [])
+    evidence_sections = [
+        f"[{index + 1}] {article.title}: "
+        f"{(article.abstract or article.content or '')[:1800]}"
+        for index, article in enumerate(evidence[:12])
+    ]
+    private_sections = [
+        str(source.get("display") or "")[:1800]
+        for source in (state.get("context_enrichment_sources") or [])[:4]
+    ]
+    domain_context = "\n\n".join(
+        [*evidence_sections, *private_sections]
+    )
     return {
         "research_goal": state["research_goal"],
         "hypothesis_text": hypothesis_text,
-        "domain_context": "",
+        "domain_context": (
+            "Evidence available to this review:\n" + domain_context
+            if domain_context
+            else "No retrieved evidence is available to this review."
+        ),
         "tool_instructions": tool_instructions,
     }
 
@@ -55,12 +87,24 @@ async def _run_review(
     review_type: ReviewType,
 ) -> tuple[ReviewType, dict[str, Any] | None]:
     """Execute one independently meaningful Reflection review call."""
+    targeted_articles: list[Article] = []
+    retrieval_errors: list[str] = []
+    retrieval_queries: list[str] = []
+    if review_type in {ReviewType.FULL, ReviewType.SIMULATION}:
+        retrieval_queries = [
+            f"{state['research_goal']} {hypothesis.text}"[:1200]
+        ]
+        targeted_articles, retrieval_errors = await _retrieve_probe_evidence(
+            state, retrieval_queries
+        )
     template_type = (
         ReviewType.FULL if review_type is ReviewType.RECURRENT else review_type
     )
     prompt, schema = load_prompt_with_schema(
         prompt_name_for(template_type),
-        _prompt_variables(state, hypothesis, review_type),
+        _prompt_variables(
+            state, hypothesis, review_type, targeted_articles
+        ),
     )
     if review_type is ReviewType.RECURRENT:
         prompt = (
@@ -84,6 +128,11 @@ async def _run_review(
             "%s review failed for %s: %s", review_type.value, hypothesis.id, exc
         )
         return review_type, None
+    result["retrieval_queries"] = retrieval_queries
+    result["retrieval_errors"] = retrieval_errors
+    result["retrieved_articles"] = [
+        article.to_dict() for article in targeted_articles
+    ]
     return review_type, result
 
 
@@ -115,6 +164,9 @@ async def _review_hypothesis(
         if review_type is ReviewType.RECURRENT:
             hypothesis.enrichments["recurrent_review_iteration"] = iteration
         successful += 1
+    state["articles"] = merge_retrieved_articles(
+        state.get("articles"), [result for _, result in results]
+    )
     return successful
 
 
@@ -171,6 +223,7 @@ async def comprehensive_reflection_node(state: WorkflowState) -> dict[str, Any]:
     )
     return {
         "hypotheses": hypotheses,
+        "articles": state.get("articles") or [],
         "metrics": create_metrics_update(llm_calls_delta=calls),
         "messages": phase_message(
             "reflection",

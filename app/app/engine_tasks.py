@@ -1178,6 +1178,7 @@ async def execute_mature_reflection_aggregate(
     """Commit mature Reflection results while isolating individual failures."""
     from co_scientist.checkpoint import restore_workflow_state
     from co_scientist.models import create_metrics_update, phase_message
+    from co_scientist.nodes.deep_verification import merge_retrieved_articles
     from co_scientist.nodes.review_types import ReviewType
     from co_scientist.task_runtime import apply_task_update
 
@@ -1197,6 +1198,7 @@ async def execute_mature_reflection_aggregate(
     by_id = {hypothesis.id: hypothesis for hypothesis in state["hypotheses"]}
     successful = 0
     failed = 0
+    reflection_results: list[dict[str, Any]] = []
     for item_id in task.inputs.get("item_task_ids", []):
         item = store.get_task(str(item_id), db_path=db_path)
         if item is None:
@@ -1207,6 +1209,7 @@ async def execute_mature_reflection_aggregate(
         hypothesis = by_id[str(item.result["hypothesis_id"])]
         mode = ReviewType(str(item.result["review_mode"]))
         review = item.result["review"]
+        reflection_results.append(review)
         if mode is ReviewType.OBSERVATION:
             classification = review.get("classification", "neutral")
             reasoning = review.get("reasoning", "")
@@ -1219,10 +1222,14 @@ async def execute_mature_reflection_aggregate(
                 state.get("current_iteration", 0)
             )
         successful += 1
+    state["articles"] = merge_retrieved_articles(
+        state.get("articles"), reflection_results
+    )
     committed = apply_task_update(
         state,
         {
             "hypotheses": state["hypotheses"],
+            "articles": state["articles"],
             "metrics": create_metrics_update(
                 llm_calls_delta=successful + failed
             ),
