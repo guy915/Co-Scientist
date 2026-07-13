@@ -30,6 +30,40 @@ def test_create_run_returns_draft_status() -> None:
     )
 
 
+def test_owned_proximity_endpoint_returns_persisted_landscape(
+    isolated_db: str,
+) -> None:
+    """The scientist can inspect persisted conceptual-neighbor edges."""
+    from app import store
+
+    client = _client()
+    headers = {"X-Client-ID": "landscape-owner"}
+    run = client.post(
+        "/api/runs",
+        headers=headers,
+        json={"research_goal": "Map a conceptual hypothesis landscape"},
+    ).json()
+    source = store.add_hypothesis(
+        run["id"], title="Source", statement="Source mechanism"
+    )
+    target = store.add_hypothesis(
+        run["id"], title="Target", statement="Target mechanism"
+    )
+    store.add_proximity_edge(
+        run["id"], source, target, 0.81, cluster_id="cluster-1"
+    )
+
+    response = client.get(f"/api/runs/{run['id']}/proximity", headers=headers)
+
+    assert response.status_code == 200
+    edges = response.json()["proximity"]
+    assert len(edges) == 1
+    assert edges[0]["source_hypothesis_id"] == source
+    assert edges[0]["target_hypothesis_id"] == target
+    assert edges[0]["similarity"] == 0.81
+    assert edges[0]["cluster_id"] == "cluster-1"
+
+
 def test_safety_adjudication_is_identified_and_single_use(
     isolated_db: str,
 ) -> None:
