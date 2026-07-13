@@ -258,6 +258,8 @@ export interface ClaimEvidenceRow {
   claim: string;
   // supports | contradicts | insufficient
   label: string;
+  // categorical | speculative; legacy rows default to categorical server-side
+  claim_role?: string;
   supporting: (SupportSpan | string)[];
   contradicting: (SupportSpan | string)[];
   assessor: string;

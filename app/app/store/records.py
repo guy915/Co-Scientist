@@ -163,6 +163,7 @@ def add_claim_evidence(
     supporting: Iterable[Any],
     contradicting: Iterable[Any],
     assessor: str,
+    claim_role: str = "categorical",
     db_path: str | None = None,
     conn: sqlite3.Connection | None = None,
 ) -> None:
@@ -179,19 +180,21 @@ def add_claim_evidence(
             url}``); legacy rows stored bare passage strings.
         contradicting: Support spans that contradict the claim (same shape).
         assessor: Provenance id of the entailment assessor.
+        claim_role: Categorical finding or visibly speculative proposal.
         db_path: Optional override for the SQLite database path.
         conn: Optional open connection to reuse (e.g. from ``transaction``).
     """
     with _use_conn(conn, db_path) as conn:
         conn.execute(
             "INSERT INTO claim_evidence (run_id, hypothesis_id, claim, label, "
-            "supporting_json, contradicting_json, assessor, created_at) "
-            "VALUES (?,?,?,?,?,?,?,?)",
+            "claim_role, supporting_json, contradicting_json, assessor, "
+            "created_at) VALUES (?,?,?,?,?,?,?,?,?)",
             (
                 run_id,
                 hypothesis_id,
                 claim,
                 label,
+                claim_role,
                 json.dumps(list(supporting)),
                 json.dumps(list(contradicting)),
                 assessor,

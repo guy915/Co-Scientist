@@ -102,6 +102,7 @@ describe('HypothesisDetail', () => {
         hypothesis_id: 'h1',
         claim: 'An unsupported claim.',
         label: 'insufficient',
+        claim_role: 'speculative',
         supporting: [],
         contradicting: [],
         assessor: 'deterministic-v1',
@@ -149,9 +150,7 @@ describe('HypothesisDetail', () => {
     // Claim-evidence summary counts only this hypothesis's claims (2 of 3),
     // labelled by verdict.
     expect(
-      screen.getByText(
-        /2 claim\(s\) assessed, 1 supported, 1 unsupported \(speculative\)/,
-      ),
+      screen.getByText(/2 claim\(s\) assessed, 1 supported, 1 speculative/),
     ).toBeInTheDocument();
 
     expect(screen.getByText('Reasonable and testable.')).toBeInTheDocument();
@@ -280,12 +279,13 @@ describe('HypothesisDetail claim-evidence provenance', () => {
         contradicting: [],
         assessor: 'llm:deepseek/deepseek-chat',
       },
-      // An insufficient claim has no span and is not detailed.
+      // A speculative claim has no span but remains visibly labeled.
       {
         id: 2,
         hypothesis_id: 'h1',
         claim: 'A speculative claim.',
         label: 'insufficient',
+        claim_role: 'speculative',
         supporting: [],
         contradicting: [],
         assessor: 'llm:deepseek/deepseek-chat',
@@ -306,8 +306,11 @@ describe('HypothesisDetail claim-evidence provenance', () => {
     // ...with a link that opens the exact source.
     const link = screen.getByRole('link', {name: /open source/});
     expect(link).toHaveAttribute('href', 'https://example.org/ev-1');
-    // The speculative claim is not detailed with a span.
-    expect(screen.queryByText('A speculative claim.')).not.toBeInTheDocument();
+    // The claim remains visible even though no evidence span supports it.
+    expect(screen.getByText(/A speculative claim\./)).toBeInTheDocument();
+    expect(
+      screen.getByText('Speculative — evidence insufficient'),
+    ).toBeInTheDocument();
   });
 
   it('tolerates legacy claim rows that stored a bare passage string', () => {

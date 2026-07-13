@@ -280,6 +280,40 @@ def test_gate_blocks_unsupported_unless_speculative_allowed() -> None:
     allowed = publication_gate(assessments, allow_speculative=True)
     assert allowed.decision is GateDecision.ALLOW
     assert allowed.unsupported_claims  # surfaced as speculative
+    assert allowed.speculative_claims == allowed.unsupported_claims
+
+
+def test_gate_allows_only_explicitly_speculative_insufficient_claims() -> None:
+    """A proposed mechanism can remain open while background stays strict."""
+    proposed = assess_claim(
+        "We hypothesize kinase X may alter neuronal recovery.",
+        as_passages(["An unrelated passage about photosynthesis."]),
+    )
+    categorical = assess_claim(
+        "Kinase X is established as the neuronal recovery controller.",
+        as_passages(["An unrelated passage about photosynthesis."]),
+    )
+
+    blocked = publication_gate(
+        [proposed, categorical],
+        explicitly_speculative_claims={proposed.claim},
+    )
+    assert blocked.decision is GateDecision.BLOCK
+    assert blocked.speculative_claims == (proposed.claim,)
+
+    allowed = publication_gate(
+        [proposed], explicitly_speculative_claims={proposed.claim}
+    )
+    assert allowed.decision is GateDecision.ALLOW
+    assert allowed.speculative_claims == (proposed.claim,)
+
+    ungrounded = publication_gate(
+        [proposed],
+        explicitly_speculative_claims={proposed.claim},
+        require_supported_claim=True,
+    )
+    assert ungrounded.decision is GateDecision.BLOCK
+    assert ungrounded.reason == "no evidence-supported contextual claim"
 
 
 def test_gate_allows_supported_hypothesis() -> None:

@@ -52,7 +52,8 @@ def test_ground_persists_graph_and_blocks_contradicted(
     )
 
     assert isinstance(result, GroundingResult)
-    # Contradicted and unsupported hypotheses are both quarantined.
+    # Contradictions quarantine a proposal; a speculation without any supported
+    # scientific context cannot enter ranking either.
     assert result.blocked_ids == frozenset({bad_id, ok_id})
 
     # The claim-evidence graph is persisted, with a contradicts edge whose
@@ -67,6 +68,9 @@ def test_ground_persists_graph_and_blocks_contradicted(
     assert span["evidence_id"] == "passage-0"
     assert span["quote"] and span["end"] > span["start"] >= 0
     assert contradicted_edge["assessor"]  # provenance recorded
+    speculative_edge = next(e for e in edges if e["hypothesis_id"] == ok_id)
+    assert speculative_edge["label"] == "insufficient"
+    assert speculative_edge["claim_role"] == "speculative"
 
     # A claim_gate audit row was recorded for the block.
     decisions = store.list_safety_decisions(run.id, db_path=isolated_db)
@@ -74,6 +78,33 @@ def test_ground_persists_graph_and_blocks_contradicted(
         d["stage"] == "claim_gate" and d["decision"] == "block"
         for d in decisions
     )
+
+
+def test_unsupported_categorical_rationale_is_quarantined(
+    isolated_db: str,
+) -> None:
+    """A proposal label cannot excuse unsupported background rationale."""
+    run = store.create_run("grounding goal", "standard", "engine", {})
+    hypothesis_id = store.add_hypothesis(
+        run.id,
+        title="Unsupported rationale",
+        statement="We hypothesize kinase X may alter neuronal recovery.",
+        mechanism="Kinase X is established as the recovery controller.",
+        db_path=isolated_db,
+    )
+
+    result = ground_hypotheses(
+        run.id,
+        store.list_hypotheses(run.id, db_path=isolated_db),
+        as_passages(["An unrelated passage about photosynthesis in plants."]),
+        db_path=isolated_db,
+    )
+
+    assert result.blocked_ids == frozenset({hypothesis_id})
+    edges = store.list_claim_evidence(run.id, db_path=isolated_db)
+    by_role = {edge["claim_role"]: edge for edge in edges}
+    assert by_role["speculative"]["label"] == "insufficient"
+    assert by_role["categorical"]["label"] == "insufficient"
 
 
 def test_contradicted_hypothesis_excluded_from_report(
@@ -126,6 +157,54 @@ def test_contradicted_hypothesis_excluded_from_report(
     assert "kinase X reduces melanoma" not in markdown
 
 
+def test_speculative_insufficient_hypothesis_remains_visible(
+    isolated_db: str,
+) -> None:
+    """Novel proposal text publishes as speculation, never as a finding."""
+    run = store.create_run("novel proposal", "standard", "engine", {})
+    hypothesis_id = store.add_hypothesis(
+        run.id,
+        title="Novel proposal",
+        statement="We hypothesize channel X may alter neuronal ATP recovery.",
+        mechanism="Astrocytes contribute to neuronal energy metabolism.",
+        db_path=isolated_db,
+    )
+    store.add_evidence(
+        run.id,
+        "General energetics review",
+        abstract="Astrocytes contribute to neuronal energy metabolism.",
+        db_path=isolated_db,
+    )
+    ground_hypotheses(
+        run.id,
+        store.list_hypotheses(run.id, db_path=isolated_db),
+        evidence_passages(run.id, db_path=isolated_db),
+        db_path=isolated_db,
+    )
+
+    payload, _markdown = report_render._build_report_content(
+        run_id=run.id,
+        research_goal=run.research_goal,
+        run_mode="standard",
+        provider="engine",
+        citation_summary=None,
+        meta_review=None,
+        research_overview=None,
+        execution_time=1.0,
+        summary=None,
+        db_path=isolated_db,
+    )
+
+    assert hypothesis_id in {row["id"] for row in payload["leaderboard"]}
+    edge = next(
+        edge
+        for edge in store.list_claim_evidence(run.id, db_path=isolated_db)
+        if edge["claim_role"] == "speculative"
+    )
+    assert edge["label"] == "insufficient"
+    assert edge["claim_role"] == "speculative"
+
+
 def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
     """The store round-trips claim-evidence edges with legacy string passages.
 
@@ -146,6 +225,7 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
     edges = store.list_claim_evidence(run.id, db_path=isolated_db)
     assert len(edges) == 1
     assert edges[0]["label"] == "supports"
+    assert edges[0]["claim_role"] == "categorical"
     assert edges[0]["supporting"] == [
         "Supporting passage one.",
         "Supporting passage two.",

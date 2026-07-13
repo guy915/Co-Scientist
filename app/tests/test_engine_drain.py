@@ -386,9 +386,7 @@ def test_drain_preserves_proximity_pruned_parent_as_non_viable(
 
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store.list_hypotheses(
-            run.id, db_path=isolated_db
-        )
+        for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
     }
     assert by_id["parent-1"]["status"] == "rejected"
     assert by_id["child-1"]["parent_id"] == "parent-1"
@@ -411,9 +409,7 @@ def test_drain_persists_evidence_quarantine_as_rejected(
 
     by_id = {
         hypothesis["id"]: hypothesis
-        for hypothesis in store.list_hypotheses(
-            run.id, db_path=isolated_db
-        )
+        for hypothesis in store.list_hypotheses(run.id, db_path=isolated_db)
     }
     assert by_id["parent-1"]["status"] == "rejected"
     assert by_id["child-1"]["status"] == "active"
@@ -432,12 +428,33 @@ def test_unsafe_hypothesis_excluded_from_synthesis(isolated_db: str) -> None:
         statement="Inhibiting kinase X reduces AML tumor growth via apoptosis.",
         db_path=isolated_db,
     )
-    store.add_hypothesis(
+    unsafe_id = store.add_hypothesis(
         run.id,
         title="Unsafe idea",
         statement=(
             "Weaponize the pathogen to enhance transmissibility in humans."
         ),
+        db_path=isolated_db,
+    )
+    store.add_claim_evidence(
+        run.id,
+        safe_id,
+        "Inhibiting kinase X reduces AML tumor growth via apoptosis.",
+        "supports",
+        ["A source-supported safe mechanism."],
+        [],
+        "fixture",
+        claim_role="speculative",
+        db_path=isolated_db,
+    )
+    store.add_claim_evidence(
+        run.id,
+        unsafe_id,
+        "Weaponize the pathogen to enhance transmissibility in humans.",
+        "supports",
+        ["A source span is present so the safety gate decides this fixture."],
+        [],
+        "fixture",
         db_path=isolated_db,
     )
 

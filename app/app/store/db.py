@@ -196,6 +196,14 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
     # Authorship provenance for scientist-contributed hypotheses (Milestone 7);
     # empty for agent-generated ones.
     _add_column_if_missing(conn, "hypotheses", "author", "TEXT")
+    # Source-role metadata keeps insufficient novel proposals distinct from
+    # unsupported categorical background without changing entailment labels.
+    _add_column_if_missing(
+        conn,
+        "claim_evidence",
+        "claim_role",
+        "TEXT NOT NULL DEFAULT 'categorical'",
+    )
     # Decisiveness class (upset|decisive|clear|narrow) for a tournament match.
     _add_column_if_missing(conn, "matches", "tier", "TEXT")
     # Debate depth for a match: 1 = single-turn comparison, >1 = multi-turn
@@ -566,6 +574,8 @@ CREATE TABLE IF NOT EXISTS claim_evidence (
     claim TEXT NOT NULL,
     -- supports | contradicts | insufficient
     label TEXT NOT NULL,
+    -- categorical | speculative (how the source text presents the claim)
+    claim_role TEXT NOT NULL DEFAULT 'categorical',
     supporting_json TEXT,            -- JSON list of supporting passages
     contradicting_json TEXT,         -- JSON list of contradicting passages
     assessor TEXT NOT NULL,          -- provenance id of the entailment assessor

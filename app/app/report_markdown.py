@@ -336,10 +336,10 @@ def _render_hypothesis_entry(i: int, hyp: dict[str, Any]) -> list[str]:
     lines = [f"### {i}. {title}  _Elo: {hyp.get('elo_rating', '')}_"]
     statement = coalesce(hyp.get("statement"), hyp.get("text"))
     if statement:
-        lines += [statement, ""]
+        lines += [f"**Proposed hypothesis:** {statement}", ""]
     for label, value in (
         ("**Mechanism:**", hyp.get("mechanism")),
-        ("**Expected effect:**", hyp.get("expected_effect")),
+        ("**Predicted effect:**", hyp.get("expected_effect")),
     ):
         if value:
             lines += [f"{label} {value}", ""]

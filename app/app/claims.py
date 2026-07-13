@@ -37,7 +37,7 @@ from __future__ import annotations
 import dataclasses
 import enum
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Collection, Sequence
 
 # --- Atomic claim extraction ------------------------------------------------
 
@@ -530,12 +530,15 @@ class GateResult:
     reason: str
     contradicted_claims: tuple[str, ...]
     unsupported_claims: tuple[str, ...]
+    speculative_claims: tuple[str, ...] = ()
 
 
 def publication_gate(
     assessments: list[ClaimAssessment],
     *,
     allow_speculative: bool = False,
+    explicitly_speculative_claims: Collection[str] = (),
+    require_supported_claim: bool = False,
 ) -> GateResult:
     """Decide whether a hypothesis may be published from its claim assessments.
 
@@ -548,8 +551,14 @@ def publication_gate(
 
     Args:
         assessments: The per-claim assessments for the hypothesis.
-        allow_speculative: When True, INSUFFICIENT claims do not block (they
-            are surfaced as speculative), but CONTRADICTS always blocks.
+        allow_speculative: Compatibility switch treating every insufficient
+            claim as speculative. Contradictions always block.
+        explicitly_speculative_claims: Insufficient claims whose source text
+            explicitly presents them as hypotheses, predictions, or proposed
+            experiments. They remain visible but do not masquerade as
+            categorical findings.
+        require_supported_claim: Whether at least one claim must have an
+            evidence-supporting span before the proposal can pass.
 
     Returns:
         The :class:`GateResult`.
@@ -560,6 +569,15 @@ def publication_gate(
     unsupported = tuple(
         a.claim for a in assessments if a.label is EntailmentLabel.INSUFFICIENT
     )
+    speculative_set = set(explicitly_speculative_claims)
+    speculative = tuple(
+        claim
+        for claim in unsupported
+        if allow_speculative or claim in speculative_set
+    )
+    blocking_unsupported = tuple(
+        claim for claim in unsupported if claim not in set(speculative)
+    )
 
     if contradicted:
         return GateResult(
@@ -567,6 +585,7 @@ def publication_gate(
             f"{len(contradicted)} fundamental claim(s) contradicted",
             contradicted,
             unsupported,
+            speculative,
         )
     if not assessments:
         return GateResult(
@@ -574,19 +593,33 @@ def publication_gate(
             "no atomic claims could be assessed",
             contradicted,
             unsupported,
+            speculative,
         )
-    if unsupported and not allow_speculative:
+    if require_supported_claim and not any(
+        assessment.label is EntailmentLabel.SUPPORTS
+        for assessment in assessments
+    ):
         return GateResult(
             GateDecision.BLOCK,
-            f"{len(unsupported)} claim(s) lack supporting evidence",
+            "no evidence-supported contextual claim",
             contradicted,
             unsupported,
+            speculative,
+        )
+    if blocking_unsupported:
+        return GateResult(
+            GateDecision.BLOCK,
+            f"{len(blocking_unsupported)} categorical claim(s) lack support",
+            contradicted,
+            unsupported,
+            speculative,
         )
     return GateResult(
         GateDecision.ALLOW,
         "all fundamental claims supported"
         if not unsupported
-        else "supported; unsupported claims allowed as labeled speculation",
+        else "categorical claims supported; novel claims labeled speculative",
         contradicted,
         unsupported,
+        speculative,
     )

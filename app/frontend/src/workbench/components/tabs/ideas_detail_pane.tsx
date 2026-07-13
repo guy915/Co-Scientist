@@ -208,18 +208,25 @@ function originLabel(createdByAgent: string): string {
 // (the claim-level grounding graph, Milestone 5), or null when none exist.
 function claimEvidenceSummary(claims: ClaimEvidenceRow[]): string | null {
   if (!claims.length) return null;
-  const counts = {supports: 0, contradicts: 0, insufficient: 0};
+  const counts = {
+    supports: 0,
+    contradicts: 0,
+    categoricalUnsupported: 0,
+    speculative: 0,
+  };
   for (const c of claims) {
     if (c.label === 'supports') counts.supports++;
     else if (c.label === 'contradicts') counts.contradicts++;
-    else counts.insufficient++;
+    else if (c.claim_role === 'speculative') counts.speculative++;
+    else counts.categoricalUnsupported++;
   }
   const parts = [`${claims.length} claim(s) assessed`];
   if (counts.supports) parts.push(`${counts.supports} supported`);
   if (counts.contradicts) parts.push(`${counts.contradicts} contradicted`);
-  if (counts.insufficient) {
-    parts.push(`${counts.insufficient} unsupported (speculative)`);
+  if (counts.categoricalUnsupported) {
+    parts.push(`${counts.categoricalUnsupported} unsupported categorical`);
   }
+  if (counts.speculative) parts.push(`${counts.speculative} speculative`);
   return parts.join(', ');
 }
 
@@ -243,50 +250,56 @@ function normalizeSpans(
 
 // Renders the located evidence spans behind each supported/contradicted claim,
 // so a reader can read the exact quote that grounds the verdict and open its
-// source (Milestone 5 / P0.5). Insufficient (speculative) claims carry no span
-// and are covered by the one-line summary above.
+// source (Milestone 5 / P0.5). Insufficient claims remain visible even though
+// they have no source span, with their categorical/speculative role explicit.
 function ClaimEvidenceDetail({claims}: {claims: ClaimEvidenceRow[]}) {
-  const grounded = claims
-    .map(c => ({
-      claim: c,
-      spans:
-        c.label === 'contradicts'
-          ? normalizeSpans(c.contradicting)
-          : normalizeSpans(c.supporting),
-    }))
-    .filter(({claim, spans}) => claim.label !== 'insufficient' && spans.length);
-  if (!grounded.length) return null;
+  const details = claims.map(c => ({
+    claim: c,
+    spans:
+      c.label === 'contradicts'
+        ? normalizeSpans(c.contradicting)
+        : normalizeSpans(c.supporting),
+  }));
+  if (!details.length) return null;
   return (
     <div className="mt-1 flex flex-col gap-2">
-      {grounded.map(({claim, spans}) => (
+      {details.map(({claim, spans}) => (
         <div key={claim.id} className="text-xs">
           <p>
-            <span className="capitalize font-medium">{claim.label}</span>:{' '}
-            {claim.claim}
+            <span className="capitalize font-medium">
+              {claim.label === 'insufficient'
+                ? claim.claim_role === 'speculative'
+                  ? 'Speculative — evidence insufficient'
+                  : 'Unsupported categorical claim'
+                : claim.label}
+            </span>
+            : {claim.claim}
           </p>
-          <ul className="mt-1 flex flex-col gap-1">
-            {spans.map((span, i) => (
-              <li
-                key={i}
-                className="border-l-2 border-th-outline-variant pl-2 italic"
-              >
-                “{span.quote}”
-                {span.url && (
-                  <>
-                    {' '}
-                    <a
-                      href={span.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="not-italic underline"
-                    >
-                      open source
-                    </a>
-                  </>
-                )}
-              </li>
-            ))}
-          </ul>
+          {spans.length > 0 && (
+            <ul className="mt-1 flex flex-col gap-1">
+              {spans.map((span, i) => (
+                <li
+                  key={i}
+                  className="border-l-2 border-th-outline-variant pl-2 italic"
+                >
+                  “{span.quote}”
+                  {span.url && (
+                    <>
+                      {' '}
+                      <a
+                        href={span.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="not-italic underline"
+                      >
+                        open source
+                      </a>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       ))}
     </div>

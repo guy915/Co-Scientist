@@ -184,18 +184,22 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             or hypothesis.review_disposition
             or "viable"
         )
-        source_text = " ".join(
-            part
-            for part in (
-                hypothesis.text,
-                hypothesis.literature_grounding,
-                hypothesis.explanation,
-                hypothesis.experiment,
-            )
-            if part
-        )
+        claim_roles: dict[str, str] = {}
+        ordered_claims: list[str] = []
+        for source_text, role in (
+            (hypothesis.text, "speculative"),
+            (hypothesis.literature_grounding, "categorical"),
+            (hypothesis.explanation, "speculative"),
+            (hypothesis.experiment, "speculative"),
+        ):
+            for claim in extract_atomic_claims(source_text or ""):
+                if claim not in claim_roles:
+                    ordered_claims.append(claim)
+                    claim_roles[claim] = role
+                elif role == "categorical":
+                    claim_roles[claim] = role
         assessments = []
-        for claim in extract_atomic_claims(source_text):
+        for claim in ordered_claims:
             assessment = (
                 await asyncio.to_thread(
                     assess_claim,
@@ -213,7 +217,16 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
                 )
             )
             assessments.append(assessment)
-        gate = publication_gate(assessments, allow_speculative=False)
+        gate = publication_gate(
+            assessments,
+            allow_speculative=False,
+            explicitly_speculative_claims={
+                claim
+                for claim, role in claim_roles.items()
+                if role == "speculative"
+            },
+            require_supported_claim=True,
+        )
         hypothesis.enrichments["claim_gate"] = {
             "decision": gate.decision.value,
             "reason": gate.reason,
@@ -222,6 +235,7 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
             "claims": [
                 {
                     "claim": assessment.claim,
+                    "role": claim_roles[assessment.claim],
                     "label": assessment.label.value,
                     "supporting_passages": [
                         span.to_dict()

@@ -136,7 +136,8 @@ def _agent_insights(
     meta = meta_review or {}
     return {
         "key_findings": [
-            str(hypothesis.get("statement") or hypothesis.get("title") or "")
+            "Proposed hypothesis: "
+            + str(hypothesis.get("statement") or hypothesis.get("title") or "")
             for hypothesis in hypotheses[:5]
         ],
         "uncertainties": [
@@ -167,7 +168,10 @@ def _idea_buckets(
     safe_ids = {str(hypothesis.get("id")) for hypothesis in safe_hypotheses}
     edge_reasons: dict[str, set[str]] = {}
     for edge in claim_edges:
-        if edge.get("label") == "supports":
+        if edge.get("label") == "supports" or (
+            edge.get("label") == "insufficient"
+            and edge.get("claim_role") == "speculative"
+        ):
             continue
         edge_reasons.setdefault(str(edge.get("hypothesis_id")), set()).add(
             "Evidence verification did not support every material claim."
@@ -208,11 +212,28 @@ def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
     claim-evidence graph; a hypothesis with a contradicted or insufficient edge
     failed the evidence policy and must not rank or publish categorically.
     """
-    return {
+    edges = store.list_claim_evidence(run_id, db_path=db_path)
+    blocked = {
         str(edge["hypothesis_id"])
-        for edge in store.list_claim_evidence(run_id, db_path=db_path)
-        if edge.get("label") != "supports"
+        for edge in edges
+        if edge.get("label") == "contradicts"
+        or (
+            edge.get("label") == "insufficient"
+            and edge.get("claim_role") != "speculative"
+        )
     }
+    supported = {
+        str(edge["hypothesis_id"])
+        for edge in edges
+        if edge.get("label") == "supports"
+    }
+    all_hypothesis_ids = {
+        str(hypothesis.get("id"))
+        for hypothesis in store.list_hypotheses(run_id, db_path=db_path)
+    }
+    # A novel proposal may remain speculative, but a scientific report still
+    # needs at least one evidence-supported contextual claim for that idea.
+    return blocked | (all_hypothesis_ids - supported)
 
 
 def _exclude_unsafe_hypotheses(

@@ -37,14 +37,36 @@ from app.claims import (
 
 logger = logging.getLogger(__name__)
 
-# Hypothesis fields whose text is decomposed into atomic claims.
-_CLAIM_FIELDS = ("statement", "mechanism", "expected_effect")
+# Hypothesis fields whose text is decomposed into atomic claims. The statement
+# and expected effect are visibly proposed idea content; mechanism stores the
+# literature-grounding rationale and must remain categorical/evidence-backed.
+_CLAIM_FIELD_ROLES = (
+    ("statement", "speculative"),
+    ("mechanism", "categorical"),
+    ("expected_effect", "speculative"),
+)
 
 
 def _claim_source_text(hyp: Mapping[str, Any]) -> str:
     """Return the combined text a hypothesis's atomic claims come from."""
-    parts = [str(hyp.get(field) or "") for field in _CLAIM_FIELDS]
+    parts = [str(hyp.get(field) or "") for field, _role in _CLAIM_FIELD_ROLES]
     return " ".join(part for part in parts if part)
+
+
+def _claim_records(hyp: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """Return atomic claims paired with their categorical/speculative role."""
+    roles: dict[str, str] = {}
+    ordered: list[str] = []
+    for field, role in _CLAIM_FIELD_ROLES:
+        for claim in extract_atomic_claims(str(hyp.get(field) or "")):
+            if claim not in roles:
+                ordered.append(claim)
+                roles[claim] = role
+            elif role == "categorical":
+                # The strict role wins when identical text appears in both
+                # rationale and proposed-idea fields.
+                roles[claim] = role
+    return [(claim, roles[claim]) for claim in ordered]
 
 
 def build_assessor(mode: str, model: str) -> tuple[Assessor, str]:
@@ -154,17 +176,20 @@ def ground_hypotheses(
         hyp_id = str(hyp.get("id") or "")
         if not hyp_id:
             continue
-        claims = extract_atomic_claims(_claim_source_text(hyp))
+        claim_records = _claim_records(hyp)
         assessments = [
-            assess_claim(
-                claim,
-                candidates,
-                assessor=assessor,
-                assessor_id=assessor_id,
+            (
+                assess_claim(
+                    claim,
+                    candidates,
+                    assessor=assessor,
+                    assessor_id=assessor_id,
+                ),
+                role,
             )
-            for claim in claims
+            for claim, role in claim_records
         ]
-        for assessment in assessments:
+        for assessment, role in assessments:
             store.add_claim_evidence(
                 run_id,
                 hyp_id,
@@ -173,6 +198,7 @@ def ground_hypotheses(
                 [s.to_dict() for s in assessment.supporting_passages],
                 [s.to_dict() for s in assessment.contradicting_passages],
                 assessment.assessor,
+                claim_role=role,
                 conn=conn,
                 db_path=db_path,
             )
@@ -181,12 +207,25 @@ def ground_hypotheses(
         # grounded. Speculative prose may be retained in working memory, but it
         # cannot enter decisive ranking or the final report categorically.
         gate = publication_gate(
-            assessments, allow_speculative=allow_speculative
+            [assessment for assessment, _role in assessments],
+            allow_speculative=allow_speculative,
+            explicitly_speculative_claims={
+                assessment.claim
+                for assessment, role in assessments
+                if role == "speculative"
+            },
+            require_supported_claim=not allow_speculative,
         )
         reason_by_id[hyp_id] = gate.reason
         if gate.decision is GateDecision.BLOCK:
             blocked.add(hyp_id)
-            failed_claims = gate.contradicted_claims or gate.unsupported_claims
+            failed_claims = gate.contradicted_claims or tuple(
+                claim
+                for claim in gate.unsupported_claims
+                if claim not in set(gate.speculative_claims)
+            )
+            if not failed_claims:
+                failed_claims = gate.unsupported_claims
             store.add_safety_decision(
                 run_id,
                 stage="claim_gate",

@@ -121,7 +121,10 @@ async def test_pre_ranking_gate_quarantines_unsupported_claims() -> None:
         text="Astrocyte lactate accelerates synaptic ATP recovery."
     )
     unsupported = Hypothesis(
-        text="A fictional kinase completely reverses neuronal aging."
+        text="We hypothesize a fictional kinase may alter neuronal aging.",
+        literature_grounding=(
+            "A fictional kinase completely reverses neuronal aging."
+        ),
     )
     for hypothesis in (supported, unsupported):
         hypothesis.review_disposition = "viable"
@@ -148,10 +151,44 @@ async def test_pre_ranking_gate_quarantines_unsupported_claims() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
+    """A grounded proposal may rank with its novel claim made explicit."""
+    hypothesis = Hypothesis(
+        text="We hypothesize astrocyte channel X may accelerate ATP recovery.",
+        literature_grounding=(
+            "Astrocytes participate in neuronal energy support."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state = {
+        "hypotheses": [hypothesis],
+        "articles": [
+            Article(
+                title="Astrocyte energetics",
+                abstract="Astrocytes participate in neuronal energy support.",
+            )
+        ],
+    }
+
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    gate = hypothesis.enrichments["claim_gate"]
+    assert gate["decision"] == "allow"
+    speculative = next(
+        claim for claim in gate["claims"] if claim["role"] == "speculative"
+    )
+    assert speculative["label"] == "insufficient"
+
+
+@pytest.mark.asyncio
 async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
     """Newly retrieved support can release a quarantined idea for ranking."""
     hypothesis = Hypothesis(
-        text="Astrocyte lactate accelerates synaptic ATP recovery."
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "Astrocyte lactate accelerates synaptic ATP recovery."
+        ),
     )
     hypothesis.review_disposition = "viable"
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
