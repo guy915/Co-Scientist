@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
-from app import engine_adapter, store, task_worker
+from app import engine_adapter, engine_tasks, store, task_worker
 from app.main import app
 
 
@@ -101,6 +101,55 @@ async def test_worker_heartbeats_long_workflow_lease(
     assert store.claim_task("worker-b", db_path=isolated_db) is None
     release.set()
     assert await running
+
+
+@pytest.mark.asyncio
+async def test_embedded_worker_pool_executes_fanout_concurrently(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default embedded workers overlap independent specialist leases."""
+    run = store.create_run("parallel goal", "standard", "engine", {})
+    for index in range(4):
+        store.enqueue_task(
+            run.id,
+            f"engine.test.{index}",
+            {},
+            idempotency_key=f"parallel:{index}",
+            db_path=isolated_db,
+        )
+    active = 0
+    max_active = 0
+    lock = asyncio.Lock()
+
+    async def _execute(
+        _task: store.ScientificTask, *, db_path: str | None = None
+    ) -> dict[str, bool]:
+        nonlocal active, max_active
+        async with lock:
+            active += 1
+            max_active = max(max_active, active)
+        await asyncio.sleep(0.03)
+        async with lock:
+            active -= 1
+        return {"completed": True}
+
+    monkeypatch.setattr(
+        engine_tasks, "execute_engine_task", _execute
+    )
+
+    await task_worker.run_run_worker_pool(
+        run.id,
+        "embedded-test",
+        worker_count=4,
+        db_path=isolated_db,
+        lease_seconds=1,
+    )
+
+    assert max_active == 4
+    assert {
+        task.status
+        for task in store.list_tasks(run.id, db_path=isolated_db)
+    } == {"completed"}
 
 
 @pytest.mark.asyncio

@@ -425,7 +425,7 @@ async def start_run(
             # production worker service runs ``python -m app.task_worker`` and
             # sets COSCIENTIST_EMBEDDED_WORKER=0 on the API service.
             background.add_task(
-                task_worker.run_run_until_idle,
+                task_worker.run_run_worker_pool,
                 run_id,
                 f"embedded-api:{os.getpid()}",
             )

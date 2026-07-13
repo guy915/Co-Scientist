@@ -185,6 +185,43 @@ async def run_run_until_idle(
             return
 
 
+async def run_run_worker_pool(
+    run_id: str,
+    worker_prefix: str,
+    *,
+    worker_count: int = 4,
+    db_path: str | None = None,
+    poll_seconds: float = 0.05,
+    lease_seconds: float = 300.0,
+) -> None:
+    """Consume one run with a bounded cohort that survives dynamic fan-out."""
+    if worker_count < 1:
+        raise ValueError("worker_count must be positive")
+
+    async def _worker(index: int) -> None:
+        worker_id = f"{worker_prefix}:{index}"
+        while True:
+            worked = await run_once(
+                worker_id,
+                run_id=run_id,
+                db_path=db_path,
+                lease_seconds=lease_seconds,
+            )
+            if worked:
+                continue
+            tasks = store.list_tasks(run_id, db_path=db_path)
+            # Other cohort members may still be executing parent tasks that
+            # will materialize new fan-out work; remain available until every
+            # lease is acknowledged. Queued-but-unclaimable work with no live
+            # lease cannot make progress and is left for retry/reconciliation.
+            if any(task.status == "leased" for task in tasks):
+                await asyncio.sleep(poll_seconds)
+                continue
+            return
+
+    await asyncio.gather(*(_worker(index) for index in range(worker_count)))
+
+
 async def _heartbeat_lease(
     task: ScientificTask,
     worker_id: str,
