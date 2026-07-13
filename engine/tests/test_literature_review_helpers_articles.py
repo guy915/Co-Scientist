@@ -158,6 +158,9 @@ def test_build_article_maps_all_fields() -> None:
         "abstract": "An abstract.",
         "fulltext": "Full body text.",
         "url": "https://example.com/article",
+        "doi": "10.1000/example",
+        "is_retracted": True,
+        "correction_status": "retracted",
     }
     article = helpers.build_article_from_metadata(
         "PMID42", metadata, source_name="pubmed", used_in_analysis=True
@@ -172,7 +175,21 @@ def test_build_article_maps_all_fields() -> None:
     assert article.content == "Full body text."
     assert article.source_id == "PMID42"
     assert article.source == "pubmed"
+    assert article.doi == "10.1000/example"
+    assert article.is_retracted is True
+    assert article.correction_status == "retracted"
     assert article.used_in_analysis is True
+
+
+def test_build_article_detects_retracted_publication_type() -> None:
+    """PubMed retraction metadata survives into the durable Article."""
+    article = helpers.build_article_from_metadata(
+        "PMID43",
+        {"publication_types": ["Journal Article", "Retracted Publication"]},
+    )
+
+    assert article.is_retracted is True
+    assert article.correction_status == "retracted"
 
 
 def test_build_article_defaults_for_missing_fields() -> None:

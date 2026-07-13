@@ -153,6 +153,34 @@ def test_ground_records_claim_evidence_round_trip(isolated_db: str) -> None:
     assert edges[0]["contradicting"] == []
 
 
+def test_evidence_passages_excludes_unavailable_sources(
+    isolated_db: str,
+) -> None:
+    """Unavailable publications cannot supply claim-grounding passages."""
+    run = store.create_run("grounding goal", "standard", "engine", {})
+    current_id = store.add_evidence(
+        run.id,
+        "Current publication",
+        abstract="A current result supports the proposed mechanism.",
+        url="https://example.org/current",
+        available=True,
+        db_path=isolated_db,
+    )
+    store.add_evidence(
+        run.id,
+        "Retracted publication",
+        abstract="A retracted result must not support the mechanism.",
+        url="https://example.org/retracted",
+        available=False,
+        db_path=isolated_db,
+    )
+
+    passages = evidence_passages(run.id, db_path=isolated_db)
+
+    assert [passage.evidence_id for passage in passages] == [current_id]
+    assert all("retracted" not in passage.text.lower() for passage in passages)
+
+
 def test_build_assessor_selects_by_mode() -> None:
     """`build_assessor` returns the deterministic or LLM assessor by mode."""
     _, det_id = build_assessor("deterministic", "unused")

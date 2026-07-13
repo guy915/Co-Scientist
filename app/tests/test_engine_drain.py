@@ -92,7 +92,15 @@ def _final_state_with_features() -> dict[str, Any]:
                     "reduces the stem-cell pool. A control hypothesis with no "
                     "probes."
                 ),
-            }
+            },
+            {
+                "title": "Retracted CXCR1 report",
+                "source": "openalex",
+                "url": "https://example.org/retracted",
+                "abstract": "A retracted report must not ground claims.",
+                "is_retracted": True,
+                "correction_status": "retracted",
+            },
         ],
         "tournament_matchups": [
             {
@@ -219,6 +227,12 @@ def test_persist_writes_research_overview_into_report(isolated_db: str) -> None:
     assert "## NIH Specific Aims" in markdown
     assert "Aim 1: Quantify CXCR1 dependence." in markdown
     assert "Could yield a combination therapy for TNBC." in markdown
+
+    evidence = store.list_evidence(run.id, db_path=isolated_db)
+    retracted = next(
+        item for item in evidence if item["title"] == "Retracted CXCR1 report"
+    )
+    assert retracted["available"] == 0
 
     edges = store.list_proximity_edges(run.id, db_path=isolated_db)
     hypotheses = store.list_hypotheses(run.id, db_path=isolated_db)

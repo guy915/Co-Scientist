@@ -14,6 +14,20 @@ from co_scientist.models import Article, phase_message
 
 logger = logging.getLogger(__name__)
 
+
+def _metadata_is_retracted(metadata: dict[str, Any]) -> bool:
+    """Return whether source metadata identifies a retracted publication."""
+    publication_types = metadata.get("publication_types") or []
+    if isinstance(publication_types, str):
+        publication_types = [publication_types]
+    normalized_types = {str(item).lower() for item in publication_types}
+    return bool(
+        metadata.get("is_retracted")
+        or str(metadata.get("correction_status") or "").lower() == "retracted"
+        or "retracted publication" in normalized_types
+    )
+
+
 # =============================================================================
 # Article building
 # =============================================================================
@@ -43,6 +57,13 @@ def build_article_from_metadata(
         content=metadata.get("fulltext"),
         source_id=paper_id,
         source=source_name,
+        doi=metadata.get("doi"),
+        is_retracted=_metadata_is_retracted(metadata),
+        correction_status=str(
+            metadata.get("correction_status")
+            or ("retracted" if _metadata_is_retracted(metadata) else "current")
+        ),
+        publication_type=metadata.get("publication_type"),
         pdf_links=[],
         used_in_analysis=used_in_analysis,
     )

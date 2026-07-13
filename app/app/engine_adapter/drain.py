@@ -88,7 +88,7 @@ def _persist_engine_evidence(
             authors=authors,
             year=art.get("year"),
             abstract=abstract,
-            available=True,
+            available=bool(url) and not bool(art.get("is_retracted")),
             conn=conn,
         )
         ev_id_by_title[art.get("title", "")] = ev_id
@@ -336,7 +336,12 @@ def _persist_engine_citations(
                 url=cite_url,
                 abstract=abstract_by_title.get(cite_title, ""),
                 claim=grounding,
-                available=True,
+                available=(
+                    bool(cite_url)
+                    and not bool(cite_info.get("is_retracted"))
+                    and str(cite_info.get("correction_status") or "").lower()
+                    != "retracted"
+                ),
             )
         )
         citation_summary[state] += 1

@@ -451,6 +451,10 @@ class Article:
     content: str | None = None
     source_id: str | None = None
     source: str = "pubmed"  # default changed to "pubmed" (was "google_scholar")
+    doi: str | None = None
+    is_retracted: bool = False
+    correction_status: str = "current"
+    publication_type: str | None = None
     pdf_links: list[str] = field(
         default_factory=list
     )  # unused in PubMed-only mode (HTML-only)

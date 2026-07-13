@@ -407,6 +407,10 @@ def test_article_to_dict_shape() -> None:
         content="Full text.",
         source_id="PMID:123",
         source="pubmed",
+        doi="10.1000/example",
+        is_retracted=True,
+        correction_status="retracted",
+        publication_type="Retracted Publication",
         pdf_links=["http://example.com/a.pdf"],
         used_in_analysis=True,
     )
@@ -422,10 +426,18 @@ def test_article_to_dict_shape() -> None:
         "content",
         "source_id",
         "source",
+        "doi",
+        "is_retracted",
+        "correction_status",
+        "publication_type",
         "pdf_links",
         "used_in_analysis",
     }
     assert set(d.keys()) == expected_keys
+    assert d["doi"] == "10.1000/example"
+    assert d["is_retracted"] is True
+    assert d["correction_status"] == "retracted"
+    assert d["publication_type"] == "Retracted Publication"
     assert d["citations"] == 12
     assert d["authors"] == ["Doe, J."]
     assert d["used_in_analysis"] is True

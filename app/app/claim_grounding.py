@@ -77,6 +77,8 @@ def evidence_passages(
     """
     passages: list[EvidencePassage] = []
     for ev in store.list_evidence(run_id, conn=conn, db_path=db_path):
+        if not ev.get("available"):
+            continue
         text = " ".join(
             str(ev.get(k) or "") for k in ("title", "abstract")
         ).strip()
