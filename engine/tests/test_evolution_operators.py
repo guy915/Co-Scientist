@@ -44,3 +44,23 @@ def test_prompt_requires_assigned_operator() -> None:
     )
     assert "**Operator:** combination" in prompt
     assert "Combination is required" in prompt
+
+
+def test_out_of_box_prompt_permits_core_mechanism_replacement() -> None:
+    """Divergent evolution is not contradicted by a preservation directive."""
+    prompt, _ = _build_evolution_prompt(
+        hypothesis=Hypothesis(text="Parent mechanism."),
+        other_hypotheses_texts=[],
+        meta_review={},
+        removed_duplicates=[],
+        supervisor_guidance=None,
+        articles_with_reasoning=None,
+        tool_registry=None,
+        run_setup_guidance=None,
+        run_focus_guidance=None,
+        operator=EvolutionOperator.OUT_OF_BOX,
+    )
+
+    assert "**Operator:** out_of_box" in prompt
+    assert "may replace the parent's mechanism" in prompt
+    assert "DO NOT rewrite the hypothesis" not in prompt
