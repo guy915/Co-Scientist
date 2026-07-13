@@ -1,0 +1,28 @@
+{
+  "evaluation": "blinded-expert-review",
+  "schema_version": 3,
+  "status": "not_run",
+  "method": {
+    "blinding": "Opaque item identifiers; provider, run, Elo, and lineage are excluded from rater exports.",
+    "rating_axes": [
+      "alignment",
+      "plausibility",
+      "novelty",
+      "testability",
+      "safety",
+      "impact"
+    ],
+    "preference": "Positive integer rank within a blinded comparison set.",
+    "uncertainty": "Per-axis mean with a normal-approximation 95% confidence interval on the 1-5 scale.",
+    "agreement": "Pairwise exact and within-one-point agreement across co-rated item-axis pairs, with Wilson 95% confidence intervals."
+  },
+  "source_data": [],
+  "results": null,
+  "limitations": [
+    "No independent domain-expert panel has been recruited or run.",
+    "No ratings, confidence intervals, agreement values, or quality conclusions are fabricated.",
+    "The implementation validates collection and analysis behavior only; it does not establish scientific-output parity with Google."
+  ],
+  "implementation": "evaluations/expert_review.py",
+  "verification": "evaluations/tests/test_expert_review.py"
+}

@@ -19,7 +19,8 @@ explicitly says otherwise; machine-readable results are written under
   Elo as ground truth.
 - `expert_review.py` — the blinded expert-review export/import schema
   (alignment/plausibility/novelty/testability/safety/impact/preference),
-  validated round-trip.
+  validated round-trip, with per-axis confidence intervals and transparent
+  pairwise inter-rater agreement for imported panels.
 - `scaling_eval.py` — computes budget-ordered best-Elo (internal signal),
   blinded top-10 expert quality, diversity, verified-claim ratio, cost, and
   latency; also aggregates paired feature-ablation arms without treating Elo

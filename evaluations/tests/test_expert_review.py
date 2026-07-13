@@ -10,6 +10,7 @@ from evaluations.expert_review import (
     ExpertReviewValidationError,
     build_blinded_export,
     parse_ratings,
+    summarize_ratings,
 )
 
 
@@ -43,6 +44,7 @@ def test_parse_valid_ratings() -> None:
             "schema_version": SCHEMA_VERSION,
             "ratings": [
                 {
+                    "rater_id": "expert-1",
                     "item_id": "item-abc",
                     "alignment": 5,
                     "novelty": 4,
@@ -56,6 +58,7 @@ def test_parse_valid_ratings() -> None:
         }
     )
     assert len(ratings) == 1
+    assert ratings[0].rater_id == "expert-1"
     assert ratings[0].alignment == 5
     assert ratings[0].novelty == 4
     assert ratings[0].testability == 4
@@ -71,6 +74,7 @@ def test_out_of_range_axis_fails_closed() -> None:
                 "schema_version": SCHEMA_VERSION,
                 "ratings": [
                     {
+                        "rater_id": "expert-1",
                         "item_id": "x",
                         "alignment": 3,
                         "novelty": 9,
@@ -93,6 +97,7 @@ def test_missing_required_axis_fails_closed() -> None:
                 "schema_version": SCHEMA_VERSION,
                 "ratings": [
                     {
+                        "rater_id": "expert-1",
                         "item_id": "legacy",
                         "novelty": 4,
                         "plausibility": 4,
@@ -108,3 +113,68 @@ def test_wrong_schema_version_fails_closed() -> None:
     """An unsupported schema version raises."""
     with pytest.raises(ExpertReviewValidationError):
         parse_ratings({"schema_version": 999, "ratings": []})
+
+
+def test_panel_summary_reports_confidence_and_agreement() -> None:
+    """Real panel imports produce uncertainty and agreement statistics."""
+    ratings = parse_ratings(
+        {
+            "schema_version": SCHEMA_VERSION,
+            "ratings": [
+                {
+                    "rater_id": "expert-1",
+                    "item_id": "item-a",
+                    "alignment": 5,
+                    "plausibility": 4,
+                    "novelty": 3,
+                    "testability": 5,
+                    "safety": 5,
+                    "impact": 4,
+                    "preference_rank": 1,
+                },
+                {
+                    "rater_id": "expert-2",
+                    "item_id": "item-a",
+                    "alignment": 4,
+                    "plausibility": 4,
+                    "novelty": 3,
+                    "testability": 4,
+                    "safety": 5,
+                    "impact": 3,
+                    "preference_rank": 1,
+                },
+            ],
+        }
+    )
+
+    summary = summarize_ratings(ratings)
+
+    assert summary["panel"] == {
+        "rater_count": 2,
+        "item_count": 1,
+        "rating_count": 2,
+    }
+    assert summary["axes"]["alignment"]["mean"] == 4.5
+    assert len(summary["axes"]["alignment"]["confidence_interval_95"]) == 2
+    agreement = summary["inter_rater_agreement"]
+    assert agreement["pairwise_comparisons"] == len(RATING_AXES)
+    assert agreement["within_one_point"]["proportion"] == 1.0
+
+
+def test_duplicate_rater_item_fails_closed() -> None:
+    """One expert cannot accidentally double-weight an item."""
+    row = {
+        "rater_id": "expert-1",
+        "item_id": "item-a",
+        "alignment": 4,
+        "plausibility": 4,
+        "novelty": 4,
+        "testability": 4,
+        "safety": 4,
+        "impact": 4,
+        "preference_rank": 1,
+    }
+    with pytest.raises(ExpertReviewValidationError, match="duplicate rating"):
+        parse_ratings(
+            {"schema_version": SCHEMA_VERSION, "ratings": [row, dict(row)]}
+        )
