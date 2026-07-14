@@ -107,9 +107,24 @@ it and it should be durable for future sessions.
 - Evaluations: offline smoke green; citation challenge panel (llm:deepseek)
   accuracy 0.90 / contradiction recall 1.0 with documented gates; safety 13
   cases 0 FP/0 FN; parity checker OK (64 rows, 52 verified / 6 partial / 6 external).
-- Runtime: two real-provider runs executed concurrently through the durable
-  queue; a prior real run confirmed the claim-evidence release gate fires
-  fail-closed ("No hypothesis passed the claim-level evidence release gate").
+- Runtime: multiple real-provider runs executed through the durable queue; each
+  confirmed the claim-evidence release gate fires fail-closed ("No hypothesis
+  passed the claim-level evidence release gate"). The final harvested run
+  (metformin/AMPK, `8d22f692`, 141 tasks, 21 hypotheses) reached a legitimate
+  terminal `blocked` after a full workflow: intake safety allowed, the report was
+  synthesized (`research_overview` completed), the final safety gate allowed, and
+  only the claim-level evidence gate withheld release. Two facts were verified on
+  that run: (a) the private-corpus grounding fix is live — the gate's evidence
+  pool contained the uploaded `attachment` node, which prior code omitted; and
+  (b) the block cause is a data-availability limit, not a code defect — the
+  retrieved public PubMed set was off-topic (a TRPML1/lysosome cluster, an
+  external-server result for a correctly-constructed query, confirmed by
+  code-elimination trace), so no on-topic supporting evidence was grounded. The
+  binding failure is supports-missing, not off-topic contradiction: across all
+  persisted runs the `claim_evidence` ledger holds 1,882 `insufficient` vs 19
+  `supports` and 13 `contradicts` (98.3% insufficient), so a post-retrieval
+  relevance filter (which only removes noise, never adds support) cannot change
+  the outcome and was deliberately not added.
 - Browser: intake, multi-turn interview, four-field plan, Standard/Advanced
   config, and executing screen verified at desktop 1440×720 and mobile 375×812
   with no horizontal overflow.
@@ -216,7 +231,12 @@ the low-value proximity residual remains).
 The three faithful-design partials (10, 11, 14) all reduce to one root: the
 evidence gate takes the most conservative of the implementation prompt's four
 allowed remedies (**abstain**), so a real compatibility-provider run rarely
-produces a completed report. That choice is faithful and audit-endorsed;
+produces a completed report. This is now quantified from the runtime ledger:
+across every persisted run, 1,882 of 1,914 claim-evidence assessments (98.3%)
+resolve to `insufficient`, with only 19 `supports` — under the DeepSeek
+compatibility provider, claims almost never ground to `supports`, so the gate
+withholds release by design rather than by defect. That choice is faithful and
+audit-endorsed;
 reversing it to manufacture a completed report would violate the task's own
 prohibition on gaming the acceptance criteria. Consequently these three, plus
 the external (6, 12, 16) and feature-risk (5, 6) items, are at their honest
