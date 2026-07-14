@@ -115,10 +115,6 @@ Provide guidance for each phase. Use the ACTUAL configuration values ({{initial_
 - **critical_criteria**: list of domain-specific criteria reviewers should emphasize
 - **review_depth**: description of review depth appropriate for this domain
 
-#### ranking_phase
-- **ranking_approach**: description of what qualities matter most for ranking in this domain
-- **selection_criteria**: list of criteria for identifying top hypotheses
-
 #### evolution_phase
 - **refinement_priorities**: list of priorities for refining hypotheses in this domain
 - **iteration_strategy**: describe refinement strategy across the {{max_iterations}} configured iteration(s)

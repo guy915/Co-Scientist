@@ -219,14 +219,16 @@ remain unclosable regardless.
 |---|---|---|---|
 | E08 | Give research-expansion a dedicated unexplored-space/coverage analysis (currently a later-cycle re-entry with meta-review context) | `nodes/generation/coordinator.py` | medium (generation control) |
 | E07 | Run the assumptions strategy alongside grounded generation, not only in the degraded no-literature mode | `nodes/generation/coordinator_strategy.py` | medium (generation allocation) |
-| E32 | Consume or remove the dead Supervisor plan fields (`performance_assessment`, `adjustment_recommendations`, `output_preparation`, `ranking_phase`) | `schemas/planning.py` + readers | low-medium (schema/prompt) |
+| E32 | **Closed this session.** `ranking_phase` was genuinely dead (no reader anywhere, not even stored on state) and was removed from `schemas/planning.py` and the `supervisor.md` prompt (33 supervisor/planning tests pass, ruff/mypy clean). The other three (`performance_assessment`, `adjustment_recommendations`, `output_preparation`) are **not** dead: `nodes/supervisor.py:215-219` stores them on workflow state as intentional observability/debugging output, so they are retained by design, not removed. | `schemas/planning.py`, `prompts/templates/supervisor.md` | done (ranking_phase) / intentional (other 3) |
 | G17-adjacent | A blocked idea's evidence gate could trigger a targeted regeneration-repair loop rather than only quarantine | `app/engine_tasks.py` | medium (control flow) |
 
-Two backlog items were closed this session once a low-risk path was found:
+Three backlog items were closed this session once a low-risk path was found:
 **E18** (single-turn matchup presentation order now alternates via the matchup
-index in `ranking.py`) and the deep-verification half of **E28/F12** (meta-review
+index in `ranking.py`), the deep-verification half of **E28/F12** (meta-review
 critique now reaches the deep verifier's prompt in `deep_verification.py`; only
-the low-value proximity residual remains).
+the low-value proximity residual remains), and the dead-field half of **E32**
+(the unread `ranking_phase` object was removed from the supervisor schema and
+prompt; the other three plan fields are intentional observability, not dead).
 
 The three faithful-design partials (10, 11, 14) all reduce to one root: the
 evidence gate takes the most conservative of the implementation prompt's four

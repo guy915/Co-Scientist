@@ -578,9 +578,9 @@
     },
     "E32": {
       "status": "partial",
-      "implementation": "supervisor_guidance read by supervisor_decision.py; review.py (config_synthesis); evolve_prompt.py; ranking.py; proximity.py",
-      "verification": "test_supervisor_decision.py; test_prompts_review.py",
-      "remaining": "performance_assessment, adjustment_recommendations, output_preparation, ranking_phase are written but never read."
+      "implementation": "supervisor_guidance read by supervisor_decision.py; review.py (config_synthesis); evolve_prompt.py; ranking.py; proximity.py. Dead ranking_phase field (unread and not written to state) removed from schemas/planning.py and prompts/templates/supervisor.md 2026-07-14.",
+      "verification": "test_supervisor_decision.py; test_prompts_review.py; 33 supervisor/planning tests pass with ranking_phase removed (ruff/mypy clean).",
+      "remaining": "performance_assessment, adjustment_recommendations, output_preparation remain written to workflow state (nodes/supervisor.py:215-219) as intentional observability/debug output but are not re-read by any prompt helper; ranking_phase (previously unread AND unwritten) has been removed."
     },
     "F01": {
       "status": "implemented",

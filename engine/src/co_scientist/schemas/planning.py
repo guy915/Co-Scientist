@@ -54,12 +54,11 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 ],
                 "additionalProperties": False,
             },
-            # Per-phase strategic guidance (generation/review/ranking/
-            # evolution). generation_phase.focus_areas is read inline by
+            # Per-phase strategic guidance (generation/review/evolution).
+            # generation_phase.focus_areas is read inline by
             # get_debate_generation_prompt; review_phase and
             # evolution_phase are read by _format_supervisor_guidance_for_
-            # review/_meta_review in prompts.py. ranking_phase is captured
-            # for completeness but has no reader today.
+            # review/_meta_review in prompts.py.
             "workflow_plan": {
                 "type": "object",
                 "properties": {
@@ -104,23 +103,6 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                         "required": ["critical_criteria", "review_depth"],
                         "additionalProperties": False,
                     },
-                    "ranking_phase": {
-                        "type": "object",
-                        "properties": {
-                            "ranking_approach": {
-                                "type": "string",
-                                "description": (
-                                    "description of ranking approach"
-                                ),
-                            },
-                            "selection_criteria": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                            },
-                        },
-                        "required": ["ranking_approach", "selection_criteria"],
-                        "additionalProperties": False,
-                    },
                     "evolution_phase": {
                         "type": "object",
                         "properties": {
@@ -145,7 +127,6 @@ SUPERVISOR_SCHEMA: dict[str, Any] = {
                 "required": [
                     "generation_phase",
                     "review_phase",
-                    "ranking_phase",
                     "evolution_phase",
                 ],
                 "additionalProperties": False,
