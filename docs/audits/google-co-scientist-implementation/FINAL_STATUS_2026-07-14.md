@@ -86,9 +86,9 @@ confirmation bias, and the audit endorsed the fail-closed choice.
 | 16 Evaluation reports checked in | partial | Citation/safety/expert-readiness/scaling harness/failure-recovery present; GPQA/scaling-curve/expert-panel/wet-lab external. |
 | 17 Documentation identifies uncertainty | implemented | This document + reconciled ledger + consistent PARITY; no literal-parity claim; the product itself labels reconstruction provenance. |
 
-The one intentionally-retained untracked file is
-`PREVIOUS_SESSION_SUMMARY.md` (a prior session's transcript summary), left in
-place rather than committed or discarded.
+`PREVIOUS_SESSION_SUMMARY.md` (a prior session's transcript summary) is now
+tracked with the other audit artifacts, since the goal's reading list references
+it and it should be durable for future sessions.
 
 ## 4. Verification (2026-07-14)
 
