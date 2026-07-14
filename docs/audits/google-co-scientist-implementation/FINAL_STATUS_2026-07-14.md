@@ -92,11 +92,20 @@ it and it should be durable for future sessions.
 
 ## 4. Verification (2026-07-14)
 
-- Engine: 1073 tests passed; ruff clean; mypy clean (211 source files).
-- App: 447 passed in default (deterministic, no-randomizer) order excluding the
+- Full CI-gate sweep re-run against final HEAD (2026-07-14, post-E32/format
+  commits) with CI's pinned `ruff==0.15.21`: format-check and lint clean across
+  engine/app/evaluations; mypy strict clean (engine 211, app 68 source files);
+  parity gate OK (64 rows, 52 verified / 6 partial / 6 external, all cited
+  evidence present); evaluations parity-unit + offline smoke OK; frontend gts
+  lint clean, 281 vitest passed, production build OK. This sweep caught and
+  fixed a real gate failure: 16 files (8 engine + 8 app) had drifted from CI's
+  `ruff==0.15.21` formatting and would have failed `ruff format --check` on
+  push; reformatted (cosmetic only, no logic change) and re-verified green.
+- Engine: 1075 tests passed; ruff clean; mypy clean (211 source files).
+- App: 451 passed in default (deterministic, no-randomizer) order excluding the
   three environment-restricted process-pool files, which pass standalone
-  (test_durability 8; multi_process / crashed_process 3) — 458 total; ruff
-  clean; mypy clean (123 source files). Note: running `test_engine_tasks.py`
+  (test_durability 8; multi_process / crashed_process 3); ruff
+  clean; mypy clean (68 source files). Note: running `test_engine_tasks.py`
   and `test_resume_engine.py` as an isolated pair surfaces a pre-existing
   test-isolation fragility (module-level engine state leaks between them; it
   fails the same way with this session's changes reverted); the full
