@@ -159,11 +159,28 @@ it and it should be durable for future sessions.
   retrieved public PubMed set was off-topic (a TRPML1/lysosome cluster, an
   external-server result for a correctly-constructed query, confirmed by
   code-elimination trace), so no on-topic supporting evidence was grounded. The
-  binding failure is supports-missing, not off-topic contradiction: across all
-  persisted runs the `claim_evidence` ledger holds 1,882 `insufficient` vs 19
-  `supports` and 13 `contradicts` (98.3% insufficient), so a post-retrieval
-  relevance filter (which only removes noise, never adds support) cannot change
-  the outcome and was deliberately not added.
+  binding failure is supports-missing, not off-topic contradiction, so a
+  post-retrieval relevance filter (which only removes noise, never adds support)
+  cannot change the outcome and was deliberately not added.
+- **Gate-block basis corrected (2026-07-14, evidence re-based).** An earlier
+  draft justified the block with an aggregate — "1,882 of 1,914 persisted claim
+  assessments (98.3%) are `insufficient`." That count is real but does **not**
+  reflect the current gate: every persisted run predates commit `84e91846`
+  (speculative/categorical role split, 2026-07-13 23:14; the newest run's claims
+  are 22:20), so all 1,914 rows are tagged `categorical` and the pre-split gate
+  never exempted speculative-role claims. The current role-aware gate was
+  therefore reconstructed offline against the only run that ever grounded
+  supporting evidence (`95b46092`, astrocyte-neuron lactate shuttle, the sole
+  source of all 19 `supports`): re-deriving each hypothesis's claim roles from
+  its persisted fields (`literature_grounding` → categorical; text / explanation
+  / experiment → speculative) and re-running the current `publication_gate`
+  still blocks **0 of 16** hypotheses under lenient treatment (unmatched
+  re-extracted claims are dropped, which can only help a hypothesis pass). The
+  binding reasons are all role-independent: 9 hypotheses block on genuine
+  literature contradictions, 5 on their own unsupported categorical
+  `literature_grounding` claims, 2 on having no supported claim at all. So the
+  completed-report gap holds under the current gate — but on per-hypothesis
+  reconstruction, not the misleading aggregate percentage.
 - Browser: intake, multi-turn interview, four-field plan, Standard/Advanced
   config, and executing screen verified at desktop 1440×720 and mobile 375×812
   with no horizontal overflow.
@@ -286,12 +303,15 @@ prompt; the other three plan fields are intentional observability, not dead).
 The three faithful-design partials (10, 11, 14) all reduce to one root: the
 evidence gate takes the most conservative of the implementation prompt's four
 allowed remedies (**abstain**), so a real compatibility-provider run rarely
-produces a completed report. This is now quantified from the runtime ledger:
-across every persisted run, 1,882 of 1,914 claim-evidence assessments (98.3%)
-resolve to `insufficient`, with only 19 `supports` — under the DeepSeek
-compatibility provider, claims almost never ground to `supports`, so the gate
-withholds release by design rather than by defect. That choice is faithful and
-audit-endorsed;
+produces a completed report. This is quantified per hypothesis under the
+current role-aware gate (not the pre-split aggregate — see the §4 correction):
+reconstructing the current `publication_gate` offline against the only run that
+ever grounded supporting evidence (`95b46092`, 19 `supports`) still blocks 0 of
+16 hypotheses, because every hypothesis fails for a role-independent reason —
+a genuine literature contradiction (9/16), an unsupported categorical
+`literature_grounding` claim (5/16), or no supported claim at all (2/16). The
+gate withholds release by design rather than by defect. That choice is faithful
+and audit-endorsed;
 reversing it to manufacture a completed report would violate the task's own
 prohibition on gaming the acceptance criteria. Consequently these three, plus
 the external (6, 12, 16) and feature-risk (5, 6) items, are at their honest
