@@ -338,9 +338,7 @@ async def judge_matchup(
         raw_winner, valid_output = _parse_matchup_winner(
             response, fallback=raw_fallback
         )
-        winner = (
-            "b" if raw_winner == "a" else "a"
-        ) if swapped else raw_winner
+        winner = ("b" if raw_winner == "a" else "a") if swapped else raw_winner
         votes.append(winner)
         transcript.append(
             {

@@ -59,6 +59,7 @@ def test_missing_engine_never_substitutes_mock_science(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A run resolved as real fails loudly if its engine disappears."""
+
     async def _emit(
         _kind: str, _payload: dict[str, object]
     ) -> dict[str, object]:

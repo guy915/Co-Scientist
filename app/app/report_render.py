@@ -215,9 +215,7 @@ def _released_claim_evidence(
         str(hypothesis.get("id") or "") for hypothesis in hypotheses
     }
     sources = {
-        str(item.get("id") or ""): item
-        for item in evidence
-        if item.get("id")
+        str(item.get("id") or ""): item for item in evidence if item.get("id")
     }
     released: list[dict[str, Any]] = []
     for edge in claim_edges:
@@ -404,9 +402,7 @@ def _build_report_content(
     leaderboard = live_leaderboard(hyps)
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
     evidence = store.list_evidence(run_id, db_path=db_path)
-    released_claim_edges = _released_claim_evidence(
-        hyps, claim_edges, evidence
-    )
+    released_claim_edges = _released_claim_evidence(hyps, claim_edges, evidence)
     synthesized_topics = _synthesized_knowledge_base_topics(
         research_overview, evidence
     )

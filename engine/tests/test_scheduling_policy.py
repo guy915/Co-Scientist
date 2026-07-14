@@ -240,9 +240,7 @@ def test_unrankable_pool_does_not_loop_on_ranking() -> None:
     evolve) and terminates at its iteration budget instead of looping.
     """
     # Six reviewed ideas in the pool, none rankable, zero coverage, mid-budget.
-    stats = _healthy_stats(
-        rankable_count=0, match_coverage=0.0, iteration=1
-    )
+    stats = _healthy_stats(rankable_count=0, match_coverage=0.0, iteration=1)
     decision = decide_next_task(stats, _BUDGET, min_match_coverage=1.0)
     assert decision.next_task is not TaskType.RANK
     assert not decision.terminate

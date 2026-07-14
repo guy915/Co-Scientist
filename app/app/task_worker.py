@@ -200,9 +200,7 @@ async def run_once(
         # the checkpoint. Obsolescence is a successful idempotent outcome, not
         # a scientific failure and must not consume the retry budget.
         result = {"superseded": True, "reason": str(exc)}
-        if not store.complete_task(
-            task.id, worker_id, result, db_path=db_path
-        ):
+        if not store.complete_task(task.id, worker_id, result, db_path=db_path):
             logger.warning("Task %s lost its lease while superseded", task.id)
         else:
             logger.info("Task %s superseded by a newer checkpoint", task.id)

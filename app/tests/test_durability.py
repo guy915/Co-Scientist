@@ -72,9 +72,7 @@ def test_active_engine_tasks_are_discoverable_before_lease_expiry(
         db_path=isolated_db,
     )
     assert (
-        store.claim_task(
-            "dead-worker", lease_seconds=300, db_path=isolated_db
-        )
+        store.claim_task("dead-worker", lease_seconds=300, db_path=isolated_db)
         is not None
     )
 

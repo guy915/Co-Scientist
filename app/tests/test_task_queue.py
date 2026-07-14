@@ -25,9 +25,7 @@ print("TRUE" if completed else "FALSE")
 """
 
 
-def _parallel_scripts(
-    script: str, arguments: list[list[str]]
-) -> list[str]:
+def _parallel_scripts(script: str, arguments: list[list[str]]) -> list[str]:
     """Run isolated Python workers concurrently and return their outputs."""
     workers = [
         subprocess.Popen(
@@ -493,8 +491,7 @@ def test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks(
     )
 
     by_id = {
-        task.id: task
-        for task in store.list_tasks(run_id, db_path=isolated_db)
+        task.id: task for task in store.list_tasks(run_id, db_path=isolated_db)
     }
     assert by_id[promoted.id].priority == 99
     assert by_id[cancelled.id].status == "cancelled"

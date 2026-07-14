@@ -190,9 +190,7 @@ def _apply_matchup_results(
     for (hyp_a, hyp_b), (winner, response) in zip(
         pairings, results, strict=True
     ):
-        outcome = _apply_matchup_elo(
-            hyp_a, hyp_b, winner, k_factor=k_factor
-        )
+        outcome = _apply_matchup_elo(hyp_a, hyp_b, winner, k_factor=k_factor)
         matchup_details.append(
             _build_matchup_detail(hyp_a, hyp_b, winner, response, outcome)
         )

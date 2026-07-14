@@ -206,9 +206,7 @@ async def test_search_source_for_query_retries_malformed_transport_result(
         errors,
     )
 
-    assert result == {
-        "P1": {"title": "Recovered", "_source_name": "openalex"}
-    }
+    assert result == {"P1": {"title": "Recovered", "_source_name": "openalex"}}
     assert errors == []
     assert len(client.calls) == 2
 

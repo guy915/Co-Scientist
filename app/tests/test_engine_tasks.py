@@ -790,9 +790,7 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
             "articles": [
                 Article(
                     title=f"Energetics {index}",
-                    abstract=(
-                        f"Mechanism {index} accelerates ATP recovery."
-                    ),
+                    abstract=(f"Mechanism {index} accelerates ATP recovery."),
                     source_id=f"PMID-{index}",
                 )
                 for index in range(3)

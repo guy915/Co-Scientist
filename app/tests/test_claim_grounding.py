@@ -204,9 +204,7 @@ def test_speculative_insufficient_hypothesis_remains_visible(
     assert edge["label"] == "insufficient"
     assert edge["claim_role"] == "speculative"
     report_edges = payload["claim_evidence"]
-    assert {item["hypothesis_id"] for item in report_edges} == {
-        hypothesis_id
-    }
+    assert {item["hypothesis_id"] for item in report_edges} == {hypothesis_id}
     supported = next(
         item for item in report_edges if item["label"] == "supports"
     )

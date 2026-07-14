@@ -87,9 +87,7 @@ def test_literature_cache_key_covers_tool_contract_and_budget() -> None:
         "pubmed_search_with_fulltext"
     )
     assert multi_source["papers_to_read_count"] == 8
-    workflow = multi_source["tool_contract"]["workflows"][
-        "literature_review"
-    ]
+    workflow = multi_source["tool_contract"]["workflows"]["literature_review"]
     assert [source["tool"] for source in workflow["search_sources"]] == [
         "pubmed_fulltext",
         "openalex_search",

@@ -177,9 +177,7 @@ def test_matchup_applies_run_specific_k_factor() -> None:
     hypothesis_a = Hypothesis(text="A")
     hypothesis_b = Hypothesis(text="B")
 
-    outcome = _apply_matchup_elo(
-        hypothesis_a, hypothesis_b, "a", k_factor=40
-    )
+    outcome = _apply_matchup_elo(hypothesis_a, hypothesis_b, "a", k_factor=40)
 
     assert outcome.winner_elo_after == 1220
     assert outcome.loser_elo_after == 1180

@@ -66,9 +66,7 @@ def _prompt_variables(
         str(source.get("display") or "")[:1800]
         for source in (state.get("context_enrichment_sources") or [])[:4]
     ]
-    domain_context = "\n\n".join(
-        [*evidence_sections, *private_sections]
-    )
+    domain_context = "\n\n".join([*evidence_sections, *private_sections])
     return {
         "research_goal": state["research_goal"],
         "hypothesis_text": hypothesis_text,
@@ -102,9 +100,7 @@ async def _run_review(
     )
     prompt, schema = load_prompt_with_schema(
         prompt_name_for(template_type),
-        _prompt_variables(
-            state, hypothesis, review_type, targeted_articles
-        ),
+        _prompt_variables(state, hypothesis, review_type, targeted_articles),
     )
     if review_type is ReviewType.RECURRENT:
         prompt = (

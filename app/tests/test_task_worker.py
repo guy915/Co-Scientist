@@ -248,9 +248,7 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
             active -= 1
         return {"completed": True}
 
-    monkeypatch.setattr(
-        engine_tasks, "execute_engine_task", _execute
-    )
+    monkeypatch.setattr(engine_tasks, "execute_engine_task", _execute)
 
     await task_worker.run_run_worker_pool(
         run.id,
@@ -262,8 +260,7 @@ async def test_embedded_worker_pool_executes_fanout_concurrently(
 
     assert max_active == 4
     assert {
-        task.status
-        for task in store.list_tasks(run.id, db_path=isolated_db)
+        task.status for task in store.list_tasks(run.id, db_path=isolated_db)
     } == {"completed"}
 
 

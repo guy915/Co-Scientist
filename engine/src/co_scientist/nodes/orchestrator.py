@@ -131,9 +131,7 @@ def _compute_stats(
     rankable = [h for h in hyps if h.is_rankable()]
     rankable_count = len(rankable)
     rankable_matches = sum(h.total_matches for h in rankable)
-    avg_coverage = (
-        rankable_matches / rankable_count if rankable_count else 0.0
-    )
+    avg_coverage = rankable_matches / rankable_count if rankable_count else 0.0
     top_elo = max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING)
     metrics = state.get("metrics")
     llm_calls = metrics.llm_calls if metrics is not None else 0
