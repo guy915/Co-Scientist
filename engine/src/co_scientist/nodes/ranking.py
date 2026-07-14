@@ -291,8 +291,15 @@ async def judge_matchup(
         hypothesis_a, hypothesis_b, matchup_index
     )
     response: dict[str, Any] = {}
+    # Fold the matchup index into the starting presentation order so that
+    # single-turn (lower-ranked) comparisons, which only ever run turn 0, do
+    # not always present hypothesis A first — otherwise any residual positional
+    # bias in the judge would systematically favor the A slot. Multi-turn
+    # debates still alternate every turn; even matchup indices preserve the
+    # historical ab/ba/ab ordering.
+    start_parity = int(matchup_index or 0) % 2
     for turn in range(turns):
-        swapped = turn % 2 == 1
+        swapped = (turn + start_parity) % 2 == 1
         if swapped:
             turn_prompt, turn_schema, turn_notes_a, turn_notes_b = (
                 _build_matchup_prompt(
