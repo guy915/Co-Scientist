@@ -193,6 +193,78 @@ def test_scientist_can_edit_and_finalize_fields(
     assert edited.json()["status"] == "completed"
 
 
+def _fake_completion(content: str) -> Any:
+    """Build a minimal litellm-style completion response."""
+    from types import SimpleNamespace
+
+    return SimpleNamespace(
+        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
+    )
+
+
+async def test_interview_downgrades_response_format_for_deepseek(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """DeepSeek rejects json_schema, so the interview must use json_object.
+
+    The engine already downgrades DeepSeek to json_object + schema-in-prompt;
+    the interview call must defer to the same provider-capability check rather
+    than hardcoding json_schema (which DeepSeek returns a BadRequest for).
+    """
+    import json
+
+    import litellm
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_acompletion(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _fake_completion(json.dumps(_response("Which mechanism?")))
+
+    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    monkeypatch.setattr(
+        interviews.settings, "chat_model_name", "deepseek/deepseek-chat"
+    )
+
+    interview = {
+        "turns": [{"role": "user", "content": "restore susceptibility"}],
+        "fields": {},
+    }
+    result = await interviews._call_interview_model(interview)
+
+    assert captured["response_format"] == {"type": "json_object"}
+    # The schema is restated in the prompt so structure survives the downgrade.
+    prompt_text = " ".join(m["content"] for m in captured["messages"])
+    assert "assistant_message" in prompt_text
+    assert result["assistant_message"] == "Which mechanism?"
+
+
+async def test_interview_keeps_json_schema_for_supporting_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model that supports json_schema still gets the native schema format."""
+    import json
+
+    import litellm
+
+    captured: dict[str, Any] = {}
+
+    async def _fake_acompletion(**kwargs: Any) -> Any:
+        captured.update(kwargs)
+        return _fake_completion(json.dumps(_response("ok")))
+
+    monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
+    monkeypatch.setattr(interviews.settings, "chat_model_name", "openai/gpt-4o")
+
+    interview = {
+        "turns": [{"role": "user", "content": "test"}],
+        "fields": {},
+    }
+    await interviews._call_interview_model(interview)
+
+    assert captured["response_format"]["type"] == "json_schema"
+
+
 def test_interview_remains_usable_during_model_outage(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

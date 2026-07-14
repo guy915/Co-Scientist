@@ -144,18 +144,44 @@ async def _call_interview_model(
     """Call the configured semantic interview model with structured output."""
     try:
         import litellm
+        from co_scientist.llm_request import (
+            _inject_schema_into_prompt,
+            _supports_json_schema_response_format,
+        )
+
+        model = settings.effective_chat_model
+        user_prompt = _prompt(interview)
+        if _supports_json_schema_response_format(model):
+            messages = [
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ]
+            response_format: dict[str, Any] = {
+                "type": "json_schema",
+                "json_schema": _RESPONSE_SCHEMA,
+            }
+        else:
+            # DeepSeek and other json_object-only providers reject the
+            # json_schema response format; downgrade to json_object and restate
+            # the schema in the prompt, mirroring the engine's
+            # provider-capability shim so the interview survives providers the
+            # science path already handles.
+            messages = [
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": _inject_schema_into_prompt(
+                        user_prompt, _RESPONSE_SCHEMA
+                    ),
+                },
+            ]
+            response_format = {"type": "json_object"}
 
         response = await asyncio.wait_for(
             litellm.acompletion(
-                model=settings.effective_chat_model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": _prompt(interview)},
-                ],
-                response_format={
-                    "type": "json_schema",
-                    "json_schema": _RESPONSE_SCHEMA,
-                },
+                model=model,
+                messages=messages,
+                response_format=response_format,
                 temperature=0.3,
                 max_tokens=1_500,
             ),
