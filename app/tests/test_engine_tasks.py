@@ -207,6 +207,30 @@ async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
     assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
 
 
+def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
+    """A claim-gated idea must not enter the decisive Elo tournament.
+
+    The pre-ranking gate marks an unsupported idea ``evidence_blocked``; the
+    ranking scheduler must then leave it out of the tournament, not merely drop
+    it at publish time, so its unsupported claim never shifts other ideas' Elo.
+    """
+    supported = Hypothesis(text="Supported idea.")
+    supported.review_disposition = "viable"
+    blocked = Hypothesis(text="Unsupported idea.")
+    blocked.review_disposition = "evidence_blocked"
+    undermined = Hypothesis(text="Undermined idea.")
+    undermined.review_disposition = "viable"
+    undermined.deep_verification_verdict = "undermined"
+
+    eligible = engine_tasks._ranking_eligible(
+        {"hypotheses": [supported, blocked, undermined]}
+    )
+
+    assert supported in eligible
+    assert blocked not in eligible
+    assert undermined not in eligible
+
+
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
     monkeypatch: pytest.MonkeyPatch,
@@ -703,10 +727,35 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
 
     run = store.create_run("Task-level science", "standard", "engine", {})
     state = _task_state(run.id)
-    hypotheses = [Hypothesis(text=f"idea-{index}") for index in range(3)]
+    # Ground each idea so the pre-ranking evidence gate keeps it eligible; the
+    # tournament-mechanics assertions below need at least two ranked ideas.
+    hypotheses = [
+        Hypothesis(
+            text=f"Mechanism {index} accelerates ATP recovery.",
+            literature_grounding=(
+                f"Mechanism {index} accelerates ATP recovery."
+            ),
+        )
+        for index in range(3)
+    ]
     for hypothesis in hypotheses:
         hypothesis.review_disposition = "viable"
-    state.update({"hypotheses": hypotheses, "tournament_pairs": 3})
+    state.update(
+        {
+            "hypotheses": hypotheses,
+            "tournament_pairs": 3,
+            "articles": [
+                Article(
+                    title=f"Energetics {index}",
+                    abstract=(
+                        f"Mechanism {index} accelerates ATP recovery."
+                    ),
+                    source_id=f"PMID-{index}",
+                )
+                for index in range(3)
+            ],
+        }
+    )
     envelope = serialize_workflow_state(state, last_event_seq=0)
     checkpoint_seq = store.save_checkpoint(
         run.id,

@@ -1389,13 +1389,24 @@ async def execute_verification_aggregate(
 
 
 def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
-    """Return hypotheses eligible for a tournament under engine policy."""
+    """Return hypotheses eligible for a tournament under engine policy.
+
+    Ideas the pre-ranking evidence gate quarantined (``evidence_blocked``) are
+    excluded alongside deep-verification-undermined and review-rejected ideas,
+    so an unsupported or contradicted claim never influences the decisive Elo
+    tournament even though the report gate would later drop it.
+    """
     return [
         hypothesis
         for hypothesis in state["hypotheses"]
         if hypothesis.deep_verification_verdict != "undermined"
         and hypothesis.review_disposition
-        not in {"inaccurate", "non_novel", "inaccurate_and_non_novel"}
+        not in {
+            "inaccurate",
+            "non_novel",
+            "inaccurate_and_non_novel",
+            "evidence_blocked",
+        }
     ]
 
 
