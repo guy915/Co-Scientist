@@ -1523,6 +1523,8 @@
     "2026-07-14: browser verification at 1440x720 and 375x812 covered intake, multi-turn Agent interview, four-field plan, Standard/Advanced config, and the executing screen with real metrics.",
     "2026-07-14: all 232 findings reconciled into this ledger with per-finding implementation and verification evidence.",
     "2026-07-14: two real-provider runs (ea0a3198 metformin/AMPK, 973ed7cd senolytic) both reached terminal 'blocked' at the claim-level evidence release gate on the current HEAD; the browser Run Specifications page surfaced the layered safety audit (semantic classifier allow + readiness block with policy provenance) and reconstruction-provenance labeling.",
-    "2026-07-14: app-suite evidence is a composite — full suite 457 passed (fresh env), G17 affected files 46 passed, env-restricted process-pool files pass standalone (durability 8, multi_process/crashed_process 3); the late-session full run hangs on accumulated semaphore/shm pressure, not on any test failure."
+    "2026-07-14: app-suite evidence is a composite — full suite 457 passed (fresh env), G17 affected files 46 passed, env-restricted process-pool files pass standalone (durability 8, multi_process/crashed_process 3); the late-session full run hangs on accumulated semaphore/shm pressure, not on any test failure.",
+    "2026-07-14: removed the clone-only 'We want to develop [X] to enable [Y]' hypothesis template from the debate prompt and generation/synthesis schemas (E30->implemented, H15 refreshed); engine suite 1072 passed with a regression test.",
+    "2026-07-14: real-run verification caught a no-progress loop introduced by the ranking-eligibility fix (a run ballooned to 3600+ tasks); fixed by measuring tournament coverage over rankable ideas only (Hypothesis.is_rankable + SchedulerStats.rankable_count), engine suite 1073 passed with a regression test; an end-to-end verification run is confirming bounded termination."
   ]
 }
