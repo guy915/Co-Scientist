@@ -27,6 +27,7 @@ def _healthy_stats(**overrides: object) -> SchedulerStats:
         "pool_size": 6,
         "reviewed_count": 6,
         "unreviewed_count": 0,
+        "rankable_count": 6,
         "match_coverage": 3.0,
         "iteration": 1,
         "rank_stable_cycles": 0,
@@ -228,12 +229,38 @@ def test_starved_generation_terminates_at_iteration_budget() -> None:
     assert decision.termination_reason is TerminationReason.COMPLETED
 
 
+def test_unrankable_pool_does_not_loop_on_ranking() -> None:
+    """A pool with fewer than two rankable ideas must not demand ranking.
+
+    Regression: when the pre-ranking evidence gate marks most ideas
+    ``evidence_blocked`` they leave the tournament, so their match coverage
+    stays zero. Measuring coverage over the full pool held it below the gate
+    forever and looped the orchestrator on RANK. With coverage measured over
+    the rankable pool, a run whose ideas are all gated advances (generate/
+    evolve) and terminates at its iteration budget instead of looping.
+    """
+    # Six reviewed ideas in the pool, none rankable, zero coverage, mid-budget.
+    stats = _healthy_stats(
+        rankable_count=0, match_coverage=0.0, iteration=1
+    )
+    decision = decide_next_task(stats, _BUDGET, min_match_coverage=1.0)
+    assert decision.next_task is not TaskType.RANK
+    assert not decision.terminate
+    # At the iteration budget the same unrankable pool terminates, not loops.
+    at_budget = _healthy_stats(
+        rankable_count=0, match_coverage=0.0, iteration=5
+    )
+    end = decide_next_task(at_budget, Budget(max_iterations=5))
+    assert end.terminate
+    assert end.termination_reason is TerminationReason.COMPLETED
+
+
 # --- Allowed-transition validation ------------------------------------------
 
 
 def test_validate_rejects_rank_on_tiny_pool() -> None:
-    """An LLM recommending RANK on a <2 pool is corrected to GENERATE."""
-    stats = _healthy_stats(pool_size=1)
+    """An LLM recommending RANK with <2 rankable ideas is corrected."""
+    stats = _healthy_stats(pool_size=1, rankable_count=1)
     recommended = SupervisorDecision(TaskType.RANK, "llm said rank")
     validated = validate_decision(recommended, stats)
     assert validated.next_task is TaskType.GENERATE

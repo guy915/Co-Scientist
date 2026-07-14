@@ -124,8 +124,16 @@ def _compute_stats(
     pool_size = len(hyps)
     reviewed = sum(1 for h in hyps if h.reviews)
     total_matches = sum(h.total_matches for h in hyps)
-    # Average tournament participations per hypothesis (see SchedulerStats).
-    avg_coverage = total_matches / pool_size if pool_size else 0.0
+    # Coverage is measured over the rankable pool only. An un-rankable idea
+    # (undermined or review/evidence-gate rejected) can never accrue matches,
+    # so counting it in the denominator would hold average coverage below the
+    # gate forever and loop the orchestrator on ranking (see SchedulerStats).
+    rankable = [h for h in hyps if h.is_rankable()]
+    rankable_count = len(rankable)
+    rankable_matches = sum(h.total_matches for h in rankable)
+    avg_coverage = (
+        rankable_matches / rankable_count if rankable_count else 0.0
+    )
     top_elo = max((h.elo_rating for h in hyps), default=INITIAL_ELO_RATING)
     metrics = state.get("metrics")
     llm_calls = metrics.llm_calls if metrics is not None else 0
@@ -136,6 +144,7 @@ def _compute_stats(
         pool_size=pool_size,
         reviewed_count=reviewed,
         unreviewed_count=pool_size - reviewed,
+        rankable_count=rankable_count,
         total_matches=total_matches,
         match_coverage=avg_coverage,
         pool_grew_since_proximity=(

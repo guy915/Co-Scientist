@@ -232,8 +232,11 @@ def decide_next_task(
             ),
         )
 
-    # 7. Ensure minimum tournament coverage / calibration.
-    if stats.match_coverage < min_match_coverage:
+    # 7. Ensure minimum tournament coverage / calibration. Only when at least
+    # two hypotheses are rankable; otherwise there is nothing to rank and
+    # demanding coverage would loop the orchestrator forever (a pool of
+    # evidence-gate-rejected ideas can never accrue matches).
+    if stats.rankable_count >= 2 and stats.match_coverage < min_match_coverage:
         return SupervisorDecision(
             next_task=TaskType.RANK,
             reason=(
@@ -313,10 +316,13 @@ def validate_decision(
             next_task=TaskType.GENERATE,
             reason=f"corrected: {task.value} is not a dispatchable loop task",
         )
-    if task == TaskType.RANK and stats.pool_size < 2:
+    if task == TaskType.RANK and stats.rankable_count < 2:
         return SupervisorDecision(
             next_task=TaskType.GENERATE,
-            reason="corrected: cannot rank a pool smaller than 2; generate",
+            reason=(
+                "corrected: fewer than two rankable hypotheses "
+                f"({stats.rankable_count}); generate instead of looping on rank"
+            ),
         )
     if task == TaskType.EVOLVE and stats.reviewed_count < 1:
         fallback = (

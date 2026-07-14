@@ -15,7 +15,7 @@ from co_scientist.constants import (
     THINKING_MAX_TOKENS,
 )
 from co_scientist.llm import call_llm_json
-from co_scientist.models import Hypothesis
+from co_scientist.models import BLOCKING_REVIEW_DISPOSITIONS, Hypothesis
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.nodes.ranking_elo import (
     calculate_elo_update as calculate_elo_update,
@@ -70,14 +70,9 @@ from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
 
-_BLOCKING_REVIEW_DISPOSITIONS = frozenset(
-    {
-        "inaccurate",
-        "non_novel",
-        "inaccurate_and_non_novel",
-        "evidence_blocked",
-    }
-)
+# Kept as a module alias for readability; the canonical set and the rankable
+# predicate live on the model so ranking and the scheduler stay in sync.
+_BLOCKING_REVIEW_DISPOSITIONS = BLOCKING_REVIEW_DISPOSITIONS
 
 # Semaphore to limit concurrent LLM calls (avoid rate limits)
 _ranking_semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)

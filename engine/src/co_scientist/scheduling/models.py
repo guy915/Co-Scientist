@@ -98,10 +98,15 @@ class SchedulerStats:
     pool_size: int = 0
     reviewed_count: int = 0
     unreviewed_count: int = 0
-    # Tournament coverage: average tournament participations per hypothesis
-    # (sum of per-hypothesis match counts / pool size). Average rather than
-    # minimum so the gate is reachable by a bounded tournament; guaranteeing a
-    # per-child minimum is the matchmaking work in Milestone 3.
+    # Hypotheses eligible for the Elo tournament (not undermined / review- or
+    # evidence-gate-rejected). Coverage and the ranking-coverage gate are
+    # measured over this count, not ``pool_size``, so a pool full of
+    # un-rankable ideas cannot hold average coverage below the threshold and
+    # loop the orchestrator on ranking.
+    rankable_count: int = 0
+    # Tournament coverage: average tournament participations per RANKABLE
+    # hypothesis (sum of their match counts / rankable_count). Average rather
+    # than minimum so the gate is reachable by a bounded tournament.
     total_matches: int = 0
     match_coverage: float = 0.0
     # Proximity refresh: pool grew (generate/evolve added rows) since the last

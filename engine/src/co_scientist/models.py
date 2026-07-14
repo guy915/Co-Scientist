@@ -69,6 +69,20 @@ def _rebuild_reviews(
     return [HypothesisReview(**review) for review in reviews_data]
 
 
+# Review dispositions that keep a hypothesis out of the Elo tournament: the
+# initial peer-review gate (inaccurate / non-novel) and the pre-ranking
+# evidence gate (evidence_blocked). Shared by ranking and the scheduler so
+# tournament-coverage accounting matches tournament eligibility.
+BLOCKING_REVIEW_DISPOSITIONS = frozenset(
+    {
+        "inaccurate",
+        "non_novel",
+        "inaccurate_and_non_novel",
+        "evidence_blocked",
+    }
+)
+
+
 @dataclass
 class Hypothesis:
     """A research hypothesis with associated metadata.
@@ -163,6 +177,20 @@ class Hypothesis:
         if self.total_matches == 0:
             return 0.0
         return (self.win_count / self.total_matches) * 100
+
+    def is_rankable(self) -> bool:
+        """Return whether this hypothesis may enter the Elo tournament.
+
+        A hypothesis is excluded from ranking if deep verification undermined
+        it or an initial review / pre-ranking evidence gate rejected it. The
+        scheduler must count tournament coverage over rankable hypotheses only,
+        otherwise a pool full of un-rankable ideas keeps average coverage below
+        the termination threshold and the orchestrator loops on ranking.
+        """
+        return (
+            self.deep_verification_verdict != "undermined"
+            and self.review_disposition not in BLOCKING_REVIEW_DISPOSITIONS
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""

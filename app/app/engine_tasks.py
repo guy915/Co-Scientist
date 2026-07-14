@@ -1394,19 +1394,15 @@ def _ranking_eligible(state: dict[str, Any]) -> list[Any]:
     Ideas the pre-ranking evidence gate quarantined (``evidence_blocked``) are
     excluded alongside deep-verification-undermined and review-rejected ideas,
     so an unsupported or contradicted claim never influences the decisive Elo
-    tournament even though the report gate would later drop it.
+    tournament even though the report gate would later drop it. The predicate
+    lives on ``Hypothesis.is_rankable`` so the durable path and the engine
+    scheduler's coverage accounting stay in sync (a mismatch loops the
+    orchestrator on ranking).
     """
     return [
         hypothesis
         for hypothesis in state["hypotheses"]
-        if hypothesis.deep_verification_verdict != "undermined"
-        and hypothesis.review_disposition
-        not in {
-            "inaccurate",
-            "non_novel",
-            "inaccurate_and_non_novel",
-            "evidence_blocked",
-        }
+        if hypothesis.is_rankable()
     ]
 
 
