@@ -42,7 +42,18 @@ labelled unverifiable rather than invented (see §6).
 The distribution is deliberately not all-green: 105 partial and 11 unverifiable
 rows reflect real, documented boundaries, not unfinished tracking.
 
-## 3. Acceptance conditions (11 implemented / 6 partial)
+## 3. Acceptance conditions (10 implemented / 7 partial)
+
+**Plainly stated up front:** no real compatibility-provider run produced a
+*completed* Goal Report. Both 2026-07-14 runs (metformin/AMPK and senolytic)
+reached terminal `blocked` at the claim-level evidence release gate — correct
+fail-closed behavior. The gate is proven in both directions (two blocked runs +
+the `test_pre_ranking_gate_releases_idea_after_new_support` unit test); it was
+deliberately **not** loosened to manufacture a passing report. Consequently the
+"completed Goal Report" surfaces (AC10) and the completed-report browser journey
+(AC14) are verified by tests and by the blocked-state UI, not by a live
+populated report.
+
 
 | AC | Status | Note |
 |---|---|---|
@@ -56,13 +67,17 @@ rows reflect real, documented boundaries, not unfinished tracking.
 | 8 Citation eval gates | implemented | 30-case adversarial panel: contradiction recall 1.0, accuracy 0.90, gates pass. |
 | 9 Truthful progress/metrics | implemented | Live browser: honest indeterminate progress, real source/idea counts, activity log. |
 | 10 Complete Goal Report + follow-up | partial | All controls functional+tested; a fully-populated live report render pending. |
-| 11 Human inputs alter later work | implemented | Live steering applied and merged into checkpoint state; manual paths tested. |
+| 11 Human inputs alter later work | partial | Steering reached applied=1 and merged into checkpoint state, but the run blocked before output changed; manual-hypothesis/review/upload propagation is test-only. |
 | 12 Safety/adjudication/auth | partial | Consolidated policy, adjudication, intended-use, ownership 404; default auth is compatibility mode; 1,200-goal panel external. |
 | 13 Mock cannot contaminate | implemented | Demos gated to developer mode; real path never falls back to mock. |
 | 14 Desktop/mobile verification | partial | Interview/config/executing verified at 1440×720 and 375×812; completed-report journey pending. |
 | 15 All software gates pass | implemented | engine 1071 / app 457 / frontend 281, ruff/mypy/lint/build clean; eval smoke green. |
 | 16 Evaluation reports checked in | partial | Citation/safety/expert-readiness/scaling harness/failure-recovery present; GPQA/scaling-curve/expert-panel/wet-lab external. |
 | 17 Documentation identifies uncertainty | implemented | This document + reconciled ledger + consistent PARITY; no literal-parity claim; the product itself labels reconstruction provenance. |
+
+The one intentionally-retained untracked file is
+`PREVIOUS_SESSION_SUMMARY.md` (a prior session's transcript summary), left in
+place rather than committed or discarded.
 
 ## 4. Verification (2026-07-14)
 
@@ -105,6 +120,15 @@ never `verified_google`:
 - Production latency, accelerator allocation, queue topology, SLOs (L13), and
   the unbiased distribution of Google's production output quality (K15).
 - Cross-goal memory, which remains off in faithful mode (I09).
+
+The authoritative `verified` / `inferred` / `reconstructed` / `extension` /
+`unavailable` taxonomy lives at the audit level — the reconciled closure ledger
+(`fidelity_closure_overrides.json`) and this register — rather than as a
+machine-readable `fidelity_provenance` section emitted on every run. The product
+surfaces reconstruction provenance only as a conditional UI note (Run
+Specifications, when legacy criteria are present) plus the run's stored `tier`;
+a dedicated per-run machine-readable provenance section remains a documented gap,
+not a claim.
 
 Because these remain undisclosed, the closest achievable result is an
 evidence-bounded reconstruction that matches every verified public behavior and
