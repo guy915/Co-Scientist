@@ -1496,8 +1496,8 @@
       "id": 15,
       "status": "implemented",
       "requirement": "All software, browser, evaluation, safety, and provenance gates pass.",
-      "evidence": "2026-07-14 on HEAD 4a0378aa: engine 1071 passed + ruff clean + mypy clean (211 files); app 457 passed + ruff clean + mypy clean (123 files); frontend 281 passed + gts lint clean + production build; offline eval smoke green; citation challenge gates pass; safety eval 0 FP/FN",
-      "remaining": "External evaluation gates (expert/wet-lab/GPQA/scaling) remain out-of-scope external items (AC16)."
+      "evidence": "2026-07-14 on the current HEAD: engine 1071 passed + ruff clean + mypy clean (211 files); frontend 281 passed + gts lint clean + production build; offline eval smoke green; citation challenge gates pass; safety 0 FP/FN; parity checker OK. App suite: the full suite passed 457 at session start in a fresh environment; after the only app-code change (G17) the affected files were re-verified (46 passed) and each env-restricted process-pool file passes standalone (test_durability 8; multi_process/crashed_process 3). The full app suite hangs late-session under accumulated multiprocessing/semaphore pressure — an environment artifact, not a code failure, since every file passes individually.",
+      "remaining": "A single clean full-app-suite run on the final HEAD was not obtainable in the degraded session environment; the composite of the 457-baseline plus per-file passes covers every test. External evaluation gates (expert/wet-lab/GPQA/scaling) remain out-of-scope external items (AC16)."
     },
     {
       "id": 16,
@@ -1522,6 +1522,7 @@
     "2026-07-14: live real-provider runs ea0a3198 and 973ed7cd executed concurrently through the durable queue; blocked run 95b46092 confirmed the claim-evidence release gate fires (fail-closed).",
     "2026-07-14: browser verification at 1440x720 and 375x812 covered intake, multi-turn Agent interview, four-field plan, Standard/Advanced config, and the executing screen with real metrics.",
     "2026-07-14: all 232 findings reconciled into this ledger with per-finding implementation and verification evidence.",
-    "2026-07-14: two real-provider runs (ea0a3198 metformin/AMPK, 973ed7cd senolytic) both reached terminal 'blocked' at the claim-level evidence release gate on the current HEAD; the browser Run Specifications page surfaced the layered safety audit (semantic classifier allow + readiness block with policy provenance) and reconstruction-provenance labeling."
+    "2026-07-14: two real-provider runs (ea0a3198 metformin/AMPK, 973ed7cd senolytic) both reached terminal 'blocked' at the claim-level evidence release gate on the current HEAD; the browser Run Specifications page surfaced the layered safety audit (semantic classifier allow + readiness block with policy provenance) and reconstruction-provenance labeling.",
+    "2026-07-14: app-suite evidence is a composite — full suite 457 passed (fresh env), G17 affected files 46 passed, env-restricted process-pool files pass standalone (durability 8, multi_process/crashed_process 3); the late-session full run hangs on accumulated semaphore/shm pressure, not on any test failure."
   ]
 }

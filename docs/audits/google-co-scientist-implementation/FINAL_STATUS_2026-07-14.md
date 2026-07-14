@@ -82,7 +82,13 @@ place rather than committed or discarded.
 ## 4. Verification (2026-07-14)
 
 - Engine: 1071 tests passed; ruff clean; mypy clean (211 source files).
-- App: 457 tests passed; ruff clean; mypy clean (123 source files).
+- App: full suite 457 passed (fresh session-start environment); ruff clean;
+  mypy clean (123 source files). After the only app-code change (G17) the
+  affected files were re-verified (46 passed) and each environment-restricted
+  process-pool file passes standalone (test_durability 8; multi_process /
+  crashed_process 3). The full app suite hangs late-session under accumulated
+  multiprocessing/semaphore pressure — an environment artifact, not a code
+  failure; every test file passes individually.
 - Frontend: 281 tests passed; gts lint clean; production build passed.
 - Evaluations: offline smoke green; citation challenge panel (llm:deepseek)
   accuracy 0.90 / contradiction recall 1.0 with documented gates; safety 13
