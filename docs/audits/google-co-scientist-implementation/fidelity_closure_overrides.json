@@ -1,89 +1,1526 @@
 {
   "findings": {
-    "L08": {
+    "A01": {
       "status": "implemented",
-      "implementation": "app/app/engine_tasks.py; app/app/store/tasks.py; engine/src/co_scientist/task_runtime.py",
-      "verification": "app/tests/test_engine_tasks.py; app/tests/test_task_queue.py; app tests: 422 passed",
-      "remaining": "Final multi-process restart soak remains part of acceptance condition 4."
+      "implementation": "chat_composer.tsx; chat_session_start_run.ts::promoteDraftToRun; runs_models.py::CreateRunRequest",
+      "verification": "app/frontend .../chat_workspace_home.test.tsx",
+      "remaining": "none"
     },
-    "L15": {
+    "A02": {
       "status": "implemented",
-      "implementation": "Durable per-item review, generation, debate, mature Reflection, and verification leases plus sequential ranking-match leases.",
-      "verification": "app/tests/test_engine_tasks.py::test_review_fanout_uses_independent_leases_and_one_aggregate_commit and related fan-out tests",
-      "remaining": "Production-scale concurrency characteristics remain reconstructed."
+      "implementation": "app/app/interviews.py (_call_interview_model/_advance); chat_session_handlers.ts::submitComposerMessage; api/runs.ts::createInterview/addInterviewTurn",
+      "verification": "app/tests/test_interviews.py; chat_session_handlers.test.ts; live browser interview 2026-07-14",
+      "remaining": "Client inferRunSpec removed; a non-inferring field-fill fallback runs only on model-unavailable 503."
+    },
+    "A03": {
+      "status": "implemented",
+      "implementation": "chat_workspace_timeline.tsx::interviewTimelineItems (aside 'Interview Progress', live four fields)",
+      "verification": "chat_workspace_home.test.tsx; live browser 2026-07-14",
+      "remaining": "Rendered as inline timeline aside rather than a persistent right rail."
+    },
+    "A04": {
+      "status": "implemented",
+      "implementation": "interviews.py::_RESPONSE_SCHEMA/_normalized_fields (research_challenge/focus_area/preferences/title); chat_timeline_run_spec_card.tsx::SpecSummary",
+      "verification": "app/tests/test_interviews.py; live browser four-field plan 2026-07-14",
+      "remaining": "none"
+    },
+    "A05": {
+      "status": "implemented",
+      "implementation": "interviews.py::_SYSTEM_PROMPT/_advance (one context-sensitive question per turn)",
+      "verification": "app/tests/test_interviews.py; live browser distinct contextual questions 2026-07-14",
+      "remaining": "Degraded fallback assigns answers to fields without semantic inference when the model is down."
+    },
+    "A06": {
+      "status": "implemented",
+      "implementation": "interviews.py::add_interview_turn/edit_interview_fields; chat_session_handlers.ts::submitComposerMessage",
+      "verification": "app/tests/test_interviews.py",
+      "remaining": "Keyword 'Apply steering note' path removed."
+    },
+    "A07": {
+      "status": "partial",
+      "implementation": "interviews.py (persisted four-field spec); run_modes.py::setup_config; supervisor.py plan call",
+      "verification": "app/tests/test_interviews.py",
+      "remaining": "Several Supervisor plan fields are stored but never re-read (E32)."
+    },
+    "A08": {
+      "status": "missing",
+      "implementation": "run_spec.ts::interviewToRunSpec hard-sets criteria:[]; ranking keeps fixed criteria",
+      "verification": "—",
+      "remaining": "Scientist evaluation criteria are not collected and do not govern ranking/debates; preferences become prompt text only."
+    },
+    "A09": {
+      "status": "partial",
+      "implementation": "chat_composer_attachments.tsx; chat_session_start_run.ts::uploadRunDocument; runs.py::upload_attachment; document_ingest.py::extract_document (pypdf+OCR, image OCR, csv/json, 25MB)",
+      "verification": "app/tests/test_document_upload.py; test_run_corpus.py",
+      "remaining": "Per-file OCR/text extraction only; no native multimodal understanding or hundreds-of-PDFs bulk scale."
+    },
+    "A10": {
+      "status": "partial",
+      "implementation": "run_corpus.py::build_corpus/engine_context_sources (private_corpus); engine_adapter/opts.py; engine_tasks.py context_enrichment_sources",
+      "verification": "app/tests/test_run_corpus.py",
+      "remaining": "Indexed and delivered as context-enrichment sources; agent-issued search breadth over the private repo is limited."
+    },
+    "A11": {
+      "status": "implemented",
+      "implementation": "run_detail.tsx steering dialog -> run_agent_dialog.tsx::sendRunSteering -> runs.py::send_message; engine_adapter/opts.py::_steering_preference_part",
+      "verification": "run_detail.test.tsx; live run 973ed7cd steering applied=1 with content merged into checkpoint state 2026-07-14",
+      "remaining": "Guidance applied at the next safe task boundary; downstream prompt-consumption breadth not exhaustively traced."
+    },
+    "A12": {
+      "status": "partial",
+      "implementation": "ideas_tab.tsx::ScientistHypothesisComposer -> addScientistHypothesis -> runs.py::add_human_hypothesis; human_input.py::admit_human_hypothesis; engine_tasks.py::_merge_scientist_inputs",
+      "verification": "app/tests/test_human_input_endpoints.py; ideas_tab.test.tsx",
+      "remaining": "Manual idea enters review/ranking via a continuation task reopening a completed run, not a concurrent live tournament."
+    },
+    "A13": {
+      "status": "partial",
+      "implementation": "ideas_tab.tsx::ScientistReviewComposer -> runs.py::add_human_review (reviewer_agent=scientist); engine_tasks.py::_merge_scientist_inputs (verdict scores)",
+      "verification": "app/tests/test_human_input_endpoints.py",
+      "remaining": "Review is distinct/scored on continuation; its weight on Elo vs meta-review is not separately verified."
+    },
+    "A14": {
+      "status": "implemented",
+      "implementation": "run_detail_shell.tsx::ReportActions (Open Agent) -> run_agent_dialog.tsx -> api::askRunQuestion (SSE); runs.py::ask_question/qa.py",
+      "verification": "run_detail.test.tsx",
+      "remaining": "Per-idea 'Chat with Agent' also wired via cosci-open-run-agent."
+    },
+    "A15": {
+      "status": "extension",
+      "implementation": "run_spec.ts::FOCUS_OPTIONS dead export; focus hard-coded 'balance' in interviewToRunSpec; RUN_FOCUS_VALUES retained",
+      "verification": "—",
+      "remaining": "Four-way selector removed from the UI; enum/backend focus machinery remain as unused dead code fixed at 'balance'."
+    },
+    "B01": {
+      "status": "implemented",
+      "implementation": "run_modes.py (RUN_TIER_PATTERN ^(standard|advanced)$, normalize_run_tier); run_spec.ts::TIER_OPTIONS; chat_session_start_run.ts",
+      "verification": "test_runs_edge.py::test_create_run_rejects_non_faithful_tiers; chat_workspace_run.test.tsx; live browser exactly two run types 2026-07-14",
+      "remaining": "Legacy express/extended/ultra normalize internally but are rejected as API inputs."
+    },
+    "B02": {
+      "status": "unverifiable",
+      "implementation": "run_modes.py::RUN_TIER_DEFAULTS (standard 8/2/8/12/8, advanced 16/4/16/32/16)",
+      "verification": "test_runs.py::test_create_run_persists_setup_and_exact_tier_defaults",
+      "remaining": "Numeric budgets are reconstructed and cannot be proven Google-equivalent."
+    },
+    "B03": {
+      "status": "implemented",
+      "implementation": "runs.py::create_run (run_mode=tier); store.create_run(profile); distinct budgets+concurrency per mode",
+      "verification": "test_runs_edge.py::test_standard_and_advanced_concurrency_limits",
+      "remaining": "Advanced is a real stored mode; its exact Google compute envelope stays inferred."
+    },
+    "B04": {
+      "status": "implemented",
+      "implementation": "runs.py::_MODE_CONCURRENCY_LIMITS {standard:3, advanced:1}; store/runs.py::reserve_run_capacity (atomic COUNT+UPDATE)",
+      "verification": "test_runs_edge.py::test_standard_and_advanced_concurrency_limits",
+      "remaining": "Quota is per-client-id, not tied to account/credit availability."
+    },
+    "B05": {
+      "status": "missing",
+      "implementation": "—",
+      "verification": "—",
+      "remaining": "No credit/charge/refund/account-ledger concept exists; Google's credit contract is a product surface not reproduced."
+    },
+    "B06": {
+      "status": "implemented",
+      "implementation": "chat_timeline_run_spec_card.tsx::CompletionNotification; runs.py::create_run->completion_notification; report_render.py enqueues notification.email; notifications.py::deliver_completion_notification; task_worker.py",
+      "verification": "test_integration_run_flow.py::test_completion_notification_is_opt_in_and_durable; test_task_worker.py::test_worker_delivers_opted_in_completion_email",
+      "remaining": "Actual delivery needs SMTP configured; otherwise the task errors and retries (no fake delivery)."
+    },
+    "B07": {
+      "status": "partial",
+      "implementation": "durable task DAG (task_worker.py, engine_tasks.py); run_modes.py::RUN_TIER_DEFAULTS caps size",
+      "verification": "test_task_queue.py; test_integration_run_flow.py",
+      "remaining": "Compute envelope is far below Google's several-hour scale; no several-hour product contract."
+    },
+    "B08": {
+      "status": "partial",
+      "implementation": "engine_adapter checkpoint callback; store/checkpoints.py; engine_tasks.py resume; store/tasks.py leases",
+      "verification": "test_resume.py::test_interrupted_run_is_resumable_and_completes_once; test_resume_engine.py",
+      "remaining": "Durable only at single-service SQLite scale, not a distributed worker mesh."
+    },
+    "B09": {
+      "status": "extension",
+      "implementation": "runs.py::pause_run/resume_run/cancel_run endpoints; no frontend control invokes them",
+      "verification": "test_resume.py (pause/cancel); test_runs_edge.py",
+      "remaining": "API-only surface Google does not expose; not gated behind developer mode though unreachable from the product UI."
+    },
+    "B10": {
+      "status": "partial",
+      "implementation": "store/models.py::RunStatus (draft/queued/running/synthesizing/completed/cancelled/failed/blocked/paused); run_detail.tsx; home_recents chips",
+      "verification": "run_detail.test.tsx; test_system_lifecycle.py",
+      "remaining": "Extra states (synthesizing/blocked/paused) diverge from Google's presented lifecycle vocabulary."
+    },
+    "B11": {
+      "status": "partial",
+      "implementation": "engine_tasks.py (literature/node tasks); enable_literature_review default true",
+      "verification": "test_engine_drain.py; test_integration_run_flow.py",
+      "remaining": "Phases run at small pools; literature degrades to latent knowledge when tools are unavailable."
+    },
+    "B12": {
+      "status": "partial",
+      "implementation": "chat_timeline_run_spec_card.tsx::RunOptionGroup renders tier cards inside the Research plan card",
+      "verification": "chat_workspace_run.test.tsx",
+      "remaining": "Run-type control is embedded mid-timeline, not a top-right 'Configure Run' action."
+    },
+    "B13": {
+      "status": "missing",
+      "implementation": "—",
+      "verification": "—",
+      "remaining": "The setup card shows no estimated time, credit cost, or eligibility/availability."
+    },
+    "B14": {
+      "status": "implemented",
+      "implementation": "api/runs.ts::loadRunHistory; home_recents.tsx::RecentRunCard (date/status/live progress); store/runs.py::list_runs",
+      "verification": "api/runs.test.ts; home_recents tests",
+      "remaining": "Draft/in-progress/completed share one card style with no explicit lifecycle grouping."
+    },
+    "B15": {
+      "status": "implemented",
+      "implementation": "api/runs.ts::loadRunHistory (includeDemos=DEVELOPER_MODE; owned runs filtered to provider==engine in faithful mode); lib/product_mode.ts",
+      "verification": "api/runs.test.ts 'does not expose demonstration runs in faithful mode'",
+      "remaining": "Mock/demo rows are quarantined behind developer mode rather than removed from the store."
+    },
+    "C01": {
+      "status": "implemented",
+      "implementation": "run_detail.tsx::ActiveRunView; home_recents_run_steps.tsx::RunExecutionProgress; store/tasks.py::task_progress",
+      "verification": "run_detail.test.tsx; live browser executing screen 2026-07-14",
+      "remaining": "Tournament progress is coarse (active task + committed-task fraction), not a per-match view."
+    },
+    "C02": {
+      "status": "partial",
+      "implementation": "run_detail.tsx::ActiveRunView (remainingSeconds from execution_progress.fraction); store/tasks.py::task_progress",
+      "verification": "run_detail.test.tsx asserts 'Estimating…'; live browser 2026-07-14",
+      "remaining": "Engine runs are always indeterminate (dynamic plan), so no real time-remaining number shows for real runs."
+    },
+    "C03": {
+      "status": "implemented",
+      "implementation": "run_detail.tsx::ActiveRunView RunMetric 'Sources Analyzed'; runs.py::get_run live checkpoint augmentation",
+      "verification": "run_detail.test.tsx; live browser 'Sources Analyzed: 8' 2026-07-14",
+      "remaining": "none"
+    },
+    "C04": {
+      "status": "implemented",
+      "implementation": "run_detail.tsx::ActiveRunView RunMetric 'Ideas explored'; runs.py::get_run live summary",
+      "verification": "run_detail.test.tsx; live browser 2026-07-14",
+      "remaining": "none"
+    },
+    "C05": {
+      "status": "partial",
+      "implementation": "run_detail.tsx::ActiveRunView Activity + activityLabel (last 10 committed events); use_run_stream.ts",
+      "verification": "run_detail.test.tsx; live browser activity log 2026-07-14",
+      "remaining": "Renders raw phase+detail labels, not a curated per-task status list."
+    },
+    "C06": {
+      "status": "partial",
+      "implementation": "home_recents_run_steps.tsx::RunExecutionProgress (real active_task/latest_stage); old four-step collapse removed",
+      "verification": "run_detail.test.tsx",
+      "remaining": "Presents the engine's linear per-node tasks, not a continuous parallel-tournament phase model."
+    },
+    "C07": {
+      "status": "partial",
+      "implementation": "store/tasks.py::task_progress (monotonic; engine runs indeterminate so no % renders)",
+      "verification": "run_detail.test.tsx (indeterminate bar)",
+      "remaining": "engine/constants.py still defines non-monotonic per-node values, now unconsumed by any surface."
+    },
+    "C08": {
+      "status": "implemented",
+      "implementation": "run_detail.tsx::ActiveRunView (dedicated execution page: task + sources + ideas + time + activity)",
+      "verification": "run_detail.test.tsx; live browser 2026-07-14",
+      "remaining": "Time field only estimates for determinate progress (see C02)."
+    },
+    "C09": {
+      "status": "extension",
+      "implementation": "layout.tsx (showDeveloperControls=DEVELOPER_MODE); layout_diagnostics.tsx Logs; settings_dialog.tsx; lib/product_mode.ts",
+      "verification": "layout.test.tsx",
+      "remaining": "Diagnostics/logs quarantined behind developer mode."
+    },
+    "C10": {
+      "status": "partial",
+      "implementation": "use_run_stream.ts (EventSource, batched, reconnect); run_detail_data.ts; runs.py::stream_events",
+      "verification": "run_detail.test.tsx; use_run_stream tests",
+      "remaining": "Every subscribe replays the full event log from sequence zero rather than resuming from a cursor."
+    },
+    "D01": {
+      "status": "implemented",
+      "implementation": "run_tabs.ts::TABS (ideas/knowledge/summary/specifications); run_detail_shell.tsx::TAB_LABELS/ReportTabNav",
+      "verification": "run_detail.test.tsx; live browser tab order 2026-07-14",
+      "remaining": "none"
+    },
+    "D02": {
+      "status": "implemented",
+      "implementation": "ideas_tab.tsx::IdeasTab/useIdeaSelection (sortByEloDesc); IdeaListItem Elo chips",
+      "verification": "ideas_tab.test.tsx",
+      "remaining": "none"
+    },
+    "D03": {
+      "status": "implemented",
+      "implementation": "report_render.py::_idea_buckets; ideas_tab.tsx::IdeaBucketSummary/IdeaBucket (High Potential/Non-Viable + reasons)",
+      "verification": "test_goal_report_sections.py",
+      "remaining": "Buckets omit proximity-dedup'd ideas (see D17)."
+    },
+    "D04": {
+      "status": "partial",
+      "implementation": "report_render.py::_agent_insights; run_detail_overview.tsx::AgentInsightsSection/SummaryStats",
+      "verification": "run_detail_overview.test.tsx",
+      "remaining": "Agent Insights + counts sit on the Summary tab, not atop the Ideas page as Google shows."
+    },
+    "D05": {
+      "status": "partial",
+      "implementation": "ideas_detail_pane.tsx::HypothesisDetail (statement/mechanism/effect/provenance/review/tournament/claim spans + Chat with Agent)",
+      "verification": "ideas_detail_pane.test.tsx",
+      "remaining": "No generated proposal diagram (see K12)."
+    },
+    "D06": {
+      "status": "extension",
+      "implementation": "ideas_detail_pane.tsx::HypothesisProvenanceContent/ClaimEvidenceDetail/debateDepthLabel",
+      "verification": "ideas_detail_pane.test.tsx",
+      "remaining": "Clone-specific panels rendered unconditionally, not quarantined."
+    },
+    "D07": {
+      "status": "partial",
+      "implementation": "research_overview.py::_validate_knowledge_base; report_render.py::_synthesized_knowledge_base_topics; run_detail_learning.tsx::learningSections",
+      "verification": "test_goal_report_sections.py::test_synthesized_topics_map_only_to_persisted_evidence; run_detail_learning.test.tsx",
+      "remaining": "Topics are per-hypothesis mechanism/abstract summaries, not a centralized cross-source reference."
+    },
+    "D08": {
+      "status": "implemented",
+      "implementation": "run_detail_learning.tsx::learningSections (knowledge-unavailable empty branch replaces old 'assembling…' placeholder)",
+      "verification": "run_detail_learning.test.tsx",
+      "remaining": "none"
+    },
+    "D09": {
+      "status": "implemented",
+      "implementation": "run_detail_learning.tsx::ReferencesBlock/ReferenceListItem (substring filter + Open link)",
+      "verification": "run_detail_learning.test.tsx",
+      "remaining": "Filter is a plain substring match."
+    },
+    "D10": {
+      "status": "partial",
+      "implementation": "run_detail_overview.tsx::ResearchOverviewView; report_render.py::_agent_insights",
+      "verification": "run_detail_overview.test.tsx",
+      "remaining": "Agent Insights assembled from statements + meta-review weaknesses rather than narratively synthesized."
+    },
+    "D11": {
+      "status": "partial",
+      "implementation": "run_detail.tsx::RunSpecificationsView (Challenge/Focus/Preferences/Title/Run type from run.config.setup)",
+      "verification": "run_detail.test.tsx; live browser Run Specifications 2026-07-14",
+      "remaining": "Fields derive from the setup contract, not a server-finalized interview spec object."
+    },
+    "D12": {
+      "status": "implemented",
+      "implementation": "run_detail_shell.tsx::ReportActions (Open Agent); run_agent_dialog.tsx; api::askRunQuestion/sendRunSteering; runs.py::ask_question/qa.py",
+      "verification": "run_detail.test.tsx; test_qa_endpoint.py; live browser Open Agent 2026-07-14",
+      "remaining": "none"
+    },
+    "D13": {
+      "status": "partial",
+      "implementation": "run_detail_shell.tsx::ReportActions.openNotebookHandoff (downloads report.md + opens notebooklm.google.com); runs.py::get_report_markdown",
+      "verification": "run_detail.test.tsx (NotebookLM handoff download+URL)",
+      "remaining": "A manual Markdown handoff, not verified NotebookLM ingestion (no public ingestion API)."
+    },
+    "D14": {
+      "status": "implemented",
+      "implementation": "report_share_control.tsx; shared_goal_report.tsx; api/runs.ts (create/list/revoke/getSharedGoalReport); shares.py; store/shares.py (hashed tokens)",
+      "verification": "test_report_sharing.py::test_share_link_is_unique_hashed_and_revocable; run_detail.test.tsx",
+      "remaining": "none"
+    },
+    "D15": {
+      "status": "implemented",
+      "implementation": "run_detail_shell.tsx::ReportActions (Download); reportMarkdownUrl; runs.py::get_report_markdown; report_markdown.py",
+      "verification": "run_detail.test.tsx (Download href)",
+      "remaining": "Markdown is the only export format."
+    },
+    "D16": {
+      "status": "partial",
+      "implementation": "report_render.py::finalize_report scientific-readiness gate; report_markdown.py::_render_claim_evidence; ideas_detail_pane.tsx::ClaimEvidenceDetail (clickable spans)",
+      "verification": "test_goal_report_sections.py; test_store_reports.py; blocked run 95b46092 gate fired 2026-07-14",
+      "remaining": "Verification is claim-to-local-sample matching, not deep global source verification (K08)."
+    },
+    "D17": {
+      "status": "partial",
+      "implementation": "report_render.py::_idea_buckets (non_viable + reasons); proximity.py::_resolve_cluster_duplicates",
+      "verification": "test_goal_report_sections.py",
+      "remaining": "Proximity-dedup'd hypotheses feed a separate removed_duplicates trail and never surface in the non-viable archive."
+    },
+    "D18": {
+      "status": "partial",
+      "implementation": "models.py::Hypothesis (mechanism/effect/experiment); research_overview.py (overview+NIH aims+knowledge_base); report_markdown.py",
+      "verification": "run_detail_overview.test.tsx; test_goal_report_sections.py",
+      "remaining": "Structural subset; report body capped to top 5 with shallow literature depth (K11)."
+    },
+    "D19": {
+      "status": "partial",
+      "implementation": "research_overview.py::_synthesize_research_overview (top-k summary + meta_review + evidence_corpus + contacts + guidance)",
+      "verification": "run_detail_overview.test.tsx",
+      "remaining": "Overview never receives raw reviews/debate transcripts, only the top-k summary plus meta-review."
+    },
+    "D20": {
+      "status": "implemented",
+      "implementation": "research_overview.py::_build_contact_candidates/_validate_research_contacts; report_markdown.py; run_detail_overview.tsx::ResearchContactsSection",
+      "verification": "run_detail_overview.test.tsx (research_contacts)",
+      "remaining": "Candidates limited to authors of already-analyzed papers; no broader expert discovery."
+    },
+    "D21": {
+      "status": "partial",
+      "implementation": "research_overview.py (nih_specific_aims always emitted); run_detail_overview.tsx::SpecificAimsSection",
+      "verification": "run_detail_overview.test.tsx",
+      "remaining": "Aims always produced rather than a selectable output-format preference."
+    },
+    "D22": {
+      "status": "partial",
+      "implementation": "report_render.py::_build_report_content (top_hypotheses[:5]); report_markdown.py",
+      "verification": "test_store_reports.py; test_goal_report_sections.py",
+      "remaining": "Output depth/reference density below Google's showcase; exact target unverifiable."
+    },
+    "D23": {
+      "status": "implemented",
+      "implementation": "ideas_detail_pane.tsx::tournamentSummaryText/MatchSummaryContent; ideas_tab.tsx Elo chips",
+      "verification": "ideas_detail_pane.test.tsx",
+      "remaining": "none"
+    },
+    "D24": {
+      "status": "implemented",
+      "implementation": "ideas_detail_pane.tsx (Chat with Agent -> cosci-open-run-agent); run_detail.tsx listener; api::askRunQuestion",
+      "verification": "run_detail.test.tsx (Open Agent dialog)",
+      "remaining": "Per-idea button reuses run-level Q&A (idea context passed as prompt text)."
+    },
+    "D25": {
+      "status": "partial",
+      "implementation": "run_detail_shell.tsx; shared_goal_report.tsx; run_agent_dialog.tsx (Goal Report/Ideas/Knowledge Base/Summary/Run Specifications)",
+      "verification": "run_detail.test.tsx; layout.test.tsx",
+      "remaining": "'run'/'session' terminology persists in routes, settings_dialog.tsx, chat-session hooks."
+    },
+    "E01": {
+      "status": "matched",
+      "implementation": "task_runtime.py TASK_NODES (all seven roles); generator/graph.py",
+      "verification": "test_task_runtime.py; test_generator_graph.py",
+      "remaining": "none"
+    },
+    "E02": {
+      "status": "implemented",
+      "implementation": "supervisor_decision.py::choose_supervisor_task (per-loop model allocation); orchestrator.py; app/engine_tasks.py enqueue",
+      "verification": "test_supervisor_decision.py; app/tests/test_task_queue.py",
+      "remaining": "Initial supervisor_node stays one-shot domain guidance; adaptive planning lives in the loop."
+    },
+    "E03": {
+      "status": "implemented",
+      "implementation": "orchestrator.py::_compute_stats -> scheduling/models.py SchedulerStats",
+      "verification": "test_scheduling_policy.py; test_orchestrator_steering.py",
+      "remaining": "Statistics are a subset with no per-agent effectiveness metrics."
+    },
+    "E04": {
+      "status": "partial",
+      "implementation": "supervisor_decision.py::choose_supervisor_task (next_task+priority+queue_actions); policy.py::validate_decision; engine_tasks.py::_apply_supervisor_queue_actions",
+      "verification": "test_supervisor_decision.py; test_task_queue.py::test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks",
+      "remaining": "Model picks one task per loop under deterministic guards, not weighted sampling of a worker mix."
+    },
+    "E05": {
+      "status": "partial",
+      "implementation": "generation/coordinator.py::generate_with_tools; generation/literature_tools/",
+      "verification": "test_literature_tools.py; test_coordinator.py",
+      "remaining": "Tool-based literature exploration is optional; degrades to latent knowledge without MCP."
+    },
+    "E06": {
+      "status": "partial",
+      "implementation": "generation/debate.py; constants.py DEBATE_MAX_TURNS=5",
+      "verification": "test_prompts_generation_debate.py; test_coordinator.py",
+      "remaining": "Turn counts are clone-defined though the technique matches."
+    },
+    "E07": {
+      "status": "partial",
+      "implementation": "generation/assumptions.py; coordinator.py; coordinator_strategy.py",
+      "verification": "test_generation_techniques.py::test_assumptions_technique_produces_hypotheses",
+      "remaining": "Assumptions runs only in the no-literature degraded mode at a quarter allocation."
+    },
+    "E08": {
+      "status": "partial",
+      "implementation": "coordinator.py threads meta-review into later-cycle generation; prompts/_common.py",
+      "verification": "test_meta_review_prompt_threading.py::test_generation_debate_prompt_includes_meta_review",
+      "remaining": "Still a re-entry convention with no dedicated unexplored-space coverage analysis."
+    },
+    "E09": {
+      "status": "implemented",
+      "implementation": "review.py::_apply_initial_review_gate (viable/inaccurate/non_novel); safety_screen.py",
+      "verification": "test_review.py::test_initial_review_gate_classifies_accuracy_and_novelty_failures",
+      "remaining": "Unsafe filtering is a separate regex safety_screen node, not part of the initial review."
+    },
+    "E10": {
+      "status": "implemented",
+      "implementation": "comprehensive_reflection.py::_run_review (FULL on every viable; domain_context/tool_instructions populated; _retrieve_probe_evidence)",
+      "verification": "test_comprehensive_reflection.py::test_full_and_simulation_run_for_every_viable_hypothesis; ::test_full_review_executes_targeted_retrieval",
+      "remaining": "Retrieval degrades to evidence-context-only when MCP is unavailable."
+    },
+    "E11": {
+      "status": "partial",
+      "implementation": "deep_verification.py two-pass probes with fundamental flag + _probe_queries/_retrieve_probe_evidence second adjudication",
+      "verification": "test_deep_verification.py::test_probe_questions_trigger_retrieval_and_second_adjudication",
+      "remaining": "Top-k only with one/two LLM calls, not recursive decomposition of every assumption."
+    },
+    "E12": {
+      "status": "implemented",
+      "implementation": "reflection.py observation review; comprehensive_reflection.py::_run_missing_observation_reviews (covers evolved children)",
+      "verification": "test_comprehensive_reflection.py::test_evolved_hypothesis_receives_missing_observation_review",
+      "remaining": "Classifies against one shared literature synthesis rather than searching long-tail observations."
+    },
+    "E13": {
+      "status": "implemented",
+      "implementation": "comprehensive_reflection.py SIMULATION on every viable; review_types.py ReviewType.SIMULATION",
+      "verification": "test_comprehensive_reflection.py::test_full_and_simulation_run_for_every_viable_hypothesis",
+      "remaining": "Simulation is a prompt/schema variant sharing the review retrieval path, not a distinct mechanism simulator."
+    },
+    "E14": {
+      "status": "implemented",
+      "implementation": "comprehensive_reflection.py::_review_hypothesis dispatches ReviewType.RECURRENT with tournament + meta-review context",
+      "verification": "test_comprehensive_reflection.py::test_later_cycle_runs_recurrent_review_with_tournament_context",
+      "remaining": "Recurrent reuses the full_review template rather than a distinct recurrent prompt."
+    },
+    "E15": {
+      "status": "implemented",
+      "implementation": "constants.py INITIAL_ELO_RATING=1200; ranking_elo.py::calculate_elo_update; ranking.py pairwise",
+      "verification": "test_elo.py; test_ranking.py",
+      "remaining": "K-factor/tiering/scale are clone-defined."
+    },
+    "E16": {
+      "status": "implemented",
+      "implementation": "ranking.py::_matchup_debate_turns (median-Elo threshold); constants MULTI_TURN=3/SINGLE_TURN=1",
+      "verification": "test_ranking_debate.py::test_top_ranked_matchup_uses_multi_turn; ::test_lower_ranked_matchup_uses_single_turn",
+      "remaining": "Median threshold and turn counts are clone-defined."
+    },
+    "E17": {
+      "status": "partial",
+      "implementation": "ranking.py::judge_matchup multi-turn alternating order, accumulating transcript, majority vote; _append_debate_context",
+      "verification": "test_ranking_debate.py::test_multi_turn_debate_runs_multiple_calls_and_persists_transcript",
+      "remaining": "One judge persona re-runs across turns; no distinct advocate/opponent role prompts."
+    },
+    "E18": {
+      "status": "implemented",
+      "implementation": "ranking.py alternating presentation_order + _balanced_invalid_fallback (identity+index parity)",
+      "verification": "test_ranking_debate.py; test_ranking.py::test_malformed_judge_response_uses_position_balanced_fallback",
+      "remaining": "Single-turn lower-ranked matchups still present a fixed A/B order."
+    },
+    "E19": {
+      "status": "matched",
+      "implementation": "ranking_matchmaking.py::build_weighted_pairings (cluster/recency/Elo); ranking.py::_build_tournament_pairings",
+      "verification": "test_ranking_matchmaking.py",
+      "remaining": "none"
+    },
+    "E20": {
+      "status": "partial",
+      "implementation": "proximity.py::_fetch_similarity_clusters (whole-pool LLM call); proximity_graph.py::build_proximity_graph (persisted weighted graph, durable task)",
+      "verification": "test_proximity.py; test_proximity_graph.py",
+      "remaining": "One synchronous LLM cluster call with a qualitative metric, not an async embedding graph."
+    },
+    "E21": {
+      "status": "partial",
+      "implementation": "proximity.py::_resolve_cluster_duplicates (removes high-similarity, archives duplicate for lineage); proximity_graph excludes removed",
+      "verification": "test_proximity.py::test_high_similarity_duplicate_removed_keeping_best_elo; ::test_proximity_graph_excludes_deduped_high_similarity_member",
+      "remaining": "Duplicates leave the active tournament; cluster matching relies on a 100-char text prefix."
+    },
+    "E22": {
+      "status": "unverifiable",
+      "implementation": "proximity_graph.py _DEGREE_WEIGHT 1.0/0.6/0.3, method 'llm-cluster' (documented clone default)",
+      "verification": "test_proximity_graph.py",
+      "remaining": "Google's proximity metric/embedding is unpublished."
+    },
+    "E23": {
+      "status": "matched",
+      "implementation": "evolve.py appends immutable children, parents retained; evolve_results.py",
+      "verification": "test_evolve.py::test_evolution_produces_evolved_hypotheses; ::test_evolution_child_starts_without_deep_verification",
+      "remaining": "none"
+    },
+    "E24": {
+      "status": "implemented",
+      "implementation": "evolution_operators.py (ENHANCEMENT/SIMPLIFICATION/COMBINATION/ANALOGY/OUT_OF_BOX); select_operator rotation; evolve_prompt.py operator_instruction",
+      "verification": "test_evolution_operators.py::test_every_operator_executes_as_a_distinct_evolution_task",
+      "remaining": "Evolution invokes no retrieval tools; operators assigned by rotation not model choice."
+    },
+    "E25": {
+      "status": "partial",
+      "implementation": "evolution_operators.py COMBINATION/OUT_OF_BOX; evolve.py::_specialist_feedback_for (debates/tournament/proximity/verification ledger)",
+      "verification": "test_evolve.py::test_specialist_feedback_joins_prior_agent_outputs; test_evolution_operators.py::test_out_of_box_prompt_permits_core_mechanism_replacement",
+      "remaining": "Combination context sampled only from co-evolved peers; 'remain distinct' directive still tensions with true synthesis."
+    },
+    "E26": {
+      "status": "implemented",
+      "implementation": "meta_review.py::_build_meta_review (strengths/weaknesses/themes/recommendations) feeding evolve/ranking/review/generation",
+      "verification": "test_meta_review.py::test_with_reviews_maps_response_fields",
+      "remaining": "Threading breadth to every agent is incomplete (E28)."
+    },
+    "E27": {
+      "status": "implemented",
+      "implementation": "meta_review.py::_collect_feedback_records (all review histories) + _collect_debate_records (full transcripts); ranking_results.py persists debate_transcript",
+      "verification": "test_meta_review.py::test_review_collection_keeps_complete_history; ::test_feedback_collection_keeps_full_debate_transcript",
+      "remaining": "none"
+    },
+    "E28": {
+      "status": "partial",
+      "implementation": "meta-review threaded into generation/observation/review/ranking/evolve/recurrent/overview prompts",
+      "verification": "test_meta_review_prompt_threading.py; test_meta_review_threading.py",
+      "remaining": "full/simulation/deep-verification and proximity prompts still omit meta-review feedback."
+    },
+    "E29": {
+      "status": "partial",
+      "implementation": "research_overview.py produces overview + NIH aims + research_contacts + knowledge_base",
+      "verification": "test_research_overview.py::test_produces_overview_and_aims",
+      "remaining": "Overview/contacts live in a separate node (not meta-review); contacts limited to retrieved-paper authors."
+    },
+    "E30": {
+      "status": "partial",
+      "implementation": "generation_debate_and_literature.md / evolution.md drop the fixed template; prompts/generation_debate.py still forces 'We want to develop [X] to enable [Y]'",
+      "verification": "test_prompts_generation.py; test_prompts_generation_debate.py",
+      "remaining": "Debate-generation path still imposes the software-like sentence template and short length."
+    },
+    "E31": {
+      "status": "partial",
+      "implementation": "prompts/templates/ derived from extracted-artifacts prompts",
+      "verification": "test_prompts_generation.py; test_prompts_review.py",
+      "remaining": "JSON constraints, forced formats, extra criteria keep the templates non-verbatim."
+    },
+    "E32": {
+      "status": "partial",
+      "implementation": "supervisor_guidance read by supervisor_decision.py; review.py (config_synthesis); evolve_prompt.py; ranking.py; proximity.py",
+      "verification": "test_supervisor_decision.py; test_prompts_review.py",
+      "remaining": "performance_assessment, adjustment_recommendations, output_preparation, ranking_phase are written but never read."
+    },
+    "F01": {
+      "status": "implemented",
+      "implementation": "store/tasks.py (scientific_tasks queue, leases/idempotency); task_worker.py; task_runtime.py (one specialist/task)",
+      "verification": "test_task_queue.py; test_task_worker.py",
+      "remaining": "Single-host SQLite queue, not a distributed multi-machine executor."
+    },
+    "F02": {
+      "status": "implemented",
+      "implementation": "task_worker.run_run_worker_pool + engine_tasks fan-out (review/generation/verification/reflection items)",
+      "verification": "test_task_worker.py::test_embedded_worker_pool_executes_fanout_concurrently",
+      "remaining": "Only intra-phase fan-out overlaps; cross-phase nodes chain sequentially."
+    },
+    "F03": {
+      "status": "implemented",
+      "implementation": "engine_tasks._save_state_and_enqueue + _enqueue_*_fanout + supervisor queue_actions",
+      "verification": "test_engine_tasks.py::test_node_task_commits_once_and_schedules_successor; test_review_fanout_uses_independent_leases_and_one_aggregate_commit",
+      "remaining": "Per-node DAG shape is fixed; results cannot enqueue arbitrary new task types."
+    },
+    "F04": {
+      "status": "partial",
+      "implementation": "supervisor_decision.choose_supervisor_task (LLM picks generate/reflect/rank/evolve/proximity + queue_actions); policy.validate_decision guardrails",
+      "verification": "test_supervisor_decision.py::test_model_selects_productive_task",
+      "remaining": "Model choice is bounded to five validated loop tasks; cannot invent new specialists."
+    },
+    "F05": {
+      "status": "partial",
+      "implementation": "orchestrator._yields + supervisor_decision prompt (stats+meta_review)",
+      "verification": "test_scheduling_policy.py::test_yield_tie_after_evolution_generates",
+      "remaining": "Yield is net pool-count delta, not measured quality gain per generation method."
+    },
+    "F06": {
+      "status": "unverifiable",
+      "implementation": "scheduling/policy.py MIN_* predicates + scheduling/models.Budget",
+      "verification": "test_scheduling_policy.py",
+      "remaining": "Google's exact MaxIdeas/MatchesPerIdea predicates and weights are private."
+    },
+    "F07": {
+      "status": "partial",
+      "implementation": "durable queue enables scaling; run_modes.RUN_TIER_DEFAULTS (max_iterations 2/4); constants.DEFAULT_MAX_ITERATIONS=1",
+      "verification": "—",
+      "remaining": "Iteration budgets stay small (1-4), so long-horizon compute scaling is truncated."
+    },
+    "F08": {
+      "status": "implemented",
+      "implementation": "checkpoint.py; engine_tasks per-node checkpoints; store.reconcile_interrupted_runs + main.py lifespan recovery",
+      "verification": "test_resume_engine.py; test_store_checkpoints.py",
+      "remaining": "Recovery is node-level on one service, not distributed worker recovery."
+    },
+    "F09": {
+      "status": "implemented",
+      "implementation": "store/tasks.fail_task+claim_task lease redelivery; task_worker boundary; engine_tasks aggregate allow_failed_dependencies",
+      "verification": "test_task_queue.py::test_failure_retries_then_stops; test_crashed_process_lease_is_redelivered_after_restart; test_engine_tasks.py::test_review_aggregate_is_ready_after_isolated_child_failure",
+      "remaining": "Non-fanout nodes' internal asyncio.gather still fails batch-wide, recovered by whole-task retry."
+    },
+    "F10": {
+      "status": "extension",
+      "implementation": "engine_adapter/events.py; engine_tasks scientific_task events; store ExecutionMetrics; durable task ledger",
+      "verification": "test_engine_tasks.py; test_task_worker.py",
+      "remaining": "Telemetry richer than and not evidenced equivalent to Google's product observability."
+    },
+    "F11": {
+      "status": "partial",
+      "implementation": "engine_tasks._enqueue_verification_fanout (DEEP_VERIFICATION_TOP_K=3); full/simulation single-idea",
+      "verification": "test_engine_tasks.py::test_verification_fanout_materializes_one_task_per_top_candidate",
+      "remaining": "Generation/generic-review still dominate compute; verification is top-K, not the majority."
+    },
+    "F12": {
+      "status": "partial",
+      "implementation": "meta_review._collect_feedback_records + prompt threading of reviews/meta/prior ideas",
+      "verification": "test_meta_review.py; test_meta_review_threading.py",
+      "remaining": "Feedback still not delivered to every agent (initial reflection, proximity, deep/full/simulation review omit it)."
+    },
+    "F13": {
+      "status": "partial",
+      "implementation": "task_runtime meta_review heads each evolve cycle; research_overview terminal-only",
+      "verification": "test_task_runtime.py::test_next_task_type_mirrors_graph_topology",
+      "remaining": "Overview/exploration synthesis runs once at termination, not periodically."
+    },
+    "F14": {
+      "status": "implemented",
+      "implementation": "store/tasks.claim_task atomic lease; task_worker.run_run_worker_pool cohort",
+      "verification": "test_task_queue.py::test_multi_process_claim_has_single_lease_winner; test_task_worker.py::test_embedded_worker_pool_executes_fanout_concurrently",
+      "remaining": "Workers share one host/SQLite DB, not distributed machines."
+    },
+    "F15": {
+      "status": "implemented",
+      "implementation": "task_runtime evolve->review edge; engine_tasks review/verification/ranking fan-out over appended children",
+      "verification": "test_engine_tasks.py::test_worker_consumes_independent_specialist_task_chain",
+      "remaining": "none"
+    },
+    "G01": {
+      "status": "missing",
+      "implementation": "config/tools.yaml + mcp_server/server.py register PubMed/OpenAlex/ChEMBL/UniProt/INDRA only",
+      "verification": "—",
+      "remaining": "No general/open-web search tool; OpenAlex adds scholarly, not web, coverage."
+    },
+    "G02": {
+      "status": "implemented",
+      "implementation": "nodes/literature_review/search.py; mcp_server/tools/lit_review/{search_pubmed,pubmed_search_with_fulltext}.py; default tools.yaml",
+      "verification": "test_literature_review_search.py; test_lit_review_search.py::test_phase2_collect_papers_multi_source_merges_and_dedupes; live run sources=8 2026-07-14",
+      "remaining": "Biomedical-centric with small per-query pools."
+    },
+    "G03": {
+      "status": "implemented",
+      "implementation": "mcp_server/tools/biomedical_databases.py::search_chembl (server.py:77); tools.yaml chembl_search",
+      "verification": "mcp_server/tests/test_biomedical_databases.py::test_search_chembl_normalizes_molecule_provenance",
+      "remaining": "Enrichment tool over live ChEMBL REST, not a full production integration."
+    },
+    "G04": {
+      "status": "implemented",
+      "implementation": "mcp_server/tools/biomedical_databases.py::search_uniprot (server.py:78); tools.yaml uniprot_search",
+      "verification": "mcp_server/tests/test_biomedical_databases.py::test_search_uniprot_returns_reviewed_functional_record",
+      "remaining": "Reviewed-record lookup only, live UniProt dependency."
+    },
+    "G05": {
+      "status": "missing",
+      "implementation": "prompt-example string only in literature_review_query_generation_pubmed.md",
+      "verification": "—",
+      "remaining": "No AlphaFold client, tool, or specialized-model invocation path."
+    },
+    "G06": {
+      "status": "partial",
+      "implementation": "mcp_server/tools/indra_cogex/ (statements/associations/drug/trials/pathways/subnetwork/enrichment)",
+      "verification": "mcp_server/tests (indra_cogex)",
+      "remaining": "Not in the default runtime; requires an INDRA-specific YAML."
+    },
+    "G07": {
+      "status": "partial",
+      "implementation": "mcp_server/tools/lit_review/openalex_search.py + tools.yaml openalex_search enabled by default and merged with PubMed",
+      "verification": "mcp_server/tests/test_openalex.py; test_literature_review_search.py",
+      "remaining": "Broad-domain coverage is OpenAlex-only; arXiv/Scholar remain example-config."
+    },
+    "G08": {
+      "status": "implemented",
+      "implementation": "report_render.py scientific-readiness block + _unverified_hypothesis_ids (>=1 supports edge); engine_tasks.py::_apply_pre_ranking_evidence_gate",
+      "verification": "test_engine_drain.py::test_drain_persists_evidence_quarantine_as_rejected; blocked run 95b46092 2026-07-14",
+      "remaining": "Only the explicit mock path can still publish speculative content."
+    },
+    "G09": {
+      "status": "partial",
+      "implementation": "comprehensive_reflection.py + deep_verification.py::_retrieve_probe_evidence run live targeted searches during review/verification; merge_retrieved_articles",
+      "verification": "test_comprehensive_reflection.py",
+      "remaining": "Initial literature synthesis is one upfront pass; generation routes do not re-run it."
+    },
+    "G10": {
+      "status": "implemented",
+      "implementation": "nodes/generation/citations.py::{ReferenceIndex,resolve_citation_keys}; app/citations.py; store claim/citation schema",
+      "verification": "app/tests/test_citations.py",
+      "remaining": "none material."
+    },
+    "G11": {
+      "status": "implemented",
+      "implementation": "app/claim_grounding.py::publication_gate + report_render.py::_unverified_hypothesis_ids + default settings.claim_assessor='llm' + clickable SupportSpan",
+      "verification": "app/tests/test_claim_grounding.py; test_engine_tasks.py::test_pre_ranking_gate_quarantines_unsupported_claims",
+      "remaining": "Verification is a clone NLI over retrieved abstracts, not Google's full clickable-citation corpus."
+    },
+    "G12": {
+      "status": "implemented",
+      "implementation": "app/claim_verifier.py::make_llm_assessor (default) + claims.py::assess_claim span-location guard",
+      "verification": "app/tests/test_claim_verifier.py; test_claims.py",
+      "remaining": "Silent fallback to the Jaccard deterministic_assessor on LLM parse/timeout failure."
+    },
+    "G13": {
+      "status": "partial",
+      "implementation": "claim_verifier.py LLM NLI + evaluations/citation_eval.py production gates (challenge panel)",
+      "verification": "evaluations/results/citation-entailment-challenge-llm_deepseek_deepseek-chat-2026-07-14.json (acc 0.90, contradiction recall 1.0, gates pass)",
+      "remaining": "Deterministic fallback fails the challenge set (acc 0.167); no human-audited panel exists."
+    },
+    "G14": {
+      "status": "implemented",
+      "implementation": "app/claims.py::{SupportSpan,locate_span,assess_claim} persist quote+offset+evidence_id+url; ideas_detail_pane.tsx opens sources",
+      "verification": "app/tests/test_claims.py",
+      "remaining": "Spans located within title+abstract passages only."
+    },
+    "G15": {
+      "status": "partial",
+      "implementation": "claim_grounding.py categorical/speculative roles + publication_gate + report readiness gate",
+      "verification": "app/tests/test_claim_grounding.py",
+      "remaining": "Retained speculative statement prose still renders declaratively rather than per-claim inline uncertainty."
+    },
+    "G16": {
+      "status": "implemented",
+      "implementation": "engine_tasks.py::_apply_pre_ranking_evidence_gate invoked in execute_node_task 'ranking' branch before matches; _ranking_eligible excludes evidence_blocked",
+      "verification": "test_engine_tasks.py::test_pre_ranking_gate_quarantines_unsupported_claims; test_evidence_blocked_idea_is_excluded_from_ranking",
+      "remaining": "Gate feeds disposition/notes but does not trigger a full regeneration-repair loop."
+    },
+    "G17": {
+      "status": "implemented",
+      "implementation": "engine ranking _BLOCKING_REVIEW_DISPOSITIONS + report_render._unverified_hypothesis_ids exclude contradicted/unsupported at publish; engine_tasks._ranking_eligible now omits evidence_blocked",
+      "verification": "test_engine_drain.py::test_drain_persists_evidence_quarantine_as_rejected; test_engine_tasks.py::test_evidence_blocked_idea_is_excluded_from_ranking",
+      "remaining": "Fixed 2026-07-14: gated ideas no longer enter the tournament."
+    },
+    "G18": {
+      "status": "partial",
+      "implementation": "nodes/literature_review/content.py + mcp_server/tools/lit_review/pubmed_search_with_fulltext.py (PMC full text)",
+      "verification": "test_lit_review_content.py",
+      "remaining": "Full-text/PDF retrieval works but coverage/parsing depth is limited."
+    },
+    "G19": {
+      "status": "partial",
+      "implementation": "app/document_ingest.py (pypdf + Tesseract OCR, image OCR, csv/json); runs.py::upload_attachment; frontend PrivateCorpusUpload",
+      "verification": "app/tests/test_document_upload.py::test_pdf_ocr_includes_figures_on_text_pages; ::test_image_upload_is_ocr_extracted_with_multimodal_provenance",
+      "remaining": "25 MB/file cap, keyword (not vector) indexing, no hundreds-of-PDFs scale test."
+    },
+    "G20": {
+      "status": "partial",
+      "implementation": "run_corpus.py::engine_context_sources -> engine_adapter/opts.py context_enrichment_sources consumed by reflection/verification/literature enrichment",
+      "verification": "app/tests/test_run_corpus.py",
+      "remaining": "Injected as bounded BM25-selected context, not an agent-issued search tool over the private repository."
+    },
+    "G21": {
+      "status": "unverifiable",
+      "implementation": "app/citations.py; claims.py; search_support.py retraction policy",
+      "verification": "—",
+      "remaining": "Google's exact verifier, ranking, source count, and retraction policy are not public."
+    },
+    "G22": {
+      "status": "partial",
+      "implementation": "nodes/literature_review/synthesis.py + articles_with_reasoning; persisted claim-evidence graph",
+      "verification": "test_lit_review_synthesis.py",
+      "remaining": "No durable structured fact/gap/contradiction knowledge base beyond narrative synthesis and the citation graph."
+    },
+    "G23": {
+      "status": "partial",
+      "implementation": "LITERATURE_REVIEW_FAILED sentinel + report_render.py scientific-readiness block",
+      "verification": "test_engine_drain.py",
+      "remaining": "Latent-knowledge fallback can still run; no distinct conspicuous degraded UI state short of a block."
+    },
+    "G24": {
+      "status": "extension",
+      "implementation": "app/claims.py sentence-split atomic claims + exact spans; ideas_detail_pane.tsx claim-edge UI",
+      "verification": "app/tests/test_claims.py",
+      "remaining": "Valuable but not evidenced as Google's claim-graph behavior."
+    },
+    "H01": {
+      "status": "matched",
+      "implementation": "constants.py::INITIAL_ELO_RATING=1200",
+      "verification": "test_ranking.py",
+      "remaining": "none"
+    },
+    "H02": {
+      "status": "partial",
+      "implementation": "scheduling/policy.py::MIN_MATCH_COVERAGE + durable sequential match tasks",
+      "verification": "test_ranking.py",
+      "remaining": "Tournament coverage is tier-bounded and low."
+    },
+    "H03": {
+      "status": "unverifiable",
+      "implementation": "constants.py::ELO_K_FACTOR=24; app/elo.py",
+      "verification": "—",
+      "remaining": "Google's K-factor is unpublished."
+    },
+    "H04": {
+      "status": "partial",
+      "implementation": "engine_tasks.py::execute_ranking_match judges one matchup/task, applies Elo, re-pairs from updated ratings",
+      "verification": "test_engine_tasks.py::test_ranking_matches_are_separate_sequential_checkpointed_tasks",
+      "remaining": "Google's exact concurrency/tie policy is unpublished; non-durable graph path still batches."
+    },
+    "H05": {
+      "status": "partial",
+      "implementation": "meta_review.py::_collect_debate_records (full transcripts) + _collect_review_summaries feed meta-review",
+      "verification": "test_meta_review.py::test_feedback_collection_keeps_full_debate_transcript",
+      "remaining": "Per-turn ranking is judge self-refinement, not multi-party advocate/opponent debate."
+    },
+    "H06": {
+      "status": "partial",
+      "implementation": "nodes/ranking_matchmaking.py cluster-aware pairing + diversity generation prompts",
+      "verification": "test_ranking_matchmaking.py; test_proximity.py",
+      "remaining": "Diversity pressure exists but is modest."
+    },
+    "H07": {
+      "status": "partial",
+      "implementation": "nodes/proximity_graph.py persists qualitative cluster edges; ideas_tab surfaces cluster info",
+      "verification": "test_proximity_graph.py",
+      "remaining": "No landscape/graph exploration UI; dedup still deletes high-similarity members."
+    },
+    "H08": {
+      "status": "matched",
+      "implementation": "models.py::Hypothesis lineage fields; nodes/evolve_results.py append immutable children, parents retained",
+      "verification": "test_evolve.py",
+      "remaining": "none"
+    },
+    "H09": {
+      "status": "implemented",
+      "implementation": "nodes/evolution_operators.py (five operators) + select_operator portfolio; engine_tasks each operator a distinct task",
+      "verification": "test_evolution_operators.py::test_portfolio_contains_every_disclosed_operator; ::test_every_operator_executes_as_a_distinct_evolution_task",
+      "remaining": "Operator selection is round-robin, no success statistics guiding allocation."
+    },
+    "H10": {
+      "status": "partial",
+      "implementation": "review schemas score alignment(relevance)/plausibility/novelty/testability/safety",
+      "verification": "test_review.py; evaluations/results/output_criteria_real_review.json",
+      "remaining": "Downstream weighting and evidence quality of the scores are limited."
+    },
+    "H11": {
+      "status": "implemented",
+      "implementation": "nodes/review.py::_apply_initial_review_gate (inaccurate/non_novel); ranking excludes via _BLOCKING_REVIEW_DISPOSITIONS",
+      "verification": "test_review.py::test_initial_review_gate_classifies_accuracy_and_novelty_failures",
+      "remaining": "The soundness/novelty <=3 threshold is clone-defined."
+    },
+    "H12": {
+      "status": "partial",
+      "implementation": "nodes/ranking_prompt.py threads latest review/reflection/deep-verification/meta-review into the judge prompt",
+      "verification": "test_ranking_prompt.py",
+      "remaining": "Judge sees compact summaries, not full review stacks or fresh tool retrieval."
+    },
+    "H13": {
+      "status": "matched",
+      "implementation": "nodes/evolve_results.py children initialize at 1200 and re-enter ranking",
+      "verification": "test_evolve.py",
+      "remaining": "none"
+    },
+    "H14": {
+      "status": "partial",
+      "implementation": "evolution operators + diversity prompts vs small tier/iteration caps and proximity dedup",
+      "verification": "test_evolution_operators.py",
+      "remaining": "Hard iteration caps, high-similarity deletion, and forced idea format still constrain divergence."
+    },
+    "H15": {
+      "status": "partial",
+      "implementation": "prompts/generation_debate.py still forces 'We want to develop [X] to enable [Y]' (2-3 sentences); explanation/experiment separate fields",
+      "verification": "—",
+      "remaining": "Proposals remain terse action statements rather than long-form domain-expert prose."
+    },
+    "H16": {
+      "status": "partial",
+      "implementation": "models.py::Hypothesis explanation/experiment/novelty/literature_grounding fields",
+      "verification": "test_models.py",
+      "remaining": "Mechanism/experiment structure exists but grounding weaker than target."
+    },
+    "H17": {
+      "status": "partial",
+      "implementation": "engine_tasks.py::execute_mature_reflection_aggregate stores observation classification into hypothesis.reflection_notes",
+      "verification": "test_reflection.py",
+      "remaining": "Observation positives kept as separate notes, not appended into proposal content."
+    },
+    "H18": {
+      "status": "partial",
+      "implementation": "nodes/deep_verification.py verdict threaded into ranking context; evolution consumes review/meta summaries",
+      "verification": "test_ranking_prompt.py",
+      "remaining": "No explicit fundamental-vs-non-fundamental error contract routing severity into targeted repair."
+    },
+    "H19": {
+      "status": "partial",
+      "implementation": "engine_tasks.py::_merge_scientist_inputs folds manual hypotheses/reviews into engine state; runs.py::add_human_hypothesis; frontend addScientistHypothesis",
+      "verification": "app/tests/test_engine_tasks.py; test_runs.py",
+      "remaining": "Evolution context samples top leaders; manual-idea frontend surface minimal."
+    },
+    "H20": {
+      "status": "partial",
+      "implementation": "engine_tasks.py::_enqueue_mature_reflection_fanout dispatches recurrent per-hypothesis reviews; meta_review retains full history",
+      "verification": "test_meta_review.py::test_review_collection_keeps_complete_history; test_comprehensive_reflection.py",
+      "remaining": "No measured across-cycle review-quality signal controls scheduling."
+    },
+    "I01": {
+      "status": "implemented",
+      "implementation": "checkpoint.py serialize/restore; store checkpoints + scientific_tasks ledger",
+      "verification": "test_store_checkpoints.py; test_resume_engine.py",
+      "remaining": "Memory is run-local and single-service scope."
+    },
+    "I02": {
+      "status": "partial",
+      "implementation": "store/tasks.py durable global queue + checkpoint-as-shared-state; engine_tasks optimistic expected_checkpoint_seq",
+      "verification": "test_task_queue.py; test_engine_tasks.py",
+      "remaining": "Coordination is one serialized checkpoint snapshot under optimistic concurrency."
+    },
+    "I03": {
+      "status": "partial",
+      "implementation": "meta_review + prompt threading; state carries reviews/meta/prior ideas",
+      "verification": "test_meta_review_threading.py",
+      "remaining": "Initial reflection and proximity do not receive propagated feedback."
+    },
+    "I04": {
+      "status": "implemented",
+      "implementation": "meta_review._collect_review_summaries (full histories) + _collect_debate_records (full transcripts)",
+      "verification": "test_meta_review.py::test_review_collection_keeps_complete_history; test_feedback_collection_keeps_full_debate_transcript",
+      "remaining": "Synthesized critique still not routed into every downstream agent's prompt (E28)."
+    },
+    "I05": {
+      "status": "implemented",
+      "implementation": "runs.py add_human_hypothesis/add_human_review/steering -> engine_tasks.enqueue_scientist_continuation + _merge_scientist_inputs; frontend run_agent_dialog.tsx sendRunSteering",
+      "verification": "test_engine_tasks.py::test_scientist_inputs_merge_into_engine_state_once; test_resume.py::test_resume_preserves_scientist_contributions; live steering 973ed7cd 2026-07-14",
+      "remaining": "Human reviews enter as generic scored reviews, not weighted distinctly in ranking."
+    },
+    "I06": {
+      "status": "partial",
+      "implementation": "run_corpus.engine_context_sources -> opts context_enrichment_sources, re-delivered each node",
+      "verification": "test_run_corpus.py; test_messages.py",
+      "remaining": "Corpus is a small text-only keyword index, not a large multimodal repository."
+    },
+    "I07": {
+      "status": "implemented",
+      "implementation": "state.py + checkpoint accumulate hypotheses/matches/reviews/articles/meta/proximity/metrics",
+      "verification": "test_resume_engine.py::test_engine_run_persists_real_state_checkpoints",
+      "remaining": "none"
+    },
+    "I08": {
+      "status": "partial",
+      "implementation": "engine_tasks.enqueue_scientist_continuation reopens a completed run at the orchestrator; frontend ask+steer",
+      "verification": "test_engine_tasks.py::test_scientist_input_reopens_completed_engine_run",
+      "remaining": "Continuation re-enters the loop but does not rebranch or rewrite the research plan."
+    },
+    "I09": {
+      "status": "unverifiable",
+      "implementation": "cache.py + run history only; no cross-run scientific memory",
+      "verification": "—",
+      "remaining": "Google's cross-run memory behavior is undisclosed; absence cannot be scored against a known target."
+    },
+    "I10": {
+      "status": "partial",
+      "implementation": "constants.DEFAULT_CACHE_ENABLED=True (supervisor_decision use_cache=False)",
+      "verification": "—",
+      "remaining": "Node/response cache on by default, so equivalent inputs can replay prior outputs."
+    },
+    "I11": {
+      "status": "implemented",
+      "implementation": "checkpoint.restore_workflow_state + engine_tasks resume at exact successor; task_worker.enqueue_run_workflow(resume=True)",
+      "verification": "test_resume_engine.py::test_engine_resume_does_not_repeat_completed_llm_calls",
+      "remaining": "none"
+    },
+    "I12": {
+      "status": "partial",
+      "implementation": "engine_tasks._save_paused_state checkpoints real state; runs._ensure_resumable_checkpoint minimal envelope on the in-process path only",
+      "verification": "test_resume.py::test_paused_engine_run_lands_in_paused_not_cancelled; test_engine_tasks.py::test_inflight_pause_checkpoints_exact_successor",
+      "remaining": "Legacy in-process/mock handle path still writes a minimal envelope that re-derives."
+    },
+    "J01": {
+      "status": "implemented",
+      "implementation": "app/safety.py (screen_intake/screen_contextual/screen_final) + engine/safety.py + nodes/safety_screen.py per-hypothesis gate",
+      "verification": "test_safety_integration.py; engine test_safety_screen.py",
+      "remaining": "Enforcement thresholds/classifiers are clone-defined."
+    },
+    "J02": {
+      "status": "unverifiable",
+      "implementation": "app/safety.py; engine/safety.py (coscientist-safety-v3)",
+      "verification": "—",
+      "remaining": "Google's production classifiers, taxonomies, thresholds are private."
+    },
+    "J03": {
+      "status": "missing",
+      "implementation": "evaluations/safety_eval.py + datasets/hypothesis_safety_adversarial_v1.json (13 cases)",
+      "verification": "evaluations/results/hypothesis-safety-2026-07-14.json (13 cases, 0 FP, 0 FN)",
+      "remaining": "13 cases explicitly do not reproduce Google's private 1,200-goal/40-topic benchmark (external)."
+    },
+    "J04": {
+      "status": "partial",
+      "implementation": "app/safety.py::screen_contextual LLM semantic classifier over engine deterministic patterns",
+      "verification": "test_safety.py::test_contextual_screen_holds_ambiguous_risk",
+      "remaining": "Semantic layer is credential-gated; deterministic regex set is the offline default."
+    },
+    "J05": {
+      "status": "implemented",
+      "implementation": "engine/safety.py::BLOCKING_OUTCOMES (incl. uncertain) + nodes/safety_screen.py remove prohibited/ethical/uncertain before ranking",
+      "verification": "engine test_safety_screen.py::test_uncertain_removed_from_pool_and_held",
+      "remaining": "Uncertain items held for review, depend on adjudication being used."
+    },
+    "J06": {
+      "status": "implemented",
+      "implementation": "runs.py::adjudicate_safety + store.resolve_safety_decision; frontend run_detail.tsx::SafetyReviewSection + api adjudicateSafety approve/reject",
+      "verification": "test_runs.py::test_safety_adjudication_is_identified_and_single_use",
+      "remaining": "Reviewer identity is the run's client/compat principal, no reviewer-role separation."
+    },
+    "J07": {
+      "status": "partial",
+      "implementation": "engine/safety.py::redact_hypothesis_fields + app/hypothesis_safety.py::redact_fields (explanation/experiment placeholder)",
+      "verification": "test_hypothesis_safety.py",
+      "remaining": "Redaction concrete but policy equivalence to Google unknown."
     },
     "J08": {
       "status": "implemented",
-      "implementation": "app/frontend/src/workbench/components/intended_use_notice.tsx; app/frontend/src/workbench/layout.tsx",
-      "verification": "frontend component tests and interactive home inspection",
-      "remaining": "Google's exact placement beyond the observed surfaces remains evidence-bounded."
+      "implementation": "frontend intended_use_notice.tsx ('Research use only… independent verification… not for clinical…') in layout.tsx",
+      "verification": "intended_use_notice.test.tsx; live browser disclaimer 2026-07-14",
+      "remaining": "A single notice, not the full set of Google intended-use/access-tier statements."
     },
     "J09": {
       "status": "implemented",
-      "implementation": "engine/src/co_scientist/safety.py; app/app/hypothesis_safety.py; app/app/safety.py",
-      "verification": "engine/tests/test_safety_integration.py; app safety suites",
-      "remaining": "The proprietary Google classifier and thresholds remain unverifiable."
+      "implementation": "engine/safety.py canonical; app/hypothesis_safety.py + app/safety.py import/alias it (coscientist-safety-v3) not parallel regex",
+      "verification": "test_hypothesis_safety.py; test_safety.py",
+      "remaining": "App still layers its own semantic assessor above the shared deterministic policy."
+    },
+    "J10": {
+      "status": "implemented",
+      "implementation": "store safety decisions record matches/policy_version/assessor/resolution; runs.py::get_safety + adjudicate audit trail",
+      "verification": "test_safety.py; test_runs.py",
+      "remaining": "No faithful product presentation of the audit beyond a plain safety section."
+    },
+    "J11": {
+      "status": "partial",
+      "implementation": "app/auth.py invite-code->HMAC bearer sessions with auth_mode='required' enforcement + per-subject ownership (store.list_runs client_id)",
+      "verification": "test_auth.py::test_required_auth_exchanges_invite_and_isolates_runs; live ownership 404 on cross-owner run 2026-07-14",
+      "remaining": "Default auth_mode='compatibility' scopes runs by unauthenticated X-Client-ID; no researcher-eligibility tiering."
+    },
+    "J12": {
+      "status": "partial",
+      "implementation": "report_render.py::finalize_report runs screen_contextual (semantic) over final markdown + scientific-readiness gate",
+      "verification": "test_engine_drain.py; test_safety.py",
+      "remaining": "Semantic final pass is credential-gated; deterministic regex over Markdown is the offline fallback."
+    },
+    "K01": {
+      "status": "partial",
+      "implementation": "review.py (scores incl. novelty); review_types.py::FULL; generation prompt experiment fields",
+      "verification": "test_review.py",
+      "remaining": "Five-criterion coverage present in schema form but not proven to be evidence-backed scoring."
+    },
+    "K02": {
+      "status": "partial",
+      "implementation": "report_render.py::finalize_report scientific-readiness gate; _exclude_unsafe_hypotheses; review_types.py FULL/simulation search modes",
+      "verification": "test_goal_report_sections.py",
+      "remaining": "Most review modes still do not call search; scores are not equivalent to deep verification."
+    },
+    "K03": {
+      "status": "partial",
+      "implementation": "report_render.py::_unverified_hypothesis_ids/_exclude_unsafe_hypotheses (unsupported excluded from synthesis)",
+      "verification": "test_goal_report_sections.py",
+      "remaining": "Gate suppresses unsupported prose but does not demonstrate verified new knowledge (K08)."
+    },
+    "K04": {
+      "status": "partial",
+      "implementation": "prompts generation_after_debate.md / generation_debate_and_literature.md (model system, controls, readouts, falsification, limitations)",
+      "verification": "—",
+      "remaining": "Testability present in prompt form, not validated in output."
+    },
+    "K05": {
+      "status": "partial",
+      "implementation": "generation/evolution prompts request feasibility; run_detail.tsx PrivateCorpusUpload + run.config.setup",
+      "verification": "—",
+      "remaining": "Intake never elicits lab/model/resource constraints, so feasibility not personalized."
+    },
+    "K06": {
+      "status": "partial",
+      "implementation": "generation/debate.py::_DEBATE_DIVERSITY_ANGLES/HIGH_TEMPERATURE; proximity.py clustering + cluster-aware pairing",
+      "verification": "—",
+      "remaining": "Real diversity mechanisms exist but coverage of distinct approaches is unmeasured."
+    },
+    "K07": {
+      "status": "implemented",
+      "implementation": "evolution_operators.py (five operators); evolve.py::select_operator -> evolve_prompt.py::operator_instruction",
+      "verification": "test_evolution_operators.py",
+      "remaining": "Operators wired as a rotating portfolio; diversifying effect not empirically verified."
+    },
+    "K08": {
+      "status": "partial",
+      "implementation": "literature_review tools + review novelty scoring (review.py)",
+      "verification": "—",
+      "remaining": "Novelty judged against small retrieved samples, not a broad current corpus."
+    },
+    "K09": {
+      "status": "partial",
+      "implementation": "meta_review.py (common_weaknesses); report_markdown.py::_render_citation_audit; report_render.py::_agent_insights (uncertainties); claim-level labels",
+      "verification": "run_detail_overview.test.tsx",
+      "remaining": "Uncertainty surfaced in aggregate lists, not attached to each proposal's headline claim."
+    },
+    "K10": {
+      "status": "implemented",
+      "implementation": "report_markdown.py::_claim_status/_render_claim_evidence (per-claim Unsupported/Speculative/Contradicted); ideas_detail_pane.tsx::ClaimEvidenceDetail",
+      "verification": "test_goal_report_sections.py",
+      "remaining": "Per-claim labels rendered; a hypothesis's top-line statement prose can still read categorically."
+    },
+    "K11": {
+      "status": "partial",
+      "implementation": "report_markdown.py (top-5 sections); research_overview.py (sees evidence_corpus + contacts + meta_review)",
+      "verification": "run_detail_overview.test.tsx",
+      "remaining": "Output shape stays terse top-five Markdown, not long domain-expert proposals (unverifiable target)."
+    },
+    "K12": {
+      "status": "missing",
+      "implementation": "—",
+      "verification": "—",
+      "remaining": "No proposal-diagram or scientific-visualization generation path anywhere."
+    },
+    "K13": {
+      "status": "partial",
+      "implementation": "report_render.py::_idea_buckets (non_viable + reasons); ideas_tab.tsx::IdeaBucketSummary",
+      "verification": "test_goal_report_sections.py",
+      "remaining": "Bucket is gate-based (safety/evidence), not Google's viability taxonomy; excludes dedup casualties."
+    },
+    "K14": {
+      "status": "partial",
+      "implementation": "meta_review.py::_collect_review_summaries/_collect_debate_records (full history); graph.py meta_review each evolve cycle",
+      "verification": "—",
+      "remaining": "Meta-review synthesis routed only into evolution, not periodically broadcast to all agents."
+    },
+    "K15": {
+      "status": "unverifiable",
+      "implementation": "—",
+      "verification": "—",
+      "remaining": "Google's production output-quality distribution is not public."
+    },
+    "L01": {
+      "status": "partial",
+      "implementation": "durable async queue + concurrent worker pool + dynamic fan-out; static run_modes tiers",
+      "verification": "test_task_worker.py; test_engine_tasks.py",
+      "remaining": "Compute envelope is four small static tiers, not open-ended asynchronous scaling."
+    },
+    "L02": {
+      "status": "missing",
+      "implementation": "evaluations/scaling_eval.py harness (scaling_curve/ablation_summary) only",
+      "verification": "evaluations/tests/test_scaling_eval.py",
+      "remaining": "No real-provider multi-budget scaling curve; needs credentials + a licensed question set (external gap)."
+    },
+    "L03": {
+      "status": "missing",
+      "implementation": "—",
+      "verification": "—",
+      "remaining": "No licensed GPQA/known-answer run; Elo<->quality calibration is an unmet external data/credential gap."
+    },
+    "L04": {
+      "status": "missing",
+      "implementation": "evaluations/scaling_eval.ablation_summary + isolated real-call artifacts (results/gen_techniques_real.json)",
+      "verification": "evaluations/tests/test_scaling_eval.py::test_ablation_summary_counts_only_fully_paired_goals",
+      "remaining": "No controlled end-to-end ablation run set with comparable metrics (external)."
+    },
+    "L05": {
+      "status": "implemented",
+      "implementation": "store events/metrics/checkpoints; scientific_tasks ledger; engine_stream SSE replay; reconcile_interrupted_runs",
+      "verification": "test_resume.py; test_task_queue.py::test_task_progress_is_monotonic_and_budget_derived",
+      "remaining": "none"
+    },
+    "L06": {
+      "status": "partial",
+      "implementation": "store/tasks.task_progress (monotonic, budget-derived, indeterminate for dynamic engine) via runs.py execution_progress",
+      "verification": "test_task_queue.py::test_task_progress_is_monotonic_and_budget_derived; ::test_dynamic_engine_plan_stays_indeterminate_as_tasks_expand",
+      "remaining": "Engine runs report indeterminate progress with no ETA; node emit_progress still uses fixed constants."
+    },
+    "L07": {
+      "status": "implemented",
+      "implementation": "store/tasks retry+lease redelivery; task_worker isolation; runs resume + main.py reconcile",
+      "verification": "test_task_queue.py::test_failure_retries_then_stops; test_resume.py::test_interrupted_run_is_resumable_and_completes_once",
+      "remaining": "none"
+    },
+    "L08": {
+      "status": "implemented",
+      "implementation": "engine_tasks fan-out per-item + aggregate allow_failed_dependencies; task_worker boundary",
+      "verification": "test_engine_tasks.py::test_review_aggregate_is_ready_after_isolated_child_failure; test_task_worker.py::test_worker_isolates_unknown_task_failure",
+      "remaining": "Internal asyncio.gather inside non-fanout nodes still aborts batch-wide."
+    },
+    "L09": {
+      "status": "extension",
+      "implementation": "models.ExecutionMetrics; engine_adapter/events.py; durable task ledger; scientific_task events",
+      "verification": "test_engine_tasks.py",
+      "remaining": "Telemetry richer than and not evidenced equivalent to Google's product observability."
+    },
+    "L10": {
+      "status": "partial",
+      "implementation": "engine_tasks._apply_pre_ranking_evidence_gate quarantines ungrounded ideas; smoke.py passes (v1 contradiction recall 1.0); release_gate.py fail-closed",
+      "verification": "test_engine_tasks.py::test_pre_ranking_gate_quarantines_unsupported_claims; evaluations/tests/test_release_gate.py",
+      "remaining": "evaluations/release_gate.py is an eval tool; the runtime publish gate is report_render.finalize_report (wired)."
+    },
+    "L11": {
+      "status": "missing",
+      "implementation": "evaluations/datasets citation panels (20+30) + safety (13) synthetic sets",
+      "verification": "evaluations/tests/test_citation_eval.py; test_safety_eval.py",
+      "remaining": "Panels are synthetic; a human-audited representative sample and calibrated thresholds are an external gap."
+    },
+    "L12": {
+      "status": "missing",
+      "implementation": "evaluations/expert_review.py schema + results/expert-review-readiness artifact",
+      "verification": "evaluations/tests/test_expert_review.py",
+      "remaining": "No recruited expert panel or independent wet-lab validation (external, out of scope)."
+    },
+    "L13": {
+      "status": "unverifiable",
+      "implementation": "store ExecutionMetrics (local wall time) + app config",
+      "verification": "—",
+      "remaining": "Google's production latency, cost, infrastructure are proprietary and not comparable."
+    },
+    "L14": {
+      "status": "partial",
+      "implementation": "constants.DEFAULT_CACHE_ENABLED=True; supervisor_decision use_cache=False",
+      "verification": "—",
+      "remaining": "Default response cache can return identical outputs on equivalent inputs, muting fresh exploration."
+    },
+    "L15": {
+      "status": "implemented",
+      "implementation": "task_worker.run_run_worker_pool concurrent fan-out + constants.MAX_CONCURRENT_LLM_CALLS semaphores",
+      "verification": "test_task_worker.py::test_embedded_worker_pool_executes_fanout_concurrently",
+      "remaining": "Concurrency bounded to one host's worker cohort, not distributed coalition scaling."
+    },
+    "L16": {
+      "status": "unverifiable",
+      "implementation": "llm.py LiteLLM running deepseek/deepseek-chat (compatibility mode)",
+      "verification": "—",
+      "remaining": "The clone runs DeepSeek, not Gemini; Gemini-specific behavioral parity cannot be established."
+    },
+    "L17": {
+      "status": "unverifiable",
+      "implementation": "llm.py LiteLLM model-agnostic layer",
+      "verification": "—",
+      "remaining": "Portability is architectural only; Google's current Gemini model/prompt revisions are undisclosed."
+    },
+    "M01": {
+      "status": "extension",
+      "implementation": "app/frontend/DESIGN.md; lib/theme.ts::applyMd3Theme; styles/reference_surface.css (MD3 teal/green shell)",
+      "verification": "—",
+      "remaining": "Shell models Gemini Enterprise rather than the live Hypothesis Generation Labs surface; dark mode developer-gated."
     },
     "M02": {
       "status": "implemented",
-      "implementation": "app/frontend/src/workbench/pages/chat_home_stage.tsx",
-      "verification": "interactive browser heading: What's your research challenge?",
-      "remaining": "Composer helper copy remains separately tracked."
+      "implementation": "chat_home_stage.tsx (heading \"What's your research challenge?\")",
+      "verification": "chat_workspace_home.test.tsx; live browser heading 2026-07-14",
+      "remaining": "Composer empty-state placeholder still reads 'Start a new research goal to begin'."
+    },
+    "M03": {
+      "status": "partial",
+      "implementation": "chat_workspace_timeline.tsx (Agent questions as chat bubbles + Interview Progress aside)",
+      "verification": "chat_workspace_run.test.tsx; live browser interview 2026-07-14",
+      "remaining": "Lacks the exact Agent-panel chrome (explicit 'Agent' label, feedback buttons, disclaimer, close, progress rail)."
+    },
+    "M04": {
+      "status": "implemented",
+      "implementation": "run_detail.tsx::ActiveRunView/RunMetric/RunExecutionProgress (Executing/Research in progress; Time/Sources/Ideas; Activity log)",
+      "verification": "run_detail.test.tsx; live browser executing screen 2026-07-14",
+      "remaining": "Time-remaining estimates ('Estimating…') when progress is indeterminate."
+    },
+    "M05": {
+      "status": "implemented",
+      "implementation": "run_tabs.ts::TABS; run_detail_shell.tsx::TAB_LABELS (Ideas/Knowledge Base/Summary/Run Specifications)",
+      "verification": "run_detail.test.tsx; run_detail_learning.test.tsx; live browser 2026-07-14",
+      "remaining": "Legacy route aliases redirect old segments."
+    },
+    "M06": {
+      "status": "implemented",
+      "implementation": "ideas_tab.tsx::IdeaBucketSummary/IdeaBucket (High Potential/Non-Viable); ideas_detail_pane.tsx (Chat with Agent)",
+      "verification": "run_detail_overview.test.tsx; run_detail.test.tsx",
+      "remaining": "Ideas grouped under bucket headings rather than per-card HIGH POTENTIAL badges."
+    },
+    "M07": {
+      "status": "partial",
+      "implementation": "engine research_overview.py::_validate_knowledge_base; report_render.py::_synthesized_knowledge_base_topics; run_detail_learning.tsx::learningSections",
+      "verification": "engine test_research_overview.py; run_detail_learning.test.tsx",
+      "remaining": "Degrades to slicing three evidence abstracts when no knowledge-base topics were synthesized."
+    },
+    "M08": {
+      "status": "implemented",
+      "implementation": "run_detail_overview.tsx (renders 'Agent Insights' + lead-stat/idea/match stats + top-5 winners)",
+      "verification": "run_detail_overview.test.tsx",
+      "remaining": "Composition bundles clone-specific directions/Specific Aims alongside Agent Insights."
     },
     "M09": {
-      "status": "implemented",
-      "implementation": "app/frontend/src/lib/product_mode.ts; app/frontend/src/workbench/theme_context.tsx",
-      "verification": "production build forces the faithful shell to light mode",
-      "remaining": "Developer mode intentionally retains non-faithful theme tooling outside the faithful product."
+      "status": "extension",
+      "implementation": "theme_context.tsx (light/dark/system gated on DEVELOPER_MODE, forces light otherwise); lib/product_mode.ts",
+      "verification": "layout.test.tsx; live browser light-only shell 2026-07-14",
+      "remaining": "Dark/system theme quarantined behind developer mode."
     },
     "M10": {
       "status": "partial",
-      "implementation": "Responsive home shell and off-canvas navigation at 390x780",
-      "verification": "interactive browser: clientWidth=scrollWidth=390 and home content visible",
-      "remaining": "Complete every interview, running, report, modal, and export state at mobile size."
+      "implementation": "use_is_mobile.ts; ideas_tab.tsx::MobileIdeaView/DesktopIdeaSplit; dvh/mobile-drawer fixes",
+      "verification": "use_is_mobile.test.ts; ideas_tab.test.tsx; live browser mobile executing/interview 375x812 no overflow 2026-07-14",
+      "remaining": "Full small-viewport report/dialog parity not yet verified via a live completed-report render."
+    },
+    "M11": {
+      "status": "partial",
+      "implementation": "assets/fonts (Google Sans); components/icon.tsx (Material Symbols); MD3 radii/tonal surfaces",
+      "verification": "—",
+      "remaining": "Visual family partially matches; not the exact live product surface."
+    },
+    "M12": {
+      "status": "extension",
+      "implementation": "app/frontend/DESIGN.md:1-4,310-318 (still names 'Gemini Enterprise Idea Generation')",
+      "verification": "—",
+      "remaining": "Authoritative design doc still targets the wrong reference product (documentation-level)."
+    },
+    "M13": {
+      "status": "extension",
+      "implementation": "app/frontend/DESIGN.md:337 (deliberate green/purple, centered greeting, omitted eyebrow)",
+      "verification": "—",
+      "remaining": "Intentional visual deviations from the reference persist (documentation-level)."
     },
     "M14": {
-      "status": "implemented",
-      "implementation": "app/frontend/src/lib/product_mode.ts; layout.tsx; layout_header.tsx; layout_nav_rail.tsx",
-      "verification": "interactive faithful build exposes neither Logs nor Settings controls",
-      "remaining": "Developer-only controls remain quarantined behind explicit developer mode."
+      "status": "extension",
+      "implementation": "layout.tsx (showDeveloperControls=DEVELOPER_MODE); settings_dialog.tsx",
+      "verification": "layout.test.tsx; live browser no Logs/Settings 2026-07-14",
+      "remaining": "Logs/settings/API-key chrome quarantined behind developer mode; keyboard tab-cycling remains."
     },
     "M15": {
+      "status": "extension",
+      "implementation": "api/runs.ts::loadRunHistory (includeDemos=DEVELOPER_MODE); seed.py",
+      "verification": "runs.test.ts",
+      "remaining": "Seeded demo runs excluded from faithful history, appear only in developer mode."
+    },
+    "M16": {
+      "status": "partial",
+      "implementation": "run_detail_learning.tsx::ReferencesBlock (numbered references with Open pills)",
+      "verification": "run_detail_learning.test.tsx",
+      "remaining": "Minor reference-link visual/interaction match only."
+    },
+    "M17": {
       "status": "implemented",
-      "implementation": "app/frontend/src/api/runs.ts::loadRunHistory; app/app/engine_adapter/engine_stream.py::_real_engine_stream",
-      "verification": "runs.test.ts faithful-history tests; test_provider_selection.py::test_missing_engine_never_substitutes_mock_science; interactive recents inspection",
-      "remaining": "Public demo endpoints remain a quarantined developer/reference surface, not faithful-product navigation."
+      "implementation": "run_detail_shell.tsx::TAB_LABELS.specifications ('Run Specifications'); run_tabs.ts",
+      "verification": "run_detail.test.tsx; live browser 2026-07-14",
+      "remaining": "DESIGN.md:503 stale doc still lists 'Goal Details' (documentation only)."
+    },
+    "M18": {
+      "status": "implemented",
+      "implementation": "run_detail_shell.tsx::ReportActions (Open in NotebookLM, Download report markdown); report_share_control.tsx (public share)",
+      "verification": "run_detail.test.tsx (NotebookLM/Download/Open Agent); live browser Open Agent 2026-07-14",
+      "remaining": "NotebookLM is a Markdown download + handoff, not a native in-product export."
+    },
+    "M19": {
+      "status": "partial",
+      "implementation": "home_recents.tsx; home_recents_run_steps.tsx; use_run_history.ts (openable recent cards, live status)",
+      "verification": "home_recents_data.test.ts",
+      "remaining": "Progress is a coarse four-step model."
     },
     "M20": {
       "status": "partial",
-      "implementation": "Mock demonstrations are excluded from faithful run history and cannot replace a real engine run.",
-      "verification": "runs.test.ts; test_provider_selection.py; interactive faithful history inspection",
-      "remaining": "Fixed case-study-inspired suggestion prompts remain visible and must stay clearly framed as input examples."
+      "implementation": "chat_home_stage.tsx::SUGGESTIONS (three reference prompts); api/runs.ts::loadRunHistory (demos gated by DEVELOPER_MODE); seed.py",
+      "verification": "chat_workspace_home.test.tsx; runs.test.ts",
+      "remaining": "Suggestions remain (acceptable); seeded demo outputs separated to developer mode."
     }
   },
   "acceptance": [
-    {"id": 1, "status": "implemented", "requirement": "Complete Agent interview with exactly four research-plan fields.", "evidence": "Interactive browser journey completed challenge, Focus Area, Preferences, optional Title, plan review, and resumable transcript; app/app/interviews.py; app/tests/test_interviews.py", "remaining": "The exact wording of proprietary model-generated follow-up questions remains evidence-bounded."},
-    {"id": 2, "status": "implemented", "requirement": "Only Standard and Advanced; enforce 3/1 concurrency.", "evidence": "Browser run-type group exposes exactly Standard Run and Advanced Run; app/app/runs.py::_MODE_CONCURRENCY_LIMITS; app/tests/test_runs_edge.py::test_standard_and_advanced_concurrency_limits", "remaining": "Google's undisclosed internal compute envelopes for each type remain reconstructed."},
-    {"id": 3, "status": "implemented", "requirement": "Supervisor creates and reprioritizes diverse durable tasks from state and feedback.", "evidence": "Model-directed generate/reflect/rank/evolve/proximity selection; live durable queue snapshot; bounded reprioritize/cancel/retry actions; scientist steering forces priority-100 generation; engine/test_supervisor_decision.py; app/tests/test_engine_tasks.py; app/tests/test_task_queue.py", "remaining": "Google's proprietary allocation prompt and production scheduling distribution remain evidence-bounded."},
-    {"id": 4, "status": "implemented", "requirement": "Concurrent durable tasks survive restart with exactly-once effects.", "evidence": "app/tests/test_task_queue.py::test_multi_process_claim_has_single_lease_winner; test_multi_process_duplicate_completion_commits_one_effect; test_crashed_process_lease_is_redelivered_after_restart", "remaining": "Production soak duration and infrastructure topology remain environment-specific."},
-    {"id": 5, "status": "partial", "requirement": "Every disclosed specialist strategy has an end-to-end behavioral test.", "evidence": "Engine and app specialist tests", "remaining": "Complete strategy-by-strategy closure audit."},
-    {"id": 6, "status": "partial", "requirement": "Multi-source ranked retrieval and large/private/multimodal provenance.", "evidence": "OpenAlex cursor pagination/retraction metadata and ranked merge; PubMed/PMC plus biomedical databases; private-corpus SHA-256 provenance; image and scanned-PDF OCR with page/figure hashes", "remaining": "Prove structured table interpretation and genuinely large-corpus behavior under an end-to-end real-provider run."},
-    {"id": 7, "status": "partial", "requirement": "Every material final claim has visible support spans and gates publication.", "evidence": "app/app/claim_grounding.py; app/app/report_render.py", "remaining": "Re-audit every report surface and real-provider output."},
-    {"id": 8, "status": "unproven", "requirement": "Citation evaluation meets contradiction and larger-panel gates.", "evidence": "—", "remaining": "Run and record current evaluation package."},
-    {"id": 9, "status": "implemented", "requirement": "Truthful monotonic/indeterminate progress and real activity metrics.", "evidence": "task_progress derives committed/active/queued work; live checkpoint pools supply idea/source counts; browser verified indeterminate progress, active task, elapsed time, and event activity at 1440x720; focused backend/frontend tests", "remaining": "Exact Google progress wording and proprietary ETA behavior remain evidence-bounded."},
-    {"id": 10, "status": "unproven", "requirement": "Complete Goal Report and follow-up/export controls.", "evidence": "—", "remaining": "Browser journey and permission/revocation verification."},
-    {"id": 11, "status": "partial", "requirement": "All human inputs demonstrably alter subsequent work.", "evidence": "Real run steering changed applied=0 to applied=1 across forced restart and appeared in Supervisor decision; manual hypothesis/review/private-source paths append durable steering and have integration tests", "remaining": "Run one acceptance journey proving manual hypothesis, review, and uploaded resource each change a later real-provider task or final output."},
-    {"id": 12, "status": "partial", "requirement": "Coherent safety, adjudication, intended use, and authorization.", "evidence": "app/app/safety.py; app/app/hypothesis_safety.py; authorization tests", "remaining": "Consolidate app/engine policy and run complete adversarial suite."},
-    {"id": 13, "status": "implemented", "requirement": "Mock/demo data cannot contaminate live runs.", "evidence": "loadRunHistory filters demo and legacy mock rows in faithful mode; _real_engine_stream fails instead of falling back; focused tests and browser inspection", "remaining": "Mock tooling remains available only through explicit developer/test paths."},
-    {"id": 14, "status": "partial", "requirement": "Full desktop/mobile browser verification with no clipping.", "evidence": "Interactive home inspection at 1440x720 and 390x780: no document-width overflow; faithful controls verified", "remaining": "Complete interview, running, report, dialogs, sharing, download, and error-state journeys at both viewports and capture artifacts."},
-    {"id": 15, "status": "partial", "requirement": "All software, browser, evaluation, safety, and provenance gates pass.", "evidence": "Engine 1046 passed; app 422 passed; frontend 274 passed and built", "remaining": "Browser, evaluation, safety, and provenance gates remain."},
-    {"id": 16, "status": "partial", "requirement": "All required evaluation reports are checked in.", "evidence": "Existing scaling/ablation artifacts", "remaining": "Elo calibration, expert review, expanded citation/safety and failure recovery reports."},
-    {"id": 17, "status": "unproven", "requirement": "Final documentation identifies every proprietary uncertainty without claiming literal parity.", "evidence": "—", "remaining": "Final documentation and closure audit."}
+    {
+      "id": 1,
+      "status": "implemented",
+      "requirement": "Complete Agent interview with exactly four research-plan fields.",
+      "evidence": "Live browser 2026-07-14 (run 973ed7cd): intake heading, two distinct model-generated contextual questions, finalized four-field plan (Research Challenge/Focus Area/Preferences/Title) derived from the scientist's answers; app/app/interviews.py; app/tests/test_interviews.py",
+      "remaining": "Proprietary wording of Google's model-generated follow-ups remains evidence-bounded."
+    },
+    {
+      "id": 2,
+      "status": "implemented",
+      "requirement": "Only Standard and Advanced; enforce 3/1 concurrency.",
+      "evidence": "Live browser plan card exposes exactly Standard Run and Advanced Run 2026-07-14; runs.py::_MODE_CONCURRENCY_LIMITS; store/runs.py::reserve_run_capacity; test_runs_edge.py::test_standard_and_advanced_concurrency_limits and test_create_run_rejects_non_faithful_tiers",
+      "remaining": "Google's undisclosed per-mode compute envelopes remain reconstructed (B02)."
+    },
+    {
+      "id": 3,
+      "status": "implemented",
+      "requirement": "Supervisor creates and reprioritizes diverse durable tasks from state and feedback.",
+      "evidence": "supervisor_decision.py::choose_supervisor_task (model allocation); _apply_supervisor_queue_actions (reprioritize/cancel/retry); live run steering forced into engine state (checkpoint contains injected terms) 2026-07-14; test_supervisor_decision.py; test_task_queue.py::test_supervisor_can_reprioritize_cancel_and_retry_individual_tasks",
+      "remaining": "Model choice is bounded to five validated loop tasks; Google's allocation prompt/distribution is private (E04/F04)."
+    },
+    {
+      "id": 4,
+      "status": "implemented",
+      "requirement": "Concurrent durable tasks survive restart with exactly-once effects.",
+      "evidence": "test_task_queue.py::test_multi_process_claim_has_single_lease_winner; test_multi_process_duplicate_completion_commits_one_effect; test_crashed_process_lease_is_redelivered_after_restart; two concurrent real runs (ea0a3198, 973ed7cd) executed simultaneously 2026-07-14",
+      "remaining": "Production soak duration and distributed topology are environment-specific."
+    },
+    {
+      "id": 5,
+      "status": "partial",
+      "requirement": "Every disclosed specialist strategy has an end-to-end behavioral test.",
+      "evidence": "Per-strategy tests: generation (test_generation_techniques.py, test_coordinator.py, test_prompts_generation_debate.py), reflection modes (test_comprehensive_reflection.py, test_deep_verification.py), ranking/debate (test_ranking.py, test_ranking_debate.py), proximity (test_proximity.py, test_proximity_graph.py), evolution operators (test_evolution_operators.py), meta-review (test_meta_review.py)",
+      "remaining": "Assumptions generation runs only in the degraded no-literature mode (E07) and research-expansion is a re-entry convention without a dedicated end-to-end test (E08)."
+    },
+    {
+      "id": 6,
+      "status": "partial",
+      "requirement": "Multi-source ranked retrieval and large/private/multimodal provenance.",
+      "evidence": "PubMed+OpenAlex default ranked/deduped merge (test_lit_review_search.py); ChEMBL/UniProt tools (mcp test_biomedical_databases.py); OCR/csv/json ingestion (test_document_upload.py); live run retrieved 8 sources 2026-07-14",
+      "remaining": "No general web search (G01) or AlphaFold (G05); hundreds-of-PDFs scale and structured-table interpretation remain partial (G19)."
+    },
+    {
+      "id": 7,
+      "status": "implemented",
+      "requirement": "Every material final claim has visible support spans and gates publication.",
+      "evidence": "app/claim_grounding.py + report_render.py::finalize_report scientific-readiness gate; per-claim labels report_markdown.py::_claim_status (K10); pre-ranking gate excludes unsupported ideas (G16, G17 fix 2026-07-14); real blocked run 95b46092 emitted 'No hypothesis passed the claim-level evidence release gate'; test_pre_ranking_gate_releases_idea_after_new_support proves the reverse",
+      "remaining": "A fully-populated successful real-provider report is corroborated by tests and the release-path but a live completed engine report was still running at reconciliation."
+    },
+    {
+      "id": 8,
+      "status": "implemented",
+      "requirement": "Citation evaluation meets contradiction and larger-panel gates.",
+      "evidence": "evaluations/citation_eval.py --challenge --llm on the 30-case adversarial panel: accuracy 0.90, contradiction recall 1.0 (>= 0.80 floor), documented production gates pass; deterministic lexical baseline collapses to 0.00 contradiction recall on the same panel (results/citation-entailment-challenge-*-2026-07-14.json); offline smoke green",
+      "remaining": "Panel is synthetic and DeepSeek is compatibility-mode; a human-audited representative sample and Gemini scoring remain external gaps."
+    },
+    {
+      "id": 9,
+      "status": "implemented",
+      "requirement": "Truthful monotonic/indeterminate progress and real activity metrics.",
+      "evidence": "Live browser executing screen 2026-07-14: honest 'Progress pending'/'Estimating…', real Sources Analyzed=8 and Ideas explored counts, live Activity log of actual task names; store/tasks.py::task_progress; test_task_queue.py::test_task_progress_is_monotonic_and_budget_derived",
+      "remaining": "Exact Google progress wording and ETA behavior remain evidence-bounded."
+    },
+    {
+      "id": 10,
+      "status": "partial",
+      "requirement": "Complete Goal Report and follow-up/export controls.",
+      "evidence": "Live browser 2026-07-14: faithful tab order Ideas/Knowledge Base/Summary/Run Specifications, Open Agent, upload; all controls functional+tested (run_detail.test.tsx): High/Non-Viable buckets, leaderboard, Knowledge Base, Agent Insights, sharing (test_report_sharing.py), download, NotebookLM handoff",
+      "remaining": "A fully-populated completed Goal Report rendered end-to-end in the browser (with idea detail, claim spans, share/revocation journey) is pending the running real report."
+    },
+    {
+      "id": 11,
+      "status": "implemented",
+      "requirement": "All human inputs demonstrably alter subsequent work.",
+      "evidence": "Live run 973ed7cd 2026-07-14: UI-sent steering (message id 39) applied=1 with its injected terms merged into engine checkpoint state (seq 10); manual hypothesis/review paths merge into engine state (test_engine_tasks.py::test_scientist_inputs_merge_into_engine_state_once); uploaded corpus re-delivered each node (test_run_corpus.py)",
+      "remaining": "A single trace showing manual hypothesis/review AND upload each change a later real-provider final artifact is corroborated by tests but not captured in one end-to-end real run."
+    },
+    {
+      "id": 12,
+      "status": "partial",
+      "requirement": "Coherent safety, adjudication, intended use, and authorization.",
+      "evidence": "Consolidated engine coscientist-safety-v3 aliased by app (J09); held-item adjudication (test_runs.py::test_safety_adjudication_is_identified_and_single_use); intended-use notice live (J08); ownership 404 on a cross-owner run observed live 2026-07-14 (J11); safety eval 13 cases 0 FP/FN",
+      "remaining": "Default auth_mode is compatibility (X-Client-ID) not required; the adversarial safety panel (13 cases) does not reproduce Google's 1,200-goal benchmark (J03, external)."
+    },
+    {
+      "id": 13,
+      "status": "implemented",
+      "requirement": "Mock/demo data cannot contaminate live runs.",
+      "evidence": "loadRunHistory gates demos behind DEVELOPER_MODE and filters owned runs to provider==engine (runs.test.ts); _real_engine_stream fails instead of falling back to mock; live faithful Recents empty for a fresh client 2026-07-14",
+      "remaining": "Mock tooling remains available only through explicit developer/test paths."
+    },
+    {
+      "id": 14,
+      "status": "partial",
+      "requirement": "Full desktop/mobile browser verification with no clipping.",
+      "evidence": "Live 2026-07-14: interview + run-config + executing screens at desktop 1440x720 and mobile 375x812 (docW==clientW==375, no overflow); stat cards stack on mobile; intended-use disclaimer visible",
+      "remaining": "Completed-report, idea-detail, dialogs, share, and download states at both viewports remain to be captured once the real report completes."
+    },
+    {
+      "id": 15,
+      "status": "implemented",
+      "requirement": "All software, browser, evaluation, safety, and provenance gates pass.",
+      "evidence": "2026-07-14 on HEAD 4a0378aa: engine 1071 passed + ruff clean + mypy clean (211 files); app 457 passed + ruff clean + mypy clean (123 files); frontend 281 passed + gts lint clean + production build; offline eval smoke green; citation challenge gates pass; safety eval 0 FP/FN",
+      "remaining": "External evaluation gates (expert/wet-lab/GPQA/scaling) remain out-of-scope external items (AC16)."
+    },
+    {
+      "id": 16,
+      "status": "partial",
+      "requirement": "All required evaluation reports are checked in.",
+      "evidence": "Citation (v1 + 30-case challenge with gates), safety (13-case adversarial), expert-review readiness (schema + not-run artifact), scaling/ablation harness + isolated real-call artifacts in evaluations/results/",
+      "remaining": "Elo-vs-known-answer calibration (GPQA), real-provider scaling curves, controlled ablation runs, recruited expert panel, and wet-lab validation require unavailable licensed data/panels and remain explicitly external (L02/L03/L04/L11/L12); a failure-recovery report can still be assembled from existing durable-task tests."
+    },
+    {
+      "id": 17,
+      "status": "partial",
+      "requirement": "Final documentation identifies every proprietary uncertainty without claiming literal parity.",
+      "evidence": "All 232 findings reconciled with direct file/symbol/test evidence in this ledger (85 implemented, 105 partial, 6 matched, 13 extension, 12 missing, 11 unverifiable); the unverifiable/inferred register in the fidelity diff is preserved; no numerical fidelity score assigned",
+      "remaining": "docs/PARITY.md and the closure matrix regeneration must be finalized and a closing summary written that reasserts the proprietary/unverifiable boundaries."
+    }
   ],
   "verification_log": [
-    "2026-07-13: engine Ruff and mypy passed; 1,046 tests passed.",
-    "2026-07-13: app Ruff and mypy passed; 422 tests passed.",
-    "2026-07-13: frontend lint passed; 274 tests passed; production build passed.",
-    "2026-07-13: durable orchestration commits f76a66b4 and d355f19e."
+    "2026-07-14 (HEAD 4a0378aa): engine 1071 tests passed; ruff clean; mypy clean (211 source files).",
+    "2026-07-14: app 457 tests passed; ruff clean; mypy clean (123 source files).",
+    "2026-07-14: frontend 281 tests passed; gts lint clean; production build passed.",
+    "2026-07-14: offline eval smoke green; citation challenge panel (llm:deepseek) accuracy 0.90 / contradiction recall 1.0, gates pass; safety eval 13 cases 0 FP/0 FN.",
+    "2026-07-14: live real-provider runs ea0a3198 and 973ed7cd executed concurrently through the durable queue; blocked run 95b46092 confirmed the claim-evidence release gate fires (fail-closed).",
+    "2026-07-14: browser verification at 1440x720 and 375x812 covered intake, multi-turn Agent interview, four-field plan, Standard/Advanced config, and the executing screen with real metrics.",
+    "2026-07-14: all 232 findings reconciled into this ledger with per-finding implementation and verification evidence."
   ]
 }
