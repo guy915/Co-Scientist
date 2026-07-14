@@ -265,6 +265,51 @@ async def test_interview_keeps_json_schema_for_supporting_model(
     assert captured["response_format"]["type"] == "json_schema"
 
 
+def test_interview_completes_when_model_reports_no_preferences(
+    isolated_db: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A model-confirmed completion with empty preferences must finalize.
+
+    The interview contract treats an explicit "no constraints" as a valid
+    terminal state, so an empty preferences list must not deadlock the
+    interview in 'active' (which would leave the run un-creatable).
+    """
+    responses = iter(
+        [
+            _response("Which pathways should this research prioritize?"),
+            _response(
+                "The goal is finalized. Proceeding with the analysis.",
+                focus=["PI3K/AKT/mTOR pathway"],
+                preferences=[],  # scientist stated there are no constraints
+                completed=True,
+            ),
+        ]
+    )
+
+    async def _model(_interview: dict[str, Any]) -> dict[str, Any]:
+        return next(responses)
+
+    monkeypatch.setattr(interviews, "_call_interview_model", _model)
+    headers = {"X-Client-ID": "no-prefs-scientist"}
+    with TestClient(app) as client:
+        created = client.post(
+            "/api/interviews",
+            headers=headers,
+            json={"research_challenge": "Repurpose a drug for glioblastoma"},
+        )
+        interview_id = created.json()["id"]
+        assert created.json()["status"] == "active"
+        done = client.post(
+            f"/api/interviews/{interview_id}/turns",
+            headers=headers,
+            json={"content": "PI3K/AKT/mTOR; no other constraints, proceed."},
+        )
+
+    payload = done.json()
+    assert payload["status"] == "completed"
+    assert payload["fields"]["preferences"] == []
+
+
 def test_interview_remains_usable_during_model_outage(
     isolated_db: str, monkeypatch: pytest.MonkeyPatch
 ) -> None:

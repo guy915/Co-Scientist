@@ -116,8 +116,24 @@ def _normalized_fields(response: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _essentials_ready(fields: dict[str, Any]) -> bool:
+    """Whether the essential scoping fields (challenge + focus) are present.
+
+    Preferences are intentionally excluded: the interview contract treats an
+    explicit "no constraints" as a valid terminal state (see the system
+    prompt), so an empty preferences list must not block a model-confirmed
+    completion. Used to validate the model's own ``completed`` signal.
+    """
+    return bool(fields["research_challenge"] and fields["focus_area"])
+
+
 def _ready(fields: dict[str, Any]) -> bool:
-    """Return whether required scoping fields contain substantive values."""
+    """Return whether required scoping fields contain substantive values.
+
+    Requires preferences as well, so the deterministic recovery path (which
+    fills fields from scientist answers in order) collects a preferences answer
+    before it completes, rather than finalizing after the focus-area answer.
+    """
     return bool(
         fields["research_challenge"]
         and fields["focus_area"]
@@ -244,19 +260,32 @@ async def _advance(interview_id: str) -> dict[str, Any]:
     """Run one Agent turn and persist its derivation for later resume."""
     interview = store.get_interview(interview_id)
     assert interview is not None
+    used_fallback = False
     try:
         response = await _call_interview_model(interview)
     except HTTPException as exc:
         if exc.status_code != 503:
             raise
         response = _fallback_interview_response(interview)
+        used_fallback = True
     fields = _normalized_fields(response)
     message = str(response.get("assistant_message") or "").strip()
     if not message:
         raise HTTPException(
             status_code=502, detail="Interview Agent returned no message."
         )
-    completed = bool(response.get("completed")) and _ready(fields)
+    if used_fallback:
+        # The deterministic recovery path sequences its questions via _ready,
+        # so let it collect a preferences answer before completing.
+        completed = _ready(fields)
+    else:
+        # Trust the model's own completion signal once the essentials are
+        # captured. Empty preferences is a valid "no constraints" terminal
+        # state per the interview contract, so requiring it here would deadlock
+        # the interview whenever the scientist has no additional constraints.
+        completed = bool(response.get("completed")) and _essentials_ready(
+            fields
+        )
     store.append_interview_turn(interview_id, "agent", message)
     store.update_interview(
         interview_id,
