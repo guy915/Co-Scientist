@@ -54,6 +54,17 @@ deliberately **not** loosened to manufacture a passing report. Consequently the
 (AC14) are verified by tests and by the blocked-state UI, not by a live
 populated report.
 
+**Design boundary (documented, not resolved):** the implementation prompt lists
+four remedies for an unsupported categorical claim — "Revise, hedge, quarantine,
+or abstain." The current gate takes the most conservative one (**abstain**:
+quarantine the whole idea if any categorical/mechanism claim is unsupported),
+even though the report renderer also hedges each claim inline. A less strict but
+still spec-faithful policy (require ≥1 supported contextual claim and block only
+contradicted claims, hedging unsupported ones inline) would let more real runs
+publish. That policy question is deliberately **not** reopened here: loosening
+the gate under completion pressure to manufacture a passing report would be
+confirmation bias, and the audit endorsed the fail-closed choice.
+
 
 | AC | Status | Note |
 |---|---|---|
