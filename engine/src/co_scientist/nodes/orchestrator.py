@@ -187,7 +187,10 @@ def _next_bookkeeping(
 
 
 def _appended_task_record(
-    state: WorkflowState, decision: SupervisorDecision, iteration: int
+    state: WorkflowState,
+    decision: SupervisorDecision,
+    iteration: int,
+    observable_reason: str,
 ) -> list[dict[str, Any]]:
     """Return task_history with this decision's record appended."""
     record = TaskRecord(
@@ -195,15 +198,34 @@ def _appended_task_record(
         status=(
             TaskStatus.COMPLETED if decision.terminate else TaskStatus.QUEUED
         ),
-        reason=decision.reason,
+        reason=observable_reason,
         iteration=iteration,
         termination_reason=decision.termination_reason,
     )
     history = list(state.get("task_history", []))
     serialized = record.to_dict()
     serialized["priority"] = decision.priority
+    # The raw model rationale remains available for operator audit but is not
+    # presented as a factual activity summary.
+    serialized["planner_reason"] = decision.reason
     history.append(serialized)
     return history
+
+
+def _observable_decision_reason(
+    stats: SchedulerStats,
+    decision: SupervisorDecision,
+) -> str:
+    """Describe an allocation using committed facts instead of model claims."""
+    match_count = stats.total_matches // 2
+    reason = (
+        f"Supervisor selected {decision.next_task.value} from live state: "
+        f"{stats.pool_size} hypotheses, {stats.reviewed_count} reviewed, "
+        f"{match_count} committed matches, iteration {stats.iteration}."
+    )
+    if stats.pending_steering:
+        reason += " Scientist feedback is pending incorporation."
+    return reason
 
 
 async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
@@ -237,18 +259,19 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
     # maintenance task (proximity/rank/reflect) and termination do not.
     if decision.next_task in (TaskType.GENERATE, TaskType.EVOLVE):
         iteration += 1
+    observable_reason = _observable_decision_reason(stats, decision)
 
     logger.info(
         "Orchestrator scheduled %s (iteration %s): %s",
         decision.next_task.value,
         iteration,
-        decision.reason,
+        observable_reason,
     )
 
     await emit_progress(
         state,
         "orchestrator_decision",
-        f"Supervisor scheduled {decision.next_task.value}: {decision.reason}",
+        observable_reason,
         _PROGRESS_ORCHESTRATOR,
         next_task=decision.next_task.value,
         termination_reason=(
@@ -263,7 +286,9 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
         "next_task": decision.next_task.value,
         "next_task_priority": decision.priority,
         "supervisor_queue_actions": list(decision.queue_actions),
-        "task_history": _appended_task_record(state, decision, iteration),
+        "task_history": _appended_task_record(
+            state, decision, iteration, observable_reason
+        ),
         "orchestrator_state": _next_bookkeeping(book, stats, decision),
         "supervisor_decision_provenance": decision_provenance,
         "current_iteration": iteration,
@@ -278,7 +303,7 @@ async def orchestrator_node(state: WorkflowState) -> dict[str, Any]:
         ),
         "messages": phase_message(
             "orchestrator",
-            decision.reason,
+            observable_reason,
             next_task=decision.next_task.value,
         ),
     }

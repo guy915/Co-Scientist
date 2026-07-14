@@ -7,8 +7,9 @@ re-triggered on the next loop.
 
 import asyncio
 
+from co_scientist.nodes import orchestrator
 from co_scientist.nodes.orchestrator import orchestrator_node
-from co_scientist.scheduling import TaskType
+from co_scientist.scheduling import SupervisorDecision, TaskType
 from co_scientist.state import WorkflowState
 from tests._state import make_hypothesis, make_state
 
@@ -37,3 +38,32 @@ def test_no_steering_does_not_force_generate_for_steering() -> None:
     # steering-driven generate; the reason never mentions steering.
     assert "steering" not in str(delta["messages"]).lower()
     assert delta["pending_steering"] is False
+
+
+def test_activity_uses_live_facts_not_planner_assertions(monkeypatch) -> None:
+    """A hallucinated planner rationale cannot become the activity summary."""
+
+    async def _hallucinated_decision(*_args, **_kwargs):
+        return (
+            SupervisorDecision(
+                next_task=TaskType.GENERATE,
+                reason="No hypotheses have been generated yet.",
+                priority=80,
+            ),
+            "model",
+        )
+
+    monkeypatch.setattr(
+        orchestrator, "choose_supervisor_task", _hallucinated_decision
+    )
+    state = _state_with_steering(False)
+    delta = asyncio.run(orchestrator_node(state))
+
+    message = str(delta["messages"])
+    assert "No hypotheses" not in message
+    assert "4 hypotheses" in message
+    record = delta["task_history"][-1]
+    assert record["reason"].startswith(
+        "Supervisor selected generate from live state"
+    )
+    assert record["planner_reason"] == "No hypotheses have been generated yet."
