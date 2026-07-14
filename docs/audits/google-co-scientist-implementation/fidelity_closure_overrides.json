@@ -1440,8 +1440,8 @@
       "id": 7,
       "status": "implemented",
       "requirement": "Every material final claim has visible support spans and gates publication.",
-      "evidence": "app/claim_grounding.py + report_render.py::finalize_report scientific-readiness gate; per-claim labels report_markdown.py::_claim_status (K10); pre-ranking gate excludes unsupported ideas (G16, G17 fix 2026-07-14); real blocked run 95b46092 emitted 'No hypothesis passed the claim-level evidence release gate'; test_pre_ranking_gate_releases_idea_after_new_support proves the reverse",
-      "remaining": "A fully-populated successful real-provider report is corroborated by tests and the release-path but a live completed engine report was still running at reconciliation."
+      "evidence": "app/claim_grounding.py + report_render.py::finalize_report scientific-readiness gate; per-claim labels report_markdown.py::_claim_status (K10); pre-ranking gate excludes unsupported ideas (G16, G17 fix 2026-07-14). Two real-provider runs on the current HEAD reached terminal 'blocked' with 'No hypothesis passed the claim-level evidence release gate' (95b46092 and 973ed7cd); 973ed7cd's checkpoint state confirmed claim grounding ran (supports+insufficient labels) and evidence_blocked ideas were excluded from ranking; the reverse is proven by test_pre_ranking_gate_releases_idea_after_new_support",
+      "remaining": "The gate is intentionally strict (fail-closed): a completed real report requires every categorical/mechanism claim supported, which the compatibility-mode provider with limited retrieval did not achieve. A completed grounded report is proven possible at unit level but was not produced by these runs; loosening the gate to force one is deliberately avoided."
     },
     {
       "id": 8,
@@ -1461,8 +1461,8 @@
       "id": 10,
       "status": "partial",
       "requirement": "Complete Goal Report and follow-up/export controls.",
-      "evidence": "Live browser 2026-07-14: faithful tab order Ideas/Knowledge Base/Summary/Run Specifications, Open Agent, upload; all controls functional+tested (run_detail.test.tsx): High/Non-Viable buckets, leaderboard, Knowledge Base, Agent Insights, sharing (test_report_sharing.py), download, NotebookLM handoff",
-      "remaining": "A fully-populated completed Goal Report rendered end-to-end in the browser (with idea detail, claim spans, share/revocation journey) is pending the running real report."
+      "evidence": "Live browser 2026-07-14: faithful tab order Ideas/Knowledge Base/Summary/Run Specifications, Open Agent, Run Specifications with the finalized four-field spec + reconstruction-provenance label + safety audit trail; upload control; all controls functional+tested (run_detail.test.tsx): High/Non-Viable buckets, leaderboard, Knowledge Base, Agent Insights, sharing (test_report_sharing.py), download, NotebookLM handoff",
+      "remaining": "A fully-populated COMPLETED Goal Report (populated Ideas leaderboard, idea detail with claim spans, share/revocation) rendered end-to-end in the browser is pending a real run that passes the strict evidence gate; the blocked-state report surface is verified live."
     },
     {
       "id": 11,
@@ -1475,7 +1475,7 @@
       "id": 12,
       "status": "partial",
       "requirement": "Coherent safety, adjudication, intended use, and authorization.",
-      "evidence": "Consolidated engine coscientist-safety-v3 aliased by app (J09); held-item adjudication (test_runs.py::test_safety_adjudication_is_identified_and_single_use); intended-use notice live (J08); ownership 404 on a cross-owner run observed live 2026-07-14 (J11); safety eval 13 cases 0 FP/FN",
+      "evidence": "Consolidated engine coscientist-safety-v3 aliased by app (J09); the SEMANTIC classifier ran live on run 973ed7cd (browser Safety audit shows 'Policy coscientist-safety-v3 · semantic:deepseek/deepseek-chat' allowing intake and final, plus 'scientific_readiness: block' with policy provenance) 2026-07-14; held-item adjudication (test_runs.py::test_safety_adjudication_is_identified_and_single_use); intended-use notice live (J08); ownership 404 on a cross-owner run observed live (J11); safety eval 13 cases 0 FP/FN",
       "remaining": "Default auth_mode is compatibility (X-Client-ID) not required; the adversarial safety panel (13 cases) does not reproduce Google's 1,200-goal benchmark (J03, external)."
     },
     {
@@ -1510,8 +1510,8 @@
       "id": 17,
       "status": "partial",
       "requirement": "Final documentation identifies every proprietary uncertainty without claiming literal parity.",
-      "evidence": "All 232 findings reconciled with direct file/symbol/test evidence in this ledger (85 implemented, 105 partial, 6 matched, 13 extension, 12 missing, 11 unverifiable); the unverifiable/inferred register in the fidelity diff is preserved; no numerical fidelity score assigned",
-      "remaining": "docs/PARITY.md and the closure matrix regeneration must be finalized and a closing summary written that reasserts the proprietary/unverifiable boundaries."
+      "evidence": "All 232 findings reconciled with direct file/symbol/test evidence (85 implemented, 105 partial, 6 matched, 13 extension, 12 missing, 11 unverifiable); FINAL_STATUS_2026-07-14.md records the proprietary/unverifiable register and asserts no literal parity; the running product itself labels reconstruction provenance (browser Run Specifications 2026-07-14); no numerical fidelity score assigned",
+      "remaining": "Kept current: docs/PARITY.md and the closure matrix are regenerated and consistent; the proprietary/unverifiable boundaries remain explicitly labelled rather than resolved."
     }
   ],
   "verification_log": [
@@ -1521,6 +1521,7 @@
     "2026-07-14: offline eval smoke green; citation challenge panel (llm:deepseek) accuracy 0.90 / contradiction recall 1.0, gates pass; safety eval 13 cases 0 FP/0 FN.",
     "2026-07-14: live real-provider runs ea0a3198 and 973ed7cd executed concurrently through the durable queue; blocked run 95b46092 confirmed the claim-evidence release gate fires (fail-closed).",
     "2026-07-14: browser verification at 1440x720 and 375x812 covered intake, multi-turn Agent interview, four-field plan, Standard/Advanced config, and the executing screen with real metrics.",
-    "2026-07-14: all 232 findings reconciled into this ledger with per-finding implementation and verification evidence."
+    "2026-07-14: all 232 findings reconciled into this ledger with per-finding implementation and verification evidence.",
+    "2026-07-14: two real-provider runs (ea0a3198 metformin/AMPK, 973ed7cd senolytic) both reached terminal 'blocked' at the claim-level evidence release gate on the current HEAD; the browser Run Specifications page surfaced the layered safety audit (semantic classifier allow + readiness block with policy provenance) and reconstruction-provenance labeling."
   ]
 }
