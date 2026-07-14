@@ -220,7 +220,7 @@
       "status": "partial",
       "implementation": "store/tasks.py::task_progress (monotonic; engine runs indeterminate so no % renders)",
       "verification": "run_detail.test.tsx (indeterminate bar)",
-      "remaining": "engine/constants.py still defines non-monotonic per-node values, now unconsumed by any surface."
+      "remaining": "engine/constants.py still defines non-monotonic per-node PROGRESS_* values. Inspected 2026-07-14: they are still passed at 42 emit_progress call sites into the SSE progress payload, but no surface reads the percent (the frontend uses execution_progress.fraction from store/tasks.task_progress). Removing them is a cross-cutting refactor of the emit_progress signature + 42 call sites + the event payload contract (medium-risk against the live SSE stream), not a trivial dead-code removal; deferred to a pressure-free session."
     },
     "C08": {
       "status": "implemented",

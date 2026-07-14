@@ -42,6 +42,36 @@ labelled unverifiable rather than invented (see §6).
 The distribution is deliberately not all-green: 104 partial and 11 unverifiable
 rows reflect real, documented boundaries, not unfinished tracking.
 
+**Every one of the 232 findings carries cited direct evidence.** All 232 have
+both an `implementation` field (the file/symbol that realizes the behavior) and
+a `verification` field (the test/eval/runtime/browser artifact); all 104
+partials additionally name a concrete residual gap. "Direct evidence" is
+therefore present for the whole corpus — the open question is not *missing
+evidence* but whether any partial/missing residual has a **safe, faithful
+close** still available.
+
+**Systematic safe-close triage (2026-07-14, final worktree).** All 116
+partial+missing residuals were triaged for E32-style safe closes (dead code /
+trivial wiring). A keyword pass found zero clearly-safe candidates; 30 carry
+explicit blocked-signals (undisclosed/external/gate/feature/depth) and 86 were
+read individually. The single most promising candidate, **C07** (non-monotonic
+`PROGRESS_*` constants "unconsumed by any surface"), was inspected and found
+*not* trivial: the constants are still passed at 42 `emit_progress` call sites
+into the live SSE payload, so removing them is a cross-cutting refactor of the
+event contract, not a dead-code deletion. The remaining 85 residuals classify
+as: undisclosed Google internals (exact UI vocabulary, credit contract,
+concurrency/tie policy, verbatim templates, policy equivalence — AC17), real
+feature additions (recursive assumption decomposition, async embedding-graph
+proximity, advocate/opponent debate roles, diagram generation, live private-repo
+search tool, durable knowledge base), model/gate-dependent "unproven/unmeasured"
+items needing completed-run quality analysis the evidence gate withholds, and
+deliberate architecture choices (weighted-sampling vs deterministic scheduling,
+event-replay-from-cursor, response caching). **Conclusion: no remaining
+trivial/safe close exists** — every open residual is undisclosed, external,
+feature-risk, or a cross-cutting refactor unsafe to grind under completion
+pressure. This is the evidence-backed finding-level completion audit, not an
+assertion.
+
 ## 3. Acceptance conditions (10 implemented / 7 partial)
 
 **Plainly stated up front:** no real compatibility-provider run produced a
