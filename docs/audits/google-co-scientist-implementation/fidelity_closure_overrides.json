@@ -565,10 +565,10 @@
       "remaining": "Overview/contacts live in a separate node (not meta-review); contacts limited to retrieved-paper authors."
     },
     "E30": {
-      "status": "partial",
-      "implementation": "generation_debate_and_literature.md / evolution.md drop the fixed template; prompts/generation_debate.py still forces 'We want to develop [X] to enable [Y]'",
-      "verification": "test_prompts_generation.py; test_prompts_generation_debate.py",
-      "remaining": "Debate-generation path still imposes the software-like sentence template and short length."
+      "status": "implemented",
+      "implementation": "prompts/generation_debate.py::_DEBATE_FINAL_TURN_INSTRUCTIONS and schemas/generation.py + schemas/synthesis.py now require a domain-language mechanistic hypothesis (entities, mechanism, direction, testable prediction, controls, falsification) with no fixed 'We want to develop [X] to enable [Y]' phrasing and no 2-3 sentence cap; domain-neutral example",
+      "verification": "engine/tests/test_prompts_generation_debate.py::test_debate_prompt_does_not_force_clone_sentence_template; test_prompts_generation.py; test_schemas.py",
+      "remaining": "Prompts remain non-verbatim reconstructions of Google's published prompts (E31); exact wording is undisclosed."
     },
     "E31": {
       "status": "partial",
@@ -902,9 +902,9 @@
     },
     "H15": {
       "status": "partial",
-      "implementation": "prompts/generation_debate.py still forces 'We want to develop [X] to enable [Y]' (2-3 sentences); explanation/experiment separate fields",
-      "verification": "—",
-      "remaining": "Proposals remain terse action statements rather than long-form domain-expert prose."
+      "implementation": "generation_debate.py + generation/synthesis schemas drop the forced 'We want to develop [X]' 2-3 sentence template in favor of mechanistic domain-language claims with falsification; models.py::Hypothesis keeps explanation/experiment/mechanism fields",
+      "verification": "engine/tests/test_prompts_generation_debate.py::test_debate_prompt_does_not_force_clone_sentence_template",
+      "remaining": "The forced template and terse ceiling are removed, but achieving Google-showcase output depth on a compatibility-mode provider is not demonstrated (K11, unverifiable target)."
     },
     "H16": {
       "status": "partial",

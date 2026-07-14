@@ -32,14 +32,14 @@ labelled unverifiable rather than invented (see §6).
 
 | Disposition | Count | Meaning |
 |---|---|---|
-| implemented | 85 | Behavior works, is reachable, and is tested. |
-| partial | 105 | A working subset exists; a concrete named gap remains. |
+| implemented | 86 | Behavior works, is reachable, and is tested. |
+| partial | 104 | A working subset exists; a concrete named gap remains. |
 | matched | 6 | Narrow primitive the audit already classed a material match. |
 | extension | 13 | A non-faithful addition, quarantined behind developer mode or dead. |
 | missing | 12 | No working implementation (several are external eval gaps). |
 | unverifiable | 11 | Google's exact behavior is not public enough to compare. |
 
-The distribution is deliberately not all-green: 105 partial and 11 unverifiable
+The distribution is deliberately not all-green: 104 partial and 11 unverifiable
 rows reflect real, documented boundaries, not unfinished tracking.
 
 ## 3. Acceptance conditions (10 implemented / 7 partial)
@@ -81,7 +81,7 @@ place rather than committed or discarded.
 
 ## 4. Verification (2026-07-14)
 
-- Engine: 1071 tests passed; ruff clean; mypy clean (211 source files).
+- Engine: 1072 tests passed; ruff clean; mypy clean (211 source files).
 - App: full suite 457 passed (fresh session-start environment); ruff clean;
   mypy clean (123 source files). After the only app-code change (G17) the
   affected files were re-verified (46 passed) and each environment-restricted
