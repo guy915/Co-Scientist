@@ -42,7 +42,7 @@ labelled unverifiable rather than invented (see §6).
 The distribution is deliberately not all-green: 105 partial and 11 unverifiable
 rows reflect real, documented boundaries, not unfinished tracking.
 
-## 3. Acceptance conditions (10 implemented / 7 partial)
+## 3. Acceptance conditions (11 implemented / 6 partial)
 
 | AC | Status | Note |
 |---|---|---|
@@ -62,7 +62,7 @@ rows reflect real, documented boundaries, not unfinished tracking.
 | 14 Desktop/mobile verification | partial | Interview/config/executing verified at 1440×720 and 375×812; completed-report journey pending. |
 | 15 All software gates pass | implemented | engine 1071 / app 457 / frontend 281, ruff/mypy/lint/build clean; eval smoke green. |
 | 16 Evaluation reports checked in | partial | Citation/safety/expert-readiness/scaling harness/failure-recovery present; GPQA/scaling-curve/expert-panel/wet-lab external. |
-| 17 Documentation identifies uncertainty | partial | This document + reconciled ledger; no literal-parity claim; proprietary register preserved. |
+| 17 Documentation identifies uncertainty | implemented | This document + reconciled ledger + consistent PARITY; no literal-parity claim; the product itself labels reconstruction provenance. |
 
 ## 4. Verification (2026-07-14)
 

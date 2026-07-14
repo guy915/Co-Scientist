@@ -1508,10 +1508,10 @@
     },
     {
       "id": 17,
-      "status": "partial",
+      "status": "implemented",
       "requirement": "Final documentation identifies every proprietary uncertainty without claiming literal parity.",
       "evidence": "All 232 findings reconciled with direct file/symbol/test evidence (85 implemented, 105 partial, 6 matched, 13 extension, 12 missing, 11 unverifiable); FINAL_STATUS_2026-07-14.md records the proprietary/unverifiable register and asserts no literal parity; the running product itself labels reconstruction provenance (browser Run Specifications 2026-07-14); no numerical fidelity score assigned",
-      "remaining": "Kept current: docs/PARITY.md and the closure matrix are regenerated and consistent; the proprietary/unverifiable boundaries remain explicitly labelled rather than resolved."
+      "remaining": "Complete: the reconciled ledger, regenerated matrix, and consistent PARITY docs are checked in; every proprietary/unverifiable boundary is explicitly labelled and none is resolved into a parity claim. The result is an evidence-bounded reconstruction, not a literal 1:1 implementation."
     }
   ],
   "verification_log": [
