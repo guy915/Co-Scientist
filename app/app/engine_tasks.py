@@ -175,6 +175,26 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
         )
         for article in state.get("articles") or []
     ]
+    # The scientist's private corpus is admissible evidence: a hypothesis's
+    # claims may be grounded in the uploaded documents, not only in retrieved
+    # literature. Including these passages lets scientist-provided evidence
+    # release an otherwise-unsupported idea, matching the disclosed
+    # private-repository behavior. Additive (empty when nothing was uploaded).
+    for source in state.get("context_enrichment_sources") or []:
+        data = source.get("data") or {}
+        text = str(source.get("display") or data.get("excerpt") or "").strip()
+        if not text:
+            continue
+        passages.append(
+            EvidencePassage(
+                evidence_id=str(
+                    data.get("document_id") or data.get("title") or "private"
+                ),
+                text=text,
+                source=str(source.get("source_type") or "private_document"),
+                url="",
+            )
+        )
     assessor, assessor_id = build_assessor(
         settings.claim_assessor,
         settings.claim_verifier_model or settings.model_name,

@@ -207,6 +207,49 @@ async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
     assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
 
 
+@pytest.mark.asyncio
+async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
+    """A scientist's uploaded document is admissible grounding evidence.
+
+    The private corpus (``context_enrichment_sources``) must count toward the
+    pre-ranking evidence gate, not only retrieved literature, so uploaded
+    supporting documents can release an otherwise-unsupported idea — matching
+    the disclosed private-repository behavior.
+    """
+    hypothesis = Hypothesis(
+        text="Astrocyte lactate accelerates synaptic ATP recovery.",
+        literature_grounding=(
+            "Astrocyte lactate accelerates synaptic ATP recovery."
+        ),
+    )
+    hypothesis.review_disposition = "viable"
+    state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+    assert hypothesis.review_disposition == "evidence_blocked"
+
+    state["context_enrichment_sources"] = [
+        {
+            "display": (
+                "Private scientist source 'Lab notes': Astrocyte lactate "
+                "accelerates synaptic ATP recovery."
+            ),
+            "source_type": "private_document",
+            "data": {
+                "document_id": "doc-1",
+                "title": "Lab notes",
+                "excerpt": (
+                    "Astrocyte lactate accelerates synaptic ATP recovery."
+                ),
+                "private": True,
+            },
+        }
+    ]
+    await engine_tasks._apply_pre_ranking_evidence_gate(state)
+
+    assert hypothesis.review_disposition == "viable"
+    assert hypothesis.enrichments["claim_gate"]["decision"] == "allow"
+
+
 def test_evidence_blocked_idea_is_excluded_from_ranking() -> None:
     """A claim-gated idea must not enter the decisive Elo tournament.
 
