@@ -494,9 +494,9 @@
     },
     "E18": {
       "status": "implemented",
-      "implementation": "ranking.py alternating presentation_order + _balanced_invalid_fallback (identity+index parity)",
-      "verification": "test_ranking_debate.py; test_ranking.py::test_malformed_judge_response_uses_position_balanced_fallback",
-      "remaining": "Single-turn lower-ranked matchups still present a fixed A/B order."
+      "implementation": "ranking.py judge_matchup folds matchup_index into start_parity so single-turn matchups alternate presentation order (ab/ba) across the tournament; multi-turn debates keep per-turn alternation; _balanced_invalid_fallback handles invalid output with identity+index parity",
+      "verification": "engine/tests/test_ranking_debate.py::test_single_turn_alternates_presentation_order_across_matchups, ::test_multi_turn_debate_runs_multiple_calls_and_persists_transcript; test_ranking.py::test_malformed_judge_response_uses_position_balanced_fallback",
+      "remaining": "none"
     },
     "E19": {
       "status": "matched",
@@ -1527,6 +1527,7 @@
     "2026-07-14: removed the clone-only 'We want to develop [X] to enable [Y]' hypothesis template from the debate prompt and generation/synthesis schemas (E30->implemented, H15 refreshed); engine suite 1072 passed with a regression test.",
     "2026-07-14: real-run verification caught a no-progress loop introduced by the ranking-eligibility fix (a run ballooned to 3600+ tasks); fixed by measuring tournament coverage over rankable ideas only (Hypothesis.is_rankable + SchedulerStats.rankable_count), engine suite 1073 passed with a regression test; an end-to-end verification run is confirming bounded termination.",
     "2026-07-14: loop fix verified end-to-end — a fresh real run (58867211, all fixes loaded) terminated cleanly at 'blocked' after 160 tasks and only 7 orchestrator decisions in 31 min (vs the pre-fix runaway of 3600+ tasks / 711 orchestrator loops that never terminated). E30 also confirmed in real output: generated hypotheses contain no 'We want to develop' template.",
-    "2026-07-14: full app suite passes 447 in deterministic order (no pytest-randomly) excluding three env-restricted process-pool files that pass standalone; a pre-existing cross-file isolation fragility between test_engine_tasks and test_resume_engine reproduces with this session's changes reverted and does not affect the full-order run."
+    "2026-07-14: full app suite passes 447 in deterministic order (no pytest-randomly) excluding three env-restricted process-pool files that pass standalone; a pre-existing cross-file isolation fragility between test_engine_tasks and test_resume_engine reproduces with this session's changes reverted and does not affect the full-order run.",
+    "2026-07-14: closed E18 residual positional bias — single-turn matchups now alternate ab/ba presentation order across the tournament (engine suite 1074 passed with a regression test)."
   ]
 }

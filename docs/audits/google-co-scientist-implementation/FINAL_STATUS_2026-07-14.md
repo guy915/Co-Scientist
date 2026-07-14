@@ -206,8 +206,12 @@ remain unclosable regardless.
 | E08 | Give research-expansion a dedicated unexplored-space/coverage analysis (currently a later-cycle re-entry with meta-review context) | `nodes/generation/coordinator.py` | medium (generation control) |
 | E07 | Run the assumptions strategy alongside grounded generation, not only in the degraded no-literature mode | `nodes/generation/coordinator_strategy.py` | medium (generation allocation) |
 | E32 | Consume or remove the dead Supervisor plan fields (`performance_assessment`, `adjustment_recommendations`, `output_preparation`, `ranking_phase`) | `schemas/planning.py` + readers | low-medium (schema/prompt) |
-| E18 | Alternate presentation order for single-turn lower-ranked matchups (multi-turn already alternates) | `nodes/ranking.py` | low (localized) |
 | G17-adjacent | A blocked idea's evidence gate could trigger a targeted regeneration-repair loop rather than only quarantine | `app/engine_tasks.py` | medium (control flow) |
+
+(E18 — alternating single-turn matchup presentation order — was the lowest-risk
+item and is now **done** this session: `ranking.py` folds the matchup index into
+the starting order so single-turn comparisons no longer always present the A
+slot first.)
 
 The three faithful-design partials (10, 11, 14) all reduce to one root: the
 evidence gate takes the most conservative of the implementation prompt's four
