@@ -1,0 +1,84 @@
+{
+  "dataset": "citation-entailment-challenge-v1",
+  "dataset_version": 1,
+  "assessor": "llm:deepseek/deepseek-chat",
+  "metrics": {
+    "accuracy": 0.9,
+    "contradiction_recall": 1.0,
+    "abstention_rate": 0.5,
+    "per_label": {
+      "supports": {
+        "precision": 1.0,
+        "recall": 0.667
+      },
+      "contradicts": {
+        "precision": 0.909,
+        "recall": 1.0
+      },
+      "insufficient": {
+        "precision": 0.867,
+        "recall": 0.929
+      }
+    },
+    "n": 30,
+    "by_kind": {
+      "numeric_conflict": {
+        "accuracy": 1.0,
+        "n": 7
+      },
+      "paraphrase_contradiction": {
+        "accuracy": 1.0,
+        "n": 3
+      },
+      "paraphrase_support": {
+        "accuracy": 0.667,
+        "n": 6
+      },
+      "retracted": {
+        "accuracy": 0.5,
+        "n": 2
+      },
+      "species_mismatch": {
+        "accuracy": 1.0,
+        "n": 4
+      },
+      "temporal_mismatch": {
+        "accuracy": 1.0,
+        "n": 3
+      },
+      "topic_mention_only": {
+        "accuracy": 1.0,
+        "n": 5
+      }
+    }
+  },
+  "confusion": {
+    "contradicts": {
+      "contradicts": 10
+    },
+    "insufficient": {
+      "insufficient": 13,
+      "contradicts": 1
+    },
+    "supports": {
+      "supports": 4,
+      "insufficient": 2
+    }
+  },
+  "production_gates": {
+    "passed": true,
+    "checks": {
+      "contradiction_recall": {
+        "value": 1.0,
+        "threshold": 0.8,
+        "passed": true
+      },
+      "accuracy": {
+        "value": 0.9,
+        "threshold": 0.75,
+        "passed": true
+      }
+    }
+  },
+  "external_gap": "Human-audited representative sample and threshold calibration not performed (no annotator panel); synthetic dataset only. Retraction handling is upstream of this assessor (retracted sources are quarantined before grounding), so a retracted-passage item scored here isolates only the assessor, not the full pipeline."
+}

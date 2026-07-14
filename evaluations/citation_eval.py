@@ -23,7 +23,23 @@ from typing import Any
 
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _DATASET = _ROOT / "evaluations" / "datasets" / "citation_entailment_v1.json"
+_CHALLENGE_DATASET = (
+    _ROOT / "evaluations" / "datasets" / "citation_entailment_challenge_v1.json"
+)
 _RESULTS_DIR = _ROOT / "evaluations" / "results"
+
+# Documented production gates for the semantic (LLM/NLI) assessor on the
+# adversarial challenge panel. Contradiction recall is the safety-critical
+# metric: an unsupported claim reaching a categorical proposal is the failure
+# the publication gate exists to stop, so a missed contradiction is the most
+# dangerous error. Overall accuracy and abstention are reported and gated more
+# loosely because conservative abstention (predicting insufficient on a genuine
+# support) is safe, merely costing recall. These thresholds are the replica's
+# own reconstructed gates, not Google's undisclosed production thresholds.
+_PRODUCTION_GATES = {
+    "contradiction_recall": 0.80,
+    "accuracy": 0.75,
+}
 
 # The app package lives under app/; make it importable for the assessor.
 sys.path.insert(0, str(_ROOT / "app"))
@@ -123,10 +139,27 @@ def _metrics(matrix: dict[str, dict[str, int]]) -> dict[str, Any]:
     }
 
 
+def _gate_report(metrics: dict[str, Any]) -> dict[str, Any]:
+    """Return a per-gate pass/fail report against the production thresholds."""
+    checks = {
+        name: {
+            "value": metrics[name],
+            "threshold": threshold,
+            "passed": metrics[name] >= threshold,
+        }
+        for name, threshold in _PRODUCTION_GATES.items()
+    }
+    return {
+        "passed": all(check["passed"] for check in checks.values()),
+        "checks": checks,
+    }
+
+
 def run(
     *,
     assessor: Any = None,
     assessor_id: str = "deterministic-v1",
+    dataset_path: pathlib.Path | None = None,
 ) -> dict[str, Any]:
     """Evaluate the assessor over the dataset and return the metrics report.
 
@@ -134,12 +167,14 @@ def run(
     the eval runs in CI. Pass a real assessor (e.g. the LLM assessor from
     ``app.claim_verifier.make_llm_assessor``) to score the semantic path; that
     requires a provider and is run out of band, not in the offline suite.
+    ``dataset_path`` selects the panel; it defaults to the small v1 set and can
+    be pointed at the larger adversarial challenge panel for production gating.
     """
     from app.claims import deterministic_assessor
 
     if assessor is None:
         assessor = deterministic_assessor
-    dataset = _load_dataset(_DATASET)
+    dataset = _load_dataset(dataset_path or _DATASET)
     rows = _predict(dataset["items"], assessor, assessor_id)
     matrix = _confusion(rows)
     metrics = _metrics(matrix)
@@ -150,9 +185,14 @@ def run(
         "assessor": assessor_id,
         "metrics": metrics,
         "confusion": matrix,
+        "production_gates": _gate_report(metrics),
         "external_gap": (
             "Human-audited representative sample and threshold calibration not "
-            "performed (no annotator panel); synthetic dataset only."
+            "performed (no annotator panel); synthetic dataset only. "
+            "Retraction handling is upstream of this assessor (retracted "
+            "sources are "
+            "quarantined before grounding), so a retracted-passage item scored "
+            "here isolates only the assessor, not the full pipeline."
         ),
     }
 
@@ -170,29 +210,48 @@ def main() -> int:
     """Run the eval, write a dated artifact, and print a summary.
 
     ``--llm`` scores the real LLM assessor (needs a provider key); the default
-    scores the offline deterministic assessor.
+    scores the offline deterministic assessor. ``--challenge`` selects the
+    larger adversarial panel and enforces the documented production gates
+    (returning a non-zero exit if a gate fails).
     """
+    challenge = "--challenge" in sys.argv[1:]
+    dataset_path = _CHALLENGE_DATASET if challenge else _DATASET
+    panel = "challenge" if challenge else "v1"
+
     if "--llm" in sys.argv[1:]:
         assessor, assessor_id = _build_llm_assessor()
-        report = run(assessor=assessor, assessor_id=assessor_id)
+        report = run(
+            assessor=assessor,
+            assessor_id=assessor_id,
+            dataset_path=dataset_path,
+        )
         tag = assessor_id.replace("/", "_").replace(":", "_")
     else:
-        report = run()
+        report = run(dataset_path=dataset_path)
         tag = "deterministic"
 
     _RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     date = datetime.date.today().isoformat()
-    out = _RESULTS_DIR / f"citation-entailment-{tag}-{date}.json"
+    suffix = f"-{panel}" if challenge else ""
+    out = _RESULTS_DIR / f"citation-entailment{suffix}-{tag}-{date}.json"
     out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
     m = report["metrics"]
     print(
-        f"citation-entailment eval [{report['assessor']}]: n={m['n']} "
-        f"accuracy={m['accuracy']} "
+        f"citation-entailment eval [{report['assessor']}] panel={panel}: "
+        f"n={m['n']} accuracy={m['accuracy']} "
         f"contradiction_recall={m['contradiction_recall']}"
     )
     print(f"by kind: {m['by_kind']}")
+    gates = report["production_gates"]
+    print(f"production gates passed: {gates['passed']} ({gates['checks']})")
     print(f"wrote {out.relative_to(_ROOT)}")
+    # On the challenge panel the documented gates are enforced; the offline
+    # deterministic assessor is expected to fail them (it is a lexical baseline,
+    # not the production semantic path), so only gate the run when scoring the
+    # real assessor.
+    if challenge and "--llm" in sys.argv[1:] and not gates["passed"]:
+        return 1
     return 0
 
 
