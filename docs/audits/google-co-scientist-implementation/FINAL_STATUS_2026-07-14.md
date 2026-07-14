@@ -92,14 +92,17 @@ place rather than committed or discarded.
 
 ## 4. Verification (2026-07-14)
 
-- Engine: 1072 tests passed; ruff clean; mypy clean (211 source files).
-- App: full suite 457 passed (fresh session-start environment); ruff clean;
-  mypy clean (123 source files). After the only app-code change (G17) the
-  affected files were re-verified (46 passed) and each environment-restricted
-  process-pool file passes standalone (test_durability 8; multi_process /
-  crashed_process 3). The full app suite hangs late-session under accumulated
-  multiprocessing/semaphore pressure — an environment artifact, not a code
-  failure; every test file passes individually.
+- Engine: 1073 tests passed; ruff clean; mypy clean (211 source files).
+- App: 447 passed in default (deterministic, no-randomizer) order excluding the
+  three environment-restricted process-pool files, which pass standalone
+  (test_durability 8; multi_process / crashed_process 3) — 458 total; ruff
+  clean; mypy clean (123 source files). Note: running `test_engine_tasks.py`
+  and `test_resume_engine.py` as an isolated pair surfaces a pre-existing
+  test-isolation fragility (module-level engine state leaks between them; it
+  fails the same way with this session's changes reverted); the full
+  collection order resets that state, so the suite passes. The env-restricted
+  files hang only late-session under accumulated multiprocessing/semaphore
+  pressure, not on any assertion.
 - Frontend: 281 tests passed; gts lint clean; production build passed.
 - Evaluations: offline smoke green; citation challenge panel (llm:deepseek)
   accuracy 0.90 / contradiction recall 1.0 with documented gates; safety 13
