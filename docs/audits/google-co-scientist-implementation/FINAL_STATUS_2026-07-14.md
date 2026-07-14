@@ -189,6 +189,26 @@ already introduced and fixed one such regression).
 | 14 Desktop/mobile journey | completed-report, share, download states at both viewports (interview/config/executing/blocked-report verified live at 1440×720 and 375×812) | faithful-design | Same completed-report gate dependency as AC10/AC14; the populated-report components are covered by vitest. |
 | 16 Evaluation reports | Elo↔GPQA calibration; real-provider scaling curves; recruited expert panel; wet-lab validation | external | Each needs licensed data, credentialed large runs, recruited humans, or a wet lab. Citation, safety, expert-readiness, scaling-harness, and failure-recovery reports are checked in. |
 
+### Deferred actionable refinements (finding-level backlog)
+
+Distinct from the external/undisclosed/gate-bounded items, a long tail of
+finding-level partials are genuinely actionable but are incremental refinements
+of already-mostly-working behaviors, each carrying real regression risk against
+the generation/reflection/ranking core. They are listed here with risk so the
+human or a fresh session can prioritize them without completion-pressure (this
+session already introduced and fixed one regression under that pressure). None
+changes the acceptance-condition status, since the external/undisclosed ACs
+remain unclosable regardless.
+
+| Finding | Refinement | Files | Risk |
+|---|---|---|---|
+| E28 / F12 / I03 | Thread meta-review critique into the deep-verification, proximity, and full/simulation-review prompts (6 prompt types already carry it) | `prompts/` builders + `nodes/deep_verification.py`, `proximity.py`, `comprehensive_reflection.py` | medium (multi-module prompt threading) |
+| E08 | Give research-expansion a dedicated unexplored-space/coverage analysis (currently a later-cycle re-entry with meta-review context) | `nodes/generation/coordinator.py` | medium (generation control) |
+| E07 | Run the assumptions strategy alongside grounded generation, not only in the degraded no-literature mode | `nodes/generation/coordinator_strategy.py` | medium (generation allocation) |
+| E32 | Consume or remove the dead Supervisor plan fields (`performance_assessment`, `adjustment_recommendations`, `output_preparation`, `ranking_phase`) | `schemas/planning.py` + readers | low-medium (schema/prompt) |
+| E18 | Alternate presentation order for single-turn lower-ranked matchups (multi-turn already alternates) | `nodes/ranking.py` | low (localized) |
+| G17-adjacent | A blocked idea's evidence gate could trigger a targeted regeneration-repair loop rather than only quarantine | `app/engine_tasks.py` | medium (control flow) |
+
 The three faithful-design partials (10, 11, 14) all reduce to one root: the
 evidence gate takes the most conservative of the implementation prompt's four
 allowed remedies (**abstain**), so a real compatibility-provider run rarely
