@@ -209,3 +209,24 @@ def test_get_debate_generation_prompt_with_full_supervisor_guidance() -> None:
     )
     assert "osmotic stress" in prompt
     assert "root architecture" in prompt
+
+
+def test_debate_prompt_does_not_force_clone_sentence_template() -> None:
+    """The prompt must not impose the clone 'We want to develop X' format.
+
+    The audit (E30/H15/K11) flagged the forced 'We want to develop [X] to
+    enable [Y]' 2-3 sentence template as distorting mechanistic hypotheses.
+    The final-turn instructions must instead ask for a domain-language
+    mechanistic claim with a falsification criterion, and may only mention the
+    old phrase to prohibit it.
+    """
+    prompt, _schema = get_debate_generation_prompt(
+        research_goal="reduce cardiac senescence",
+        hypotheses_count=1,
+        transcript="prior turns",
+    )
+    # The phrase may appear only inside a negative instruction ("Do NOT ...").
+    assert "to enable [Y]" not in prompt
+    assert "2-3 sentences" not in prompt
+    assert "mechanistic" in prompt.lower()
+    assert "falsification" in prompt.lower()

@@ -27,9 +27,13 @@ GENERATION_SCHEMA: dict[str, Any] = {
                         "hypothesis": {
                             "type": "string",
                             "description": (
-                                "Dense technical hypothesis following"
-                                " 'We want to develop [X] to enable [Y]'"
-                                " format (2-3 sentences maximum)"
+                                "Mechanistic scientific hypothesis stated in"
+                                " the natural language of the goal's"
+                                " domain: name the entities, mechanism,"
+                                " direction of effect, conditions, and"
+                                " the specific testable prediction. Do"
+                                " not use a fixed 'We want to develop'"
+                                " phrasing or an artificial length cap"
                             ),
                         },
                         "explanation": {
@@ -105,9 +109,13 @@ GENERATION_DRAFT_SCHEMA: dict[str, Any] = {
                         "hypothesis": {
                             "type": "string",
                             "description": (
-                                "Dense technical hypothesis following"
-                                " 'We want to develop [X] to enable [Y]'"
-                                " format (2-3 sentences maximum)"
+                                "Mechanistic scientific hypothesis stated in"
+                                " the natural language of the goal's"
+                                " domain: name the entities, mechanism,"
+                                " direction of effect, conditions, and"
+                                " the specific testable prediction. Do"
+                                " not use a fixed 'We want to develop'"
+                                " phrasing or an artificial length cap"
                             ),
                         },
                         "explanation": {
@@ -185,10 +193,12 @@ HYPOTHESIS_VALIDATION_SYNTHESIS_SCHEMA: dict[str, Any] = {
                         "hypothesis": {
                             "type": "string",
                             "description": (
-                                "Final dense technical hypothesis text,"
-                                " following 'We want to develop [X] to"
-                                " enable [Y]' format (2-3 sentences maximum)"
-                                " (approved/refined/pivoted)"
+                                "Final mechanistic scientific hypothesis"
+                                " text in the goal's domain language, naming"
+                                " entities, mechanism, direction of effect,"
+                                " and the testable prediction, without a fixed"
+                                " phrasing or length cap (approved/refined/"
+                                "pivoted)"
                             ),
                         },
                         "explanation": {

@@ -105,33 +105,31 @@ _DEBATE_FINAL_TURN_INSTRUCTIONS = """
 ## FINAL TURN - OUTPUT FORMAT
 
 This is the final turn of the debate. Based on the discussion above, output \
-your finalized hypothesis in JSON format with all four required components:
+your finalized hypothesis in JSON format with all four required components. \
+Write as a domain expert in the field of the research goal; do not force an \
+engineering or product framing, and do not impose an artificial length limit.
 
 ### 1. hypothesis (required)
-Dense technical description following "We want to develop [X] to enable [Y]" \
-format (2-3 sentences).
-- Include specific technical details: algorithms, mechanisms, mathematical \
-formulations
-- Be precise about what will be developed and the technical approach
+State the proposed mechanistic claim or relationship and the specific, \
+testable prediction it makes. Use the natural language of the goal's \
+scientific domain (molecular, cellular, physical, chemical, ecological, \
+etc.). Name the entities, mechanism, direction of effect, and conditions \
+precisely. Distinguish what is grounded in evidence from what is proposed. \
+Do NOT begin with a fixed phrase such as "We want to develop"; write the \
+claim directly. Be as long as the science requires — do not compress a \
+mechanism into two sentences.
 
-Example: "We want to develop a 'Dynamic Velocity Sentinel'—which monitors the \
-rate of change in latent activation directions across early-to-mid layers \
-rather than static depths—to enable anticipatory gating that triggers only \
-when precursor signals cross a 'point of no return' for danger features."
+Example: "Partial inhibition of enzyme E in tissue T reduces the flux of \
+metabolite M through pathway P, which in turn upregulates receptor R via the \
+loss of feedback repression; the testable prediction is that E inhibition \
+raises surface R density and downstream signaling in a dose-dependent manner, \
+reversible by exogenous M."
 
 ### 2. explanation (required)
-Clear explanation for technical audiences in layman terms (4-6 sentences).
-- Core problem being addressed
-- Why key mechanisms work
-- How components interact
-- Practical advantages
-
-Example: "This approach addresses the computational bottleneck by focusing on \
-early layers where precursor signals first emerge. Rather than analyzing \
-static magnitudes, the technique tracks velocity—the rate of change—which \
-provides earlier detection of trajectories toward dangerous outputs. The \
-system employs autoencoders to identify danger features, with dynamic gating \
-that triggers only when trajectories cross a learned threshold."
+Mechanistic rationale for a scientific audience:
+- The core problem or gap being addressed
+- Why the proposed mechanism is plausible and how its components interact
+- The boundary between established evidence and inference in this proposal
 
 ### 3. literature_grounding (required)
 Explicit grounding with inline citation keys (2-4 sentences).
@@ -141,21 +139,22 @@ Explicit grounding with inline citation keys (2-4 sentences).
 - If no Citation Reference List was provided, state: "This hypothesis is \
 formulated without access to a literature review."
 
-Example: "This approach builds on sparse autoencoder analysis [C1] and circuit \
-tracing [C2]. The velocity monitoring concept addresses a gap in \
-static-analysis methods [C3][C4]."
+Example: "This mechanism builds on the reported activity of enzyme E [C1] and \
+the feedback regulation of receptor R by metabolite M [C2]. It extends those \
+findings to tissue T, where the interaction has not been directly measured \
+[C3]."
 
 ### 4. experiment (required)
-Concrete experiment design with models, datasets, methodology, metrics, and \
-validation (4-6 sentences).
+Concrete experimental design with the models/systems, methodology, controls, \
+readouts/metrics, and an explicit falsification criterion.
 
-Example format: "Objective: Demonstrate that velocity monitoring achieves \
-comparable detection with reduced cost. Models: GPT-2 Medium, pre-trained SAE \
-layers 1-6. Datasets: AdvBench harmful prompts (500 examples), HH-RLHF benign \
-prompts (1000 examples). Methodology: (1) Implement velocity tracking, (2) \
-Train threshold detector, (3) Compare against baseline. Metrics: Detection \
-accuracy, timing, false positive rate, computational overhead. Validation: \
-Success requires >90% detection, <5% false positives, >50% cost reduction."
+Example format: "Objective: Test whether E inhibition raises surface R density \
+in tissue T. Systems: primary T cells and an aged mouse model. Methodology: \
+(1) apply a selective E inhibitor across a dose range, (2) quantify surface R \
+by flow cytometry and downstream signaling by phospho-immunoblot, (3) rescue \
+with exogenous M. Controls: vehicle, an inactive analog, and an R-knockdown \
+arm. Falsification: the hypothesis fails if E inhibition does not change R \
+density or if the effect is not reversed by exogenous M."
 
 ---
 

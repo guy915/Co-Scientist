@@ -21,9 +21,9 @@ EVOLUTION_SCHEMA: dict[str, Any] = {
             "hypothesis": {
                 "type": "string",
                 "description": (
-                    "Refined dense technical hypothesis following"
-                    " 'We want to develop [X] to enable [Y]' format."
-                    " Similar sentence count to original hypothesis."
+                    "Refined mechanistic hypothesis in the domain's"
+                    " natural language, naming entities, mechanism, and"
+                    " the testable prediction (no fixed phrasing)."
                 ),
             },
             "refinement_summary": {
