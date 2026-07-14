@@ -7,6 +7,8 @@ re-triggered on the next loop.
 
 import asyncio
 
+import pytest
+
 from co_scientist.nodes import orchestrator
 from co_scientist.nodes.orchestrator import orchestrator_node
 from co_scientist.scheduling import SupervisorDecision, TaskType
@@ -40,10 +42,14 @@ def test_no_steering_does_not_force_generate_for_steering() -> None:
     assert delta["pending_steering"] is False
 
 
-def test_activity_uses_live_facts_not_planner_assertions(monkeypatch) -> None:
+def test_activity_uses_live_facts_not_planner_assertions(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """A hallucinated planner rationale cannot become the activity summary."""
 
-    async def _hallucinated_decision(*_args, **_kwargs):
+    async def _hallucinated_decision(
+        *_args: object, **_kwargs: object
+    ) -> tuple[SupervisorDecision, str]:
         return (
             SupervisorDecision(
                 next_task=TaskType.GENERATE,

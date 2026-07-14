@@ -125,6 +125,7 @@ async def test_full_review_executes_targeted_retrieval(
     retrieve.assert_awaited_once()
     assert result is not None
     assert result["retrieved_articles"][0]["source_id"] == "validation-1"
+    assert call.await_args is not None
     prompt = call.await_args.kwargs["prompt"]
     assert "Targeted validation" in prompt
     assert "survived direct testing" in prompt

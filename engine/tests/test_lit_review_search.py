@@ -186,7 +186,9 @@ async def test_search_source_for_query_retries_malformed_transport_result(
     async def no_delay(_: float) -> None:
         """Skip the production retry delay in this deterministic test."""
 
-    monkeypatch.setattr(search.asyncio, "sleep", no_delay)
+    monkeypatch.setattr(
+        "co_scientist.nodes.literature_review.search.asyncio.sleep", no_delay
+    )
     tool_config = _tool_config()
     client = _SequencedMCPClient(
         ["429 Too Many Requests", {"P1": {"title": "Recovered"}}]
