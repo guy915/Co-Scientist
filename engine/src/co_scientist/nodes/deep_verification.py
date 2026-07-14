@@ -23,6 +23,7 @@ from co_scientist.models import (
 )
 from co_scientist.nodes.progress import emit_progress
 from co_scientist.prompts import get_deep_verification_prompt
+from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
@@ -147,6 +148,18 @@ async def _verify_one(
     Returns:
         The parsed deep-verification result, or None if the call failed.
     """
+    # Cross-agent meta-review feedback names recurring error patterns across
+    # the run; appending it to the evidence context lets deep verification's
+    # probing questions target those patterns, so meta-review reaches this
+    # agent too (the disclosed all-agent feedback loop, audit E28). Additive:
+    # empty when no meta-review exists yet.
+    if state is not None:
+        meta_context = _format_meta_review_context(state.get("meta_review"))
+        if meta_context:
+            evidence_context = (
+                f"{evidence_context}\n\nCross-agent meta-review feedback "
+                f"(recurring patterns to probe):\n{meta_context}"
+            )
     # Semaphore bounds how many of these run concurrently across the whole
     # top-k batch, shared with the caller via the `semaphore` argument.
     async with semaphore:

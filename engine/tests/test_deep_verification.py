@@ -56,6 +56,39 @@ async def test_verifies_only_top_k_by_elo(
     assert fake.await_count == 3
 
 
+async def test_deep_verification_prompt_includes_meta_review(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Meta-review feedback reaches deep verification too (audit E28).
+
+    The disclosed all-agent feedback loop appends the meta-review critique to
+    every agent's next prompt; deep verification previously omitted it. The
+    critique's recurring-error text must now appear in the verifier prompt so
+    probing questions can target those patterns.
+    """
+    prompts: list[str] = []
+
+    async def capture(**kwargs: object) -> dict[str, object]:
+        prompts.append(str(kwargs.get("prompt", "")))
+        return {"probes": [], "verdict": "confirmed", "overall_assessment": ""}
+
+    monkeypatch.setattr(dv, "call_llm_json", capture)
+
+    state = make_state(
+        hypotheses=[make_hypothesis(text="h", elo_rating=1400)],
+        research_goal="goal",
+        model_name="test/model",
+        run_id="r1",
+    )
+    state["meta_review"] = {
+        "common_weaknesses": ["MARKER_recurring_overclaim"],
+    }
+    await dv.deep_verification_node(state)
+
+    assert prompts, "expected at least one verification call"
+    assert any("MARKER_recurring_overclaim" in p for p in prompts)
+
+
 async def test_skips_already_verified(monkeypatch: pytest.MonkeyPatch) -> None:
     """A hypothesis that already has probes is not re-verified."""
     fake = AsyncMock(
