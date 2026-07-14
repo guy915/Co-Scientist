@@ -137,6 +137,20 @@ it and it should be durable for future sessions.
 - Browser: intake, multi-turn interview, four-field plan, Standard/Advanced
   config, and executing screen verified at desktop 1440×720 and mobile 375×812
   with no horizontal overflow.
+- Browser (re-verified live 2026-07-14 against final HEAD): workbench home
+  (research-challenge stepper, example-goal chips, composer with corpus/attach
+  controls) and the full run-detail report for a blocked run at both desktop
+  1440×720 and mobile 375×812 — Ideas leaderboard with Elo (1319), the
+  proximity "Idea landscape" graph, idea-detail pane, the "Add your hypothesis"
+  / "Review selected idea" manual-steering controls, the four report tabs
+  (Ideas / Knowledge Base / Summary / Run Specifications), and the honest
+  blocked-state banner "Run blocked: No hypothesis passed the claim-level
+  evidence release gate" (the UI surfacing of the same gate outcome verified at
+  runtime). Mobile layout wraps tabs and stacks controls with no horizontal
+  overflow; zero console errors. Also incidentally verified the multi-tenant
+  access control: a run created by one X-Client-ID returns 404 (not 403,
+  hiding existence) to a different browser client (runs.py:_run_or_404,
+  client-scoped listing), so a client cannot read another client's run.
 
 ## 5. Evaluation artifacts (evaluations/results/)
 
