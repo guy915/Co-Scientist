@@ -430,13 +430,13 @@
       "status": "partial",
       "implementation": "generation/assumptions.py; coordinator.py; coordinator_strategy.py",
       "verification": "test_generation_techniques.py::test_assumptions_technique_produces_hypotheses",
-      "remaining": "Assumptions runs only in the no-literature degraded mode at a quarter allocation."
+      "remaining": "Assumptions runs only in the no-literature degraded mode at a quarter allocation (coordinator_strategy.py:149). Inspected 2026-07-14: coordinator.py:164 already fires assumptions whenever assumptions_count>0 (not gated on degraded mode), but generate_with_assumptions hardcodes domain_context='' (assumptions.py:47) so it ingests no literature; a faithful close needs lit-mode allocation + literature plumbed into the assumptions prompt + iterative subassumption depth (Nature line 336). Feature-risk; needs completed real-run verification the evidence gate currently withholds."
     },
     "E08": {
       "status": "partial",
       "implementation": "coordinator.py threads meta-review into later-cycle generation; prompts/_common.py",
       "verification": "test_meta_review_prompt_threading.py::test_generation_debate_prompt_includes_meta_review",
-      "remaining": "Still a re-entry convention with no dedicated unexplored-space coverage analysis."
+      "remaining": "Still a re-entry convention with no dedicated unexplored-space coverage analysis. Inspected 2026-07-14: a faithful close (Nature line 337) needs a new generation sub-step examining existing hypotheses + prior overview/feedback for unexplored space and recording a task with that method - a new feature, not a wiring tweak. Feature-risk; needs completed real-run verification the evidence gate currently withholds."
     },
     "E09": {
       "status": "implemented",
