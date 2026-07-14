@@ -105,6 +105,21 @@ def _split_tools_and_debate_counts(total_count: int) -> tuple[int, int]:
     return tools_count, debate_with_lit_count
 
 
+def _assumptions_slice(total_count: int) -> int:
+    """Reserve a quarter of the batch for the iterative-assumptions technique.
+
+    A small batch (< 4) stays single-technique so one or two hypotheses are
+    not fragmented across strategies.
+
+    Args:
+        total_count: Total hypotheses to allocate for this generation call.
+
+    Returns:
+        The number of hypotheses to route to the assumptions technique.
+    """
+    return max(1, total_count // 4) if total_count >= 4 else 0
+
+
 def _determine_generation_counts(
     state: WorkflowState,
     total_count: int,
@@ -125,28 +140,34 @@ def _determine_generation_counts(
         )
 
     if strategy == "lit_and_tools":
+        # Reserve a slice for iterative-assumptions (a first-class SSR §4
+        # technique, not degraded-mode only), then split the remainder between
+        # the tool-driven and debate-with-literature paths.
+        assumptions_count = _assumptions_slice(total_count)
         tools_count, debate_with_lit_count = _split_tools_and_debate_counts(
-            total_count
+            total_count - assumptions_count
         )
         return GenerationCounts(
             tools_count=tools_count,
             debate_with_lit_count=debate_with_lit_count,
             debate_only_count=0,
+            assumptions_count=assumptions_count,
         )
 
     if strategy == "lit_only":
+        assumptions_count = _assumptions_slice(total_count)
         return GenerationCounts(
             tools_count=0,
-            debate_with_lit_count=total_count,
+            debate_with_lit_count=total_count - assumptions_count,
             debate_only_count=0,
+            assumptions_count=assumptions_count,
         )
 
     # strategy == "no_lit". Flagged so callers can attach an explicit "no
-    # literature" warning to every hypothesis. With enough hypotheses to
-    # split, reserve a quarter for the iterative-assumptions technique so the
-    # LLM-only path uses more than one generation technique (SSR §4); a small
-    # batch (<4) stays all-debate to avoid single-hypothesis fragmentation.
-    assumptions_count = max(1, total_count // 4) if total_count >= 4 else 0
+    # literature" warning to every hypothesis. Reserves the same
+    # iterative-assumptions slice so the LLM-only path uses more than one
+    # generation technique (SSR §4).
+    assumptions_count = _assumptions_slice(total_count)
     return GenerationCounts(
         tools_count=0,
         debate_with_lit_count=0,

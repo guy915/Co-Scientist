@@ -169,7 +169,15 @@ def _build_generation_tasks(
         tasks.append(
             (
                 "assumptions",
-                generate_with_assumptions(state, counts.assumptions_count),
+                generate_with_assumptions(
+                    state,
+                    counts.assumptions_count,
+                    # Guarded inside the technique: a real (non-empty)
+                    # reference index grounds the claims; the degraded path
+                    # supplies an empty index and ignores the prose.
+                    articles_with_reasoning=articles_with_reasoning,
+                    reference_index=reference_index,
+                ),
             )
         )
 

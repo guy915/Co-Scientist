@@ -6,11 +6,14 @@ Research goal:
 {{research_goal}}
 
 {{meta_review_context}}
-
+{{literature_context}}
+{{citation_reference_section}}
 Instructions:
 
 1. Assumptions: list the key assumptions currently taken for granted in this research area (mechanistic, methodological, or conceptual).
 2. Interrogation: for each assumption, ask what would follow if it were false, incomplete, or only conditionally true.
 3. Hypotheses: from the most promising interrogations, generate distinct, testable hypotheses. Each must name the assumption it challenges or extends, propose a concrete mechanism, and state the expected effect.
+
+For each hypothesis's `literature_grounding`: if a Citation Reference List is provided above, cite the relevant evidence using ONLY those `[C*]` keys (e.g. `[C1]`, `[C2]`) and do NOT invent author-year citations; if no list is provided, state that the hypothesis is formulated without access to a literature review.
 
 Generate {{num_hypotheses}} hypotheses. Favor hypotheses that overturn or refine a load-bearing assumption over incremental variations.

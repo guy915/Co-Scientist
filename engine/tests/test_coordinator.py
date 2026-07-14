@@ -3,10 +3,10 @@
 ``generate_hypotheses`` selects among three generation strategies based on
 state flags (literature availability, tool-calling, dev isolation), runs the
 chosen leaf strategies in parallel, and assembles their outputs into a single
-result dict. These tests stub the two leaf strategies
-(``generate_with_tools`` and ``generate_with_debate``) on the coordinator's
-module namespace -- so no LLM or MCP runs -- and assert the real routing,
-count-allocation, degraded-mode fallback, and result-assembly logic.
+result dict. These tests stub the leaf strategies (``generate_with_tools``,
+``generate_with_debate``, and ``generate_with_assumptions``) on the
+coordinator's module namespace -- so no LLM or MCP runs -- and assert the real
+routing, count-allocation, degraded-mode fallback, and result-assembly logic.
 """
 
 from typing import Any
@@ -72,14 +72,51 @@ class _DebateRecorder:
         return list(self._hypotheses), list(self._transcripts)
 
 
+class _AssumptionsRecorder:
+    """Records calls to the stubbed ``generate_with_assumptions`` leaf.
+
+    The coordinator assigns this strategy's return value directly, so the stub
+    returns a plain ``list[Hypothesis]``. It is invoked with keyword arguments
+    for the literature context so a lit-available run can be asserted to pass
+    real references through (E07: assumptions is a first-class technique in
+    literature-available strategies, not degraded-mode only).
+    """
+
+    def __init__(self, hypotheses: list[Hypothesis]) -> None:
+        self._hypotheses = hypotheses
+        self.called = False
+        self.count: int | None = None
+        self.articles_with_reasoning: str | None = None
+        self.reference_index: Any = None
+
+    async def __call__(
+        self,
+        _state: Any,
+        count: int,
+        articles_with_reasoning: str | None = None,
+        reference_index: Any = None,
+    ) -> list[Hypothesis]:
+        self.called = True
+        self.count = count
+        self.articles_with_reasoning = articles_with_reasoning
+        self.reference_index = reference_index
+        return list(self._hypotheses)
+
+
 def _install(
     monkeypatch: pytest.MonkeyPatch,
     tools: _ToolsRecorder,
     debate: _DebateRecorder,
+    assumptions: _AssumptionsRecorder | None = None,
 ) -> None:
-    """Patch both leaf strategies on the coordinator's namespace."""
+    """Patch the leaf strategies on the coordinator's namespace."""
     monkeypatch.setattr(coordinator, "generate_with_tools", tools)
     monkeypatch.setattr(coordinator, "generate_with_debate", debate)
+    monkeypatch.setattr(
+        coordinator,
+        "generate_with_assumptions",
+        assumptions or _AssumptionsRecorder([]),
+    )
 
 
 async def test_missing_supervisor_guidance_raises() -> None:
@@ -89,18 +126,22 @@ async def test_missing_supervisor_guidance_raises() -> None:
         await generate_hypotheses(make_state())
 
 
-async def test_condition_a_splits_tools_and_debate(
+async def test_condition_a_splits_tools_debate_and_assumptions(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Literature + tool-calling routes 50/50 to tools and debate-with-lit."""
-    tools = _ToolsRecorder(
-        [make_hypothesis(text="t1"), make_hypothesis(text="t2")]
-    )
+    """Literature + tool-calling reserves assumptions, then splits the rest.
+
+    Of a batch of 4, one hypothesis is reserved for the iterative-assumptions
+    technique and the remaining three are split between the tool-driven and
+    debate-with-literature paths.
+    """
+    tools = _ToolsRecorder([make_hypothesis(text="t1")])
     debate = _DebateRecorder(
         [make_hypothesis(text="d1"), make_hypothesis(text="d2")],
         [{"hypothesis_text": "d1"}, {"hypothesis_text": "d2"}],
     )
-    _install(monkeypatch, tools, debate)
+    assumptions = _AssumptionsRecorder([make_hypothesis(text="a1")])
+    _install(monkeypatch, tools, debate, assumptions)
 
     state = make_state(
         supervisor_guidance={"focus": "x"},
@@ -111,18 +152,20 @@ async def test_condition_a_splits_tools_and_debate(
     )
     result = await generate_hypotheses(state)
 
-    # 50/50 split of 4 -> 2 tools + 2 debate-with-lit.
-    assert tools.called and tools.count == 2
+    # 4 -> 1 assumptions + a 1/2 split of the remaining 3.
+    assert assumptions.called and assumptions.count == 1
+    assert tools.called and tools.count == 1
     assert debate.called and debate.count == 2
-    # Debate-with-literature receives the lit-review context, not None.
+    # Both literature-aware paths receive the lit-review context, not None.
     assert debate.articles_with_reasoning == "some papers and reasoning"
-    # Assembly: tools first, then debate; count reflects returned lengths.
+    assert assumptions.articles_with_reasoning == "some papers and reasoning"
+    # Assembly order: tools, then debate, then assumptions.
     # generate returns an AppendHypotheses op (children appended to the pool).
     assert [h.text for h in result["hypotheses"].items] == [
         "t1",
-        "t2",
         "d1",
         "d2",
+        "a1",
     ]
     assert result["hypothesis_count"] == 4
     assert len(result["debate_transcripts"]) == 2
@@ -271,6 +314,70 @@ async def test_no_lit_path_invokes_assumptions_technique(
     methods = {h.generation_method for h in result["hypotheses"].items}
     assert GenerationMethod.ASSUMPTIONS in methods
     assert GenerationMethod.DEBATE in methods  # debate still runs the rest
+
+
+async def test_lit_and_tools_reserves_assumptions_slice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Literature + tool-calling reserves a slice for assumptions (E07).
+
+    Assumptions is a first-class SSR §4 technique, not a degraded-mode-only
+    fallback: with enough hypotheses to split, the literature-and-tools
+    strategy runs assumptions alongside tools and debate, and passes the
+    live literature context (articles + reference index) through so the
+    assumptions prompt can ground its claims in real citations.
+    """
+    tools = _ToolsRecorder([make_hypothesis(text="t1")])
+    debate = _DebateRecorder([make_hypothesis(text="d1")], [])
+    assumptions = _AssumptionsRecorder([make_hypothesis(text="a1")])
+    _install(monkeypatch, tools, debate, assumptions)
+
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=8,  # >= 4 -> reserve a slice for assumptions
+        mcp_available=True,
+        articles_with_reasoning="some papers and reasoning",
+        enable_tool_calling_generation=True,
+    )
+    result = await generate_hypotheses(state)
+
+    assert assumptions.called and assumptions.count is not None
+    assert assumptions.count > 0
+    # The remaining count is split between tools and debate.
+    assert tools.called and debate.called
+    assert (assumptions.count or 0) + (tools.count or 0) + (
+        debate.count or 0
+    ) == 8
+    # Literature context reaches the assumptions technique in lit mode.
+    assert assumptions.articles_with_reasoning == "some papers and reasoning"
+    assert assumptions.reference_index is not None
+    assert "a1" in [h.text for h in result["hypotheses"].items]
+
+
+async def test_lit_only_reserves_assumptions_slice(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Literature without tool-calling still reserves an assumptions slice."""
+    tools = _ToolsRecorder([])
+    debate = _DebateRecorder([make_hypothesis(text="d1")], [])
+    assumptions = _AssumptionsRecorder([make_hypothesis(text="a1")])
+    _install(monkeypatch, tools, debate, assumptions)
+
+    state = make_state(
+        supervisor_guidance={"focus": "x"},
+        initial_hypotheses_count=8,
+        mcp_available=True,
+        articles_with_reasoning="papers",
+        enable_tool_calling_generation=False,
+    )
+    result = await generate_hypotheses(state)
+
+    assert not tools.called
+    assert assumptions.called and (assumptions.count or 0) > 0
+    assert (assumptions.count or 0) + (debate.count or 0) == 8
+    assert assumptions.articles_with_reasoning == "papers"
+    assert assumptions.reference_index is not None
+    assert "a1" in [h.text for h in result["hypotheses"].items]
 
 
 async def test_dev_isolation_routes_all_to_tools(
