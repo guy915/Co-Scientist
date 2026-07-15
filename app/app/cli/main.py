@@ -27,7 +27,7 @@ RUN_FOCUS_VALUES = (
     "prefer_novelty",
     "breakthrough",
 )
-RUN_TIER_VALUES = ("standard", "advanced")
+RUN_TIER_VALUES = ("express", "standard", "extended", "ultra")
 
 Handler = Callable[[argparse.Namespace, ApiClient], int]
 

@@ -7,6 +7,8 @@ import {
   type MatchRow,
   type Report,
   type Review,
+  type RunFocus,
+  type RunTier,
   type SafetyDecision,
   adjudicateSafety,
   isActiveStatus,
@@ -15,6 +17,7 @@ import {
   type RunWithSummary,
 } from '@/api/runs';
 import {IdeasTab} from '../components/tabs/ideas_tab';
+import {FOCUS_OPTIONS, TIER_OPTIONS} from '../run_spec';
 import {useRunDetailData} from './run_detail_data';
 import {
   REPORT_H3_CLASSES,
@@ -299,6 +302,16 @@ function goalDetailsLists(setup: RunWithSummary['config']['setup']): {
   };
 }
 
+// Human-readable label for a stored run tier/focus, falling back to the
+// default when the value is missing or a legacy value.
+function tierLabel(tier: RunTier | undefined): string {
+  return TIER_OPTIONS.find(option => option.id === tier)?.label ?? 'Standard';
+}
+
+function focusLabel(focus: RunFocus | undefined): string {
+  return FOCUS_OPTIONS.find(option => option.id === focus)?.label ?? 'Balance';
+}
+
 // Run Specifications preserves the final interview contract and run mode.
 function RunSpecificationsView({
   run,
@@ -329,8 +342,10 @@ function RunSpecificationsView({
         <strong>Title:</strong> {run?.title || 'Optional'}
       </p>
       <p>
-        <strong>Run type:</strong>{' '}
-        {run?.config.tier === 'advanced' ? 'Advanced Run' : 'Standard Run'}
+        <strong>Run type:</strong> {tierLabel(run?.config.tier)}
+      </p>
+      <p>
+        <strong>Focus:</strong> {focusLabel(run?.config.focus)}
       </p>
       {criteria.length > 0 && (
         <p>

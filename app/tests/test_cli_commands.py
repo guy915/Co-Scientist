@@ -516,7 +516,7 @@ def test_pause_then_resume_cycle(
 ) -> None:
     # A multi-iteration run stays active for seconds, so the pause request
     # lands well inside its run window.
-    run_id = _create(cli_server, "pause-client", tier="advanced")
+    run_id = _create(cli_server, "pause-client", tier="ultra")
     _start(cli_server, run_id, "pause-client")
     assert (
         _invoke(cli_server, "runs", "pause", run_id, client_id="pause-client")
@@ -536,7 +536,7 @@ def test_pause_then_resume_cycle(
 def test_cancel_active_run(
     cli_server: str, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    run_id = _create(cli_server, "cancel-client", tier="advanced")
+    run_id = _create(cli_server, "cancel-client", tier="ultra")
     _start(cli_server, run_id, "cancel-client")
     assert (
         _invoke(cli_server, "runs", "cancel", run_id, client_id="cancel-client")

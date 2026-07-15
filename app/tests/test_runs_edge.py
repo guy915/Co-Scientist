@@ -27,12 +27,22 @@ def test_create_run_defaults_run_mode() -> None:
     assert res.json()["run_mode"] == "standard"
 
 
-@pytest.mark.parametrize("legacy", ["express", "extended", "ultra"])
-def test_create_run_rejects_non_faithful_tiers(legacy: str) -> None:
-    """Legacy clone tiers are migration aliases, not new product choices."""
+@pytest.mark.parametrize("tier", ["express", "standard", "extended", "ultra"])
+def test_create_run_accepts_every_tier(tier: str) -> None:
+    """All four run tiers are valid product choices."""
     client = _client()
     response = client.post(
-        "/api/runs", json={"research_goal": "x", "tier": legacy}
+        "/api/runs", json={"research_goal": "x", "tier": tier}
+    )
+    assert response.status_code == 200
+    assert response.json()["run_mode"] == tier
+
+
+def test_create_run_rejects_unknown_tier() -> None:
+    """A tier outside the four-tier set is rejected at the API edge."""
+    client = _client()
+    response = client.post(
+        "/api/runs", json={"research_goal": "x", "tier": "gigantic"}
     )
     assert response.status_code == 422
 
@@ -72,7 +82,7 @@ def test_standard_and_advanced_concurrency_limits(
         client.post(
             "/api/runs",
             headers=headers,
-            json={"research_goal": f"Advanced {index}", "tier": "advanced"},
+            json={"research_goal": f"Advanced {index}", "tier": "ultra"},
         ).json()["id"]
         for index in range(2)
     ]

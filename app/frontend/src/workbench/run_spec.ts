@@ -51,16 +51,27 @@ export interface RunFocusOption {
  */
 export const TIER_OPTIONS: RunTierOption[] = [
   {
-    id: 'standard',
-    label: 'Standard Run',
+    id: 'express',
+    label: 'Express',
     description:
-      'Quicker research for testing and refining a well-scoped goal.',
+      'Suitable for quick research questions and small-scale experiments.',
   },
   {
-    id: 'advanced',
-    label: 'Advanced Run',
+    id: 'standard',
+    label: 'Standard',
     description:
-      'More comprehensive exploration for nuanced and diverse hypotheses.',
+      'Suitable for medium-sized research questions and experiments.',
+  },
+  {
+    id: 'extended',
+    label: 'Extended',
+    description: 'Suitable for large-scale research questions and experiments.',
+  },
+  {
+    id: 'ultra',
+    label: 'Ultra',
+    description:
+      'Most compute-intensive, using the largest models for cutting-edge insights.',
   },
 ];
 

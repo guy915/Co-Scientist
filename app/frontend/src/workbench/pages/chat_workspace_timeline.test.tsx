@@ -121,14 +121,24 @@ describe('draftTimelineItems', () => {
     expect(items).toHaveLength(1);
     renderItems(items);
 
-    fireEvent.click(screen.getByLabelText(/Advanced Run/i));
-    const tierUpdater = vi.mocked(args.setDraft).mock
+    fireEvent.click(screen.getByLabelText(/Prefer novelty/i));
+    const focusUpdater = vi.mocked(args.setDraft).mock
       .calls[0][0] as unknown as (
+      current: SpecStage | null,
+    ) => SpecStage | null;
+    expect(focusUpdater(draft)).toEqual({
+      ...draft,
+      spec: {...spec, focus: 'prefer_novelty'},
+    });
+
+    fireEvent.click(screen.getByLabelText(/Ultra/i));
+    const tierUpdater = vi.mocked(args.setDraft).mock
+      .calls[1][0] as unknown as (
       current: SpecStage | null,
     ) => SpecStage | null;
     expect(tierUpdater(draft)).toEqual({
       ...draft,
-      spec: {...spec, tier: 'advanced'},
+      spec: {...spec, tier: 'ultra'},
     });
 
     fireEvent.click(screen.getByLabelText('Edit research plan'));

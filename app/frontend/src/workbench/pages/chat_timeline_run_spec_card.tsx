@@ -1,8 +1,8 @@
 import {type ReactNode} from 'react';
-import {type RunTier} from '@/api/runs';
+import {type RunFocus, type RunTier} from '@/api/runs';
 import {Icon} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
-import {type InferredRunSpec, TIER_OPTIONS} from '../run_spec';
+import {type InferredRunSpec, FOCUS_OPTIONS, TIER_OPTIONS} from '../run_spec';
 import {tooltipClassNames} from '../tooltip';
 import {
   OPTION_CARD_BASE_CLASSES,
@@ -59,6 +59,7 @@ export function RunSpecCard({
   spec,
   isStarting,
   locked = false,
+  onFocusChange,
   onTierChange,
   onNotificationChange,
   onCancel,
@@ -69,6 +70,7 @@ export function RunSpecCard({
   spec: InferredRunSpec;
   isStarting: boolean;
   locked?: boolean;
+  onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onNotificationChange: (enabled: boolean, email: string) => void;
   onCancel: () => void;
@@ -85,8 +87,8 @@ export function RunSpecCard({
         answers.
       </p>
       <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
-        Review the four fields and select a run type. Once ready, click "Start
-        research" to begin.
+        Review the four fields and select a focus and run type. Once ready,
+        click "Start research" to begin.
       </p>
       <PlanHeading onEdit={onEdit} />
       <p className={PLAN_SUBHEADING_CLASSES}>
@@ -96,6 +98,7 @@ export function RunSpecCard({
         spec={spec}
         locked={locked}
         isStarting={isStarting}
+        onFocusChange={onFocusChange}
         onTierChange={onTierChange}
         onNotificationChange={onNotificationChange}
         onCancel={onCancel}
@@ -144,6 +147,7 @@ function RunSpecDocument({
   spec,
   locked,
   isStarting,
+  onFocusChange,
   onTierChange,
   onNotificationChange,
   onCancel,
@@ -152,6 +156,7 @@ function RunSpecDocument({
   spec: InferredRunSpec;
   locked: boolean;
   isStarting: boolean;
+  onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onNotificationChange: (enabled: boolean, email: string) => void;
   onCancel: () => void;
@@ -163,6 +168,14 @@ function RunSpecDocument({
         {spec.title || conciseTitle(spec.goal)}
       </h3>
       <SpecSummary spec={spec} />
+      <RunOptionGroup
+        label="Focus"
+        name="focus"
+        value={spec.focus}
+        options={FOCUS_OPTIONS}
+        disabled={locked}
+        onChange={value => onFocusChange(value as RunFocus)}
+      />
       <RunOptionGroup
         label="Run type"
         name="tier"
@@ -302,6 +315,7 @@ function formatRunSpecResponse(spec: InferredRunSpec): string {
     spec.title || 'Optional',
     '',
     '## Setup Options',
+    `* **Focus:** ${runOptionLabel(FOCUS_OPTIONS, spec.focus)}`,
     `* **Run type:** ${runOptionLabel(TIER_OPTIONS, spec.tier)}`,
   ].join('\n');
 }

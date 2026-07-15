@@ -90,7 +90,16 @@ logger = logging.getLogger(__name__)
 _resume_tasks: set[asyncio.Task[None]] = set()
 router = APIRouter(prefix="/api/runs", tags=["runs"])
 
-_MODE_CONCURRENCY_LIMITS = {"standard": 3, "advanced": 1}
+# Per-tier cap on concurrently running runs for one client; heavier tiers get
+# a lower ceiling. "advanced" is retained for runs persisted during the
+# two-tier period (its envelope matches "ultra").
+_MODE_CONCURRENCY_LIMITS = {
+    "express": 3,
+    "standard": 3,
+    "extended": 2,
+    "ultra": 1,
+    "advanced": 1,
+}
 
 # ---------------------------------------------------------------------------
 # Helpers

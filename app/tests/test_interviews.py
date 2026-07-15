@@ -117,7 +117,7 @@ def test_interview_persists_turns_progress_and_final_plan(
             json={
                 "research_goal": "client placeholder is not authoritative",
                 "interview_id": interview_id,
-                "tier": "advanced",
+                "tier": "ultra",
             },
         )
         assert run.status_code == 200

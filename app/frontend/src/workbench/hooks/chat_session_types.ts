@@ -34,6 +34,7 @@ export interface ExecuteStartDeps {
   setConfirmed: (stage: SpecStage | null) => void;
   setDraft: (stage: SpecStage | null) => void;
   setStartedSession: (session: StartedSession) => void;
+  setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   pendingAttachments: File[];
   setPendingAttachments: (files: File[]) => void;
 }

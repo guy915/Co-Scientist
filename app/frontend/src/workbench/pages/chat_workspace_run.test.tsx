@@ -117,7 +117,9 @@ describe('ChatWorkspace run flow', () => {
     fireEvent.submit(input.closest('form')!);
 
     expect(
-      await screen.findByText(/Review the four fields and select a run type/),
+      await screen.findByText(
+        /Review the four fields and select a focus and run type/,
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText('AI Co-Scientist')).toBeNull();
     expect(
@@ -134,13 +136,11 @@ describe('ChatWorkspace run flow', () => {
         .closest('.reference-setup-document'),
     ).not.toBeNull();
     expect(screen.getByText('Cancel')).toBeInTheDocument();
-    expect(
-      screen.queryByRole('group', {name: 'Focus'}),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole('group', {name: 'Focus'})).toBeInTheDocument();
     expect(screen.getByRole('group', {name: 'Run type'})).toBeInTheDocument();
-    expect(screen.getByLabelText(/Standard Run/i)).toBeChecked();
+    expect(screen.getByLabelText(/Standard/i)).toBeChecked();
 
-    fireEvent.click(screen.getByLabelText(/Advanced Run/i));
+    fireEvent.click(screen.getByLabelText(/Ultra/i));
 
     fireEvent.click(screen.getByText('Start research'));
 
@@ -152,7 +152,8 @@ describe('ChatWorkspace run flow', () => {
           requirements: ['Prioritize mechanistic novelty'],
           attributes: ['Cold-stress glucose regulation'],
           criteria: [],
-          tier: 'advanced',
+          focus: 'balance',
+          tier: 'ultra',
         }),
       );
       expect(apiMock.startRun).toHaveBeenCalledWith('run-1');

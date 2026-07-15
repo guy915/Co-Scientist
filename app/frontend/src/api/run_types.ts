@@ -23,7 +23,7 @@ export type RunFocus =
   | 'breakthrough';
 
 /** Depth preset selected in the Co-Scientist setup flow. */
-export type RunTier = 'standard' | 'advanced';
+export type RunTier = 'express' | 'standard' | 'extended' | 'ultra';
 
 /** The four verified fields derived by the research-goal interview. */
 export interface InterviewFields {

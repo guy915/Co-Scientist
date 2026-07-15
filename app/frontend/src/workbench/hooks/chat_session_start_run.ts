@@ -1,7 +1,7 @@
 import {createRun, startRun, uploadRunDocument} from '@/api/runs';
 import {conciseTitle} from '@/lib/text';
 import {type StartedSession} from '../pages/chat_timeline_cards';
-import {emitDiagnosticEvent} from './chat_session_helpers';
+import {appendChatMessage, emitDiagnosticEvent} from './chat_session_helpers';
 import {type ExecuteStartDeps, type HandlerDeps} from './chat_session_types';
 
 // Runs the create+start API round trip for a confirmed draft spec and
@@ -15,16 +15,22 @@ async function executeStart({
   reloadHistory,
   setConfirmed,
   setDraft,
+  setMessages,
   setStartedSession,
   pendingAttachments,
   setPendingAttachments,
 }: ExecuteStartDeps): Promise<StartedSession> {
+  // Starting the run reads as the scientist sending the plan into the chat:
+  // post the request as a user turn immediately, then acknowledge it before
+  // the open-session card, mirroring the composer's send-then-respond flow.
+  appendChatMessage(setMessages, 'user', 'Start research');
   const created = await createRun({
     research_goal: specToStart.goal,
     interview_id: specToStart.interviewId,
     requirements: specToStart.requirements,
     attributes: specToStart.attributes,
     criteria: specToStart.criteria,
+    focus: specToStart.focus,
     tier: specToStart.tier,
     notify_on_completion: Boolean(specToStart.notifyOnCompletion),
     completion_email: specToStart.notifyOnCompletion
@@ -44,6 +50,11 @@ async function executeStart({
   }
   await startRun(created.id);
   setPendingAttachments([]);
+  appendChatMessage(
+    setMessages,
+    'assistant',
+    'Starting research on your plan. Opening the session below.',
+  );
   setStartedSession(session);
   await reloadHistory();
   // Tell the shell sidebar (which owns a separate history copy) that a new
@@ -103,6 +114,7 @@ export async function promoteDraftToRun({
   setToast,
   setConfirmed,
   setDraft,
+  setMessages,
   setStartedSession,
   pendingAttachments,
   setPendingAttachments,
@@ -123,6 +135,7 @@ export async function promoteDraftToRun({
       reloadHistory,
       setConfirmed,
       setDraft,
+      setMessages,
       setStartedSession,
       pendingAttachments,
       setPendingAttachments,

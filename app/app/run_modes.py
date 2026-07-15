@@ -1,4 +1,4 @@
-"""Faithful Standard/Advanced run configuration and legacy normalization."""
+"""Faithful run-tier and focus configuration with legacy normalization."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ CANONICAL_RUN_MODE = "standard"
 # *_PATTERN regexes are used by the API's pydantic Field validation, so
 # invalid values 422 at the edge while None falls through to the defaults.
 DEFAULT_RUN_TIER = "standard"
-RUN_TIER_PATTERN = "^(standard|advanced)$"
+RUN_TIER_PATTERN = "^(express|standard|extended|ultra)$"
 DEFAULT_RUN_FOCUS = "balance"
 RUN_FOCUS_VALUES: tuple[str, ...] = (
     "prefer_evidence",
@@ -45,11 +45,19 @@ DEFAULT_CRITERIA: tuple[str, ...] = (
     "Translational feasibility",
 )
 
-# Reconstructed compute envelopes. Google verifies that Advanced is deeper,
-# but not these exact numbers; provenance records them as reconstructed.
-# resolved_run_config starts from the selected mode and lets
-# explicit user overrides raise (never lower) these values.
+# Reconstructed compute envelopes; every knob scales up together from express
+# to ultra. Google verifies that deeper tiers do more work, but not these exact
+# numbers; provenance records them as reconstructed. resolved_run_config starts
+# from the selected tier and lets explicit user overrides raise (never lower)
+# these values.
 RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
+    "express": {
+        "initial_hypotheses_count": 4,
+        "max_iterations": 1,
+        "evolution_max_count": 4,
+        "tournament_pairs": 6,
+        "evidence_count": 4,
+    },
     DEFAULT_RUN_TIER: {
         "initial_hypotheses_count": 8,
         "max_iterations": 2,
@@ -57,7 +65,14 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
         "tournament_pairs": 12,
         "evidence_count": 8,
     },
-    "advanced": {
+    "extended": {
+        "initial_hypotheses_count": 12,
+        "max_iterations": 3,
+        "evolution_max_count": 12,
+        "tournament_pairs": 20,
+        "evidence_count": 12,
+    },
+    "ultra": {
         "initial_hypotheses_count": 16,
         "max_iterations": 4,
         "evolution_max_count": 16,
@@ -71,12 +86,16 @@ RUN_TIER_DEFAULTS: dict[str, dict[str, int]] = {
 # back to the default rather than raising, so persisted rows from older
 # builds and loosely-validated callers keep working.
 def normalize_run_tier(tier: str | None = None) -> str:
-    """Return a faithful mode, migrating legacy stored tiers conservatively."""
+    """Return a supported run tier, migrating legacy stored tiers.
+
+    Runs created during the two-tier period stored 'advanced' (the deep mode,
+    whose envelope matches 'ultra'); map it forward so those rows keep working.
+    """
     if tier in RUN_TIER_DEFAULTS:
         return tier
-    if tier in {"extended", "ultra"}:
-        return "advanced"
-    if tier in {"express", "default"}:
+    if tier == "advanced":
+        return "ultra"
+    if tier == "default":
         return "standard"
     return DEFAULT_RUN_TIER
 
