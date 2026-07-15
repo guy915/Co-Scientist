@@ -35,7 +35,6 @@ import {
   useTabNavigation,
 } from './run_detail_shell';
 import {normalizeTab, type TabName} from '../run_tabs';
-import {RunAgentDialog} from './run_agent_dialog';
 import {RunExecutionProgress} from './home_recents_run_steps';
 import type {StreamEvent} from '@/hooks/use_run_stream';
 
@@ -56,7 +55,6 @@ export function RunDetail() {
   const {id, tab} = useParams<{id: string; tab?: string}>();
   const activeTab = normalizeTab(tab);
   const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
-  const [agentQuestion, setAgentQuestion] = useState<string | null>(null);
 
   const {
     run,
@@ -87,7 +85,6 @@ export function RunDetail() {
       <ReportTitlebar
         title={title}
         runId={id}
-        onOpenAgent={() => setAgentQuestion('')}
         shareEnabled={Boolean(run && !run.is_demo)}
         reportReady={reportReady}
       />
@@ -110,7 +107,6 @@ export function RunDetail() {
       ) : (
         <RunDetailTabContent
           activeTab={activeTab}
-          runId={id}
           run={run}
           evidence={evidence}
           report={report}
@@ -125,14 +121,6 @@ export function RunDetail() {
       )}
 
       {toast && <RunToast message={toast} />}
-      {agentQuestion !== null && (
-        <RunAgentDialog
-          runId={id}
-          initialQuestion={agentQuestion}
-          steering={isActiveStatus(run?.status)}
-          onClose={() => setAgentQuestion(null)}
-        />
-      )}
     </div>
   );
 }
@@ -224,7 +212,6 @@ function activityLabel(event: StreamEvent): string {
 // IdeasTab's selection, LearningView's search query).
 function RunDetailTabContent({
   activeTab,
-  runId,
   run,
   evidence,
   report,
@@ -237,7 +224,6 @@ function RunDetailTabContent({
   ideasViewKey,
 }: {
   activeTab: TabName;
-  runId: string;
   run: RunWithSummary | null;
   evidence: Evidence[];
   report: Report | null;
@@ -273,13 +259,11 @@ function RunDetailTabContent({
         <section className={ALL_IDEAS_CLASSES}>
           <IdeasTab
             key={ideasViewKey}
-            runId={runId}
             hypotheses={hypotheses}
             reviews={reviews}
             matches={matches}
             claimEvidence={claimEvidence}
             ideaBuckets={report?.payload.idea_buckets}
-            onScientistInputChanged={onSafetyChanged}
           />
         </section>
       )}

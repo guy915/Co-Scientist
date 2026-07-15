@@ -108,13 +108,11 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
 export function ReportTitlebar({
   title,
   runId,
-  onOpenAgent,
   shareEnabled,
   reportReady,
 }: {
   title: string;
   runId: string;
-  onOpenAgent: () => void;
   shareEnabled: boolean;
   reportReady: boolean;
 }) {
@@ -130,7 +128,6 @@ export function ReportTitlebar({
       </div>
       <ReportActions
         runId={runId}
-        onOpenAgent={onOpenAgent}
         shareEnabled={shareEnabled}
         reportReady={reportReady}
       />
@@ -140,12 +137,10 @@ export function ReportTitlebar({
 
 function ReportActions({
   runId,
-  onOpenAgent,
   shareEnabled,
   reportReady,
 }: {
   runId: string;
-  onOpenAgent: () => void;
   shareEnabled: boolean;
   reportReady: boolean;
 }) {
@@ -153,9 +148,6 @@ function ReportActions({
     'rounded-full border border-cosci-border px-3 py-2 text-xs no-underline text-cosci-fg hover:bg-cosci-hover';
   return (
     <div className="flex shrink-0 items-center gap-2 max-[720px]:gap-1">
-      <button type="button" className={actionClasses} onClick={onOpenAgent}>
-        Open Agent
-      </button>
       {reportReady && shareEnabled ? (
         <ReportShareControl runId={runId} className={actionClasses} />
       ) : null}

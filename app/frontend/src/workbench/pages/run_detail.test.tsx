@@ -118,7 +118,7 @@ beforeEach(() => {
 });
 
 describe('RunDetail', () => {
-  it('exposes Goal Report follow-up and export controls', async () => {
+  it('exposes Goal Report export controls', async () => {
     vi.mocked(runsApi.getReport).mockResolvedValue({
       payload: {},
     } as unknown as runsApi.Report);
@@ -131,37 +131,6 @@ describe('RunDetail', () => {
     expect(
       screen.getByRole('link', {name: 'Download'}).getAttribute('href'),
     ).toMatch(/^\/api\/runs\/run-1\/report\.md\?client_id=.+/);
-
-    fireEvent.click(screen.getByRole('button', {name: 'Open Agent'}));
-    expect(
-      screen.getByRole('dialog', {name: 'Open Agent'}),
-    ).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'Close Agent'}));
-    expect(screen.queryByRole('dialog', {name: 'Open Agent'})).toBeNull();
-  });
-
-  it('queues Agent guidance while research is active', async () => {
-    vi.mocked(runsApi.getRun).mockResolvedValue({
-      ...makeRun('Study pathway X'),
-      status: 'running',
-    });
-    renderAt('/runs/run-1/specifications');
-    await screen.findByText('Research in progress');
-
-    fireEvent.click(screen.getByRole('button', {name: 'Open Agent'}));
-    fireEvent.change(
-      screen.getByRole('textbox', {name: 'Guide this active research run'}),
-      {target: {value: 'Prioritize human organoid evidence.'}},
-    );
-    fireEvent.click(screen.getByRole('button', {name: 'Send guidance'}));
-
-    await waitFor(() =>
-      expect(runsApi.sendRunSteering).toHaveBeenCalledWith(
-        'run-1',
-        'Prioritize human organoid evidence.',
-      ),
-    );
-    expect(await screen.findByText(/Guidance queued/)).toBeInTheDocument();
   });
 
   it('shows truthful live metrics and activity instead of report controls', async () => {

@@ -1,5 +1,4 @@
-import {type FormEvent, useMemo, useState} from 'react';
-import {addScientistHypothesis, addScientistReview} from '@/api/runs';
+import {useMemo, useState} from 'react';
 import type {
   ClaimEvidenceRow,
   Hypothesis,
@@ -123,15 +122,12 @@ function useIdeaSelection(hypotheses: Hypothesis[], isMobile: boolean) {
  * @param props The hypotheses, reviews, matches, and claim-evidence graph.
  */
 export function IdeasTab({
-  runId,
   hypotheses,
   reviews,
   matches = [],
   claimEvidence = [],
   ideaBuckets,
-  onScientistInputChanged,
 }: {
-  runId?: string;
   hypotheses: Hypothesis[];
   reviews: Review[];
   matches?: MatchRow[];
@@ -140,7 +136,6 @@ export function IdeasTab({
     high_potential: IdeaBucketEntry[];
     non_viable: IdeaBucketEntry[];
   };
-  onScientistInputChanged?: () => void;
 }) {
   const isMobile = useIsMobile();
   const {sorted, selected, onSelect} = useIdeaSelection(hypotheses, isMobile);
@@ -158,19 +153,6 @@ export function IdeasTab({
   const IdeaView = isMobile ? MobileIdeaView : DesktopIdeaSplit;
   return (
     <div className={IDEAS_REPORT_CLASSES}>
-      {runId && (
-        <div className="grid shrink-0 grid-cols-2 border-b border-cosci-border max-[720px]:grid-cols-1">
-          <ScientistHypothesisComposer
-            runId={runId}
-            onRecorded={onScientistInputChanged}
-          />
-          <ScientistReviewComposer
-            runId={runId}
-            hypothesis={selected}
-            onRecorded={onScientistInputChanged}
-          />
-        </div>
-      )}
       <IdeaBucketSummary buckets={ideaBuckets} />
       <IdeaView
         sorted={sorted}
@@ -181,195 +163,6 @@ export function IdeasTab({
         onSelect={onSelect}
       />
     </div>
-  );
-}
-
-function ScientistHypothesisComposer({
-  runId,
-  onRecorded,
-}: {
-  runId: string;
-  onRecorded?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    setBusy(true);
-    setStatus(null);
-    try {
-      const result = await addScientistHypothesis(runId, {
-        title: String(form.get('title') || ''),
-        statement: String(form.get('statement') || ''),
-        author: String(form.get('author') || ''),
-      });
-      if (!result.admitted) {
-        setStatus(`Not admitted: ${result.safety.outcome}`);
-        return;
-      }
-      setStatus('Hypothesis admitted for review and ranking.');
-      formElement.reset();
-      onRecorded?.();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="px-4 py-3">
-      <button
-        type="button"
-        className="rounded-full border border-cosci-border px-4 py-2 text-sm hover:bg-cosci-hover"
-        onClick={() => setOpen(value => !value)}
-        aria-expanded={open}
-      >
-        Add your hypothesis
-      </button>
-      {open && (
-        <form className="mt-3 grid max-w-2xl gap-3" onSubmit={submit}>
-          <label className="grid gap-1 text-sm text-cosci-fg">
-            Researcher name
-            <input
-              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
-              name="author"
-              required
-            />
-          </label>
-          <label className="grid gap-1 text-sm text-cosci-fg">
-            Optional title
-            <input
-              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
-              name="title"
-            />
-          </label>
-          <label className="grid gap-1 text-sm text-cosci-fg">
-            Hypothesis
-            <textarea
-              className="min-h-28 rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
-              name="statement"
-              required
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-fit rounded-full bg-cosci-blue px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {busy ? 'Submitting…' : 'Submit hypothesis'}
-          </button>
-          {status && (
-            <p role="status" className="text-sm text-cosci-muted">
-              {status}
-            </p>
-          )}
-        </form>
-      )}
-    </section>
-  );
-}
-
-function ScientistReviewComposer({
-  runId,
-  hypothesis,
-  onRecorded,
-}: {
-  runId: string;
-  hypothesis: Hypothesis | null;
-  onRecorded?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!hypothesis) return;
-    const formElement = event.currentTarget;
-    const form = new FormData(formElement);
-    setBusy(true);
-    setStatus(null);
-    try {
-      await addScientistReview(runId, {
-        hypothesis_id: hypothesis.id,
-        author: String(form.get('author') || ''),
-        verdict: String(form.get('verdict')) as 'support' | 'oppose' | 'revise',
-        critique: String(form.get('critique') || ''),
-      });
-      setStatus('Review recorded and available to subsequent work.');
-      formElement.reset();
-      onRecorded?.();
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : String(error));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section className="border-l border-cosci-border px-4 py-3 max-[720px]:border-t max-[720px]:border-l-0">
-      <button
-        type="button"
-        className="rounded-full border border-cosci-border px-4 py-2 text-sm hover:bg-cosci-hover disabled:opacity-50"
-        onClick={() => setOpen(value => !value)}
-        disabled={!hypothesis}
-        aria-expanded={open}
-      >
-        Review selected idea
-      </button>
-      {open && hypothesis && (
-        <form className="mt-3 grid gap-3" onSubmit={submit}>
-          <p className="text-sm text-cosci-muted">
-            Reviewing {hypothesis.title}
-          </p>
-          <label className="grid gap-1 text-sm text-cosci-fg">
-            Researcher name
-            <input
-              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
-              name="author"
-              required
-            />
-          </label>
-          <label className="grid gap-1 text-sm text-cosci-fg">
-            Verdict
-            <select
-              className="rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
-              name="verdict"
-              defaultValue="revise"
-            >
-              <option value="support">Support</option>
-              <option value="revise">Revise</option>
-              <option value="oppose">Oppose</option>
-            </select>
-          </label>
-          <label className="grid gap-1 text-sm text-cosci-fg">
-            Scientific critique
-            <textarea
-              className="min-h-24 rounded-xl border border-cosci-border bg-cosci-bg px-3 py-2"
-              name="critique"
-              required
-            />
-          </label>
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-fit rounded-full bg-cosci-blue px-4 py-2 text-sm text-white disabled:opacity-50"
-          >
-            {busy ? 'Recording…' : 'Record review'}
-          </button>
-          {status && (
-            <p role="status" className="text-sm text-cosci-muted">
-              {status}
-            </p>
-          )}
-        </form>
-      )}
-    </section>
   );
 }
 
