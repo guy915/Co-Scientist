@@ -37,7 +37,6 @@ function baseArgs(
 ): BuildTimelineItemsArgs {
   return {
     messages: [],
-    interview: null,
     handleEditMessage: vi.fn(),
     handleCopyRequest: vi.fn().mockResolvedValue(undefined),
     handleRetryMessage: vi.fn(),

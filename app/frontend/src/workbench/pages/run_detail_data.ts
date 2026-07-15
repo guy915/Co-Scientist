@@ -6,14 +6,12 @@ import {
   getEvidence,
   getHypotheses,
   getMatches,
-  getProximity,
   getReport,
   getReviews,
   getRun,
   getSafety,
   type Hypothesis,
   type MatchRow,
-  type ProximityEdge,
   type Report,
   type Review,
   runGoal,
@@ -29,7 +27,6 @@ type RunDataKey =
   | 'matches'
   | 'reviews'
   | 'claimEvidence'
-  | 'proximity'
   | 'safety'
   | 'report';
 
@@ -49,7 +46,7 @@ const EVENT_DATA_KEYS: Record<string, readonly RunDataKey[]> = {
   'safety.final': ['safety'],
   'scientist.hypothesis': ['hypotheses', 'safety'],
   'scientist.review': ['reviews'],
-  proximity: ['hypotheses', 'proximity'],
+  proximity: ['hypotheses'],
   ranking: ['hypotheses', 'matches'],
   evolve: ['hypotheses', 'claimEvidence'],
   report: ['report'],
@@ -77,10 +74,6 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
   // the rest of a Goal Report must remain readable during rolling upgrades.
   const getSafetyCompatible = (runId: string) =>
     getSafety(runId).catch((): SafetyDecision[] => []);
-  // Proximity was added after the core Goal Report endpoints; preserve report
-  // loading against older deployments during rolling upgrades.
-  const getProximityCompatible = (runId: string) =>
-    getProximity(runId).catch((): ProximityEdge[] => []);
   const [
     run,
     hypotheses,
@@ -88,7 +81,6 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
     matches,
     reviews,
     claimEvidence,
-    proximity,
     safety,
     report,
   ] = await Promise.all([
@@ -98,7 +90,6 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
     fetchIfWanted('matches', getMatches),
     fetchIfWanted('reviews', getReviews),
     fetchIfWanted('claimEvidence', getClaimEvidence),
-    fetchIfWanted('proximity', getProximityCompatible),
     fetchIfWanted('safety', getSafetyCompatible),
     fetchIfWanted('report', getReport),
   ]);
@@ -109,7 +100,6 @@ async function fetchRunData(id: string, keys?: ReadonlySet<RunDataKey>) {
     matches,
     reviews,
     claimEvidence,
-    proximity,
     safety,
     report,
   };
@@ -173,7 +163,6 @@ function useRunFetch(id: string | undefined) {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [claimEvidence, setClaimEvidence] = useState<ClaimEvidenceRow[]>([]);
-  const [proximity, setProximity] = useState<ProximityEdge[]>([]);
   const [safety, setSafety] = useState<SafetyDecision[]>([]);
   const [report, setReport] = useState<Report | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -193,7 +182,6 @@ function useRunFetch(id: string | undefined) {
         applyIfFetched(data.matches, setMatches);
         applyIfFetched(data.reviews, setReviews);
         applyIfFetched(data.claimEvidence, setClaimEvidence);
-        applyIfFetched(data.proximity, setProximity);
         applyIfFetched(data.safety, setSafety);
         applyIfFetched(data.report, setReport);
         setLoaded(true);
@@ -227,7 +215,6 @@ function useRunFetch(id: string | undefined) {
     matches,
     reviews,
     claimEvidence,
-    proximity,
     safety,
     report,
     error,
@@ -337,7 +324,6 @@ export function useRunDetailData(id: string | undefined) {
     matches: data.matches,
     reviews: data.reviews,
     claimEvidence: data.claimEvidence,
-    proximity: data.proximity,
     safety: data.safety,
     report: data.report,
     error: data.error,

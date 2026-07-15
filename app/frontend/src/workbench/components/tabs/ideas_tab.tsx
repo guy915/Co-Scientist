@@ -5,7 +5,6 @@ import type {
   Hypothesis,
   IdeaBucketEntry,
   MatchRow,
-  ProximityEdge,
   Review,
 } from '@/api/runs';
 import {sortByEloDesc} from '@/lib/hypotheses';
@@ -121,7 +120,6 @@ export function IdeasTab({
   reviews,
   matches = [],
   claimEvidence = [],
-  proximity = [],
   ideaBuckets,
   onScientistInputChanged,
 }: {
@@ -130,7 +128,6 @@ export function IdeasTab({
   reviews: Review[];
   matches?: MatchRow[];
   claimEvidence?: ClaimEvidenceRow[];
-  proximity?: ProximityEdge[];
   ideaBuckets?: {
     high_potential: IdeaBucketEntry[];
     non_viable: IdeaBucketEntry[];
@@ -167,11 +164,6 @@ export function IdeasTab({
         </div>
       )}
       <IdeaBucketSummary buckets={ideaBuckets} />
-      <IdeaLandscape
-        hypotheses={sorted}
-        edges={proximity}
-        onSelect={onSelect}
-      />
       <IdeaView
         sorted={sorted}
         selected={selected}
@@ -369,110 +361,6 @@ function ScientistReviewComposer({
           )}
         </form>
       )}
-    </section>
-  );
-}
-
-// A deterministic circular layout keeps the persisted similarity graph
-// inspectable without introducing a client-side physics simulation.
-function IdeaLandscape({
-  hypotheses,
-  edges,
-  onSelect,
-}: {
-  hypotheses: Hypothesis[];
-  edges: ProximityEdge[];
-  onSelect: (id: string) => void;
-}) {
-  if (!edges.length) return null;
-  const connectedIds = new Set(
-    edges.flatMap(edge => [
-      edge.source_hypothesis_id,
-      edge.target_hypothesis_id,
-    ]),
-  );
-  const nodes = hypotheses.filter(hypothesis =>
-    connectedIds.has(hypothesis.id),
-  );
-  if (nodes.length < 2) return null;
-  const positions = new Map(
-    nodes.map((node, index) => {
-      const angle = (index / nodes.length) * Math.PI * 2 - Math.PI / 2;
-      return [
-        node.id,
-        {x: 160 + Math.cos(angle) * 118, y: 90 + Math.sin(angle) * 62},
-      ];
-    }),
-  );
-  return (
-    <section
-      className="shrink-0 border-b border-cosci-border px-4 py-3"
-      aria-label="Idea landscape"
-    >
-      <div className="mb-2 flex items-baseline justify-between gap-3">
-        <h2 className="text-sm font-semibold text-cosci-fg">Idea landscape</h2>
-        <p className="text-xs text-cosci-muted">
-          Stronger links indicate greater conceptual proximity.
-        </p>
-      </div>
-      <svg
-        className="h-44 w-full"
-        viewBox="0 0 320 180"
-        role="img"
-        aria-label={`${nodes.length} ideas connected by ${edges.length} similarity links`}
-      >
-        {edges.map(edge => {
-          const source = positions.get(edge.source_hypothesis_id);
-          const target = positions.get(edge.target_hypothesis_id);
-          if (!source || !target) return null;
-          return (
-            <line
-              key={edge.id}
-              x1={source.x}
-              y1={source.y}
-              x2={target.x}
-              y2={target.y}
-              className="stroke-cosci-border"
-              strokeWidth={1 + edge.similarity * 3}
-              opacity={0.4 + edge.similarity * 0.5}
-            />
-          );
-        })}
-        {nodes.map((node, index) => {
-          const point = positions.get(node.id);
-          if (!point) return null;
-          return (
-            <g
-              key={node.id}
-              className="cursor-pointer"
-              onClick={() => onSelect(node.id)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={event => {
-                if (event.key === 'Enter' || event.key === ' ')
-                  onSelect(node.id);
-              }}
-              aria-label={`Open idea ${index + 1}: ${node.title}`}
-            >
-              <circle
-                cx={point.x}
-                cy={point.y}
-                r="12"
-                className="fill-cosci-idea-row-selected-bg stroke-cosci-idea-row-selected-border"
-                strokeWidth="2"
-              />
-              <text
-                x={point.x}
-                y={point.y + 4}
-                textAnchor="middle"
-                className="fill-cosci-fg text-[10px] font-semibold"
-              >
-                {index + 1}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
     </section>
   );
 }

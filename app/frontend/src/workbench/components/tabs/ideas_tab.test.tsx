@@ -78,44 +78,6 @@ describe('IdeasTab', () => {
     expect(screen.queryByText('Full legacy detail')).not.toBeInTheDocument();
   });
 
-  it('renders persisted proximity edges as an inspectable idea landscape', () => {
-    render(
-      <IdeasTab
-        hypotheses={[
-          makeHypothesis({id: 'h1', title: 'First connected idea'}),
-          makeHypothesis({id: 'h2', title: 'Second connected idea'}),
-        ]}
-        reviews={[]}
-        proximity={[
-          {
-            id: 1,
-            run_id: 'run-1',
-            source_hypothesis_id: 'h1',
-            target_hypothesis_id: 'h2',
-            similarity: 0.85,
-            degree: 'high',
-            cluster_id: 'cluster-1',
-            method: 'llm_cluster_pairwise_graph',
-            version: '1',
-            model: 'fixture-model',
-            updated_at: 1234,
-          },
-        ]}
-      />,
-    );
-    expect(
-      screen.getByRole('region', {name: 'Idea landscape'}),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('img', {
-        name: '2 ideas connected by 1 similarity links',
-      }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('button', {name: 'Open idea 1: First connected idea'}),
-    ).toBeInTheDocument();
-  });
-
   it('submits scientist hypotheses and reviews from the Ideas journey', async () => {
     addScientistHypothesis.mockResolvedValue({
       admitted: true,

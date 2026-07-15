@@ -5,7 +5,6 @@ import {
   type Evidence,
   type Hypothesis,
   type MatchRow,
-  type ProximityEdge,
   type Report,
   type Review,
   type SafetyDecision,
@@ -71,7 +70,6 @@ export function RunDetail() {
     matches,
     reviews,
     claimEvidence,
-    proximity,
     report,
     safety,
     error,
@@ -125,7 +123,6 @@ export function RunDetail() {
           matches={matches}
           reviews={reviews}
           claimEvidence={claimEvidence}
-          proximity={proximity}
           safety={safety}
           onSafetyChanged={refreshNow}
           ideasViewKey={ideasViewKey}
@@ -240,7 +237,6 @@ function RunDetailTabContent({
   matches,
   reviews,
   claimEvidence,
-  proximity,
   safety,
   onSafetyChanged,
   ideasViewKey,
@@ -254,7 +250,6 @@ function RunDetailTabContent({
   matches: MatchRow[];
   reviews: Review[];
   claimEvidence: ClaimEvidenceRow[];
-  proximity: ProximityEdge[];
   safety: SafetyDecision[];
   onSafetyChanged: () => void;
   ideasViewKey: number;
@@ -288,7 +283,6 @@ function RunDetailTabContent({
             reviews={reviews}
             matches={matches}
             claimEvidence={claimEvidence}
-            proximity={proximity}
             ideaBuckets={report?.payload.idea_buckets}
             onScientistInputChanged={onSafetyChanged}
           />

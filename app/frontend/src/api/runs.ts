@@ -285,9 +285,7 @@ export async function listDemoRuns(): Promise<Run[]> {
  *
  * @returns The merged, sorted run history.
  */
-export async function loadRunHistory(
-  includeDemos = true,
-): Promise<Run[]> {
+export async function loadRunHistory(includeDemos = true): Promise<Run[]> {
   const [ownedRuns, demoRuns] = await Promise.all([
     listRuns().catch(() => [] as Run[]),
     includeDemos ? listDemoRuns().catch(() => [] as Run[]) : [],
