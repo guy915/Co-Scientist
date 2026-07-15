@@ -186,11 +186,14 @@ async def test_engine_resume_preserves_work_and_reports_once(
         _engine_stream(run.id, run.research_goal, cfg, resume=True)
     )
 
-    # This fixture intentionally disables literature retrieval. Resume reaches
-    # finalization, but the scientific release gate correctly withholds a
-    # report instead of converting latent-only hypotheses into a completion.
-    assert store.get_latest_report(run.id) is None
-    assert resume_events[-1]["payload"].get("status") == "blocked"
+    # This fixture intentionally disables literature retrieval, so the resumed
+    # run finalizes with latent-only (unverified) hypotheses. Under the
+    # rank-and-publish policy that is a completion: the ungrounded ideas are
+    # ranked and published (badged "Unverified"), not withheld.
+    report = store.get_latest_report(run.id)
+    assert report is not None
+    assert report["payload"]["leaderboard"]  # ranked ideas were published
+    assert resume_events[-1]["payload"].get("status") == "completed"
 
     # Completed work preserved: every checkpointed hypothesis survives into
     # the final pool (resume did not discard it via a from-zero re-run).
@@ -267,11 +270,15 @@ async def test_engine_resume_from_unreviewed_pool_self_heals(
     assert "safety_screen" in resumed_types
     assert "supervisor.plan" not in resumed_types  # supervisor never re-runs
 
-    # Completed generation is preserved, while latent-only output is blocked.
-    assert store.get_latest_report(run.id) is None
+    # Completed generation is preserved and the latent-only output is published:
+    # rank-and-publish ranks the ungrounded ideas (badged "Unverified") rather
+    # than withholding a report.
+    report = store.get_latest_report(run.id)
+    assert report is not None
+    assert report["payload"]["leaderboard"]  # ranked ideas were published
     final_ids = {h["id"] for h in store.list_hypotheses(run.id)}
     assert checkpointed_ids <= final_ids
-    assert resume_events[-1]["payload"].get("status") == "blocked"
+    assert resume_events[-1]["payload"].get("status") == "completed"
 
 
 async def test_engine_resume_does_not_repeat_completed_llm_calls(
@@ -365,11 +372,12 @@ async def test_launch_resume_drives_engine_resume_end_to_end(
     assert pre_resume_seqs <= set(all_seqs)
     assert len(all_seqs) == len(set(all_seqs))  # unique
     assert all_seqs == sorted(all_seqs)  # monotonic
-    # The launcher reaches finalization exactly once. This fixture deliberately
-    # supplies no evidence, so the claim-level release gate must block a report
-    # rather than treating an ungrounded run as successful.
-    assert store.get_latest_report(run.id) is None
+    # The launcher reaches finalization exactly once. This fixture supplies no
+    # evidence, so the ideas are latent-only (unverified); rank-and-publish
+    # ranks and publishes them (badged "Unverified") rather than blocking.
+    report = store.get_latest_report(run.id)
+    assert report is not None
+    assert report["payload"]["leaderboard"]  # ranked ideas were published
     final = store.get_run(run.id)
     assert final is not None
-    assert final.status == store.RunStatus.BLOCKED.value
-    assert "claim-level evidence release gate" in (final.error or "")
+    assert final.status == store.RunStatus.COMPLETED.value

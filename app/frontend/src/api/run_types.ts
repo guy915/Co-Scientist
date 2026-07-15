@@ -182,6 +182,10 @@ export interface Hypothesis {
   status: string | null;
   // proximity/dedup cluster this hypothesis was grouped into
   cluster_id: string | null;
+  // true when the idea has no evidence-supported claim: it is still ranked and
+  // published under the rank-and-publish policy, but flagged "Unverified". Set
+  // by GET /hypotheses.
+  unverified?: boolean;
 }
 
 /** A literature record cited as supporting or contextual evidence. */

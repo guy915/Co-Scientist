@@ -194,12 +194,21 @@ def _idea_buckets(
         reasons = sorted(edge_reasons.get(hypothesis_id, set()))
         if is_blocking_status(str(hypothesis.get("safety_status") or "")):
             reasons.append("The scientific safety review blocked this idea.")
+        # Under rank-and-publish an idea only leaves the ranked report when it
+        # is contradicted (an edge reason above), blocked by safety, or set
+        # aside during review/deduplication -- never for being merely
+        # unsupported (those are published and badged "Unverified").
+        if not reasons and hypothesis.get("status") == "rejected":
+            reasons.append(
+                "Set aside during review as inaccurate, non-novel, or a "
+                "near-duplicate of a higher-ranked idea."
+            )
         non_viable.append(
             {
                 "id": hypothesis_id,
                 "title": str(hypothesis.get("title") or "Untitled idea"),
                 "reason": " ".join(reasons)
-                or "The release gate excluded this idea.",
+                or "Withheld from the ranked report.",
             }
         )
     return {"high_potential": high_potential, "non_viable": non_viable}
@@ -243,23 +252,37 @@ def _released_claim_evidence(
     return released
 
 
-def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
-    """Ids of hypotheses with a claim that failed publication readiness.
+def _contradicted_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
+    """Ids of hypotheses with a claim the evidence contradicts.
 
-    The pre-tournament claim grounding (``claim_grounding``) persisted the
-    claim-evidence graph; a hypothesis with a contradicted or insufficient edge
-    failed the evidence policy and must not rank or publish categorically.
+    Contradicted ideas have evidence *against* them, so the rank-and-publish
+    policy withholds them from the report entirely -- unlike merely-unsupported
+    ideas, which are published with an "Unverified" badge.
     """
     edges = store.list_claim_evidence(run_id, db_path=db_path)
-    blocked = {
+    return {
         str(edge["hypothesis_id"])
         for edge in edges
         if edge.get("label") == "contradicts"
-        or (
-            edge.get("label") == "insufficient"
-            and edge.get("claim_role") != "speculative"
-        )
     }
+
+
+def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
+    """Ids of published hypotheses that lack an evidence-supported claim.
+
+    A hypothesis is "verified" once at least one of its claims has a
+    ``supports`` evidence edge. Under the rank-and-publish policy the rest are
+    still ranked and published, but flagged "Unverified" in the report and the
+    idea list rather than blocking the run.
+
+    When a run has no claim-evidence edges at all -- claim grounding never ran,
+    as for mock demo runs -- none of its ideas were assessed, so none is
+    reported unverified (the badge means "assessed and unsupported", not
+    "not yet assessed").
+    """
+    edges = store.list_claim_evidence(run_id, db_path=db_path)
+    if not edges:
+        return set()
     supported = {
         str(edge["hypothesis_id"])
         for edge in edges
@@ -269,17 +292,13 @@ def _unverified_hypothesis_ids(run_id: str, db_path: str | None) -> set[str]:
         str(hypothesis.get("id"))
         for hypothesis in store.list_hypotheses(run_id, db_path=db_path)
     }
-    # A novel proposal may remain speculative, but a scientific report still
-    # needs at least one evidence-supported contextual claim for that idea.
-    return blocked | (all_hypothesis_ids - supported)
+    return all_hypothesis_ids - supported
 
 
 def _exclude_unsafe_hypotheses(
     run_id: str,
     hyps: list[dict[str, Any]],
     db_path: str | None,
-    *,
-    require_verified_claims: bool = True,
 ) -> list[dict[str, Any]]:
     """Drop hypotheses a safety review or the publication gate blocks.
 
@@ -298,23 +317,21 @@ def _exclude_unsafe_hypotheses(
         hyps: The run's hypotheses (store rows with a ``statement`` and,
             normally, a persisted ``safety_status``).
         db_path: Optional override for the SQLite database path.
-        require_verified_claims: Whether insufficient claim evidence excludes
-            the hypothesis. False is reserved for explicit mock fixtures.
 
     Returns:
         The hypotheses safe to synthesize, in the original order.
     """
-    unverified = _unverified_hypothesis_ids(run_id, db_path)
+    contradicted = _contradicted_hypothesis_ids(run_id, db_path)
     safe: list[dict[str, Any]] = []
     for hyp in hyps:
         if hyp.get("status") == "rejected":
             continue
-        # Faithful publication gate: every material claim must be supported
-        # before the hypothesis can enter synthesis. Explicit mock workflows
-        # remain compatibility fixtures and are never credited as science.
-        if require_verified_claims and str(hyp.get("id")) in unverified:
+        # Contradicted ideas have evidence against them and are withheld
+        # entirely; merely-unsupported ideas are published with an "Unverified"
+        # badge (see _unverified_hypothesis_ids), not excluded here.
+        if str(hyp.get("id")) in contradicted:
             logger.warning(
-                "Excluding hypothesis %s from synthesis: unverified claim",
+                "Excluding hypothesis %s from synthesis: contradicted claim",
                 hyp.get("id"),
             )
             continue
@@ -392,12 +409,7 @@ def _build_report_content(
     all_hyps = store.list_hypotheses(run_id, db_path=db_path)
     # Exclude any hypothesis a per-hypothesis safety review blocks (recorded as
     # an audit decision) before it can appear in the leaderboard or top ideas.
-    hyps = _exclude_unsafe_hypotheses(
-        run_id,
-        all_hyps,
-        db_path,
-        require_verified_claims=provider != "mock",
-    )
+    hyps = _exclude_unsafe_hypotheses(run_id, all_hyps, db_path)
     counts = store.summary_counts(run_id, db_path=db_path)
     leaderboard = live_leaderboard(hyps)
     claim_edges = store.list_claim_evidence(run_id, db_path=db_path)
@@ -526,11 +538,15 @@ async def finalize_report(
         )
         return
 
-    # Scientific readiness is independent of lexical misuse screening. A run
-    # with hypotheses but no evidence-ready proposal must remain blocked rather
-    # than publishing an empty or categorically unsupported Goal Report.
+    # Under the rank-and-publish policy the leaderboard is empty only when every
+    # idea was withheld -- contradicted by the evidence or blocked by the safety
+    # review -- leaving nothing publishable. Unsupported (but non-contradicted)
+    # ideas are published with an "Unverified" badge, so they never reach here.
     if provider != "mock" and not payload.get("leaderboard"):
-        reason = "No hypothesis passed the claim-level evidence release gate."
+        reason = (
+            "No hypothesis could be published: every idea was either "
+            "contradicted by the evidence or withheld by the safety review."
+        )
         store.add_safety_decision(
             run_id,
             stage="scientific_readiness",

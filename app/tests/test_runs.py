@@ -267,6 +267,10 @@ def test_default_mock_run_completes_and_persists(isolated_db: str) -> None:
         e["label"] in {"supports", "contradicts", "insufficient"}
         for e in claim_evidence
     )
+    # Mock runs are illustrative fixtures, never assessed science, so the
+    # "Unverified" badge is suppressed even though they carry simulated
+    # claim-evidence rows that would otherwise flag every idea.
+    assert all(h.get("unverified") is False for h in hyps)
     assert report["payload"]["leaderboard"]
 
 

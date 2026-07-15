@@ -51,6 +51,35 @@ describe('IdeasTab', () => {
     expect(rows[1]).toHaveTextContent('Low-ranked idea');
   });
 
+  it('flags an evidence-less idea with the "Unverified" chip', () => {
+    const {container} = render(
+      <IdeasTab
+        hypotheses={[
+          makeHypothesis({
+            id: 'grounded',
+            title: 'Grounded idea',
+            elo_rating: 1300,
+            unverified: false,
+          }),
+          makeHypothesis({
+            id: 'latent',
+            title: 'Latent idea',
+            elo_rating: 1250,
+            unverified: true,
+          }),
+        ]}
+        reviews={[]}
+      />,
+    );
+    // Rank-and-publish: both ideas are published and ranked, and only the
+    // evidence-less one carries the "Unverified" chip.
+    expect(screen.getAllByText('Grounded idea').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Latent idea').length).toBeGreaterThan(0);
+    const chips = container.querySelectorAll('.idea-unverified-chip');
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toHaveTextContent('Unverified');
+  });
+
   it('renders reference detail sections without the legacy detail link', () => {
     const reviews: Review[] = [
       {

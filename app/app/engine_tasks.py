@@ -270,15 +270,21 @@ async def _apply_pre_ranking_evidence_gate(state: dict[str, Any]) -> None:
                 )
             )
             assessments.append(assessment)
+        # Rank-and-publish policy: only contradicted (or unsafe) ideas are
+        # withheld from the tournament here. Ungrounded/speculative ideas stay
+        # rankable — allow_speculative treats insufficient claims as speculative
+        # and require_supported_claim=False drops the "needs a supported claim"
+        # block — so every non-contradicted idea earns an Elo score and can be
+        # published (badged unverified) instead of blocking the whole run.
         gate = publication_gate(
             assessments,
-            allow_speculative=False,
+            allow_speculative=True,
             explicitly_speculative_claims={
                 claim
                 for claim, role in claim_roles.items()
                 if role == "speculative"
             },
-            require_supported_claim=True,
+            require_supported_claim=False,
         )
         hypothesis.enrichments["claim_gate"] = {
             "decision": gate.decision.value,

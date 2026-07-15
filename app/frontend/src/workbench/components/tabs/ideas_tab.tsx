@@ -8,6 +8,7 @@ import type {
   Review,
 } from '@/api/runs';
 import {sortByEloDesc} from '@/lib/hypotheses';
+import {Icon} from '@/components/icon';
 import {useIsMobile} from '../../hooks/use_is_mobile';
 import {TruncatedLabel} from '../truncated_label';
 import {EmptyState} from '../empty_state';
@@ -58,6 +59,13 @@ const IDEA_CHIP_CLASSES =
 
 const IDEA_ELO_CHIP_CLASSES =
   IDEA_CHIP_CLASSES + ' idea-elo-chip w-fit min-w-[6.35rem]';
+
+// Caution chip for an idea with no evidence-supported claim: it is still ranked
+// and published, but flagged so the reader treats it as unverified.
+const IDEA_UNVERIFIED_CHIP_CLASSES =
+  'idea-unverified-chip inline-flex h-7 w-fit items-center gap-1 ' +
+  'rounded-full bg-cosci-idea-chip-bg px-3 text-[0.8rem] font-medium ' +
+  'text-cosci-idea-chip-text';
 
 const IDEA_RANK_TITLE_CLASSES =
   'idea-rank-title mt-[0.35rem] block min-w-0 overflow-hidden ' +
@@ -540,6 +548,12 @@ function IdeaListItem({
           <span className={IDEA_ELO_CHIP_CLASSES}>
             Elo rating: {hypothesis.elo_rating}
           </span>
+          {hypothesis.unverified ? (
+            <span className={IDEA_UNVERIFIED_CHIP_CLASSES}>
+              <Icon aria-hidden="true" name="warning" />
+              Unverified
+            </span>
+          ) : null}
         </span>
         <TruncatedLabel
           className={IDEA_RANK_TITLE_CLASSES}

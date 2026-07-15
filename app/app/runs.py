@@ -721,9 +721,26 @@ async def stream_events(
 
 @router.get("/{run_id}/hypotheses")
 async def get_hypotheses(run_id: str) -> dict[str, Any]:
-    """Return the run's hypotheses with Elo state and lineage fields."""
+    """Return the run's hypotheses with Elo state, lineage, and verification."""
     _require_run(run_id)
-    return {"hypotheses": store.list_hypotheses(run_id)}
+    from app.report_render import _unverified_hypothesis_ids
+
+    hyps = store.list_hypotheses(run_id)
+    # Flag ideas without an evidence-supported claim so the UI can badge them
+    # "Unverified" (they are ranked and published under the rank-and-publish
+    # policy; only contradicted/unsafe ideas are withheld from the report).
+    # Mock demo runs are illustrative fixtures, not assessed science, so they
+    # are never badged (they carry simulated "insufficient" claim rows that
+    # would otherwise flag every idea).
+    run = store.get_run(run_id)
+    if run is not None and run.provider == "mock":
+        for hyp in hyps:
+            hyp["unverified"] = False
+    else:
+        unverified = _unverified_hypothesis_ids(run_id, None)
+        for hyp in hyps:
+            hyp["unverified"] = str(hyp.get("id")) in unverified
+    return {"hypotheses": hyps}
 
 
 @router.get("/{run_id}/evidence")

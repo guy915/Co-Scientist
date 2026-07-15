@@ -115,8 +115,13 @@ def test_scientist_input_reopens_completed_engine_run(isolated_db: str) -> None:
 
 
 @pytest.mark.asyncio
-async def test_pre_ranking_gate_quarantines_unsupported_claims() -> None:
-    """Only evidence-supported ideas remain eligible for decisive Elo."""
+async def test_pre_ranking_gate_keeps_unsupported_ideas_rankable() -> None:
+    """Unsupported (but non-contradicted) ideas stay rankable.
+
+    Under the rank-and-publish policy the pre-ranking gate only withholds
+    contradicted or unsafe ideas; a merely-unsupported idea stays viable (it is
+    later published and badged "unverified") rather than being quarantined.
+    """
     supported = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery."
     )
@@ -145,9 +150,8 @@ async def test_pre_ranking_gate_quarantines_unsupported_claims() -> None:
 
     assert supported.review_disposition == "viable"
     assert supported.enrichments["claim_gate"]["decision"] == "allow"
-    assert unsupported.review_disposition == "evidence_blocked"
-    assert unsupported.enrichments["claim_gate"]["decision"] == "block"
-    assert "Evidence gate:" in (unsupported.reflection_notes or "")
+    assert unsupported.review_disposition == "viable"
+    assert unsupported.enrichments["claim_gate"]["decision"] == "allow"
 
 
 @pytest.mark.asyncio
@@ -182,8 +186,8 @@ async def test_pre_ranking_gate_labels_novel_proposal_as_speculative() -> None:
 
 
 @pytest.mark.asyncio
-async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
-    """Newly retrieved support can release a quarantined idea for ranking."""
+async def test_pre_ranking_gate_records_support_when_evidence_arrives() -> None:
+    """A rankable idea's claim graduates to supported once evidence arrives."""
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
         literature_grounding=(
@@ -193,7 +197,8 @@ async def test_pre_ranking_gate_releases_idea_after_new_support() -> None:
     hypothesis.review_disposition = "viable"
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
-    assert hypothesis.review_disposition == "evidence_blocked"
+    # No evidence yet, but a merely-unsupported idea still ranks.
+    assert hypothesis.review_disposition == "viable"
 
     state["articles"] = [
         Article(
@@ -213,8 +218,9 @@ async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
 
     The private corpus (``context_enrichment_sources``) must count toward the
     pre-ranking evidence gate, not only retrieved literature, so uploaded
-    supporting documents can release an otherwise-unsupported idea — matching
-    the disclosed private-repository behavior.
+    an uploaded supporting document verifies an otherwise-unsupported idea —
+    matching the disclosed private-repository behavior (the idea ranks
+    throughout; the corpus adds a supports edge).
     """
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
@@ -225,7 +231,7 @@ async def test_pre_ranking_gate_grounds_claims_in_private_corpus() -> None:
     hypothesis.review_disposition = "viable"
     state: dict[str, Any] = {"hypotheses": [hypothesis], "articles": []}
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
-    assert hypothesis.review_disposition == "evidence_blocked"
+    assert hypothesis.review_disposition == "viable"
 
     state["context_enrichment_sources"] = [
         {
@@ -321,7 +327,7 @@ async def test_pre_ranking_gate_reuses_unchanged_semantic_audit(
 
 @pytest.mark.asyncio
 async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
-    """Unsupported rationale cannot bypass the gate behind a supported idea."""
+    """Records each claim's label; an unsupported rationale stays rankable."""
     hypothesis = Hypothesis(
         text="Astrocyte lactate accelerates synaptic ATP recovery.",
         literature_grounding=(
@@ -343,7 +349,7 @@ async def test_pre_ranking_gate_assesses_literature_rationale() -> None:
 
     await engine_tasks._apply_pre_ranking_evidence_gate(state)
 
-    assert hypothesis.review_disposition == "evidence_blocked"
+    assert hypothesis.review_disposition == "viable"
     claims = hypothesis.enrichments["claim_gate"]["claims"]
     assert [claim["label"] for claim in claims] == [
         "supports",

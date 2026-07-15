@@ -55,6 +55,36 @@ def test_goal_report_sections_preserve_claim_grounding() -> None:
     assert "Evidence verification" in buckets["non_viable"][0]["reason"]
 
 
+def test_idea_buckets_explain_a_review_rejected_idea_as_deduplicated() -> None:
+    """A review/dedup-rejected idea gets an accurate reason, not "release gate".
+
+    Under rank-and-publish a merely-unsupported idea is published (badged
+    "Unverified"), so the only non-viable ideas are contradicted, unsafe, or
+    set aside during review/deduplication. A rejected idea with no contradicting
+    edge must be explained by that rejection -- never the legacy "release gate
+    excluded this idea" text.
+    """
+    released = _hypothesis("h1", "Feedback control")
+    deduped = _hypothesis("h2", "Near-duplicate idea")
+    deduped["status"] = "rejected"
+    # A speculative/insufficient edge is not a publication blocker, so it yields
+    # no exclusion reason -- the rejection must be explained by the status.
+    edges = [
+        {
+            "hypothesis_id": "h2",
+            "evidence_id": "ev1",
+            "label": "insufficient",
+            "claim_role": "speculative",
+        }
+    ]
+    buckets = report_render._idea_buckets(
+        [released], [released, deduped], edges
+    )
+    reason = buckets["non_viable"][0]["reason"].lower()
+    assert "review" in reason or "duplicate" in reason
+    assert "release gate" not in reason
+
+
 def test_synthesized_topics_map_only_to_persisted_evidence() -> None:
     """Engine topic references become ids; unsupported topics drop."""
     overview = {

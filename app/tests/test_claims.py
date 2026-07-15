@@ -264,6 +264,13 @@ def test_gate_blocks_contradicted_hypothesis() -> None:
     result = publication_gate(assessments)
     assert result.decision is GateDecision.BLOCK
     assert result.contradicted_claims
+    # The rank-and-publish config (the pre-ranking call site) loosens support
+    # requirements but must still withhold a contradicted idea: contradiction
+    # is a hard block independent of allow_speculative/require_supported_claim.
+    loosened = publication_gate(
+        assessments, allow_speculative=True, require_supported_claim=False
+    )
+    assert loosened.decision is GateDecision.BLOCK
 
 
 def test_gate_blocks_unsupported_unless_speculative_allowed() -> None:
