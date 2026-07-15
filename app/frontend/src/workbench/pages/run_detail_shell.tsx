@@ -9,18 +9,18 @@ import {ReportShareControl} from './report_share_control';
 // Material icon shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank icon).
 const TAB_ICON_NAMES: Record<TabName, IconName> = {
+  details: 'assignment',
+  learning: 'menu_book',
+  overview: 'summarize',
   ideas: 'lightbulb',
-  knowledge: 'menu_book',
-  summary: 'summarize',
-  specifications: 'assignment',
 };
 
 // Human-readable label shown per tab in the nav bar.
 const TAB_LABELS: Record<TabName, string> = {
-  ideas: 'Ideas',
-  knowledge: 'Knowledge Base',
-  summary: 'Summary',
-  specifications: 'Run Specifications',
+  details: 'Goal Details',
+  learning: 'Learning',
+  overview: 'Research Overview',
+  ideas: 'All Ideas',
 };
 
 const REPORT_TITLEBAR_CLASSES =
@@ -151,18 +151,6 @@ function ReportActions({
 }) {
   const actionClasses =
     'rounded-full border border-cosci-border px-3 py-2 text-xs no-underline text-cosci-fg hover:bg-cosci-hover';
-  function openNotebookHandoff() {
-    // The Markdown download is the interoperable handoff; NotebookLM itself
-    // is proprietary and receives the file only if the scientist uploads it.
-    const download = document.createElement('a');
-    download.href = reportMarkdownUrl(runId);
-    download.download = 'co-scientist-goal-report.md';
-    download.hidden = true;
-    document.body.append(download);
-    download.click();
-    download.remove();
-    window.open('https://notebooklm.google.com/', '_blank', 'noopener');
-  }
   return (
     <div className="flex shrink-0 items-center gap-2 max-[720px]:gap-1">
       <button type="button" className={actionClasses} onClick={onOpenAgent}>
@@ -172,18 +160,9 @@ function ReportActions({
         <ReportShareControl runId={runId} className={actionClasses} />
       ) : null}
       {reportReady ? (
-        <>
-          <button
-            type="button"
-            className={`${actionClasses} max-[720px]:hidden`}
-            onClick={openNotebookHandoff}
-          >
-            Open in NotebookLM
-          </button>
-          <a className={actionClasses} href={reportMarkdownUrl(runId)} download>
-            Download
-          </a>
-        </>
+        <a className={actionClasses} href={reportMarkdownUrl(runId)} download>
+          Download
+        </a>
       ) : null}
     </div>
   );

@@ -1,4 +1,4 @@
-import {type ChangeEvent, useEffect, useState} from 'react';
+import {type ChangeEvent, useState} from 'react';
 import {useParams} from 'react-router-dom';
 import {
   type ClaimEvidenceRow,
@@ -54,14 +54,6 @@ export function RunDetail() {
   const activeTab = normalizeTab(tab);
   const {ideasViewKey, onTabChange} = useTabNavigation(id, activeTab);
   const [agentQuestion, setAgentQuestion] = useState<string | null>(null);
-  useEffect(() => {
-    const openIdeaAgent = (event: Event) => {
-      setAgentQuestion((event as CustomEvent<string>).detail || '');
-    };
-    window.addEventListener('cosci-open-run-agent', openIdeaAgent);
-    return () =>
-      window.removeEventListener('cosci-open-run-agent', openIdeaAgent);
-  }, []);
 
   const {
     run,
@@ -256,17 +248,17 @@ function RunDetailTabContent({
 }) {
   return (
     <main className={REPORT_SCROLL_CLASSES} key={activeTab}>
-      {activeTab === 'specifications' && (
+      {activeTab === 'details' && (
         <RunSpecificationsView
           run={run}
           safety={safety}
           onSafetyChanged={onSafetyChanged}
         />
       )}
-      {activeTab === 'knowledge' && (
+      {activeTab === 'learning' && (
         <LearningView goal={runGoal(run)} evidence={evidence} report={report} />
       )}
-      {activeTab === 'summary' && (
+      {activeTab === 'overview' && (
         <ResearchOverviewView
           run={run}
           report={report}

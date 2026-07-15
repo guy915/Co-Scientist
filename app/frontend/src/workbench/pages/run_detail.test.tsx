@@ -119,16 +119,11 @@ beforeEach(() => {
 
 describe('RunDetail', () => {
   it('exposes Goal Report follow-up and export controls', async () => {
-    const anchorClick = vi
-      .spyOn(HTMLAnchorElement.prototype, 'click')
-      .mockImplementation(() => undefined);
-    const openNotebook = vi.spyOn(window, 'open').mockReturnValue(null);
     vi.mocked(runsApi.getReport).mockResolvedValue({
       payload: {},
     } as unknown as runsApi.Report);
     renderAt('/runs/run-1/ideas');
-    expect(await screen.findByText('Ideas')).toBeInTheDocument();
-    expect(screen.getByText('Open in NotebookLM')).toBeInTheDocument();
+    expect(await screen.findByText('All Ideas')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Share'}));
     expect(
       await screen.findByRole('region', {name: 'Share Goal Report'}),
@@ -136,19 +131,6 @@ describe('RunDetail', () => {
     expect(
       screen.getByRole('link', {name: 'Download'}).getAttribute('href'),
     ).toMatch(/^\/api\/runs\/run-1\/report\.md\?client_id=.+/);
-    fireEvent.click(screen.getByRole('button', {name: 'Open in NotebookLM'}));
-    const handoffDownload = anchorClick.mock.instances.at(
-      -1,
-    ) as HTMLAnchorElement;
-    expect(handoffDownload.download).toBe('co-scientist-goal-report.md');
-    expect(handoffDownload.href).toMatch(
-      /\/api\/runs\/run-1\/report\.md\?client_id=.+/,
-    );
-    expect(openNotebook).toHaveBeenCalledWith(
-      'https://notebooklm.google.com/',
-      '_blank',
-      'noopener',
-    );
 
     fireEvent.click(screen.getByRole('button', {name: 'Open Agent'}));
     expect(
@@ -156,8 +138,6 @@ describe('RunDetail', () => {
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', {name: 'Close Agent'}));
     expect(screen.queryByRole('dialog', {name: 'Open Agent'})).toBeNull();
-    anchorClick.mockRestore();
-    openNotebook.mockRestore();
   });
 
   it('queues Agent guidance while research is active', async () => {
@@ -166,7 +146,7 @@ describe('RunDetail', () => {
       status: 'running',
     });
     renderAt('/runs/run-1/specifications');
-    await screen.findByText('Run Specifications');
+    await screen.findByText('Research in progress');
 
     fireEvent.click(screen.getByRole('button', {name: 'Open Agent'}));
     fireEvent.change(
@@ -291,44 +271,44 @@ describe('RunDetail', () => {
 
   it('renders all four report tabs', async () => {
     renderAt('/runs/run-1');
-    await screen.findByText('Ideas');
+    await screen.findByText('All Ideas');
     for (const label of [
-      'Ideas',
-      'Knowledge Base',
-      'Summary',
-      'Run Specifications',
+      'Goal Details',
+      'Learning',
+      'Research Overview',
+      'All Ideas',
     ]) {
       expect(tab(new RegExp(label))).toBeInTheDocument();
     }
   });
 
-  it('marks the Ideas tab active for the base URL', async () => {
+  it('marks the Goal Details tab active for the base URL', async () => {
     renderAt('/runs/run-1');
-    await screen.findByText('Ideas');
-    expect(tab(/^Ideas$/)).toHaveAttribute('aria-current', 'page');
-    expect(tab(/Run Specifications/)).not.toHaveAttribute('aria-current');
+    await screen.findByText('All Ideas');
+    expect(tab(/^Goal Details$/)).toHaveAttribute('aria-current', 'page');
+    expect(tab(/All Ideas/)).not.toHaveAttribute('aria-current');
   });
 
   it('resolves a tab alias in the URL to its canonical tab', async () => {
-    // "specs" aliases to Run Specifications.
+    // "specs" aliases to Goal Details.
     renderAt('/runs/run-1/specs');
     await screen.findByText('Run Specifications');
-    expect(tab(/Run Specifications/)).toHaveAttribute('aria-current', 'page');
+    expect(tab(/Goal Details/)).toHaveAttribute('aria-current', 'page');
   });
 
   it('activates the tab named directly in the URL', async () => {
     renderAt('/runs/run-1/overview');
     await screen.findByText('Summary');
-    expect(tab(/^Summary$/)).toHaveAttribute('aria-current', 'page');
+    expect(tab(/Research Overview/)).toHaveAttribute('aria-current', 'page');
   });
 
   it('navigates when a tab is clicked', async () => {
     renderAt('/runs/run-1');
-    await screen.findByText('Ideas');
-    fireEvent.click(tab(/Knowledge Base/));
+    await screen.findByText('All Ideas');
+    fireEvent.click(tab(/Learning/));
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent(
-        '/runs/run-1/knowledge',
+        '/runs/run-1/learning',
       ),
     );
   });

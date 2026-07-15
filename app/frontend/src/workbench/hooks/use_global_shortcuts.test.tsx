@@ -51,43 +51,41 @@ describe('useGlobalShortcuts', () => {
     expect(navigateMock).not.toHaveBeenCalled();
   });
 
-  it('cycles from Ideas to Knowledge Base on ArrowRight', () => {
+  it('cycles from Goal Details to Learning on ArrowRight', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc'),
     });
     keyDown('ArrowRight');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/knowledge');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/learning');
   });
 
-  it('cycles from Summary to Run Specifications on ArrowRight', () => {
+  it('cycles from overview to ideas on ArrowRight', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc/overview'),
     });
     keyDown('ArrowRight');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith(
-      '/runs/abc/specifications',
-    );
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/ideas');
   });
 
-  it('cycles back to Knowledge Base on ArrowLeft', () => {
+  it('cycles back to Learning on ArrowLeft', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc/overview'),
     });
     keyDown('ArrowLeft');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/knowledge');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/learning');
   });
 
-  it('cycles back to Ideas on ArrowLeft', () => {
+  it('cycles back to Goal Details on ArrowLeft', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc/learning'),
     });
     keyDown('ArrowLeft');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/ideas');
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/details');
   });
 
   it('does not navigate past the last tab on ArrowRight', () => {
     renderHook(() => useGlobalShortcuts(), {
-      wrapper: wrapperAt('/runs/abc/specifications'),
+      wrapper: wrapperAt('/runs/abc/ideas'),
     });
     keyDown('ArrowRight');
     expect(navigateMock).not.toHaveBeenCalled();
@@ -97,17 +95,19 @@ describe('useGlobalShortcuts', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc/hypotheses'),
     });
-    // Ideas is the first canonical tab, so it has no left neighbor.
+    // 'hypotheses' is an alias for 'ideas' (the last tab), so ArrowLeft steps
+    // back to 'overview' rather than mistaking the route for the 'details'
+    // default and stepping forward.
     keyDown('ArrowLeft');
-    expect(navigateMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/overview');
   });
 
-  it('cycles from an Ideas alias to Knowledge Base on ArrowRight', () => {
+  it('does not cycle past ideas from its aliased segment on ArrowRight', () => {
     renderHook(() => useGlobalShortcuts(), {
       wrapper: wrapperAt('/runs/abc/hypotheses'),
     });
     keyDown('ArrowRight');
-    expect(navigateMock).toHaveBeenCalledExactlyOnceWith('/runs/abc/knowledge');
+    expect(navigateMock).not.toHaveBeenCalled();
   });
 
   it('ignores arrow keys when not on a run page', () => {
