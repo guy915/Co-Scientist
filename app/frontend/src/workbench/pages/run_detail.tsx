@@ -316,7 +316,6 @@ function RunSpecificationsView({
       title="Run Specifications"
       className="cosci-run-specifications"
     >
-      <h3 className={REPORT_H3_CLASSES}>{goal}</h3>
       <p>
         <strong>Research Challenge:</strong> {goal}
       </p>
