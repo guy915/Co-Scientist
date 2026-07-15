@@ -138,6 +138,12 @@ def _run_fake_engine(
     """
     fake_module = types.SimpleNamespace(HypothesisGenerator=_FakeGenerator)
     monkeypatch.setitem(sys.modules, "co_scientist", fake_module)
+    # This suite validates the engine event vocabulary, not the safety gate;
+    # keep the app-level semantic screen offline so its real provider call
+    # cannot flake these deterministic assertions.
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "semantic_safety_enabled", False)
 
     run = store.create_run(goal, "standard", "engine", {})
     events = _drain(

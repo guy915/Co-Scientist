@@ -50,6 +50,12 @@ def _install_fake_engine_llm(monkeypatch: pytest.MonkeyPatch) -> None:
     _load_engine_fake().install_fake_llm(monkeypatch)
     # Hard kill switch: never probe the (possibly live) local MCP server.
     monkeypatch.setenv("FORCE_LITERATURE_REVIEW", "0")
+    # These tests exercise engine resume, not the safety gate; keep the
+    # app-level semantic screen offline (it makes a real provider call) so a
+    # rate-limited or degraded assessment cannot spuriously hold the run.
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "semantic_safety_enabled", False)
 
 
 @pytest.fixture(autouse=True)

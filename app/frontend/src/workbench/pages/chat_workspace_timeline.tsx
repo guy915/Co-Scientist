@@ -40,6 +40,7 @@ export interface BuildTimelineItemsArgs {
   draft: SpecStage | null;
   setDraft: Dispatch<SetStateAction<SpecStage | null>>;
   isStarting: boolean;
+  isAwaitingAgent: boolean;
   handleCancelDraftSpec: () => void;
   handleEditPlan: (spec: InferredRunSpec) => void;
   handleRetryDraftSpec: () => void;
@@ -77,6 +78,32 @@ function messageTimelineItems({
       />
     ),
   }));
+}
+
+// A transient "Thinking…" placeholder shown at the tail of the timeline while
+// the (thinking-model) Agent composes its reply to an interview turn; it is
+// timestamped "now" so it sorts after the just-sent user message and clears the
+// moment the response arrives.
+function thinkingTimelineItems({
+  isAwaitingAgent,
+}: Pick<BuildTimelineItemsArgs, 'isAwaitingAgent'>): TimelineItem[] {
+  if (!isAwaitingAgent) return [];
+  return [
+    {
+      id: 'agent-thinking',
+      at: Date.now() / 1000,
+      order: 45,
+      node: (
+        <div
+          className="flex items-center px-1 py-2 text-sm text-th-on-surface-variant"
+          role="status"
+          aria-live="polite"
+        >
+          <span className="animate-pulse">Thinking…</span>
+        </div>
+      ),
+    },
+  ];
 }
 
 // Editable draft run spec awaiting confirmation: focus/tier edits write
@@ -238,6 +265,7 @@ export function buildTimelineItems(
 ): TimelineItem[] {
   const timelineItems: TimelineItem[] = [
     ...messageTimelineItems(args),
+    ...thinkingTimelineItems(args),
     ...draftTimelineItems(args),
     ...confirmedSpecTimelineItems(args),
     ...startedTimelineItems(args),

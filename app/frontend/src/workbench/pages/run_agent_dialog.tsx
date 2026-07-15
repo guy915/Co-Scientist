@@ -96,7 +96,16 @@ export function RunAgentDialog({
           </button>
         </form>
         {error ? <p role="alert">{error}</p> : null}
-        {answer ? (
+        {asking && !steering ? (
+          <section
+            aria-label="Agent answer"
+            className="text-cosci-muted"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="animate-pulse">Thinking…</span>
+          </section>
+        ) : answer ? (
           <section aria-label="Agent answer" className="whitespace-pre-wrap">
             {answer}
           </section>

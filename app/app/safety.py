@@ -20,7 +20,7 @@ from typing import Any
 from co_scientist.safety import POLICY_VERSION, review_content_safety
 
 from app import store
-from app.config import settings
+from app.config import deepseek_non_thinking_extra_body, settings
 from app.store import RunStatus
 
 logger = logging.getLogger(__name__)
@@ -175,6 +175,7 @@ async def screen_contextual(
             response_format={"type": "json_object"},
             temperature=0,
             timeout=20,
+            extra_body=deepseek_non_thinking_extra_body(model),
         )
         content = response.choices[0].message.content or "{}"
         parsed = json.loads(content)

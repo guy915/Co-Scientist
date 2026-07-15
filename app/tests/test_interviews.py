@@ -9,6 +9,7 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from app import interviews
+from app.config import settings
 from app.main import app
 
 
@@ -222,9 +223,7 @@ async def test_interview_downgrades_response_format_for_deepseek(
         return _fake_completion(json.dumps(_response("Which mechanism?")))
 
     monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(
-        interviews.settings, "chat_model_name", "deepseek/deepseek-chat"
-    )
+    monkeypatch.setattr(settings, "chat_model_name", "deepseek/deepseek-chat")
 
     interview = {
         "turns": [{"role": "user", "content": "restore susceptibility"}],
@@ -254,7 +253,7 @@ async def test_interview_keeps_json_schema_for_supporting_model(
         return _fake_completion(json.dumps(_response("ok")))
 
     monkeypatch.setattr(litellm, "acompletion", _fake_acompletion)
-    monkeypatch.setattr(interviews.settings, "chat_model_name", "openai/gpt-4o")
+    monkeypatch.setattr(settings, "chat_model_name", "openai/gpt-4o")
 
     interview = {
         "turns": [{"role": "user", "content": "test"}],

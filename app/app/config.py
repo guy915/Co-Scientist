@@ -8,18 +8,18 @@ class Settings(BaseSettings):
 
     # LLM Configuration
     # model_name: worker model — generate, review, ranking, reflection, evolve,
-    # proximity, literature_review. High-volume, runs many times per iteration.
-    # Use a fast/cheap model.
-    model_name: str = "gemini/gemini-2.5-flash"
-    # supervisor_model_name: strategic model — supervisor (research planning)
-    # and meta_review (final report synthesis). Runs once or twice per
-    # iteration. Use a stronger model. If None, falls back to model_name
-    # (single-model mode for testing / cost saving).
-    supervisor_model_name: str | None = None
-    # chat_model_name: model used for Q&A responses in the Chat tab.
-    # Defaults to model_name if not set. Use a cheaper/faster model for
-    # snappy answers.
-    chat_model_name: str | None = None
+    # proximity, literature_review, claim verification. High-volume, runs many
+    # times per iteration. DeepSeek V4 Flash: the fast, cheap thinking tier.
+    model_name: str = "deepseek/deepseek-v4-flash"
+    # supervisor_model_name: strategic model — supervisor (research planning),
+    # meta_review and research_overview (final report synthesis). Runs once or
+    # twice per iteration. DeepSeek V4 Pro: the stronger thinking model. Falls
+    # back to model_name only if explicitly cleared.
+    supervisor_model_name: str | None = "deepseek/deepseek-v4-pro"
+    # chat_model_name: model for all user-facing communication — the research
+    # interview, Chat-tab Q&A, and session titling. DeepSeek V4 Pro, matching
+    # the supervisor tier. Falls back to model_name only if explicitly cleared.
+    chat_model_name: str | None = "deepseek/deepseek-v4-pro"
     # Bridged into the GEMINI_API_KEY env var at import time in main.py, since
     # LiteLLM and the engine read provider keys from the environment directly.
     gemini_api_key: str = ""
@@ -51,7 +51,9 @@ class Settings(BaseSettings):
     # configured model's provider credential is present. Deterministic hard
     # blocks always run first and cannot be overridden by the model.
     semantic_safety_enabled: bool = True
-    semantic_safety_model: str | None = None
+    # Kept on the worker tier (V4 Flash) rather than falling back to the
+    # supervisor model, so safety screening stays on the "everything else" tier.
+    semantic_safety_model: str | None = "deepseek/deepseek-v4-flash"
 
     # Log record format: "text" (human-readable, default) or "json"
     # (one structured object per line). Both go to stdout; see
@@ -120,3 +122,27 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
+    """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
+
+    DeepSeek V4 (pro/flash) default to thinking mode: the chain of thought is
+    returned as ``reasoning_content`` and the final answer as ``content`` only
+    after the reasoning budget is spent. Under the app's tight per-call token
+    budgets (safety classification, titling, the four-field interview) that can
+    leave ``content`` empty and break structured parsing, so app LLM calls
+    disable thinking for deterministic output — the non-thinking mode of the
+    deprecated ``deepseek-chat``. Non-DeepSeek models get an empty dict.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        ``{"thinking": {"type": "disabled"}}`` for DeepSeek models, else ``{}``.
+    """
+    return (
+        {"thinking": {"type": "disabled"}}
+        if "deepseek" in model_name.lower()
+        else {}
+    )

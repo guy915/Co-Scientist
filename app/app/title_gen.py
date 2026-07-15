@@ -12,7 +12,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.config import settings
+from app.config import deepseek_non_thinking_extra_body, settings
 
 logger = logging.getLogger(__name__)
 
@@ -77,6 +77,9 @@ async def generate_run_title(goal: str) -> str | None:
                 ],
                 temperature=0.3,
                 max_tokens=24,
+                extra_body=deepseek_non_thinking_extra_body(
+                    settings.effective_chat_model
+                ),
             ),
             timeout=_TITLE_TIMEOUT_SECONDS,
         )

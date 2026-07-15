@@ -51,7 +51,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
 
     Example:
         >>> generator = HypothesisGenerator(
-        ...     model_name="gemini/gemini-2.5-flash",
+        ...     model_name="deepseek/deepseek-v4-flash",
         ...     max_iterations=1,
         ...     initial_hypotheses_count=5,
         ...     evolution_max_count=3
@@ -64,7 +64,7 @@ class HypothesisGenerator(McpAvailabilityMixin):
 
     def __init__(
         self,
-        model_name: str = "gemini/gemini-2.5-flash",
+        model_name: str = "deepseek/deepseek-v4-flash",
         supervisor_model_name: str | None = None,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
         initial_hypotheses_count: int = DEFAULT_INITIAL_HYPOTHESES_COUNT,

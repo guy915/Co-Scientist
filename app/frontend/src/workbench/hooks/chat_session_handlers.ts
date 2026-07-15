@@ -28,6 +28,7 @@ async function submitComposerMessage({
   setMessages,
   setInterview,
   setIsStarting,
+  setIsAwaitingAgent,
   setPendingAttachments,
   stageDraftSpec,
 }: {
@@ -41,6 +42,7 @@ async function submitComposerMessage({
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setInterview: (interview: Interview | null) => void;
   setIsStarting: (value: boolean) => void;
+  setIsAwaitingAgent: (value: boolean) => void;
   setPendingAttachments: Dispatch<SetStateAction<File[]>>;
   stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
 }): Promise<void> {
@@ -56,6 +58,7 @@ async function submitComposerMessage({
 
   const sentAt = appendChatMessage(setMessages, 'user', text);
   setIsStarting(true);
+  setIsAwaitingAgent(true);
   try {
     const updated = interview
       ? await addInterviewTurn(interview.id, text)
@@ -95,6 +98,7 @@ async function submitComposerMessage({
     );
   } finally {
     setIsStarting(false);
+    setIsAwaitingAgent(false);
   }
 }
 
@@ -271,6 +275,7 @@ export function toHandlerDeps(
     setConfirmed: lifecycle.setConfirmed,
     setStartedSession: lifecycle.setStartedSession,
     setIsStarting: composer.setIsStarting,
+    setIsAwaitingAgent: composer.setIsAwaitingAgent,
     setMessages: composer.setMessages,
     setError: composer.setError,
     pendingAttachments: composer.pendingAttachments,

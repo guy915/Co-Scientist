@@ -43,6 +43,7 @@ function baseArgs(
     draft: null,
     setDraft: vi.fn(),
     isStarting: false,
+    isAwaitingAgent: false,
     handleCancelDraftSpec: vi.fn(),
     handleEditPlan: vi.fn(),
     handleRetryDraftSpec: vi.fn(),

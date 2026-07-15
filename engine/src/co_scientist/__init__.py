@@ -14,7 +14,7 @@ Example usage:
     >>> from co_scientist import HypothesisGenerator
     >>>
     >>> generator = HypothesisGenerator(
-    ...     model_name="gemini/gemini-2.5-flash",
+    ...     model_name="deepseek/deepseek-v4-flash",
     ...     max_iterations=1,
     ...     initial_hypotheses_count=5,
     ...     evolution_max_count=3

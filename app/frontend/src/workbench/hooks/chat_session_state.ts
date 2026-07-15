@@ -69,6 +69,10 @@ export function useComposerLog(clearSessionState: () => void) {
   // True while the create+start round trip is in flight; the view uses it to
   // disable the Start control against double submission.
   const [isStarting, setIsStarting] = useState(false);
+  // True while awaiting the Agent's reply to an interview turn; drives the
+  // "Thinking…" placeholder in the chat timeline. Kept separate from
+  // isStarting (which also covers the run create+start round trip).
+  const [isAwaitingAgent, setIsAwaitingAgent] = useState(false);
   // Append-only log of user/assistant chat bubbles (spec cards are rendered
   // from the spec state, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -81,6 +85,7 @@ export function useComposerLog(clearSessionState: () => void) {
     clearSessionState();
     setInput('');
     setIsStarting(false);
+    setIsAwaitingAgent(false);
     setMessages([]);
     setError(null);
     setPendingAttachments([]);
@@ -91,6 +96,8 @@ export function useComposerLog(clearSessionState: () => void) {
     setInput,
     isStarting,
     setIsStarting,
+    isAwaitingAgent,
+    setIsAwaitingAgent,
     messages,
     setMessages,
     error,

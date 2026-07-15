@@ -102,6 +102,30 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 
+def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, Any]:
+    """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
+
+    DeepSeek V4 (pro/flash) default to thinking mode: the chain of thought is
+    emitted as ``reasoning_content`` and the final answer as ``content`` only
+    after the reasoning budget is spent. Under the engine's tight per-call token
+    budgets (e.g. short safety/classification calls) that reasoning can consume
+    the whole budget and leave ``content`` empty, which breaks structured/JSON
+    parsing. Callers that need a deterministic, fully-formed direct response
+    therefore disable thinking (equivalent to the non-thinking mode of the
+    deprecated ``deepseek-chat``). Non-DeepSeek models get an empty dict.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        ``{"thinking": {"type": "disabled"}}`` for DeepSeek models, else ``{}``.
+    """
+    lowered = model_name.lower()
+    if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
+        return {"thinking": {"type": "disabled"}}
+    return {}
+
+
 @functools.cache
 def _supports_json_schema_response_format(model_name: str) -> bool:
     """Checks whether a model accepts the json_schema response format.
@@ -235,6 +259,10 @@ def _build_completion_args(
     _apply_response_format(
         completion_args, prompt, model_name, force_json, json_schema
     )
+
+    thinking = deepseek_non_thinking_extra_body(model_name)
+    if thinking:
+        completion_args["extra_body"] = thinking
 
     return completion_args
 

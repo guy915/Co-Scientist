@@ -68,7 +68,7 @@ def _stub_mcp(monkeypatch: pytest.MonkeyPatch, *, available: bool) -> None:
 def test_defaults_match_constants() -> None:
     """Unspecified counts fall back to the module-level defaults."""
     gen = HypothesisGenerator()
-    assert gen.model_name == "gemini/gemini-2.5-flash"
+    assert gen.model_name == "deepseek/deepseek-v4-flash"
     assert gen.max_iterations == DEFAULT_MAX_ITERATIONS
     assert gen.initial_hypotheses_count == DEFAULT_INITIAL_HYPOTHESES_COUNT
     assert gen.evolution_max_count == DEFAULT_EVOLUTION_MAX_COUNT
