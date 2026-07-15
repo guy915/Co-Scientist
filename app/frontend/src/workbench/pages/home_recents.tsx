@@ -178,6 +178,10 @@ function LoadMoreRunsItem({
         onClick={onToggleShowAll}
       >
         {showAll ? 'Show less' : 'Show more'}
+        <Icon
+          aria-hidden="true"
+          name={showAll ? 'expand_less' : 'expand_more'}
+        />
       </button>
     </li>
   );

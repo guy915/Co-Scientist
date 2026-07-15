@@ -280,12 +280,13 @@ function useRunDerivedState(run: RunWithSummary | null, terminal: boolean) {
     if (toastMessage) setToast(toastMessage);
   }, [terminal, run]);
 
-  // Full display title (the run's goal). Shared by the shell-header dispatch
-  // and the titlebar; each host truncates to its own available width via
-  // TruncatedLabel rather than being pre-shortened.
+  // Full display title: the model-generated run title when present (the same
+  // value shown on the recents cards and sidebar chats), else the research
+  // goal. Shared by the shell-header dispatch and the titlebar; each host
+  // truncates to its own available width via TruncatedLabel.
   const title = useMemo(() => {
     if (!run) return 'Goal report';
-    return runGoal(run);
+    return run.title?.trim() || runGoal(run);
   }, [run]);
 
   useEffect(() => {

@@ -264,19 +264,18 @@
 }
 
 .ucs-header-title {
-  position: absolute;
-  left: 50%;
-  /* Grow with the content up to a viewport-scaled cap (kept clear of the
-     logo and Logs control), so the title uses the available space and
-     only word-truncates when it genuinely overflows — not at a fixed
-     char count. */
-  width: max-content;
+  /* Sits immediately after the Co-Scientist lockup (margin-right:auto packs
+     it left and absorbs the remaining row space, so the space-between bar
+     keeps the brand + title grouped at the start). Caps its width at a
+     viewport-scaled bound so long titles word-truncate rather than crowd the
+     right-side Logs control. */
+  min-width: 0;
   max-width: min(52rem, 44vw);
+  margin-right: auto;
   overflow: hidden;
   color: var(--cosci-text);
   font-size: 1rem;
   font-weight: 500;
-  transform: translateX(-50%);
 }
 
 .ucs-header-actions {
@@ -747,6 +746,27 @@
   gap: 0.35rem;
 }
 
+/* Desktop: the chat list scrolls within its own region instead of spilling
+   past .ucs-side-content's max-height and pushing the whole page to scroll
+   once there are more than a handful of chats. The .ucs-app-shell prefix
+   outranks tooltips.css, which forces overflow:visible on these selectors at
+   single-class specificity (for right-placed tooltip escape); the trade is
+   that chat-link tooltips clip once the list actually scrolls. Mirrors the
+   max-width:700px drawer rules further down. */
+@media (min-width: 701px) {
+  .ucs-app-shell .ucs-side-content {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .ucs-app-shell .ucs-chat-list {
+    min-height: 0;
+    max-height: 19rem;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+}
+
 .ucs-chat-link {
   position: relative;
   display: flex;
@@ -805,6 +825,9 @@
 
 .ucs-chat-more {
   justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   border: 0;
   border-radius: 9999px;
   background: transparent;
@@ -812,6 +835,7 @@
   font: inherit;
   font-size: 0.84rem;
   padding: 0.48rem 0.75rem;
+  cursor: pointer;
 }
 
 .ucs-chat-more:hover,

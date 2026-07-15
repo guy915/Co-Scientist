@@ -242,6 +242,10 @@ function ChatHistorySidebar({
             onClick={onToggleShowAllChats}
           >
             {showAllChats ? 'Show less' : 'Show more'}
+            <Icon
+              aria-hidden="true"
+              name={showAllChats ? 'expand_less' : 'expand_more'}
+            />
           </button>
         )}
       </div>

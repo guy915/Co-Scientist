@@ -603,6 +603,9 @@
 
 .reference-load-more {
   justify-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
   border: 0;
   background: transparent;
   color: var(--cosci-idea-ref-blue);
@@ -610,6 +613,7 @@
   font-size: 0.9rem;
   font-weight: 500;
   padding: 0.25rem 0.5rem;
+  cursor: pointer;
 }
 
 .reference-load-more:hover,
