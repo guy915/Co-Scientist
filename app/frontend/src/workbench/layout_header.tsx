@@ -82,7 +82,6 @@ export function ShellHeader({
   onTogglePanel,
   activeRunId,
   logsControlRef,
-  showDeveloperControls,
 }: {
   navOpen: boolean;
   toggleNav: () => void;
@@ -92,7 +91,6 @@ export function ShellHeader({
   onTogglePanel: (panel: ShellPanel) => void;
   activeRunId?: string;
   logsControlRef: RefObject<HTMLDivElement | null>;
-  showDeveloperControls: boolean;
 }) {
   return (
     <header className={HEADER_CLASSES}>
@@ -107,19 +105,15 @@ export function ShellHeader({
         )}
       </div>
       <div ref={logsControlRef} className={HEADER_ACTIONS_CLASSES}>
-        {showDeveloperControls && (
-          <>
-            <SystemStatusIndicator />
-            <DiagnosticsControl
-              open={activePanel === 'logs'}
-              onToggle={() => onTogglePanel('logs')}
-              runId={activeRunId}
-              renderPopover={(children, className) => (
-                <ShellPopover className={className}>{children}</ShellPopover>
-              )}
-            />
-          </>
-        )}
+        <SystemStatusIndicator />
+        <DiagnosticsControl
+          open={activePanel === 'logs'}
+          onToggle={() => onTogglePanel('logs')}
+          runId={activeRunId}
+          renderPopover={(children, className) => (
+            <ShellPopover className={className}>{children}</ShellPopover>
+          )}
+        />
       </div>
     </header>
   );

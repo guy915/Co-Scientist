@@ -9,7 +9,6 @@ import {
   useState,
 } from 'react';
 import {applyMd3Theme} from '../lib/theme';
-import {DEVELOPER_MODE} from '../lib/product_mode';
 
 // The user's stored preference: 'system' defers to the OS color scheme.
 type Mode = 'system' | 'light' | 'dark';
@@ -107,30 +106,22 @@ function useApplyTheme(mode: Mode, resolvedMode: ResolvedMode): void {
 export function ThemeProvider({children}: {children: ReactNode}) {
   // Preference is initialized from localStorage so a reload keeps the user's
   // choice; lazy initializer so storage is read once, not every render.
-  const [mode, setModeState] = useState<Mode>(() =>
-    DEVELOPER_MODE ? readStoredMode() : 'light',
-  );
+  const [mode, setModeState] = useState<Mode>(readStoredMode);
   // The OS-level color scheme, tracked separately so 'system' mode can
   // resolve against it live.
   const systemMode = useSystemColorScheme();
-  const resolvedMode = DEVELOPER_MODE
-    ? mode === 'system'
-      ? systemMode
-      : mode
-    : 'light';
+  const resolvedMode = mode === 'system' ? systemMode : mode;
 
   useApplyTheme(mode, resolvedMode);
 
   const setMode = useCallback((m: Mode) => {
-    if (DEVELOPER_MODE) setModeState(m);
+    setModeState(m);
   }, []);
 
   // Toggle resolves to an explicit light/dark choice (from whatever is
   // currently stored), intentionally leaving 'system' mode.
   const toggle = useCallback(() => {
-    if (DEVELOPER_MODE) {
-      setModeState(current => (current === 'dark' ? 'light' : 'dark'));
-    }
+    setModeState(current => (current === 'dark' ? 'light' : 'dark'));
   }, []);
 
   // Memoized so consumers of the context don't re-render unless the mode

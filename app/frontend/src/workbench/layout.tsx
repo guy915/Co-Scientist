@@ -10,7 +10,6 @@ import {ShellHeader} from './layout_header';
 import {useChatHistory, useHeaderTitle, useLayoutChrome} from './layout_hooks';
 import {NavRail} from './layout_nav_rail';
 import {IntendedUseNotice} from './components/intended_use_notice';
-import {DEVELOPER_MODE} from '@/lib/product_mode';
 
 // The constants below pair a CSS class for the "open" shell state with one
 // for the "collapsed"/default state; each pair is selected at render time by
@@ -168,7 +167,6 @@ export function Layout({children}: {children: ReactNode}) {
         onTogglePanel={togglePanel}
         onOpenSettings={openSettings}
         settingsControlRef={settingsControlRef}
-        showDeveloperControls={DEVELOPER_MODE}
       />
       <DrawerScrim navOpen={navOpen} onDismiss={() => setNavOpen(false)} />
       <section className={workspaceClasses}>
@@ -181,14 +179,13 @@ export function Layout({children}: {children: ReactNode}) {
           onTogglePanel={togglePanel}
           activeRunId={activeRunId}
           logsControlRef={logsControlRef}
-          showDeveloperControls={DEVELOPER_MODE}
         />
         <main className={pageClasses}>
           {children}
           <IntendedUseNotice />
         </main>
       </section>
-      {DEVELOPER_MODE && settingsSection && (
+      {settingsSection && (
         <SettingsDialog
           section={settingsSection}
           onSectionChange={setSettingsSection}

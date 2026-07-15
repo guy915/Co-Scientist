@@ -149,7 +149,7 @@ describe('listRuns', () => {
 });
 
 describe('loadRunHistory', () => {
-  it('does not request or expose demonstration runs in faithful mode', async () => {
+  it('does not request or expose demonstration runs when demos are excluded', async () => {
     fetchMock().mockResolvedValueOnce(
       jsonResponse({
         runs: [
@@ -166,7 +166,7 @@ describe('loadRunHistory', () => {
     expect(result).toEqual([{id: 'owned', provider: 'engine', updated_at: 2}]);
   });
 
-  it('merges demonstration runs only when developer mode requests them', async () => {
+  it('merges demonstration runs when demos are included', async () => {
     fetchMock()
       .mockResolvedValueOnce(
         jsonResponse({runs: [{id: 'owned', updated_at: 2}]}),
