@@ -38,22 +38,24 @@ Individual nodes can be exercised in isolation via the scripts in `dev/` (`run_s
 
 **Architecture**
 
-`HypothesisGenerator` (`src/co_scientist/generator/`) is the public entry point. It compiles a LangGraph `StateGraph` whose nodes live in `src/co_scientist/nodes/`:
+`HypothesisGenerator` (`src/co_scientist/generator/`) is the public entry point. It compiles a LangGraph `StateGraph` whose nodes are implemented in the six agent packages under `src/co_scientist/agents/` (Generation, Reflection, Ranking, Evolution, Proximity, Meta-review, plus Supervisor and a cross-cutting Safety screen). `src/co_scientist/nodes/` retains thin re-export shims at the old import paths, and the graph still registers each node under its original key string (so durable-run resume is unaffected). `co_scientist.agents.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
 
 | Node | File |
 |---|---|
-| Supervisor (planning) | `nodes/supervisor.py` |
-| Literature Review (MCP-gated) | `nodes/literature_review/` (node, helpers, search/retrieval/article support) |
-| Generate | `nodes/generate.py`, `nodes/generation/` (incl. `coordinator.py`, `debate.py`, `citations.py`, `literature_tools/`) |
-| Reflection | `nodes/reflection.py`, `nodes/reflection_helpers.py` |
-| Review | `nodes/review.py` |
-| Ranking | `nodes/ranking.py` |
-| Tournament (Elo pairwise, inside ranking flow) | `nodes/ranking.py` |
-| Meta-Review | `nodes/meta_review.py` |
-| Deep Verification (probing questions) | `nodes/deep_verification.py` |
-| Research Overview (synthesis/roadmap) | `nodes/research_overview.py` |
-| Evolve | `nodes/evolve.py` |
-| Proximity (dedup) | `nodes/proximity.py` |
+| Supervisor (planning) | `agents/supervisor/supervisor.py` |
+| Orchestrator (per-cycle routing) | `agents/supervisor/orchestrator.py` |
+| Literature Review (MCP-gated) | `agents/generation/literature_review/` (node, helpers, search/retrieval/article support) |
+| Generate | `agents/generation/generate.py` (+ `coordinator.py`, `debate.py`, `citations.py`, `literature_tools/`) |
+| Reflection | `agents/reflection/reflection.py`, `reflection_helpers.py` |
+| Review | `agents/reflection/review.py` |
+| Comprehensive Reflection | `agents/reflection/comprehensive_reflection.py` |
+| Deep Verification (probing questions) | `agents/reflection/deep_verification.py` |
+| Ranking + Tournament (Elo pairwise) | `agents/ranking/` (`ranking.py`, `ranking_elo.py`, `ranking_matchmaking.py`, ...) |
+| Meta-Review | `agents/meta_review/meta_review.py` |
+| Research Overview (synthesis/roadmap) | `agents/meta_review/research_overview.py` |
+| Evolve | `agents/evolution/evolve.py` |
+| Proximity (dedup) | `agents/proximity/proximity.py` |
+| Safety screen (cross-cutting) | `agents/safety/safety_screen.py` |
 
 Shared state flows through `WorkflowState` in `state.py`; note the custom `deduplicate_hypotheses` reducer that auto-dedupes on every state update. Prompts are markdown files in `src/co_scientist/prompts/templates/` (also bundled via `package-data`), loaded by the `prompts/` package. YAML tool/domain configs live in `src/co_scientist/config/` with examples per domain (biomed/cyber/etc.).
 

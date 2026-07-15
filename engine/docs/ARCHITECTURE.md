@@ -4,7 +4,7 @@ Co-Scientist mirrors Google's AI Co-Scientist: a coalition of **six specialized 
 
 ## The Six Agents
 
-Each agent is exposed as a module under [`co_scientist.agents`](../src/co_scientist/agents/__init__.py), the canonical, Google-aligned view of the system. Every agent's work is decomposed into one or more durable LangGraph **nodes** so the engine can checkpoint and resume at fine granularity. `co_scientist.agents.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
+Each agent is a package under [`co_scientist.agents`](../src/co_scientist/agents/__init__.py) that holds that agent's node implementations — the canonical, Google-aligned structure of the system. Every agent's work is decomposed into one or more durable LangGraph **nodes** so the engine can checkpoint and resume at fine granularity. `co_scientist.agents.NODE_TO_AGENT` is the source-of-truth node→agent mapping:
 
 | Agent | Role (Google) | Durable graph nodes |
 |---|---|---|
@@ -17,7 +17,7 @@ Each agent is exposed as a module under [`co_scientist.agents`](../src/co_scient
 | **Meta-review** | Synthesizes findings into the research overview | `meta_review`, `research_overview` |
 | _Safety_ (cross-cutting) | Screens goal + hypotheses at intake / per-idea / final | `safety_screen` (+ the app viewer's intake and final gates) |
 
-**Why more than six nodes?** The agents are the conceptual unit; the nodes are the durable-execution unit. Decomposing an agent (e.g. Reflection → `review` → `comprehensive_reflection` → `deep_verification`) lets an interrupted run resume mid-agent instead of re-running expensive LLM work. Those node key strings are persisted verbatim — as `engine.node.<key>` durable tasks, in checkpoint `resume_successor`/`next_task`, and inside idempotency keys — so collapsing them to six runtime keys would orphan any in-flight run. That runtime consolidation is therefore left as a separate, migration-guarded change; the `agents` package gives the six-agent view today without that risk.
+**Why more than six nodes?** The agents are the conceptual unit; the nodes are the durable-execution unit. Decomposing an agent (e.g. Reflection → `review` → `comprehensive_reflection` → `deep_verification`) lets an interrupted run resume mid-agent instead of re-running expensive LLM work. Those node key strings are persisted verbatim — as `engine.node.<key>` durable tasks, in checkpoint `resume_successor`/`next_task`, and inside idempotency keys — so collapsing them to six runtime keys would orphan any in-flight run. The node implementations already live in the six-agent `agents` packages (with thin `co_scientist.nodes` re-export shims at the old import paths); only that runtime-key collapse is deferred, as a separate migration-guarded change.
 
 ## Workflow Graph
 

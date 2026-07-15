@@ -21,11 +21,12 @@ Why the agents map to more than six graph nodes
 Each agent's work is decomposed into one or more durable LangGraph nodes so the
 engine can checkpoint and resume at fine granularity (e.g. the Reflection agent
 runs as the ``review`` -> ``comprehensive_reflection`` -> ``deep_verification``
-sequence, each independently resumable). Those node **key strings** are
-persisted in the durable task queue and checkpoints, so they are deliberately
-preserved; this is an organizing layer over them, not a rename. The full
-node->agent mapping is ``NODE_TO_AGENT`` below, and the rationale lives in
-``engine/docs/ARCHITECTURE.md``.
+sequence, each independently resumable). The node implementations live in these
+agent packages; the **key strings** each node registers under are persisted in
+the durable task queue and checkpoints, so they are deliberately preserved (this
+was a file move, not a key rename). ``co_scientist.nodes`` keeps thin re-export
+shims at the old import paths. The full node->agent mapping is ``NODE_TO_AGENT``
+below, and the rationale lives in ``engine/docs/ARCHITECTURE.md``.
 """
 
 from co_scientist.agents import (
