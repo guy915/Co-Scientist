@@ -12,6 +12,7 @@ from typing import Any
 
 from app import store
 from app.config import settings
+from app.elo import INITIAL_ELO
 from app.engine_adapter.drain import _persist_final_state
 from app.engine_adapter.opts import _build_engine_opts, _build_generator
 from app.engine_adapter.provider import _import_hypothesis_generator
@@ -114,7 +115,7 @@ def _merge_scientist_inputs(
             origin=HypothesisOrigin.SCIENTIST_MANUAL,
             explanation=str(row.get("title") or "") or None,
         )
-        hypothesis.elo_rating = int(row.get("elo_rating") or 1200)
+        hypothesis.elo_rating = int(row.get("elo_rating") or INITIAL_ELO)
         hypotheses.append(hypothesis)
         by_id[hypothesis_id] = hypothesis
 
