@@ -23,6 +23,7 @@ function statusFixture(overrides: Partial<SystemStatus> = {}): SystemStatus {
     engine_importable: true,
     model_name: 'test/model',
     supervisor_model_name: 'test/model',
+    connectors: [],
     ...overrides,
   };
 }

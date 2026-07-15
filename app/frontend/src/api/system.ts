@@ -9,6 +9,12 @@ export interface ProbeStatus {
   error: string | null;
 }
 
+/** One data-source connector shown in the composer's connectors menu. */
+export interface Connector {
+  id: string;
+  display: string;
+}
+
 /** The `/status` response: availability probes plus provider diagnostics. */
 export interface SystemStatus {
   mcp_available: boolean;
@@ -22,6 +28,7 @@ export interface SystemStatus {
   engine_importable: boolean;
   model_name: string;
   supervisor_model_name: string;
+  connectors: Connector[];
 }
 
 /**

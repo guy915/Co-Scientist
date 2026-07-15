@@ -31,6 +31,9 @@ from app.engine_adapter.opts import _build_engine_opts as _build_engine_opts
 from app.engine_adapter.provider import select_provider as select_provider
 from app.engine_adapter.provider import system_status as system_status
 from app.engine_adapter.tools import (
+    connectors_report as connectors_report,
+)
+from app.engine_adapter.tools import (
     tools_config_report as tools_config_report,
 )
 from app.engine_adapter.tools import (

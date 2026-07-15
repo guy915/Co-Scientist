@@ -19,6 +19,44 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+# User-facing data-source connectors, matched (case-insensitively) against the
+# enabled tool ids so a configured tools YAML surfaces its sources in the
+# composer's connectors menu. Add an entry here when a new connector's tools are
+# wired up so it appears in the menu automatically.
+_KNOWN_CONNECTORS: tuple[tuple[str, str], ...] = (
+    ("pubmed", "PubMed"),
+    ("indra", "INDRA"),
+)
+
+
+def connectors_report(
+    *, literature_available: bool, enabled_tools: list[str] | None
+) -> list[dict[str, str]]:
+    """Derive the user-facing data-source connectors for the composer menu.
+
+    PubMed is the literature base and is listed whenever the literature stack
+    is available; any other known connector is listed when the configured tools
+    YAML enables a matching tool. Falls back to PubMed so the menu is never
+    empty.
+
+    Args:
+        literature_available: Whether the MCP + PubMed literature stack is up.
+        enabled_tools: Enabled tool ids from a readable tools config, or None.
+
+    Returns:
+        Ordered connectors, each ``{"id": ..., "display": ...}``.
+    """
+    tool_blob = " ".join(enabled_tools or []).lower()
+    connectors: list[dict[str, str]] = []
+    for key, display in _KNOWN_CONNECTORS:
+        matched = key in tool_blob or (key == "pubmed" and literature_available)
+        if matched:
+            connectors.append({"id": key, "display": display})
+    if not connectors:
+        connectors.append({"id": "pubmed", "display": "PubMed"})
+    return connectors
+
+
 def _is_url(value: str) -> bool:
     """True when a tools_config value is an HTTP(S) URL, not a local path.
 

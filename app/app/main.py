@@ -275,6 +275,13 @@ class ProbeStatus(BaseModel):
     )
 
 
+class Connector(BaseModel):
+    """One data-source connector shown in the composer's connectors menu."""
+
+    id: str = Field(..., description="stable connector id")
+    display: str = Field(..., description="human-readable connector name")
+
+
 class SystemStatusResponse(BaseModel):
     """System availability status response."""
 
@@ -330,6 +337,13 @@ class SystemStatusResponse(BaseModel):
         description=(
             "enabled tool ids for a readable local tools_config, else null "
             "(unset/URL/engine-default)"
+        ),
+    )
+    connectors: list[Connector] = Field(
+        default_factory=list,
+        description=(
+            "user-facing data-source connectors derived from availability and "
+            "the configured tools YAML, for the composer's connectors menu"
         ),
     )
 
@@ -409,6 +423,12 @@ async def get_system_status() -> dict[str, Any]:
             "mcp": {"state": mcp.state, "error": mcp.error},
             "pubmed": {"state": pubmed.state, "error": pubmed.error},
         },
+        # User-facing data-source connectors for the composer menu, derived
+        # from literature availability plus the configured tools YAML.
+        "connectors": engine_adapter.connectors_report(
+            literature_available=mcp.available and pubmed.available,
+            enabled_tools=adapter_status.get("enabled_tools"),
+        ),
         # provider/mock_mode/model_name/etc. from engine_adapter.system_status
         **adapter_status,
     }

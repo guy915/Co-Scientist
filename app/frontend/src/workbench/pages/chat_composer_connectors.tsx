@@ -5,7 +5,9 @@ import {
   useRef,
   useState,
 } from 'react';
+import {type Connector} from '@/api/system';
 import {Icon, type IconName} from '@/components/icon';
+import {useSystemStatus} from '../hooks/use_system_status';
 import {tooltipClassNames} from '../tooltip';
 import {
   COMPOSER_FILE_INPUT_CLASSES,
@@ -21,7 +23,9 @@ import {
   CONNECTORS_MENU_ROW_CLASSES,
 } from './chat_home_classes';
 
-const COMPOSER_CONNECTORS = ['PubMed'];
+// Shown until /status responds (and if it reports none), so the menu is never
+// empty.
+const DEFAULT_CONNECTORS: Connector[] = [{id: 'pubmed', display: 'PubMed'}];
 
 /**
  * Owns the connectors-menu open flag and the outside-mousedown listener that
@@ -149,8 +153,11 @@ function SourceToolbarButton({
   );
 }
 
-// Connectors menu: currently a single PubMed toggle row, closed by the
-// outside-mousedown effect in the parent composer.
+// Connectors menu: the available data sources come from the backend (/status),
+// derived from literature availability plus the configured tools YAML, so newly
+// configured connectors appear here automatically. They share the single
+// literature-retrieval toggle, since the engine enables its data sources as one
+// stack. Closed by the outside-mousedown effect in the parent composer.
 function ConnectorsMenu({
   pubmedEnabled,
   onPubmedEnabledChange,
@@ -158,6 +165,10 @@ function ConnectorsMenu({
   pubmedEnabled: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
 }) {
+  const {status} = useSystemStatus();
+  const connectors = status?.connectors?.length
+    ? status.connectors
+    : DEFAULT_CONNECTORS;
   return (
     <div
       className={CONNECTORS_MENU_CLASSES}
@@ -167,13 +178,13 @@ function ConnectorsMenu({
       <div className={CONNECTORS_MENU_HEADER_CLASSES}>
         <span>Connectors</span>
       </div>
-      {COMPOSER_CONNECTORS.map(name => (
+      {connectors.map(connector => (
         <button
           type="button"
           role="menuitemcheckbox"
           aria-checked={pubmedEnabled}
           className={CONNECTORS_MENU_ROW_CLASSES}
-          key={name}
+          key={connector.id}
           onClick={() => onPubmedEnabledChange?.(!pubmedEnabled)}
         >
           <Icon
@@ -181,7 +192,7 @@ function ConnectorsMenu({
             aria-hidden="true"
             name="article"
           />
-          <span>{name}</span>
+          <span>{connector.display}</span>
           <span
             className={[
               CONNECTOR_TOGGLE_BASE_CLASSES,

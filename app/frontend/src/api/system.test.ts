@@ -17,6 +17,7 @@ const STATUS: SystemStatus = {
   engine_importable: true,
   model_name: 'gemini/gemini-2.5-flash',
   supervisor_model_name: 'gemini/gemini-2.5-flash',
+  connectors: [{id: 'pubmed', display: 'PubMed'}],
 };
 
 function jsonResponse(body: unknown): Response {
