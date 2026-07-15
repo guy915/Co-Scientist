@@ -13,11 +13,13 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.generation import coordinator
+from co_scientist.agents.generation.coordinator import (
+    generate_hypotheses,
+)
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
 from co_scientist.exceptions import GenerationError
 from co_scientist.models import GenerationMethod, Hypothesis
-from co_scientist.nodes.generation import coordinator
-from co_scientist.nodes.generation.coordinator import generate_hypotheses
 from tests._state import make_hypothesis, make_state
 
 

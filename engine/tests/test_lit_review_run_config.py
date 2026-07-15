@@ -10,13 +10,13 @@ with ``tool_registry=None``.
 
 from typing import cast
 
+from co_scientist.agents.generation.literature_review import run_config
 from co_scientist.config import (
     SearchSourceConfig,
     ToolConfig,
     ToolRegistry,
     WorkflowConfig,
 )
-from co_scientist.nodes.literature_review import run_config
 from tests._state import make_state
 
 

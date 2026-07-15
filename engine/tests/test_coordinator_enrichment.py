@@ -13,13 +13,13 @@ from typing import Any
 
 import pytest
 
-from co_scientist.config.schema import EnrichmentConfig, ToolConfig
-from co_scientist.nodes.generation import coordinator_enrichment
-from co_scientist.nodes.generation.coordinator_enrichment import (
+from co_scientist.agents.generation import coordinator_enrichment
+from co_scientist.agents.generation.coordinator_enrichment import (
     _enrich_hypotheses,
     _enrich_one_hypothesis,
     _run_one_enrichment,
 )
+from co_scientist.config.schema import EnrichmentConfig, ToolConfig
 from tests._state import make_hypothesis, make_state
 
 # -----------------------------------------------------------------------------

@@ -11,9 +11,9 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.ranking import ranking
+from co_scientist.agents.ranking.ranking import ranking_node
 from co_scientist.constants import INITIAL_ELO_RATING
-from co_scientist.nodes import ranking
-from co_scientist.nodes.ranking import ranking_node
 from tests._state import make_hypothesis, make_state
 
 

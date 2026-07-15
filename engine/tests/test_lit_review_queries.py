@@ -17,10 +17,12 @@ from typing import Any, cast
 
 import pytest
 
+from co_scientist.agents.generation.literature_review import queries
+from co_scientist.agents.generation.literature_review.helpers import (
+    SearchConfig,
+)
 from co_scientist.config import ToolConfig, ToolRegistry, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.nodes.literature_review import queries
-from co_scientist.nodes.literature_review.helpers import SearchConfig
 from tests._state import make_state
 
 _DEFAULT_SEARCH_CONFIG = SearchConfig(

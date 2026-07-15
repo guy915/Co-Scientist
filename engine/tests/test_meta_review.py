@@ -11,13 +11,13 @@ from typing import Any
 
 import pytest
 
-from co_scientist.models import HypothesisReview
-from co_scientist.nodes import meta_review
-from co_scientist.nodes.meta_review import (
+from co_scientist.agents.meta_review import meta_review
+from co_scientist.agents.meta_review.meta_review import (
     _collect_feedback_records,
     _collect_review_summaries,
     meta_review_node,
 )
+from co_scientist.models import HypothesisReview
 from tests._state import make_hypothesis, make_state
 
 

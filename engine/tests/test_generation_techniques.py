@@ -4,12 +4,12 @@ from typing import Any
 
 import pytest
 
-from co_scientist.models import GenerationMethod
-from co_scientist.nodes.generation.techniques import (
+from co_scientist.agents.generation.techniques import (
     GenerationTechnique,
     method_for,
     prompt_name_for,
 )
+from co_scientist.models import GenerationMethod
 from co_scientist.prompts.loading import load_prompt, load_prompt_with_schema
 from tests._state import make_state
 
@@ -80,8 +80,12 @@ async def test_assumptions_grounds_in_supplied_literature(
     must resolve against those sources (previously the technique hardcoded an
     empty ``domain_context`` and an empty source map, so it could never ground).
     """
-    from co_scientist.nodes.generation import assumptions as assumptions_mod
-    from co_scientist.nodes.generation.citations import ReferenceIndex
+    from co_scientist.agents.generation import (
+        assumptions as assumptions_mod,
+    )
+    from co_scientist.agents.generation.citations import (
+        ReferenceIndex,
+    )
 
     captured: dict[str, str] = {}
 

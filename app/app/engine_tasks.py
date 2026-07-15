@@ -671,7 +671,7 @@ def _enqueue_verification_fanout(
     db_path: str | None,
 ) -> dict[str, Any]:
     """Materialize one leasable deep-verification task per idea."""
-    from co_scientist.nodes.deep_verification import (
+    from co_scientist.agents.reflection.deep_verification import (
         _select_hypotheses_to_verify,
     )
 
@@ -730,11 +730,11 @@ async def _enqueue_generation_fanout(
     db_path: str | None,
 ) -> dict[str, Any]:
     """Commit generation planning and enqueue each enabled strategy."""
+    from co_scientist.agents.generation.coordinator import _prepare_generation
     from co_scientist.checkpoint import (
         CHECKPOINT_VERSION,
         serialize_workflow_state,
     )
-    from co_scientist.nodes.generation.coordinator import _prepare_generation
 
     counts, reference_index, literature = await _prepare_generation(state)
     strategy_counts = {
@@ -897,8 +897,8 @@ async def execute_review_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Review one hypothesis without mutating the shared workflow checkpoint."""
+    from co_scientist.agents.reflection.review import review_single_hypothesis
     from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.nodes.review import review_single_hypothesis
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
@@ -940,13 +940,13 @@ async def execute_review_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit successful review results and preserve isolated failures."""
+    from co_scientist.agents.reflection.review import _apply_initial_review_gate
     from co_scientist.checkpoint import restore_workflow_state
     from co_scientist.models import (
         HypothesisReview,
         create_metrics_update,
         phase_message,
     )
-    from co_scientist.nodes.review import _apply_initial_review_gate
     from co_scientist.task_runtime import apply_task_update
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
@@ -1019,11 +1019,11 @@ async def execute_verification_item(
     """Deep-verify one hypothesis without mutating the workflow checkpoint."""
     import asyncio
 
-    from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.nodes.deep_verification import (
+    from co_scientist.agents.reflection.deep_verification import (
         _verification_evidence_context,
         _verify_one,
     )
+    from co_scientist.checkpoint import restore_workflow_state
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
@@ -1064,15 +1064,15 @@ async def execute_generation_strategy(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Execute one generation strategy against a read-only plan checkpoint."""
-    from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.nodes.generation.assumptions import (
+    from co_scientist.agents.generation.assumptions import (
         generate_with_assumptions,
     )
-    from co_scientist.nodes.generation.citations import ReferenceIndex
-    from co_scientist.nodes.generation.debate import generate_with_debate
-    from co_scientist.nodes.generation.literature_tools import (
+    from co_scientist.agents.generation.citations import ReferenceIndex
+    from co_scientist.agents.generation.debate import generate_with_debate
+    from co_scientist.agents.generation.literature_tools import (
         generate_with_tools,
     )
+    from co_scientist.checkpoint import restore_workflow_state
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
@@ -1124,15 +1124,15 @@ async def execute_generation_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Combine independent generation strategies into one hypothesis append."""
-    from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.models import Hypothesis, create_metrics_update
-    from co_scientist.nodes.generation.coordinator import _finalize_generation
-    from co_scientist.nodes.generation.coordinator_results import (
+    from co_scientist.agents.generation.coordinator import _finalize_generation
+    from co_scientist.agents.generation.coordinator_results import (
         GenerationResults,
     )
-    from co_scientist.nodes.generation.coordinator_strategy import (
+    from co_scientist.agents.generation.coordinator_strategy import (
         GenerationCounts,
     )
+    from co_scientist.checkpoint import restore_workflow_state
+    from co_scientist.models import Hypothesis, create_metrics_update
     from co_scientist.task_runtime import apply_task_update
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
@@ -1206,10 +1206,14 @@ async def execute_mature_reflection_item(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Execute one disclosed mature Reflection mode for one hypothesis."""
+    from co_scientist.agents.reflection.comprehensive_reflection import (
+        _run_review,
+    )
+    from co_scientist.agents.reflection.reflection import (
+        analyze_single_hypothesis,
+    )
+    from co_scientist.agents.reflection.review_types import ReviewType
     from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.nodes.comprehensive_reflection import _run_review
-    from co_scientist.nodes.reflection import analyze_single_hypothesis
-    from co_scientist.nodes.review_types import ReviewType
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
@@ -1259,10 +1263,12 @@ async def execute_mature_reflection_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit mature Reflection results while isolating individual failures."""
+    from co_scientist.agents.reflection.deep_verification import (
+        merge_retrieved_articles,
+    )
+    from co_scientist.agents.reflection.review_types import ReviewType
     from co_scientist.checkpoint import restore_workflow_state
     from co_scientist.models import create_metrics_update, phase_message
-    from co_scientist.nodes.deep_verification import merge_retrieved_articles
-    from co_scientist.nodes.review_types import ReviewType
     from co_scientist.task_runtime import apply_task_update
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
@@ -1344,9 +1350,11 @@ async def execute_verification_aggregate(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Commit independent verification results and continue the tournament."""
+    from co_scientist.agents.reflection.deep_verification import (
+        merge_retrieved_articles,
+    )
     from co_scientist.checkpoint import restore_workflow_state
     from co_scientist.models import create_metrics_update, phase_message
-    from co_scientist.nodes.deep_verification import merge_retrieved_articles
     from co_scientist.task_runtime import apply_task_update
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
@@ -1441,7 +1449,7 @@ async def _schedule_ranking_chain(
     db_path: str | None,
 ) -> dict[str, Any] | None:
     """Prepare a tournament and schedule its first sequential match task."""
-    from co_scientist.nodes.ranking import _prepare_ranking_round
+    from co_scientist.agents.ranking.ranking import _prepare_ranking_round
 
     eligible = _ranking_eligible(state)
     if len(eligible) < 2:
@@ -1474,9 +1482,7 @@ async def execute_ranking_match(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Judge and commit exactly one Elo matchup before scheduling another."""
-    from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.constants import ELO_K_FACTOR
-    from co_scientist.nodes.ranking import (
+    from co_scientist.agents.ranking.ranking import (
         _apply_matchup_elo,
         _build_matchup_detail,
         _build_tournament_pairings,
@@ -1485,6 +1491,8 @@ async def execute_ranking_match(
         _median_elo,
         judge_matchup,
     )
+    from co_scientist.checkpoint import restore_workflow_state
+    from co_scientist.constants import ELO_K_FACTOR
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)
     expected_seq = int(task.inputs["checkpoint_seq"])
@@ -1601,8 +1609,8 @@ async def execute_ranking_finalize(
     task: ScientificTask, *, db_path: str | None = None
 ) -> dict[str, Any]:
     """Finalize a sequential durable tournament and return to orchestration."""
+    from co_scientist.agents.ranking.ranking import _finalize_ranking_result
     from co_scientist.checkpoint import restore_workflow_state
-    from co_scientist.nodes.ranking import _finalize_ranking_result
     from co_scientist.task_runtime import apply_task_update
 
     checkpoint, current_seq = _latest_task_checkpoint(task, db_path)

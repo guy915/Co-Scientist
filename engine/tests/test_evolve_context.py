@@ -1,4 +1,4 @@
-"""Coverage-focused tests for ``co_scientist.nodes.evolve_context``.
+"""Coverage-focused tests for ``co_scientist.agents.evolution.evolve_context``.
 
 ``test_evolve.py`` drives ``evolve_node`` end to end, but always with small
 hypothesis pools (<=5), so ``sample_context_hypotheses`` never takes its
@@ -8,7 +8,7 @@ It also never calls ``calculate_text_similarity`` with an empty text, or
 targets those gaps directly.
 """
 
-from co_scientist.nodes.evolve_context import (
+from co_scientist.agents.evolution.evolve_context import (
     _find_most_similar,
     _sample_up_to,
     calculate_text_similarity,

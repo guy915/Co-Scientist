@@ -10,15 +10,15 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.config import ToolConfig, ToolRegistry
-from co_scientist.config.tool_schema import ResponseFormat
-from co_scientist.nodes.generation.literature_tools.validate_search import (
+from co_scientist.agents.generation.literature_tools.validate_search import (
     _articles_to_paper_dict,
     _find_search_tool,
     _first,
     _search_papers_for_hypothesis,
     _search_papers_via_tool_config,
 )
+from co_scientist.config import ToolConfig, ToolRegistry
+from co_scientist.config.tool_schema import ResponseFormat
 from tests._state import make_article
 
 # -----------------------------------------------------------------------------

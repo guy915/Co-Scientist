@@ -10,12 +10,14 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.generation import debate
+from co_scientist.agents.generation import generate as generate_mod
+from co_scientist.agents.generation.debate import (
+    generate_with_debate,
+)
+from co_scientist.agents.generation.generate import generate_node
 from co_scientist.exceptions import GenerationError
 from co_scientist.models import GenerationMethod
-from co_scientist.nodes import generate as generate_mod
-from co_scientist.nodes.generate import generate_node
-from co_scientist.nodes.generation import debate
-from co_scientist.nodes.generation.debate import generate_with_debate
 from tests._state import make_hypothesis, make_state
 
 

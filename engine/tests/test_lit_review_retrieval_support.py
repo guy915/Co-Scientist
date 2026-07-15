@@ -1,7 +1,7 @@
 """Tests for the PDF-discovery and content-fetch config helpers.
 
 Covers the tool-resolution and paper-eligibility functions in
-``co_scientist.nodes.literature_review.retrieval_support``: resolving a
+``literature_review.retrieval_support``: resolving a
 source's (or the workflow default's) PDF-discovery/content tool config,
 building the per-source config maps, looking a paper's config up by its
 originating source, and filtering collected papers down to the ones
@@ -18,13 +18,15 @@ LLM, MCP, or network mocking is needed since this module does no I/O.
 import json
 from typing import Any, cast
 
+from co_scientist.agents.generation.literature_review import (
+    retrieval_support as rs,
+)
 from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import (
     SearchSourceConfig,
     ToolConfig,
     WorkflowConfig,
 )
-from co_scientist.nodes.literature_review import retrieval_support as rs
 
 
 class _FakeToolRegistry:

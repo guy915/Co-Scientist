@@ -1,6 +1,6 @@
 """Tests for the Phase 2.4/2.5 PDF-discovery and content-fetch node phases.
 
-Covers ``co_scientist.nodes.literature_review.content``: per-paper PDF
+Covers ``literature_review.content``: per-paper PDF
 discovery and content fetching (success, "nothing to do", and exception
 branches), the in-place metadata-mutation helpers, the parallel-gather
 orchestration, and the two config-driven phase entry points (each a no-op
@@ -16,14 +16,16 @@ directly-constructed dataclass -- this module does no other I/O.
 import json
 from typing import Any, cast
 
-from co_scientist.config import ToolRegistry
-from co_scientist.config.schema import ToolConfig, WorkflowConfig
-from co_scientist.mcp_client import MCPToolClient
-from co_scientist.nodes.literature_review import content as lr_content
-from co_scientist.nodes.literature_review.helpers import (
+from co_scientist.agents.generation.literature_review import (
+    content as lr_content,
+)
+from co_scientist.agents.generation.literature_review.helpers import (
     ContentToolConfig,
     SearchConfig,
 )
+from co_scientist.config import ToolRegistry
+from co_scientist.config.schema import ToolConfig, WorkflowConfig
+from co_scientist.mcp_client import MCPToolClient
 from tests._state import make_state
 
 

@@ -1,4 +1,4 @@
-"""Coverage-focused tests for ``co_scientist.nodes.evolve_prompt``.
+"""Coverage-focused tests for ``co_scientist.agents.evolution.evolve_prompt``.
 
 ``test_evolve.py`` exercises ``evolve_node`` end to end but always passes an
 empty ``meta_review`` and no ``supervisor_guidance`` (the ``make_state``
@@ -11,8 +11,7 @@ plus the review-feedback formatter's "has reviews" path.
 
 from typing import Any
 
-from co_scientist.models import HypothesisReview
-from co_scientist.nodes.evolve_prompt import (
+from co_scientist.agents.evolution.evolve_prompt import (
     _build_review_feedback,
     _build_supervisor_guidance_text,
     _format_evolution_guidance_lines,
@@ -20,6 +19,7 @@ from co_scientist.nodes.evolve_prompt import (
     _format_refinement_priorities,
     _log_meta_review_debug,
 )
+from co_scientist.models import HypothesisReview
 from tests._state import make_hypothesis
 
 # --- _log_meta_review_debug (covers _log_truncated_items/_log_items bodies) -

@@ -30,12 +30,20 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.generation.literature_review import (
+    analysis as lr_analysis,
+)
+from co_scientist.agents.generation.literature_review import (
+    literature_review_node,
+)
+from co_scientist.agents.generation.literature_review import node as lr
+from co_scientist.agents.generation.literature_review import (
+    queries as lr_queries,
+)
+from co_scientist.agents.generation.literature_review import (
+    synthesis as lr_synthesis,
+)
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.nodes.literature_review import analysis as lr_analysis
-from co_scientist.nodes.literature_review import literature_review_node
-from co_scientist.nodes.literature_review import node as lr
-from co_scientist.nodes.literature_review import queries as lr_queries
-from co_scientist.nodes.literature_review import synthesis as lr_synthesis
 from tests._state import make_state
 
 

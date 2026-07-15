@@ -71,8 +71,8 @@ def _fresh_ranking_semaphore(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     import asyncio as _asyncio
 
+    from co_scientist.agents.ranking import ranking
     from co_scientist.constants import MAX_CONCURRENT_LLM_CALLS
-    from co_scientist.nodes import ranking
 
     monkeypatch.setattr(
         ranking,

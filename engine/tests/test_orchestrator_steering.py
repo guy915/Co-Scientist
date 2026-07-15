@@ -9,8 +9,8 @@ import asyncio
 
 import pytest
 
-from co_scientist.nodes import orchestrator
-from co_scientist.nodes.orchestrator import orchestrator_node
+from co_scientist.agents.supervisor import orchestrator
+from co_scientist.agents.supervisor.orchestrator import orchestrator_node
 from co_scientist.scheduling import SupervisorDecision, TaskType
 from co_scientist.state import WorkflowState
 from tests._state import make_hypothesis, make_state

@@ -9,7 +9,7 @@ requirements — against the pure :func:`build_weighted_pairings`.
 import itertools
 from collections import Counter
 
-from co_scientist.nodes.ranking_matchmaking import (
+from co_scientist.agents.ranking.ranking_matchmaking import (
     MatchCandidate,
     MatchmakingWeights,
     build_weighted_pairings,

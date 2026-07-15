@@ -1,7 +1,7 @@
 """Tests for the structured citation utilities.
 
 These tests lock in the *current* behavior of the citation-resolution helpers
-in ``co_scientist.nodes.generation.citations`` - ``resolve_citation_keys``,
+in ``co_scientist.agents.generation.citations`` - ``resolve_citation_keys``,
 ``build_reference_index``, and ``ReferenceIndex`` - as a regression net for
 upcoming refactors. They exercise only pure functions: no LLM or network calls
 are involved, so no mocking is required.
@@ -13,12 +13,12 @@ test suite. The engine's citation module is concerned solely with parsing
 ``[C*]`` keys and building the reference index, which is what these tests cover.
 """
 
-from co_scientist.models import Article
-from co_scientist.nodes.generation.citations import (
+from co_scientist.agents.generation.citations import (
     ReferenceIndex,
     build_reference_index,
     resolve_citation_keys,
 )
+from co_scientist.models import Article
 
 
 def _used_article(

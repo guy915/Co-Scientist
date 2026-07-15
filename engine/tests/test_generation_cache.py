@@ -17,10 +17,12 @@ from typing import Any
 
 import co_scientist.cache as cache_mod
 import co_scientist.llm as llm_mod
+from co_scientist.agents.generation import debate
+from co_scientist.agents.generation.debate import (
+    generate_with_debate,
+)
 from co_scientist.cache import NullCache, get_cache
 from co_scientist.llm import call_llm_json
-from co_scientist.nodes.generation import debate
-from co_scientist.nodes.generation.debate import generate_with_debate
 from tests._state import make_state
 
 

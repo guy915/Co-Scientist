@@ -7,10 +7,10 @@ only pure functions - no LLM calls and therefore no mocking are involved.
 
 import pytest
 
+from co_scientist.agents.ranking.ranking import calculate_elo_update
+from co_scientist.agents.ranking.ranking_results import _apply_matchup_elo
 from co_scientist.constants import ELO_K_FACTOR, INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis
-from co_scientist.nodes.ranking import calculate_elo_update
-from co_scientist.nodes.ranking_results import _apply_matchup_elo
 
 
 def _reference_elo_update(

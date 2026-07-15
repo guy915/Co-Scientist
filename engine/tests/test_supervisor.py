@@ -11,8 +11,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist.nodes import supervisor
-from co_scientist.nodes.supervisor import supervisor_node
+from co_scientist.agents.supervisor import supervisor
+from co_scientist.agents.supervisor.supervisor import supervisor_node
 from tests._state import make_state
 
 

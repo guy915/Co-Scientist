@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from co_scientist.nodes import research_overview as ro
+from co_scientist.agents.meta_review import research_overview as ro
 from tests._state import make_article, make_hypothesis, make_state
 
 

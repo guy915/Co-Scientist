@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.nodes import supervisor_decision
+from co_scientist.agents.supervisor import supervisor_decision
 from co_scientist.scheduling import Budget, SchedulerStats, TaskType
 from co_scientist.state import WorkflowState
 

@@ -14,7 +14,7 @@ import pytest
 from app import elo
 
 constants = pytest.importorskip("co_scientist.constants")
-ranking = pytest.importorskip("co_scientist.nodes.ranking")
+ranking = pytest.importorskip("co_scientist.agents.ranking.ranking")
 
 
 def test_elo_constants_match_engine() -> None:

@@ -4,9 +4,9 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from co_scientist.agents.reflection import comprehensive_reflection as cr
+from co_scientist.agents.reflection.review_types import ReviewType
 from co_scientist.models import Article
-from co_scientist.nodes import comprehensive_reflection as cr
-from co_scientist.nodes.review_types import ReviewType
 from tests._state import make_hypothesis, make_state
 
 

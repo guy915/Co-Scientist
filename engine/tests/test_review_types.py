@@ -1,6 +1,6 @@
 """The six Reflection review types (SSR §4) are enumerated and dispatchable."""
 
-from co_scientist.nodes.review_types import (
+from co_scientist.agents.reflection.review_types import (
     ReviewType,
     prompt_name_for,
     schema_for,

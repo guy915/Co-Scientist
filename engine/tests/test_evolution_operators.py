@@ -4,15 +4,15 @@ from typing import Any
 
 import pytest
 
-from co_scientist.models import Hypothesis
-from co_scientist.nodes import evolve
-from co_scientist.nodes.evolution_operators import (
+from co_scientist.agents.evolution import evolve
+from co_scientist.agents.evolution.evolution_operators import (
     EvolutionOperator,
     operator_instruction,
     select_operator,
 )
-from co_scientist.nodes.evolve import evolve_single_hypothesis
-from co_scientist.nodes.evolve_prompt import _build_evolution_prompt
+from co_scientist.agents.evolution.evolve import evolve_single_hypothesis
+from co_scientist.agents.evolution.evolve_prompt import _build_evolution_prompt
+from co_scientist.models import Hypothesis
 
 
 def test_portfolio_contains_every_disclosed_operator() -> None:

@@ -9,8 +9,7 @@ from typing import Any
 
 import pytest
 
-from co_scientist.nodes import proximity
-from co_scientist.nodes.proximity import proximity_node
+from co_scientist.agents.proximity import proximity, proximity_node
 from tests._state import make_hypothesis, make_state
 
 

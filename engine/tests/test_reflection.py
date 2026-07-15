@@ -12,8 +12,8 @@ from typing import Any
 
 import pytest
 
-from co_scientist.nodes import reflection
-from co_scientist.nodes.reflection import reflection_node
+from co_scientist.agents.reflection import reflection
+from co_scientist.agents.reflection.reflection import reflection_node
 from tests._state import make_hypothesis, make_state
 
 # Literature context that satisfies the node's ``articles_with_reasoning``

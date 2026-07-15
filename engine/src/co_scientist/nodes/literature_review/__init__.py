@@ -1,11 +1,14 @@
-"""Literature review node package.
+"""Back-compat shim: literature-review node moved to ``co_scientist.agents``.
 
-Splits the multi-phase literature review pipeline across modules by phase:
-query generation, paper collection, PDF/content retrieval, context
-enrichment, per-paper analysis, and cross-paper synthesis. The public entry
-point is ``literature_review_node``.
+Re-exports preserve the ``co_scientist.nodes.literature_review`` import path
+used by the workflow graph and the durable task runtime. New code should import
+from ``co_scientist.agents.generation.literature_review``. Individual submodules
+still imported through this path (e.g. by the reflection agent's deep
+verification) keep their own thin shims alongside this file.
 """
 
-from co_scientist.nodes.literature_review.node import literature_review_node
+from co_scientist.agents.generation.literature_review import (
+    literature_review_node,
+)
 
 __all__ = ["literature_review_node"]

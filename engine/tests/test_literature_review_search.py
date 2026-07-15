@@ -4,9 +4,11 @@ from typing import Any, cast
 
 import pytest
 
+from co_scientist.agents.generation.literature_review import search
+from co_scientist.agents.generation.literature_review.search_support import (
+    SearchConfig,
+)
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.nodes.literature_review import search
-from co_scientist.nodes.literature_review.search_support import SearchConfig
 from co_scientist.state import WorkflowState
 
 

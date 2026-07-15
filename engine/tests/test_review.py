@@ -22,10 +22,10 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.reflection import review
+from co_scientist.agents.reflection.review import review_node
 from co_scientist.constants import COMPARATIVE_BATCH_THRESHOLD
 from co_scientist.models import HypothesisReview
-from co_scientist.nodes import review
-from co_scientist.nodes.review import review_node
 from tests._state import make_hypothesis, make_state
 
 

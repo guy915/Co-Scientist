@@ -26,19 +26,21 @@ from typing import Any
 import pytest
 
 from co_scientist import config as config_mod
+from co_scientist.agents.generation.literature_tools import (
+    draft as draft_mod,
+)
+from co_scientist.agents.generation.literature_tools import (
+    validate as validate_mod,
+)
+from co_scientist.agents.generation.literature_tools.draft import (
+    draft_hypotheses,
+)
+from co_scientist.agents.generation.literature_tools.validate import (
+    validate_hypotheses,
+)
 from co_scientist.constants import corpus_slug
 from co_scientist.exceptions import ResponseParseError
 from co_scientist.models import GenerationMethod, Hypothesis
-from co_scientist.nodes.generation.literature_tools import draft as draft_mod
-from co_scientist.nodes.generation.literature_tools import (
-    validate as validate_mod,
-)
-from co_scientist.nodes.generation.literature_tools.draft import (
-    draft_hypotheses,
-)
-from co_scientist.nodes.generation.literature_tools.validate import (
-    validate_hypotheses,
-)
 from tests._state import make_state
 
 # -----------------------------------------------------------------------------

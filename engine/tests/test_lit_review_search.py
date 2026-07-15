@@ -15,6 +15,10 @@ network, LLM, or disk I/O anywhere in this module.
 
 from typing import Any, cast
 
+from co_scientist.agents.generation.literature_review import search
+from co_scientist.agents.generation.literature_review.helpers import (
+    SearchConfig,
+)
 from co_scientist.config import (
     SearchSourceConfig,
     ToolConfig,
@@ -22,8 +26,6 @@ from co_scientist.config import (
     WorkflowConfig,
 )
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.nodes.literature_review import search
-from co_scientist.nodes.literature_review.helpers import SearchConfig
 from tests._state import make_state
 
 
@@ -187,7 +189,8 @@ async def test_search_source_for_query_retries_malformed_transport_result(
         """Skip the production retry delay in this deterministic test."""
 
     monkeypatch.setattr(
-        "co_scientist.nodes.literature_review.search.asyncio.sleep", no_delay
+        "co_scientist.agents.generation.literature_review.search.asyncio.sleep",
+        no_delay,
     )
     tool_config = _tool_config()
     client = _SequencedMCPClient(

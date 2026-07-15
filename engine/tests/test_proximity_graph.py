@@ -6,7 +6,7 @@ passes in production, not the earlier hand-shaped ``hypotheses`` key that never
 existed in a live response.
 """
 
-from co_scientist.nodes.proximity_graph import (
+from co_scientist.agents.proximity.proximity_graph import (
     PROXIMITY_METHOD,
     build_proximity_graph,
     member_match_key,

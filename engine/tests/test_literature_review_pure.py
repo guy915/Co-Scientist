@@ -9,9 +9,11 @@ package's ``node`` and ``enrichment`` modules: ``_describe_exc``,
 
 import pytest
 
+from co_scientist.agents.generation.literature_review import (
+    enrichment as lr_enrichment,
+)
+from co_scientist.agents.generation.literature_review import node as lr
 from co_scientist.config import ToolRegistry
-from co_scientist.nodes.literature_review import enrichment as lr_enrichment
-from co_scientist.nodes.literature_review import node as lr
 from tests._state import make_state
 
 

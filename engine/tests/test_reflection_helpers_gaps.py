@@ -1,4 +1,4 @@
-"""Coverage-focused tests for ``co_scientist.nodes.reflection_helpers``.
+"""Coverage-focused tests for the reflection agent ``reflection_helpers``.
 
 ``test_reflection_helpers.py`` covers the pure heuristics and
 ``fetch_indra_evidence``'s ``tool_registry=None`` short-circuit, which returns
@@ -15,14 +15,14 @@ from typing import Any, cast
 
 import pytest
 
-from co_scientist.config import ToolRegistry
-from co_scientist.nodes.reflection_helpers import (
+from co_scientist.agents.reflection.reflection_helpers import (
     _agent_name,
     _fetch_evidence_result,
     _format_evidence,
     _pick_available_tool,
     fetch_indra_evidence,
 )
+from co_scientist.config import ToolRegistry
 
 
 class _FakeRegistry:

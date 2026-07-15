@@ -520,7 +520,7 @@ async def test_review_fanout_uses_independent_leases_and_one_aggregate_commit(
     ) -> tuple[dict[str, Any], str]:
         return current, "review"
 
-    import co_scientist.nodes.review as review_module
+    import co_scientist.agents.reflection.review as review_module
     import co_scientist.task_runtime as runtime
 
     monkeypatch.setattr(runtime, "execute_task_node", supervisor_to_review)
@@ -702,7 +702,7 @@ async def test_verification_children_commit_through_single_aggregator(
         leased_node.id, "node", scheduled, db_path=isolated_db
     )
 
-    import co_scientist.nodes.deep_verification as verification_module
+    import co_scientist.agents.reflection.deep_verification as verification
 
     async def fake_verify(*_: Any, **__: Any) -> dict[str, Any]:
         return {
@@ -720,7 +720,7 @@ async def test_verification_children_commit_through_single_aggregator(
             "verification_llm_calls": 2,
         }
 
-    monkeypatch.setattr(verification_module, "_verify_one", fake_verify)
+    monkeypatch.setattr(verification, "_verify_one", fake_verify)
     children = [
         store.claim_task(f"child-{index}", run_id=run.id, db_path=isolated_db)
         for index in range(3)
@@ -826,7 +826,7 @@ async def test_ranking_matches_are_separate_sequential_checkpointed_tasks(
         engine_tasks, "_generator_for_restore", lambda *_: generator
     )
 
-    import co_scientist.nodes.ranking as ranking_module
+    import co_scientist.agents.ranking.ranking as ranking_module
 
     async def fake_judge(*_: Any, **kwargs: Any) -> tuple[str, dict[str, Any]]:
         turns = int(kwargs["debate_turns"])
@@ -1035,8 +1035,8 @@ async def test_generation_strategies_are_independently_leased_and_aggregated(
         engine_tasks, "_generator_for_restore", lambda *_: generator
     )
 
-    import co_scientist.nodes.generation.assumptions as assumptions_module
-    import co_scientist.nodes.generation.debate as debate_module
+    import co_scientist.agents.generation.assumptions as assumptions_module
+    import co_scientist.agents.generation.debate as debate_module
 
     async def fake_debate(
         **kwargs: Any,
@@ -1169,8 +1169,8 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
         engine_tasks, "_generator_for_restore", lambda *_: generator
     )
 
-    import co_scientist.nodes.comprehensive_reflection as reflection_module
-    import co_scientist.nodes.reflection as observation_module
+    import co_scientist.agents.reflection.comprehensive_reflection as comp_refl
+    import co_scientist.agents.reflection.reflection as observation_module
 
     async def fake_review(
         _state: Any, _hypothesis: Any, mode: Any
@@ -1189,7 +1189,7 @@ async def test_mature_reflection_modes_are_independent_durable_tasks(
     async def fake_observation(**_: Any) -> dict[str, Any]:
         return {"classification": "missing_piece", "reasoning": "explains x"}
 
-    monkeypatch.setattr(reflection_module, "_run_review", fake_review)
+    monkeypatch.setattr(comp_refl, "_run_review", fake_review)
     monkeypatch.setattr(
         observation_module, "analyze_single_hypothesis", fake_observation
     )

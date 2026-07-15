@@ -12,8 +12,10 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.generation import (
+    literature_tools as lit_tools_mod,
+)
 from co_scientist.models import GenerationMethod, Hypothesis
-from co_scientist.nodes.generation import literature_tools as lit_tools_mod
 from tests._state import make_article, make_hypothesis, make_state
 
 # -----------------------------------------------------------------------------

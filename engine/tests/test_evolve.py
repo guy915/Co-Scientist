@@ -20,10 +20,13 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.evolution import evolve
+from co_scientist.agents.evolution.evolve import (
+    _specialist_feedback_for,
+    evolve_node,
+)
 from co_scientist.constants import INITIAL_ELO_RATING
 from co_scientist.models import Hypothesis, HypothesisOrigin
-from co_scientist.nodes import evolve
-from co_scientist.nodes.evolve import _specialist_feedback_for, evolve_node
 from tests._state import make_hypothesis, make_state
 
 

@@ -11,8 +11,7 @@ from typing import Any, cast
 import pytest
 
 from co_scientist import config as config_mod
-from co_scientist.exceptions import ResponseParseError
-from co_scientist.nodes.generation.literature_tools.validate_synthesis import (
+from co_scientist.agents.generation.literature_tools.validate_synthesis import (
     _log_synthesis_tool_call_summary,
     _parse_synthesis_response,
     _retry_failed_synthesis_batches,
@@ -20,6 +19,7 @@ from co_scientist.nodes.generation.literature_tools.validate_synthesis import (
     _run_synthesis_batches,
     _setup_validation_tool_provider,
 )
+from co_scientist.exceptions import ResponseParseError
 from co_scientist.tools.provider import MCPToolProvider
 
 # -----------------------------------------------------------------------------

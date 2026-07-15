@@ -53,7 +53,7 @@ async def test_unsafe_hypothesis_never_reaches_tournament(
     """An injected unsafe hypothesis is removed before ranking."""
     install_fake_llm(monkeypatch)
 
-    from co_scientist.nodes import generate as gen_module
+    from co_scientist.agents.generation import generate as gen_module
 
     original_generate_node = gen_module.generate_node
 

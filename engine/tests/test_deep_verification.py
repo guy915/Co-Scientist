@@ -10,8 +10,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from co_scientist.agents.reflection import deep_verification as dv
 from co_scientist.models import Article
-from co_scientist.nodes import deep_verification as dv
 from tests._state import make_article, make_hypothesis, make_state
 
 

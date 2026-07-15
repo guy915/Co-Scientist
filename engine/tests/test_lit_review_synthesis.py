@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
+from co_scientist.agents.generation.literature_review import synthesis
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
-from co_scientist.nodes.literature_review import synthesis
 from tests._state import make_state
 
 

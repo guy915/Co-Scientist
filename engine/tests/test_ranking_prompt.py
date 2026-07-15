@@ -1,4 +1,4 @@
-"""Coverage-focused tests for ``co_scientist.nodes.ranking_prompt``.
+"""Coverage-focused tests for ``co_scientist.agents.ranking.ranking_prompt``.
 
 ``test_ranking.py`` drives ``ranking_node`` end to end with plain
 hypotheses (no reviews, no deep-verification probes, no reflection notes),
@@ -15,14 +15,14 @@ import logging
 
 import pytest
 
-from co_scientist.models import HypothesisReview
-from co_scientist.nodes.ranking_prompt import (
+from co_scientist.agents.ranking.ranking_prompt import (
     _deep_verification_summary,
     _log_reflection_coverage,
     _log_reflection_debug,
     _review_summary,
     _warn_if_reflection_notes_dropped,
 )
+from co_scientist.models import HypothesisReview
 from tests._state import make_hypothesis
 
 # --- _review_summary ---------------------------------------------------------
@@ -95,7 +95,7 @@ def test_log_reflection_coverage_none_have_reflection(
         make_hypothesis(text="b", reflection_notes=None),
     ]
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _log_reflection_coverage(hypotheses)
     assert "No hypotheses have reflection notes" in caplog.text
@@ -110,7 +110,7 @@ def test_log_reflection_coverage_some_have_reflection(
         make_hypothesis(text="b", reflection_notes=None),
     ]
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _log_reflection_coverage(hypotheses)
     assert "Some hypotheses missing reflection notes" in caplog.text
@@ -125,7 +125,7 @@ def test_log_reflection_coverage_all_have_reflection(
         make_hypothesis(text="b", reflection_notes="notes for b"),
     ]
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _log_reflection_coverage(hypotheses)
     assert "all hypotheses have reflection notes" in caplog.text
@@ -139,7 +139,7 @@ def test_log_reflection_debug_missing_notes(
 ) -> None:
     """Absent reflection notes log a "missing" message and return early."""
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _log_reflection_debug("A", None)
     assert "hypothesis A: missing reflection notes" in caplog.text
@@ -151,7 +151,7 @@ def test_log_reflection_debug_extracts_classification(
     """A "Classification:" marker is parsed out of the reflection notes."""
     notes = "Some analysis text.\nClassification: Novel\nMore text."
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _log_reflection_debug("B", notes)
     assert "classification: Novel" in caplog.text
@@ -162,7 +162,7 @@ def test_log_reflection_debug_no_classification_marker(
 ) -> None:
     """Notes without a "Classification:" marker default to "unknown"."""
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _log_reflection_debug("A", "plain reflection text, no marker")
     assert "classification: unknown" in caplog.text
@@ -176,7 +176,7 @@ def test_warn_if_reflection_notes_dropped_neither_present_is_a_noop(
 ) -> None:
     """With neither side's notes present, the function returns immediately."""
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _warn_if_reflection_notes_dropped("some prompt text", None, None)
     assert caplog.text == ""
@@ -188,7 +188,7 @@ def test_warn_if_reflection_notes_dropped_found_in_prompt(
     """When the section header made it into the prompt, logs confirmation."""
     prompt = "...\n## Reflection Notes\n...notes here..."
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _warn_if_reflection_notes_dropped(prompt, "notes for a", None)
     assert "prompt includes 'Reflection Notes' section" in caplog.text
@@ -206,7 +206,7 @@ def test_warn_if_reflection_notes_dropped_missing_from_prompt(
     """
     prompt = "a prompt with no reflection section at all"
     with caplog.at_level(
-        logging.DEBUG, logger="co_scientist.nodes.ranking_prompt"
+        logging.DEBUG, logger="co_scientist.agents.ranking.ranking_prompt"
     ):
         _warn_if_reflection_notes_dropped(prompt, None, "notes for b")
     assert (

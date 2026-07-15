@@ -10,15 +10,15 @@ from typing import Any
 
 import pytest
 
-from co_scientist.constants import (
-    MULTI_TURN_DEBATE_TURNS,
-    SINGLE_TURN_DEBATE_TURNS,
-)
-from co_scientist.nodes import ranking
-from co_scientist.nodes.ranking import (
+from co_scientist.agents.ranking import ranking
+from co_scientist.agents.ranking.ranking import (
     _matchup_debate_turns,
     _median_elo,
     judge_matchup,
+)
+from co_scientist.constants import (
+    MULTI_TURN_DEBATE_TURNS,
+    SINGLE_TURN_DEBATE_TURNS,
 )
 from tests._state import make_hypothesis
 

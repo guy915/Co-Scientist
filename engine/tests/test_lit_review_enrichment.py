@@ -1,6 +1,6 @@
 """Tests for the Phase 2.6 context-enrichment literature review helpers.
 
-Covers ``co_scientist.nodes.literature_review.enrichment``: the per-entity
+Covers ``literature_review.enrichment``: the per-entity
 enrichment tool call (success and exception branches), the INDRA-statement
 and generic-dict result formatters not already exercised by
 ``test_literature_review_pure``, the per-tool/per-entity fan-out, tool-config
@@ -19,11 +19,15 @@ directly-constructed dataclass.
 import json
 from typing import Any, cast
 
+from co_scientist.agents.generation.literature_review import (
+    enrichment as lr_enrichment,
+)
+from co_scientist.agents.generation.literature_review.helpers import (
+    SearchConfig,
+)
 from co_scientist.config import ToolRegistry
 from co_scientist.config.schema import ToolConfig, WorkflowConfig
 from co_scientist.mcp_client import MCPToolClient
-from co_scientist.nodes.literature_review import enrichment as lr_enrichment
-from co_scientist.nodes.literature_review.helpers import SearchConfig
 from tests._state import make_state
 
 

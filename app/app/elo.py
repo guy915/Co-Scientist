@@ -1,6 +1,6 @@
 """Pure-Python Elo helpers used by the mock workflow and tests.
 
-Mirrors the formula in `co_scientist.nodes.ranking.calculate_elo_update`
+Mirrors the ranking agent's `calculate_elo_update` formula
 so the clone's tournament behaviour is consistent across mock and real paths.
 """
 

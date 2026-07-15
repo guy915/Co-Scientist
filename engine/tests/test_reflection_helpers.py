@@ -9,8 +9,7 @@ formatters. ``fetch_indra_evidence`` is only exercised on its
 
 from typing import Any, cast
 
-from co_scientist.config import ToolRegistry
-from co_scientist.nodes.reflection_helpers import (
+from co_scientist.agents.reflection.reflection_helpers import (
     _build_enrichment_items,
     _ev_count_str,
     _format_single_statement,
@@ -20,6 +19,7 @@ from co_scientist.nodes.reflection_helpers import (
     fetch_indra_evidence,
     get_kg_tools_for_workflow,
 )
+from co_scientist.config import ToolRegistry
 
 
 class _FakeRegistry:
