@@ -400,7 +400,22 @@ body {
 }
 
 /* Preflight-style resets belong in @layer base so Tailwind utilities (font
-   size/weight, text color, border color) applied to elements still win. */
+   size/weight, text color, border color) applied to elements still win.
+
+   Deliberately absent: a margin reset (`*, ::before, ::after { margin: 0 }`,
+   which is the part of preflight people miss most). Because preflight is not
+   imported, p / h1-h6 / ul / ol / blockquote keep their user-agent margins,
+   and the Goal Report depends on it: the report is sanitized markdown whose
+   paragraphs carry no classes, and there is no typography/prose plugin to
+   space them. Adding the reset measurably collapses adjacent report
+   paragraphs from a 16px gap to 0 and the document by 200px. Importing
+   preflight outright is worse still -- it zeroes padding and list-style too,
+   so the report's lists lose their indent and markers.
+
+   The cost is that a component styled only with Tailwind utilities inherits
+   those margins: zero them explicitly there (see ActivityItem in
+   pages/run_detail.tsx, whose title's 1em margins made its row 56px against a
+   34px icon disc until it got `my-0`). Prefer that over a global reset. */
 @layer base {
   button,
   input,
