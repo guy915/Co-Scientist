@@ -146,14 +146,17 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     )
 
 
-def deepseek_thinking_extra_body(model_name: str) -> dict[str, object]:
-    """Return an ``extra_body`` that enables DeepSeek V4 thinking mode.
+def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
+    """Build litellm kwargs enabling DeepSeek V4 thinking at low effort.
 
     DeepSeek V4 (pro/flash) return chain-of-thought separately as
     ``reasoning_content`` and never fold it into ``content``, so structured
     parsing survives as long as ``max_tokens`` leaves room for the answer after
     the reasoning spend (the interview and claim-verifier budgets are sized for
-    that). Used by every substantive app call (interview, Q&A, safety, claim
+    that). ``reasoning_effort='low'`` is the lightest reasoning tier that still
+    thinks, chosen to bound the added latency and token cost of reasoning on
+    every call. Spread into a completion call (``**deepseek_thinking_kwargs``).
+    Used by every substantive app call (interview, Q&A, safety, claim
     verification); titling keeps the non-thinking variant above. Non-DeepSeek
     models get an empty dict.
 
@@ -161,10 +164,12 @@ def deepseek_thinking_extra_body(model_name: str) -> dict[str, object]:
         model_name: Model name in litellm format.
 
     Returns:
-        ``{"thinking": {"type": "enabled"}}`` for DeepSeek models, else ``{}``.
+        ``{"extra_body": {"thinking": {"type": "enabled"}}, "reasoning_effort":
+        "low"}`` for DeepSeek models, else ``{}``.
     """
-    return (
-        {"thinking": {"type": "enabled"}}
-        if "deepseek" in model_name.lower()
-        else {}
-    )
+    if "deepseek" not in model_name.lower():
+        return {}
+    return {
+        "extra_body": {"thinking": {"type": "enabled"}},
+        "reasoning_effort": "low",
+    }

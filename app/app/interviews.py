@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app import store
 from app.auth import require_principal
-from app.config import deepseek_thinking_extra_body, settings
+from app.config import deepseek_thinking_kwargs, settings
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/interviews", tags=["interviews"])
@@ -203,7 +203,7 @@ async def _call_interview_model(
                 # the four-field answer; 1.5k sufficed for short transcripts,
                 # 3k leaves headroom for longer interviews.
                 max_tokens=3_000,
-                extra_body=deepseek_thinking_extra_body(model),
+                **deepseek_thinking_kwargs(model),
             ),
             timeout=_INTERVIEW_TIMEOUT_SECONDS,
         )

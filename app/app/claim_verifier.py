@@ -35,7 +35,7 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
-from app.config import deepseek_thinking_extra_body
+from app.config import deepseek_thinking_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +150,7 @@ def make_llm_assessor(
                 max_tokens=_MAX_TOKENS,
                 timeout=timeout,
                 response_format={"type": "json_object"},
-                extra_body=deepseek_thinking_extra_body(model),
+                **deepseek_thinking_kwargs(model),
             )
             content = response.choices[0].message.content or ""
         except Exception as exc:

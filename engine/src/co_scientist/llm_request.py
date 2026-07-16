@@ -263,6 +263,9 @@ def _build_completion_args(
     thinking = deepseek_thinking_extra_body(model_name)
     if thinking:
         completion_args["extra_body"] = thinking
+        # Lightest reasoning tier that still thinks, to bound the latency and
+        # token cost of reasoning on every call.
+        completion_args["reasoning_effort"] = "low"
 
     return completion_args
 

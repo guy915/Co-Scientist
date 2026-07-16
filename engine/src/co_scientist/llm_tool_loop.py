@@ -130,6 +130,7 @@ async def _run_tool_call_iteration(
         dispatched and appended to `messages` and the caller should iterate
         again.
     """
+    thinking = deepseek_thinking_extra_body(model_name)
     response = await litellm.acompletion(
         model=model_name,
         messages=messages,
@@ -137,7 +138,9 @@ async def _run_tool_call_iteration(
         max_tokens=max_tokens,
         temperature=temperature,
         drop_params=True,
-        extra_body=deepseek_thinking_extra_body(model_name),
+        extra_body=thinking,
+        # Lightest reasoning tier that still thinks (see llm_request).
+        **({"reasoning_effort": "low"} if thinking else {}),
     )
 
     message = response.choices[0].message
