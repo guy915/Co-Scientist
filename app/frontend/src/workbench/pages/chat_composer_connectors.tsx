@@ -62,7 +62,6 @@ export function useConnectorsMenu() {
  * connectors menu with its PubMed toggle row.
  */
 export function SourceControls({
-  disabled,
   connectorsOpen,
   onToggleConnectors,
   sourceControlsRef,
@@ -71,7 +70,6 @@ export function SourceControls({
   pubmedEnabled,
   onPubmedEnabledChange,
 }: {
-  disabled: boolean;
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
   sourceControlsRef: RefObject<HTMLDivElement | null>;
@@ -94,13 +92,11 @@ export function SourceControls({
       <SourceToolbarButton
         label="Files"
         icon="add"
-        disabled={disabled}
         onClick={() => fileInputRef.current?.click()}
       />
       <SourceToolbarButton
         label="Connectors"
         icon="database"
-        disabled={disabled}
         expanded={connectorsOpen}
         onClick={onToggleConnectors}
       />
@@ -121,13 +117,11 @@ export function SourceControls({
 function SourceToolbarButton({
   label,
   icon,
-  disabled,
   expanded,
   onClick,
 }: {
   label: string;
   icon: IconName;
-  disabled: boolean;
   expanded?: boolean;
   onClick: () => void;
 }) {
@@ -141,7 +135,6 @@ function SourceToolbarButton({
       aria-label={label}
       aria-expanded={expanded}
       data-tooltip={label}
-      disabled={disabled}
       onClick={onClick}
     >
       <Icon

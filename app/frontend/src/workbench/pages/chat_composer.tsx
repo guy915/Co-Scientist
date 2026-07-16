@@ -3,7 +3,6 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
-  useEffect,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -44,9 +43,15 @@ const COMPOSER_MAX_HEIGHT_LARGE = 146;
  * @param setInput Updates the controlled textarea value.
  * @param setupDraftMode Swaps the placeholder copy to "edit session details"
  *   wording while a draft/confirmed run spec or started session is showing.
- * @param disabled Disables input and the source-control buttons (e.g. while
- *   starting a run).
+ * @param busy Whether the session is already working on a response. This
+ *   blocks submitting (the send button and Enter) and nothing else: the
+ *   textarea stays typeable and focused so the next message can be written
+ *   while the current one is still being answered.
  * @param large Selects the roomier home-stage sizing/layout.
+ * @param autoFocus Takes focus on mount. Set on the in-conversation composer,
+ *   which replaces the home-stage one when the first message is sent: that
+ *   swap unmounts the focused textarea and would otherwise drop the caret to
+ *   the body, forcing a click to carry on typing.
  * @param pubmedEnabled Whether the PubMed connector is currently toggled on.
  * @param onPubmedEnabledChange Callback fired when the PubMed toggle changes.
  * @param onSubmit Form submit handler (Enter or the send button).
@@ -55,8 +60,9 @@ export function Composer({
   input,
   setInput,
   setupDraftMode = false,
-  disabled,
+  busy,
   large = false,
+  autoFocus = false,
   pubmedEnabled = true,
   onPubmedEnabledChange,
   onSubmit,
@@ -64,8 +70,9 @@ export function Composer({
   input: string;
   setInput: (value: string) => void;
   setupDraftMode?: boolean;
-  disabled: boolean;
+  busy: boolean;
   large?: boolean;
+  autoFocus?: boolean;
   pubmedEnabled?: boolean;
   onPubmedEnabledChange?: (value: boolean) => void;
   onSubmit: (e: FormEvent<HTMLFormElement>, files: File[]) => void;
@@ -84,19 +91,10 @@ export function Composer({
 
   const referenceLabel = composerReferenceLabel(setupDraftMode);
   const submitLabel = 'Send';
-
-  // Restore focus after an in-flight submit re-enables the textarea. Disabling
-  // a focused element blurs it, and React commits the re-enable only once the
-  // submit promise resolves; refocusing here, on the disabled->enabled edge,
-  // lands reliably. Doing it from the submit handler instead does not: a rAF
-  // scheduled there can fire before the re-enable commits and no-op on the
-  // still-disabled element. This edge also covers the first send, where the
-  // in-conversation composer mounts disabled and then re-enables.
-  const wasDisabled = useRef(disabled);
-  useEffect(() => {
-    if (wasDisabled.current && !disabled) textareaRef.current?.focus();
-    wasDisabled.current = disabled;
-  }, [disabled, textareaRef]);
+  // There is nothing to send while the input is blank, and nothing to send it
+  // to while the session is still answering. Both gate submission only; the
+  // textarea is never disabled, so typing and focus survive either state.
+  const submitDisabled = !input.trim() || busy;
 
   return (
     <form
@@ -113,13 +111,13 @@ export function Composer({
       <ComposerTextareaField
         input={input}
         setInput={setInput}
-        disabled={disabled}
+        submitDisabled={submitDisabled}
         large={large}
+        autoFocus={autoFocus}
         referenceLabel={referenceLabel}
         textareaRef={textareaRef}
       />
       <ComposerFooter
-        disabled={disabled}
         connectorsOpen={connectorsOpen}
         onToggleConnectors={() => setConnectorsOpen(open => !open)}
         sourceControlsRef={sourceControlsRef}
@@ -127,7 +125,7 @@ export function Composer({
         onFilesChanged={onFilesChanged}
         pubmedEnabled={pubmedEnabled}
         onPubmedEnabledChange={onPubmedEnabledChange}
-        submitDisabled={!input.trim() || disabled}
+        submitDisabled={submitDisabled}
         submitLabel={submitLabel}
       />
     </form>
@@ -209,15 +207,17 @@ function useComposerState(input: string, large: boolean) {
 function ComposerTextareaField({
   input,
   setInput,
-  disabled,
+  submitDisabled,
   large,
+  autoFocus,
   referenceLabel,
   textareaRef,
 }: {
   input: string;
   setInput: (value: string) => void;
-  disabled: boolean;
+  submitDisabled: boolean;
   large: boolean;
+  autoFocus: boolean;
   referenceLabel: string;
   textareaRef: RefObject<HTMLTextAreaElement | null>;
 }) {
@@ -245,7 +245,10 @@ function ComposerTextareaField({
         // force the empty box several lines tall.
         rows={1}
         value={input}
-        disabled={disabled}
+        // Restores the focus the home-to-conversation composer swap takes
+        // away (see `autoFocus`); it does not take focus from elsewhere on
+        // the page, and the home composer leaves it unset.
+        autoFocus={autoFocus}
         className={[
           COMPOSER_TEXTAREA_CLASSES,
           large ? HOME_COMPOSER_TEXTAREA_CLASSES : '',
@@ -253,7 +256,7 @@ function ComposerTextareaField({
           .filter(Boolean)
           .join(' ')}
         onChange={e => setInput(e.target.value)}
-        onKeyDown={handleComposerKeyDown}
+        onKeyDown={e => handleComposerKeyDown(e, submitDisabled)}
       />
     </label>
   );
@@ -262,7 +265,6 @@ function ComposerTextareaField({
 // The footer controls row: the file/connector source controls plus the
 // submit button.
 function ComposerFooter({
-  disabled,
   connectorsOpen,
   onToggleConnectors,
   sourceControlsRef,
@@ -273,7 +275,6 @@ function ComposerFooter({
   submitDisabled,
   submitLabel,
 }: {
-  disabled: boolean;
   connectorsOpen: boolean;
   onToggleConnectors: () => void;
   sourceControlsRef: RefObject<HTMLDivElement | null>;
@@ -287,7 +288,6 @@ function ComposerFooter({
   return (
     <div className={COMPOSER_ACTIONS_CLASSES}>
       <SourceControls
-        disabled={disabled}
         connectorsOpen={connectorsOpen}
         onToggleConnectors={onToggleConnectors}
         sourceControlsRef={sourceControlsRef}
@@ -317,9 +317,15 @@ function ComposerFooter({
 }
 
 // Enter submits (Shift+Enter still inserts a newline via default behavior).
-function handleComposerKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+// When submission is blocked, Enter does nothing at all: requestSubmit() does
+// not consult the submit button's disabled state, so without this check Enter
+// would still send while the button is greyed out.
+function handleComposerKeyDown(
+  e: KeyboardEvent<HTMLTextAreaElement>,
+  submitDisabled: boolean,
+) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
-    e.currentTarget.form?.requestSubmit();
+    if (!submitDisabled) e.currentTarget.form?.requestSubmit();
   }
 }

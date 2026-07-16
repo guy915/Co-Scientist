@@ -172,7 +172,7 @@ export function HomeStage({
         <Composer
           input={input}
           setInput={setInput}
-          disabled={false}
+          busy={false}
           large
           pubmedEnabled={pubmedEnabled}
           onPubmedEnabledChange={onPubmedEnabledChange}

@@ -192,7 +192,8 @@ function ComposerSection({
           input={input}
           setInput={setInput}
           setupDraftMode={setupDraftMode}
-          disabled={isStarting}
+          busy={isStarting}
+          autoFocus
           pubmedEnabled={pubmedEnabled}
           onPubmedEnabledChange={onPubmedEnabledChange}
           onSubmit={handleSubmit}
