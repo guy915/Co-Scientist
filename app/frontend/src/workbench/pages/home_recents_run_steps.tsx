@@ -14,19 +14,13 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
 
 /**
  * Renders the live flow for an active run: an "In Progress" row carrying the
- * spinner, then the phases the run has reached so far, each with its glyph, a
- * check once passed, and the spinner's row marking where the run is now.
+ * spinner, then the phases the run has reached so far.
  *
  * The phase comes from the run's own reported progress, so the flow tracks
- * real work: it advances when the run advances, and re-enters an earlier phase
- * when the run genuinely cycles back to it.
- *
- * Two consequences of that re-entry are worth naming. The percentage counts
- * the phases behind the run rather than a share of the work done, because the
- * run does not march through the four once and no honest fraction of the total
- * exists (see homeRunStepIndex). And phases are revealed by the furthest point
- * reached rather than the current phase, so re-entering an earlier one does
- * not make already-revealed rows disappear.
+ * real work rather than a timer. The run revisits phases every cycle, so the
+ * list reads as a record of the phases it has entered: it grows by the
+ * furthest phase reached, never by the current one, so cycling back to an
+ * earlier phase cannot make rows it already showed disappear.
  *
  * @param run The active run to show progress for.
  */
@@ -35,18 +29,12 @@ export function RunStepFlow({run}: {run: Run}) {
   // A run reports no phase while routing between agents and in the gaps
   // between leased tasks. Hold the last phase actually observed so those gaps
   // read as the work continuing, rather than snapping back to the first step.
-  const [lastPhase, setLastPhase] = useState(phase ?? 1);
   const [furthestPhase, setFurthestPhase] = useState(phase ?? 1);
   useEffect(() => {
     if (phase === null) return;
-    setLastPhase(phase);
     setFurthestPhase(seen => Math.max(seen, phase));
   }, [phase]);
-  const activeIndex = phase ?? lastPhase;
-  const revealed = RUN_STEPS.slice(0, Math.max(furthestPhase, activeIndex));
-  const percentComplete = Math.round(
-    ((activeIndex - 1) / RUN_STEPS.length) * 100,
-  );
+  const revealed = RUN_STEPS.slice(0, furthestPhase);
 
   return (
     <div className="reference-run-steps">
@@ -56,46 +44,30 @@ export function RunStepFlow({run}: {run: Run}) {
             aria-hidden="true"
             className="reference-run-step-spinner reference-run-step-glyph"
           />
-          <span className="reference-run-step-label">
-            In Progress : {percentComplete}%
-          </span>
+          <span className="reference-run-step-label">In Progress</span>
         </div>
         <div aria-hidden="true" className="reference-run-step-delimiter" />
-        {revealed.map((step, index) => {
-          const stepNumber = index + 1;
-          return (
-            <Fragment key={step.label}>
-              <RunStepItem
-                icon={step.icon}
-                label={step.label}
-                done={stepNumber < activeIndex}
+        {revealed.map((step, index) => (
+          <Fragment key={step.label}>
+            <RunStepItem icon={step.icon} label={step.label} />
+            {index < revealed.length - 1 && (
+              <div
+                aria-hidden="true"
+                className="reference-run-step-delimiter"
               />
-              {index < revealed.length - 1 && (
-                <div
-                  aria-hidden="true"
-                  className="reference-run-step-delimiter"
-                />
-              )}
-            </Fragment>
-          );
-        })}
+            )}
+          </Fragment>
+        ))}
       </div>
     </div>
   );
 }
 
-// One phase's glyph, label, and a check once the run is past it. The phase the
-// run is in now is the last revealed one without a check; the flow's single
-// spinner lives in the In Progress row rather than being repeated here.
-function RunStepItem({
-  icon,
-  label,
-  done,
-}: {
-  icon: IconName;
-  label: string;
-  done: boolean;
-}) {
+// One phase's glyph and label. A row's presence is the whole signal: the flow
+// only lists phases the run has entered, and its single spinner lives in the
+// In Progress row. There is deliberately no per-row done/current marker (the
+// .reference-run-step-done check style is kept for a future one).
+function RunStepItem({icon, label}: {icon: IconName; label: string}) {
   return (
     <div className="reference-run-step">
       <Icon
@@ -104,13 +76,6 @@ function RunStepItem({
         name={icon}
       />
       <span className="reference-run-step-label">{label}</span>
-      {done && (
-        <Icon
-          aria-hidden="true"
-          className="reference-run-step-done"
-          name="check"
-        />
-      )}
     </div>
   );
 }

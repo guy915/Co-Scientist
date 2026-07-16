@@ -47,7 +47,7 @@ describe('RunStepFlow', () => {
   it('reveals only the phases the run has actually reached', () => {
     render(<RunStepFlow run={runOn('engine.node.supervisor')} />);
     expect(shownPhases()).toEqual(['Exploring focus areas']);
-    expect(screen.getByText('In Progress : 0%')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
   });
 
   it('reveals each further phase as the run reaches it', () => {
@@ -58,7 +58,6 @@ describe('RunStepFlow', () => {
       'Exploring focus areas',
       'Generating hypotheses',
     ]);
-    expect(screen.getByText('In Progress : 25%')).toBeInTheDocument();
 
     rerender(<RunStepFlow run={runOn('engine.ranking.match')} />);
     expect(shownPhases()).toEqual([
@@ -67,15 +66,11 @@ describe('RunStepFlow', () => {
       'Reviewing hypotheses',
       'Playing tournament',
     ]);
-    expect(screen.getByText('In Progress : 75%')).toBeInTheDocument();
   });
 
-  it('checks the phases the run is past, and only those', () => {
+  it('marks no phase done or current: the list itself is the signal', () => {
     render(<RunStepFlow run={runOn('engine.fanout.reflection.item')} />);
-    expect(labels('.reference-run-step-done')).toEqual([
-      'Exploring focus areas',
-      'Generating hypotheses',
-    ]);
+    expect(labels('.reference-run-step-done')).toEqual([]);
   });
 
   it('carries one spinner, on the In Progress row', () => {
@@ -98,25 +93,17 @@ describe('RunStepFlow', () => {
     expect(shownPhases()).toHaveLength(4);
 
     // The engine loops, so it genuinely re-enters reviewing. The tournament
-    // row must not vanish, but it is no longer behind the run.
+    // row it already showed must not vanish.
     rerender(<RunStepFlow run={runOn('engine.fanout.review.item')} />);
     expect(shownPhases()).toHaveLength(4);
-    expect(labels('.reference-run-step-done')).toEqual([
-      'Exploring focus areas',
-      'Generating hypotheses',
-    ]);
-    expect(screen.getByText('In Progress : 50%')).toBeInTheDocument();
   });
 
-  it('holds the last phase while the run reports none', () => {
+  it('holds the revealed phases while the run reports none', () => {
     const {rerender} = render(
       <RunStepFlow run={runOn('engine.node.generate')} />,
     );
-    expect(screen.getByText('In Progress : 25%')).toBeInTheDocument();
-
     // Routing between agents reports no phase of its own.
     rerender(<RunStepFlow run={runOn('engine.node.orchestrator')} />);
-    expect(screen.getByText('In Progress : 25%')).toBeInTheDocument();
     expect(shownPhases()).toEqual([
       'Exploring focus areas',
       'Generating hypotheses',

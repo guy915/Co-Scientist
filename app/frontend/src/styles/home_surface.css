@@ -544,6 +544,9 @@
   min-width: 0;
 }
 
+/* Retained on purpose: the flow currently marks progress by which phases it
+   lists at all, so nothing renders this today. Kept ready for a per-phase
+   check mark rather than being rebuilt from scratch if one is wanted again. */
 .reference-run-step-done {
   width: 1.05rem;
   height: 1.05rem;
