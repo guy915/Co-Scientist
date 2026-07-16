@@ -71,6 +71,7 @@ function makeDeps(overrides: Partial<HandlerDeps> = {}): HandlerDeps {
     setStartedSession: vi.fn(),
     setIsStarting: vi.fn(),
     setIsAwaitingAgent: vi.fn(),
+    setAgentReasoning: vi.fn(),
     setMessages: vi.fn(),
     setError: vi.fn(),
     pendingAttachments: [],
@@ -94,7 +95,11 @@ describe('buildChatHandlers', () => {
 
     await handlers.handleSubmit({preventDefault: vi.fn()} as never);
 
-    expect(createInterview).toHaveBeenCalledWith('Study liver fibrosis');
+    // The trailing sink is how the turn's live reasoning reaches the UI.
+    expect(createInterview).toHaveBeenCalledWith(
+      'Study liver fibrosis',
+      expect.any(Function),
+    );
     expect(deps.setInterview).toHaveBeenCalledWith(interview);
     expect(deps.stageDraftSpec).not.toHaveBeenCalled();
     expect(deps.setMessages).toHaveBeenCalledTimes(2);
@@ -121,6 +126,7 @@ describe('buildChatHandlers', () => {
     expect(addInterviewTurn).toHaveBeenCalledWith(
       active.id,
       'Focus on metabolism',
+      expect.any(Function),
     );
     expect(deps.stageDraftSpec).toHaveBeenCalledWith(
       expect.objectContaining({

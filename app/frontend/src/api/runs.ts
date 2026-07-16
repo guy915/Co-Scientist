@@ -218,13 +218,86 @@ export async function createRun(input: {
   return fetchJson('/api/runs', jsonRequest(input, true));
 }
 
+/**
+ * Yields each `data:` payload of an SSE response body as it arrives.
+ *
+ * @param res A streaming response; a non-OK status throws before any frame.
+ * @param errorPrefix Prefix for the thrown non-OK error message.
+ */
+async function* readSseFrames<T>(
+  res: Response,
+  errorPrefix?: string,
+): AsyncGenerator<T> {
+  if (!res.ok || !res.body) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(
+      responseErrorMessage(res.status, res.statusText, text, errorPrefix),
+    );
+  }
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let pending = '';
+  for (;;) {
+    const {done, value} = await reader.read();
+    pending += decoder.decode(value, {stream: !done});
+    const frames = pending.split('\n\n');
+    // A trailing partial frame stays buffered until its terminator arrives.
+    pending = frames.pop() || '';
+    for (const frame of frames) {
+      const data = frame
+        .split('\n')
+        .find(line => line.startsWith('data: '))
+        ?.slice(6);
+      if (data) yield JSON.parse(data) as T;
+    }
+    if (done) break;
+  }
+}
+
+/** A frame of a streamed interview turn. */
+type InterviewFrame =
+  | {type: 'reasoning'; content: string}
+  | {type: 'interview'; interview: Interview}
+  | {type: 'error'; detail: string};
+
+/**
+ * Runs one streamed interview turn, relaying the model's live reasoning.
+ *
+ * The turn streams so the chain of thought can be shown while the Agent is
+ * still composing, but the transport stays an implementation detail: callers
+ * await the resolved interview exactly as they did over plain JSON.
+ *
+ * @param path The interview endpoint to post to.
+ * @param body The JSON request body.
+ * @param onReasoning Receives each chain-of-thought fragment as it arrives.
+ */
+async function streamInterviewTurn(
+  path: string,
+  body: unknown,
+  onReasoning?: (fragment: string) => void,
+): Promise<Interview> {
+  const res = await fetch(`${API_BASE_URL}${path}`, jsonRequest(body, true));
+  let interview: Interview | undefined;
+  for await (const frame of readSseFrames<InterviewFrame>(res)) {
+    if (frame.type === 'reasoning') onReasoning?.(frame.content);
+    else if (frame.type === 'interview') interview = frame.interview;
+    else if (frame.type === 'error') throw new Error(frame.detail);
+  }
+  if (!interview) {
+    throw new Error('The Agent could not continue the interview.');
+  }
+  return interview;
+}
+
 /** Starts a durable model-driven research-goal interview. */
 export async function createInterview(
   researchChallenge: string,
+  onReasoning?: (fragment: string) => void,
 ): Promise<Interview> {
-  return fetchJson(
+  return streamInterviewTurn(
     '/api/interviews',
-    jsonRequest({research_challenge: researchChallenge}, true),
+    {research_challenge: researchChallenge},
+    onReasoning,
   );
 }
 
@@ -232,10 +305,12 @@ export async function createInterview(
 export async function addInterviewTurn(
   interviewId: string,
   content: string,
+  onReasoning?: (fragment: string) => void,
 ): Promise<Interview> {
-  return fetchJson(
+  return streamInterviewTurn(
     `/api/interviews/${interviewId}/turns`,
-    jsonRequest({content}, true),
+    {content},
+    onReasoning,
   );
 }
 
@@ -503,33 +578,18 @@ export async function askRunQuestion(
   id: string,
   question: string,
 ): Promise<string> {
-  const response = await fetch(`${API_BASE_URL}/api/runs/${id}/messages/ask`, {
+  const res = await fetch(`${API_BASE_URL}/api/runs/${id}/messages/ask`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json', ...clientHeaders()},
     body: JSON.stringify({question}),
   });
-  if (!response.ok || !response.body) {
-    throw new Error(await response.text());
-  }
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let pending = '';
   let answer = '';
-  while (true) {
-    const {done, value} = await reader.read();
-    pending += decoder.decode(value, {stream: !done});
-    const frames = pending.split('\n\n');
-    pending = frames.pop() || '';
-    for (const frame of frames) {
-      const data = frame
-        .split('\n')
-        .find(line => line.startsWith('data: '))
-        ?.slice(6);
-      if (!data) continue;
-      const event = JSON.parse(data) as {type: string; content?: string};
-      if (event.type === 'chunk') answer += event.content || '';
-    }
-    if (done) break;
+  interface AnswerFrame {
+    type: string;
+    content?: string;
+  }
+  for await (const frame of readSseFrames<AnswerFrame>(res)) {
+    if (frame.type === 'chunk') answer += frame.content || '';
   }
   return answer;
 }

@@ -40,6 +40,7 @@ export function useChatSession(deps: ChatSessionDeps) {
     setStartedSession: lifecycle.setStartedSession,
     isStarting: composer.isStarting,
     isAwaitingAgent: composer.isAwaitingAgent,
+    agentReasoning: composer.agentReasoning,
     messages: composer.messages,
     error: composer.error,
     hasConversation,

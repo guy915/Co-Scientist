@@ -44,6 +44,7 @@ function baseArgs(
     setDraft: vi.fn(),
     isStarting: false,
     isAwaitingAgent: false,
+    agentReasoning: '',
     handleCancelDraftSpec: vi.fn(),
     handleEditPlan: vi.fn(),
     handleRetryDraftSpec: vi.fn(),
@@ -69,6 +70,45 @@ function renderItems(items: {id: string; node: ReactElement | unknown}[]) {
     </>,
   );
 }
+
+describe('agent thinking indicator', () => {
+  it('shows the model reasoning it has streamed so far', () => {
+    renderItems(
+      buildTimelineItems(
+        baseArgs({
+          isAwaitingAgent: true,
+          agentReasoning: 'The scientist named no mechanism, so ask for one.',
+        }),
+      ),
+    );
+
+    expect(screen.getByText('Thinking…')).toBeInTheDocument();
+    expect(
+      screen.getByText('The scientist named no mechanism, so ask for one.'),
+    ).toBeInTheDocument();
+  });
+
+  it('shows only the label until the first reasoning arrives', () => {
+    const {container} = renderItems(
+      buildTimelineItems(baseArgs({isAwaitingAgent: true, agentReasoning: ''})),
+    );
+
+    expect(screen.getByText('Thinking…')).toBeInTheDocument();
+    // No empty reasoning trail before the model has produced any.
+    expect(container.querySelector('.border-l-2')).toBeNull();
+  });
+
+  it('renders nothing once the turn resolves', () => {
+    renderItems(
+      buildTimelineItems(
+        baseArgs({isAwaitingAgent: false, agentReasoning: 'stale thought'}),
+      ),
+    );
+
+    expect(screen.queryByText('Thinking…')).toBeNull();
+    expect(screen.queryByText('stale thought')).toBeNull();
+  });
+});
 
 describe('messageTimelineItems', () => {
   it('wires each bubble to the edit/copy/retry handlers for its own message', () => {

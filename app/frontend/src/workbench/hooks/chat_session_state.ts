@@ -72,9 +72,13 @@ export function useComposerLog(clearSessionState: () => void) {
   // disable the Start control against double submission.
   const [isStarting, setIsStarting] = useState(false);
   // True while awaiting the Agent's reply to an interview turn; drives the
-  // "Thinking…" placeholder in the chat timeline. Kept separate from
-  // isStarting (which also covers the run create+start round trip).
+  // thinking indicator in the chat timeline. Kept separate from isStarting
+  // (which also covers the run create+start round trip).
   const [isAwaitingAgent, setIsAwaitingAgent] = useState(false);
+  // The Agent's chain of thought for the turn in flight, accumulated from the
+  // model's reasoning as it streams. Display-only and never persisted, so it
+  // is cleared at the start of each turn rather than kept with the messages.
+  const [agentReasoning, setAgentReasoning] = useState('');
   // Append-only log of user/assistant chat bubbles (spec cards are rendered
   // from the spec state, not stored here).
   const [messages, setMessages] = useState<ChatEntry[]>([]);
@@ -88,6 +92,7 @@ export function useComposerLog(clearSessionState: () => void) {
     setInput('');
     setIsStarting(false);
     setIsAwaitingAgent(false);
+    setAgentReasoning('');
     setMessages([]);
     setError(null);
     setPendingAttachments([]);
@@ -100,6 +105,8 @@ export function useComposerLog(clearSessionState: () => void) {
     setIsStarting,
     isAwaitingAgent,
     setIsAwaitingAgent,
+    agentReasoning,
+    setAgentReasoning,
     messages,
     setMessages,
     error,

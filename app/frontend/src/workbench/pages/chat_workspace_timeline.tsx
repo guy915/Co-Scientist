@@ -1,4 +1,10 @@
-import {type Dispatch, type ReactNode, type SetStateAction} from 'react';
+import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  useEffect,
+  useRef,
+} from 'react';
 import {type NavigateFunction} from 'react-router-dom';
 import {type RunFocus, type RunTier} from '@/api/runs';
 import {type InferredRunSpec} from '../run_spec';
@@ -41,6 +47,7 @@ export interface BuildTimelineItemsArgs {
   setDraft: Dispatch<SetStateAction<SpecStage | null>>;
   isStarting: boolean;
   isAwaitingAgent: boolean;
+  agentReasoning: string;
   handleCancelDraftSpec: () => void;
   handleEditPlan: (spec: InferredRunSpec) => void;
   handleRetryDraftSpec: () => void;
@@ -80,28 +87,57 @@ function messageTimelineItems({
   }));
 }
 
-// A transient "Thinking…" placeholder shown at the tail of the timeline while
-// the (thinking-model) Agent composes its reply to an interview turn; it is
-// timestamped "now" so it sorts after the just-sent user message and clears the
-// moment the response arrives.
+/**
+ * The Agent's live chain of thought while it composes an interview turn.
+ *
+ * The text is the model's own reasoning, streamed as it is produced: DeepSeek
+ * emits its whole chain of thought before the first token of the answer, so
+ * the trail fills while the scientist waits. Until the first fragment lands
+ * there is nothing real to show, so the label stands alone.
+ */
+function AgentThinking({reasoning}: {reasoning: string}) {
+  const trailRef = useRef<HTMLDivElement>(null);
+
+  // Follow the newest thought as the model writes, like a log tail.
+  useEffect(() => {
+    const trail = trailRef.current;
+    if (trail) trail.scrollTop = trail.scrollHeight;
+  }, [reasoning]);
+
+  return (
+    <div className="px-1 py-2" role="status" aria-live="polite">
+      <span className="animate-pulse text-sm text-th-muted-fg">Thinking…</span>
+      {reasoning && (
+        <div
+          ref={trailRef}
+          // Capped and scrollable: reasoning can outrun the viewport, and it
+          // must never push the composer or the arriving reply off screen.
+          className="mt-2 max-h-24 overflow-y-auto border-l-2 border-th-border pl-3 text-xs leading-relaxed whitespace-pre-wrap text-th-muted-fg"
+        >
+          {reasoning}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// The Agent's thinking, shown at the tail of the timeline while it composes its
+// reply to an interview turn; timestamped "now" so it sorts after the just-sent
+// user message, and cleared the moment the response arrives.
 function thinkingTimelineItems({
   isAwaitingAgent,
-}: Pick<BuildTimelineItemsArgs, 'isAwaitingAgent'>): TimelineItem[] {
+  agentReasoning,
+}: Pick<
+  BuildTimelineItemsArgs,
+  'isAwaitingAgent' | 'agentReasoning'
+>): TimelineItem[] {
   if (!isAwaitingAgent) return [];
   return [
     {
       id: 'agent-thinking',
       at: Date.now() / 1000,
       order: 45,
-      node: (
-        <div
-          className="flex items-center px-1 py-2 text-sm text-th-on-surface-variant"
-          role="status"
-          aria-live="polite"
-        >
-          <span className="animate-pulse">Thinking…</span>
-        </div>
-      ),
+      node: <AgentThinking reasoning={agentReasoning} />,
     },
   ];
 }

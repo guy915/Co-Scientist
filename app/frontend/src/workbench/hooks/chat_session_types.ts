@@ -58,6 +58,7 @@ export interface HandlerDeps {
   setStartedSession: (session: StartedSession) => void;
   setIsStarting: (value: boolean) => void;
   setIsAwaitingAgent: (value: boolean) => void;
+  setAgentReasoning: Dispatch<SetStateAction<string>>;
   setMessages: Dispatch<SetStateAction<ChatEntry[]>>;
   setError: (message: string | null) => void;
   pendingAttachments: File[];

@@ -29,6 +29,7 @@ async function submitComposerMessage({
   setInterview,
   setIsStarting,
   setIsAwaitingAgent,
+  setAgentReasoning,
   setPendingAttachments,
   stageDraftSpec,
 }: {
@@ -43,6 +44,7 @@ async function submitComposerMessage({
   setInterview: (interview: Interview | null) => void;
   setIsStarting: (value: boolean) => void;
   setIsAwaitingAgent: (value: boolean) => void;
+  setAgentReasoning: Dispatch<SetStateAction<string>>;
   setPendingAttachments: Dispatch<SetStateAction<File[]>>;
   stageDraftSpec: (
     spec: InferredRunSpec,
@@ -63,10 +65,14 @@ async function submitComposerMessage({
   const sentAt = appendChatMessage(setMessages, 'user', text);
   setIsStarting(true);
   setIsAwaitingAgent(true);
+  // Each turn shows only its own thinking, so drop the previous turn's.
+  setAgentReasoning('');
+  const onReasoning = (fragment: string) =>
+    setAgentReasoning(current => current + fragment);
   try {
     const updated = interview
-      ? await addInterviewTurn(interview.id, text)
-      : await createInterview(text);
+      ? await addInterviewTurn(interview.id, text, onReasoning)
+      : await createInterview(text, onReasoning);
     setInterview(updated);
     const agentTurn = [...updated.turns]
       .reverse()
@@ -285,6 +291,7 @@ export function toHandlerDeps(
     setStartedSession: lifecycle.setStartedSession,
     setIsStarting: composer.setIsStarting,
     setIsAwaitingAgent: composer.setIsAwaitingAgent,
+    setAgentReasoning: composer.setAgentReasoning,
     setMessages: composer.setMessages,
     setError: composer.setError,
     pendingAttachments: composer.pendingAttachments,
