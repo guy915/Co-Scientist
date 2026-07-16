@@ -352,9 +352,14 @@ function ActivityItem({
           ].join(' ')}
         />
       </span>
-      <div className="min-w-0 flex-1 pt-1">
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="truncate font-medium text-cosci-fg">
+      <div className="min-w-0 flex-1">
+        {/* Sized to the disc and centred against it, so the title sits on the
+            disc's axis rather than being nudged by a fixed amount. Both
+            paragraphs zero their margins: <p> keeps its user-agent margins
+            here (only div is reset), and 16px of it above the title is what
+            pushed the row past the disc and off-centre. */}
+        <div className="flex min-h-[2.125rem] items-center justify-between gap-3">
+          <p className="my-0 truncate font-medium text-cosci-fg">
             {phaseTitle(phase)}
           </p>
           <span className="shrink-0 text-xs text-cosci-muted">
@@ -362,7 +367,7 @@ function ActivityItem({
           </span>
         </div>
         {detail ? (
-          <p className="mt-0.5 line-clamp-2 text-sm text-cosci-muted">
+          <p className="mb-0 mt-0.5 line-clamp-2 text-sm text-cosci-muted">
             {detail}
           </p>
         ) : null}
