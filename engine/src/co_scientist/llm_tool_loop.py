@@ -14,6 +14,7 @@ from typing import Any
 import litellm
 
 from co_scientist.cache import LLMCache, NullCache
+from co_scientist.llm_request import deepseek_thinking_extra_body
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,15 @@ def _message_to_history_dict(message: Any) -> dict[str, Any]:
         "role": message.role,
         "content": message.content,
     }
+
+    # DeepSeek thinking returns the chain of thought as reasoning_content, and
+    # the API requires it to be echoed back on any assistant message that
+    # carries tool_calls -- omitting it 400s the next iteration. Preserve it so
+    # the replayed history stays valid; harmless for non-thinking models, which
+    # never populate the field.
+    reasoning = getattr(message, "reasoning_content", None)
+    if reasoning:
+        message_dict["reasoning_content"] = reasoning
 
     # Add tool calls if present
     if hasattr(message, "tool_calls") and message.tool_calls:
@@ -127,6 +137,7 @@ async def _run_tool_call_iteration(
         max_tokens=max_tokens,
         temperature=temperature,
         drop_params=True,
+        extra_body=deepseek_thinking_extra_body(model_name),
     )
 
     message = response.choices[0].message

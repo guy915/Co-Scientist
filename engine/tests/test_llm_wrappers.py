@@ -346,6 +346,35 @@ async def test_call_llm_with_tools_no_tool_calls_returns_immediately(
     assert history[-1]["content"] == "direct answer"
 
 
+def test_message_to_history_preserves_reasoning_content() -> None:
+    """Thinking's reasoning_content is echoed back on a tool-call turn.
+
+    DeepSeek rejects a follow-up turn whose assistant tool-call message drops
+    the reasoning_content it emitted, so the replayed history must keep it.
+    """
+    from co_scientist.llm_tool_loop import _message_to_history_dict
+
+    message = _message(
+        "", tool_calls=[_tool_call("call-1", "search", '{"q": 1}')]
+    )
+    message.reasoning_content = "chain of thought"
+
+    result = _message_to_history_dict(message)
+
+    assert result["reasoning_content"] == "chain of thought"
+    assert result["tool_calls"][0]["id"] == "call-1"
+
+
+def test_message_to_history_omits_absent_reasoning_content() -> None:
+    """A non-thinking message carries no reasoning_content key."""
+    from co_scientist.llm_tool_loop import _message_to_history_dict
+
+    result = _message_to_history_dict(_message("final answer"))
+
+    assert "reasoning_content" not in result
+    assert result["content"] == "final answer"
+
+
 # --- prompt debug-artifact saving --------------------------------------------
 
 
