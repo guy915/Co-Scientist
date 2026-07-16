@@ -5,6 +5,7 @@ import {Icon, type IconName} from '@/components/icon';
 import {conciseTitle} from '@/lib/text';
 import {type SettingsSection} from './components/settings_dialog';
 import {TruncatedLabel} from './components/truncated_label';
+import {useOverflowing} from './hooks/use_overflowing';
 import {type ShellPanel} from './layout_hooks';
 import {NAV_ICON_CLASSES, ShellPopover} from './layout_primitives';
 import {tooltipClassNames} from './tooltip';
@@ -58,6 +59,10 @@ const SIDE_CONTENT_COLLAPSED_CLASSES = 'ucs-side-content--collapsed';
 const SIDE_HEADING_CLASSES = 'ucs-side-heading';
 
 const CHAT_LIST_CLASSES = 'ucs-chat-list';
+
+// Applied only while the list has more chats than the rail can show, since it
+// turns the list into a scroll container (which clips its tooltips).
+const CHAT_LIST_SCROLLABLE_CLASSES = 'ucs-chat-list--scrollable';
 
 const CHAT_HISTORY_LINK_CLASSES = 'ucs-chat-link';
 
@@ -223,11 +228,22 @@ function ChatHistorySidebar({
   ].join(' ');
   const visibleHistory = showAllChats ? history : history.slice(0, 10);
   const hasExtraChats = history.length > 10;
+  // Only scroll the list when the rail cannot fit it. A scroll container clips
+  // its content even with no scrollbar showing, which would cut off the
+  // chat-link tooltips escaping to the right.
+  const [chatListRef, chatListOverflows] = useOverflowing<HTMLDivElement>();
 
   return (
     <div className={sideContentClasses}>
       <p className={SIDE_HEADING_CLASSES}>Chats</p>
-      <div className={CHAT_LIST_CLASSES}>
+      <div
+        ref={chatListRef}
+        className={
+          chatListOverflows
+            ? `${CHAT_LIST_CLASSES} ${CHAT_LIST_SCROLLABLE_CLASSES}`
+            : CHAT_LIST_CLASSES
+        }
+      >
         {visibleHistory.map(run => (
           <ChatHistoryLink
             key={run.id}

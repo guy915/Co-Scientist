@@ -749,22 +749,40 @@
   gap: 0.35rem;
 }
 
-/* Desktop: the chat list scrolls within its own region instead of spilling
-   past .ucs-side-content's max-height and pushing the whole page to scroll
-   once there are more than a handful of chats. The .ucs-app-shell prefix
-   outranks tooltips.css, which forces overflow:visible on these selectors at
-   single-class specificity (for right-placed tooltip escape); the trade is
-   that chat-link tooltips clip once the list actually scrolls. Mirrors the
-   max-width:700px drawer rules further down. */
+/* Desktop: the chat area takes the height the rail actually has, between the
+   top actions and Settings, rather than a fixed cap that cut the list off
+   with the rail half empty. Mirrors the max-width:700px drawer rules further
+   down. The .ucs-app-shell prefix outranks tooltips.css, which forces
+   overflow:visible on these selectors at single-class specificity.
+
+   The list only becomes a scroll container when it has more chats than fit
+   (see useOverflowing): a scroll container clips its content whether or not a
+   scrollbar shows, which would cut off the chat-link tooltips that escape to
+   the right. Nothing to scroll -> no clipping -> tooltips work. */
 @media (min-width: 701px) {
-  .ucs-app-shell .ucs-side-content {
+  .ucs-app-shell .ucs-nav-top--open {
+    display: flex;
     min-height: 0;
-    overflow: hidden;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .ucs-app-shell .ucs-side-content {
+    display: flex;
+    min-height: 0;
+    max-height: none;
+    flex: 1;
+    flex-direction: column;
+    overflow: visible;
   }
 
   .ucs-app-shell .ucs-chat-list {
     min-height: 0;
-    max-height: 19rem;
+    max-height: none;
+    overflow: visible;
+  }
+
+  .ucs-app-shell .ucs-chat-list--scrollable {
     overflow-x: hidden;
     overflow-y: auto;
   }
