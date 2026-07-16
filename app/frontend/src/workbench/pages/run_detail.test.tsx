@@ -55,9 +55,6 @@ vi.mock('@/api/runs', async importActual => {
     }),
     getCitations: vi.fn().mockResolvedValue([]),
     getReport: vi.fn().mockResolvedValue(null),
-    listReportShares: vi.fn().mockResolvedValue([]),
-    createReportShare: vi.fn(),
-    revokeReportShare: vi.fn(),
     sendRunSteering: vi
       .fn()
       .mockResolvedValue({id: 'message-1', status: 'queued'}),
@@ -114,25 +111,9 @@ beforeEach(() => {
   vi.mocked(runsApi.getMatches).mockResolvedValue([]);
   vi.mocked(runsApi.getReport).mockResolvedValue(null);
   vi.mocked(runsApi.getSafety).mockResolvedValue([]);
-  vi.mocked(runsApi.listReportShares).mockResolvedValue([]);
 });
 
 describe('RunDetail', () => {
-  it('exposes Goal Report export controls', async () => {
-    vi.mocked(runsApi.getReport).mockResolvedValue({
-      payload: {},
-    } as unknown as runsApi.Report);
-    renderAt('/runs/run-1/ideas');
-    expect(await screen.findByText('All Ideas')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', {name: 'Share'}));
-    expect(
-      await screen.findByRole('region', {name: 'Share Goal Report'}),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('link', {name: 'Download'}).getAttribute('href'),
-    ).toMatch(/^\/api\/runs\/run-1\/report\.md\?client_id=.+/);
-  });
-
   it('shows truthful live metrics and activity instead of report controls', async () => {
     vi.mocked(runsApi.getRun).mockResolvedValue({
       ...makeRun('Study pathway X'),

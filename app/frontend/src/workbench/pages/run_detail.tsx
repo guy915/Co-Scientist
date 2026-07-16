@@ -77,18 +77,12 @@ export function RunDetail() {
   if (!id) return null;
 
   const active = isActiveStatus(run?.status);
-  const reportReady = Boolean(report && run?.status === 'completed');
   const pageClasses = active
     ? `${REPORT_PAGE_CLASSES} grid-rows-[3.75rem_minmax(0,1fr)]`
     : REPORT_PAGE_CLASSES;
   return (
     <div className={pageClasses}>
-      <ReportTitlebar
-        title={title}
-        runId={id}
-        shareEnabled={Boolean(run && !run.is_demo)}
-        reportReady={reportReady}
-      />
+      <ReportTitlebar title={title} />
 
       {!active && (
         <ReportTabNav activeTab={activeTab} onTabChange={onTabChange} />
@@ -433,7 +427,6 @@ function RunDetailTabContent({
             reviews={reviews}
             matches={matches}
             claimEvidence={claimEvidence}
-            ideaBuckets={report?.payload.idea_buckets}
           />
         </section>
       )}

@@ -1,10 +1,8 @@
 import {useCallback, useState} from 'react';
 import {Link, useNavigate} from 'react-router-dom';
 import {Icon, type IconName} from '@/components/icon';
-import {reportMarkdownUrl} from '@/api/runs';
 import {TruncatedLabel} from '../components/truncated_label';
 import {TABS, type TabName} from '../run_tabs';
-import {ReportShareControl} from './report_share_control';
 
 // Material icon shown per tab in the nav bar (keyed by TabName so a missing
 // entry is a compile error, not a silent blank icon).
@@ -105,17 +103,7 @@ export function useTabNavigation(id: string | undefined, activeTab: TabName) {
 }
 
 /** Titlebar: back link plus the run's (possibly domain-overridden) title. */
-export function ReportTitlebar({
-  title,
-  runId,
-  shareEnabled,
-  reportReady,
-}: {
-  title: string;
-  runId: string;
-  shareEnabled: boolean;
-  reportReady: boolean;
-}) {
+export function ReportTitlebar({title}: {title: string}) {
   return (
     <header className={REPORT_TITLEBAR_CLASSES}>
       <div className={REPORT_TITLE_LEFT_CLASSES}>
@@ -126,37 +114,7 @@ export function ReportTitlebar({
           <TruncatedLabel className={REPORT_TITLE_TEXT_CLASSES} text={title} />
         </h1>
       </div>
-      <ReportActions
-        runId={runId}
-        shareEnabled={shareEnabled}
-        reportReady={reportReady}
-      />
     </header>
-  );
-}
-
-function ReportActions({
-  runId,
-  shareEnabled,
-  reportReady,
-}: {
-  runId: string;
-  shareEnabled: boolean;
-  reportReady: boolean;
-}) {
-  const actionClasses =
-    'rounded-full border border-cosci-border px-3 py-2 text-xs no-underline text-cosci-fg hover:bg-cosci-hover';
-  return (
-    <div className="flex shrink-0 items-center gap-2 max-[720px]:gap-1">
-      {reportReady && shareEnabled ? (
-        <ReportShareControl runId={runId} className={actionClasses} />
-      ) : null}
-      {reportReady ? (
-        <a className={actionClasses} href={reportMarkdownUrl(runId)} download>
-          Download
-        </a>
-      ) : null}
-    </div>
   );
 }
 
