@@ -161,6 +161,12 @@ async def _call_matchup_judge(
             json_schema=schema,
             run_id=run_id,
             prompt_name=prompt_name,
+            # The only engine node that opts out of thinking: the tournament
+            # runs one matchup per hypothesis pair, so these calls scale
+            # O(n^2) per cycle and their reasoning spend dominates run
+            # latency. The prompt already asks for an explicit rationale, so
+            # the comparison stays reasoned in the answer itself.
+            enable_thinking=False,
             prompt_metadata={
                 "matchup_index": matchup_index,
                 "prompt_length_chars": len(prompt),

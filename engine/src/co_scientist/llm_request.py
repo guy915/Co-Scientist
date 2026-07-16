@@ -102,8 +102,10 @@ def _clamp_temperature(model_name: str, temperature: float) -> float:
 _JSON_OBJECT_ONLY_MODEL_FAMILIES: tuple[str, ...] = ("deepseek",)
 
 
-def deepseek_thinking_extra_body(model_name: str) -> dict[str, Any]:
-    """Return an ``extra_body`` that enables DeepSeek V4 thinking mode.
+def deepseek_thinking_extra_body(
+    model_name: str, *, enabled: bool = True
+) -> dict[str, Any]:
+    """Return an ``extra_body`` selecting DeepSeek V4 thinking mode.
 
     DeepSeek V4 (pro/flash) are reasoning models: the chain of thought is
     returned separately as ``reasoning_content`` and never mixed into
@@ -114,15 +116,23 @@ def deepseek_thinking_extra_body(model_name: str) -> dict[str, Any]:
     supervisor-routing call is bumped to a thinking-safe budget). Non-DeepSeek
     models get an empty dict.
 
+    Thinking is on for every node except the ranking tournament, which opts out
+    via ``enabled=False``: its pairwise matchups run O(n^2) times per cycle, so
+    reasoning there dominates run latency (see ``agents/ranking/ranking.py``).
+
     Args:
         model_name: Model name in litellm format.
+        enabled: Whether to request thinking mode. False explicitly disables
+            it, which is not the same as omitting the field -- the API's own
+            default is enabled.
 
     Returns:
-        ``{"thinking": {"type": "enabled"}}`` for DeepSeek models, else ``{}``.
+        ``{"thinking": {"type": "enabled"|"disabled"}}`` for DeepSeek models,
+        else ``{}``.
     """
     lowered = model_name.lower()
     if any(family in lowered for family in _JSON_OBJECT_ONLY_MODEL_FAMILIES):
-        return {"thinking": {"type": "enabled"}}
+        return {"thinking": {"type": "enabled" if enabled else "disabled"}}
     return {}
 
 
@@ -232,6 +242,7 @@ def _build_completion_args(
     temperature: float,
     force_json: bool,
     json_schema: dict[str, Any] | None,
+    enable_thinking: bool = True,
 ) -> dict[str, Any]:
     """Builds the keyword arguments for a ``litellm.acompletion`` call.
 
@@ -242,6 +253,8 @@ def _build_completion_args(
         temperature: Sampling temperature.
         force_json: If True, try to force JSON mode (model support varies).
         json_schema: Optional JSON schema to constrain the response format.
+        enable_thinking: Whether DeepSeek thinking mode is requested; False
+            opts a high-frequency call site out of the reasoning spend.
 
     Returns:
         Keyword arguments ready to pass to ``litellm.acompletion``.
@@ -260,12 +273,13 @@ def _build_completion_args(
         completion_args, prompt, model_name, force_json, json_schema
     )
 
-    thinking = deepseek_thinking_extra_body(model_name)
+    thinking = deepseek_thinking_extra_body(model_name, enabled=enable_thinking)
     if thinking:
         completion_args["extra_body"] = thinking
-        # Lightest reasoning tier that still thinks, to bound the latency and
-        # token cost of reasoning on every call.
-        completion_args["reasoning_effort"] = "low"
+        if enable_thinking:
+            # Lightest reasoning tier that still thinks, to bound the latency
+            # and token cost of reasoning on every call.
+            completion_args["reasoning_effort"] = "low"
 
     return completion_args
 

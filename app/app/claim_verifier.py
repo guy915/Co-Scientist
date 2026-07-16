@@ -35,7 +35,7 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
-from app.config import deepseek_thinking_kwargs
+from app.config import deepseek_non_thinking_extra_body
 
 logger = logging.getLogger(__name__)
 
@@ -56,8 +56,8 @@ _SYSTEM_PROMPT = (
 )
 
 _DEFAULT_TIMEOUT_SECONDS = 30.0
-# DeepSeek thinking spends reasoning tokens against this budget before the
-# support/contradict JSON; 400 would leave the answer empty, so give headroom.
+# A ceiling, not a reservation: the verdict JSON is short, and the generous cap
+# only matters for an unusually long quote.
 _MAX_TOKENS = 2000
 
 
@@ -150,7 +150,14 @@ def make_llm_assessor(
                 max_tokens=_MAX_TOKENS,
                 timeout=timeout,
                 response_format={"type": "json_object"},
-                **deepseek_thinking_kwargs(model),
+                # One of the two high-frequency call sites that opt out of
+                # thinking: grounding runs this judge once per extracted claim
+                # per hypothesis, so it is the app-side counterpart to the
+                # engine's ranking tournament. The NLI verdict is a lookup
+                # against supplied passages -- the prompt already forbids
+                # outside knowledge and demands a verbatim quote -- so there is
+                # little for reasoning to add.
+                extra_body=deepseek_non_thinking_extra_body(model),
             )
             content = response.choices[0].message.content or ""
         except Exception as exc:

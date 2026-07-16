@@ -375,6 +375,91 @@ def test_message_to_history_omits_absent_reasoning_content() -> None:
     assert result["content"] == "final answer"
 
 
+# --- DeepSeek thinking mode --------------------------------------------------
+
+
+def test_thinking_enabled_by_default_for_deepseek() -> None:
+    """Every DeepSeek call thinks unless a call site opts out."""
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt", "deepseek/deepseek-v4-flash", 100, 0.5, False, None
+    )
+
+    assert args["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert args["reasoning_effort"] == "low"
+
+
+def test_thinking_disabled_drops_reasoning_effort() -> None:
+    """Opting out disables thinking explicitly and spends no reasoning.
+
+    ``reasoning_effort`` must not survive the opt-out: it would ask the
+    provider to size a reasoning budget for a call that does not reason.
+    """
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt",
+        "deepseek/deepseek-v4-flash",
+        100,
+        0.5,
+        False,
+        None,
+        enable_thinking=False,
+    )
+
+    assert args["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in args
+
+
+def test_thinking_params_absent_for_non_deepseek_models() -> None:
+    """The thinking params are DeepSeek-specific and never sent elsewhere."""
+    from co_scientist.llm_request import _build_completion_args
+
+    args = _build_completion_args(
+        "prompt", "gemini/gemini-2.5-flash", 100, 0.5, False, None
+    )
+
+    assert "extra_body" not in args
+    assert "reasoning_effort" not in args
+
+
+async def test_ranking_matchup_opts_out_of_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The O(n^2) tournament judge is the one engine node that skips thinking.
+
+    Asserted at the litellm seam through the real ``call_llm_json`` ->
+    ``call_llm`` chain, so the opt-out is verified end to end rather than at
+    the ranking call site alone.
+    """
+    import litellm
+
+    from co_scientist.agents.ranking.ranking import _call_matchup_judge
+
+    seen: dict[str, Any] = {}
+
+    async def fake_acompletion(*_args: Any, **kwargs: Any) -> SimpleNamespace:
+        seen.update(kwargs)
+        return _completion(_message('{"winner": "A"}'))
+
+    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    _disable_cache(monkeypatch)
+
+    await _call_matchup_judge(
+        "compare A and B",
+        None,
+        "deepseek/deepseek-v4-flash",
+        None,
+        None,
+        None,
+        None,
+    )
+
+    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in seen
+
+
 # --- prompt debug-artifact saving --------------------------------------------
 
 

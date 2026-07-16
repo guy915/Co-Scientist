@@ -61,6 +61,7 @@ def test_call_llm_json_bypasses_warm_cache_when_disabled(
         force_json: bool = False,
         json_schema: Any = None,
         use_cache: bool = True,
+        enable_thinking: bool = True,
     ) -> str:
         return json.dumps({"hypotheses": [{"hypothesis": "FRESH"}]})
 

@@ -127,11 +127,17 @@ settings = Settings()
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
-    Reserved for pure-utility calls where reasoning adds nothing and a tiny
-    ``max_tokens`` budget can't afford it — currently just title generation
-    (a three-word extraction with ``max_tokens=24``, which a reasoning spend
-    would leave empty). Every substantive call uses the thinking variant below.
-    Non-DeepSeek models get an empty dict.
+    Reserved for the two call sites where reasoning does not earn its cost:
+
+    - Title generation, a three-word extraction with ``max_tokens=24`` that a
+      reasoning spend would leave empty.
+    - Claim verification (``claim_verifier.py``), which runs once per claim per
+      hypothesis; it is the app-side high-frequency counterpart to the engine's
+      ranking tournament, and its verdict is a lookup against supplied passages
+      rather than an open-ended judgment.
+
+    Every other app call uses the thinking variant below. Non-DeepSeek models
+    get an empty dict.
 
     Args:
         model_name: Model name in litellm format.
@@ -156,9 +162,9 @@ def deepseek_thinking_kwargs(model_name: str) -> dict[str, object]:
     that). ``reasoning_effort='low'`` is the lightest reasoning tier that still
     thinks, chosen to bound the added latency and token cost of reasoning on
     every call. Spread into a completion call (``**deepseek_thinking_kwargs``).
-    Used by every substantive app call (interview, Q&A, safety, claim
-    verification); titling keeps the non-thinking variant above. Non-DeepSeek
-    models get an empty dict.
+    Used by every substantive app call (interview, Q&A, safety); titling and
+    claim verification keep the non-thinking variant above. Non-DeepSeek models
+    get an empty dict.
 
     Args:
         model_name: Model name in litellm format.

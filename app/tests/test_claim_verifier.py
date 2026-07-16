@@ -153,3 +153,31 @@ def test_no_passages_is_insufficient_without_calling_llm(
     assessor, _ = make_llm_assessor("deepseek/deepseek-chat")
     draft = assessor("some claim", [])
     assert draft.label is EntailmentLabel.INSUFFICIENT
+
+
+def test_verdict_call_opts_out_of_thinking(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Grounding runs this judge per claim, so it skips the reasoning spend.
+
+    The app-side counterpart to the engine's ranking-tournament opt-out; every
+    other substantive app call still thinks.
+    """
+    seen: dict[str, Any] = {}
+
+    def _capturing_completion(**kwargs: Any) -> Any:
+        seen.update(kwargs)
+        message = types.SimpleNamespace(
+            content='{"label": "insufficient", "supporting": [], '
+            '"contradicting": []}'
+        )
+        return types.SimpleNamespace(
+            choices=[types.SimpleNamespace(message=message)]
+        )
+
+    _install(monkeypatch, _capturing_completion)
+    assessor, _ = make_llm_assessor("deepseek/deepseek-v4-flash")
+    assessor("some claim", [_PASSAGE])
+
+    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in seen

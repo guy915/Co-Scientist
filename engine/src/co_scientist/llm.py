@@ -174,6 +174,7 @@ async def call_llm(
     run_id: str | None = None,
     prompt_name: str | None = None,
     prompt_metadata: dict[str, Any] | None = None,
+    enable_thinking: bool = True,
 ) -> str:
     """Call an LLM via litellm and return the response.
 
@@ -192,6 +193,10 @@ async def call_llm(
             is saved to disk before the call — always, regardless of
             ``run_id`` (globally gated by ``COSCIENTIST_SAVE_PROMPTS``).
         prompt_metadata: Optional metadata appended to the saved prompt file.
+        enable_thinking: When False, explicitly disable DeepSeek thinking mode
+            for this call. Reserved for high-frequency call sites where the
+            per-call reasoning spend dominates run latency; see
+            ``deepseek_thinking_extra_body``.
 
     Returns:
         String response from the LLM
@@ -217,7 +222,13 @@ async def call_llm(
 
     try:
         completion_args = _build_completion_args(
-            prompt, model_name, max_tokens, temperature, force_json, json_schema
+            prompt,
+            model_name,
+            max_tokens,
+            temperature,
+            force_json,
+            json_schema,
+            enable_thinking=enable_thinking,
         )
 
         response = await litellm.acompletion(**completion_args)
@@ -254,6 +265,7 @@ async def _call_llm_for_json(
     max_tokens: int,
     temperature: float,
     json_schema: dict[str, Any] | None,
+    enable_thinking: bool = True,
 ) -> str:
     """Makes the raw LLM call for one call_llm_json attempt.
 
@@ -276,6 +288,7 @@ async def _call_llm_for_json(
         force_json=not json_schema,
         json_schema=json_schema,
         use_cache=False,
+        enable_thinking=enable_thinking,
     )
 
     if not response_text:
@@ -300,6 +313,7 @@ async def call_llm_json(
     run_id: str | None = None,
     prompt_name: str | None = None,
     prompt_metadata: dict[str, Any] | None = None,
+    enable_thinking: bool = True,
 ) -> dict[str, Any]:
     """Call LLM and parse response as JSON with validation and retry logic.
 
@@ -320,6 +334,9 @@ async def call_llm_json(
             ``COSCIENTIST_SAVE_PROMPTS``). Retry prompts carrying validation
             feedback are not re-saved.
         prompt_metadata: Optional metadata appended to the saved prompt file.
+        enable_thinking: When False, explicitly disable DeepSeek thinking mode
+            for every attempt of this call. Reserved for high-frequency call
+            sites; see ``deepseek_thinking_extra_body``.
 
     Returns:
         Parsed JSON response as a dictionary
@@ -349,7 +366,12 @@ async def call_llm_json(
     async def _call_for_json(attempt_prompt: str) -> str:
         """Makes the raw LLM call (via call_llm) for one attempt's prompt."""
         return await _call_llm_for_json(
-            attempt_prompt, model_name, max_tokens, temperature, json_schema
+            attempt_prompt,
+            model_name,
+            max_tokens,
+            temperature,
+            json_schema,
+            enable_thinking=enable_thinking,
         )
 
     last_error: Exception | None = None
