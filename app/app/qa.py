@@ -16,7 +16,7 @@ from typing import Any
 
 from app import store
 from app.citations import STATE_RANK
-from app.config import deepseek_non_thinking_extra_body, settings
+from app.config import deepseek_thinking_extra_body, settings
 
 logger = logging.getLogger(__name__)
 
@@ -390,7 +390,7 @@ async def _stream_llm_deltas(
             {"role": "user", "content": question},
         ],
         stream=True,
-        extra_body=deepseek_non_thinking_extra_body(model),
+        extra_body=deepseek_thinking_extra_body(model),
     )
     async for chunk in response:
         delta = (chunk.choices[0].delta.content or "") if chunk.choices else ""

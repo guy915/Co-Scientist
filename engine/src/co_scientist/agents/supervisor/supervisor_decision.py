@@ -178,7 +178,10 @@ async def choose_supervisor_task(
         response = await call_llm_json(
             prompt=_planning_prompt(state, stats, budget),
             model_name=state["supervisor_model_name"],
-            max_tokens=800,
+            # The routing output is small, but DeepSeek thinking spends
+            # reasoning tokens against this budget first; 800 risked an empty
+            # answer, so give reasoning + decision headroom.
+            max_tokens=3000,
             temperature=MEDIUM_TEMPERATURE,
             json_schema=_DECISION_SCHEMA,
             use_cache=False,

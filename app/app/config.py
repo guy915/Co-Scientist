@@ -127,13 +127,11 @@ settings = Settings()
 def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """Return an ``extra_body`` that disables DeepSeek V4 thinking mode.
 
-    DeepSeek V4 (pro/flash) default to thinking mode: the chain of thought is
-    returned as ``reasoning_content`` and the final answer as ``content`` only
-    after the reasoning budget is spent. Under the app's tight per-call token
-    budgets (safety classification, titling, the four-field interview) that can
-    leave ``content`` empty and break structured parsing, so app LLM calls
-    disable thinking for deterministic output — the non-thinking mode of the
-    deprecated ``deepseek-chat``. Non-DeepSeek models get an empty dict.
+    Reserved for pure-utility calls where reasoning adds nothing and a tiny
+    ``max_tokens`` budget can't afford it — currently just title generation
+    (a three-word extraction with ``max_tokens=24``, which a reasoning spend
+    would leave empty). Every substantive call uses the thinking variant below.
+    Non-DeepSeek models get an empty dict.
 
     Args:
         model_name: Model name in litellm format.
@@ -143,6 +141,30 @@ def deepseek_non_thinking_extra_body(model_name: str) -> dict[str, object]:
     """
     return (
         {"thinking": {"type": "disabled"}}
+        if "deepseek" in model_name.lower()
+        else {}
+    )
+
+
+def deepseek_thinking_extra_body(model_name: str) -> dict[str, object]:
+    """Return an ``extra_body`` that enables DeepSeek V4 thinking mode.
+
+    DeepSeek V4 (pro/flash) return chain-of-thought separately as
+    ``reasoning_content`` and never fold it into ``content``, so structured
+    parsing survives as long as ``max_tokens`` leaves room for the answer after
+    the reasoning spend (the interview and claim-verifier budgets are sized for
+    that). Used by every substantive app call (interview, Q&A, safety, claim
+    verification); titling keeps the non-thinking variant above. Non-DeepSeek
+    models get an empty dict.
+
+    Args:
+        model_name: Model name in litellm format.
+
+    Returns:
+        ``{"thinking": {"type": "enabled"}}`` for DeepSeek models, else ``{}``.
+    """
+    return (
+        {"thinking": {"type": "enabled"}}
         if "deepseek" in model_name.lower()
         else {}
     )

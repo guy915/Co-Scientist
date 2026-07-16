@@ -35,7 +35,7 @@ from app.claims import (
     EvidencePassage,
     deterministic_assessor,
 )
-from app.config import deepseek_non_thinking_extra_body
+from app.config import deepseek_thinking_extra_body
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,9 @@ _SYSTEM_PROMPT = (
 )
 
 _DEFAULT_TIMEOUT_SECONDS = 30.0
-_MAX_TOKENS = 400
+# DeepSeek thinking spends reasoning tokens against this budget before the
+# support/contradict JSON; 400 would leave the answer empty, so give headroom.
+_MAX_TOKENS = 2000
 
 
 def _render_passages(passages: Sequence[EvidencePassage]) -> str:
@@ -148,7 +150,7 @@ def make_llm_assessor(
                 max_tokens=_MAX_TOKENS,
                 timeout=timeout,
                 response_format={"type": "json_object"},
-                extra_body=deepseek_non_thinking_extra_body(model),
+                extra_body=deepseek_thinking_extra_body(model),
             )
             content = response.choices[0].message.content or ""
         except Exception as exc:
