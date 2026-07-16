@@ -93,3 +93,91 @@ export function homeRunScore(
     ? scoresByRunId[run.id]
     : null;
 }
+
+// Phase of the four-step home flow each unit of work belongs to: 1 Exploring
+// focus areas, 2 Generating hypotheses, 3 Reviewing hypotheses, 4 Playing
+// tournament. `null` means "carries no phase signal" (see homeRunStepIndex).
+//
+// Keyed by the distinguishing segment of a durable task type, which the engine
+// provider mints in `app/engine_tasks.py` as `engine.node.<graph node>`,
+// `engine.fanout.<workflow>.<step>`, `engine.ranking.<step>`, or a bare
+// `engine.<step>`. Keying on that segment rather than the whole string means
+// one entry covers a node and its fan-out siblings alike (`engine.node.ranking`
+// and `engine.ranking.match` both land on the tournament).
+const TASK_PHASE: Record<string, number | null> = {
+  bootstrap: 1,
+  supervisor: 1,
+  // Per-cycle routing between agents, not a phase of its own: reporting it
+  // would bounce the flow back to Exploring at every cycle boundary.
+  orchestrator: null,
+  generate: 2,
+  generation: 2,
+  // The Generation agent owns literature review (engine `NODE_TO_AGENT`).
+  literature_review: 2,
+  reflection: 3,
+  comprehensive_reflection: 3,
+  review: 3,
+  verification: 3,
+  deep_verification: 3,
+  safety_screen: 3,
+  proximity: 3,
+  ranking: 4,
+  evolve: 4,
+  meta_review: 4,
+  research_overview: 4,
+  finalize: 4,
+};
+
+// Pipeline-stage event type -> phase, mirroring TASK_PHASE for the mock
+// provider, which reports progress as `_STAGE_EVENT_TYPES` events (see
+// app/store/runs.py) rather than durable tasks.
+const STAGE_PHASE: Record<string, number> = {
+  'supervisor.plan': 1,
+  literature_review: 2,
+  generate: 2,
+  reflection: 3,
+  proximity: 3,
+  ranking: 4,
+  evolve: 4,
+  meta_review: 4,
+  deep_verification: 4,
+  research_overview: 4,
+};
+
+// The segment of a durable task type that identifies the work being done:
+// the graph node for `engine.node.<key>`, the workflow for
+// `engine.fanout.<workflow>.<step>`, and the leading step otherwise.
+function taskPhaseKey(taskType: string): string {
+  const [, first = '', second = ''] = taskType.split('.');
+  return first === 'node' || first === 'fanout' ? second : first;
+}
+
+/**
+ * Derives the 1-based phase (1-4) a live run is currently working in, reading
+ * whichever real progress signal its provider reports: the engine provider
+ * leases durable tasks (`execution_progress.active_task`) and emits no stage
+ * events, while the mock provider emits stage events (`latest_stage`) and
+ * leases no tasks. Each signal is absent for the other provider, so both are
+ * consulted rather than either being assumed.
+ *
+ * The engine revisits phases on every cycle, so this deliberately moves
+ * backwards when the run genuinely returns to generating or reviewing.
+ *
+ * @param run The active run.
+ * @returns The phase in the range 1-4, or null when the run reports no phase
+ *   signal right now (between leased tasks, or while routing), which leaves
+ *   the caller showing the last phase actually observed.
+ */
+export function homeRunStepIndex(run: Run): number | null {
+  if (run.status === 'queued') return 1;
+  if (run.status === 'synthesizing') return 4;
+  // An unmapped task type and a deliberately phase-less one (orchestrator)
+  // both mean "no signal", so both normalize to null.
+  const activeTask = run.execution_progress?.active_task;
+  const taskPhase = activeTask
+    ? (TASK_PHASE[taskPhaseKey(activeTask)] ?? null)
+    : null;
+  if (taskPhase !== null) return taskPhase;
+  const stage = run.latest_stage;
+  return (stage ? STAGE_PHASE[stage] : null) ?? null;
+}

@@ -16,7 +16,7 @@ import {
   formatHomeRunTimeChip,
   homeRunScore,
 } from './home_recents_data';
-import {RunExecutionProgress} from './home_recents_run_steps';
+import {RunStepFlow} from './home_recents_run_steps';
 
 const RECENTS_PANEL_CLASSES = `reference-recents ${HOME_RECENTS_PANEL_CLASSES}`;
 
@@ -234,7 +234,7 @@ function RecentRunCard({run, topScore}: {run: Run; topScore: number | null}) {
           lines={3}
         />
         {isActiveRun ? (
-          <RunExecutionProgress run={run} />
+          <RunStepFlow run={run} />
         ) : (
           <RecentRunResults topIdeas={topIdeas} topScore={topScore} />
         )}

@@ -4,6 +4,7 @@ import {
   formatHomeRunDate,
   formatHomeRunTimeChip,
   homeRunScore,
+  homeRunStepIndex,
 } from './home_recents_data';
 
 function makeRun(overrides: Partial<Run> = {}): Run {
@@ -94,5 +95,112 @@ describe('homeRunScore', () => {
   it('returns the recorded score for a completed run, distinguishing an explicit null', () => {
     expect(homeRunScore(makeRun({id: 'r1'}), {r1: 1620})).toBe(1620);
     expect(homeRunScore(makeRun({id: 'r1'}), {r1: null})).toBeNull();
+  });
+});
+
+// The exact task types the engine provider mints, as observed in the durable
+// task table of real runs. Every one must land on a phase (or be a deliberate
+// null), so an unmapped task type cannot silently strand the flow.
+const ENGINE_TASK_PHASES: [string, number | null][] = [
+  ['engine.bootstrap', 1],
+  ['engine.node.supervisor', 1],
+  ['engine.node.orchestrator', null],
+  ['engine.node.literature_review', 2],
+  ['engine.node.generate', 2],
+  ['engine.fanout.generation.strategy', 2],
+  ['engine.fanout.generation.aggregate', 2],
+  ['engine.node.reflection', 3],
+  ['engine.node.comprehensive_reflection', 3],
+  ['engine.node.review', 3],
+  ['engine.node.deep_verification', 3],
+  ['engine.node.safety_screen', 3],
+  ['engine.node.proximity', 3],
+  ['engine.fanout.reflection.item', 3],
+  ['engine.fanout.reflection.aggregate', 3],
+  ['engine.fanout.review.item', 3],
+  ['engine.fanout.review.aggregate', 3],
+  ['engine.fanout.verification.item', 3],
+  ['engine.fanout.verification.aggregate', 3],
+  ['engine.node.ranking', 4],
+  ['engine.ranking.match', 4],
+  ['engine.ranking.finalize', 4],
+  ['engine.node.evolve', 4],
+  ['engine.node.meta_review', 4],
+  ['engine.node.research_overview', 4],
+  ['engine.finalize', 4],
+];
+
+function activeTask(active_task: string | null): Partial<Run> {
+  return {
+    status: 'running',
+    execution_progress: {
+      determinate: false,
+      completed_tasks: 1,
+      total_tasks: 4,
+      fraction: null,
+      active_task,
+      queued_tasks: 2,
+    },
+  };
+}
+
+describe('homeRunStepIndex', () => {
+  it('maps queued to step 1 and synthesizing to step 4 directly', () => {
+    expect(homeRunStepIndex(makeRun({status: 'queued'}))).toBe(1);
+    expect(homeRunStepIndex(makeRun({status: 'synthesizing'}))).toBe(4);
+  });
+
+  it('derives the phase from the engine provider’s active durable task', () => {
+    for (const [task, phase] of ENGINE_TASK_PHASES) {
+      expect(homeRunStepIndex(makeRun(activeTask(task))), task).toBe(phase);
+    }
+  });
+
+  it('derives the phase from the mock provider’s latest pipeline stage', () => {
+    // The mock provider leases no durable tasks, so the stage event is its
+    // only progress signal.
+    const cases: [string, number][] = [
+      ['supervisor.plan', 1],
+      ['literature_review', 2],
+      ['generate', 2],
+      ['reflection', 3],
+      ['proximity', 3],
+      ['ranking', 4],
+      ['evolve', 4],
+      ['meta_review', 4],
+      ['deep_verification', 4],
+      ['research_overview', 4],
+    ];
+    for (const [latest_stage, phase] of cases) {
+      expect(
+        homeRunStepIndex(makeRun({status: 'running', latest_stage})),
+        latest_stage,
+      ).toBe(phase);
+    }
+  });
+
+  it('reports no phase for a running run that reports no progress yet', () => {
+    // Neither provider's signal is present: the caller holds the last phase
+    // rather than the flow claiming to be back at the first step.
+    expect(
+      homeRunStepIndex(makeRun({status: 'running', latest_stage: null})),
+    ).toBeNull();
+    expect(homeRunStepIndex(makeRun(activeTask(null)))).toBeNull();
+    expect(homeRunStepIndex(makeRun(activeTask('engine.node.unknown')))).toBe(
+      null,
+    );
+  });
+
+  it('re-enters an earlier phase when the run cycles back to it', () => {
+    // The engine loops, so a later cycle genuinely returns to generation;
+    // the flow reports where the run actually is, not its furthest point.
+    expect(homeRunStepIndex(makeRun(activeTask('engine.ranking.match')))).toBe(
+      4,
+    );
+    expect(
+      homeRunStepIndex(
+        makeRun(activeTask('engine.fanout.generation.strategy')),
+      ),
+    ).toBe(2);
   });
 });

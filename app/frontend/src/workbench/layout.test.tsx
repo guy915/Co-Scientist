@@ -29,7 +29,12 @@ const apiMock = vi.hoisted(() => {
 
 const systemApiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 
-vi.mock('@/api/runs', () => apiMock);
+// Spread the real module so pure helpers (isActiveStatus, ...) stay real and
+// only the network calls are faked, matching chat_workspace_test_helpers.
+vi.mock('@/api/runs', async importOriginal => ({
+  ...(await importOriginal<typeof import('@/api/runs')>()),
+  ...apiMock,
+}));
 
 vi.mock('@/api/system', () => systemApiMock);
 

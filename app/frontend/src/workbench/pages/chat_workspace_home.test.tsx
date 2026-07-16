@@ -144,7 +144,7 @@ describe('ChatWorkspace home stage', () => {
     expect(container.querySelector('.reference-winner-list')).toBeNull();
   });
 
-  it('shows active recents with durable task progress', async () => {
+  it('shows active recents with the run step flow on the real phase', async () => {
     apiMock.listDemoRuns.mockResolvedValue([]);
     apiMock.listRuns.mockResolvedValue([
       minimalRun({
@@ -152,13 +152,15 @@ describe('ChatWorkspace home stage', () => {
         research_goal: 'Investigate synaptic pruning therapies.',
         status: 'running',
         completed_at: null,
-        latest_stage: 'reflection.full',
+        // The shape a real engine run reports: it leases durable tasks and
+        // emits no stage events, and its task budget is never determinate.
+        latest_stage: null,
         execution_progress: {
-          determinate: true,
+          determinate: false,
           completed_tasks: 3,
           total_tasks: 5,
-          fraction: 0.6,
-          active_task: 'reflection.full',
+          fraction: null,
+          active_task: 'engine.fanout.reflection.item',
           queued_tasks: 1,
         },
         summary: {
@@ -174,15 +176,12 @@ describe('ChatWorkspace home stage', () => {
 
     renderWorkspace();
 
-    expect(await screen.findByText('Reflection Full')).toBeInTheDocument();
-    expect(screen.getByText('60%')).toBeInTheDocument();
-    expect(
-      screen.getByText(/3 of 5 committed tasks complete/),
-    ).toBeInTheDocument();
-    expect(screen.getByRole('progressbar')).toHaveAttribute(
-      'aria-valuenow',
-      '60',
-    );
+    // Reviewing hypotheses is the third of the four phases.
+    expect(await screen.findByText('Step 3 of 4')).toBeInTheDocument();
+    expect(screen.getByText('Exploring focus areas')).toBeInTheDocument();
+    expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
+    expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
+    expect(screen.getByText('Playing tournament')).toBeInTheDocument();
   });
 
   it('shows the reference empty recents placeholder', async () => {

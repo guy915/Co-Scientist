@@ -1,4 +1,103 @@
+import {Fragment, useEffect, useState} from 'react';
 import {type Run} from '@/api/runs';
+import {Icon, type IconName} from '@/components/icon';
+import {homeRunStepIndex} from './home_recents_data';
+
+// The four phases of a live run, each with the glyph it shows in the flow.
+// A run's real unit of work is mapped onto one of these by homeRunStepIndex.
+const RUN_STEPS: {icon: IconName; label: string}[] = [
+  {icon: 'summarize', label: 'Exploring focus areas'},
+  {icon: 'rate_review', label: 'Generating hypotheses'},
+  {icon: 'reviews', label: 'Reviewing hypotheses'},
+  {icon: 'chess', label: 'Playing tournament'},
+];
+
+/**
+ * Renders the live "session loading" flow for an active run: a "Step X of N"
+ * chip over the four phases, each with its glyph, a check once passed, and an
+ * indeterminate spinner on the phase the run is currently working in.
+ *
+ * The phase comes from the run's own reported progress, so the flow tracks
+ * real work: it advances when the run advances, and re-enters an earlier phase
+ * when the run genuinely cycles back to it.
+ *
+ * @param run The active run to show progress for.
+ */
+export function RunStepFlow({run}: {run: Run}) {
+  const phase = homeRunStepIndex(run);
+  // A run reports no phase while routing between agents and in the gaps
+  // between leased tasks. Hold the last phase actually observed so those gaps
+  // read as the work continuing, rather than snapping back to the first step.
+  const [lastPhase, setLastPhase] = useState(phase ?? 1);
+  useEffect(() => {
+    if (phase !== null) setLastPhase(phase);
+  }, [phase]);
+  const activeIndex = phase ?? lastPhase;
+
+  return (
+    <div className="reference-run-steps">
+      <span className="reference-run-step-chip">
+        Step {activeIndex} of {RUN_STEPS.length}
+      </span>
+      <div className="reference-run-step-list">
+        {RUN_STEPS.map((step, index) => {
+          const stepNumber = index + 1;
+          return (
+            <Fragment key={step.label}>
+              <RunStepItem
+                icon={step.icon}
+                label={step.label}
+                done={stepNumber < activeIndex}
+                active={stepNumber === activeIndex}
+              />
+              {index < RUN_STEPS.length - 1 && (
+                <div
+                  aria-hidden="true"
+                  className="reference-run-step-delimiter"
+                />
+              )}
+            </Fragment>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// One phase's glyph, label, check once passed, and indeterminate spinner while
+// it's the phase currently in progress.
+function RunStepItem({
+  icon,
+  label,
+  done,
+  active,
+}: {
+  icon: IconName;
+  label: string;
+  done: boolean;
+  active: boolean;
+}) {
+  return (
+    <div className="reference-run-step">
+      <Icon
+        aria-hidden="true"
+        className="reference-run-step-icon"
+        name={icon}
+      />
+      <span className="reference-run-step-label">{label}</span>
+      {done && (
+        <Icon
+          aria-hidden="true"
+          className="reference-run-step-done"
+          name="check"
+        />
+      )}
+      {active && (
+        <span aria-hidden="true" className="reference-run-step-spinner" />
+      )}
+    </div>
+  );
+}
 
 /**
  * Renders truthful task-queue progress for a live run. A percentage appears
