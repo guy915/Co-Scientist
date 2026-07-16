@@ -13,13 +13,15 @@ const RUN_STEPS: {icon: IconName; label: string}[] = [
 ];
 
 /**
- * Renders the live "session loading" flow for an active run: a "Step X of N"
+ * Renders the live "session loading" flow for an active run: an "In Progress"
  * chip over the four phases, each with its glyph, a check once passed, and an
  * indeterminate spinner on the phase the run is currently working in.
  *
  * The phase comes from the run's own reported progress, so the flow tracks
  * real work: it advances when the run advances, and re-enters an earlier phase
- * when the run genuinely cycles back to it.
+ * when the run genuinely cycles back to it. The chip stays unnumbered because
+ * of that re-entry: the run does not march through the phases once, so a
+ * "step N of 4" would both overstate the shape of the work and count backwards.
  *
  * @param run The active run to show progress for.
  */
@@ -37,7 +39,8 @@ export function RunStepFlow({run}: {run: Run}) {
   return (
     <div className="reference-run-steps">
       <span className="reference-run-step-chip">
-        Step {activeIndex} of {RUN_STEPS.length}
+        <span aria-hidden="true" className="reference-run-step-spinner" />
+        In Progress
       </span>
       <div className="reference-run-step-list">
         {RUN_STEPS.map((step, index) => {

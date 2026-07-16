@@ -176,12 +176,25 @@ describe('ChatWorkspace home stage', () => {
 
     renderWorkspace();
 
-    // Reviewing hypotheses is the third of the four phases.
-    expect(await screen.findByText('Step 3 of 4')).toBeInTheDocument();
+    expect(await screen.findByText('In Progress')).toBeInTheDocument();
     expect(screen.getByText('Exploring focus areas')).toBeInTheDocument();
     expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
     expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
     expect(screen.getByText('Playing tournament')).toBeInTheDocument();
+
+    // Reviewing hypotheses is the third phase, so the two before it are done
+    // and it is the one still spinning.
+    const container = screen
+      .getByText('In Progress')
+      .closest('.reference-run-steps');
+    const spinning = [
+      ...(container?.querySelectorAll('.reference-run-step') ?? []),
+    ]
+      .filter(step => step.querySelector('.reference-run-step-spinner'))
+      .map(
+        step => step.querySelector('.reference-run-step-label')?.textContent,
+      );
+    expect(spinning).toEqual(['Reviewing hypotheses']);
   });
 
   it('shows the reference empty recents placeholder', async () => {
