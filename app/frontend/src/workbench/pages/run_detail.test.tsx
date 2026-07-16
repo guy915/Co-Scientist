@@ -156,9 +156,11 @@ describe('RunDetail', () => {
     expect(screen.getByText('Sources Analyzed')).toBeInTheDocument();
     expect(screen.getByText('Ideas explored')).toBeInTheDocument();
     expect(screen.getByText('Engine Node Generate')).toBeInTheDocument();
-    expect(
-      screen.getByRole('region', {name: 'Activity log'}),
-    ).toHaveTextContent('scientific task: generate');
+    const activityLog = screen.getByRole('region', {name: 'Activity log'});
+    // The timeline maps the scientific_task's node (payload.task 'generate')
+    // to its human phase title.
+    expect(activityLog).toHaveTextContent('Live activity');
+    expect(activityLog).toHaveTextContent('Generating hypotheses');
     expect(screen.queryByText('Open in NotebookLM')).toBeNull();
     expect(screen.queryByRole('link', {name: 'Download'})).toBeNull();
     expect(screen.queryByText('Run Specifications')).toBeNull();

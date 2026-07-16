@@ -1,4 +1,4 @@
-import {type ChangeEvent, useState} from 'react';
+import {type ChangeEvent, useEffect, useState} from 'react';
 import {useParams} from 'react-router-dom';
 import {
   type ClaimEvidenceRow,
@@ -37,6 +37,7 @@ import {
 import {normalizeTab, type TabName} from '../run_tabs';
 import {RunExecutionProgress} from './home_recents_run_steps';
 import type {StreamEvent} from '@/hooks/use_run_stream';
+import {Icon, type IconName} from '@/components/icon';
 
 const REPORT_PAGE_CLASSES =
   'cosci-report-page grid h-full min-h-0 ' +
@@ -136,10 +137,10 @@ function ActiveRunView({
   evidenceCount: number;
   ideaCount: number;
 }) {
-  const elapsedSeconds = Math.max(
-    0,
-    Math.round(Date.now() / 1000 - run.created_at),
-  );
+  // Ticks so relative timestamps and the elapsed clock stay honest even while
+  // a slow node holds the run without emitting a new event.
+  const nowSeconds = useNowTick(30_000);
+  const elapsedSeconds = Math.max(0, Math.round(nowSeconds - run.created_at));
   const fraction = run.execution_progress?.fraction;
   const remainingSeconds =
     run.execution_progress?.determinate && fraction && fraction > 0
@@ -168,22 +169,29 @@ function ActiveRunView({
           <RunMetric label="Ideas explored" value={String(ideaCount)} />
         </dl>
         <section aria-label="Activity log">
-          <h3 className="text-base font-medium">Activity</h3>
+          <div className="flex items-center gap-2.5">
+            <LivePulse />
+            <h3 className="text-base font-medium">Live activity</h3>
+          </div>
           {activity.length ? (
-            <ol className="mt-3 grid gap-2">
-              {activity.map(event => (
-                <li
+            <ol className="mt-5">
+              {activity.map((event, index) => (
+                <ActivityItem
                   key={event.seq}
-                  className="rounded-md bg-cosci-hover px-3 py-2 text-sm"
-                >
-                  {activityLabel(event)}
-                </li>
+                  event={event}
+                  isLatest={index === 0}
+                  isLast={index === activity.length - 1}
+                  now={nowSeconds}
+                />
               ))}
             </ol>
           ) : (
-            <p className="mt-2 text-sm text-cosci-muted">
-              Waiting for the first committed activity.
-            </p>
+            <div className="mt-4 flex items-center gap-3 rounded-md bg-cosci-hover px-4 py-3.5">
+              <span className="size-2 shrink-0 animate-pulse rounded-full bg-cosci-muted" />
+              <p className="text-sm text-cosci-muted">
+                Warming up — the first steps will appear here in a moment.
+              </p>
+            </div>
           )}
         </section>
       </section>
@@ -200,11 +208,173 @@ function RunMetric({label, value}: {label: string; value: string}) {
   );
 }
 
-function activityLabel(event: StreamEvent): string {
-  const detail =
-    event.payload.message || event.payload.task || event.payload.status;
-  const phase = event.type.replaceAll('_', ' ').replaceAll('.', ' ');
-  return detail ? `${phase}: ${String(detail)}` : phase;
+// Per-phase icon + accent tone for the live-activity timeline, keyed by the
+// base node name (the part before any dotted qualifier, e.g. supervisor.plan).
+const ACTIVITY_VISUALS: Record<string, {icon: IconName; tone: string}> = {
+  bootstrap: {icon: 'settings', tone: 'text-cosci-muted'},
+  created: {icon: 'check', tone: 'text-cosci-muted'},
+  queued: {icon: 'history', tone: 'text-cosci-muted'},
+  completed: {icon: 'check', tone: 'text-th-success'},
+  supervisor: {icon: 'assignment', tone: 'text-th-primary'},
+  orchestrator: {icon: 'assignment', tone: 'text-th-primary'},
+  literature_review: {icon: 'menu_book', tone: 'text-cosci-teal'},
+  generate: {icon: 'lightbulb', tone: 'text-th-primary'},
+  reflection: {icon: 'neurology', tone: 'text-th-success'},
+  comprehensive_reflection: {icon: 'neurology', tone: 'text-th-success'},
+  review: {icon: 'rate_review', tone: 'text-th-success'},
+  deep_verification: {icon: 'check', tone: 'text-th-success'},
+  ranking: {icon: 'emoji_events', tone: 'text-th-warning'},
+  meta_review: {icon: 'summarize', tone: 'text-th-primary'},
+  research_overview: {icon: 'stars', tone: 'text-th-primary'},
+  evolve: {icon: 'edit_square', tone: 'text-cosci-blue'},
+  proximity: {icon: 'chess', tone: 'text-cosci-teal'},
+  safety_screen: {icon: 'encrypted', tone: 'text-th-warning'},
+  safety: {icon: 'encrypted', tone: 'text-th-warning'},
+};
+
+// Human-readable phase titles for the same keys.
+const PHASE_TITLES: Record<string, string> = {
+  bootstrap: 'Initializing run',
+  created: 'Run created',
+  queued: 'Queued',
+  completed: 'Run complete',
+  supervisor: 'Planning strategy',
+  orchestrator: 'Coordinating agents',
+  literature_review: 'Reviewing literature',
+  generate: 'Generating hypotheses',
+  reflection: 'Reflecting on ideas',
+  comprehensive_reflection: 'Deep reflection',
+  review: 'Reviewing hypotheses',
+  deep_verification: 'Verifying assumptions',
+  ranking: 'Ranking tournament',
+  meta_review: 'Synthesizing meta-review',
+  research_overview: 'Building research overview',
+  evolve: 'Evolving hypotheses',
+  proximity: 'Mapping the idea landscape',
+  safety_screen: 'Safety screening',
+  safety: 'Safety screening',
+};
+
+const DEFAULT_ACTIVITY_VISUAL = {
+  icon: 'history' as IconName,
+  tone: 'text-cosci-muted',
+};
+
+// The phase a step represents. scientific_task events carry the engine node in
+// payload.task and lifecycle events carry it in payload.event; other kinds
+// (e.g. safety.intake) are named by their own dotted type.
+function activityPhase(event: StreamEvent): string {
+  if (event.type === 'scientific_task') return String(event.payload.task ?? '');
+  if (event.type === 'lifecycle') return String(event.payload.event ?? '');
+  return event.type.split('.')[0] ?? event.type;
+}
+
+function activityVisual(phase: string): {icon: IconName; tone: string} {
+  return ACTIVITY_VISUALS[phase] ?? DEFAULT_ACTIVITY_VISUAL;
+}
+
+function phaseTitle(phase: string): string {
+  const known = PHASE_TITLES[phase];
+  if (known) return known;
+  const words = phase.replaceAll('_', ' ').replaceAll('.', ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// A human detail line when the event carries one (a message or a safety
+// rationale). Phase-only steps render just their title and timestamp; the task
+// field is the phase itself, so it never doubles as the detail.
+function activityDetail(event: StreamEvent): string {
+  const detail = event.payload.message || event.payload.reason;
+  return detail ? String(detail) : '';
+}
+
+// Compact relative age of an event, e.g. "just now", "8s ago", "2m ago".
+function relativeTime(createdAt: number | undefined, now: number): string {
+  if (!createdAt) return '';
+  const seconds = Math.max(0, Math.round(now - createdAt));
+  if (seconds < 5) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  return `${Math.round(seconds / 60)}m ago`;
+}
+
+// Re-renders the caller on an interval so time-based UI (relative timestamps,
+// the elapsed clock) advances even when no new events or props arrive.
+function useNowTick(intervalMs: number): number {
+  const [now, setNow] = useState(() => Date.now() / 1000);
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now() / 1000), intervalMs);
+    return () => window.clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
+// A small sonar dot signalling the feed is live.
+function LivePulse() {
+  return (
+    <span className="relative flex size-2.5" aria-hidden="true">
+      <span className="absolute inline-flex size-full animate-ping rounded-full bg-th-primary" />
+      <span className="relative inline-flex size-2.5 rounded-full bg-th-primary" />
+    </span>
+  );
+}
+
+// One node in the vertical activity timeline: a phase icon on the connector
+// rail, then the phase title, its detail, and how long ago it landed. The most
+// recent step is filled and gently pulses so it reads as "happening now".
+function ActivityItem({
+  event,
+  isLatest,
+  isLast,
+  now,
+}: {
+  event: StreamEvent;
+  isLatest: boolean;
+  isLast: boolean;
+  now: number;
+}) {
+  const phase = activityPhase(event);
+  const {icon, tone} = activityVisual(phase);
+  const detail = activityDetail(event);
+  return (
+    <li className="relative flex gap-4 pb-6 last:pb-0">
+      {!isLast && (
+        <span
+          aria-hidden="true"
+          className="absolute left-[1.0625rem] top-[2.375rem] bottom-1 w-px bg-cosci-border"
+        />
+      )}
+      <span
+        className={[
+          'relative z-[1] grid size-[2.125rem] shrink-0 place-items-center',
+          'rounded-full',
+          isLatest ? 'animate-pulse bg-th-primary' : 'bg-cosci-hover',
+        ].join(' ')}
+      >
+        <Icon
+          name={icon}
+          className={[
+            'text-[1.15rem]',
+            isLatest ? 'text-th-primary-fg' : tone,
+          ].join(' ')}
+        />
+      </span>
+      <div className="min-w-0 flex-1 pt-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="truncate font-medium text-cosci-fg">
+            {phaseTitle(phase)}
+          </p>
+          <span className="shrink-0 text-xs text-cosci-muted">
+            {relativeTime(event.created_at, now)}
+          </span>
+        </div>
+        {detail ? (
+          <p className="mt-0.5 line-clamp-2 text-sm text-cosci-muted">
+            {detail}
+          </p>
+        ) : null}
+      </div>
+    </li>
+  );
 }
 
 // Active tab content for a loaded run. Keying <main> by activeTab remounts it
