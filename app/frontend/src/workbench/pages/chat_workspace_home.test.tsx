@@ -176,25 +176,21 @@ describe('ChatWorkspace home stage', () => {
 
     renderWorkspace();
 
-    expect(await screen.findByText('In Progress')).toBeInTheDocument();
+    // Reviewing hypotheses is the third of the four phases, so two are behind
+    // the run: it reports the two it has finished, not a share of the work.
+    expect(await screen.findByText('In Progress : 50%')).toBeInTheDocument();
     expect(screen.getByText('Exploring focus areas')).toBeInTheDocument();
     expect(screen.getByText('Generating hypotheses')).toBeInTheDocument();
     expect(screen.getByText('Reviewing hypotheses')).toBeInTheDocument();
-    expect(screen.getByText('Playing tournament')).toBeInTheDocument();
+    // The run has not reached the tournament, so that phase is not shown yet.
+    expect(screen.queryByText('Playing tournament')).toBeNull();
 
-    // Reviewing hypotheses is the third phase, so the two before it are done
-    // and it is the one still spinning.
-    const container = screen
-      .getByText('In Progress')
-      .closest('.reference-run-steps');
-    const spinning = [
-      ...(container?.querySelectorAll('.reference-run-step') ?? []),
-    ]
-      .filter(step => step.querySelector('.reference-run-step-spinner'))
+    const checked = [...document.querySelectorAll('.reference-run-step')]
+      .filter(step => step.querySelector('.reference-run-step-done'))
       .map(
         step => step.querySelector('.reference-run-step-label')?.textContent,
       );
-    expect(spinning).toEqual(['Reviewing hypotheses']);
+    expect(checked).toEqual(['Exploring focus areas', 'Generating hypotheses']);
   });
 
   it('shows the reference empty recents placeholder', async () => {

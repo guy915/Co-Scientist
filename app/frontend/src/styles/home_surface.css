@@ -519,31 +519,6 @@
   margin-top: 0.1rem;
 }
 
-.reference-run-step-chip {
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  border-radius: 0.3125rem;
-  background: var(--cosci-recent-meta-bg);
-  color: var(--cosci-recent-meta-text);
-  font-size: 0.6875rem;
-  font-weight: 500;
-  letter-spacing: 0.1px;
-  padding: 0.25rem 0.5rem;
-}
-
-/* Sized to the chip's own 0.6875rem text rather than the 1.25rem step icons
-   the flow's spinner sits beside, and tinted to the chip instead of the
-   accent so it reads as part of the label. */
-.reference-run-step-chip .reference-run-step-spinner {
-  width: 0.75rem;
-  height: 0.75rem;
-  border-width: 1.5px;
-  border-color: color-mix(in srgb, currentColor 30%, transparent);
-  border-top-color: currentColor;
-}
-
 .reference-run-step-list {
   display: grid;
 }
@@ -588,6 +563,13 @@
   border: 2px solid color-mix(in srgb, var(--color-th-primary) 28%, transparent);
   border-top-color: var(--color-th-primary);
   animation: reference-run-step-spin 0.8s linear infinite;
+}
+
+/* The In Progress row's spinner stands in for a step glyph, so it occupies the
+   same 1.25rem column as the step icons and the delimiter's centre line. */
+.reference-run-step-glyph {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 
 @keyframes reference-run-step-spin {
