@@ -44,7 +44,11 @@ async function submitComposerMessage({
   setIsStarting: (value: boolean) => void;
   setIsAwaitingAgent: (value: boolean) => void;
   setPendingAttachments: Dispatch<SetStateAction<File[]>>;
-  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
+  stageDraftSpec: (
+    spec: InferredRunSpec,
+    createdAt?: number,
+    intro?: string,
+  ) => void;
 }): Promise<void> {
   e.preventDefault();
   const text = input.trim();
@@ -67,23 +71,28 @@ async function submitComposerMessage({
     const agentTurn = [...updated.turns]
       .reverse()
       .find(turn => turn.role === 'agent');
-    if (agentTurn) {
-      appendChatMessage(
-        setMessages,
-        'assistant',
-        agentTurn.content,
-        sentAt + 0.001,
-      );
-    }
     if (updated.status === 'completed') {
+      // The interview is done: fold the Agent's closing message into the plan
+      // card as its intro, so the completed turn reads as one response (the
+      // plan) rather than an assistant bubble followed by a separate card.
       const spec = interviewToRunSpec(updated);
-      stageDraftSpec(spec, sentAt + 0.002);
+      stageDraftSpec(spec, sentAt + 0.002, agentTurn?.content);
       emitDiagnosticEvent({
         stage: 'LIFECYCLE',
         run: conciseTitle(spec.goal),
         payload: {event: 'interview_completed', interview_id: updated.id},
       });
     } else {
+      // Still interviewing: the Agent's reply is a follow-up question, shown
+      // as its own assistant bubble.
+      if (agentTurn) {
+        appendChatMessage(
+          setMessages,
+          'assistant',
+          agentTurn.content,
+          sentAt + 0.001,
+        );
+      }
       emitDiagnosticEvent({
         stage: 'CHAT',
         run: conciseTitle(updated.fields.research_challenge),

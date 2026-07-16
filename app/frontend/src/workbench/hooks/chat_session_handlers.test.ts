@@ -130,7 +130,12 @@ describe('buildChatHandlers', () => {
         requirements: ['Human evidence'],
       }),
       expect.any(Number),
+      // The Agent's closing message is folded into the plan card as its intro,
+      // not appended as a separate assistant bubble.
+      'Which mechanisms should I prioritize?',
     );
+    // Only the user's message is logged; the completion reply is the card.
+    expect(deps.setMessages).toHaveBeenCalledTimes(1);
   });
 
   it('handleEditPlan stages the spec and focuses the composer', () => {

@@ -21,8 +21,9 @@ async function executeStart({
   setPendingAttachments,
 }: ExecuteStartDeps): Promise<StartedSession> {
   // Starting the run reads as the scientist sending the plan into the chat:
-  // post the request as a user turn immediately, then acknowledge it before
-  // the open-session card, mirroring the composer's send-then-respond flow.
+  // post the request as a user turn, then let the open-session card below be
+  // the single response. The card carries its own "session started" copy, so a
+  // separate assistant acknowledgment bubble would just double the reply.
   appendChatMessage(setMessages, 'user', 'Start research');
   const created = await createRun({
     research_goal: specToStart.goal,
@@ -50,11 +51,6 @@ async function executeStart({
   }
   await startRun(created.id);
   setPendingAttachments([]);
-  appendChatMessage(
-    setMessages,
-    'assistant',
-    'Starting research on your plan. Opening the session below.',
-  );
   setStartedSession(session);
   await reloadHistory();
   // Tell the shell sidebar (which owns a separate history copy) that a new

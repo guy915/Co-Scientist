@@ -107,11 +107,14 @@ export const MODEL_BUBBLE_CLASSES =
 export const MESSAGE_ACTIONS_CLASSES =
   'reference-message-actions flex items-center gap-[0.2rem] px-[0.2rem]';
 
+// Positioned against the bubble-hugging `w-fit` wrapper (see ChatBubble): its
+// right edge sits 0.4rem left of the bubble's left edge, so the row tracks the
+// bubble's real width for short and full-width prompts alike.
 export const MESSAGE_ACTIONS_END_CLASSES =
   'reference-message-actions end pointer-events-none absolute top-1/2 ' +
   'z-[2] flex -translate-y-1/2 scale-[0.98] items-center gap-[0.2rem] ' +
   'border-0 bg-transparent p-[0.1rem] opacity-0 ' +
-  '[right:calc(min(31rem,72vw)+0.4rem)] ' +
+  '[right:calc(100%+0.4rem)] ' +
   'group-hover/user:pointer-events-auto group-hover/user:scale-100 ' +
   'group-hover/user:opacity-100 group-focus-within/user:pointer-events-auto ' +
   'group-focus-within/user:scale-100 group-focus-within/user:opacity-100';

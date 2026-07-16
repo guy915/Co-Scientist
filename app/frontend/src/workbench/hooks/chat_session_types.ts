@@ -15,6 +15,9 @@ import {type ToastState} from './use_toast';
 export interface SpecStage {
   spec: InferredRunSpec;
   createdAt: number;
+  // The Agent's closing interview message, shown as the plan card's lead-in so
+  // a completed interview reads as one response instead of a bubble + a card.
+  intro?: string;
 }
 
 /** View-layer collaborators the session needs but does not own. */
@@ -61,7 +64,11 @@ export interface HandlerDeps {
   setPendingAttachments: Dispatch<SetStateAction<File[]>>;
   setToast: (value: string | ToastState | null) => void;
   clearSessionState: () => void;
-  stageDraftSpec: (spec: InferredRunSpec, createdAt?: number) => void;
+  stageDraftSpec: (
+    spec: InferredRunSpec,
+    createdAt?: number,
+    intro?: string,
+  ) => void;
   focusComposer: () => void;
   reloadHistory: () => Promise<void>;
   pubmedEnabled: boolean;

@@ -33,12 +33,14 @@ export function useRunSpecLifecycle() {
   }, []);
 
   // Installs `spec` as the active draft and rolls back any later stages
-  // (confirmed/started), since a new draft restarts the lifecycle.
+  // (confirmed/started), since a new draft restarts the lifecycle. `intro` is
+  // the Agent's closing message, folded into the plan card as its lead-in.
   function stageDraftSpec(
     spec: InferredRunSpec,
     createdAt = Date.now() / 1000,
+    intro?: string,
   ) {
-    setDraft({spec, createdAt});
+    setDraft({spec, createdAt, intro});
     setConfirmed(null);
     setStartedSession(null);
   }

@@ -59,4 +59,19 @@ describe('Composer', () => {
       screen.getByRole('button', {name: /send|start|research/i}),
     ).toBeDisabled();
   });
+
+  it('refocuses the textarea when it re-enables after a submit', () => {
+    const props = {
+      input: 'a goal',
+      setInput: vi.fn(),
+      disabled: true,
+      onSubmit: vi.fn((e: {preventDefault: () => void}) => e.preventDefault()),
+    };
+    const {rerender} = render(<Composer {...props} />);
+    const textarea = screen.getByRole('textbox');
+    expect(textarea).not.toHaveFocus();
+    // The in-flight submit ends: the textarea re-enables and focus returns.
+    rerender(<Composer {...props} disabled={false} />);
+    expect(textarea).toHaveFocus();
+  });
 });

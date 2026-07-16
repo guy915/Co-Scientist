@@ -267,28 +267,49 @@ export function ChatBubble({
   const {row: rowClassName, bubble: bubbleClassName} =
     chatBubbleClassNames(isUser);
 
+  const bubbleNode = (
+    <div className={bubbleClassName}>
+      <span
+        ref={isUser ? textRef : undefined}
+        className={bubbleTextClassName}
+        style={bubbleTextStyle}
+        onTransitionEnd={collapsible ? handleBubbleTransitionEnd : undefined}
+      >
+        {message.content}
+      </span>
+      {collapsible && (
+        <CollapseToggleButton expanded={expanded} onToggle={toggleExpanded} />
+      )}
+    </div>
+  );
+  const actionsNode = (
+    <ChatBubbleActions
+      isUser={isUser}
+      message={message}
+      onEdit={onEdit}
+      onCopyRequest={onCopyRequest}
+      onRetry={onRetry}
+    />
+  );
+
+  // A user bubble's edit/copy row floats to the left of the bubble, so it must
+  // be positioned against the bubble's real (shrink-to-fit) width. Wrapping the
+  // bubble and its actions in a w-fit box gives the absolute row that context;
+  // without it the row anchors to the full-width column and strands itself far
+  // to the left of a short prompt. Assistant bubbles keep their inline row.
   return (
     <div className={rowClassName}>
-      <div className={bubbleClassName}>
-        <span
-          ref={isUser ? textRef : undefined}
-          className={bubbleTextClassName}
-          style={bubbleTextStyle}
-          onTransitionEnd={collapsible ? handleBubbleTransitionEnd : undefined}
-        >
-          {message.content}
-        </span>
-        {collapsible && (
-          <CollapseToggleButton expanded={expanded} onToggle={toggleExpanded} />
-        )}
-      </div>
-      <ChatBubbleActions
-        isUser={isUser}
-        message={message}
-        onEdit={onEdit}
-        onCopyRequest={onCopyRequest}
-        onRetry={onRetry}
-      />
+      {isUser ? (
+        <div className="relative w-fit">
+          {bubbleNode}
+          {actionsNode}
+        </div>
+      ) : (
+        <>
+          {bubbleNode}
+          {actionsNode}
+        </>
+      )}
     </div>
   );
 }

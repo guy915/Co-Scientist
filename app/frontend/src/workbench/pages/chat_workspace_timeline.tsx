@@ -137,6 +137,7 @@ function draftTimelineItems({
         <RunSpecCard
           spec={draft.spec}
           isStarting={isStarting}
+          intro={draft.intro}
           onFocusChange={(focus: RunFocus) =>
             setDraft(current =>
               current ? {...current, spec: {...current.spec, focus}} : current,

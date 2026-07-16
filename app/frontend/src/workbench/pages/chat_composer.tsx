@@ -3,6 +3,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
   type RefObject,
+  useEffect,
   useLayoutEffect,
   useRef,
 } from 'react';
@@ -83,6 +84,19 @@ export function Composer({
 
   const referenceLabel = composerReferenceLabel(setupDraftMode);
   const submitLabel = 'Send';
+
+  // Restore focus after an in-flight submit re-enables the textarea. Disabling
+  // a focused element blurs it, and React commits the re-enable only once the
+  // submit promise resolves; refocusing here, on the disabled->enabled edge,
+  // lands reliably. Doing it from the submit handler instead does not: a rAF
+  // scheduled there can fire before the re-enable commits and no-op on the
+  // still-disabled element. This edge also covers the first send, where the
+  // in-conversation composer mounts disabled and then re-enables.
+  const wasDisabled = useRef(disabled);
+  useEffect(() => {
+    if (wasDisabled.current && !disabled) textareaRef.current?.focus();
+    wasDisabled.current = disabled;
+  }, [disabled, textareaRef]);
 
   return (
     <form

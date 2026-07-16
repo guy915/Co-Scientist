@@ -48,6 +48,9 @@ import {
  *   the actions and swapping the start button's label.
  * @param locked When true, renders read-only: option groups are disabled,
  *   Cancel is hidden, and Start is disabled (used for a confirmed spec).
+ * @param intro The Agent's closing interview message, shown as the card's
+ *   lead-in so the completed interview reads as a single response; falls back
+ *   to generic copy when absent (e.g. a re-shown confirmed spec).
  * @param onFocusChange Handler for changing the Focus option.
  * @param onTierChange Handler for changing the Tier option.
  * @param onCancel Handler to discard the draft spec.
@@ -59,6 +62,7 @@ export function RunSpecCard({
   spec,
   isStarting,
   locked = false,
+  intro,
   onFocusChange,
   onTierChange,
   onNotificationChange,
@@ -70,6 +74,7 @@ export function RunSpecCard({
   spec: InferredRunSpec;
   isStarting: boolean;
   locked?: boolean;
+  intro?: string;
   onFocusChange: (focus: RunFocus) => void;
   onTierChange: (tier: RunTier) => void;
   onNotificationChange: (enabled: boolean, email: string) => void;
@@ -83,8 +88,10 @@ export function RunSpecCard({
   return (
     <section className={SETUP_MESSAGE_CLASSES} aria-label="Inferred run setup">
       <p className={SETUP_PARAGRAPH_CLASSES}>
-        The interview is complete. I derived the research setup below from your
-        answers.
+        {/* `||`, not `??`: an empty closing message must fall back too. */}
+        {intro ||
+          'The interview is complete. I derived the research setup below ' +
+            'from your answers.'}
       </p>
       <p className={`reference-review-copy ${SETUP_PARAGRAPH_CLASSES}`}>
         Review the four fields and select a focus and run type. Once ready,
