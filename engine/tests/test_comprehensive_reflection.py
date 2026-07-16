@@ -96,8 +96,19 @@ async def test_evolved_hypothesis_receives_missing_observation_review(
 async def test_full_review_executes_targeted_retrieval(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A full review searches and evaluates evidence specific to the idea."""
-    call = AsyncMock(return_value={"verdict": "sound"})
+    """A full review searches and evaluates evidence specific to the idea.
+
+    The search runs on keywords formulated from the hypothesis, not on the
+    hypothesis text itself: the literature back end ANDs every term, so prose
+    would retrieve nothing and leave the review ungrounded.
+    """
+    # First call formulates the queries, second is the review itself.
+    call = AsyncMock(
+        side_effect=[
+            {"queries": ["mechanism X response Y"]},
+            {"verdict": "sound"},
+        ]
+    )
     retrieve = AsyncMock(
         return_value=(
             [
@@ -122,10 +133,33 @@ async def test_full_review_executes_targeted_retrieval(
 
     _, result = await cr._run_review(state, hypothesis, ReviewType.FULL)
 
-    retrieve.assert_awaited_once()
+    retrieve.assert_awaited_once_with(state, ["mechanism X response Y"])
     assert result is not None
+    assert result["retrieval_queries"] == ["mechanism X response Y"]
     assert result["retrieved_articles"][0]["source_id"] == "validation-1"
-    assert call.await_args is not None
-    prompt = call.await_args.kwargs["prompt"]
+    # The retrieved evidence reaches the review prompt (the last call).
+    prompt = call.await_args_list[-1].kwargs["prompt"]
     assert "Targeted validation" in prompt
     assert "survived direct testing" in prompt
+
+
+@pytest.mark.asyncio
+async def test_query_generation_is_skipped_without_a_search_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """No MCP means no search, so the review must not pay to write queries."""
+    call = AsyncMock(return_value={"verdict": "sound"})
+    monkeypatch.setattr(cr, "call_llm_json", call)
+    hypothesis = make_hypothesis(text="Mechanism X controls response Y")
+    state = make_state(
+        hypotheses=[hypothesis],
+        research_goal="Understand response Y",
+        mcp_available=False,
+    )
+
+    _, result = await cr._run_review(state, hypothesis, ReviewType.FULL)
+
+    assert result is not None
+    assert result["retrieval_queries"] == []
+    # The review call only -- no query-generation call was spent.
+    assert call.await_count == 1

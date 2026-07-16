@@ -15,7 +15,11 @@ from co_scientist.agents.reflection.review_types import (
     ReviewType,
     prompt_name_for,
 )
-from co_scientist.constants import EXTENDED_MAX_TOKENS, LOW_TEMPERATURE
+from co_scientist.constants import (
+    DEFAULT_MAX_TOKENS,
+    EXTENDED_MAX_TOKENS,
+    LOW_TEMPERATURE,
+)
 from co_scientist.llm import call_llm_json
 from co_scientist.models import (
     Article,
@@ -23,12 +27,20 @@ from co_scientist.models import (
     create_metrics_update,
     phase_message,
 )
-from co_scientist.prompts import build_tool_instructions
+from co_scientist.prompts import (
+    build_tool_instructions,
+    get_hypothesis_query_generation_prompt,
+)
 from co_scientist.prompts._common import _format_meta_review_context
 from co_scientist.prompts.loading import load_prompt_with_schema
+from co_scientist.schemas import LITERATURE_QUERY_SCHEMA
 from co_scientist.state import WorkflowState
 
 logger = logging.getLogger(__name__)
+
+# Bounds the searches (and downstream paper fan-out) per reviewed hypothesis,
+# mirroring the literature-review node's own cap.
+_MAX_HYPOTHESIS_QUERIES = 3
 
 
 def _prompt_variables(
@@ -82,6 +94,59 @@ def _prompt_variables(
     }
 
 
+async def _hypothesis_search_queries(
+    state: WorkflowState, hypothesis: Hypothesis
+) -> list[str]:
+    """Formulate keyword search queries targeting one hypothesis.
+
+    The search back end is a keyword index that ANDs every term, so prose
+    retrieves nothing: sending the goal and the hypothesis text as one string
+    asks for a paper containing every word of both, down to the numbers. This
+    asks the model for the few terms a relevant paper would actually carry,
+    the same shape the literature-review node's own queries take.
+
+    Args:
+        state: The workflow state, for the research goal and worker model.
+        hypothesis: The hypothesis whose mechanism the queries must target.
+
+    Returns:
+        Up to ``_MAX_HYPOTHESIS_QUERIES`` keyword queries; empty when there is
+        no search back end to spend them on, or when the model call fails,
+        which leaves the review ungrounded rather than sending a query that
+        cannot match.
+    """
+    # Mirrors _retrieve_probe_evidence's own guard: without MCP the searches
+    # never run, so formulating queries would just burn a call per review.
+    if not state.get("mcp_available"):
+        return []
+    try:
+        result = await call_llm_json(
+            prompt=get_hypothesis_query_generation_prompt(
+                research_goal=state["research_goal"],
+                hypothesis=hypothesis.text,
+            ),
+            model_name=state["model_name"],
+            max_tokens=DEFAULT_MAX_TOKENS,
+            temperature=LOW_TEMPERATURE,
+            json_schema=LITERATURE_QUERY_SCHEMA,
+            run_id=state.get("run_id"),
+            prompt_name=f"hypothesis_queries_{hypothesis.id}",
+            # Mechanical extraction of terms already present in the
+            # hypothesis, run once per reviewed hypothesis; reasoning adds
+            # nothing here and this is a high-frequency call.
+            enable_thinking=False,
+        )
+    except Exception as exc:
+        logger.warning("Query generation failed for %s: %s", hypothesis.id, exc)
+        return []
+    queries = [
+        " ".join(str(query).split())
+        for query in result.get("queries") or []
+        if str(query).strip()
+    ]
+    return queries[:_MAX_HYPOTHESIS_QUERIES]
+
+
 async def _run_review(
     state: WorkflowState,
     hypothesis: Hypothesis,
@@ -92,9 +157,7 @@ async def _run_review(
     retrieval_errors: list[str] = []
     retrieval_queries: list[str] = []
     if review_type in {ReviewType.FULL, ReviewType.SIMULATION}:
-        retrieval_queries = [
-            f"{state['research_goal']} {hypothesis.text}"[:1200]
-        ]
+        retrieval_queries = await _hypothesis_search_queries(state, hypothesis)
         targeted_articles, retrieval_errors = await _retrieve_probe_evidence(
             state, retrieval_queries
         )

@@ -105,6 +105,30 @@ def get_literature_review_query_generation_prompt(
     )
 
 
+# Renders prompts/hypothesis_query_generation.md, paired with
+# LITERATURE_QUERY_SCHEMA like the goal-level getter above. Kept separate from
+# it because the task differs: that one explores a research goal, this one
+# hunts for evidence that could confirm or refute one specific hypothesis, so
+# its queries must key on that hypothesis's own entities.
+def get_hypothesis_query_generation_prompt(
+    research_goal: str,
+    hypothesis: str,
+) -> str:
+    """Get the prompt for hypothesis-targeted literature search queries.
+
+    Args:
+        research_goal: The run's research goal, as context.
+        hypothesis: The hypothesis whose mechanism the queries must target.
+
+    Returns:
+        Formatted prompt string.
+    """
+    return load_prompt(
+        "hypothesis_query_generation",
+        {"research_goal": research_goal, "hypothesis": hypothesis},
+    )
+
+
 # Renders prompts/literature_review_paper_analysis.md, called by
 # nodes/literature_review.py once per fetched paper (paired there with
 # LITERATURE_PAPER_ANALYSIS_SCHEMA).

@@ -12,6 +12,9 @@ Instructions:
 1. Decompose the hypothesis into its fundamental, load-bearing assumptions.
 2. For each major assumption, write a probing QUESTION that challenges whether it actually holds (prefer the assumptions whose failure would most undermine the hypothesis).
 3. For each question, give the best-faith ANSWER grounded in the retrieved evidence when available, distinguish direct support from inference or absence, then a REASONING paragraph judging how well the assumption survives, and set assumption_is_fundamental to true if a failure would invalidate the core claim.
-4. Conclude with a verdict: "holds" (assumptions survive), "weakened" (non-fundamental gaps), or "undermined" (a fundamental assumption fails), plus a short overall_assessment.
+4. For each question, also write a SEARCH_QUERY: the 3-8 key terms a paper answering that question would actually contain. This goes to a keyword index that requires every term to appear, so the question itself would match nothing. Drop the question form, all filler words, and every number (concentrations, fold-changes, timepoints, percentages) — use only established terminology and standard gene/protein/drug symbols.
+   - Question: "Does tamoxifen reduce acrB transcript levels by >=50% within 1-2 hours in K. pneumoniae?" -> search_query: "tamoxifen acrB expression Klebsiella pneumoniae"
+   - Question: "Is there evidence that sertraline dissipates proton motive force in bacteria?" -> search_query: "sertraline proton motive force bacterial membrane"
+5. Conclude with a verdict: "holds" (assumptions survive), "weakened" (non-fundamental gaps), or "undermined" (a fundamental assumption fails), plus a short overall_assessment.
 
 Do not fill evidence gaps from confident prose. An unavailable or conflicting source must remain explicit uncertainty. Focus on correctness and the logical chain, not novelty or presentation.

@@ -244,12 +244,19 @@ DEEP_VERIFICATION_SCHEMA: dict[str, Any] = {
                         "answer": {"type": "string"},
                         "reasoning": {"type": "string"},
                         "assumption_is_fundamental": {"type": "boolean"},
+                        # The question is prose, and the literature back end
+                        # is a keyword index that ANDs every term, so the
+                        # question itself retrieves nothing. This carries the
+                        # few terms a relevant paper would actually contain,
+                        # produced by the same call rather than a second one.
+                        "search_query": {"type": "string"},
                     },
                     "required": [
                         "question",
                         "answer",
                         "reasoning",
                         "assumption_is_fundamental",
+                        "search_query",
                     ],
                 },
             },

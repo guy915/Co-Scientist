@@ -153,7 +153,12 @@ def test_verification_context_includes_public_and_private_evidence() -> None:
 async def test_probe_questions_trigger_retrieval_and_second_adjudication(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Deep verification searches its probes before the final verdict."""
+    """Deep verification searches its probes before the final verdict.
+
+    The search uses each probe's ``search_query``, not its question: the
+    literature back end ANDs every term, so the question form would match
+    nothing.
+    """
     first = {
         "probes": [
             {
@@ -161,6 +166,7 @@ async def test_probe_questions_trigger_retrieval_and_second_adjudication(
                 "answer": "Unknown.",
                 "reasoning": "The initial corpus does not resolve it.",
                 "assumption_is_fundamental": True,
+                "search_query": "intervention X pathway Y",
             }
         ],
         "verdict": "weakened",
@@ -198,9 +204,7 @@ async def test_probe_questions_trigger_retrieval_and_second_adjudication(
 
     output = await dv.deep_verification_node(state)
 
-    retrieve.assert_awaited_once_with(
-        state, ["Does intervention X alter pathway Y?"]
-    )
+    retrieve.assert_awaited_once_with(state, ["intervention X pathway Y"])
     assert call.await_count == 2
     assert output["hypotheses"][0].deep_verification_verdict == "holds"
     assert output["articles"][-1].source_id == "PMID-1"
@@ -224,3 +228,49 @@ def test_retrieved_articles_are_deduplicated_by_source_identity() -> None:
     )
 
     assert len(merged) == 1
+
+
+def test_probe_queries_prefer_keywords_and_rank_fundamental_first() -> None:
+    """Searches use each probe's keywords, fundamental assumptions first."""
+    queries = dv._probe_queries(
+        {
+            "probes": [
+                {
+                    "question": "Is the assay sensitive enough?",
+                    "assumption_is_fundamental": False,
+                    "search_query": "CellTiter-Glo assay sensitivity",
+                },
+                {
+                    "question": "Does tamoxifen reduce acrB by >=50%?",
+                    "assumption_is_fundamental": True,
+                    "search_query": "tamoxifen acrB expression Klebsiella",
+                },
+            ]
+        }
+    )
+
+    assert queries == [
+        "tamoxifen acrB expression Klebsiella",
+        "CellTiter-Glo assay sensitivity",
+    ]
+
+
+def test_probe_queries_fall_back_to_the_question() -> None:
+    """A probe with no keywords still searches rather than dropping out.
+
+    Worse than keywords, but a search_query is only ever absent if the model
+    omitted an optional-in-practice field, and losing the probe entirely would
+    be a bigger regression than an over-long query.
+    """
+    queries = dv._probe_queries(
+        {
+            "probes": [
+                {
+                    "question": "Does X alter Y?",
+                    "assumption_is_fundamental": True,
+                }
+            ]
+        }
+    )
+
+    assert queries == ["Does X alter Y?"]

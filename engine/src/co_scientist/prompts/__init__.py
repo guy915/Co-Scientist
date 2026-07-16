@@ -31,6 +31,7 @@ from co_scientist.prompts.generation import (
     get_validation_synthesis_prompt_with_tools,
 )
 from co_scientist.prompts.literature import (
+    get_hypothesis_query_generation_prompt,
     get_literature_review_paper_analysis_prompt,
     get_literature_review_query_generation_prompt,
     get_literature_review_query_generation_pubmed_prompt,
@@ -73,6 +74,7 @@ __all__ = [
     "get_deep_verification_prompt",
     "get_draft_prompt_with_tools",
     "get_hypothesis_novelty_analysis_prompt",
+    "get_hypothesis_query_generation_prompt",
     "get_hypothesis_validation_synthesis_prompt",
     "get_literature_review_paper_analysis_prompt",
     "get_literature_review_query_generation_prompt",

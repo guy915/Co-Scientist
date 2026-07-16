@@ -33,7 +33,15 @@ _MAX_PROBE_SOURCES = 6
 
 
 def _probe_queries(result: dict[str, Any]) -> list[str]:
-    """Return unique load-bearing questions to send to literature search."""
+    """Return the keyword searches for the load-bearing probing questions.
+
+    Each probe carries its own ``search_query`` because the question it was
+    written from is prose, and the literature back end ANDs every term of it:
+    asking "Does tamoxifen reduce acrB transcript levels by >=50% within 1-2
+    hours?" demands a paper containing "does", "1-2" and "50", which matches
+    nothing. A probe that omitted the query falls back to its question, which
+    at least preserves the old behaviour rather than dropping the search.
+    """
     probes = result.get("probes") or []
     ordered = sorted(
         probes,
@@ -42,7 +50,8 @@ def _probe_queries(result: dict[str, Any]) -> list[str]:
     queries: list[str] = []
     seen: set[str] = set()
     for probe in ordered:
-        query = " ".join(str(probe.get("question") or "").split())
+        raw = probe.get("search_query") or probe.get("question") or ""
+        query = " ".join(str(raw).split())
         key = query.casefold()
         if not query or key in seen:
             continue
