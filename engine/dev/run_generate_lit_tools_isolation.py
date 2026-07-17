@@ -17,11 +17,11 @@ from absl import app, flags
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.table import Table
 from state_helpers import (
     DEFAULT_MODEL_NAME,
     DEFAULT_RESEARCH_GOAL,
     make_supervisor_state,
+    render_hypotheses_table,
 )
 
 from co_scientist.models import Hypothesis
@@ -102,27 +102,6 @@ async def _run_lit_review_phase(state: dict) -> bool:
         f"[green]literature review complete: {n_arts} articles found[/green]"
     )
     return True
-
-
-def _render_hypotheses_table(hypotheses: list[Hypothesis]) -> None:
-    """Print a table summarizing the generated hypotheses.
-
-    Args:
-        hypotheses: hypotheses returned by the generate node.
-    """
-    hyp_table = Table(title=f"generated hypotheses ({len(hypotheses)} total)")
-    hyp_table.add_column("id", style="cyan", width=10)
-    hyp_table.add_column("hypothesis", style="white", max_width=60)
-    hyp_table.add_column("generation_method", style="yellow", width=20)
-
-    for hyp in hypotheses:
-        hyp_table.add_row(
-            hyp.id,
-            hyp.text[:60] + "..." if len(hyp.text) > 60 else hyp.text,
-            hyp.generation_method or "unknown",
-        )
-
-    console.print(hyp_table)
 
 
 def _show_first_hypothesis(hypotheses: list[Hypothesis]) -> None:
@@ -246,7 +225,7 @@ async def test_lit_tools_isolation(
     result = await generate_node(state)
     hypotheses = result.get("hypotheses", [])
 
-    _render_hypotheses_table(hypotheses)
+    render_hypotheses_table(hypotheses, default_method="unknown")
     _show_first_hypothesis(hypotheses)
     _print_lit_tools_summary(hypotheses)
 

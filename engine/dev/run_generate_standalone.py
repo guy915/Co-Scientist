@@ -12,11 +12,11 @@ from absl import app, flags
 from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
-from rich.table import Table
 from state_helpers import (
     DEFAULT_MODEL_NAME,
     DEFAULT_RESEARCH_GOAL,
     make_generate_state,
+    render_hypotheses_table,
 )
 
 from co_scientist.models import Hypothesis
@@ -55,27 +55,6 @@ def _prepare_generate_state(with_literature: bool) -> dict:
         console.print("[yellow]No literature review data[/yellow]")
 
     return state
-
-
-def _render_hypotheses_table(hypotheses: list[Hypothesis]) -> None:
-    """Print a table summarizing the generated hypotheses.
-
-    Args:
-        hypotheses: hypotheses returned by the generate node.
-    """
-    hyp_table = Table(title=f"generated hypotheses ({len(hypotheses)} total)")
-    hyp_table.add_column("id", style="cyan", width=10)
-    hyp_table.add_column("hypothesis", style="white", max_width=60)
-    hyp_table.add_column("generation_method", style="yellow", width=20)
-
-    for hyp in hypotheses:
-        hyp_table.add_row(
-            hyp.id,
-            hyp.text[:60] + "..." if len(hyp.text) > 60 else hyp.text,
-            hyp.generation_method or "standard",
-        )
-
-    console.print(hyp_table)
 
 
 def _show_first_hypothesis(hypotheses: list[Hypothesis]) -> None:
@@ -196,7 +175,7 @@ async def test_generate(with_literature: bool = False):
     hypotheses = result.get("hypotheses", [])
     debate_transcripts = result.get("debate_transcripts", [])
 
-    _render_hypotheses_table(hypotheses)
+    render_hypotheses_table(hypotheses)
     _show_first_hypothesis(hypotheses)
     _print_debate_info(debate_transcripts)
     _print_summary_stats(hypotheses)

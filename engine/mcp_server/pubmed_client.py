@@ -27,18 +27,15 @@ def _parse_authors(article: dict[str, Any]) -> list[str]:
         part was missing rather than emitting a name with a literal
         "<invalid>" token in it.
     """
-    return list(
-        filter(
-            lambda author: "<invalid>" not in author,
-            [
-                f"{author.get('ForeName', '<invalid>')} "
-                f"{author.get('LastName', '<invalid>')}"
-                for author in [
-                    dict(author_data) for author_data in article["AuthorList"]
-                ]
-            ],
+    names = []
+    for author in article["AuthorList"]:
+        name = (
+            f"{author.get('ForeName', '<invalid>')} "
+            f"{author.get('LastName', '<invalid>')}"
         )
-    )
+        if "<invalid>" not in name:
+            names.append(name)
+    return names
 
 
 def _extract_doi(pubmed_article: dict[str, Any]) -> str:

@@ -47,6 +47,7 @@ from state_helpers import (
     DEFAULT_MODEL_NAME,
     DEFAULT_RESEARCH_GOAL,
     make_base_state,
+    truncate,
 )
 
 from co_scientist.constants import LITERATURE_REVIEW_FAILED
@@ -164,9 +165,7 @@ def _render_articles_table(articles: list[Article]) -> None:
 
     for article in articles[:10]:  # Show first 10
         article_table.add_row(
-            article.title[:50] + "..."
-            if len(article.title) > 50
-            else article.title,
+            truncate(article.title, 50),
             str(article.year) if article.year else "n/a",
             str(article.citations) if article.citations else "n/a",
         )
@@ -182,7 +181,7 @@ def _print_summary_panel(summary: str) -> None:
     """
     console.print(
         Panel(
-            summary[:500] + "..." if len(summary) > 500 else summary,
+            truncate(summary, 500),
             title="[bold green]Literature review summary"
             " (first 500 chars)[/bold green]",
             border_style="green",

@@ -7,8 +7,9 @@ Intentionally kept minimal to avoid mock data drift - add fields as needed.
 import time
 
 from rich.console import Console
+from rich.table import Table
 
-from co_scientist.models import ExecutionMetrics
+from co_scientist.models import ExecutionMetrics, Hypothesis
 from co_scientist.state import WorkflowState
 
 console = Console()
@@ -17,6 +18,45 @@ DEFAULT_RESEARCH_GOAL = (
     "How can we detect Alzheimer's disease earlier using retinal imaging?"
 )
 DEFAULT_MODEL_NAME = "gemini/gemini-2.5-flash"
+
+
+def truncate(text: str, limit: int) -> str:
+    """Shortens text to a maximum length, appending an ellipsis when cut.
+
+    Args:
+        text: Text to shorten.
+        limit: Maximum number of characters to keep before the ellipsis.
+
+    Returns:
+        The original text, or its first ``limit`` characters plus "..." when
+        it is longer than ``limit``.
+    """
+    return text[:limit] + "..." if len(text) > limit else text
+
+
+def render_hypotheses_table(
+    hypotheses: list[Hypothesis], default_method: str = "standard"
+) -> None:
+    """Prints a Rich table summarizing the generated hypotheses.
+
+    Args:
+        hypotheses: Hypotheses returned by the generate node.
+        default_method: Label to show for a hypothesis with no explicit
+            generation method.
+    """
+    table = Table(title=f"generated hypotheses ({len(hypotheses)} total)")
+    table.add_column("id", style="cyan", width=10)
+    table.add_column("hypothesis", style="white", max_width=60)
+    table.add_column("generation_method", style="yellow", width=20)
+
+    for hyp in hypotheses:
+        table.add_row(
+            hyp.id,
+            truncate(hyp.text, 60),
+            hyp.generation_method or default_method,
+        )
+
+    console.print(table)
 
 
 def make_base_state(

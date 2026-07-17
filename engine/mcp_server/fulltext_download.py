@@ -94,30 +94,20 @@ class _FulltextMixin(_EntrezClient):
             shared_dir.mkdir(parents=True, exist_ok=True)
             fulltext_file = shared_dir / f"{pmc_id}.fulltext.html"
 
-            # Check if already downloaded to shared pool
+            # Reuse the shared-pool copy if present, otherwise download once.
             if fulltext_file.exists():
                 logger.info("Fulltext %s found in shared pool, reusing", pmc_id)
                 with open(fulltext_file, encoding="utf-8") as f:
                     contents = f.read()
+            else:
+                contents = self._download_pmc_fulltext(pmc_id)
+                with open(fulltext_file, "w", encoding="utf-8") as f:
+                    f.write(contents)
+                logger.info(
+                    "Downloaded and saved fulltext %s to shared pool", pmc_id
+                )
 
-                # Create symlink to run directory if needed
-                if run_id:
-                    run_dir = base_dir / "runs" / run_id
-                    run_dir.mkdir(parents=True, exist_ok=True)
-                    _symlink_into_run(run_dir, f"{pmc_id}.fulltext.html")
-
-                return contents
-
-            contents = self._download_pmc_fulltext(pmc_id)
-
-            # Save to shared pool
-            with open(fulltext_file, "w", encoding="utf-8") as f:
-                f.write(contents)
-            logger.info(
-                "Downloaded and saved fulltext %s to shared pool", pmc_id
-            )
-
-            # Create symlink to run directory if run_id provided
+            # Create symlink into the per-run directory if one was requested.
             if run_id:
                 run_dir = base_dir / "runs" / run_id
                 run_dir.mkdir(parents=True, exist_ok=True)

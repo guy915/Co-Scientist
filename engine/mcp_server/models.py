@@ -1,6 +1,6 @@
 """Data models for literature review tools."""
 
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Any
 
 
@@ -37,17 +37,4 @@ class Article:
         Returns:
             Dict with all article fields.
         """
-        return {
-            "title": self.title,
-            "url": self.url,
-            "authors": self.authors,
-            "year": self.year,
-            "venue": self.venue,
-            "citations": self.citations,
-            "abstract": self.abstract,
-            "content": self.content,
-            "source_id": self.source_id,
-            "source": self.source,
-            "pdf_links": self.pdf_links,
-            "used_in_analysis": self.used_in_analysis,
-        }
+        return asdict(self)
