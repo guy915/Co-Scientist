@@ -5,8 +5,10 @@ schema-valid shape of ``offline_acompletion``'s responses for a
 representative set of fail-loud schemas, its determinism contract (byte-
 identical output for identical calls, differing output for differing
 prompts), the idempotency of ``install_offline_router``, and an
-end-to-end run of the real compiled graph through the runtime router with
-no ``litellm.acompletion`` monkeypatching at all.
+end-to-end run of the real compiled graph that answers every call through
+the runtime router rather than ``tests._llm_fake``'s monkeypatch-based
+fake (that test still monkeypatches ``litellm.acompletion``, but only to
+record and prove nothing escapes the router -- not to generate content).
 """
 
 import json
@@ -271,16 +273,37 @@ async def test_install_offline_router_idempotency_does_not_lose_passthrough(
     assert len(calls) == 1
 
 
-async def test_end_to_end_offline_generator_run_yields_hypotheses() -> None:
-    """A real graph run through the runtime router, no acompletion patching.
+async def test_end_to_end_offline_generator_run_yields_hypotheses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real graph run through the runtime router, no fake content path.
 
     Mirrors the shape of ``tests/test_integration_pipeline.py`` but installs
-    only the runtime router (``install_offline_router``), never
-    monkeypatching ``litellm.acompletion`` directly -- the offline model
-    name alone routes every call. MCP is genuinely unavailable in this test
-    environment (no server listening), and literature review is explicitly
-    disabled, so only ``call_llm``/``call_llm_json`` are exercised.
+    only the runtime router (``install_offline_router``); every response is
+    produced by the production ``offline_acompletion``, never by
+    ``tests._llm_fake``'s monkeypatch-based fake. MCP is genuinely
+    unavailable in this test environment (no server listening), and
+    literature review is explicitly disabled, so only
+    ``call_llm``/``call_llm_json`` are exercised -- ``supervisor_model_name``
+    is left unset so it defaults to ``model_name``
+    (``HypothesisGenerator.__init__``), meaning every model name the graph
+    reads from state is the same offline one.
+
+    Before installing the router, ``litellm.acompletion`` is replaced with a
+    recording stub; the router captures it as its passthrough target for
+    any non-offline model. The stub still answers through
+    ``offline_acompletion`` so the run is unaffected if something did leak,
+    but recording every call it receives turns "the run completed" into an
+    actual proof that zero calls escaped the offline router, rather than an
+    assumption resting on ``supervisor_model_name``'s default.
     """
+    escaped_calls: list[dict[str, Any]] = []
+
+    async def _recording_original(**kwargs: Any) -> Any:
+        escaped_calls.append(kwargs)
+        return await offline_llm.offline_acompletion(**kwargs)
+
+    monkeypatch.setattr(litellm, "acompletion", _recording_original)
     offline_llm.install_offline_router()
 
     gen = HypothesisGenerator(
@@ -296,6 +319,11 @@ async def test_end_to_end_offline_generator_run_yields_hypotheses() -> None:
         "Explain how protein X folds",
         opts={"enable_literature_review_node": False},
         stream=False,
+    )
+
+    assert not escaped_calls, (
+        "a call reached the original acompletion instead of being routed "
+        f"to offline_acompletion: {escaped_calls[0].get('model')!r}"
     )
 
     hypotheses = result["hypotheses"]
