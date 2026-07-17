@@ -139,7 +139,14 @@ def _add_create(
     parser = sub.add_parser(
         "create", parents=[common], help="create a draft run from a goal"
     )
-    parser.add_argument("goal", help="the research goal")
+    parser.add_argument(
+        "goal", help="the research goal ('-' reads it from stdin)"
+    )
+    parser.add_argument(
+        "--start",
+        action="store_true",
+        help="immediately start the created run",
+    )
     parser.add_argument(
         "--requirement",
         dest="requirements",
@@ -380,7 +387,9 @@ def _add_runs(
         runs_cmd.handle_steer,
         "queue a steer message",
     )
-    steer_parser.add_argument("message", help="the steering message")
+    steer_parser.add_argument(
+        "message", help="the steering message ('-' reads it from stdin)"
+    )
 
     ask_parser = _add_run_id_command(
         runs_sub,
@@ -389,7 +398,9 @@ def _add_runs(
         runs_cmd.handle_ask,
         "ask a question about a run",
     )
-    ask_parser.add_argument("question", help="the question to ask")
+    ask_parser.add_argument(
+        "question", help="the question to ask ('-' reads it from stdin)"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

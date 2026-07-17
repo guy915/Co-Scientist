@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import importlib
+import io
+import json
 from typing import Any
 
 import httpx
@@ -248,6 +250,108 @@ def test_wait_json_emits_final_run_only(
 
 
 # ---------------------------------------------------------------------------
+# Stdin arguments and create --start
+# ---------------------------------------------------------------------------
+
+
+def _create_args(**overrides: Any) -> argparse.Namespace:
+    base: dict[str, Any] = {
+        "goal": "g",
+        "requirements": None,
+        "attributes": None,
+        "criteria": None,
+        "focus": None,
+        "tier": None,
+        "initial_hypotheses_count": None,
+        "max_iterations": None,
+        "evolution_max_count": None,
+        "k_factor": None,
+        "enable_literature_review": None,
+        "start": False,
+        "json": False,
+    }
+    base.update(overrides)
+    return argparse.Namespace(**base)
+
+
+def test_create_start_flag_creates_then_starts(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    paths: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        paths.append(request.url.path)
+        if request.url.path == "/api/runs":
+            return httpx.Response(200, json={"id": "r9", "status": "draft"})
+        return httpx.Response(200, json={"id": "r9", "status": "running"})
+
+    rc = runs_cmd.handle_create(_create_args(start=True), _client(handler))
+    assert rc == 0
+    assert paths == ["/api/runs", "/api/runs/r9/start"]
+    assert "r9\trunning" in capsys.readouterr().out
+
+
+def test_create_goal_from_stdin(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    goals: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        goals.append(json.loads(request.content)["research_goal"])
+        return httpx.Response(200, json={"id": "r1", "status": "draft"})
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("a long goal\n"))
+    rc = runs_cmd.handle_create(_create_args(goal="-"), _client(handler))
+    assert rc == 0
+    assert goals == ["a long goal"]
+
+
+def test_steer_message_from_stdin(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    contents: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        contents.append(json.loads(request.content)["content"])
+        return httpx.Response(
+            200, json={"id": 1, "status": "queued", "kind": "steer"}
+        )
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("focus on PINK1\n"))
+    args = argparse.Namespace(run_id="r1", message="-", json=False)
+    assert runs_cmd.handle_steer(args, _client(handler)) == 0
+    assert contents == ["focus on PINK1"]
+
+
+def test_ask_question_from_stdin(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    questions: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        questions.append(json.loads(request.content)["question"])
+        return httpx.Response(200, content=b'data: {"type": "done"}\n\n')
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("why?\n"))
+    args = argparse.Namespace(run_id="r1", question="-", json=False)
+    assert runs_cmd.handle_ask(args, _client(handler)) == 0
+    assert questions == ["why?"]
+
+
+def test_empty_stdin_argument_is_an_error(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise AssertionError("no request should be sent")
+
+    monkeypatch.setattr("sys.stdin", io.StringIO("  \n"))
+    args = argparse.Namespace(run_id="r1", message="-", json=False)
+    with pytest.raises(CliError) as excinfo:
+        runs_cmd.handle_steer(args, _client(handler))
+    assert "stdin is empty" in excinfo.value.message
+
+
+# ---------------------------------------------------------------------------
 # Verbose logging and --version
 # ---------------------------------------------------------------------------
 
@@ -288,6 +392,8 @@ def test_parser_wires_new_commands() -> None:
     assert wait_args.handler is runs_cmd.handle_wait
     assert wait_args.interval == 2.0
     assert wait_args.max_wait is None
+    create_args = parser.parse_args(["runs", "create", "goal", "--start"])
+    assert create_args.start is True
     for command, handler in (
         (["runs", "matches", "r1"], runs_cmd.handle_matches),
         (["runs", "proximity", "r1"], runs_cmd.handle_proximity),

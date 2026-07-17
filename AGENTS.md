@@ -128,6 +128,26 @@ Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by t
 
 A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. The `engine_adapter/` package selects between the real engine and `mock_workflow.py` based on configuration and availability.
 
+### CLI (`cosci`)
+
+`app/app/cli/` ships an operator CLI — console script `cosci`, also runnable as `python -m app.cli` — that drives the running API over HTTP. It is the intended way for terminal-based agents to exercise the app without the UI.
+
+Core loop:
+
+```bash
+cosci runs create "goal" --tier express --start   # create (+ start in one step)
+cosci runs wait <id>                              # poll until settled; exit code = outcome
+cosci runs report <id> --md                       # final report as Markdown
+```
+
+- **Commands**: `status`, `config`; `runs list|demo|show|create|start|pause|resume|cancel|watch|wait|steer|ask` plus reads `hypotheses|evidence|reviews|citations|safety|matches|proximity|metrics|claim-evidence`.
+- **Exit codes**: `runs wait` encodes the outcome — 0 completed, 3 failed, 4 blocked, 5 cancelled, 6 paused, 124 `--max-wait` exceeded; every command uses 130 for Ctrl-C and 141 for a broken pipe.
+- **Global flags** (per subcommand): `--api-url` (env `COSCIENTIST_API_URL`), `--client-id` (env `COSCIENTIST_CLIENT_ID` — run listings are scoped by this header, so use a consistent id), `--timeout` (env `COSCIENTIST_TIMEOUT`), `--json` (raw API payloads), `--verbose` (request log on stderr).
+- Text arguments (`create` goal, `steer` message, `ask` question) accept `-` to read from stdin.
+- GETs retry transient failures (connect errors, 502/503/504); POSTs never retry. `runs watch` auto-reconnects a dropped SSE stream from the last seen `seq`.
+
+Tests live in `tests/test_cli_*.py`; `test_cli_commands.py` spins up a real mock-mode uvicorn server, so the whole suite runs offline.
+
 ### Frontend (`frontend/`)
 
 React 19 + Vite 7 + TypeScript + Tailwind v4. Package manager is **Bun**. Linter/formatter is **gts** (Google TypeScript Style: ESLint + Prettier).

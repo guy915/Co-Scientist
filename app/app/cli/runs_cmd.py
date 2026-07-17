@@ -39,6 +39,27 @@ def _run_path(run_id: str, suffix: str = "") -> str:
     return f"/api/runs/{urllib.parse.quote(run_id, safe='')}{suffix}"
 
 
+def _text_arg(value: str, what: str) -> str:
+    """Return a text argument, reading it from stdin when given as ``-``.
+
+    Long goals, steering messages, and questions are awkward to pass through
+    shell quoting; ``-`` lets callers pipe or heredoc them instead.
+
+    Args:
+        value: The raw argument value, possibly the ``-`` sentinel.
+        what: Human-readable description used in the empty-stdin error.
+
+    Raises:
+        CliError: When ``-`` was given but stdin held only whitespace.
+    """
+    if value != "-":
+        return value
+    text = sys.stdin.read().strip()
+    if not text:
+        raise CliError(f"{what} given as '-' but stdin is empty")
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Listing and detail
 # ---------------------------------------------------------------------------
@@ -105,7 +126,8 @@ def handle_show(args: argparse.Namespace, client: ApiClient) -> int:
 
 def _create_body(args: argparse.Namespace) -> dict[str, Any]:
     """Build the create-run request body, omitting unset optional fields."""
-    body: dict[str, Any] = {"research_goal": args.goal}
+    goal = _text_arg(args.goal, "the research goal")
+    body: dict[str, Any] = {"research_goal": goal}
     optional: list[tuple[str, Any]] = [
         ("requirements", args.requirements),
         ("attributes", args.attributes),
@@ -125,16 +147,26 @@ def _create_body(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def handle_create(args: argparse.Namespace, client: ApiClient) -> int:
-    """Create a draft run from a goal and optional config (POST /api/runs)."""
+    """Create a draft run, optionally starting it (POST /api/runs [+/start]).
+
+    With ``--start`` the freshly created run is started in the same
+    invocation and the printed/emitted result is the start response, so the
+    reported status reflects the started run.
+    """
     as_json: bool = args.json
+    start: bool = args.start
     body = client.request_json(
         "POST", "/api/runs", json_body=_create_body(args)
     )
-    if as_json:
-        emit_json(body)
-        return 0
-    print(format_action_line(body))
-    return 0
+    if start:
+        created = expect_object(body, "/api/runs")
+        run_id = str(created.get("id") or "")
+        if not run_id:
+            raise CliError("create response is missing the run id")
+        body = client.request_json(
+            "POST", _run_path(run_id, "/start"), json_body={}
+        )
+    return _emit_action(body, as_json)
 
 
 def handle_start(args: argparse.Namespace, client: ApiClient) -> int:
@@ -452,7 +484,7 @@ def handle_wait(args: argparse.Namespace, client: ApiClient) -> int:
 def handle_steer(args: argparse.Namespace, client: ApiClient) -> int:
     """Queue a user steering message for the next iteration (POST /messages)."""
     run_id: str = args.run_id
-    message: str = args.message
+    message = _text_arg(args.message, "the steering message")
     as_json: bool = args.json
     body = client.request_json(
         "POST",
@@ -566,7 +598,7 @@ def handle_ask(args: argparse.Namespace, client: ApiClient) -> int:
     frame is echoed as one JSON object per line.
     """
     run_id: str = args.run_id
-    question: str = args.question
+    question = _text_arg(args.question, "the question")
     as_json: bool = args.json
     path = _run_path(run_id, "/messages/ask")
     wrote_chunk = False
