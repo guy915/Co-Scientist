@@ -110,6 +110,8 @@ Tasks are mirrored under `[tool.pixi.tasks]` — `pixi run dev` etc. work identi
 | `safety.py` | Intake/final-output screening; the intake gate runs at the shared `run_workflow` boundary and the final gate in the shared `report_render.finalize_report` path, so both are shared across providers |
 | `run_modes.py` | Run tier/focus normalization + durable setup/config resolution |
 | `seed.py` | Startup demo run seeder |
+| `logging_setup.py` | Stdout logging + run-id correlation + persistent capture (root logger -> `app_logs` table via a queue/listener thread) |
+| `logs_api.py` | `GET /api/logs` and the filter/payload logic shared with `GET /api/runs/{id}/logs` |
 
 **Key endpoints**:
 
@@ -126,6 +128,8 @@ Run lifecycle (in `runs.py`, mounted at `/api/runs`) — **primary API used by t
 - `POST /api/runs/{id}/messages` — queue user steering message; `GET` to list.
 - `POST /api/runs/{id}/messages/ask` — Q&A with streaming LLM response (uses `chat_model_name` config).
 
+Persisted logs (`logs_api.py` + `runs.py`): every record reaching the Python root logger is captured into the SQLite `app_logs` table (queue-based handler in `logging_setup.py`; settings `log_capture_enabled` / `log_capture_level` / `log_capture_max_rows`, retention-pruned). `GET /api/logs` serves them app-wide with `after_id`/`limit`/`min_level`/`run_id`/`q` filters and a `last_id` polling cursor; `GET /api/runs/{id}/logs` is the run-scoped view. The workbench Logs popover and `cosci logs` both read these.
+
 A single `HypothesisGenerator` instance is constructed in the `lifespan` startup hook and reused across requests. Per-run overrides (`max_iterations`, `initial_hypotheses_count`, `evolution_max_count`) come from the request body. The `engine_adapter/` package selects between the real engine and `mock_workflow.py` based on configuration and availability.
 
 ### CLI (`cosci`)
@@ -140,7 +144,7 @@ cosci runs wait <id>                              # poll until settled; exit cod
 cosci runs report <id> --md                       # final report as Markdown
 ```
 
-- **Commands**: `status`, `config`; `runs list|demo|show|create|start|pause|resume|cancel|watch|wait|steer|ask` plus reads `hypotheses|evidence|reviews|citations|safety|matches|proximity|metrics|claim-evidence`.
+- **Commands**: `status`, `config`, `logs` (persisted backend logs: `--run`, `--level`, `--grep`, `--follow`); `runs list|demo|show|create|start|pause|resume|cancel|watch|wait|steer|ask` plus reads `hypotheses|evidence|reviews|citations|safety|matches|proximity|metrics|claim-evidence`.
 - **Exit codes**: `runs wait` encodes the outcome — 0 completed, 3 failed, 4 blocked, 5 cancelled, 6 paused, 124 `--max-wait` exceeded; every command uses 130 for Ctrl-C and 141 for a broken pipe.
 - **Global flags** (per subcommand): `--api-url` (env `COSCIENTIST_API_URL`), `--client-id` (env `COSCIENTIST_CLIENT_ID` — run listings are scoped by this header, so use a consistent id), `--timeout` (env `COSCIENTIST_TIMEOUT`), `--json` (raw API payloads), `--verbose` (request log on stderr).
 - Text arguments (`create` goal, `steer` message, `ask` question) accept `-` to read from stdin.

@@ -31,6 +31,8 @@ const apiMock = vi.hoisted(() => {
 
 const systemApiMock = vi.hoisted(() => ({getSystemStatus: vi.fn()}));
 
+const logsApiMock = vi.hoisted(() => ({getAppLogs: vi.fn()}));
+
 // Spread the real module so pure helpers (isActiveStatus, ...) stay real and
 // only the network calls are faked, matching chat_workspace_test_helpers.
 vi.mock('@/api/runs', async importOriginal => ({
@@ -39,6 +41,8 @@ vi.mock('@/api/runs', async importOriginal => ({
 }));
 
 vi.mock('@/api/system', () => systemApiMock);
+
+vi.mock('@/api/logs', () => logsApiMock);
 
 function renderLayout(path = '/') {
   return render(
@@ -83,6 +87,8 @@ describe('Layout', () => {
     ]);
     apiMock.getRunEvents.mockReset();
     apiMock.getRunEvents.mockResolvedValue([]);
+    logsApiMock.getAppLogs.mockReset();
+    logsApiMock.getAppLogs.mockResolvedValue({logs: [], last_id: 0});
     // Engine mode by default so the header status chip stays hidden and
     // pre-existing header assertions are unaffected.
     systemApiMock.getSystemStatus.mockReset();
@@ -404,6 +410,52 @@ describe('Layout', () => {
     expect(
       screen.getByText('No diagnostic events loaded.'),
     ).toBeInTheDocument();
+  });
+
+  it('loads persisted backend logs into the diagnostics popover', async () => {
+    logsApiMock.getAppLogs.mockResolvedValue({
+      logs: [
+        {
+          id: 3,
+          created_at: 1_700_000_000,
+          level: 'ERROR',
+          levelno: 40,
+          logger: 'app.engine_adapter',
+          message: 'workflow exploded',
+          run_id: null,
+          exc_text: null,
+        },
+        {
+          id: 4,
+          created_at: 1_700_000_050,
+          level: 'INFO',
+          levelno: 20,
+          logger: 'app.runs',
+          message: 'run started',
+          run_id: 'run-12345678',
+          exc_text: null,
+        },
+      ],
+      last_id: 4,
+    });
+    renderLayout('/');
+
+    fireEvent.click(screen.getByRole('button', {name: /Logs 0/i}));
+
+    // The popover fetches the app-wide persisted log on open, even with no
+    // run in scope (that is the point: capture is app-wide).
+    await waitFor(() => expect(logsApiMock.getAppLogs).toHaveBeenCalled());
+    expect(await screen.findByText('app.engine_adapter:')).toBeInTheDocument();
+    expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
+    // Records with no run id are attributed to the server itself.
+    expect(screen.getByText('Server')).toBeInTheDocument();
+    expect(screen.getByText('Run run-1234')).toBeInTheDocument();
+    // ERROR-level records count into the Errors chip.
+    expect(screen.getByText('Errors 1')).toBeInTheDocument();
+
+    // Clear drops only session entries; persisted backend logs remain.
+    fireEvent.click(screen.getByRole('button', {name: 'Clear'}));
+    expect(screen.getByText(/workflow exploded/)).toBeInTheDocument();
   });
 
   it('shows the mock-mode status chip when /status reports mock mode', async () => {

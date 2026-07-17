@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react';
+import {getAppLogs, type AppLogRecord} from '@/api/logs';
 import {getRunEvents, type RunEvent} from '@/api/runs';
 import {Icon, type IconName} from '@/components/icon';
 import {copyText} from '@/lib/clipboard';
@@ -11,12 +12,13 @@ type DiagnosticLogLevel = 'info' | 'success' | 'error';
 // One rendered row in the Logs panel; assigned a local monotonic id and
 // formatted timestamp when the underlying event is received (see the
 // `cosci-diagnostic-event` listener in DiagnosticsControl below). Entries
-// come from two sources: ephemeral session events dispatched in-page, and
-// the active run's persisted event log fetched from the API; `source`
-// disambiguates them for stable list keys.
+// come from three sources: ephemeral session events dispatched in-page,
+// the active run's persisted event log, and the app-wide persisted
+// backend log records (both fetched from the API); `source` disambiguates
+// them for stable list keys.
 interface DiagnosticLogEntry {
   id: number;
-  source: 'session' | 'run';
+  source: 'session' | 'run' | 'app';
   time: string;
   run: string;
   stage: string;
@@ -174,6 +176,64 @@ function buildPersistedEntry(
     level: persistedEventLevel(event),
     payload: event.payload,
   };
+}
+
+// WARNING and above read as errors; DEBUG/INFO as info. Backend records
+// have no "success" notion.
+function appLogLevel(record: AppLogRecord): DiagnosticLogLevel {
+  return record.levelno >= 30 ? 'error' : 'info';
+}
+
+// Maps one persisted app_logs record into a rendered log entry. Records
+// with no run id are attributed to the server itself.
+function buildAppLogEntry(record: AppLogRecord): DiagnosticLogEntry {
+  return {
+    id: record.id,
+    source: 'app',
+    time: formatDiagnosticTime(new Date(record.created_at * 1000)),
+    run: record.run_id ? `Run ${record.run_id.slice(0, 8)}` : 'Server',
+    stage: record.logger,
+    level: appLogLevel(record),
+    payload: {
+      level: record.level,
+      message: record.message,
+      ...(record.exc_text ? {exc_text: record.exc_text} : {}),
+    },
+  };
+}
+
+// How often the open popover refreshes the persisted backend log.
+const APP_LOGS_POLL_MS = 5_000;
+
+// Fetches the app-wide persisted backend log while the popover is open
+// (initial load plus a poll), so the panel shows everything the server
+// captured — including records from before this page load and records
+// emitted outside any run context.
+function usePersistedAppLogs(open: boolean): DiagnosticLogEntry[] {
+  const [entries, setEntries] = useState<DiagnosticLogEntry[]>([]);
+
+  useEffect(() => {
+    if (!open) return;
+    let disposed = false;
+    const load = () => {
+      getAppLogs()
+        .then(payload => {
+          if (disposed) return;
+          setEntries(payload.logs.map(buildAppLogEntry));
+        })
+        .catch(() => {
+          if (!disposed) setEntries([]);
+        });
+    };
+    load();
+    const timer = window.setInterval(load, APP_LOGS_POLL_MS);
+    return () => {
+      disposed = true;
+      window.clearInterval(timer);
+    };
+  }, [open]);
+
+  return entries;
 }
 
 // Fetches the active run's persisted event log each time the popover opens,
@@ -335,9 +395,11 @@ export function DiagnosticsControl({
   renderPopover: (children: ReactNode, className: string) => ReactNode;
 }) {
   const {entries, copied, clearLogs, copyLogs} = useDiagnosticLog();
+  const appLogs = usePersistedAppLogs(open);
   const persisted = usePersistedRunEvents(runId, open);
-  // Persisted history first (it predates this session), then live entries.
-  const combined = [...persisted, ...entries];
+  // Persisted history first (backend logs, then the run timeline — both
+  // predate this session), then live session entries.
+  const combined = [...appLogs, ...persisted, ...entries];
   const counts = summarizeDiagnosticEntries(combined);
 
   return (
