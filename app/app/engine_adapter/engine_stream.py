@@ -388,7 +388,9 @@ async def _run_engine_provider(
     yield await _emit_engine_running(run_id, db_path, emit)
 
     initial_opts = _build_engine_opts(cfg, run_id, db_path)
-    generator = _build_generator(generator_cls, cfg)
+    run = store.get_run(run_id, db_path=db_path)
+    offline = run is not None and store.run_used_offline(run)
+    generator = _build_generator(generator_cls, cfg, offline=offline)
     start = time.time()
 
     try:

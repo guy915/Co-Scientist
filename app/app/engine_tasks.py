@@ -352,7 +352,11 @@ def _generator_and_opts(
 ) -> tuple[Any, dict[str, Any]]:
     run = _require_run(task, db_path)
     cfg = resolved_run_config(run.config)
-    generator = _build_generator(_import_hypothesis_generator(), cfg)
+    generator = _build_generator(
+        _import_hypothesis_generator(),
+        cfg,
+        offline=store.run_used_offline(run),
+    )
     return generator, _build_engine_opts(cfg, run.id, db_path)
 
 
@@ -360,7 +364,9 @@ def _generator_for_restore(task: ScientificTask, db_path: str | None) -> Any:
     """Build a registry-compatible generator without consuming steering."""
     run = _require_run(task, db_path)
     return _build_generator(
-        _import_hypothesis_generator(), resolved_run_config(run.config)
+        _import_hypothesis_generator(),
+        resolved_run_config(run.config),
+        offline=store.run_used_offline(run),
     )
 
 

@@ -185,8 +185,11 @@ async def create_run(
         )
 
     # Provider (engine vs mock) is decided at creation from availability;
-    # /start can still override it per run via force_provider.
+    # /start can still override it per run via force_provider. The LLM backend
+    # is recorded separately: the process offline predicate decides whether
+    # this run's science runs against the deterministic offline router.
     provider = engine_adapter.select_provider()
+    llm_backend = "offline" if engine_adapter.offline_mode() else "real"
     config, focus, tier = _build_create_run_config(req)
     if req.notify_on_completion and req.completion_email:
         config["completion_notification"] = {
@@ -204,6 +207,7 @@ async def create_run(
         config=config,
         client_id=client_id(request),
         title=(interview["fields"].get("title") if interview else None),
+        llm_backend=llm_backend,
     )
     # First entry in the run's event log, so replays show creation metadata.
     store.append_event(
@@ -726,10 +730,12 @@ async def get_hypotheses(run_id: str) -> dict[str, Any]:
     # Flag ideas without an evidence-supported claim so the UI can badge them
     # "Unverified" (they are ranked and published under the rank-and-publish
     # policy; only contradicted/unsafe ideas are withheld from the report).
-    # Mock demo runs are illustrative fixtures, not assessed science, so they
-    # are never badged (they carry simulated "insufficient" claim rows that
-    # would otherwise flag every idea).
-    if run.provider == "mock":
+    # Offline-backed runs (mock demos, deterministic offline engine runs) are
+    # illustrative fixtures, not assessed science, so they are never badged
+    # (they carry simulated "insufficient" claim rows that would otherwise
+    # flag every idea). Keyed on the run's persisted backend, not the process
+    # offline_mode(), so a real engine run created while offline is badged.
+    if store.run_used_offline(run):
         for hyp in hyps:
             hyp["unverified"] = False
     else:

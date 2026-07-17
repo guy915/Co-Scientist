@@ -330,6 +330,12 @@ async def run_forever(
     poll_seconds: float = 0.5,
 ) -> None:
     """Continuously execute leased tasks until the process is cancelled."""
+    # The standalone worker runs in its own process without the app lifespan,
+    # so install the offline LLM router here too. Idempotent and a harmless
+    # passthrough for real models (see main.lifespan).
+    from co_scientist.offline_llm import install_offline_router
+
+    install_offline_router()
     while True:
         worked = await run_once(worker_id, db_path=db_path)
         if not worked:

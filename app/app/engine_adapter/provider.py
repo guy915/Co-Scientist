@@ -55,6 +55,23 @@ def _engine_importable() -> bool:
         return False
 
 
+def offline_mode() -> bool:
+    """Return whether this process runs against the offline LLM backend.
+
+    True when offline execution is forced (``COSCIENTIST_FORCE_OFFLINE=1``, or
+    its deprecated alias ``COSCIENTIST_FORCE_MOCK=1``) or when no provider
+    credential is configured. This is a process-level, request-time predicate:
+    use it to decide a *new* run's backend, never to infer a *past* run's
+    backend (use ``store.run_used_offline`` for that -- see the note in
+    ``select_provider``).
+    """
+    if os.getenv("COSCIENTIST_FORCE_OFFLINE") == "1":
+        return True
+    if os.getenv("COSCIENTIST_FORCE_MOCK") == "1":
+        return True  # deprecated alias, retained until the mock is retired
+    return not _has_provider_key()
+
+
 def select_provider() -> str:
     """Return 'mock' or 'engine'. Persisted on the run row."""
     if os.getenv("COSCIENTIST_FORCE_MOCK") == "1":
@@ -77,7 +94,9 @@ def system_status() -> dict[str, Any]:
 
     return {
         "provider": provider,
+        # Deprecated mirror of the mock/engine split; prefer ``llm_backend``.
         "mock_mode": provider == "mock",
+        "llm_backend": "offline" if offline_mode() else "real",
         "has_provider_key": has_key,
         "engine_importable": engine,
         "model_name": settings.model_name,

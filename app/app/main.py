@@ -82,6 +82,13 @@ async def lifespan(
     """Manages FastAPI application startup and shutdown."""
     # Startup
     logger.info("Starting Co-Scientist server...")
+    # Install the deterministic offline LLM router unconditionally. It is a
+    # harmless passthrough for real models -- only ``offline/``-prefixed calls
+    # are answered locally -- so no offline traffic flows until a run requests
+    # the offline backend.
+    from co_scientist.offline_llm import install_offline_router
+
+    install_offline_router()
     logger.info("Model: %s", settings.model_name)
     if settings.tools_config:
         logger.info("Tools config: %s", settings.tools_config)

@@ -187,6 +187,13 @@ def _run_migrations(conn: sqlite3.Connection) -> None:
 
     # Short model-generated session title, distinct from research_goal.
     _add_column_if_missing(conn, "runs", "title", "TEXT")
+    # Per-run LLM backend: 'offline' (deterministic router) or 'real'. Legacy
+    # rows are backfilled from the provider -- the mock was always offline.
+    if _add_column_if_missing(conn, "runs", "llm_backend", "TEXT"):
+        conn.execute(
+            "UPDATE runs SET llm_backend = "
+            "CASE WHEN provider = 'mock' THEN 'offline' ELSE 'real' END"
+        )
     # DB-durable copy of the rendered report, independent of the on-disk file.
     _add_column_if_missing(conn, "reports", "markdown_text", "TEXT")
     # Structured metadata (e.g. Q&A cited sources) alongside message text.
@@ -276,7 +283,8 @@ CREATE TABLE IF NOT EXISTS runs (
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL,
     completed_at REAL,
-    error TEXT
+    error TEXT,
+    llm_backend TEXT                 -- 'offline' | 'real'
 );
 CREATE INDEX IF NOT EXISTS idx_runs_status ON runs(status);
 CREATE INDEX IF NOT EXISTS idx_runs_created ON runs(created_at DESC);

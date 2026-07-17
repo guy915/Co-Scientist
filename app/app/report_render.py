@@ -559,7 +559,15 @@ async def finalize_report(
     # idea was withheld -- contradicted by the evidence or blocked by the safety
     # review -- leaving nothing publishable. Unsupported (but non-contradicted)
     # ideas are published with an "Unverified" badge, so they never reach here.
-    if provider != "mock" and not payload.get("leaderboard"):
+    # Only real-backed runs are hard-blocked: an offline-backed run's
+    # deterministic science is illustrative, never withheld for an empty board.
+    # Keyed on the run's persisted backend (falling back to the provider when
+    # the row is gone), not the process offline_mode().
+    run = store.get_run(run_id, db_path=db_path)
+    offline = (
+        store.run_used_offline(run) if run is not None else provider == "mock"
+    )
+    if not offline and not payload.get("leaderboard"):
         reason = (
             "No hypothesis could be published: every idea was either "
             "contradicted by the evidence or withheld by the safety review."

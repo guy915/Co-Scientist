@@ -57,6 +57,60 @@ def test_select_provider(
     assert provider.select_provider() == expected
 
 
+@pytest.mark.parametrize(
+    ("force_offline", "force_mock", "has_key", "expected"),
+    [
+        (None, None, True, False),
+        (None, None, False, True),
+        ("1", None, True, True),
+        (None, "1", True, True),
+    ],
+    ids=[
+        "real_when_key_present",
+        "offline_when_no_provider_key",
+        "offline_when_force_offline",
+        "offline_when_force_mock_deprecated_alias",
+    ],
+)
+def test_offline_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    force_offline: str | None,
+    force_mock: str | None,
+    has_key: bool,
+    expected: bool,
+) -> None:
+    """``offline_mode`` is forced by either env flag or a missing key."""
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    if force_offline is not None:
+        monkeypatch.setenv("COSCIENTIST_FORCE_OFFLINE", force_offline)
+    if force_mock is not None:
+        monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", force_mock)
+    monkeypatch.setattr(provider, "_has_provider_key", lambda: has_key)
+    assert provider.offline_mode() is expected
+
+
+def test_select_provider_still_returns_mock_when_offline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Task 2 invariant: offline runs still resolve to the mock provider.
+
+    ``select_provider`` is deliberately unchanged this task -- the flip to
+    always-engine happens later -- so an offline process (forced, or keyless)
+    keeps returning ``"mock"`` even though ``offline_mode`` is True.
+    """
+    monkeypatch.delenv("COSCIENTIST_FORCE_OFFLINE", raising=False)
+    monkeypatch.setenv("COSCIENTIST_FORCE_MOCK", "1")
+    assert provider.offline_mode() is True
+    assert provider.select_provider() == "mock"
+
+    # The keyless path is offline too, and likewise still resolves to mock.
+    monkeypatch.delenv("COSCIENTIST_FORCE_MOCK", raising=False)
+    monkeypatch.setattr(provider, "_has_provider_key", lambda: False)
+    assert provider.offline_mode() is True
+    assert provider.select_provider() == "mock"
+
+
 def test_missing_engine_never_substitutes_mock_science(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
